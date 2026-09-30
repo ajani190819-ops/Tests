@@ -18,8 +18,11 @@ Also here:
   stored as-is
 * [`docs/`](docs/) — the roadmap, and the hard-won OrcaSlicer plugin facts
 
-**Working on this repo with an AI assistant?** Read
-[`AGENTS.md`](AGENTS.md) first — it's the rulebook.
+**Working on this repo with an AI assistant?** Point it at
+[`AGENTS.md`](AGENTS.md) (the rulebook) and [`MEMORY.md`](MEMORY.md) (the
+handoff file: where the work stands, what's already decided, what's next).
+Starting a new chat? Those two files are how it picks up where the last one
+left off.
 
 ## Updating your installed plugins (Windows)
 
@@ -84,7 +87,8 @@ prompt does not come back on every update.
   `python3 tests/test_installer.py` fails if you forget.
 * The .bat must stay **CRLF**; `.gitattributes` keeps git from re-normalizing
   it. Don't let an editor convert it.
-* Plans and open questions live in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+* Plans and open questions live in [`docs/ROADMAP.md`](docs/ROADMAP.md);
+  the current state of the work lives in [`MEMORY.md`](MEMORY.md).
 
 ## Verification
 

@@ -1,0 +1,272 @@
+# MEMORY.md — the handoff file. Read this second, right after `AGENTS.md`.
+
+A new chat starts with no memory of the last one. **This file is that memory.**
+It records where the work stands, what was already decided, what was tried, and
+what to do next — so a fresh session can pick up mid-stride instead of
+re-discovering the repo and re-asking questions the owner already answered.
+
+If you are an AI assistant: this file carries the same weight as `AGENTS.md`.
+Read it before touching anything, and **update it before your session ends** —
+§9 is the checklist. A session that changed something and did not update this
+file has left the next session worse off.
+
+* **Last updated:** 2026-09-30 (session 2)
+* **Verified against the repo:** 2026-09-30 — `python3 tests/test_installer.py`
+  passed, `git ls-files --eol Update-Orca-Plugins.bat` says `i/crlf`,
+  `plugins.json` confirmed live on `main`.
+
+---
+
+## 0. Sixty-second orientation
+
+**The project.** One GitHub repo (`ajani190819-ops/Tests`, public) that holds
+two experimental **OrcaSlicer slicing-pipeline plugins**, a **one-click Windows
+updater** that installs them, and some standalone tools. The owner is a
+beginner at Python and at 3D-printing internals — explain plainly, never hide
+a failure (`AGENTS.md` §1).
+
+**Read in this order:**
+
+1. `AGENTS.md` — the rulebook. How to work, and the hard rules that break real
+   users if you ignore them.
+2. `MEMORY.md` — this file. Current state, decisions, next actions.
+3. `docs/ROADMAP.md` — the plan for work C and D, in detail.
+4. `docs/ORCA-PLUGIN-FACTS.md` — OrcaSlicer plugin facts. Binding. Do not
+   re-derive.
+5. `README.md` — the human-facing tour, if you need the user's-eye view.
+
+**One-line status:** the updater is built, tested and **live on `main`**; both
+plugins ship but **neither has ever run in a real OrcaSlicer**; the next real
+work (items C and D) is **blocked on three questions the owner has not answered
+yet** — see §5.
+
+---
+
+## 1. Where things stand right now
+
+| Thing | State |
+| --- | --- |
+| Repo | `ajani190819-ops/Tests`, **public** (must stay public — the updater downloads unauthenticated) |
+| Default branch | `main`, at commit `8f2f6f1` "Recreate the plugin updater + reorganize the repo (PR #1)" |
+| PR #1 | **MERGED** 2026-09-30 22:54 UTC, from branch `arena/01a0f42b-tests` |
+| Updater | `Update-Orca-Plugins.bat`, 486 lines, CRLF, **live** — a user can download it and it works |
+| Catalogue | `plugins.json` — confirmed reachable at `raw.githubusercontent.com/.../main/plugins.json` |
+| Wave Overhangs | v0.0.3, `plugins/wave-overhangs/`, ships, never run in real Orca |
+| Unlayered Infill | v0.2.0, `plugins/unlayered-infill/`, ships, never run in real Orca |
+| Contract test | `python3 tests/test_installer.py` → **passing** |
+| CI | **None.** See the known gap in §3. |
+| Work C (Wave Overhangs post-processing script) | not started — blocked on C1, C2 |
+| Work D (make Unlayered Infill actually work) | not started — blocked on D1 |
+
+**What changed most recently and matters:** PR #1 merging flipped the updater
+from "would 404" to "actually works". Before the merge, `main` had no
+`plugins.json` and no plugin files, so a downloaded .bat fell back to its
+hardcoded list. Now the catalogue path is the live one. `docs/ROADMAP.md`
+still had the pre-merge caveat; it has been corrected.
+
+---
+
+## 2. Facts that are already written down — do not re-derive them
+
+Two files exist specifically so nobody has to learn these twice. Read them;
+do not contradict them; if you think one is wrong, prove it on a real
+OrcaSlicer build first and then update the file with the evidence.
+
+* **`docs/ORCA-PLUGIN-FACTS.md`** — how OrcaSlicer's plugin system really
+  behaves. The expensive ones: there is only **one** preset field (Others →
+  Slicing Pipeline Plugin); `post_process_plugin` does not exist and reading it
+  once bricked a plugin; the export step can run **twice**, so G-code
+  transforms must be idempotent; the audit hook blocks lazy imports inside a
+  capability, so import third-party deps at module load.
+* **`AGENTS.md` §4** — the nine hard rules. The ones easiest to break by
+  accident: the .bat must stay **CRLF** (never write it with a tool that
+  converts line endings); a version bump is **three edits in lockstep**
+  (PEP 723 header + `plugins.json` + the .bat's fallback list); no
+  `|`, `^`, `%`, `!` in any catalogue field; never touch
+  `keyboard-lighting/`; keep the GPL-3.0 attribution on Unlayered Infill and
+  `tools/nonplanar-infill-tool`.
+
+---
+
+## 3. The honesty ledger — proven vs. not proven
+
+Keep this distinction visible in every report. It is the thing most likely to
+get quietly lost between sessions.
+
+**Verified (by something that actually ran):**
+
+* The catalogue, the .bat's fallback list, and the shipped plugin files all
+  agree — `tests/test_installer.py`, which also replays the install loop
+  (first run installs, second overwrites, sibling copies refresh,
+  `_subscribed` cloud copies are left alone, `PLUGIN_ONLY` narrows the plan).
+* The .bat keeps CRLF in the git blob, so the raw download is valid on
+  Windows.
+* The plan round-trip: catalogue → PowerShell plan lines → the .bat's
+  `for /f` tokenization. This simulation caught a real bug in session 1
+  (`tokens=2` parsed the word `version` instead of `0.0.3`).
+* The engine inside Unlayered Infill has six test-pinned fixes over the
+  reference tool it came from.
+* `tools/nonplanar-infill-tool` — **the owner ran this successfully**,
+  retroactively, on real exported G-code from their own slicer. This is the
+  only piece of the whole project with real-world evidence behind it.
+
+**Not proven — say so every time:**
+
+* **Nothing in `plugins/` has ever run inside a real OrcaSlicer.** Every test
+  is against a fake harness. The first real slice is the real test; the
+  traceback would land in `data_dir()/log/python_*.log`.
+* The .bat has never been executed. There is no Windows in the sandbox. It was
+  audited statically and simulated, not run.
+* Wave Overhangs' object→bed XY mapping (`_bed_offset`) is unvalidated.
+* Tuning defaults (`amplitude=-0.2`, `frequency=1.5`, `cell_mm=0.6`) are
+  guesses, untested on hardware.
+* Wave Overhangs is `sin(f·x)` only — invariant along Y. Ridges, not a
+  lattice.
+
+**Known gap — CI was never set up.** Session 1 wrote a GitHub Actions workflow
+to run the contract test on every PR, but the push token was not allowed to
+create files under `.github/workflows/`, so it never landed. There is no
+`.github/` directory in the repo today. The workflow body is in the PR #1
+description if someone wants to paste it in through the GitHub web UI — note
+it references the old path `test_installer.py`, which is now
+`tests/test_installer.py`.
+
+---
+
+## 4. Decisions already made — do not reopen these
+
+* **This repo is the updater's download source.** The old chain is dead:
+  Support Fins was superseded by an official cloud plugin (source stays in
+  `ajani190819-ops/support-fins`, do not resurrect it here), and the
+  `orca-plugins` repo no longer exists on GitHub.
+* **The updater is a `.bat`, downloaded once into `Downloads` and
+  double-clicked.** No Python, Node or Git required on the user's machine.
+* **No signed `.exe` installer.** It would remove Windows' "Unknown Publisher"
+  prompt, but costs a yearly code-signing certificate and a packaging
+  pipeline. The one-time "Unblock" checkbox is good enough. Revisit only if
+  this project ever grows up.
+* **Version is read from the downloaded file's PEP 723 header**, so the
+  sidecar can never record a wrong version. The catalogue/fallback pair the
+  test guards is now a display-and-fallback concern only.
+* **Wave Overhangs will not carve until the splice is proven** — carving
+  without the splice leaves a hole in the part. First slice after a fresh
+  install never carves. That is intended, not a bug.
+* **`keyboard-lighting/` is storage, not a project.** Unrelated personal code,
+  parked here. Do not reorganize, review, lint or "fix" it.
+
+---
+
+## 5. Waiting on the owner — the three blocking questions
+
+Work C and D cannot sensibly start until these are answered. Full context is
+in `docs/ROADMAP.md`; the short forms:
+
+| # | Question | Options | Recommendation |
+| --- | --- | --- | --- |
+| **C1** | Do the pipeline-plugin versions stay, once standalone scripts exist? | (a) keep both, sharing one engine · (b) standalone only, retire the plugins · (c) plugin only | **(a)** — the plugin auto-runs when it works, the script always works |
+| **C2** | In the wave region: replace the slicer's own extrusions, or add waves on top of them? | replace (matches the upstream fork, no double material, harder G-code surgery) · reinforce (safer surgery, double material, likely blobs) | **replace**, with `--reinforce` offered as a mode |
+| **D1** | What actually happened when Unlayered Infill was tried in OrcaSlicer? | never showed up in Orca · ran but the G-code looked unchanged · something else · never actually tried | no default — this is a fact only the owner has |
+
+**D1 is the highest-value one.** The whole of work D is a guess until someone
+says what the symptom was. "Never actually tried" is a perfectly good answer
+and changes the plan completely.
+
+---
+
+## 6. Next actions, in priority order
+
+1. **Ask the owner C1, C2 and D1** (batched, one round, with the
+   recommendations above). Record the answers in §4 of this file as decisions.
+2. **Work D — Unlayered Infill** — ship
+   `plugins/unlayered-infill/unlayered_infill_post.py`: the existing engine
+   wrapped in the reference tool's proven UX (double-click window, CLI,
+   `--inplace`, never overwrite the input, refuse absolute E, report what it
+   did). Fastest credible path to "it actually works", because it does not
+   depend on the plugin system at all.
+3. **Work C — Wave Overhangs** — ship
+   `plugins/wave-overhangs/wave_overhangs_post.py` the same way: rebuild each
+   layer's footprint from the G-code, feed `wave_core`, splice the wave moves
+   back in. This also deletes the unvalidated `_bed_offset` problem, because
+   G-code is already in bed coordinates.
+4. **Get CI in place** (see §3) — small, and it protects the contract test.
+5. **First real slice on real OrcaSlicer**, whenever the owner is at the
+   machine. That is the only test that counts.
+
+---
+
+## 7. Environment notes (this sandbox)
+
+* **No Windows, no OrcaSlicer, no 3D printer here.** The .bat cannot be
+  executed; plugins cannot be loaded. Everything is static analysis,
+  simulation, and the fake harness.
+* `git` and `gh` are authenticated and work. Pushing `.github/workflows/*`
+  has failed before (token scope) — expect it to fail again.
+* Plain `curl` to `raw.githubusercontent.com` returns `000` (no direct egress).
+  Use `gh api` or the agent's page-fetch tool to check what is live on `main`.
+* Verification commands:
+
+  ```bash
+  python3 tests/test_installer.py            # catalogue / .bat / files agree
+  git ls-files --eol Update-Orca-Plugins.bat # must say i/crlf
+  ```
+
+* **Branch names change every session.** Arena hands each chat a fresh
+  `arena/<id>-tests` branch, and all work goes on the one you were given —
+  never `main`, never a branch you invent. The branch history so far is in §8;
+  do not trust a branch name hardcoded in any doc.
+
+---
+
+## 8. Session log — newest first
+
+Append one entry per session. Keep entries short: what happened, what landed,
+what was verified, what was left undone.
+
+### Session 2 — 2026-09-30 — branch `arena/01a0f48b-tests`
+
+* **Asked for:** a memory file, like `AGENTS.md` but for picking up the thread
+  in a new chat after merging.
+* **Landed:** this file (`MEMORY.md`), linked from `AGENTS.md` and
+  `README.md`; corrected `docs/ROADMAP.md`, which still claimed PR #1 was
+  unmerged and the updater not yet live; generalized the hardcoded session
+  branch name in `AGENTS.md` §4 rule 8 (it named session 1's branch).
+* **Verified:** `python3 tests/test_installer.py` passes; `git ls-files --eol`
+  still reports `i/crlf` for the .bat; PR #1 confirmed MERGED via `gh`;
+  `plugins.json` confirmed served from `main`.
+* **Not done:** no code touched, C1/C2/D1 still unanswered, still no CI.
+
+### Session 1 — 2026-09-30 — branch `arena/01a0f42b-tests` → PR #1, merged
+
+* **Landed:** recreated `Update-Orca-Plugins.bat` (one-click Windows updater)
+  pointed at this repo; added `plugins.json`, `tests/test_installer.py`,
+  `.gitattributes` (`*.bat -text`); reorganized the repo into `plugins/`,
+  `tools/`, `tests/`, `docs/`; wrote `AGENTS.md`, `README.md`,
+  `docs/ORCA-PLUGIN-FACTS.md`, `docs/ROADMAP.md`.
+* **Verified:** contract test passing; static audit of the .bat (every
+  `goto`/`call` label resolves, PowerShell line is batch-safe, no
+  read-after-set inside parenthesised blocks); both `for /f` tokenizations
+  simulated — **caught a real bug** (`tokens=2` → `tokens=3`); the contract
+  test was mutation-tested; CRLF confirmed in the git blob.
+* **Not done:** CI workflow blocked by token scope; nothing run on Windows or
+  in a real OrcaSlicer.
+
+---
+
+## 9. End-of-session checklist — how to leave this file
+
+Before you finish a session in which anything changed, do all of these:
+
+1. **Update the header** — "Last updated" date, and what you actually verified.
+2. **Update §1** if the state of the world moved (a PR opened or merged, a
+   version bumped, a test started failing).
+3. **Move anything you proved** from the "not proven" list in §3 into
+   "verified" — and add anything newly known to be broken.
+4. **Record answered questions** — an answer from the owner becomes a decision
+   in §4, and comes out of §5.
+5. **Re-cut §6** so the top item is genuinely the next thing to do.
+6. **Add a session-log entry in §8** — what happened, what landed, what was
+   verified, what was left. Be honest about the "left undone" line; it is the
+   most useful line in the file.
+7. **Mirror plans into `docs/ROADMAP.md`.** This file is the state; the
+   roadmap is the plan. Neither should contradict the other.
+8. **Re-run the checks** in §7 and paste the real result, not a remembered one.

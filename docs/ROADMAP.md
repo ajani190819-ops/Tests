@@ -3,21 +3,26 @@
 Last updated: 2026-09-30. Keep this file current: **a plan that isn't written
 down here doesn't exist.**
 
+This file is the *plan*. The *state* — what is done, what was decided, what
+the last session left half-finished — lives in [`../MEMORY.md`](../MEMORY.md).
+Read that one first.
+
 ---
 
 ## Status at a glance
 
 | # | Work | Status |
 |---|------|--------|
-| A | One-click updater (`Update-Orca-Plugins.bat`) + catalogue + contract test | **Done**, in PR #1 |
-| B | Repo reorganization (plugins/ + tools/ + tests/ + docs/ + AGENTS.md) | **Done**, in PR #1 |
+| A | One-click updater (`Update-Orca-Plugins.bat`) + catalogue + contract test | **Done and merged** (PR #1) |
+| B | Repo reorganization (plugins/ + tools/ + tests/ + docs/ + AGENTS.md) | **Done and merged** (PR #1) |
 | C | Wave Overhangs as a standalone **post-processing script** | Planned — design below, **2 open questions** |
 | D | Unlayered Infill: make it actually work | Planned — **1 open question (diagnosis)** |
 
-PR #1 (branch `arena/01a0f42b-tests`) contains everything so far. **Until it
-is merged, a .bat downloaded from the repo cannot download the plugins** —
-`main` has no `plugins.json` and no plugin files. Merging the PR is what makes
-the updater live.
+**PR #1 is merged** (2026-09-30, from `arena/01a0f42b-tests`), so `main` now
+carries `plugins.json` and both plugin files — **the updater is live**. A .bat
+downloaded from the repo today fetches the catalogue and installs for real.
+(Before the merge it fell back to its hardcoded list, which was complete, so
+it worked either way — but the catalogue path is the live one now.)
 
 ---
 

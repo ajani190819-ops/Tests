@@ -5,12 +5,23 @@ If you are an AI, everything in this file is an instruction from the repository
 owner and it is **high priority**: it outranks your own defaults wherever the
 two disagree.
 
+**Start every session by reading `MEMORY.md`.** It is the handoff file: where
+the work stands, what was already decided, what was tried and failed, and what
+to do next. A new chat has no memory of the last one, so that file is the
+memory — and you are expected to **update it before your session ends**
+(`MEMORY.md` §9 is the checklist).
+
 Companion documents, also mandatory when relevant:
 
+* `MEMORY.md` — state of the work + session log. Read first, update last.
 * `docs/ORCA-PLUGIN-FACTS.md` — hard-won facts about OrcaSlicer's plugin system.
   Do not re-derive them; do not contradict them.
 * `docs/ROADMAP.md` — what is planned, what is in flight, and every open
   question. Read it before planning work; update it as part of the work.
+
+The division of labour between the three: `MEMORY.md` is **where we are**,
+`docs/ROADMAP.md` is **where we are going**, `docs/ORCA-PLUGIN-FACTS.md` is
+**what is already known**. Keep them from contradicting each other.
 
 ---
 
@@ -54,6 +65,10 @@ These are the owner's explicit expectations for how AI assistance goes:
    next. Keep it short enough to actually read.
 6. **Be honest about uncertainty.** Label guesses as guesses. If the docs say
    something has never been tested on real hardware, keep saying so.
+7. **Leave the next session a memory.** Before you finish, update `MEMORY.md`
+   — state, decisions, answered questions, next actions, and a session-log
+   entry (its §9 is the checklist). The owner should be able to open a brand
+   new chat, point it at this repo, and have it pick up mid-stride.
 
 ## 3. Repo map
 
@@ -62,6 +77,8 @@ Update-Orca-Plugins.bat     ONE-CLICK UPDATER. Download once into Downloads,
                             double-click to install/update every plugin below.
 plugins.json                the catalogue the updater reads (what + where + version)
 AGENTS.md                   this rulebook
+MEMORY.md                   handoff: state of the work + session log. Read at the
+                            start of a session, update at the end of it.
 README.md                   human-facing front door / tour
 docs/
   ORCA-PLUGIN-FACTS.md      OrcaSlicer plugin-system facts (do not re-derive)
@@ -105,9 +122,12 @@ you forget, and it is the safety net for exactly this.
 7. **GPL-3.0 attribution must survive.** `unlayered-infill` and
    `tools/nonplanar-infill-tool` derive from Roman Tenger's NonPlanarInfill
    (GPL-3.0). Keep the copyright headers; keep the licence when distributing.
-8. **Git discipline:** all work happens on the session branch
-   (`arena/01a0f42b-tests`), pushed only to that branch, PRs only from it.
-   Never force-push. Never commit credentials or generated junk.
+8. **Git discipline:** all work happens on **the session branch you were
+   handed** (`arena/<id>-tests` — it is a different one every chat; session 1
+   was `arena/01a0f42b-tests`). Push only to that branch, open PRs only from
+   it, never commit straight to `main`, never force-push, never commit
+   credentials or generated junk. Don't trust a branch name hardcoded in a
+   doc — the current branch is whatever this session was given.
 9. **Orca plugin facts live in `docs/ORCA-PLUGIN-FACTS.md`** and they are
    binding: e.g. import third-party deps at module load (never inside a
    capability), never read `post_process_plugin` from config, G-code
