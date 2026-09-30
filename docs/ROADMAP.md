@@ -138,3 +138,7 @@ script can't lean on Orca's dependency installer).
   `ajani190819-ops/support-fins`. Do not resurrect here.
 * `keyboard-lighting/` — stored as-is, not part of the Orca work.
 * Anything requiring a private repo or authenticated downloads.
+* A signed .exe installer (would remove the "Unknown Publisher" prompt
+  entirely) — costs a yearly code-signing certificate and a packaging
+  pipeline; the .bat + one-time "Unblock" is good enough. Revisit only if
+  this ever grows up.

@@ -35,6 +35,11 @@ rem
 rem  This file must keep CRLF line endings. *.bat -text in .gitattributes
 rem  keeps git from re-normalising them; do not let an editor (or Python's
 rem  Path.write_text) convert them to LF.
+rem
+rem  Windows shows an "Unknown Publisher" prompt the first time a
+rem  downloaded .bat runs. That is expected for every .bat on the
+rem  internet, not a warning about this one; right-click the file,
+rem  Properties, tick Unblock, and it never appears again.
 rem ===========================================================================
 
 title OrcaSlicer plugin updater  --  Wave Overhangs + Unlayered Infill
@@ -460,6 +465,10 @@ echo.
 echo   Restart OrcaSlicer afterwards; each plugin appears in File ^> Plugins
 echo   with two capabilities, and is selected per process preset under
 echo   Others ^> Slicing Pipeline Plugin.
+echo.
+echo   First run may show an "Unknown Publisher" prompt; that is Windows
+echo   flagging any downloaded .bat. Right-click this file, Properties,
+echo   tick Unblock, and it never appears again.
 exit /b 0
 
 :fail

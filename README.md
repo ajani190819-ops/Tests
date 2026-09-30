@@ -47,6 +47,25 @@ Update-Orca-Plugins.bat [data_dir] [--local] [--help]
 **The repo must stay public**: the updater makes unauthenticated
 raw.githubusercontent.com requests; a private repo 404s on every file.
 
+### Windows says "Unknown Publisher" — expected, and one-time
+
+The first double-click shows a security prompt because the .bat was
+downloaded from the internet and we are not a company with a code-signing
+certificate (batch files can't even carry one — there's nowhere in the
+format to put a signature). It is not a warning about this file in
+particular; Windows shows it for every downloaded .bat on earth.
+
+To make it never appear again:
+
+1. Right-click `Update-Orca-Plugins.bat` → **Properties**.
+2. On the General tab, tick **Unblock** at the bottom → **OK**.
+
+(Or in PowerShell:
+`Unblock-File "$env:USERPROFILE\Downloads\Update-Orca-Plugins.bat"`.)
+
+You only download the .bat once — plugin updates flow through it, so the
+prompt does not come back on every update.
+
 ## After installing
 
 1. Restart OrcaSlicer (needs newer than 2.4.2, or a nightly).
