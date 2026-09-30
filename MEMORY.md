@@ -36,9 +36,10 @@ a failure (`AGENTS.md` §1).
 5. `README.md` — the human-facing tour, if you need the user's-eye view.
 
 **One-line status:** the updater is built, tested and **live on `main`**; both
-plugins ship but **neither has ever run in a real OrcaSlicer**; the next real
-work (items C and D) is **blocked on three questions the owner has not answered
-yet** — see §5.
+plugins ship but **neither has ever run in a real OrcaSlicer**; the design
+questions for the next two work items are settled (§4), and the only thing
+still owed by the owner is the detail of how Unlayered Infill failed (§5) —
+which does not block starting.
 
 ---
 
@@ -55,8 +56,8 @@ yet** — see §5.
 | Unlayered Infill | v0.2.0, `plugins/unlayered-infill/`, ships, never run in real Orca |
 | Contract test | `python3 tests/test_installer.py` → **passing** |
 | CI | **None.** See the known gap in §3. |
-| Work C (Wave Overhangs post-processing script) | not started — blocked on C1, C2 |
-| Work D (make Unlayered Infill actually work) | not started — blocked on D1 |
+| Work C (Wave Overhangs post-processing script) | not started — **unblocked**, design settled (C1 + C2 answered) |
+| Work D (make Unlayered Infill actually work) | not started — can start; one diagnostic detail still owed (D1) |
 
 **What changed most recently and matters:** PR #1 merging flipped the updater
 from "would 404" to "actually works". Before the merge, `main` had no
@@ -153,41 +154,66 @@ it references the old path `test_installer.py`, which is now
   install never carves. That is intended, not a bug.
 * **`keyboard-lighting/` is storage, not a project.** Unrelated personal code,
   parked here. Do not reorganize, review, lint or "fix" it.
+* **Both form factors stay — plugin *and* standalone script, sharing one
+  engine.** (Owner's answer to C1, 2026-09-30.) The pipeline plugin auto-runs
+  inside Orca when it works; the standalone script always works, on any Orca
+  version. An engine fix must therefore land in both, so the engine stays a
+  separate, front-end-agnostic module. Do not retire the plugins.
+* **In the wave region, the waves REPLACE the slicer's own extrusions.**
+  (Owner's answer to C2, 2026-09-30.) This matches the upstream
+  WaveOverhangs fork: no double material, at the cost of careful G-code
+  surgery — the slicer's infill/perimeter moves inside the wave-covered area
+  have to come out. A safer "add waves on top" mode was offered and **not**
+  chosen; do not build a `--reinforce` flag unless the owner asks for it.
 
 ---
 
-## 5. Waiting on the owner — the three blocking questions
+## 5. Waiting on the owner
 
-Work C and D cannot sensibly start until these are answered. Full context is
-in `docs/ROADMAP.md`; the short forms:
+C1 and C2 were answered on 2026-09-30 and have moved to §4 as decisions. One
+question is still open.
 
-| # | Question | Options | Recommendation |
-| --- | --- | --- | --- |
-| **C1** | Do the pipeline-plugin versions stay, once standalone scripts exist? | (a) keep both, sharing one engine · (b) standalone only, retire the plugins · (c) plugin only | **(a)** — the plugin auto-runs when it works, the script always works |
-| **C2** | In the wave region: replace the slicer's own extrusions, or add waves on top of them? | replace (matches the upstream fork, no double material, harder G-code surgery) · reinforce (safer surgery, double material, likely blobs) | **replace**, with `--reinforce` offered as a mode |
-| **D1** | What actually happened when Unlayered Infill was tried in OrcaSlicer? | never showed up in Orca · ran but the G-code looked unchanged · something else · never actually tried | no default — this is a fact only the owner has |
+**D1 — what actually happened when Unlayered Infill was tried in
+OrcaSlicer?** Asked 2026-09-30. The owner answered **"something else"** —
+which rules out three of the four possibilities, so we do know this much:
 
-**D1 is the highest-value one.** The whole of work D is a guess until someone
-says what the symptom was. "Never actually tried" is a perfectly good answer
-and changes the plan completely.
+* it was **not** "never actually tried" — it *was* tried;
+* it did **not** simply fail to show up in Orca;
+* it did **not** run quietly and leave the G-code unchanged.
+
+So something more specific happened — an error message, a crash, a refusal,
+mangled G-code, a missing dropdown entry, a dependency install that failed.
+**The detail has not been given yet. Ask for it before planning work D**, and
+ask in concrete terms: what was on screen, at what point (install / restart /
+slice / export), and whether `data_dir()/log/python_*.log` has a traceback in
+it. If the owner cannot remember, the cheapest path is to reinstall with the
+updater, slice something small, and read that log.
+
+Do not invent a diagnosis to fill this gap. Work D's plan (§6) is deliberately
+written so that step 1 does not depend on knowing the answer.
 
 ---
 
 ## 6. Next actions, in priority order
 
-1. **Ask the owner C1, C2 and D1** (batched, one round, with the
-   recommendations above). Record the answers in §4 of this file as decisions.
+1. **Get the D1 detail** (§5) — one question, asked concretely. It is cheap
+   and it decides how much of work D is a bug hunt versus a rewrite. Do not
+   block step 2 on it.
 2. **Work D — Unlayered Infill** — ship
    `plugins/unlayered-infill/unlayered_infill_post.py`: the existing engine
    wrapped in the reference tool's proven UX (double-click window, CLI,
    `--inplace`, never overwrite the input, refuse absolute E, report what it
    did). Fastest credible path to "it actually works", because it does not
-   depend on the plugin system at all.
-3. **Work C — Wave Overhangs** — ship
-   `plugins/wave-overhangs/wave_overhangs_post.py` the same way: rebuild each
-   layer's footprint from the G-code, feed `wave_core`, splice the wave moves
-   back in. This also deletes the unvalidated `_bed_offset` problem, because
-   G-code is already in bed coordinates.
+   depend on the plugin system at all — which is why it is safe to start
+   before D1 is answered. Per the C1 decision, the plugin version stays and
+   shares the engine.
+3. **Work C — Wave Overhangs** — design is now settled (C1 + C2 answered), so
+   this is unblocked. Ship `plugins/wave-overhangs/wave_overhangs_post.py`:
+   rebuild each layer's footprint from the G-code, feed `wave_core`, splice
+   the wave moves back in, and **remove** the slicer's own extrusions inside
+   the wave region (C2). This also deletes the unvalidated `_bed_offset`
+   problem, because G-code is already in bed coordinates. Keep the pipeline
+   plugin alongside it (C1).
 4. **Get CI in place** (see §3) — small, and it protects the contract test.
 5. **First real slice on real OrcaSlicer**, whenever the owner is at the
    machine. That is the only test that counts.
@@ -230,10 +256,17 @@ what was verified, what was left undone.
   `README.md`; corrected `docs/ROADMAP.md`, which still claimed PR #1 was
   unmerged and the updater not yet live; generalized the hardcoded session
   branch name in `AGENTS.md` §4 rule 8 (it named session 1's branch).
+* **Answers obtained from the owner:** **C1 → keep both** the plugin and the
+  standalone script, sharing one engine. **C2 → replace** the slicer's
+  extrusions in the wave region (the `--reinforce` escape hatch was offered
+  and declined). Both are now decisions in §4, and work C is unblocked.
+  **D1 → "something else"** — it *was* tried, and the failure was not "didn't
+  show up" and not "silently did nothing"; the specifics are still owed
+  (§5).
 * **Verified:** `python3 tests/test_installer.py` passes; `git ls-files --eol`
   still reports `i/crlf` for the .bat; PR #1 confirmed MERGED via `gh`;
   `plugins.json` confirmed served from `main`.
-* **Not done:** no code touched, C1/C2/D1 still unanswered, still no CI.
+* **Not done:** no code touched, D1's detail still missing, still no CI.
 
 ### Session 1 — 2026-09-30 — branch `arena/01a0f42b-tests` → PR #1, merged
 

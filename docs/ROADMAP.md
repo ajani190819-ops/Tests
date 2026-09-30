@@ -15,8 +15,8 @@ Read that one first.
 |---|------|--------|
 | A | One-click updater (`Update-Orca-Plugins.bat`) + catalogue + contract test | **Done and merged** (PR #1) |
 | B | Repo reorganization (plugins/ + tools/ + tests/ + docs/ + AGENTS.md) | **Done and merged** (PR #1) |
-| C | Wave Overhangs as a standalone **post-processing script** | Planned — design below, **2 open questions** |
-| D | Unlayered Infill: make it actually work | Planned — **1 open question (diagnosis)** |
+| C | Wave Overhangs as a standalone **post-processing script** | Planned — **design settled 2026-09-30, unblocked** |
+| D | Unlayered Infill: make it actually work | Planned — can start; **diagnostic detail still owed** |
 
 **PR #1 is merged** (2026-09-30, from `arena/01a0f42b-tests`), so `main` now
 carries `plugins.json` and both plugin files — **the updater is live**. A .bat
@@ -60,7 +60,7 @@ thermal contraction, shape-memory effects, nozzle pressure on large spans.
 Waves are for *small, self-contained* overhangs; big cantilevers still need
 supports. PLA works best.
 
-### Our plan (pending the two open questions below)
+### Our plan (design settled — see the answered questions below)
 
 Our existing plugin already ports steps 1–5 as a pure-geometry module
 (`wave_core`, shapely, no Orca bindings). What it does NOT have is a way to
@@ -78,8 +78,8 @@ A **standalone post-processing script** (same shape as
 3. Splice the wave moves into the G-code at the end of each layer, with the
    fork's speed/fan/flow/retraction treatment. Idempotent stamp, like the
    unlayered engine.
-4. Decide what happens to the slicer's own extrusions inside the overhang
-   region (see open question C2).
+4. **Remove** the slicer's own extrusions inside the wave-covered region, so
+   the waves are not printed on top of ordinary infill (decision C2 below).
 5. Ship as `plugins/wave-overhangs/wave_overhangs_post.py`: double-click
    window mode, CLI mode, and `--inplace` for Orca's *Post-processing
    scripts* setting so it can run automatically on every export.
@@ -88,17 +88,20 @@ Dependency: shapely (+ numpy). The script will check for it and print a
 plain-English `pip install shapely` instruction if missing (a standalone
 script can't lean on Orca's dependency installer).
 
-### Open questions
+### Answered — these are decided, do not reopen (owner, 2026-09-30)
 
-* **C1 — do the pipeline-plugin versions stay?**
-  (a) keep both forms sharing one engine [recommended: the plugin auto-runs
-  when it works, the script always works], (b) standalone only, retire the
-  plugin, (c) plugin only.
-* **C2 — replace or reinforce?** The fork *replaces* the slicer's infill
-  inside the wave region (no double material; needs careful G-code surgery).
-  The alternative is adding waves on top of whatever the slicer printed
-  (safer surgery, double material in the overhang, likely blobs).
-  Recommended: replace, matching the fork; offer `--reinforce` as a mode.
+* **C1 — do the pipeline-plugin versions stay? → YES, keep both forms**,
+  sharing one engine. The plugin auto-runs inside Orca when it works; the
+  script always works on any Orca version. Consequence: the engine stays a
+  separate, front-end-agnostic module so one fix lands in both, and no
+  plugin gets retired.
+* **C2 — replace or reinforce? → REPLACE**, matching the fork. The slicer's
+  own infill/perimeter moves inside the wave-covered region come out of the
+  G-code, so there is no double material. That means careful surgery: find
+  the extrusions whose footprint falls inside the wave region for that layer
+  and drop them, keeping the `wave_overhang_outer_perimeters` perimeters
+  inside the overhang. A "waves on top" mode was offered and **declined** —
+  do not build `--reinforce` unless asked.
 
 ---
 
@@ -133,7 +136,15 @@ script can't lean on Orca's dependency installer).
 
 ### Open question
 
-* **D1 — the symptom** (see above), and same form-factor question as C1.
+* **D1 — the symptom.** Asked 2026-09-30; the owner answered **"something
+  else"**. So it *was* tried, it did *not* simply fail to appear in Orca, and
+  it did *not* run quietly leaving the G-code unchanged — something more
+  specific went wrong, and we still need the specifics: what was on screen,
+  at which point (install / restart / slice / export), and whether
+  `data_dir()/log/python_*.log` holds a traceback. Ask before planning the
+  bug hunt; step 2 above does not depend on the answer.
+* The form-factor question is settled: **C1 applies here too — keep both the
+  plugin and the standalone script, sharing one engine.**
 
 ---
 
