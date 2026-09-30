@@ -1,2 +1,7 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# The updater .bat must keep its CRLF line endings in the git blob: users
+# download it straight from raw.githubusercontent.com, where `* text=auto`
+# would serve it LF-only. -text stores it verbatim.
+*.bat -text
