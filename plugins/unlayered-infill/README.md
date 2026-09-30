@@ -66,10 +66,33 @@ six test-pinned ways: extrusion attached to the right move, no duplicated
 points (no blobs), Z restored on exit, Orca's skin markers recognized, taper
 can't invert above the topmost solid, and per-column bracketing.
 
-## Planned
+## Standalone version
 
-A standalone **post-processing script** version wrapping this same engine —
-see `docs/ROADMAP.md` §D.
+`unlayered_infill_post.py` (in this folder) runs the **same engine** on an
+already-exported `.gcode` file, with no plugin system involved. Double-click
+it for a window, or:
+
+```
+python unlayered_infill_post.py part.gcode          # writes part_unlayered.gcode
+python unlayered_infill_post.py -n part.gcode       # report only, write nothing
+python unlayered_infill_post.py -s part.gcode       # full strength, obvious wave
+python unlayered_infill_post.py --inplace part.gcode   # for slicer post-processing
+```
+
+Use `--inplace` in Process → Others → *Post-processing scripts*.
+
+The engine source is stored verbatim in both files.
+`tests/test_post_script.py` fails if the two copies drift, so a fix always
+lands in both.
+
+### Why the preview looks unchanged
+
+It always will. Orca builds the preview from the slice; post-processing runs
+afterwards, at export, and nothing redraws the preview
+([OrcaSlicer#7489](https://github.com/OrcaSlicer/OrcaSlicer/issues/7489)).
+Post-processing also only runs on **Export G-code file** — not on Print or
+Send ([#4432](https://github.com/SoftFever/OrcaSlicer/issues/4432)).
+To see the result, drag the exported file back into OrcaSlicer.
 
 ## Licence
 

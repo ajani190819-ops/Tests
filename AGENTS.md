@@ -92,6 +92,7 @@ tools/
 keyboard-lighting/          unrelated personal project; DO NOT reorganize or "fix" it
 tests/
   test_installer.py         contract test: catalogue / .bat / files must agree
+  test_post_script.py       functional test: the engine really rewrites G-code
 ```
 
 The `plugins.json` entry `path` is a URL path into this repo (forward slashes,
@@ -141,11 +142,24 @@ you forget, and it is the safety net for exactly this.
    binding: e.g. import third-party deps at module load (never inside a
    capability), never read `post_process_plugin` from config, G-code
    transforms must be idempotent because the export step can run twice.
+10. **The shared engine exists twice, verbatim.** `nonplanar_core` lives as an
+    escaped string literal in `plugins/unlayered-infill/unlayered_infill_orca.py`
+    and as plain source between the `BEGIN/END nonplanar_core` markers in
+    `plugins/unlayered-infill/unlayered_infill_post.py`. Fix one, copy it into
+    the other — `tests/test_post_script.py` fails if they drift. Two front
+    ends, one engine; that is the whole point of decision C1.
+11. **Never make the .bat overwrite itself while it runs.** `cmd.exe` streams
+    a batch file from disk by byte offset as it executes, so a self-overwrite
+    can jump into garbage mid-run, and a bad download would leave the owner
+    with no working updater. `:self_update` downloads the new copy to `%TEMP%`,
+    verifies it, and hands over to it; the file on disk is never touched.
+    `tests/test_installer.py` enforces this.
 
 ## 5. How to verify your work
 
 ```bash
 python3 tests/test_installer.py        # catalogue / .bat / files agree
+python3 tests/test_post_script.py      # the engine really rewrites G-code
 git ls-files --eol Update-Orca-Plugins.bat   # must say i/crlf
 ```
 

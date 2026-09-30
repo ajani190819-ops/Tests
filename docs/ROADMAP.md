@@ -16,7 +16,8 @@ Read that one first.
 | A | One-click updater (`Update-Orca-Plugins.bat`) + catalogue + contract test | **Done and merged** (PR #1) |
 | B | Repo reorganization (plugins/ + tools/ + tests/ + docs/ + AGENTS.md) | **Done and merged** (PR #1) |
 | C | Wave Overhangs as a standalone **post-processing script** | Planned — **design settled 2026-09-30, unblocked** |
-| D | Unlayered Infill: make it actually work | Planned — can start; **diagnostic detail still owed** |
+| D | Unlayered Infill: make it actually work | **D1 diagnosed, standalone shipped 2026-09-30**; step 3 (plugin diagnostics) open |
+| E | Updater self-updates itself + stages the standalone tools | **Done 2026-09-30** — code written, **never run on Windows** |
 
 **PR #1 is merged** (2026-09-30, from `arena/01a0f42b-tests`), so `main` now
 carries `plugins.json` and both plugin files — **the updater is live**. A .bat
@@ -121,30 +122,96 @@ script can't lean on Orca's dependency installer).
   **successfully, retroactively, on exported G-code** — proving the
   approach works on real files from the owner's own slicer.
 
-### Plan (pending diagnosis)
+### Plan
 
-1. **Get the symptom.** What actually happened when the plugin was tried:
-   never showed up in Orca / ran but the G-code looked unchanged / something
-   else / never actually tried?
-2. **Ship a standalone script** `plugins/unlayered-infill/unlayered_infill_post.py`
-   wrapping the existing engine with the reference tool's proven UX:
-   double-click window, CLI, `--inplace`, never overwrite input, refuse
-   absolute E, report what it did. This works on any Orca version regardless
-   of the plugin system, and is the fastest path to "it actually works".
-3. **Fold the learnings back** into the plugin version (same engine, so any
-   engine fix lands in both).
+1. ~~**Get the symptom.**~~ **Answered 2026-09-30 — see D1 below.**
+2. ~~**Ship a standalone script**~~ **DONE 2026-09-30.**
+   `plugins/unlayered-infill/unlayered_infill_post.py` wraps the existing
+   engine with the reference tool's proven UX: double-click window, CLI,
+   `--inplace`, `--dry-run`, `--full-strength`, never overwrites the input,
+   refuses absolute E, and reports what it did — including *why* when it did
+   nothing. The engine is stored verbatim in both files;
+   `tests/test_post_script.py` fails if they drift.
+   **Tested for real** on synthetic sliced G-code: 54 infill moves → 1080
+   segments, extrusion conserved to 1.6e-12 mm, Z restored on every section
+   exit, second pass a no-op, absolute-E refused.
+3. **Fold the learnings back** into the plugin version — still to do. Same
+   engine, so engine fixes already land in both; what is *not* shared is the
+   diagnostics. The plugin should report the same "here is why nothing
+   changed" detail through its result message and Check setup.
 
-### Open question
+### D1 — answered 2026-09-30
 
-* **D1 — the symptom.** Asked 2026-09-30; the owner answered **"something
-  else"**. So it *was* tried, it did *not* simply fail to appear in Orca, and
-  it did *not* run quietly leaving the G-code unchanged — something more
-  specific went wrong, and we still need the specifics: what was on screen,
-  at which point (install / restart / slice / export), and whether
-  `data_dir()/log/python_*.log` holds a traceback. Ask before planning the
-  bug hunt; step 2 above does not depend on the answer.
+The owner reported: **"they don't do anything — no change in the preview, and
+none when reopening the G-code file."** Diagnosis, in order of likelihood:
+
+1. **The preview can never show it, and that is not a bug.** Orca builds the
+   preview from the slice; `psGCodePostProcess` runs afterwards, at export,
+   and nothing redraws the preview
+   ([OrcaSlicer#7489](https://github.com/OrcaSlicer/OrcaSlicer/issues/7489)).
+   BrickLayers tells its users the same. **Half the reported symptom is
+   expected behaviour.**
+2. **Post-processing only runs on "Export G-code file"** — not on "Print" or
+   "Send" ([#4432](https://github.com/SoftFever/OrcaSlicer/issues/4432)).
+   If the owner pressed Print, the plugin never ran at all. **Prime
+   suspect**, and it also explains the second half: if it never ran, the
+   reopened file is genuinely unchanged.
+3. **Absolute E.** Unlayered Infill refuses M82 G-code by design; the refusal
+   only surfaces in the result message, never in the file.
+4. **The default wave is small** — tapered, peaking at half amplitude, so
+   ~0.09 mm on a 0.2 mm layer. Visible in a Z-height view, easy to miss
+   otherwise. `--full-strength` doubles it.
+5. **Plugin failed to load** (Wave Overhangs needs numpy + shapely) — a
+   traceback would be in `data_dir()/log/python_*.log`.
+
+Still unconfirmed: which button the owner pressed, and whether a plugin was
+selected in the preset at all. The standalone script sidesteps all five.
+
 * The form-factor question is settled: **C1 applies here too — keep both the
   plugin and the standalone script, sharing one engine.**
+
+---
+
+## E. Updater: self-update, and staging the standalone tools
+
+**Done 2026-09-30. Written and statically checked, but never executed on
+Windows — there is no Windows in the sandbox. Treat as unproven.**
+
+The owner asked: *"do I need a new installer download, or can we make it
+update itself?"*
+
+* **Plugin updates never needed a new download** and still don't: the .bat
+  fetches `plugins.json` and every plugin file fresh from `main` on each run.
+* **Updater changes** are now handled by `:self_update`. On each run it
+  downloads the latest `Update-Orca-Plugins.bat` to `%TEMP%`, and if the
+  version differs it hands the run over to that copy.
+
+**It deliberately does not overwrite itself.** `cmd.exe` streams a batch file
+from disk by byte offset as it executes, so a self-overwrite can jump into
+garbage mid-run — and a bad download would leave the owner with no working
+updater at all. Delegating instead means the on-disk file is never at risk;
+it simply always runs the newest logic. This is now hard rule 11 in
+`AGENTS.md`, enforced by `tests/test_installer.py`.
+
+Guards: `ORCA_UPDATER_CHILD` (no infinite recursion), `NO_SELF_UPDATE` /
+`--no-self-update` / `ORCA_NO_SELF_UPDATE`, and `--local`. The download must
+pass the existing 2000-byte floor **and** contain both `set UPDATER_VERSION=`
+and `rem UPDATER_VERSION <v> end`, so a 404 page or a wifi captive portal is
+never executed. Version is `1.1.0`, stored twice (a `set` line the script
+uses, a `rem` line `:self_update` greps); the test pins them equal.
+
+`:stage_tools` also drops `unlayered_infill_post.py` into
+`%USERPROFILE%\Downloads\OrcaPlugins`, so the standalone tool arrives
+without a separate hunt on GitHub. The test checks every staged path exists
+in the repo, so the list can never 404.
+
+**The one thing that can never auto-update** is `:self_update` itself. If
+that logic needs fixing, the owner has to re-download once.
+
+### Not done
+
+* No Windows test. First real run is the test.
+* `wave_overhangs_post.py` is not staged because it does not exist yet (§C).
 
 ---
 

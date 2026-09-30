@@ -51,6 +51,11 @@ if defined PLUGIN_BRANCH set "REF_1=%PLUGIN_BRANCH%"
 set "REF_2=main"
 if "%REF_2%"=="%REF_1%" set "REF_2="
 
+rem This updater's own version. The line below it is the machine-readable
+rem copy :self_update compares against; test_installer.py keeps them equal.
+set UPDATER_VERSION=1.1.0
+rem UPDATER_VERSION 1.1.0 end
+
 rem PLUGIN_ONLY is matched as a substring against each plugin id.
 if defined PLUGIN_ONLY set "PLUGIN_ONLY=%PLUGIN_ONLY: =%"
 
@@ -62,12 +67,18 @@ set "DLDIR=%USERPROFILE%\Downloads\OrcaPlugins"
 
 set "LOCAL_MODE="
 set "DATA_DIR_ARG="
+set "NO_SELF_UPDATE="
+if defined ORCA_NO_SELF_UPDATE set "NO_SELF_UPDATE=1"
+
+rem Kept whole because :parse_args shifts them away, and :self_update has to
+rem hand the same arguments to the newer copy.
+set "ORIG_ARGS=%*"
 
 :parse_args
 if "%~1"=="" goto :args_done
 if /i "%~1"=="--help" goto :help
 if /i "%~1"=="-h" goto :help
-if /i "%~1"=="--local" ( set "LOCAL_MODE=1" ) else if not defined DATA_DIR_ARG set "DATA_DIR_ARG=%~1"
+if /i "%~1"=="--local" ( set "LOCAL_MODE=1" ) else if /i "%~1"=="--no-self-update" ( set "NO_SELF_UPDATE=1" ) else if not defined DATA_DIR_ARG set "DATA_DIR_ARG=%~1"
 shift
 goto :parse_args
 :args_done
@@ -81,6 +92,9 @@ echo  catalogue: %MANIFEST_PATH%
 if defined LOCAL_MODE echo  mode:      --local, plugin files from next to this .bat
 echo ===========================================================================
 echo.
+
+call :self_update
+if defined SELF_UPDATED goto :child_done
 
 call :select_data_dir "%DATA_DIR_ARG%"
 if errorlevel 1 goto :fail
@@ -123,6 +137,8 @@ if "%OK_COUNT%"=="0" (
     goto :fail
 )
 
+call :stage_tools
+
 echo.
 echo  Next steps in OrcaSlicer:
 echo    1. Restart OrcaSlicer, or reopen File ^> Plugins.
@@ -130,7 +146,16 @@ echo    2. Confirm each plugin is enabled and shows two capabilities
 echo       -- the worker and "... - Check setup".
 echo    3. To use one, pick it under Others ^> Slicing Pipeline Plugin.
 echo    4. Unlayered Infill needs "Use relative E distances" enabled.
-if exist "%DLDIR%" echo    5. Copies for Orca's UI installer are in "%DLDIR%"
+echo.
+echo  IMPORTANT -- two reasons it can look like nothing happened:
+echo    * Plugins run on "Export G-code file" ONLY. They do NOT run when you
+echo      press Print or Send.
+echo    * The 3D preview NEVER shows the result. No slicer redraws its preview
+echo      after post-processing. To see the change, drag the exported .gcode
+echo      file back into OrcaSlicer and look at that.
+if exist "%DLDIR%" echo    * Copies for Orca's UI installer are in "%DLDIR%"
+if exist "%DLDIR%\unlayered_infill_post.py" echo    * No plugin needed: double-click
+if exist "%DLDIR%\unlayered_infill_post.py" echo      "%DLDIR%\unlayered_infill_post.py" and point it at an exported .gcode
 echo.
 echo  Install/update complete.
 goto :done
@@ -443,6 +468,80 @@ if not exist "%TARGET_DATA_DIR%" (
 exit /b 0
 
 rem ---------------------------------------------------------------------------
+rem  self_update -- run the newest updater logic without ever rewriting this
+rem  file while it is running.
+rem
+rem  cmd.exe streams a .bat from disk by byte offset as it executes, so a file
+rem  that overwrites itself mid-run can jump into garbage. So this does NOT
+rem  replace the file on disk. It fetches the latest copy to a temp file and,
+rem  if that copy is a different version, hands this run over to it. The file
+rem  you double-click never changes -- a bad download cannot leave you without
+rem  a working updater -- and you still get the newest behaviour every run.
+rem
+rem  Plugin updates never need any of this: the plugin files and the catalogue
+rem  are downloaded fresh on every run already.
+:self_update
+if defined ORCA_UPDATER_CHILD exit /b 0
+if defined NO_SELF_UPDATE exit /b 0
+if defined LOCAL_MODE exit /b 0
+echo  Checking for a newer version of this updater...
+set "NEWBAT=%TEMP%\orca_updater_%RANDOM%.bat"
+call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/Update-Orca-Plugins.bat" "%NEWBAT%"
+if errorlevel 1 goto :su_skip
+rem Never execute an unverified download: a 404 page or a wifi login portal
+rem must fail this check rather than run.
+findstr /b /c:"rem UPDATER_VERSION " "%NEWBAT%" >nul 2>nul
+if errorlevel 1 goto :su_skip
+findstr /b /c:"set UPDATER_VERSION=" "%NEWBAT%" >nul 2>nul
+if errorlevel 1 goto :su_skip
+rem Same version as ours? Nothing to do.
+findstr /b /c:"rem UPDATER_VERSION %UPDATER_VERSION% end" "%NEWBAT%" >nul 2>nul
+if not errorlevel 1 goto :su_skip
+set "NEW_UV=?"
+rem "rem UPDATER_VERSION 1.1.0 end" -- token 3 is the version, and the
+rem trailing "end" absorbs the CR so it never lands in the variable.
+for /f "usebackq tokens=3" %%V in (`findstr /b /c:"rem UPDATER_VERSION " "%NEWBAT%"`) do set "NEW_UV=%%V"
+echo  Updater: this copy is v%UPDATER_VERSION%, v%NEW_UV% is available.
+echo  Running the newer one for this update. Your .bat file is left as it is
+echo  -- it will keep fetching the newest version every time you run it.
+echo.
+set "ORCA_UPDATER_CHILD=1"
+set "CHILD_RC=1"
+call "%NEWBAT%" %ORIG_ARGS%
+set "CHILD_RC=%ERRORLEVEL%"
+set "SELF_UPDATED=1"
+del "%NEWBAT%" 2>nul
+exit /b 0
+:su_skip
+if exist "%NEWBAT%" del "%NEWBAT%" 2>nul
+exit /b 0
+
+rem ---------------------------------------------------------------------------
+rem  stage_tools -- the standalone scripts. These are NOT plugins: they run on
+rem  an already-exported .gcode file, so they work even if Orca's plugin system
+rem  is not cooperating. They go in the Downloads folder next to the plugin
+rem  copies. A failure here is not fatal; the plugins are already installed.
+:stage_tools
+if defined LOCAL_MODE exit /b 0
+if not exist "%DLDIR%" mkdir "%DLDIR%" 2>nul
+call :stage_one_tool "plugins/unlayered-infill/unlayered_infill_post.py" "unlayered_infill_post.py"
+exit /b 0
+
+:stage_one_tool
+call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%~1" "%DLDIR%\%~2"
+if errorlevel 1 (
+    echo  - tool %~2: download failed, skipped
+    exit /b 0
+)
+echo  - tool %~2: saved to "%DLDIR%"
+exit /b 0
+
+rem ---------------------------------------------------------------------------
+:child_done
+if not defined CHILD_RC set "CHILD_RC=0"
+exit /b %CHILD_RC%
+
+rem ---------------------------------------------------------------------------
 :no_plan
 echo.
 echo ERROR: no plan could be built -- the catalogue fetch and the fallback
@@ -458,13 +557,20 @@ echo Installs or updates the OrcaSlicer plugins
 echo   Wave Overhangs, Unlayered Infill
 echo from https://github.com/%REPO% into your Orca data folder.
 echo.
-echo   Update-Orca-Plugins.bat [data_dir] [--local] [--help]
+echo   Update-Orca-Plugins.bat [data_dir] [--local] [--no-self-update] [--help]
 echo.
 echo     data_dir   OrcaSlicer data directory; found under %%APPDATA%% if omitted
 echo     --local    install plugin files found next to this .bat, no downloads
+echo     --no-self-update  do not hand over to a newer copy of this updater
 echo     --help     this text
 echo.
-echo   Environment: ORCA_DATA_DIR, PLUGIN_BRANCH (default main), PLUGIN_ONLY.
+echo   Environment: ORCA_DATA_DIR, PLUGIN_BRANCH (default main), PLUGIN_ONLY,
+echo   ORCA_NO_SELF_UPDATE.
+echo.
+echo   You do not need to re-download this file to get new plugin versions:
+echo   it fetches the catalogue and every plugin fresh on each run. It also
+echo   checks whether the updater itself has been updated, and if so runs the
+echo   newer copy from your temp folder for that run.
 echo.
 echo   Restart OrcaSlicer afterwards; each plugin appears in File ^> Plugins
 echo   with two capabilities, and is selected per process preset under

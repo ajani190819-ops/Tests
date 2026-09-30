@@ -10,10 +10,11 @@ Read it before touching anything, and **update it before your session ends** —
 §9 is the checklist. A session that changed something and did not update this
 file has left the next session worse off.
 
-* **Last updated:** 2026-09-30 (session 3)
-* **Verified against the repo:** 2026-09-30 — `python3 tests/test_installer.py`
-  passed and was mutation-tested, `git ls-files --eol Update-Orca-Plugins.bat`
-  says `i/crlf`, `plugins.json` confirmed live on `main`.
+* **Last updated:** 2026-09-30 (session 4)
+* **Verified against the repo:** 2026-09-30 — `tests/test_installer.py` and
+  `tests/test_post_script.py` both pass and were mutation-tested (12 mutations,
+  12 caught), `git ls-files --eol Update-Orca-Plugins.bat` says `i/crlf`,
+  `plugins.json` confirmed live on `main`.
 
 ---
 
@@ -50,20 +51,29 @@ which does not block starting.
 | Repo | `ajani190819-ops/Tests`, **public** (must stay public — the updater downloads unauthenticated) |
 | Default branch | `main`, at commit `8f2f6f1` "Recreate the plugin updater + reorganize the repo (PR #1)" |
 | PR #1 | **MERGED** 2026-09-30 22:54 UTC, from branch `arena/01a0f42b-tests` |
-| Updater | `Update-Orca-Plugins.bat`, 486 lines, CRLF, **live** — a user can download it and it works |
+| Updater | `Update-Orca-Plugins.bat`, ~596 lines, CRLF, **live**. Now self-updating (v1.1.0) and stages the standalone tool. |
 | Catalogue | `plugins.json` — confirmed reachable at `raw.githubusercontent.com/.../main/plugins.json` |
 | Wave Overhangs | v0.0.4, `plugins/wave-overhangs/`, ships, never run in real Orca |
 | Unlayered Infill | v0.2.1, `plugins/unlayered-infill/`, ships, never run in real Orca |
+| Standalone tool | `plugins/unlayered-infill/unlayered_infill_post.py` v0.2.1 — **works, functionally tested** |
 | Contract test | `python3 tests/test_installer.py` → **passing** |
+| Functional test | `python3 tests/test_post_script.py` → **passing** |
 | CI | **None.** See the known gap in §3. |
 | Work C (Wave Overhangs post-processing script) | not started — **unblocked**, design settled (C1 + C2 answered) |
-| Work D (make Unlayered Infill actually work) | not started — can start; one diagnostic detail still owed (D1) |
+| Work D (make Unlayered Infill actually work) | **D1 answered + standalone shipped**; step 3 (plugin-side diagnostics) open |
+| Work E (updater self-update) | **done in code, never run on Windows** |
 
-**What changed most recently and matters:** PR #1 merging flipped the updater
-from "would 404" to "actually works". Before the merge, `main` had no
-`plugins.json` and no plugin files, so a downloaded .bat fell back to its
-hardcoded list. Now the catalogue path is the live one. `docs/ROADMAP.md`
-still had the pre-merge caveat; it has been corrected.
+**What changed most recently and matters (session 4):** the owner finally gave
+the D1 detail — *"they don't do anything: no change in the preview, and none
+when reopening the G-code file."* Research turned up that **half of that
+symptom is expected behaviour**: no slicer redraws its preview after
+post-processing, and Orca's post-processing only runs on *Export G-code file*,
+never on Print or Send. So the most likely explanation is that the plugin
+never ran. In response, session 4 shipped
+`plugins/unlayered-infill/unlayered_infill_post.py` — the same engine as a
+standalone tool that does not need the plugin system at all — and made the
+updater self-updating. **The standalone tool is the first piece of this repo
+after `tools/nonplanar-infill-tool` with real evidence that it works.**
 
 ---
 
@@ -113,7 +123,21 @@ get quietly lost between sessions.
   any one of them fails `tests/test_installer.py`.
 * `tools/nonplanar-infill-tool` — **the owner ran this successfully**,
   retroactively, on real exported G-code from their own slicer. This is the
-  only piece of the whole project with real-world evidence behind it.
+  only piece of the whole project with *real-world* evidence behind it.
+* **`plugins/unlayered-infill/unlayered_infill_post.py` genuinely transforms
+  G-code** — `tests/test_post_script.py` builds a synthetic sliced cube and
+  checks the result: 54 infill moves become 1080 wavy segments, extrusion is
+  conserved to 1.6e-12 mm, the nozzle is returned to the layer plane at every
+  section exit, a second pass is a no-op, absolute-E is refused, the input
+  file is never touched without `--inplace`, and a wall-only file is reported
+  as "nothing changed, here is why" instead of a false success. This is the
+  strongest evidence in the repo short of a real print.
+* **The engine is genuinely shared**, not shared-in-spirit: the test compares
+  the copy in the plugin with the copy in the standalone byte-for-byte and
+  fails on drift.
+* **The .bat is structurally sound** — every `goto`/`call` target resolves,
+  parentheses balance, and the self-update guards are pinned by tests. That
+  is static analysis, not execution (see below).
 
 **Not proven — say so every time:**
 
@@ -122,6 +146,17 @@ get quietly lost between sessions.
   traceback would land in `data_dir()/log/python_*.log`.
 * The .bat has never been executed. There is no Windows in the sandbox. It was
   audited statically and simulated, not run.
+* **`:self_update` and `:stage_tools` have never run** (added session 4). The
+  logic is guarded and test-pinned, but network-dependent batch code that has
+  never executed is not proven. If self-update misbehaves, the fallback is
+  `--no-self-update`, and the on-disk .bat is never modified so it cannot be
+  corrupted.
+* The standalone tool has only seen **synthetic** G-code generated by the
+  test, not a real slicer's output. The synthetic file was modelled on Orca's
+  conventions (relative E, `;TYPE:` markers, `;HEIGHT:`/`;Z:`), but a real
+  file will have variations.
+* The tkinter window has never been displayed — there is no display in the
+  sandbox. Only the CLI paths were executed.
 * Wave Overhangs' object→bed XY mapping (`_bed_offset`) is unvalidated.
 * Tuning defaults (`amplitude=-0.2`, `frequency=1.5`, `cell_mm=0.6`) are
   guesses, untested on hardware.
@@ -179,48 +214,74 @@ it references the old path `test_installer.py`, which is now
   surgery — the slicer's infill/perimeter moves inside the wave-covered area
   have to come out. A safer "add waves on top" mode was offered and **not**
   chosen; do not build a `--reinforce` flag unless the owner asks for it.
+* **D1 is answered and diagnosed — do not re-ask the open-ended version.**
+  (Owner, 2026-09-30: *"they don't do anything — no change in the preview, and
+  none when reopening the G-code file."*) The diagnosis, in order:
+  1. **The preview can never show post-processing.** Expected behaviour in
+     every slicer, not a bug ([OrcaSlicer#7489]). Half the symptom is a false
+     alarm. To check a post-processor, export and re-open the exported file.
+  2. **Post-processing runs on "Export G-code file" only** — not Print, not
+     Send ([#4432]). **Prime suspect**: if the owner pressed Print, the
+     plugin never ran, which also explains the unchanged reopened file.
+  3. Unlayered Infill refuses absolute-E G-code by design; visible only in
+     the result message.
+  4. The default wave is ~0.09 mm on a 0.2 mm layer — real but subtle.
+     `--full-strength` doubles it.
+  5. A load failure (numpy/shapely for Wave Overhangs) would show as a
+     traceback in `data_dir()/log/python_*.log`.
+
+  [OrcaSlicer#7489]: https://github.com/OrcaSlicer/OrcaSlicer/issues/7489
+  [#4432]: https://github.com/SoftFever/OrcaSlicer/issues/4432
+* **The updater must never overwrite itself while running.** (Design decision,
+  session 4.) `cmd.exe` streams a .bat from disk by byte offset as it
+  executes; a self-overwrite can jump into garbage, and a bad download would
+  leave the owner with no working updater. `:self_update` downloads to
+  `%TEMP%`, verifies, and delegates. Now hard rule 11 in `AGENTS.md`.
 
 ---
 
 ## 5. Waiting on the owner
 
-C1 and C2 were answered on 2026-09-30 and have moved to §4 as decisions. One
-question is still open.
+C1, C2 and D1 have all been answered and moved out of this section. **No
+question is currently blocking work.**
 
-**D1 — what actually happened when Unlayered Infill was tried in
-OrcaSlicer?** Asked 2026-09-30. The owner answered **"something else"** —
-which rules out three of the four possibilities, so we do know this much:
+Two things are owed *by us* to the owner, and should be asked at the next
+natural opportunity rather than guessed at:
 
-* it was **not** "never actually tried" — it *was* tried;
-* it did **not** simply fail to show up in Orca;
-* it did **not** run quietly and leave the G-code unchanged.
+**D1-follow-up — which button, and was a plugin even selected?** D1 is
+answered and diagnosed (§4), but two facts would collapse the remaining
+uncertainty to zero:
 
-So something more specific happened — an error message, a crash, a refusal,
-mangled G-code, a missing dropdown entry, a dependency install that failed.
-**The detail has not been given yet. Ask for it before planning work D**, and
-ask in concrete terms: what was on screen, at what point (install / restart /
-slice / export), and whether `data_dir()/log/python_*.log` has a traceback in
-it. If the owner cannot remember, the cheapest path is to reinstall with the
-updater, slice something small, and read that log.
+* Did the owner press **Export G-code file**, or **Print / Send**? Post-
+  processing only runs on export
+  ([#4432](https://github.com/SoftFever/OrcaSlicer/issues/4432)). If it was
+  Print, the plugin never ran and there is no bug to find.
+* Was a plugin actually selected in **Process → Others → Slicing Pipeline
+  Plugin** for the preset being used?
 
-Do not invent a diagnosis to fill this gap. Work D's plan (§6) is deliberately
-written so that step 1 does not depend on knowing the answer.
+Do not block on these. The standalone tool sidesteps both, and is the thing
+to point the owner at first.
+
+**The Windows run.** `:self_update`, `:stage_tools` and the whole .bat have
+still never executed on Windows. The first real run *is* the test. If it
+fails, that is expected-unknown territory, not a surprise — say so plainly.
 
 ---
 
 ## 6. Next actions, in priority order
 
-1. **Get the D1 detail** (§5) — one question, asked concretely. It is cheap
-   and it decides how much of work D is a bug hunt versus a rewrite. Do not
-   block step 2 on it.
-2. **Work D — Unlayered Infill** — ship
-   `plugins/unlayered-infill/unlayered_infill_post.py`: the existing engine
-   wrapped in the reference tool's proven UX (double-click window, CLI,
-   `--inplace`, never overwrite the input, refuse absolute E, report what it
-   did). Fastest credible path to "it actually works", because it does not
-   depend on the plugin system at all — which is why it is safe to start
-   before D1 is answered. Per the C1 decision, the plugin version stays and
-   shares the engine.
+1. **Get the owner to actually run the standalone tool** — this is now the
+   highest-value action in the whole repo. It is the only piece other than
+   `tools/nonplanar-infill-tool` with functional evidence behind it, and a
+   single real run converts "should work" into "works". Point them at
+   `%USERPROFILE%\Downloads\OrcaPlugins\unlayered_infill_post.py` after an
+   updater run, or straight at the file on GitHub.
+2. **Work D step 3 — plugin-side diagnostics.** The standalone tool now
+   explains *why* it changed nothing (no infill / no skin / nothing
+   bracketed). The plugin shares the engine but not that reporting: it should
+   surface the same detail through its result message and its Check setup
+   capability, so the pipeline version stops being a black box. This is the
+   direct fix for "it doesn't do anything" on the plugin side.
 3. **Work C — Wave Overhangs** — design is now settled (C1 + C2 answered), so
    this is unblocked. Ship `plugins/wave-overhangs/wave_overhangs_post.py`:
    rebuild each layer's footprint from the G-code, feed `wave_core`, splice
@@ -261,6 +322,43 @@ written so that step 1 does not depend on knowing the answer.
 
 Append one entry per session. Keep entries short: what happened, what landed,
 what was verified, what was left undone.
+
+### Session 4 — 2026-09-30 — branch `arena/01a0f48b-tests`
+
+**The owner said the plugins "don't do anything — no change in the preview,
+and none when reopening the G-code file", and asked whether the installer
+could update itself.**
+
+Landed:
+
+* **Diagnosed D1.** Two findings reframe it, and both are documented in
+  `docs/ORCA-PLUGIN-FACTS.md`: (a) no slicer redraws its preview after
+  post-processing, so "no change in the preview" is *expected*, not a bug
+  (OrcaSlicer#7489; BrickLayers says the same); (b) post-processing runs on
+  **Export G-code file only**, never on Print or Send (#4432) — the prime
+  suspect for the plugin never having run.
+* **Shipped `plugins/unlayered-infill/unlayered_infill_post.py`** — the same
+  engine, verbatim, as a standalone double-click / CLI / `--inplace` tool
+  that needs no plugin system. Added `--dry-run` and `--full-strength`, and
+  a report that explains *why* when nothing changed.
+* **Made the updater self-updating** (v1.1.0) by delegating to a verified
+  temp copy rather than overwriting itself, and made it stage the standalone
+  tool into `Downloads\OrcaPlugins`.
+* **Corrected a wrong fact**: `post_process_plugin` *is* a documented preset
+  key (a list of capability names). The old claim that it "appears nowhere in
+  the official documentation" was wrong. The separate rule against reading it
+  from inside a plugin still stands, for a different reason.
+* Added `tests/test_post_script.py`; added hard rules 10 and 11 to
+  `AGENTS.md`; fixed a stale "three edits in lockstep" in `README.md` (it is
+  six).
+
+Verified: both test files pass; 12 mutations, 12 caught (including four
+weaknesses the harness exposed in the *new* checks, which were then
+tightened). CRLF intact at 596/596.
+
+Not done: nothing ran on Windows or in real OrcaSlicer; the tkinter window
+was never displayed; the plugin still lacks the standalone's diagnostics
+(work D step 3).
 
 ### Session 3 — 2026-09-30 — branch `arena/01a0f48b-tests`
 

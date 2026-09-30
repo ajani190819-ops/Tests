@@ -20,12 +20,46 @@ OrcaSlicer build first and update this file with the evidence.
   Orca then "shows a missing-plugin notification and cannot slice until the
   reference is resolved". So capability names are a stable API — do **not** put
   a version number or anything else that changes per release into them.
-* `post_process_plugin` appears nowhere in the official plugin documentation.
-  An earlier version of Wave Overhangs read that config key and gated
-  behaviour on it; on a real build the key isn't there, and the plugin
-  disabled itself while printing help text pointing at a setting the user
-  cannot find. **Do not reintroduce config-key introspection to detect
-  wiring.**
+* `post_process_plugin` **is** a real preset setting — corrected 2026-09-30.
+  An earlier version of this file said it "appears nowhere in the official
+  documentation". That was wrong. The plugin-system wiki documents it as a
+  preset key holding a **list** of capability names, resolved by
+  `PostProcessor.cpp`, e.g.
+
+  ```json
+  "post_process_plugin": ["G-code Benchmark (.py)", "header-stamp"]
+  ```
+
+  Best current reading: the UI field labelled *Slicing Pipeline Plugin* is
+  this key under the hood, and it is multi-valued. **Not confirmed on a real
+  build** — treat the UI label as the thing to tell users about.
+
+  The separate rule still stands, for a different reason: an earlier Wave
+  Overhangs read this key from inside the plugin via
+  `ctx.config_value("post_process_plugin")`, got `None` on a real build, and
+  disabled itself while printing help pointing at a setting the user could not
+  find. **Do not reintroduce config-key introspection to detect wiring** — a
+  plugin that is running is, by definition, already wired up.
+
+## What the user can and cannot see (2026-09-30)
+
+These two explain almost every "the plugin does nothing" report, and neither
+is a bug in the plugin:
+
+* **The 3D preview never shows post-processing.** Orca builds the preview from
+  the slice, and the `psGCodePostProcess` step runs afterwards, on export. The
+  preview is not redrawn. This is a known, still-open request
+  ([OrcaSlicer#7489](https://github.com/OrcaSlicer/OrcaSlicer/issues/7489)),
+  and it is not Orca-specific — BrickLayers tells its users the same thing:
+  "none of the slicers show the changes automatically… we need to drag the
+  exported gcode file back to the Slicer".
+  **To verify a post-processor did anything, export the file and re-open that
+  file.**
+* **Post-processing runs on "Export G-code file" only.** It does *not* run on
+  "Print" or "Send"
+  ([SoftFever/OrcaSlicer#4432](https://github.com/SoftFever/OrcaSlicer/issues/4432),
+  closed as not-planned). A user who only ever presses Print will never see
+  any effect, and nothing in the UI says so.
 
 ## The export step
 
