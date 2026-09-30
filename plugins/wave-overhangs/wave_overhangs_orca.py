@@ -3,10 +3,10 @@
 # dependencies = ["numpy>=2.0", "shapely>=2.0"]
 #
 # [tool.orcaslicer.plugin]
-# name = "Wave Overhangs"
+# name = "Wave Overhangs v0.0.4"
 # description = "Experimental: print steep overhangs support-free by replacing the overhang region with wave-propagated toolpaths (port of the WaveOverhangs fork's algorithm as a slicing-pipeline plugin)."
 # author = "Wave Overhangs plugin lane"
-# version = "0.0.3"
+# version = "0.0.4"
 # ///
 """Wave Overhangs for OrcaSlicer -- experimental slicing-pipeline plugin.
 
@@ -109,6 +109,16 @@ _DEFAULTS = {
     # Optional manual bed-offset override "x,y" (mm) for calibration; "" = auto.
     "xy_offset": "",
 }
+
+# The version this file was built as. Kept in lockstep with the PEP 723 header
+# at the top (tests/test_installer.py fails if they drift), so everything that
+# reports a version at runtime reports the one actually running.
+PLUGIN_VERSION = "0.0.4"
+
+# Stamped into the exported G-code, so the file itself says which build made
+# the waves -- no need to open OrcaSlicer to find out.
+WAVE_STAMP_PREFIX = "; wave-overhangs"
+WAVE_STAMP = f"{WAVE_STAMP_PREFIX} v{PLUGIN_VERSION} (wave overhang toolpaths)\n"
 
 # Per-export stash (object frame; bed offset is derived at splice time):
 #   _PLAN  : {round(z,3): [polyline_in_object_frame, ...]}
@@ -404,6 +414,10 @@ def _splice_gcode(gcode_path, cfg, log):
     wcfg = _wave_config(cfg, cfg.get("_lh", 0.2))
     new_text, inserted, offset = wc.splice_gcode(text, _PLAN, wcfg, calibration)
     if inserted:
+        # Say which build produced these waves. Guarded so a second export pass
+        # (Orca can call psGCodePostProcess twice) cannot stack two stamps.
+        if WAVE_STAMP_PREFIX not in new_text:
+            new_text = WAVE_STAMP + new_text
         with open(gcode_path, "w", encoding="utf-8") as f:
             f.write(new_text)
     log["spliced_layers"] = inserted
@@ -525,7 +539,7 @@ class WaveOverhangsCheck(orca.script.ScriptPluginCapabilityBase):
         return "Wave Overhangs - Check setup"
 
     def execute(self):
-        lines = ["Wave Overhangs setup check"]
+        lines = [f"Wave Overhangs v{PLUGIN_VERSION} -- setup check"]
         if np is None or shapely is None:
             return orca.ExecutionResult.failure(
                 orca.PluginResult.RecoverableError,

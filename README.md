@@ -7,8 +7,8 @@ that's a bug; open an issue.
 
 | Plugin | Version | What it does |
 | --- | --- | --- |
-| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.3 | prints steep overhangs support-free by wave-propagating toolpaths into thin air |
-| [Unlayered Infill](plugins/unlayered-infill/) | 0.2.0 | rewrites sparse infill onto a sine wave in Z so layers interlock instead of stacking as clean planes |
+| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.4 | prints steep overhangs support-free by wave-propagating toolpaths into thin air |
+| [Unlayered Infill](plugins/unlayered-infill/) | 0.2.1 | rewrites sparse infill onto a sine wave in Z so layers interlock instead of stacking as clean planes |
 
 Also here:
 
@@ -68,6 +68,27 @@ To make it never appear again:
 
 You only download the .bat once — plugin updates flow through it, so the
 prompt does not come back on every update.
+
+## Checking which version you actually have
+
+The version is written into the plugin's own name, so you can see it in four
+places without digging:
+
+| Where | What you see |
+| --- | --- |
+| File → Plugins, **Name** column | `Wave Overhangs v0.0.4` |
+| File → Plugins, **Version** column | `0.0.4` (Orca reads this itself) |
+| The updater's output | `[UPDATED] Wave Overhangs v0.0.4 (was v0.0.3) -- 39649 bytes` |
+| **Check setup**, first line | `Wave Overhangs v0.0.4 -- setup check` |
+
+The exported G-code is stamped too — search it for `; wave-overhangs v` or
+`; unlayered-infill v` to see which build produced the file.
+
+The one place the version is deliberately **not** shown is the *Slicing
+Pipeline Plugin* dropdown in your process preset. That dropdown stores the
+capability name, so if the name changed with every release, every update would
+orphan your preset and Orca would refuse to slice until you re-picked it. The
+capability names stay fixed on purpose; use Check setup instead.
 
 ## After installing
 

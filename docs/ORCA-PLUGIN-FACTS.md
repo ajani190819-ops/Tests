@@ -11,6 +11,15 @@ OrcaSlicer build first and update this file with the evidence.
   Plugin**. That single selection drives every pipeline step, including the
   G-code export step. Print.cpp and PostProcessor.cpp both resolve the same
   preset capability refs.
+* **The value a preset stores is just the capability's `get_name()` string.**
+  (OrcaSlicer wiki, Plugin Development / Plugin System, read 2026-09-30.) The
+  preset also carries a `plugins` array holding the full reference
+  `<plugin_name>;<cloud_uuid>;<capability_name>`, used to restore a missing
+  plugin — which is why a capability name may not contain `;`.
+  **Consequence: renaming a capability orphans every preset that selected it.**
+  Orca then "shows a missing-plugin notification and cannot slice until the
+  reference is resolved". So capability names are a stable API — do **not** put
+  a version number or anything else that changes per release into them.
 * `post_process_plugin` appears nowhere in the official plugin documentation.
   An earlier version of Wave Overhangs read that config key and gated
   behaviour on it; on a real build the key isn't there, and the plugin
@@ -22,7 +31,7 @@ OrcaSlicer build first and update this file with the evidence.
 
 * The export step (`psGCodePostProcess`) can run **TWICE** for one slice:
   file export and network upload are separate calls. Any G-code transform
-  must be idempotent (Unlayered Infill stamps `; unlayered-infill v0.2` and
+  must be idempotent (Unlayered Infill stamps `; unlayered-infill v0.2.1` and
   returns the input untouched if the stamp is already there).
 * At `psGCodePostProcess`, `ctx.print` and `ctx.object` are `None`. You get
   `gcode_path`, `host`, `output_name`.
@@ -41,6 +50,27 @@ OrcaSlicer build first and update this file with the evidence.
 * Writes inside `data_dir()` need no prompt, and plugins live at
   `data_dir()/orca_plugins/<plugin>/`. So the state and log files these
   plugins write next to themselves are fine.
+
+## Where a version number is visible to the user
+
+* The Plugins dialog lists each plugin as a row of **Activate · Name · Version
+  · Status**, and the *Plugin Info* tab shows source, author, installed version
+  and latest version. Orca fills the Version column from the PEP 723
+  `# version = "..."` header, so a correct header is already enough to check
+  what is installed. (Wiki: Plugin System Overview / Managing Plugins.)
+* The PEP 723 `# name = "..."` header is the **display name** in that dialog.
+  Both plugins here spell it `<Name> v<version>` so the version is readable in
+  the Name column too — the column people actually look at — and so the
+  updater's sidecar, which must carry the same name, proves which build is on
+  disk. This is safe precisely because the *plugin* name is not what a preset
+  stores (see "The preset field" above).
+* The capability names stay version-free for the same reason. The place a
+  version therefore cannot appear is the **Slicing Pipeline Plugin** dropdown;
+  use *Check setup*, which prints the running version as its first line.
+* Not verified on a real build: whether Orca's per-plugin key is derived from
+  the display name. If it is, a rename could make an update look like a new
+  plugin. Nothing observed says it does, and the install folder
+  (`orca_plugins/<orca_dir>/`) does not change.
 
 ## Misc
 

@@ -25,7 +25,13 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
    The plugin refuses absolute-E (M82) G-code rather than corrupt it.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Unlayered Infill*.
 4. Slice, then run **Unlayered Infill - Check setup** (Plugins dialog) — it
-   reports whether the export step actually fired.
+   reports the running version on its first line, then whether the export
+   step actually fired.
+
+The plugin shows up as *Unlayered Infill v0.2.1* in the Plugins dialog
+(the version is part of the name), and stamps the exported G-code with
+`; unlayered-infill v0.2.1`. The capability names stay version-free so an
+update never orphans your process preset.
 
 ## Configuration
 

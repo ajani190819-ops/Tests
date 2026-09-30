@@ -10,10 +10,10 @@ Read it before touching anything, and **update it before your session ends** —
 §9 is the checklist. A session that changed something and did not update this
 file has left the next session worse off.
 
-* **Last updated:** 2026-09-30 (session 2)
+* **Last updated:** 2026-09-30 (session 3)
 * **Verified against the repo:** 2026-09-30 — `python3 tests/test_installer.py`
-  passed, `git ls-files --eol Update-Orca-Plugins.bat` says `i/crlf`,
-  `plugins.json` confirmed live on `main`.
+  passed and was mutation-tested, `git ls-files --eol Update-Orca-Plugins.bat`
+  says `i/crlf`, `plugins.json` confirmed live on `main`.
 
 ---
 
@@ -52,8 +52,8 @@ which does not block starting.
 | PR #1 | **MERGED** 2026-09-30 22:54 UTC, from branch `arena/01a0f42b-tests` |
 | Updater | `Update-Orca-Plugins.bat`, 486 lines, CRLF, **live** — a user can download it and it works |
 | Catalogue | `plugins.json` — confirmed reachable at `raw.githubusercontent.com/.../main/plugins.json` |
-| Wave Overhangs | v0.0.3, `plugins/wave-overhangs/`, ships, never run in real Orca |
-| Unlayered Infill | v0.2.0, `plugins/unlayered-infill/`, ships, never run in real Orca |
+| Wave Overhangs | v0.0.4, `plugins/wave-overhangs/`, ships, never run in real Orca |
+| Unlayered Infill | v0.2.1, `plugins/unlayered-infill/`, ships, never run in real Orca |
 | Contract test | `python3 tests/test_installer.py` → **passing** |
 | CI | **None.** See the known gap in §3. |
 | Work C (Wave Overhangs post-processing script) | not started — **unblocked**, design settled (C1 + C2 answered) |
@@ -107,6 +107,10 @@ get quietly lost between sessions.
   (`tokens=2` parsed the word `version` instead of `0.0.3`).
 * The engine inside Unlayered Infill has six test-pinned fixes over the
   reference tool it came from.
+* The version is consistent everywhere it is claimed: the PEP 723 header, the
+  display name, `PLUGIN_VERSION`, the G-code stamp, `plugins.json`, the .bat
+  fallback list and the sidecar the updater writes. Mutation-tested: breaking
+  any one of them fails `tests/test_installer.py`.
 * `tools/nonplanar-infill-tool` — **the owner ran this successfully**,
   retroactively, on real exported G-code from their own slicer. This is the
   only piece of the whole project with real-world evidence behind it.
@@ -159,6 +163,16 @@ it references the old path `test_installer.py`, which is now
   inside Orca when it works; the standalone script always works, on any Orca
   version. An engine fix must therefore land in both, so the engine stays a
   separate, front-end-agnostic module. Do not retire the plugins.
+* **The version lives in the plugin's display name, never in a capability
+  name.** (Owner's answer, 2026-09-30.) The PEP 723 `name` header is spelled
+  `<Name> v<version>`, so Orca's Plugins dialog shows it in the Name column
+  next to its own Version column. Capability names stay fixed forever, because
+  a process preset stores the capability name as its value — renaming one
+  orphans the preset and Orca refuses to slice (see
+  `docs/ORCA-PLUGIN-FACTS.md`). The version also appears in each plugin's
+  *Check setup* first line and as a G-code stamp. A version bump is now a
+  six-place lockstep edit; `tests/test_installer.py` enforces every one, and
+  `AGENTS.md` §4 rule 3 lists them.
 * **In the wave region, the waves REPLACE the slicer's own extrusions.**
   (Owner's answer to C2, 2026-09-30.) This matches the upstream
   WaveOverhangs fork: no double material, at the cost of careful G-code
@@ -247,6 +261,35 @@ written so that step 1 does not depend on knowing the answer.
 
 Append one entry per session. Keep entries short: what happened, what landed,
 what was verified, what was left undone.
+
+### Session 3 — 2026-09-30 — branch `arena/01a0f48b-tests`
+
+* **Asked for:** put the version in the plugin name, so the owner can confirm
+  in OrcaSlicer that the right build is installed.
+* **Researched first (and it changed the answer):** the official wiki says the
+  Plugins dialog already has a Version column, and that a preset stores the
+  **capability** name as its value. So the version went into the PEP 723
+  *display name* (free) and not into capability names (would orphan the
+  owner's process preset on every update and block slicing). Both facts are
+  now in `docs/ORCA-PLUGIN-FACTS.md`.
+* **Landed:** Wave Overhangs **0.0.3 → 0.0.4**, Unlayered Infill
+  **0.2.0 → 0.2.1** (bumped deliberately, so the very next update has a new
+  number to verify against). Each plugin gained a `PLUGIN_VERSION` constant
+  feeding its display name, its *Check setup* first line and a G-code stamp
+  (`; wave-overhangs v0.0.4`, `; unlayered-infill v0.2.1`). The .bat now
+  composes the sidecar's `plugin_name` as `"%PL_NAME% v%PL_VER%"` from the
+  downloaded file's own header, so it cannot drift; its install summary was
+  de-duplicated to `[UPDATED] Wave Overhangs v0.0.4 (was v0.0.3)`.
+* **Verified:** `tests/test_installer.py` extended with five new assertions and
+  **mutation-tested — all six deliberate breakages were caught** (name missing
+  its version, `PLUGIN_VERSION` drift, stamp drift, .bat dropping the composed
+  sidecar name, catalogue/file version drift, sidecar name not matching the
+  installed file's header). Both plugins `py_compile` clean; the .bat is still
+  490/490 CRLF with no bare CR.
+* **Not done / unverified:** nothing ran in a real OrcaSlicer, as always. One
+  residual unknown recorded in the facts file: whether Orca derives its
+  per-plugin key from the display name (if it did, a rename could read as a new
+  plugin). Nothing suggests it does, and the install folder is unchanged.
 
 ### Session 2 — 2026-09-30 — branch `arena/01a0f48b-tests`
 

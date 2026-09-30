@@ -147,6 +147,45 @@ for p in plugins:
         check("# /// script" in head,
               f"{pid}: shipped file has no `# /// script` fence, so the .bat would reject it")
 
+        # The PEP 723 *name* carries the version, so OrcaSlicer's Plugins
+        # dialog shows which build is installed in its Name column (it has a
+        # Version column too -- this is belt and braces, and it is the column
+        # people actually read). The version deliberately does NOT go in the
+        # capability names: a process preset stores the capability name as its
+        # value, so renaming capabilities per version would make every update
+        # orphan the preset and block slicing until it was re-picked.
+        mname = re.search(r'^#\s*name\s*=\s*"([^"]+)"', head, re.MULTILINE)
+        check(mname is not None, f"{pid}: no PEP 723 name header in the shipped plugin")
+        if mname:
+            want = f"{p['name']} v{p['version']}"
+            check(mname.group(1) == want,
+                  f"{pid}: PEP 723 name is {mname.group(1)!r} but the catalogue "
+                  f"implies {want!r} (catalogue name + ' v' + version). The .bat "
+                  f"composes the sidecar's plugin_name the same way, so these "
+                  f"must agree or Orca's .install_state.json names a plugin that "
+                  f"does not exist.")
+
+        body = shipped.read_text(encoding="utf-8")
+
+        # What the plugin reports about itself at runtime -- "Check setup" and
+        # the G-code stamp -- must be the version that was actually installed.
+        mpv = re.search(r'^PLUGIN_VERSION\s*=\s*"([^"]+)"', body, re.MULTILINE)
+        check(mpv is not None,
+              f"{pid}: no module-level PLUGIN_VERSION constant; Check setup and the "
+              f"G-code stamp have nothing truthful to report")
+        if mpv:
+            check(mpv.group(1) == p["version"],
+                  f"{pid}: PLUGIN_VERSION is {mpv.group(1)!r} but the file ships as "
+                  f"v{p['version']}")
+
+        # Some engines carry their own stamp version inside the inlined source
+        # (it is what lands in the exported G-code). Same rule.
+        mmv = re.search(r'MARKER_VERSION\s*=\s*\\"([^"\\]+)\\"', body)
+        if mmv:
+            check(mmv.group(1) == p["version"],
+                  f"{pid}: the G-code stamp says v{mmv.group(1)} but the plugin "
+                  f"ships as v{p['version']}")
+
         # Every capability the sidecar advertises must actually exist in the
         # file Orca will load.
         for cap in p["capabilities"]:
@@ -187,6 +226,15 @@ check('{ "%~3": true }' in bat and '{ "%~4": true }' in bat,
 check('"installed_from": "local"' in bat and '"installed_version": "%~5"' in bat
       and '"plugin_name": "%~2"' in bat,
       "the .bat sidecar template no longer matches Orca's .install_state.json")
+# The sidecar's plugin_name must match the plugin's PEP 723 name, which now
+# carries the version. Composing it from PL_VER -- which the .bat reads out of
+# the downloaded file's own header -- means it tracks what was really installed
+# instead of whatever the catalogue happened to say.
+check('call :write_state "%STATE_FILE%" "%PL_NAME% v%PL_VER%"' in bat,
+      "the .bat no longer composes the versioned plugin name for the sidecar, so "
+      "Orca's .install_state.json would name a plugin that does not exist")
+check('echo   [%PL_ACTION%] %PL_NAME% v%PL_VER% %PL_VERMSG%-- %PL_SIZE% bytes' in bat,
+      "the .bat's install summary no longer reports the installed version")
 check('"enabled": true' in bat,
       "the .bat no longer installs the plugins as enabled")
 
@@ -266,7 +314,9 @@ def install_one(p: dict, plugin_root: pathlib.Path) -> str:
         '  "enabled": true,\n'
         '  "installed_from": "local",\n'
         f'  "installed_version": "{p["version"]}",\n'
-        f'  "plugin_name": "{p["name"]}"\n'
+        # ":install_one" composes this as "%PL_NAME% v%PL_VER%" so it matches
+        # the PEP 723 name Orca reads out of the plugin file itself.
+        f'  "plugin_name": "{p["name"]} v{p["version"]}"\n'
         "}\n"
     )
     (dest_dir / ".install_state.json").write_text(sidecar, encoding="utf-8")
@@ -307,6 +357,19 @@ with tempfile.TemporaryDirectory() as tmp:
                   f"{p['id']}: sidecar does not enable the plugin")
             check(state["installed_from"] == "local",
                   f"{p['id']}: sidecar installed_from should be 'local'")
+            # The whole point of the versioned name: the sidecar must call the
+            # plugin exactly what the plugin calls itself, or Orca's saved
+            # enable-state belongs to a plugin name that does not exist.
+            hdr_name = re.search(
+                r'^#\s*name\s*=\s*"([^"]+)"',
+                installed.read_text(encoding="utf-8")[:4000], re.MULTILINE)
+            hdr_name_val = hdr_name.group(1) if hdr_name else None
+            check(state["plugin_name"] == hdr_name_val,
+                  f"{p['id']}: sidecar plugin_name {state['plugin_name']!r} != the "
+                  f"installed file's PEP 723 name {hdr_name_val!r}")
+            check(state["plugin_name"].endswith(f"v{p['version']}"),
+                  f"{p['id']}: sidecar plugin_name {state['plugin_name']!r} does not "
+                  f"show the installed version, so the Plugins dialog cannot either")
 
     # -- an older copy under a different folder name, plus a cloud copy
     p0 = plan[0]

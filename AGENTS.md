@@ -109,10 +109,19 @@ you forget, and it is the safety net for exactly this.
    `*.bat -text` in `.gitattributes` keeps git from re-normalizing it. Never
    edit it with tools that convert line endings (Python `Path.write_text`
    does — use binary mode). After editing, assert the CRLF count.
-3. **Version bumps take edits in lockstep:** the PEP 723 `# version = "..."`
-   header in the plugin file, `plugins.json`, and the .bat fallback list. The
-   test enforces all three agree. (The .bat stamps the installed version from
-   the downloaded file's header, so the header is the source of truth.)
+3. **Version bumps take edits in lockstep**, in the plugin file: the PEP 723
+   `# version = "..."` header, the PEP 723 `# name = "..."` header (spelled
+   `<Name> v<version>` so Orca's Plugins dialog shows the version), the
+   module-level `PLUGIN_VERSION` constant, and any `MARKER_VERSION` inside an
+   inlined engine (it lands in the exported G-code). Then `plugins.json` and
+   the .bat fallback list. `tests/test_installer.py` enforces that every one of
+   them agrees — run it. (The .bat stamps the installed version from the
+   downloaded file's header, so the header is the source of truth, and it
+   composes the sidecar's `plugin_name` as `"%PL_NAME% v%PL_VER%"` to match the
+   name header automatically.)
+   **The version must never go into a capability name** — a process preset
+   stores the capability name as its value, so renaming capabilities orphans
+   the preset and Orca refuses to slice. See `docs/ORCA-PLUGIN-FACTS.md`.
 4. **No `|`, `^`, `%`, `!` in any catalogue field** — they corrupt the .bat's
    pipe-delimited plan or cmd.exe parsing.
 5. **Exactly two capabilities per plugin** in the catalogue — the .bat's plan

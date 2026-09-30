@@ -210,7 +210,11 @@ if errorlevel 1 (
 
 rem Orca's Plugins dialog writes this sidecar when installing locally; writing
 rem it here keeps the copy discoverable and already enabled.
-call :write_state "%STATE_FILE%" "%PL_NAME%" "%PL_CAP1%" "%PL_CAP2%" "%PL_VER%"
+rem The name is composed as "<name> v<version>" to match the plugin's PEP 723
+rem name header, which carries the version so the Plugins dialog shows it.
+rem Composing it from PL_VER (read from the downloaded file's header) means it
+rem cannot drift from what is actually installed.
+call :write_state "%STATE_FILE%" "%PL_NAME% v%PL_VER%" "%PL_CAP1%" "%PL_CAP2%" "%PL_VER%"
 if errorlevel 1 (
     echo   [FAIL] could not write "%STATE_FILE%".
     exit /b 1
@@ -238,10 +242,10 @@ if exist "%USERPROFILE%\Downloads" (
 
 set "PL_ACTION=INSTALLED"
 if "%WAS_THERE%"=="1" set "PL_ACTION=UPDATED"
-set "PL_VERMSG=v%PL_VER%"
-if defined OLD_VER if not "%OLD_VER%"=="%PL_VER%" set "PL_VERMSG=v%OLD_VER% -> v%PL_VER%"
+set "PL_VERMSG="
+if defined OLD_VER if not "%OLD_VER%"=="%PL_VER%" set "PL_VERMSG=(was v%OLD_VER%) "
 for %%A in ("%PL_DEST_FILE%") do set "PL_SIZE=%%~zA"
-echo   [%PL_ACTION%] %PL_NAME% %PL_VERMSG% -- %PL_SIZE% bytes
+echo   [%PL_ACTION%] %PL_NAME% v%PL_VER% %PL_VERMSG%-- %PL_SIZE% bytes
 echo              "%PL_DEST_FILE%"
 if not "%SIB_COUNT%"=="0" echo              refreshed %SIB_COUNT% other copy/copies under the plugin root
 if defined STAGED echo              copy for Orca's UI installer: "%STAGED%"
@@ -303,8 +307,8 @@ rem  writes, and this way it lands on a field nothing reads.
 rem ---------------------------------------------------------------------------
 :fallback_plan
 echo   Using the fallback plan built into this file.
->  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.3^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
->> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.2.0^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
+>  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.4^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
+>> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.2.1^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
 exit /b 0
 
 rem ---------------------------------------------------------------------------
