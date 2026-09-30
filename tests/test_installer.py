@@ -30,9 +30,10 @@ import sys
 import tempfile
 
 HERE = pathlib.Path(__file__).resolve().parent
-MANIFEST = HERE / "plugins.json"
-BAT = HERE / "Update-Orca-Plugins.bat"
-GATTR = HERE / ".gitattributes"
+REPO = HERE.parent
+MANIFEST = REPO / "plugins.json"
+BAT = REPO / "Update-Orca-Plugins.bat"
+GATTR = REPO / ".gitattributes"
 
 failures: list[str] = []
 
@@ -92,18 +93,23 @@ for p in plugins:
         check("|" not in cap and "^" not in cap and "%" not in cap and "!" not in cap,
               f"{pid}: capability {cap!r} contains a character cmd.exe would mangle")
 
-    # This repo is flat: the plugin files live at the root, so path == file.
-    check(p["path"] == p["file"],
-          f"{pid}: path {p['path']!r} should be {p['file']!r} (files live at the repo root)")
+    # The plugins live one folder per plugin: plugins/<id>/<file>.
+    check(p["path"] == f"plugins/{pid}/{p['file']}",
+          f"{pid}: path {p['path']!r} should be plugins/{pid}/{p['file']!r}")
     check("\\" not in p["path"],
           f"{pid}: path must use forward slashes -- it becomes a URL")
+
+    # The updater's --local mode also looks for the file next to the .bat
+    # itself as a fallback, so the bare filename must stay a bare filename.
+    check("/" not in p["file"] and "\\" not in p["file"],
+          f"{pid}: file {p['file']!r} must be a bare filename")
 
     # The .bat's plan has exactly two capability slots; a third capability
     # would be silently dropped into the sidecar's second slot.
     check(len(p["capabilities"]) == 2,
           f"{pid}: the .bat supports exactly 2 capabilities, catalogue lists {len(p['capabilities'])}")
 
-    shipped = HERE / p["path"]
+    shipped = REPO / p["path"]
     check(shipped.exists(), f"{pid}: {p['path']} does not exist, so the download would 404")
     if shipped.exists():
         check(shipped.stat().st_size > 2000,
@@ -223,7 +229,7 @@ def report_and_exit() -> None:
 
 # The replay copies real files around, so stop here rather than crashing on a
 # plugin the checks above already flagged as missing.
-if any(p["status"] == "ready" and not (HERE / p["path"]).exists()
+if any(p["status"] == "ready" and not (REPO / p["path"]).exists()
        for p in plugins if p.get("path")):
     report_and_exit()
 
@@ -246,7 +252,7 @@ def install_one(p: dict, plugin_root: pathlib.Path) -> str:
     The sidecar is written exactly the way the .bat's :write_state writes it
     (same fields, same spacing), just with \n instead of CRLF.
     """
-    src = HERE / p["path"]
+    src = REPO / p["path"]
     dest_dir = plugin_root / p["orca_dir"]
     was_there = (dest_dir / p["file"]).exists()
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -287,7 +293,7 @@ with tempfile.TemporaryDirectory() as tmp:
     for p in plan:
         installed = root / p["orca_dir"] / p["file"]
         check(installed.exists(), f"{p['id']}: not installed")
-        check(installed.read_bytes() == (HERE / p["path"]).read_bytes(),
+        check(installed.read_bytes() == (REPO / p["path"]).read_bytes(),
               f"{p['id']}: installed file differs from the shipped one")
         state_file = root / p["orca_dir"] / ".install_state.json"
         check(state_file.exists(), f"{p['id']}: sidecar not written")
@@ -315,7 +321,7 @@ with tempfile.TemporaryDirectory() as tmp:
     results = {p["id"]: install_one(p, root) for p in plan}
     check(all(v == "UPDATED" for v in results.values()),
           f"second run should report UPDATED for everything, got {results}")
-    check((stray / p0["file"]).read_bytes() == (HERE / p0["path"]).read_bytes(),
+    check((stray / p0["file"]).read_bytes() == (REPO / p0["path"]).read_bytes(),
           "a copy under a different folder name should have been updated too")
     check((cloud / p0["file"]).read_text(encoding="utf-8") == "cloud copy",
           "the _subscribed cloud copy must be left alone")
