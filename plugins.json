@@ -1,0 +1,25 @@
+{
+  "repo": "ajani190819-ops/Tests",
+  "plugins": [
+    {
+      "id": "wave-overhangs",
+      "name": "Wave Overhangs",
+      "version": "0.0.3",
+      "status": "ready",
+      "file": "wave_overhangs_orca.py",
+      "path": "plugins/wave-overhangs/wave_overhangs_orca.py",
+      "orca_dir": "WaveOverhangs",
+      "capabilities": ["Wave Overhangs", "Wave Overhangs - Check setup"]
+    },
+    {
+      "id": "unlayered-infill",
+      "name": "Unlayered Infill",
+      "version": "0.2.0",
+      "status": "ready",
+      "file": "unlayered_infill_orca.py",
+      "path": "plugins/unlayered-infill/unlayered_infill_orca.py",
+      "orca_dir": "UnlayeredInfill",
+      "capabilities": ["Unlayered Infill", "Unlayered Infill - Check setup"]
+    }
+  ]
+}
