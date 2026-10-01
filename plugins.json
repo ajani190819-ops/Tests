@@ -4,7 +4,7 @@
     {
       "id": "wave-overhangs",
       "name": "Wave Overhangs",
-      "version": "0.0.6",
+      "version": "0.0.14",
       "status": "ready",
       "file": "wave_overhangs_orca.py",
       "path": "plugins/wave-overhangs/wave_overhangs_orca.py",
@@ -14,7 +14,7 @@
     {
       "id": "unlayered-infill",
       "name": "Unlayered Infill",
-      "version": "0.3.1",
+      "version": "0.3.4",
       "status": "ready",
       "file": "unlayered_infill_orca.py",
       "path": "plugins/unlayered-infill/unlayered_infill_orca.py",
