@@ -21,6 +21,7 @@ except ImportError:
     raise SystemExit(0)
 
 import fake_orca
+from shapely.geometry import LineString, Polygon
 
 orca = fake_orca.install()
 path = ROOT / "plugins/wave-overhangs/wave_overhangs_orca.py"
@@ -65,6 +66,32 @@ assert absolute_stats["removed_moves"] == stats["removed_moves"]
 assert "\nM82\nG92 E" in absolute_out, (
     "absolute-E rewrite must restore both mode and command value")
 assert absolute_out.count("G92 E") > as_absolute_e(source).count("G92 E")
+
+# Geometry-level diffraction checks: growing a support footprint produces
+# fronts through a concavity and separate fronts around an actual hole. The
+# real Cube export does not contain either shape, so keep these as synthetic
+# checks rather than pretending the fixture proves them.
+geometry_cfg = wave.wc.WaveConfig(
+    line_spacing=0.5, line_width=0.4, perimeter_overlap=0.1,
+    max_iterations=100)
+concave_support = Polygon([(0, 0), (8, 0), (8, 2), (3, 2), (3, 7), (0, 7)])
+concave_target = Polygon([(0, 0), (12, 0), (12, 8), (0, 8)]).difference(
+    concave_support.buffer(0.05))
+concave_tracks = wave.wc.wave_tracks(
+    concave_support, concave_target, geometry_cfg)
+assert len(concave_tracks) >= 3
+assert max(LineString(track.points).length for track in concave_tracks) > 5.0
+
+hole_outer = Polygon([(0, 0), (12, 0), (12, 12), (0, 12)])
+hole = Polygon([(4, 4), (8, 4), (8, 8), (4, 8)])
+hole_support = hole_outer.difference(hole)
+hole_target = Polygon([(0, 0), (14, 0), (14, 14), (0, 14)]).difference(
+    hole_support.buffer(0.05))
+hole_tracks = wave.wc.wave_tracks(hole_support, hole_target, geometry_cfg)
+first_distance = min(track.distance for track in hole_tracks)
+first_components = sum(
+    abs(track.distance - first_distance) < 1e-9 for track in hole_tracks)
+assert first_components >= 2, "a hole should produce separate front components"
 
 assert stats["wave_layers"] == 3, stats
 assert stats["replaced_sections"] == 3, stats
