@@ -122,11 +122,13 @@ you forget, and it is the safety net for exactly this.
    Then `plugins.json`, the .bat fallback list, and — for unlayered-infill —
    `TOOL_VERSION` in the standalone `*_post.py` (edit `MARKER_VERSION` in the
    standalone and run `tools/sync_engine.py` so both engine copies move).
-   **Never put the version in the PEP 723 `name`.** The Plugin Development PDF
-   says Orca saves `plugin_name` inside a preset's full capability reference;
-   changing that identity can leave the preset pointing at yesterday's plugin.
-   Orca already has a separate Version column. `tests/test_installer.py`
-   enforces these identities and versions — run it. (The .bat stamps the installed version from the
+   **Never change the PEP 723 `name` casually.** The Plugin Development PDF
+   says Orca saves `plugin_name` inside preset/config identities. New plugins
+   use version-free names. Unlayered Infill is the explicit compatibility
+   exception: its permanent name is `Unlayered Infill v0.3.0` so Orca can find
+   the owner's working percentage/grid/blending config. Its real version still
+   advances separately. `tests/test_installer.py` enforces these identities
+   and versions — run it. (The .bat stamps the installed version from the
    downloaded file's header, so the header is the source of truth, and it
    composes the sidecar's `plugin_name` as `"%PL_NAME% v%PL_VER%"` to match the
    name header automatically.)

@@ -195,9 +195,10 @@ quietly. Here is where to look, in order:
    answer in almost every case: Orca prints the actual load error there. If
    the plugin is not in the list at all, go to step 3.
 2. **`Plugin Info` tab** — check the *installed version*. The current test
-   build reads **0.3.2** for Unlayered Infill and **0.0.7** for Wave
-   Overhangs. Their names deliberately do not contain versions: Orca stores
-   the plugin name in preset references, so it must remain stable.
+   build reads **0.3.3** for Unlayered Infill and **0.0.7** for Wave
+   Overhangs. Unlayered's displayed compatibility name remains
+   `Unlayered Infill v0.3.0` so Orca reconnects to the owner's saved controls;
+   the separate Version column is the real release.
 3. **Is the folder right?** Each plugin needs its own folder holding exactly
    **one** `.py` file plus the `.install_state.json` record:
 
@@ -243,10 +244,10 @@ missing or invalid, it stops and names the file. It never fills the gap with a
 plugin from `main`. Large banners at the beginning and end show the branch and
 the plugin versions so it is clear what was installed.
 
-After installing Wave Overhangs 0.0.7 / Unlayered Infill 0.3.2, reselect each
-one once under **Process → Others → Slicing Pipeline Plugin**. Older releases
-put the version inside the plugin name; Orca saves that name in the preset's
-full reference, so reselecting replaces the old identity with the stable one.
+After installing Unlayered Infill 0.3.3, reselect
+`Unlayered Infill v0.3.0` once under **Process → Others → Slicing Pipeline
+Plugin**. That compatibility identity reconnects Orca to the configuration
+slot containing the working percentage, grid, blending and strength controls.
 
 ## The log file — start here when something seems wrong
 

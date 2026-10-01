@@ -121,6 +121,10 @@ with tempfile.TemporaryDirectory() as tmp:
     check(d["amplitude"] == "200%", f"amplitude default is {d['amplitude']!r}, want '200%'")
     check(d["cell_mm"] == "auto",
           f"cell_mm default is {d['cell_mm']!r}; it must follow the nozzle diameter")
+    check(d["frequency"] == 1.5 and d["segment_mm"] == 1.0,
+          f"0.3.0 frequency/segment controls drifted: {d}")
+    check(d["blend_mm"] == 2.0 and d["full_strength"] is False,
+          f"0.3.0 blending/full-strength controls drifted: {d}")
     check(d["log"] is True, "logging must be on by default")
 
     # 200% of a 0.3 mm layer is 0.6 mm — the owner's own worked example

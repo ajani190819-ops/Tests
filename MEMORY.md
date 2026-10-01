@@ -13,9 +13,9 @@ file has left the next session worse off.
 * **Last updated:** 2026-09-30 (session 6, plugin PDF audit)
 * **Verified against the repo:** 2026-09-30 — all four test files pass, both
   sync tools are clean, both `.bat` files are CRLF, the chooser/updater worked
-  on real Windows, and the new identity/PDF/dependency guards caught 10/10
-  mutations after one initially weak message check was strengthened. Wave
-  Overhangs 0.0.7 still needs its first real Orca invocation.
+  on real Windows, and the 0.3.3 compatibility identity plus percentage/blend
+  controls caught 4/4 deliberate mutations. Wave's bridge replacement remains
+  unresolved.
 
 ---
 
@@ -52,11 +52,11 @@ which does not block starting.
 | Repo | `ajani190819-ops/Tests`, **public** (must stay public — the updater downloads unauthenticated) |
 | Default branch | `main`, at commit `8f2f6f1` "Recreate the plugin updater + reorganize the repo (PR #1)" |
 | PR #1 | **MERGED** 2026-09-30 22:54 UTC, from branch `arena/01a0f42b-tests` |
-| Updater | `Update-Orca-Plugins.bat` v1.2.2, CRLF. Strict branch installs are verified on Windows; 1.2.2 writes stable plugin identities to sidecars. |
+| Updater | `Update-Orca-Plugins.bat` v1.2.3, CRLF. Strict branch installs verified on Windows; 1.2.3 restores Unlayered's config-compatible sidecar identity. |
 | Branch chooser | `Choose-Orca-Plugin-Version.bat`, CRLF. Live numbered GitHub branch menu, remembers its choice, obvious return to `main`; **never run on Windows**. |
 | Catalogue | `plugins.json` — confirmed reachable at `raw.githubusercontent.com/.../main/plugins.json` |
 | Wave Overhangs | v0.0.7 test build, stable identity migration; installed/activated v0.0.6 was seen in real Orca but never invoked or logged |
-| Unlayered Infill | v0.3.2 test build; **v0.3.0/v0.3.1 ran in real Orca and rewrote real exported G-code**, proven by the owner's Downloads log |
+| Unlayered Infill | v0.3.3 test build, compatibility identity restored; **v0.3.0/v0.3.1 ran in real Orca and rewrote real exported G-code**, proven by the owner's Downloads log |
 | Standalone tool | `plugins/unlayered-infill/unlayered_infill_post.py` v0.3.0 — **works, functionally tested** |
 | Contract test | `python3 tests/test_installer.py` → **passing** |
 | Functional test | `python3 tests/test_post_script.py` → **passing** |
@@ -225,15 +225,13 @@ it references the old path `test_installer.py`, which is now
   inside Orca when it works; the standalone script always works, on any Orca
   version. An engine fix must therefore land in both, so the engine stays a
   separate, front-end-agnostic module. Do not retire the plugins.
-* **Plugin names and capability names are stable; versions never belong in
-  either identity.** Supersedes the earlier versioned-display-name decision
-  after the owner added Orca's Plugin Development PDF (session 6). The PDF
-  says a preset's full reference contains
-  `<plugin_name>;<cloud_uuid>;<capability_name>`, so changing either name can
-  orphan the preset. The owner chose option A: fix both plugins consistently.
-  Versions remain visible in Orca's Version column, Check setup, logs, updater
-  output, standalone tool, and G-code stamps. After the 0.0.7/0.3.2 migration,
-  reselect each capability once so Orca saves the stable reference.
+* **Plugin/capability identities must not change.** The PDF says Orca keys
+  presets/config by full identity. Wave uses stable `Wave Overhangs`.
+  **Unlayered compatibility exception:** permanently keep the old identity
+  `Unlayered Infill v0.3.0`; changing it in 0.3.2 disconnected the owner's
+  saved percentage/grid/blending controls. The actual release version remains
+  separate (0.3.3 onward). Owner chose this over rolling code back to unsafe
+  0.3.0.
 * **In the wave region, the waves REPLACE the slicer's own extrusions.**
   (Owner's answer to C2, 2026-09-30.) This matches the upstream
   WaveOverhangs fork: no double material, at the cost of careful G-code
@@ -407,17 +405,18 @@ inside Orca and rewrote exported G-code. Wave Overhangs v0.0.6 appeared
 installed, activated and selected but never logged one call. The newly added
 Plugin Development PDF revealed that the preset's full reference includes
 `plugin_name`; our versioned display name changed that identity every release.
-Owner chose option A: stable names for both plugins. Built Wave 0.0.7 and
-Unlayered 0.3.2, stable sidecars, PDF contract/dependency tests, visible
-Description/Check setup changelogs, and migration instructions to reselect
-once.
+Owner initially chose stable names for both. Real testing disproved that as a
+complete fix: Wave 0.0.7 still left the ordinary bridge in reopened exported
+G-code, and Unlayered 0.3.2 lost access to the owner's saved 0.3.0 controls.
+Unlayered 0.3.3 now restores `Unlayered Infill v0.3.0` as a permanent config
+compatibility identity without rolling back current fixes.
 
-Verified: all requested suites and sync checks pass, CRLF is asserted, the
-chooser/updater worked on real Windows, and Unlayered ran in real Orca.
+Verified: the chooser/updater worked on real Windows; Unlayered ran in real
+Orca; all repository tests pass.
 
-Not verified: Wave Overhangs 0.0.7 has not yet been invoked in real Orca, so
-the stable-name diagnosis remains strong but unproven. Its dedicated
-Diagnostics text remains unseen, and no Wave toolpaths have been produced.
+Not verified: Unlayered 0.3.3 has not yet proved its old config reconnects.
+Wave's same-export replacement fix is not built yet; no Wave toolpaths have
+been proven in real Orca.
 
 ### Session 5 — 2026-09-30 — branch `arena/01a0f48b-tests`
 

@@ -6,6 +6,18 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.3.3 — 2026-09-30
+
+* **Restored the `Unlayered Infill v0.3.0` compatibility identity.** Changing
+  the plugin name in 0.3.2 made Orca look in a new configuration slot, so the
+  owner's saved percentage amplitude, nozzle grid, blending, frequency, and
+  full-strength controls appeared to stop working. The actual code was still
+  present; this reconnects Orca to the configuration that worked in 0.3.0.
+* The current import-safety, logging, G-code, and updater fixes remain. This is
+  not a rollback to the unsafe 0.3.0 source.
+* The real release remains visible as 0.3.3 in Orca's Version column, Check
+  setup, logs, updater output, standalone tool, and G-code stamp.
+
 ## 0.3.2 — 2026-09-30
 
 * **The plugin name is now permanently `Unlayered Infill`.** Orca's

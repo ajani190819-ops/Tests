@@ -18,6 +18,20 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-09-30 — restore Unlayered Infill's working configuration identity
+
+**Unlayered Infill:** 0.3.3. **Updater:** 1.2.3.
+
+* Restored the permanent compatibility name `Unlayered Infill v0.3.0` so Orca
+  reconnects to the configuration slot containing the owner's percentage
+  amplitude, nozzle grid, blending, frequency and full-strength settings.
+* Kept every current import-safety, logging and engine fix; this is not a code
+  rollback to 0.3.0. The real version remains visible everywhere except the
+  compatibility name.
+* Wave Overhangs 0.0.7 was tested on real Orca and still did not replace the
+  normal bridge in reopened exported G-code. The stable-name diagnosis is
+  therefore disproven; Wave remains unresolved.
+
 ## 2026-09-30 — stable plugin identities, audited against Orca's PDF
 
 **Plugins:** Wave Overhangs **0.0.7**, Unlayered Infill **0.3.2**.

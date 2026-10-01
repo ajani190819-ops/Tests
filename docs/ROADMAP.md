@@ -301,12 +301,15 @@ full capability reference includes both `plugin_name` and `capability_name`.
 The old `<Name> v<version>` plugin names therefore changed a saved identity on
 every release.
 
-* Both PEP 723 names and updater sidecars are now stable: `Wave Overhangs` and
-  `Unlayered Infill`. Versions remain in Orca's Version column, Check setup,
-  logs, G-code stamps, standalone tool, and updater summaries.
-* Wave Overhangs 0.0.7 and Unlayered Infill 0.3.2 carry the migration. The
-  owner must reselect each capability once after updating so Orca saves the
-  corrected stable reference.
+* Wave keeps the stable PEP 723 name `Wave Overhangs`. Unlayered 0.3.2 proved
+  that renaming an existing plugin also changes its config identity: the
+  owner's 0.3.0 percentage/grid/blending controls became disconnected.
+  Unlayered 0.3.3 therefore restores and permanently keeps the compatibility
+  identity `Unlayered Infill v0.3.0` while its real version advances normally.
+* Wave Overhangs 0.0.7 did not solve the real problem: reopened exported
+  G-code still retained the ordinary bridge. The identity diagnosis is
+  disproven. Next work is same-export, geometry-bounded removal of only bridge
+  segments actually replaced by successfully generated wave paths.
 * Contract tests pin the PDF's required shape: root-level dependencies,
   exactly one `@orca.plugin` package subclassing `orca.base`, typed capability
   bases, correct execute signatures, and matching registration.

@@ -156,13 +156,14 @@ for p in plugins:
         mname = re.search(r'^#\s*name\s*=\s*"([^"]+)"', head, re.MULTILINE)
         check(mname is not None, f"{pid}: no PEP 723 name header in the shipped plugin")
         if mname:
-            want = p["name"]
+            want = p.get("identity_name", p["name"])
             check(mname.group(1) == want,
                   f"{pid}: PEP 723 name is {mname.group(1)!r} but the stable "
                   f"catalogue identity is {want!r}. Never put the version in the "
                   f"plugin name; it can break saved preset references.")
-            check(p["version"] not in mname.group(1),
-                  f"{pid}: version {p['version']} leaked into the stable plugin name")
+            if "identity_name" not in p:
+                check(p["version"] not in mname.group(1),
+                      f"{pid}: version {p['version']} leaked into the stable plugin name")
 
         body = shipped.read_text(encoding="utf-8")
 
@@ -260,9 +261,10 @@ check('"installed_from": "local"' in bat and '"installed_version": "%~5"' in bat
 # The sidecar's plugin_name must match the stable PEP 723 name exactly. The
 # version is a separate sidecar field; adding it to plugin_name changes the
 # identity embedded in preset capability references.
-check('call :write_state "%STATE_FILE%" "%PL_NAME%"' in bat and
-      'call :write_state "%STATE_FILE%" "%PL_NAME% v%PL_VER%"' not in bat,
-      "the .bat sidecar must use the stable plugin name without a version")
+check('set "PL_IDENTITY=%PL_NAME%"' in bat and
+      'set "PL_IDENTITY=Unlayered Infill v0.3.0"' in bat and
+      'call :write_state "%STATE_FILE%" "%PL_IDENTITY%"' in bat,
+      "the .bat does not preserve Unlayered Infill's v0.3.0 config identity")
 check('echo   [%PL_ACTION%] %PL_NAME% v%PL_VER% %PL_VERMSG%-- %PL_SIZE% bytes' in bat,
       "the .bat's install summary no longer reports the installed version")
 check('"enabled": true' in bat,
@@ -650,9 +652,9 @@ def install_one(p: dict, plugin_root: pathlib.Path) -> str:
         '  "enabled": true,\n'
         '  "installed_from": "local",\n'
         f'  "installed_version": "{p["version"]}",\n'
-        # :install_one writes the stable catalogue/PEP 723 identity. Version is
-        # already represented by installed_version and must not rename it.
-        f'  "plugin_name": "{p["name"]}"\n'
+        # :install_one writes the PEP 723/config identity. Unlayered keeps its
+        # v0.3.0 compatibility identity so Orca finds the owner's saved config.
+        f'  "plugin_name": "{p.get("identity_name", p["name"])}"\n'
         "}\n"
     )
     (dest_dir / ".install_state.json").write_text(sidecar, encoding="utf-8")
@@ -703,9 +705,9 @@ with tempfile.TemporaryDirectory() as tmp:
             check(state["plugin_name"] == hdr_name_val,
                   f"{p['id']}: sidecar plugin_name {state['plugin_name']!r} != the "
                   f"installed file's PEP 723 name {hdr_name_val!r}")
-            check(state["plugin_name"] == p["name"] and
-                  p["version"] not in state["plugin_name"],
-                  f"{p['id']}: sidecar plugin_name must remain the stable identity; "
+            want_identity = p.get("identity_name", p["name"])
+            check(state["plugin_name"] == want_identity,
+                  f"{p['id']}: sidecar plugin_name must preserve {want_identity!r}; "
                   f"got {state['plugin_name']!r}")
 
         # Orca requires a plugin folder to contain EXACTLY ONE entry file
