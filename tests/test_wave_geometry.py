@@ -29,6 +29,8 @@ spec = importlib.util.spec_from_file_location("wave_overhangs_geometry", path)
 wave = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = wave
 spec.loader.exec_module(wave)
+assert wave._bridge_surface_type().name == "stBottomBridge", (
+    "Wave preview geometry must be classified as bridge surfaces")
 
 cfg = dict(wave._DEFAULTS)
 cfg.update({"line_spacing": 0.5, "line_width": 0.4,
@@ -47,22 +49,46 @@ for front in fronts:
         assert overhang.buffer(0.001).boundary.distance(Point(endpoint)) < 0.002, (
             "a Wave front endpoint escaped the overhang wall or hole boundary")
 
-ribbons = wave._ribbons(fronts, current, cfg)
+ribbons = wave._ribbons(fronts, current, support, cfg)
 assert ribbons, "the geometry prototype did not create preview ribbons"
+last_distance = -1.0
 for ribbon in ribbons:
     assert current.buffer(0.002).covers(ribbon), (
         "a preview ribbon expanded outside the current slice")
     assert not hole.buffer(-0.01).intersects(ribbon), (
         "a preview ribbon crossed the circular hole")
+    distance = support.distance(ribbon)
+    assert distance + 1e-9 >= last_distance, (
+        "preview ribbons were not handed to Orca from support outward")
+    last_distance = distance
 
-original, edited, planned_ribbons, count = wave.plan_layer_geometry(
+# Tiny clipped fragments should not become visible dot islands.
+tiny = wave._ribbons([LineString([(2.10, 1.0), (2.20, 1.0)])],
+                     current, support, cfg)
+assert not tiny, "a tiny clipped front survived as a preview dot"
+
+boundary_band = wave._outer_boundary_band(current, overhang, support, cfg)
+assert boundary_band, "the overhang boundary shell was not preserved"
+assert any(piece.distance(Point(12, 5)) < 0.25 for piece in boundary_band), (
+    "the outer overhang wall is missing from the preview geometry")
+
+original, edited, bridge_parts, count = wave.plan_layer_geometry(
     [(None, [], [current])], support, cfg)
 assert not original.is_empty
 assert not edited.is_empty
-assert planned_ribbons
-assert count >= len(planned_ribbons)
+assert bridge_parts
+assert count >= 1
 assert edited.area < original.area, (
-    "the geometry-stage prototype should replace unsupported fill with ribbons")
+    "the geometry-stage prototype should replace unsupported fill with bridge ribbons")
+assert any(part.distance(Point(12, 5)) < 0.25 for part in bridge_parts), (
+    "the planned bridge geometry did not keep the continuous outer wall")
+
+blocked_cfg = dict(cfg)
+blocked_cfg["min_wave_length"] = 999.0
+blocked_original, blocked_edited, blocked_parts, _ = wave.plan_layer_geometry(
+    [(None, [], [current])], support, blocked_cfg)
+assert not blocked_parts and blocked_edited.equals(blocked_original), (
+    "the outer shell must not print by itself when no anchored Wave survives")
 
 # The capability remains harmless when the fake host does not provide a live
 # PrintObject. This is the fail-closed path used by older Orca builds.

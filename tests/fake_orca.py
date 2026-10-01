@@ -96,6 +96,14 @@ class ScriptPluginCapabilityBase(_CapabilityBase):
     pass
 
 
+class SurfaceType(enum.Enum):
+    stTop = "stTop"
+    stBottom = "stBottom"
+    stBottomBridge = "stBottomBridge"
+    stInternal = "stInternal"
+    stInternalBridge = "stInternalBridge"
+
+
 class Context:
     """The `ctx` passed to a slicing-pipeline capability.
 
@@ -167,6 +175,7 @@ def install():
     host.model = None
     host.Polygon = object
     host.ExPolygon = object
+    host.SurfaceType = SurfaceType
     orca.host = host
 
     sys.modules["orca"] = orca

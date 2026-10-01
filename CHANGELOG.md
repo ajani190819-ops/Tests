@@ -20,7 +20,7 @@ real OrcaSlicer was involved.
 
 ## 2026-10-01 — Wave Overhangs Geometry preview prototype
 
-**Wave Overhangs Geometry:** 0.1.1.
+**Wave Overhangs Geometry:** 0.1.2.
 
 Added a separate `posSlice` geometry-stage prototype. It replaces reachable
 unsupported slice area with obstacle-aware Wave ribbon geometry before Orca
@@ -28,8 +28,9 @@ creates perimeters and infill, so the intended result can appear in the normal
 preview. The current Python bindings expose existing extrusion paths as
 read-only, so this first version does not inject raw `ExtrusionPath` objects;
 it documents that limitation and fails closed when live geometry mutation is
-unavailable. Version 0.1.1 fixes the real-Orca registration failure by using
-the no-argument slicing capability base constructor Orca requires.
+unavailable. Version 0.1.2 cleans dot fragments, preserves a continuous outer
+bridge shell, marks generated Wave geometry as bridge surfaces, and hands the
+bridge pieces to Orca in supported-edge-to-outer-edge order.
 
 ## 2026-10-01 — Wave controls and cleaner component order
 

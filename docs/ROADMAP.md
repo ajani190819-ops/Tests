@@ -1,10 +1,10 @@
 # Roadmap — OrcaSlicer plugin lane
 
 This document is the plan, not a release promise. Current versions are Wave
-Overhangs **0.0.15**, Wave Overhangs Geometry **0.1.1**, Unlayered Infill
+Overhangs **0.0.15**, Wave Overhangs Geometry **0.1.2**, Unlayered Infill
 **0.3.4**, and updater **1.4.0** on the
 session test branch. Package and capability names remain permanently:
-`Wave Overhangs` and `Unlayered Infill`.
+`Wave Overhangs`, `Wave Overhangs Geometry`, and `Unlayered Infill`.
 
 ## Status at a glance
 
@@ -14,7 +14,7 @@ session test branch. Package and capability names remain permanently:
 | Branch chooser | Built; selects, downloads, validates, and runs the updater from exactly the selected branch. Missing branch files fail closed. Windows behavior was previously verified for the chooser flow; rerun after future batch changes. |
 | Unlayered Infill | 0.3.4. Full 0.3.0 control set preserved, including percentage amplitude, frequency, segment length, nozzle-width grid, blending, and full-strength controls. Restore defaults handles stale Orca configuration. |
 | Wave Overhangs | 0.0.15. Visible conforming waves were confirmed in the owner's real Orca export with 0.0.11. The 0.0.15 Z correction and edge cleanup pass the captured real-export regression. |
-| Wave Overhangs Geometry | 0.1.1. Separate experimental `posSlice` prototype; preview visibility and live geometry mutation still require a real current Orca build. |
+| Wave Overhangs Geometry | 0.1.2. Separate experimental `posSlice` prototype. The owner confirmed it registers and produces much cleaner preview geometry; 0.1.2 now removes dot crumbs, keeps the outer bridge shell, tags Wave geometry as bridge, and orders bridge pieces from support outward. Physical output remains unverified. |
 | Repository organization | This pass groups reference PDFs and real fixtures, removes the runtime log from source control, and reconciles the documentation. |
 | Physical print | Not verified. A fresh 0.0.15 export and print are still required. |
 
@@ -73,17 +73,19 @@ only if the owner asks for it.
 
 `plugins/wave-overhangs-geometry/` is a separate plugin so the proven
 post-processing Wave path remains available. It runs at `posSlice`, reads the
-previous layer's live slice, generates obstacle-aware Wave fronts, and writes
-narrow ribbon polygons into `LayerRegion.slices` before Orca generates
-perimeters and infill. This is the route intended to make Wave geometry visible
-in the normal preview.
+previous layer's live slice, generates obstacle-aware Wave fronts, removes tiny
+clipped preview crumbs, keeps a continuous outer overhang shell, and writes
+bridge-classified ribbon polygons into `LayerRegion.slices` before Orca
+generates perimeters and infill. This is the route intended to make Wave
+geometry visible in the normal preview.
 
 Current Orca bindings expose existing `ExtrusionPath` objects read-only. The
 prototype therefore creates geometry ribbons rather than injecting raw
-extrusion paths. It must not be described as a direct toolpath injector until
-Orca exposes a writable extrusion collection. If the host geometry bindings are
-missing or a mutation fails, the prototype returns a recoverable error and does
-not continue with a partial edit.
+extrusion paths. It orders those bridge surfaces from the supported edge
+outward, but Orca still owns the final path order. It must not be described as
+a direct toolpath injector until Orca exposes a writable extrusion collection.
+If the host geometry bindings are missing or a mutation fails, the prototype
+returns a recoverable error and does not continue with a partial edit.
 
 A real current-Orca slice is required to verify preview visibility, geometry
 lifetime, island handling, and the resulting physical toolpath. The synthetic

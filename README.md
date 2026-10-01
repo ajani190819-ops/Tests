@@ -8,7 +8,7 @@ that's a bug; open an issue.
 | Plugin | Version | What it does |
 | --- | --- | --- |
 | [Wave Overhangs](plugins/wave-overhangs/) | 0.0.15 | replaces covered Bridge extrusion with support-anchored wave toolpaths |
-| [Wave Overhangs Geometry](plugins/wave-overhangs-geometry/) | 0.1.1 | experimental `posSlice` Wave geometry intended to appear in Orca's preview |
+| [Wave Overhangs Geometry](plugins/wave-overhangs-geometry/) | 0.1.2 | experimental `posSlice` Wave geometry intended to appear in Orca's preview |
 | [Unlayered Infill](plugins/unlayered-infill/) | 0.3.4 | rewrites sparse infill onto a sine wave in Z so layers interlock instead of stacking as clean planes |
 
 These are the versions in the current test branch. Direct updater runs use
@@ -144,8 +144,8 @@ number into them can orphan a saved preset.
 | File → Plugins, **Version** column | `0.0.15` (Orca reads the PEP 723 header) |
 | The updater's output | `Wave Overhangs v0.0.15` |
 | **Check setup**, first line | `Wave Overhangs v0.0.15 -- setup check` |
-| Geometry plugin Version | `0.1.1` |
-| Geometry Check setup | `Wave Overhangs Geometry v0.1.1` |
+| Geometry plugin Version | `0.1.2` |
+| Geometry Check setup | `Wave Overhangs Geometry v0.1.2` |
 
 The exported G-code is stamped too — search it for `; wave-overhangs v` or
 `; unlayered-infill v` to see which build produced the file. The same rule

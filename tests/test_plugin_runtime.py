@@ -399,12 +399,14 @@ with tempfile.TemporaryDirectory() as tmp:
         check(names == ["Wave Overhangs Geometry",
                         "Wave Overhangs Geometry - Check setup"],
               f"Geometry capability identities changed: {names}")
-        check(geometry.PLUGIN_VERSION == "0.1.1",
-              f"Geometry runtime version is {geometry.PLUGIN_VERSION}, want 0.1.1")
+        check(geometry.PLUGIN_VERSION == "0.1.2",
+              f"Geometry runtime version is {geometry.PLUGIN_VERSION}, want 0.1.2")
         result = orca.REGISTERED[1]().execute()
         check(result.ok and "posSlice" in result.message and
-              "read-only" in result.message,
-              "Geometry Check setup must explain the preview stage and API limit")
+              "read-only" in result.message and "bridge" in result.message and
+              "outward" in result.message,
+              "Geometry Check setup must explain the preview stage, bridge "
+              "classification, ordering bias, and API limit")
         result = orca.REGISTERED[0]().execute(
             fake_orca.Context(fake_orca.Step.posSlice))
         check(not result.ok and "numpy" in result.message,

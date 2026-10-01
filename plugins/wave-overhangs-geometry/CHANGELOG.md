@@ -1,5 +1,13 @@
 # Changelog — Wave Overhangs Geometry
 
+## 0.1.2 — 2026-10-01
+
+* Cleaned preview output by dropping tiny clipped ribbon crumbs.
+* Preserved a continuous outer overhang boundary shell so the visible wall does
+  not disappear between Wave ribbons.
+* Reclassified generated Wave replacement geometry as bridge surfaces and
+  handed bridge pieces to Orca in supported-edge-to-outer-edge order.
+
 ## 0.1.1 — 2026-10-01
 
 * Fixed real-Orca registration by constructing the slicing capability base

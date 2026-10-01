@@ -50,8 +50,17 @@ The visible configuration defaults are conservative:
 * `min_overhang_area`: ignores tiny unsupported regions.
 * `perimeter_overlap`: moves the first front toward its supported anchor.
 * `min_wave_length`: ignores very short front fragments.
+* `min_preview_island_area`: removes tiny clipped preview dots left at corners
+  and holes.
+* `outer_boundary_band`: keeps the visible overhang edge as a continuous
+  bridge-classified shell. `auto` follows `line_width`.
 * `simplify_tolerance`: removes harmless boundary noise.
 * `max_iterations`: safety limit for propagation.
+
+Generated replacement surfaces are tagged as `stBottomBridge` when the host
+exposes that type. Bridge pieces are handed to Orca from the supported edge
+outward; Orca still owns final path planning until Python can write
+`ExtrusionPath` objects directly.
 
 The plugin processes each object once per slicing execution. Invalid geometry,
 missing host bindings, or a failed mutation return a recoverable error and try
