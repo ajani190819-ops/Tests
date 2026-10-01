@@ -24,6 +24,7 @@ except ImportError:
 import fake_orca
 import wave_cases
 from shapely.geometry import LineString, MultiLineString, Point, Polygon
+from shapely.ops import unary_union
 
 orca = fake_orca.install()
 path = ROOT / "plugins/wave-overhangs/wave_overhangs_orca.py"
@@ -147,12 +148,12 @@ assert curved_allowed.buffer(0.02).covers(LineString(clean_arc)), (
 
 assert stats["wave_layers"] == 3, stats
 assert stats["replaced_sections"] == 3, stats
-assert stats["removed_moves"] == 104, stats
-assert stats["kept_fragments"] == 28, (
+assert stats["removed_moves"] == 107, stats
+assert stats["kept_fragments"] == 25, (
     "substantial uncovered bridge fragments must remain", stats)
-assert stats["tiny_fragments_dropped"] == 115, (
+assert stats["tiny_fragments_dropped"] == 122, (
     "sub-nozzle edge remnants should be cleaned up", stats)
-assert stats["short_wave_paths_dropped"] == 16, (
+assert stats["short_wave_paths_dropped"] == 12, (
     "isolated short wavefronts should be cleaned up", stats)
 assert stats["wall_bounded_sections"] == 3, (
     "every exported bridge section should be squared up against the wall "
@@ -204,7 +205,7 @@ clearance_only_blocks = re.findall(
 clearance_only_move_count = sum(
     block.count("\nG1 X") for block in clearance_only_blocks)
 assert old_style_stats["removed_moves"] == stats["removed_moves"]
-assert old_style_move_count == 488, (
+assert old_style_move_count == 494, (
     "old no-clearance/no-taper cleanup changed unexpectedly")
 assert clearance_only_stats["removed_moves"] == stats["removed_moves"]
 assert wave_path_length(clearance_only_blocks) < wave_path_length(
@@ -378,7 +379,7 @@ legacy_blocks = re.findall(
     r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
     r"; ==== WAVE OVERHANG END ====", legacy_out, re.DOTALL)
 assert legacy_stats["wall_bounded_sections"] == 0, legacy_stats
-assert sum(block.count("\nG1 X") for block in legacy_blocks) == 713, (
+assert sum(block.count("\nG1 X") for block in legacy_blocks) == 728, (
     "wall_snap=False must still produce the 0.0.19 bridge-footprint edges")
 
 
@@ -429,11 +430,20 @@ assert ends_just_short(overhang_paths, walls_5_4) == [], (
     ends_just_short(overhang_paths, walls_5_4))
 assert len(ends_just_short(legacy_paths, walls_5_4)) >= 5, (
     "the 0.0.19 comparison run should still stop short of the wall")
-in_bead = sum(1 for path in overhang_paths for end in (path[0], path[-1])
-              if walls_5_4.covers(Point(end)))
-legacy_in_bead = sum(1 for path in legacy_paths for end in (path[0], path[-1])
-                     if walls_5_4.covers(Point(end)))
-assert in_bead > legacy_in_bead, (in_bead, legacy_in_bead)
+# A higher share of ends finish inside the wall bead, and none of them are
+# left hovering just outside it.
+def bead_share(paths):
+    ends = [end for path in paths for end in (path[0], path[-1])]
+    inside = sum(1 for end in ends if walls_5_4.covers(Point(end)))
+    return inside, len(ends)
+
+
+in_bead, total_ends = bead_share(overhang_paths)
+legacy_in_bead, legacy_total = bead_share(legacy_paths)
+assert in_bead / total_ends > legacy_in_bead / legacy_total, (
+    "more of the Wave ends should finish in the wall bead than in 0.0.19",
+    (in_bead, total_ends), (legacy_in_bead, legacy_total))
+assert in_bead >= 30, in_bead
 
 
 hole_source, (hx, hy, hr) = wave_cases.synthetic_overhang_with_hole()
@@ -563,7 +573,7 @@ emitted_arcs = sum(block.count("\nG2 ") + block.count("\nG3 ")
                    for block in arc_blocks)
 assert arc_stats["arc_moves"] == emitted_arcs == 44, (arc_stats, emitted_arcs)
 arc_move_count = sum(block.count("\nG1 X") for block in arc_blocks)
-assert arc_move_count == 308, arc_move_count
+assert arc_move_count == 314, arc_move_count
 assert arc_move_count + emitted_arcs < wave_move_count, (
     "arcs must reduce the number of commands, not add to them")
 assert arc_stats["removed_moves"] == stats["removed_moves"], (
@@ -617,6 +627,69 @@ assert wave._MOVE_CODE.match("G28 X0 Y0") is None, "G28 is not a move"
 arc_again, arc_second = wave._gcode_wave_rewrite(arc_out, dict(cfg))
 assert arc_second.get("already_processed") is True, arc_second
 assert arc_again == arc_out, "a second pass over arc output must change nothing"
+
+# ---------------------------------------------------------------------------
+# Corner slivers (the 0.0.22 fix).
+#
+# A wavefront is a contour of equal distance from the supported edge, and the
+# contours step outward one spacing at a time. Where the far boundary runs at
+# an angle to that march -- the tip of a corner -- the last contour stops
+# short and leaves a sliver with nothing in it. The owner photographed one.
+# ---------------------------------------------------------------------------
+wedge_source, wedge_info = wave_cases.synthetic_wedge_corner()
+
+
+def unfilled_slivers(text, source_text, minimum=0.02):
+    """Area inside the walls that no extrusion covers, by piece."""
+    layers = wave._parse_gcode_geometry(source_text.splitlines(keepends=True))
+    silhouette = wave._layer_outline(layers[1])
+    support = wave._footprint(layers[0]["all"])
+    beads = []
+    for path in wave_polylines(wave_blocks_of(text)):
+        if len(path) > 1:
+            beads.append(LineString(path).buffer(0.25, cap_style=2))
+    covered = unary_union(beads) if beads else Polygon()
+    gap = silhouette.buffer(-0.375).difference(covered).difference(
+        support.buffer(0.05))
+    return sorted((p for p in wave._polygon_parts(gap) if p.area > minimum),
+                  key=lambda p: -p.area)
+
+
+wedge_plain, wedge_plain_stats = wave._gcode_wave_rewrite(
+    wedge_source, dict(cfg, gap_fill=False))
+wedge_filled, wedge_stats = wave._gcode_wave_rewrite(wedge_source, dict(cfg))
+tip_x = wedge_info["tip"][0]
+
+
+def near_tip(text):
+    return sum(p.area for p in unfilled_slivers(text, wedge_source)
+               if p.centroid.x > tip_x - 10.0)
+
+
+assert wedge_plain_stats["gap_fills"] == 0, wedge_plain_stats
+assert wedge_stats["gap_fills"] >= 1, wedge_stats
+assert near_tip(wedge_plain) > 0.1, (
+    "the wedge fixture must still show the unfilled corner being fixed",
+    near_tip(wedge_plain))
+assert near_tip(wedge_filled) < 0.05, (
+    "the corner sliver must be filled", near_tip(wedge_filled))
+
+# Gap fill only ever adds material where there is none: a part with no sliver
+# must come out byte for byte identical.
+hole_no_fill, _ = wave._gcode_wave_rewrite(hole_source, dict(cfg, gap_fill=False))
+assert hole_no_fill == hole_out, (
+    "gap fill must not change a part that has no slivers")
+
+# A short front that touches a full-length rung is anchored, so it is kept;
+# an isolated speck is still dropped. Which ones survive must not depend on
+# the print order, or two orderings would cover different bridge area.
+for ordering in ({"component_order": "nearest"}, {"pattern": "monotonic"},
+                 {"pattern": "zigzag"}):
+    _text, ordered_stats = wave._gcode_wave_rewrite(source, dict(cfg, **ordering))
+    assert ordered_stats["removed_moves"] == stats["removed_moves"], (
+        "print order must not change which bridge extrusion is covered",
+        ordering, ordered_stats["removed_moves"], stats["removed_moves"])
+    assert ordered_stats["kept_fragments"] == stats["kept_fragments"], ordering
 
 again, second = wave._gcode_wave_rewrite(out, cfg)
 assert again == out and second["already_processed"], "second pass must be a no-op"

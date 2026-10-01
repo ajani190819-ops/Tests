@@ -19,6 +19,37 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — The corner sliver, measured in the owner's own print
+
+**Wave Overhangs:** 0.0.22.
+
+The owner printed the part, photographed the first layer from below and
+circled two things: a corner that was not filled, and a rounded wall whose
+Wave edge was not smooth. They also uploaded the export, so both could be
+measured rather than guessed at.
+
+**The corner is real and is now fixed.** A wavefront is a contour of equal
+distance from the supported edge, and those contours step outward one line
+spacing at a time. Where the far boundary runs at an angle to that march --
+the tip of a corner -- the last contour stops short. In their export that left
+a 0.22 mm^2 void, 0.53 x 0.75 mm, in the corner of the plate. Wave now fills a
+sliver like that with one short path down its middle, and only ever adds
+material where there is none. Short fronts that touch a rung already on the
+plate are also kept now rather than discarded as specks.
+
+**The rounded wall is not what it looks like.** Every Wave end along that
+curve sits 0.456 to 0.457 mm from the wall -- a spread of 0.001 mm across 21
+ends -- so the ends are already landing on the wall exactly as intended. The
+staircase in the preview is the flat end of each rung meeting a curve at
+0.35 mm intervals. Smoothing it needs a rung laid along the wall with the
+others trimmed back to make room. That was built, measured, found to make the
+edge worse, and left out. It is written up in the roadmap instead of shipped.
+
+Not verified on hardware beyond the owner's own photograph of the 0.0.20
+print, which is what prompted this release.
+
+---
+
 ## 2026-10-01 — Wave speaks arcs, and stops bloating files around holes
 
 **Wave Overhangs:** 0.0.21.

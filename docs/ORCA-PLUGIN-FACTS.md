@@ -206,7 +206,7 @@ is a bug in the plugin:
   refusals and internal errors never touch the G-code file; an unexpected
   exception returns Success so a plugin bug cannot fail someone's export.
 * **Wave Overhangs replacement is one G-code transaction.** Do not restore
-  pre-export slice carving or cross-callback plan state. Version 0.0.21 builds
+  pre-export slice carving or cross-callback plan state. Version 0.0.22 builds
   support, wall and bridge footprints from exported moves, squares the Wave
   area up against the real wall bead, generates waves, removes only
   geometrically covered bridge extrusion, and retains every uncovered
@@ -219,11 +219,11 @@ is a bug in the plugin:
 
 * Both plugins have run in the owner's real OrcaSlicer. Unlayered rewrote real
   exports. Wave 0.0.11 produced visible, perimeter-conforming waves in a
-  reopened export. Wave 0.0.21 corrects the measured 0.25 mm Z-offset error,
+  reopened export. Wave 0.0.22 corrects the measured 0.25 mm Z-offset error,
   cleans edge chatter, measures the overhang against the layer's real wall
   moves so fronts run from the supported perimeter to the overhang perimeter
   and to holes, and tapers endpoint flow without default micro-moves in the
-  captured fixture; a fresh 0.0.21 export and physical print are still
+  captured fixture; a fresh 0.0.22 export and physical print are still
   required.
 * The captured real-export regression is `tests/test_wave_gcode.py` and uses
   `tests/fixtures/Cube^2_3m53s.gcode`. It verifies three Wave layers, bounded
@@ -246,7 +246,7 @@ is a bug in the plugin:
   tuning is not a physical-print guarantee.
 * `full_strength` can displace by the entire gap to the nearest skin in a
   thin part. Off by default for that reason.
-* Wave 0.0.21 reads absolute bed coordinates from exported G-code and no
+* Wave 0.0.22 reads absolute bed coordinates from exported G-code and no
   longer needs object-to-bed calibration or cross-callback plan state.
 * **Post-processing runs after Orca's arc fitter.** A plugin at
   `psGCodePostProcess` receives the finished file: its own moves are never
@@ -255,6 +255,11 @@ is a bug in the plugin:
   the wall around a round hole, for example -- arrive as arcs. Wave 0.0.21
   reads the `I J` and `R` forms and emits its own arcs only when the export's
   `enable_arc_fitting` says the profile asked for them.
+* **A wavefront field does not reach a boundary it meets at an angle.** The
+  fronts are contours of equal distance from the supported edge, stepping out
+  one line spacing at a time, so the tip of a corner is always left short by
+  up to one spacing. Measured in a real print: 0.22 mm^2 unfilled. Covering it
+  needs an explicit gap fill (Wave 0.0.22), not a smaller spacing.
 * **An exported extrusion footprint is not the shape of the region.** Bridge
   infill is exported as separate lines, so buffering those lines gives a
   castellated edge that stops short of the perimeter; and buffering a wall one

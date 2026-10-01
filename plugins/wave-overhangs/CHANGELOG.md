@@ -6,10 +6,35 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.21 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.22 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.22 — 2026-10-01
+
+* Fixed the unfilled corner the owner photographed. A wavefront is a contour
+  of equal distance from the supported edge, and the contours step outward one
+  line spacing at a time, so where the far boundary runs at an angle to that
+  march -- the tip of a corner -- the last contour stops short and leaves a
+  small sliver with nothing in it. Measured in the owner's own export: a
+  0.22 mm^2 void, 0.53 x 0.75 mm, in the corner of the plate. Wave now fills
+  such a sliver with one short path down its middle. `gap_fill` (on) and
+  `gap_fill_min_area` (0.05 mm^2) control it. It only ever adds material where
+  there is none: a part with no sliver comes out byte for byte identical.
+* A short wavefront that touches a full-length rung is now kept instead of
+  discarded. Short fronts were dropped to avoid specks printed into thin air,
+  but one that touches a rung already on the plate is anchored, and dropping
+  it was leaving holes in exactly the places this release is about. Whether a
+  front survives is measured against every rung, not the ones kept so far, so
+  print order cannot change which bridge extrusion ends up covered.
+* Investigated the second thing the owner circled -- a rounded wall whose Wave
+  edge looks like a staircase. Measured in their export, every Wave end along
+  that curve sits 0.456 to 0.457 mm from the wall: a spread of 0.001 mm, so the
+  ends are already on the wall. What the preview shows is the flat end of each
+  rung meeting a curve at 0.35 mm intervals. Smoothing that needs a rung laid
+  *along* the wall with the others trimmed back to make room; the first attempt
+  made the edge worse and was not shipped.
 
 ## 0.0.21 — 2026-10-01
 

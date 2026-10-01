@@ -4,16 +4,16 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-01, Wave perimeter-conformance and arc-move session (0.0.21).
+* **Last updated:** 2026-10-01, Wave corner-sliver session (0.0.22), driven by the owner's first real print.
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0f908-tests`. Never switch branches or push to
   `main`.
-* **Latest code state:** Wave Overhangs 0.0.21 measures the overhang against
+* **Latest code state:** Wave Overhangs 0.0.22 measures the overhang against
   the layer's real wall moves, so Wave ends land on the wall and hole
   perimeters instead of the castellated bridge-line edge, and it both reads
   and writes G2/G3 arc moves; Geometry 0.1.4 remains an experimental
   alternate.
-* **Current versions:** Wave Overhangs 0.0.21, Wave Overhangs Geometry 0.1.4,
+* **Current versions:** Wave Overhangs 0.0.22, Wave Overhangs Geometry 0.1.4,
   Unlayered Infill 0.3.4, updater 1.4.0.
 * **Permanent identities:** `Wave Overhangs`, `Wave Overhangs Geometry`, and
   `Unlayered Infill`. Release numbers must remain out of package and capability
@@ -51,7 +51,7 @@ Important locations:
 
 ## Current implementation
 
-### Wave Overhangs 0.0.21
+### Wave Overhangs 0.0.22
 
 The active implementation is one transactional G-code pass at
 `psGCodePostProcess`:
@@ -205,9 +205,9 @@ or a printer.
 2. Run a fresh current-Orca slice with `Wave Overhangs Geometry` selected and
    confirm the edited ribbons appear as bridge fill in the normal preview while
    the original overhang perimeter remains intact.
-3. Export `Cube^2.STL` again at the owner's 0.30 mm / 0.60 mm settings with the
-   original post-processing Wave plugin and inspect Z alignment and the new
-   wall-conforming Wave edges.
+3. Re-print the same part with 0.0.22 and photograph the same corner: the
+   0.22 mm^2 void should be gone. `Cube_39m10s.gcode` in the repo root is the
+   0.0.20 print it is being compared against.
 3a. Turn **Arc fitting** on in the print profile for that export, so the
    arc paths get exercised in real Orca and real firmware. Check the printer
    accepts the G2/G3 Wave blocks and that curved walls still read back
@@ -222,6 +222,34 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-01 — The owner's first print, measured (0.0.22)
+
+The owner printed the part with 0.0.20, photographed the first layer from
+below, circled two areas and uploaded the export (`Cube_39m10s.gcode`, now in
+the repo root along with `Cube.stl`). Having the real file meant both could be
+measured instead of guessed at.
+
+**The corner was real.** Reconstructing that layer (index 45, z 13.8) and
+subtracting the Wave beads from the area inside the walls left exactly one
+defect: 0.22 mm^2, 0.53 x 0.75 mm, in the corner of the plate. Cause: a
+wavefront is a contour of equal distance from the supported edge and the
+contours step out one line spacing at a time, so the tip of a corner is always
+left short. Fixed with an explicit gap fill plus keeping short fronts that are
+anchored to a full-length rung.
+
+**The rounded wall was not.** Every Wave end along the 13 mm radius sat 0.456
+to 0.457 mm from the silhouette -- 21 ends, 0.001 mm of spread. The ends are
+already on the wall; the staircase in the preview is the flat end of each rung
+meeting a curve at 0.35 mm intervals. A wall-hugging rung with trimming was
+built and measured, made the edge worse, and was reverted. Written up in
+`docs/ROADMAP.md` under the open item, with what a correct attempt needs.
+
+Worth remembering for next time: their profile has `enable_arc_fitting = 1`
+and the export carries 12,546 G2/G3 moves, so the 0.0.21 arc parser matters
+for this owner specifically. On this particular layer none of the walls were
+arcs, so arc blindness was not the cause of either defect -- that hypothesis
+was checked and rejected before the measurement work started.
 
 ### 2026-10-01 — Wave speaks arcs; the hole file-size bug (0.0.21)
 

@@ -10,7 +10,7 @@ This is a port of the algorithm behind
 (a C++ fork of OrcaSlicer, algorithm by Janis A. Andersons) as a Python
 slicing-pipeline plugin. Earlier builds ran in real Orca but inserted no waves.
 The owner confirmed that 0.0.11 produced visible, perimeter-conforming waves
-in real Orca. Version 0.0.21 is regression-tested against the captured export
+in real Orca. Version 0.0.22 is regression-tested against the captured export
 with corrected Z alignment, edge cleanup, wall-bounded Wave areas whose ends
 land on the real wall and hole perimeters, and tapered endpoint flow; it still
 needs a fresh Orca export and physical-print validation.
@@ -27,7 +27,7 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 
 1. Restart OrcaSlicer (needs newer than 2.4.2, or a nightly).
 2. File → Plugins → confirm *Wave Overhangs* is enabled and its separate
-   Version column reads **0.0.21**. The package name is permanently
+   Version column reads **0.0.22**. The package name is permanently
    version-free.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Wave Overhangs*.
 4. Slice a part with a small overhang, then run the
@@ -84,6 +84,27 @@ actually printed and squares the Wave area up against them.
 Stretching the area to the wall can never create a Wave where there was not
 one. The region still has to come from bridge extrusion Orca exported over
 unsupported space, and nothing may be placed outside the part.
+
+### Corner slivers (new in 0.0.22)
+
+A wavefront is a contour of equal distance from the supported edge, and the
+contours step outward one line spacing at a time. Where the far boundary runs
+at an angle to that march -- the tip of a corner -- the last contour stops
+short and leaves a small sliver with nothing in it.
+
+* `gap_fill`: `true` (default) fills such a sliver with one short path down
+  its middle. It only ever adds material where there is none, so a part
+  without slivers is unaffected.
+* `gap_fill_min_area`: mm² below which a sliver is left alone (0.05).
+
+A short wavefront that touches a full-length rung is also kept rather than
+discarded, because it is anchored rather than a speck in thin air.
+
+**Known limit:** where a wall curves, the flat end of each rung meets it at
+one line-spacing intervals, so the edge of the Wave area reads as a fine
+staircase even though every end lands on the wall (measured: 0.001 mm of
+spread across 21 ends on a 13 mm radius). Smoothing it needs a rung laid along
+the wall with the others trimmed back; that is not implemented.
 
 ### Arc moves (new in 0.0.21)
 
