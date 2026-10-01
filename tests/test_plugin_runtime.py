@@ -25,6 +25,7 @@ import tempfile
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent
 PLUGIN = REPO / "plugins" / "unlayered-infill" / "unlayered_infill_orca.py"
+WAVE_PLUGIN = REPO / "plugins" / "wave-overhangs" / "wave_overhangs_orca.py"
 sys.path.insert(0, str(HERE))
 
 import fake_orca  # noqa: E402
@@ -305,12 +306,57 @@ with tempfile.TemporaryDirectory() as tmp:
           "be able to ruin a print")
     os.environ["ORCA_PLUGIN_LOG_DIR"] = str(logs)
 
+# --------------------------------------------------------------------------
+# 12. Wave Overhangs follows the PDF contract and explains missing deps
+# --------------------------------------------------------------------------
+# numpy/shapely are deliberately absent in this sandbox. That lets us exercise
+# the first-install failure the owner is facing without pretending geometry ran.
+with tempfile.TemporaryDirectory() as tmp:
+    logs = pathlib.Path(tmp) / "Downloads"
+    logs.mkdir()
+    os.environ["ORCA_PLUGIN_LOG_DIR"] = str(logs)
+    orca = fake_orca.install()
+    sys.modules.pop("wave_overhangs_orca", None)
+    sys.modules.pop("wave_core", None)
+    spec = importlib.util.spec_from_file_location("wave_overhangs_orca", WAVE_PLUGIN)
+    wave = importlib.util.module_from_spec(spec)
+    sys.modules["wave_overhangs_orca"] = wave
+    try:
+        spec.loader.exec_module(wave)
+    except Exception as e:
+        check(False, f"Wave Overhangs could not load without optional deps: {e}")
+    else:
+        check(read_log(logs) == "",
+              "Wave Overhangs wrote during import; Orca's audit hook can block it")
+        check(len(orca.PLUGINS) == 1,
+              f"Wave Overhangs needs exactly one @orca.plugin package, got {len(orca.PLUGINS)}")
+        orca.PLUGINS[0]().register_capabilities()
+        names = [c().get_name() for c in orca.REGISTERED]
+        check(names == ["Wave Overhangs", "Wave Overhangs - Check setup"],
+              f"Wave capability identities changed: {names}")
+        check(wave.PLUGIN_VERSION == "0.0.7",
+              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.7")
+        result = orca.REGISTERED[1]().execute()
+        check(not result.ok and result.kind == fake_orca.PluginResult.RecoverableError,
+              "Check setup must return a recoverable failure when dependencies are absent")
+        check("numpy" in result.message and "shapely" in result.message and
+              "Fully quit OrcaSlicer (not just close the window)" in result.message and
+              "Diagnostics" in result.message,
+              f"dependency failure does not give a complete beginner-safe fix: {result.message!r}")
+        log = read_log(logs)
+        check("Wave Overhangs v0.0.7 loaded" in log and "MISSING" in log,
+              f"Wave dependency state was not logged clearly:\n{log}")
+        pipeline = orca.REGISTERED[0]()
+        result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))
+        check(not result.ok and "dependency" in result.message.lower(),
+              "Wave pipeline must refuse clearly rather than silently no-op without deps")
+
 if failures:
     print(f"FAILED ({len(failures)})")
     for f in failures:
         print(f"  - {f}")
     sys.exit(1)
 
-print("ok -- the plugin loads, registers 2 capabilities, rewrites G-code at "
-      "psGCodePostProcess, refuses absolute E, is idempotent, honours preset "
-      "config, and logs to the Downloads folder")
+print("ok -- Unlayered Infill rewrites G-code and logs correctly; Wave "
+      "Overhangs registers its PDF-shaped capabilities and reports missing "
+      "numpy/shapely as a clear recoverable dependency failure")

@@ -1,11 +1,21 @@
 # Changelog — Unlayered Infill
 
 What changed in each version, newest first. The version you have is shown in
-OrcaSlicer's **Plugins** dialog (the Name column reads `Unlayered Infill v…`),
-and running the **Unlayered Infill - Check setup** capability prints it along
-with a short version history.
+OrcaSlicer's **Plugins** dialog in its separate Version column, and running
+**Unlayered Infill - Check setup** prints it with a short version history.
 
 Dates are the day the change was made, not a release date.
+
+## 0.3.2 — 2026-09-30
+
+* **The plugin name is now permanently `Unlayered Infill`.** Orca's
+  development guide says a process preset saves the plugin name as part of its
+  full capability reference. A version inside that name changed the saved
+  identity every release. The version remains visible in Orca's Version
+  column, Check setup, logs, G-code stamps, the standalone tool, and updater
+  output.
+* After updating, select Unlayered Infill once more in the process preset so
+  Orca saves the stable reference.
 
 ## 0.3.1 — 2026-09-30
 

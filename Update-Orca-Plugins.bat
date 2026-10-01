@@ -54,8 +54,8 @@ if /i not "%REF_1%"=="main" set "BRANCH_MODE=1"
 
 rem This updater's own version. The line below it is the machine-readable
 rem copy :self_update compares against; test_installer.py keeps them equal.
-set UPDATER_VERSION=1.2.1
-rem UPDATER_VERSION 1.2.1 end
+set UPDATER_VERSION=1.2.2
+rem UPDATER_VERSION 1.2.2 end
 
 rem PLUGIN_ONLY is matched as a substring against each plugin id.
 if defined PLUGIN_ONLY set "PLUGIN_ONLY=%PLUGIN_ONLY: =%"
@@ -271,11 +271,10 @@ if errorlevel 1 (
 
 rem Orca's Plugins dialog writes this sidecar when installing locally; writing
 rem it here keeps the copy discoverable and already enabled.
-rem The name is composed as "<name> v<version>" to match the plugin's PEP 723
-rem name header, which carries the version so the Plugins dialog shows it.
-rem Composing it from PL_VER (read from the downloaded file's header) means it
-rem cannot drift from what is actually installed.
-call :write_state "%STATE_FILE%" "%PL_NAME% v%PL_VER%" "%PL_CAP1%" "%PL_CAP2%" "%PL_VER%"
+rem The plugin name is a stable identity and must match the PEP 723 name.
+rem Orca stores it in preset capability references, so never add the version;
+rem installed_version and Orca's Version column report that separately.
+call :write_state "%STATE_FILE%" "%PL_NAME%" "%PL_CAP1%" "%PL_CAP2%" "%PL_VER%"
 if errorlevel 1 (
     echo   [FAIL] could not write "%STATE_FILE%".
     exit /b 1
@@ -404,8 +403,8 @@ rem  writes, and this way it lands on a field nothing reads.
 rem ---------------------------------------------------------------------------
 :fallback_plan
 echo   Using the fallback plan built into this file.
->  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.6^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
->> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.3.1^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
+>  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.7^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
+>> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.3.2^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
 exit /b 0
 
 rem ---------------------------------------------------------------------------
@@ -574,7 +573,7 @@ rem Same version as ours? Nothing to do.
 findstr /b /c:"rem UPDATER_VERSION %UPDATER_VERSION% end" "%NEWBAT%" >nul 2>nul
 if not errorlevel 1 goto :su_skip
 set "NEW_UV=?"
-rem "rem UPDATER_VERSION 1.2.1 end" -- token 3 is the version, and the
+rem "rem UPDATER_VERSION 1.2.2 end" -- token 3 is the version, and the
 rem trailing "end" absorbs the CR so it never lands in the variable.
 for /f "usebackq tokens=3" %%V in (`findstr /b /c:"rem UPDATER_VERSION " "%NEWBAT%"`) do set "NEW_UV=%%V"
 echo  Updater: this copy is v%UPDATER_VERSION%, v%NEW_UV% is available.

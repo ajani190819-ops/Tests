@@ -18,7 +18,8 @@ Read that one first.
 | C | Wave Overhangs as a standalone **post-processing script** | Planned — **design settled 2026-09-30, unblocked** |
 | D | Unlayered Infill: make it actually work | **Done 2026-09-30** — diagnosed, standalone shipped, plugin now runs under test and logs to Downloads |
 | E | Updater self-updates itself + stages the standalone tools | **Done 2026-09-30** — code written, **never run on Windows** |
-| F | Double-click branch chooser + strict test-build installs | **Built 2026-09-30** — statically tested, **never run on Windows** |
+| F | Double-click branch chooser + strict test-build installs | **Verified on Windows 2026-09-30** after v1.2.1 fixes |
+| G | Stable plugin identities + PDF contract audit | **Built 2026-09-30** — awaiting real Orca rerun |
 
 **PR #1 is merged** (2026-09-30, from `arena/01a0f42b-tests`), so `main` now
 carries `plugins.json` and both plugin files — **the updater is live**. A .bat
@@ -250,10 +251,10 @@ that logic needs fixing, the owner has to re-download once.
 
 ## F. Install and test any branch without Command Prompt
 
-**Built 2026-09-30. The first Windows run exposed and documented two bugs:
+**Built and verified on Windows 2026-09-30.** The first run exposed two bugs:
 PowerShell 5.1 nested the API array, and the small catalogue hit the plugin
-size floor. Both are fixed in updater 1.2.1 with regression tests. A second
-Windows run is still needed to confirm the corrected menu and install.**
+size floor. Both were fixed in updater 1.2.1 with regression tests; the owner
+reran the corrected chooser and strict branch installation successfully.
 
 The owner needs to test an Arena branch before merging it. Branch names change
 every chat, so copying a name into Command Prompt was not a useful workflow.
@@ -286,6 +287,37 @@ every chat, so copying a name into Command Prompt was not a useful workflow.
 all-or-nothing branch preflight. This can catch missing guards and ordering
 mistakes. It cannot execute Windows `cmd.exe`, the live menu, or PowerShell's
 GitHub calls. The owner's first Windows run remains the real test.
+
+---
+
+## G. Stable plugin identities and PDF contract audit
+
+**Built 2026-09-30; awaiting a real Orca rerun.**
+
+The owner's real Wave Overhangs test showed it installed, activated, and
+selected, but it never appeared in the shared log. The repository's newly
+added Plugin Development PDF supplied the missing identity fact: a preset's
+full capability reference includes both `plugin_name` and `capability_name`.
+The old `<Name> v<version>` plugin names therefore changed a saved identity on
+every release.
+
+* Both PEP 723 names and updater sidecars are now stable: `Wave Overhangs` and
+  `Unlayered Infill`. Versions remain in Orca's Version column, Check setup,
+  logs, G-code stamps, standalone tool, and updater summaries.
+* Wave Overhangs 0.0.7 and Unlayered Infill 0.3.2 carry the migration. The
+  owner must reselect each capability once after updating so Orca saves the
+  corrected stable reference.
+* Contract tests pin the PDF's required shape: root-level dependencies,
+  exactly one `@orca.plugin` package subclassing `orca.base`, typed capability
+  bases, correct execute signatures, and matching registration.
+* Orca's bundled `uv` resolver installs PEP 723 dependencies. The plugin must
+  not invoke `pip`; Wave continues to declare numpy and shapely and import them
+  at module load before audited capability calls.
+* Side-loaded Python metadata cannot populate Orca's dedicated Changelog tab;
+  that data comes from a cloud listing. The supported visible routes remain
+  the Description tab and Check setup, both generated from each plugin's
+  changelog. If published to Orca Cloud, copy the same history into the cloud
+  listing's Changelog field.
 
 ---
 

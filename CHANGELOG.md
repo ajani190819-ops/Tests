@@ -18,6 +18,29 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-09-30 — stable plugin identities, audited against Orca's PDF
+
+**Plugins:** Wave Overhangs **0.0.7**, Unlayered Infill **0.3.2**.
+**Updater:** 1.2.2.
+
+* Both plugin names are now permanent and version-free. Orca's Plugin
+  Development PDF says a preset's full capability reference contains the
+  plugin name. Renaming the plugin every release could leave a preset pointing
+  at yesterday's identity even while the new plugin appeared installed and
+  activated. Versions remain visible in Orca's Version column, Check setup,
+  logs, G-code stamps, standalone tool, and updater output.
+* The updater sidecar now writes the same stable PEP 723 name and keeps the
+  version only in `installed_version`.
+* Added PDF-backed contract checks for PEP 723 dependency placement, one
+  package class, typed capability bases, execute signatures, and capability
+  registration. Wave Overhangs continues to declare numpy and shapely for
+  Orca's bundled `uv` installer; it does not run `pip` itself.
+* Recent changes continue to appear in the Plugins menu's Description tab and
+  through Check setup. The dedicated Changelog tab cannot be populated by a
+  side-loaded `.py`; Orca fills it from a cloud listing.
+* After installing, reselect each pipeline capability once so Orca stores its
+  corrected stable reference.
+
 ## 2026-09-30 — first Windows run fixes
 
 **Updater:** 1.2.1. **Plugin versions unchanged:** Unlayered Infill 0.3.1,

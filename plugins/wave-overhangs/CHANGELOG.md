@@ -1,14 +1,28 @@
 # Changelog — Wave Overhangs
 
 What changed in each version, newest first. The version you have is shown in
-OrcaSlicer's **Plugins** dialog (the Name column reads `Wave Overhangs v…`),
-and running the **Wave Overhangs - Check setup** capability prints it along
-with a short version history.
+OrcaSlicer's **Plugins** dialog in its separate Version column, and running
+**Wave Overhangs - Check setup** prints it with a short version history.
 
 **This plugin is still experimental and has never completed a verified real
 print.** Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.7 — 2026-09-30
+
+* **The plugin name is now permanently `Wave Overhangs`.** Orca's development
+  guide says a process preset saves the plugin name as part of its full
+  capability reference. Putting the version in that name could leave a preset
+  pointing at yesterday's identity, so the plugin appeared installed and
+  selected but was never called. The version remains visible in Orca's Version
+  column, Check setup, logs, G-code stamps, and updater output.
+* The PEP 723 dependency declaration and plugin structure were audited against
+  the repository's OrcaSlicer Plugin Development PDF. Orca's bundled `uv`
+  installer remains responsible for installing `numpy` and `shapely`; the
+  plugin does not run `pip` itself.
+* After updating, select Wave Overhangs once more in the process preset so Orca
+  saves the stable reference.
 
 ## 0.0.6 — 2026-09-30
 

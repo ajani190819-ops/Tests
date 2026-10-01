@@ -194,10 +194,10 @@ quietly. Here is where to look, in order:
 1. **Plugins dialog → click the plugin → `Diagnostics` tab.** This is the
    answer in almost every case: Orca prints the actual load error there. If
    the plugin is not in the list at all, go to step 3.
-2. **`Plugin Info` tab** — check the *installed version*. It should read
-   **0.3.1** for Unlayered Infill and **0.0.6** for Wave Overhangs. If it
-   shows something older, the updater installed from `main`, and `main` does
-   not have the new versions yet (see the note below).
+2. **`Plugin Info` tab** — check the *installed version*. The current test
+   build reads **0.3.2** for Unlayered Infill and **0.0.7** for Wave
+   Overhangs. Their names deliberately do not contain versions: Orca stores
+   the plugin name in preset references, so it must remain stable.
 3. **Is the folder right?** Each plugin needs its own folder holding exactly
    **one** `.py` file plus the `.install_state.json` record:
 
@@ -242,6 +242,11 @@ downloads and checks every plugin from the selected branch. If even one is
 missing or invalid, it stops and names the file. It never fills the gap with a
 plugin from `main`. Large banners at the beginning and end show the branch and
 the plugin versions so it is clear what was installed.
+
+After installing Wave Overhangs 0.0.7 / Unlayered Infill 0.3.2, reselect each
+one once under **Process → Others → Slicing Pipeline Plugin**. Older releases
+put the version inside the plugin name; Orca saves that name in the preset's
+full reference, so reselecting replaces the old identity with the stable one.
 
 ## The log file — start here when something seems wrong
 

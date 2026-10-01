@@ -117,14 +117,16 @@ you forget, and it is the safety net for exactly this.
    edit it with tools that convert line endings (Python `Path.write_text`
    does — use binary mode). After editing, assert the CRLF count.
 3. **Version bumps take edits in lockstep**, in the plugin file: the PEP 723
-   `# version = "..."` header, the PEP 723 `# name = "..."` header (spelled
-   `<Name> v<version>` so Orca's Plugins dialog shows the version), the
-   module-level `PLUGIN_VERSION` constant, and any `MARKER_VERSION` inside an
-   inlined engine (it lands in the exported G-code). Then `plugins.json`, the
-   .bat fallback list, and — for unlayered-infill — `TOOL_VERSION` in the
-   standalone `*_post.py` (seven places in total; edit `MARKER_VERSION` in the
-   standalone and run `tools/sync_engine.py` so both engine copies move). `tests/test_installer.py` enforces that every one of
-   them agrees — run it. (The .bat stamps the installed version from the
+   `# version = "..."` header, the module-level `PLUGIN_VERSION` constant, and
+   any `MARKER_VERSION` inside an inlined engine (it lands in exported G-code).
+   Then `plugins.json`, the .bat fallback list, and — for unlayered-infill —
+   `TOOL_VERSION` in the standalone `*_post.py` (edit `MARKER_VERSION` in the
+   standalone and run `tools/sync_engine.py` so both engine copies move).
+   **Never put the version in the PEP 723 `name`.** The Plugin Development PDF
+   says Orca saves `plugin_name` inside a preset's full capability reference;
+   changing that identity can leave the preset pointing at yesterday's plugin.
+   Orca already has a separate Version column. `tests/test_installer.py`
+   enforces these identities and versions — run it. (The .bat stamps the installed version from the
    downloaded file's header, so the header is the source of truth, and it
    composes the sidecar's `plugin_name` as `"%PL_NAME% v%PL_VER%"` to match the
    name header automatically.)

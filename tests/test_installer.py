@@ -148,25 +148,55 @@ for p in plugins:
         check("# /// script" in head,
               f"{pid}: shipped file has no `# /// script` fence, so the .bat would reject it")
 
-        # The PEP 723 *name* carries the version, so OrcaSlicer's Plugins
-        # dialog shows which build is installed in its Name column (it has a
-        # Version column too -- this is belt and braces, and it is the column
-        # people actually read). The version deliberately does NOT go in the
-        # capability names: a process preset stores the capability name as its
-        # value, so renaming capabilities per version would make every update
-        # orphan the preset and block slicing until it was re-picked.
+        # The PEP 723 plugin name is a stable identity. Orca's development
+        # guide says the full preset reference includes plugin_name as well as
+        # capability_name, so putting a release number here can leave a preset
+        # pointing at yesterday's identity. Version belongs in Orca's separate
+        # Version column, Check setup, logs and G-code stamps.
         mname = re.search(r'^#\s*name\s*=\s*"([^"]+)"', head, re.MULTILINE)
         check(mname is not None, f"{pid}: no PEP 723 name header in the shipped plugin")
         if mname:
-            want = f"{p['name']} v{p['version']}"
+            want = p["name"]
             check(mname.group(1) == want,
-                  f"{pid}: PEP 723 name is {mname.group(1)!r} but the catalogue "
-                  f"implies {want!r} (catalogue name + ' v' + version). The .bat "
-                  f"composes the sidecar's plugin_name the same way, so these "
-                  f"must agree or Orca's .install_state.json names a plugin that "
-                  f"does not exist.")
+                  f"{pid}: PEP 723 name is {mname.group(1)!r} but the stable "
+                  f"catalogue identity is {want!r}. Never put the version in the "
+                  f"plugin name; it can break saved preset references.")
+            check(p["version"] not in mname.group(1),
+                  f"{pid}: version {p['version']} leaked into the stable plugin name")
 
         body = shipped.read_text(encoding="utf-8")
+
+        # Contract copied from the repository's OrcaSlicer Plugin Development
+        # PDF: one @orca.plugin package class, typed capability bases, required
+        # execute signatures, and dependencies at the PEP 723 TOML root.
+        check(body.count("@orca.plugin") == 1,
+              f"{pid}: the PDF requires exactly one @orca.plugin class per file")
+        check(re.search(r'@orca\.plugin\s+class\s+\w+\(orca\.base\):', body),
+              f"{pid}: package class does not subclass orca.base as documented")
+        check("def register_capabilities(self):" in body and
+              body.count("orca.register_capability(") == len(p["capabilities"]),
+              f"{pid}: registered capabilities do not match the catalogue")
+        check("orca.slicing.SlicingPipelineCapabilityBase" in body and
+              re.search(r'def execute\(self,\s*ctx\):', body),
+              f"{pid}: slicing capability does not match the PDF signature")
+        check("orca.script.ScriptPluginCapabilityBase" in body and
+              re.search(r'def execute\(self\):', body),
+              f"{pid}: Check setup does not match the PDF script signature")
+        if pid == "wave-overhangs":
+            deps_line = re.search(r'^# dependencies = \[([^\n]+)\]$', head, re.MULTILINE)
+            table_at = head.find("# [tool.orcaslicer.plugin]")
+            check(deps_line is not None and deps_line.start() < table_at,
+                  "wave-overhangs: dependencies must be in the PEP 723 TOML root, "
+                  "before [tool.orcaslicer.plugin]")
+            if deps_line:
+                check("numpy" in deps_line.group(1) and "shapely" in deps_line.group(1),
+                      "wave-overhangs: Orca's uv installer was not told to install "
+                      "both numpy and shapely")
+            imports_at = [body.find("import numpy"), body.find("import shapely")]
+            first_class = body.find("class WaveOverhangsSlicing")
+            check(all(0 <= pos < first_class for pos in imports_at),
+                  "wave-overhangs: dependencies must import at module load, not "
+                  "inside an audited capability call")
 
         # What the plugin reports about itself at runtime -- "Check setup" and
         # the G-code stamp -- must be the version that was actually installed.
@@ -227,13 +257,12 @@ check('{ "%~3": true }' in bat and '{ "%~4": true }' in bat,
 check('"installed_from": "local"' in bat and '"installed_version": "%~5"' in bat
       and '"plugin_name": "%~2"' in bat,
       "the .bat sidecar template no longer matches Orca's .install_state.json")
-# The sidecar's plugin_name must match the plugin's PEP 723 name, which now
-# carries the version. Composing it from PL_VER -- which the .bat reads out of
-# the downloaded file's own header -- means it tracks what was really installed
-# instead of whatever the catalogue happened to say.
-check('call :write_state "%STATE_FILE%" "%PL_NAME% v%PL_VER%"' in bat,
-      "the .bat no longer composes the versioned plugin name for the sidecar, so "
-      "Orca's .install_state.json would name a plugin that does not exist")
+# The sidecar's plugin_name must match the stable PEP 723 name exactly. The
+# version is a separate sidecar field; adding it to plugin_name changes the
+# identity embedded in preset capability references.
+check('call :write_state "%STATE_FILE%" "%PL_NAME%"' in bat and
+      'call :write_state "%STATE_FILE%" "%PL_NAME% v%PL_VER%"' not in bat,
+      "the .bat sidecar must use the stable plugin name without a version")
 check('echo   [%PL_ACTION%] %PL_NAME% v%PL_VER% %PL_VERMSG%-- %PL_SIZE% bytes' in bat,
       "the .bat's install summary no longer reports the installed version")
 check('"enabled": true' in bat,
@@ -621,9 +650,9 @@ def install_one(p: dict, plugin_root: pathlib.Path) -> str:
         '  "enabled": true,\n'
         '  "installed_from": "local",\n'
         f'  "installed_version": "{p["version"]}",\n'
-        # ":install_one" composes this as "%PL_NAME% v%PL_VER%" so it matches
-        # the PEP 723 name Orca reads out of the plugin file itself.
-        f'  "plugin_name": "{p["name"]} v{p["version"]}"\n'
+        # :install_one writes the stable catalogue/PEP 723 identity. Version is
+        # already represented by installed_version and must not rename it.
+        f'  "plugin_name": "{p["name"]}"\n'
         "}\n"
     )
     (dest_dir / ".install_state.json").write_text(sidecar, encoding="utf-8")
@@ -674,9 +703,10 @@ with tempfile.TemporaryDirectory() as tmp:
             check(state["plugin_name"] == hdr_name_val,
                   f"{p['id']}: sidecar plugin_name {state['plugin_name']!r} != the "
                   f"installed file's PEP 723 name {hdr_name_val!r}")
-            check(state["plugin_name"].endswith(f"v{p['version']}"),
-                  f"{p['id']}: sidecar plugin_name {state['plugin_name']!r} does not "
-                  f"show the installed version, so the Plugins dialog cannot either")
+            check(state["plugin_name"] == p["name"] and
+                  p["version"] not in state["plugin_name"],
+                  f"{p['id']}: sidecar plugin_name must remain the stable identity; "
+                  f"got {state['plugin_name']!r}")
 
         # Orca requires a plugin folder to contain EXACTLY ONE entry file
         # (one .py or one .whl): find_installed_plugin_entry in

@@ -10,11 +10,12 @@ Read it before touching anything, and **update it before your session ends** —
 §9 is the checklist. A session that changed something and did not update this
 file has left the next session worse off.
 
-* **Last updated:** 2026-09-30 (session 6, first Windows follow-up)
+* **Last updated:** 2026-09-30 (session 6, plugin PDF audit)
 * **Verified against the repo:** 2026-09-30 — all four test files pass, both
-  sync tools are clean, and both `.bat` files are CRLF. **Windows evidence:**
-  the first run proved strict refusal/no-main-fallback works, but found two
-  bugs now fixed in v1.2.1. The corrected menu/install still need rerunning.
+  sync tools are clean, both `.bat` files are CRLF, the chooser/updater worked
+  on real Windows, and the new identity/PDF/dependency guards caught 10/10
+  mutations after one initially weak message check was strengthened. Wave
+  Overhangs 0.0.7 still needs its first real Orca invocation.
 
 ---
 
@@ -51,11 +52,11 @@ which does not block starting.
 | Repo | `ajani190819-ops/Tests`, **public** (must stay public — the updater downloads unauthenticated) |
 | Default branch | `main`, at commit `8f2f6f1` "Recreate the plugin updater + reorganize the repo (PR #1)" |
 | PR #1 | **MERGED** 2026-09-30 22:54 UTC, from branch `arena/01a0f42b-tests` |
-| Updater | `Update-Orca-Plugins.bat` v1.2.1, CRLF. Released-main behavior remains the default; test branches are strict and all-or-nothing. First Windows run found and fixed the small-catalogue size bug. |
+| Updater | `Update-Orca-Plugins.bat` v1.2.2, CRLF. Strict branch installs are verified on Windows; 1.2.2 writes stable plugin identities to sidecars. |
 | Branch chooser | `Choose-Orca-Plugin-Version.bat`, CRLF. Live numbered GitHub branch menu, remembers its choice, obvious return to `main`; **never run on Windows**. |
 | Catalogue | `plugins.json` — confirmed reachable at `raw.githubusercontent.com/.../main/plugins.json` |
-| Wave Overhangs | v0.0.5, `plugins/wave-overhangs/`, ships; **loads + logs under a fake host**, never run in real Orca |
-| Unlayered Infill | v0.3.0, `plugins/unlayered-infill/`, ships; **runs end-to-end under a fake host**, never run in real Orca |
+| Wave Overhangs | v0.0.7 test build, stable identity migration; installed/activated v0.0.6 was seen in real Orca but never invoked or logged |
+| Unlayered Infill | v0.3.2 test build; **v0.3.0/v0.3.1 ran in real Orca and rewrote real exported G-code**, proven by the owner's Downloads log |
 | Standalone tool | `plugins/unlayered-infill/unlayered_infill_post.py` v0.3.0 — **works, functionally tested** |
 | Contract test | `python3 tests/test_installer.py` → **passing** |
 | Functional test | `python3 tests/test_post_script.py` → **passing** |
@@ -224,16 +225,15 @@ it references the old path `test_installer.py`, which is now
   inside Orca when it works; the standalone script always works, on any Orca
   version. An engine fix must therefore land in both, so the engine stays a
   separate, front-end-agnostic module. Do not retire the plugins.
-* **The version lives in the plugin's display name, never in a capability
-  name.** (Owner's answer, 2026-09-30.) The PEP 723 `name` header is spelled
-  `<Name> v<version>`, so Orca's Plugins dialog shows it in the Name column
-  next to its own Version column. Capability names stay fixed forever, because
-  a process preset stores the capability name as its value — renaming one
-  orphans the preset and Orca refuses to slice (see
-  `docs/ORCA-PLUGIN-FACTS.md`). The version also appears in each plugin's
-  *Check setup* first line and as a G-code stamp. A version bump is now a
-  six-place lockstep edit; `tests/test_installer.py` enforces every one, and
-  `AGENTS.md` §4 rule 3 lists them.
+* **Plugin names and capability names are stable; versions never belong in
+  either identity.** Supersedes the earlier versioned-display-name decision
+  after the owner added Orca's Plugin Development PDF (session 6). The PDF
+  says a preset's full reference contains
+  `<plugin_name>;<cloud_uuid>;<capability_name>`, so changing either name can
+  orphan the preset. The owner chose option A: fix both plugins consistently.
+  Versions remain visible in Orca's Version column, Check setup, logs, updater
+  output, standalone tool, and G-code stamps. After the 0.0.7/0.3.2 migration,
+  reselect each capability once so Orca saves the stable reference.
 * **In the wave region, the waves REPLACE the slicer's own extrusions.**
   (Owner's answer to C2, 2026-09-30.) This matches the upstream
   WaveOverhangs fork: no double material, at the cost of careful G-code
@@ -399,17 +399,25 @@ entry reached updater 1.2.0 but its 2,000-byte code floor rejected the valid
 branch, did not use `main`, and stopped without installing. Fixed in 1.2.1 by
 enumerating the API response directly, casting each commit URL to one string,
 and giving only the catalogue a 100-byte floor. Exact regression checks were
-mutation-tested: 4/4 deliberate regressions caught. Corrected Windows paths
-remain unverified until rerun.
+mutation-tested: 4/4 deliberate regressions caught. The owner reran it: the
+corrected chooser and strict branch installation **worked on real Windows**.
 
-Verified: all requested suites and sync checks pass, CRLF is asserted, and
-17/17 deliberate mutations were caught across two rounds. The second round
-also caught the control-flow placement mistake found during the full-file
-reread (a branch-failure block had landed inside the normal success path).
+**Plugin follow-up:** the owner's log proved Unlayered Infill genuinely ran
+inside Orca and rewrote exported G-code. Wave Overhangs v0.0.6 appeared
+installed, activated and selected but never logged one call. The newly added
+Plugin Development PDF revealed that the preset's full reference includes
+`plugin_name`; our versioned display name changed that identity every release.
+Owner chose option A: stable names for both plugins. Built Wave 0.0.7 and
+Unlayered 0.3.2, stable sidecars, PDF contract/dependency tests, visible
+Description/Check setup changelogs, and migration instructions to reselect
+once.
 
-Not verified: neither `.bat` ran on Windows; the live menu/API and actual Orca
-installation remain for the owner to test. Wave Overhangs' real Diagnostics
-error remains unseen.
+Verified: all requested suites and sync checks pass, CRLF is asserted, the
+chooser/updater worked on real Windows, and Unlayered ran in real Orca.
+
+Not verified: Wave Overhangs 0.0.7 has not yet been invoked in real Orca, so
+the stable-name diagnosis remains strong but unproven. Its dedicated
+Diagnostics text remains unseen, and no Wave toolpaths have been produced.
 
 ### Session 5 — 2026-09-30 — branch `arena/01a0f48b-tests`
 

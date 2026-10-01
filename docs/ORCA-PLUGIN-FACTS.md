@@ -111,19 +111,19 @@ is a bug in the plugin:
   and latest version. Orca fills the Version column from the PEP 723
   `# version = "..."` header, so a correct header is already enough to check
   what is installed. (Wiki: Plugin System Overview / Managing Plugins.)
-* The PEP 723 `# name = "..."` header is the **display name** in that dialog.
-  Both plugins here spell it `<Name> v<version>` so the version is readable in
-  the Name column too — the column people actually look at — and so the
-  updater's sidecar, which must carry the same name, proves which build is on
-  disk. This is safe precisely because the *plugin* name is not what a preset
-  stores (see "The preset field" above).
-* The capability names stay version-free for the same reason. The place a
-  version therefore cannot appear is the **Slicing Pipeline Plugin** dropdown;
-  use *Check setup*, which prints the running version as its first line.
-* Not verified on a real build: whether Orca's per-plugin key is derived from
-  the display name. If it is, a rename could make an update look like a new
-  plugin. Nothing observed says it does, and the install folder
-  (`orca_plugins/<orca_dir>/`) does not change.
+* The PEP 723 `# name = "..."` header is the **display name and a stable
+  identity**. The Plugin Development PDF says a preset stores both the
+  capability name and a full reference shaped
+  `<plugin_name>;<cloud_uuid>;<capability_name>`. Therefore the version must
+  not appear in the plugin name either: changing it can leave a preset pointing
+  at yesterday's identity even though the new plugin appears installed.
+  Session 6's real evidence matched that failure shape for Wave Overhangs:
+  installed, activated and reportedly selected, but never invoked and absent
+  from the log. This is a strong diagnosis, not yet proven until v0.0.7 runs.
+* Both plugin names and capability names now stay version-free. The version is
+  visible in Orca's separate Version column, *Check setup*, logs, updater
+  output, and G-code stamps. The updater sidecar writes the same stable PEP 723
+  name and keeps the version in its separate `installed_version` field.
 
 ## Where plugins live on disk
 
