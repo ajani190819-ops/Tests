@@ -185,7 +185,7 @@ is a bug in the plugin:
   refusals and internal errors never touch the G-code file; an unexpected
   exception returns Success so a plugin bug cannot fail someone's export.
 * **Wave Overhangs replacement is one G-code transaction.** Do not restore
-  pre-export slice carving or cross-callback plan state. Version 0.0.11 builds
+  pre-export slice carving or cross-callback plan state. Version 0.0.12 builds
   support and bridge footprints from exported moves, generates waves, removes
   only geometrically covered bridge extrusion, and retains every uncovered
   fragment. Any exception returns the original text unchanged.
@@ -193,9 +193,9 @@ is a bug in the plugin:
 ## Known gaps (read before trusting output)
 
 * Both plugins have run in the owner's real OrcaSlicer. Unlayered rewrote real
-  exports. Wave 0.0.9 ran but produced zero inserted layers; 0.0.11's one-pass
-  replacement passes offline against that captured real export and still needs
-  a fresh real-Orca export and physical print.
+  exports. Wave 0.0.9 ran but produced zero inserted layers; 0.0.11 produced
+  visible conforming waves. Version 0.0.12 corrects their measured 0.25 mm
+  Z-offset error and edge chatter; it still needs a physical rerun.
 * Unlayered Infill is `sin(f·x)` only — invariant along Y. Ridges, not a
   lattice; interlocking is directional.
 * Defaults are untuned on hardware (`amplitude=-0.2`, `frequency=1.5` are

@@ -6,6 +6,7 @@ Run with numpy and shapely available (the same dependencies Orca installs):
 """
 import importlib.util
 import pathlib
+import re
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -35,14 +36,25 @@ out, stats = wave._gcode_wave_rewrite(source, cfg)
 
 assert stats["wave_layers"] == 3, stats
 assert stats["replaced_sections"] == 3, stats
-assert stats["removed_moves"] == 112, stats
-assert stats["kept_fragments"] == 158, (
-    "partial coverage must retain the fixture's uncovered fragments", stats)
+assert stats["removed_moves"] == 108, stats
+assert stats["kept_fragments"] == 25, (
+    "substantial uncovered bridge fragments must remain", stats)
+assert stats["tiny_fragments_dropped"] == 121, (
+    "sub-nozzle edge remnants should be cleaned up", stats)
 assert out.startswith("; wave-overhangs v"), "missing build stamp"
 assert out.count("; ==== WAVE OVERHANG BEGIN ====") == 3
 assert out.count("; ==== WAVE OVERHANG END ====") == 3
+wave_move_count = sum(
+    block.count("\nG1 X") for block in re.findall(
+        r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
+        r"; ==== WAVE OVERHANG END ====", out, re.DOTALL))
+assert wave_move_count < 500, "wavefront simplification regressed into edge chatter"
 assert "; wave-overhangs replaced covered bridge move" in out
-assert ";Z:5.4" in out and "Z5.400" in out
+assert ";Z:5.4" in out and "Z5.650" in out, (
+    "Wave must use the bridge move's real Z, including Orca's 0.25 mm Z offset")
+assert "Z9.850" in out and "Z14.650" in out
+assert "Z5.400" not in out.split("; ==== WAVE OVERHANG END ====", 1)[0], (
+    "nominal layer Z leaked into the first Wave block")
 assert ";TYPE:Bridge" in out, "section labels should remain inspectable"
 assert "M106 S" in out, "wave blocks must restore the prior fan setting"
 
@@ -60,5 +72,6 @@ finally:
 assert failed == source, "generation failure must retain the original G-code byte-for-byte"
 assert "error" in failure_stats
 
-print("ok -- real Cube^2 export: 3 wave layers replace covered bridge moves, "
-      "retain uncovered fragments, restore fan state, fail closed, and are idempotent")
+print("ok -- real Cube^2 export: 3 cleaned wave layers use actual offset Z, "
+      "replace covered moves, retain substantial fragments, restore fan state, "
+      "fail closed, and are idempotent")

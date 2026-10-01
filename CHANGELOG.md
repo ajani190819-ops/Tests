@@ -18,6 +18,18 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — align and clean real Wave paths
+
+**Wave Overhangs:** 0.0.12. **Updater:** 1.2.8.
+
+The owner's visible Wave result exposed a 0.25 mm downward shift: Orca's layer
+comment omitted the profile's `z_offset`, while the real bridge moves included
+it. Wave now uses the bridge move's actual modal Z. Wavefronts are simplified,
+sub-0.15 mm chatter is merged, line width follows Orca's real bridge width, and
+isolated remnants shorter than half a line width are removed. The captured
+cube drops from roughly 1,850 tiny Wave extrusion moves to 436 while preserving
+25 substantial uncovered bridge fragments.
+
 ## 2026-10-01 — rebuild Wave as one transactional G-code pass
 
 **Wave Overhangs:** 0.0.11. **Updater:** 1.2.7.

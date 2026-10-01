@@ -54,8 +54,8 @@ if /i not "%REF_1%"=="main" set "BRANCH_MODE=1"
 
 rem This updater's own version. The line below it is the machine-readable
 rem copy :self_update compares against; test_installer.py keeps them equal.
-set UPDATER_VERSION=1.2.7
-rem UPDATER_VERSION 1.2.7 end
+set UPDATER_VERSION=1.2.8
+rem UPDATER_VERSION 1.2.8 end
 
 rem PLUGIN_ONLY is matched as a substring against each plugin id.
 if defined PLUGIN_ONLY set "PLUGIN_ONLY=%PLUGIN_ONLY: =%"
@@ -402,7 +402,7 @@ rem  writes, and this way it lands on a field nothing reads.
 rem ---------------------------------------------------------------------------
 :fallback_plan
 echo   Using the fallback plan built into this file.
->  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.11^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
+>  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.12^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
 >> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.3.4^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
 exit /b 0
 
@@ -572,7 +572,7 @@ rem Same version as ours? Nothing to do.
 findstr /b /c:"rem UPDATER_VERSION %UPDATER_VERSION% end" "%NEWBAT%" >nul 2>nul
 if not errorlevel 1 goto :su_skip
 set "NEW_UV=?"
-rem "rem UPDATER_VERSION 1.2.7 end" -- token 3 is the version, and the
+rem "rem UPDATER_VERSION 1.2.8 end" -- token 3 is the version, and the
 rem trailing "end" absorbs the CR so it never lands in the variable.
 for /f "usebackq tokens=3" %%V in (`findstr /b /c:"rem UPDATER_VERSION " "%NEWBAT%"`) do set "NEW_UV=%%V"
 echo  Updater: this copy is v%UPDATER_VERSION%, v%NEW_UV% is available.

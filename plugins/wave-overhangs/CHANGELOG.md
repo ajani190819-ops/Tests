@@ -9,6 +9,22 @@ print.** Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
 
+## 0.0.12 — 2026-10-01
+
+* Fixed the real-print Z alignment: Orca's `;Z:` comment is nominal and the
+  owner's profile adds `z_offset = 0.25`. Waves now use the bridge extrusion's
+  actual modal nozzle Z, changing the test layers from 5.4/9.6/14.4 mm to the
+  correct 5.65/9.85/14.65 mm.
+* Cleaned up edge dots by simplifying each conforming wavefront, merging
+  sub-0.15 mm chatter, deriving Wave width from Orca's real bridge width
+  (0.573 mm in the captured export), and dropping isolated uncovered remnants
+  shorter than half a line width.
+* On the captured 0.30 mm cube export, wave extrusion moves fall from roughly
+  1,850 tiny moves to 436 clean moves. Twenty-five substantial uncovered
+  fragments remain; 121 sub-nozzle remnants are removed.
+* This cleanup is offline-tested against the captured export. Alignment and
+  surface quality still require a fresh Orca export and physical print.
+
 ## 0.0.11 — 2026-10-01
 
 * Replaced the unreliable two-stage Orca slice-object design with one
