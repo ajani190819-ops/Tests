@@ -214,15 +214,17 @@ quietly. Here is where to look, in order:
 5. Press **Refresh** in the Plugins dialog, or restart OrcaSlicer. Orca
    captures plugins at load time.
 
-> **Heads up:** the new versions are on the pull-request branch, not on `main`
-> yet. Until that PR is merged, the updater installs the older versions that
-> are on `main`. To get the new ones now, see "Installing a test build" below.
+> **If the version looks old:** check whether your copy of the updater is an
+> early one. Updaters before v1.1.0 cannot upgrade themselves — download
+> `Update-Orca-Plugins.bat` again (link at the top of this page) and run it
+> once. From v1.1.0 on it keeps itself current automatically.
 
 ## Installing a test build (before the pull request is merged)
 
-The updater downloads from **`main`** by default. New work lives on a branch
-until it is merged, so `main` can be behind. To install straight from a
-branch, set `PLUGIN_BRANCH` first.
+The updater downloads from **`main`** by default, which is where released
+versions live. Work in progress lives on a branch until it is merged, so if
+you want to test something before it is released, set `PLUGIN_BRANCH` first.
+You do not need this for normal use.
 
 Open **Command Prompt** (press Start, type `cmd`, Enter), then paste these two
 lines one at a time:
@@ -235,7 +237,7 @@ set PLUGIN_BRANCH=arena/01a0f48b-tests
 The updater prints the ref it is using near the top — check it says
 `ref: arena/01a0f48b-tests`, not `ref: main`. If a file is missing on the
 branch it quietly falls back to `main`, so always confirm the version
-afterwards in the Plugins dialog (**0.3.1** / **0.0.6**).
+afterwards in the Plugins dialog.
 
 Closing that Command Prompt window clears `PLUGIN_BRANCH`. Double-clicking the
 `.bat` normally always goes back to `main`.

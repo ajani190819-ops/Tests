@@ -494,6 +494,25 @@ displayed.
 
 ---
 
+## 8a. PR #2 is MERGED (2026-09-30)
+
+`main` = **`84e05c0`**, serving **unlayered-infill 0.3.1 / wave-overhangs
+0.0.6**, updater **1.1.0** (24777 bytes, CRLF 606/606 intact through the
+merge, `TOOLDIR` and `:self_update` both present). Verified by reading the
+blobs back off `main` through `gh api`, not assumed.
+
+This closes the single biggest source of confusion in sessions 3-5: the
+updater downloads from `main`, and `main` had been stuck on 0.0.3 / 0.2.0 the
+whole time, so every "the version did not change" report was correct and had
+nothing to do with the plugin code.
+
+**One residual trap:** the updater that was on `main` before this merge is
+19062 bytes and has **no `:self_update`**. Anyone holding that copy will not
+be upgraded automatically — they must re-download the `.bat` once. It will
+still install the new *plugins* correctly, because it reads `plugins.json`
+from `main` and downloads by `%PL_PATH%`; only its hardcoded fallback row is
+stale. README now says this.
+
 ## 8b. Session 5 — "they wouldn't install" (2026-09-30)
 
 The owner reported: *"these new versions couldn't even install in orca, also

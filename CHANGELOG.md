@@ -18,6 +18,18 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-09-30 — released to `main`
+
+Everything below this line was merged into `main` (PR #2), so
+`Update-Orca-Plugins.bat` now installs **Unlayered Infill 0.3.1** and **Wave
+Overhangs 0.0.6**. Until this merge the updater was still handing out
+wave-overhangs 0.0.3 and unlayered-infill 0.2.0, which is why version numbers
+appeared not to change.
+
+Updaters older than **v1.1.0** cannot upgrade themselves. If you have one of
+those, download `Update-Orca-Plugins.bat` once more; after that it keeps
+itself current.
+
 ## 2026-09-30 — install fixes
 
 **Plugins:** Unlayered Infill **0.3.1**, Wave Overhangs **0.0.6**.
