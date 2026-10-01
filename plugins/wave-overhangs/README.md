@@ -80,7 +80,8 @@ The complete configuration is exposed through `get_default_config()`:
 * `component_order`: `support` or `nearest`. `support` preserves the normal
   support-first ordering. `nearest` reorders disconnected components at the
   same Wave distance to reduce long visible travel moves around holes. It does
-  not allow a farther Wave distance to print before a nearer one.
+  not allow a farther Wave distance to print before a nearer one. For
+  `monotonic`, the global direction takes priority and `support` is safest.
 
 ### Cleanup and extrusion
 
