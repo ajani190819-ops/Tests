@@ -180,8 +180,18 @@ assert old_style_move_count == 399, (
 assert clearance_only_stats["removed_moves"] == stats["removed_moves"]
 assert clearance_only_move_count <= old_style_move_count, (
     "edge clearance should trim emitted paths without changing bridge coverage")
-assert wave_move_count > old_style_move_count, (
-    "edge taper should split only tapered Wave endpoints into shorter moves")
+assert wave_move_count == old_style_move_count, (
+    "default endpoint taper must not add tiny grid-like endpoint moves")
+subdivided_out, subdivided_stats = wave._gcode_wave_rewrite(
+    source, dict(cfg, edge_taper_segment=0.20))
+subdivided_blocks = re.findall(
+    r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
+    r"; ==== WAVE OVERHANG END ====", subdivided_out, re.DOTALL)
+subdivided_move_count = sum(
+    block.count("\nG1 X") for block in subdivided_blocks)
+assert subdivided_stats["removed_moves"] == stats["removed_moves"]
+assert subdivided_move_count > wave_move_count, (
+    "endpoint micro-segmentation should only happen when explicitly requested")
 assert "; wave-overhangs edge clearance" not in out, (
     "default Wave output must not create endpoint gaps with edge clearance")
 assert "; wave-overhangs edge clearance" in clearance_only_out, (
@@ -240,6 +250,15 @@ snapped_hole = wave._snap_wave_polylines(
     internal_support, geometry_cfg, snap_cfg)
 assert abs(snapped_hole[0][-1][0] - 5.0) < 0.01, (
     "hole endpoint should snap to the hole perimeter")
+
+angled = wave._snap_wave_polylines(
+    [[(2.05, 1.0), (11.82, 2.0)]], internal_target,
+    internal_support, geometry_cfg, snap_cfg)
+ax, ay = angled[0][-2]
+bx, by = angled[0][-1]
+cross = abs((11.82 - 2.05) * (by - 2.0) - (2.0 - 1.0) * (bx - 11.82))
+assert bx > 11.99 and cross < 0.01, (
+    "endpoint snap should extend the existing line, not jump sideways to the nearest boundary")
 
 clear_cfg = dict(cfg, edge_clearance=0.30, edge_taper_distance=0.0,
                  edge_snap_distance=0.0)

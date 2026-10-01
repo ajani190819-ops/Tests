@@ -19,6 +19,17 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — Wave endpoint taper no longer adds default micro-moves
+
+**Wave Overhangs:** 0.0.19.
+
+Changed the default endpoint taper so it lowers E on existing straight Wave moves
+instead of inserting many tiny endpoint subdivision moves. Endpoint snapping now
+extends along the Wave's own endpoint direction until it reaches the wall or
+hole boundary, rather than jumping sideways to the nearest boundary point. This
+keeps the snap-to-perimeter behavior from 0.0.18 while avoiding the rectangular
+or grid-like endpoint texture seen in preview.
+
 ## 2026-10-01 — Wave endpoints snap to perimeter by default
 
 **Wave Overhangs:** 0.0.18.

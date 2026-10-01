@@ -8,10 +8,10 @@ binding record of OrcaSlicer behavior.
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0f4f1-tests`. Never switch branches or push to
   `main`.
-* **Latest code state:** Wave Overhangs 0.0.18 is back to the original
-  post-processing path with snap-to-boundary endpoints plus flow taper; Geometry
-  0.1.4 remains an experimental alternate.
-* **Current versions:** Wave Overhangs 0.0.18, Wave Overhangs Geometry 0.1.4,
+* **Latest code state:** Wave Overhangs 0.0.19 is back to the original
+  post-processing path with straight snap-to-boundary endpoints plus flow taper;
+  Geometry 0.1.4 remains an experimental alternate.
+* **Current versions:** Wave Overhangs 0.0.19, Wave Overhangs Geometry 0.1.4,
   Unlayered Infill 0.3.4, updater 1.4.0.
 * **Permanent identities:** `Wave Overhangs`, `Wave Overhangs Geometry`, and
   `Unlayered Infill`. Release numbers must remain out of package and capability
@@ -49,7 +49,7 @@ Important locations:
 
 ## Current implementation
 
-### Wave Overhangs 0.0.18
+### Wave Overhangs 0.0.19
 
 The active implementation is one transactional G-code pass at
 `psGCodePostProcess`:
@@ -72,25 +72,26 @@ The active implementation is one transactional G-code pass at
    re-emit substantial uncovered fragments with proportional extrusion.
 7. Restore the expected XY, fan, and E mode/value state. Uniform absolute-E
    sections restore `M82` and `G92`; mixed E-mode sections remain untouched.
-8. Snap Wave endpoints back onto non-support detail boundaries, then taper E
-   over short endpoint sub-moves. Optional centerline clearance exists for
-   comparison but is off by default; the support-side anchor boundary is
+8. Snap Wave endpoints back onto non-support detail boundaries by extending in
+   the Wave endpoint direction, then taper E on existing moves by default.
+   Optional centerline clearance and taper micro-segmentation exist for
+   comparison but are off by default; the support-side anchor boundary is
    excluded from snap, clearance, and taper.
 9. Write only after parsing, generation, subtraction, and assembly succeed. Any
    exception returns the original G-code unchanged.
 
 The Wave pass uses the bridge move's actual modal nozzle Z. In the supplied
 fixture, the nominal `;Z:` comments differ from the actual height because the
-profile contains a 0.25 mm Z offset. The 0.0.18 fixture output uses 5.650,
+profile contains a 0.25 mm Z offset. The 0.0.19 fixture output uses 5.650,
 9.850, and 14.650 mm for the three Wave blocks.
 
 The captured regression reports three Wave layers, 101 covered bridge moves,
 31 substantial retained fragments, 112 tiny remnants removed, 29 short Wave
-fronts removed, 399 no-taper comparison moves, default snap-to-boundary and tapered endpoint G-code
-with cleaner detail-boundary terminations, restored fan state, exact second-pass
+fronts removed, 399 no-taper comparison moves, default straight snap-to-boundary and tapered endpoint G-code
+with no added endpoint micro-moves, restored fan state, exact second-pass
 idempotence, and byte-for-byte unchanged output after deliberate generation
 failure. The owner confirmed that the previous 0.0.11 output visibly produced
-perimeter-conforming waves in real Orca. A fresh 0.0.18 export and physical
+perimeter-conforming waves in real Orca. A fresh 0.0.19 export and physical
 print remain open.
 
 There is no standalone Wave post-processing script in this repository. The
@@ -196,6 +197,15 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-01 — Wave endpoint taper without default micro-moves
+
+After the owner marked rectangular/grid-like endpoint texture in preview, Wave
+Overhangs moved to 0.0.19. `edge_taper_segment` now defaults to `0`, so taper
+changes E on existing straight moves instead of adding tiny endpoint subdivision
+moves. Endpoint snapping now extends along the Wave endpoint direction to reach
+the wall/hole boundary, avoiding sideways doglegs from nearest-point snapping.
+Sandbox regressions pass; a real Orca export/print remains open.
 
 ### 2026-10-01 — Wave endpoints snap to perimeter by default
 

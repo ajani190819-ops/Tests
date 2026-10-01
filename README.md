@@ -7,7 +7,7 @@ that's a bug; open an issue.
 
 | Plugin | Version | What it does |
 | --- | --- | --- |
-| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.18 | replaces covered Bridge extrusion with support-anchored wave toolpaths, snap-to-boundary endpoints, and tapered endpoint flow |
+| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.19 | replaces covered Bridge extrusion with support-anchored wave toolpaths, straight snap-to-boundary endpoints, and tapered endpoint flow |
 | [Wave Overhangs Geometry](plugins/wave-overhangs-geometry/) | 0.1.4 | experimental `posPrepareInfill` Wave fill-surface geometry intended to appear as bridge fill in Orca's preview |
 | [Unlayered Infill](plugins/unlayered-infill/) | 0.3.4 | rewrites sparse infill onto a sine wave in Z so layers interlock instead of stacking as clean planes |
 
@@ -141,9 +141,9 @@ number into them can orphan a saved preset.
 | Where | What you see |
 | --- | --- |
 | File → Plugins, **Name** column | `Wave Overhangs` |
-| File → Plugins, **Version** column | `0.0.18` (Orca reads the PEP 723 header) |
-| The updater's output | `Wave Overhangs v0.0.18` |
-| **Check setup**, first line | `Wave Overhangs v0.0.18 -- setup check` |
+| File → Plugins, **Version** column | `0.0.19` (Orca reads the PEP 723 header) |
+| The updater's output | `Wave Overhangs v0.0.19` |
+| **Check setup**, first line | `Wave Overhangs v0.0.19 -- setup check` |
 | Geometry plugin Version | `0.1.4` |
 | Geometry Check setup | `Wave Overhangs Geometry v0.1.4` |
 
@@ -195,7 +195,7 @@ stages, so the selected capability matters:
    solid skins and peaks at *half* the amplitude. On a 0.2 mm layer that is
    about 0.09 mm — real, but easy to miss by eye. Use the standalone tool's
    **Full strength** option, or a bigger amplitude, to see it clearly.
-5. **Wave Overhangs needs exported Bridge sections.** Version 0.0.18 performs
+5. **Wave Overhangs needs exported Bridge sections.** Version 0.0.19 performs
    planning and replacement in one G-code transaction, snaps Wave endpoints to
    walls/holes, and tapers endpoint flow for cleaner terminations. It removes only bridge
    extrusion covered by generated waves and retains every uncovered fragment.
@@ -211,7 +211,7 @@ quietly. Here is where to look, in order:
    answer in almost every case: Orca prints the actual load error there. If
    the plugin is not in the list at all, go to step 3.
 2. **`Plugin Info` tab** — check the *installed version*. The current test
-   build reads **0.3.4** for Unlayered Infill and **0.0.18** for Wave
+   build reads **0.3.4** for Unlayered Infill and **0.0.19** for Wave
    Overhangs. Their permanent names are simply `Unlayered Infill` and `Wave
    Overhangs`; version numbers appear only in the separate Version column.
 3. **Is the folder right?** Each plugin needs its own folder holding exactly
@@ -238,7 +238,7 @@ quietly. Here is where to look, in order:
 ## Installing a test build from a branch
 
 The updater downloads from **`main`** by default, which is where released
-versions live. The current Wave 0.0.18 / Unlayered 0.3.4 work is on the test
+versions live. The current Wave 0.0.19 / Unlayered 0.3.4 work is on the test
 branch, so put these two files together
 in Downloads and double-click the chooser:
 
@@ -263,7 +263,7 @@ the plugin versions so it is clear what was installed.
 After installing this final naming migration, reselect `Wave Overhangs` or
 `Unlayered Infill` once in **Process → Others → Slicing Pipeline Plugin**.
 Those exact version-free package/capability names will not change again. Use
-the Plugins dialog's separate Version column to confirm 0.0.18 / 0.3.4.
+the Plugins dialog's separate Version column to confirm 0.0.19 / 0.3.4.
 
 ## The log file — start here when something seems wrong
 

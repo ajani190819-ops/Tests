@@ -6,10 +6,22 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.18 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.19 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.19 — 2026-10-01
+
+* Stopped creating default tiny endpoint subdivision moves. Endpoint taper now
+  changes E on the existing straight Wave moves unless `edge_taper_segment` is
+  explicitly set above zero, avoiding the rectangular/grid texture seen near
+  some walls.
+* Changed endpoint snapping to extend along the Wave's own endpoint direction
+  until it reaches the wall or hole boundary, rather than jumping sideways to
+  the nearest boundary point.
+* Kept snap-to-boundary and endpoint taper as the default clean-edge behavior,
+  with optional `edge_clearance` still off by default.
 
 ## 0.0.18 — 2026-10-01
 
