@@ -95,6 +95,7 @@ tests/
   test_installer.py         contract test: catalogue / .bat / files must agree
   test_post_script.py       functional test: the engine really rewrites G-code
   test_plugin_runtime.py    runtime test: the PLUGIN loads, runs and logs
+  test_plugin_audit.py      imports both plugins under Orca's audit hook
 ```
 
 The `plugins.json` entry `path` is a URL path into this repo (forward slashes,
@@ -165,6 +166,23 @@ you forget, and it is the safety net for exactly this.
     with no working updater. `:self_update` downloads the new copy to `%TEMP%`,
     verifies it, and hands over to it; the file on disk is never touched.
     `tests/test_installer.py` enforces this.
+13. **Never touch the filesystem at plugin import time.** Module level does
+    metadata, constants and `import` statements — nothing else. No log line,
+    no state file, no `open()`, no `print()`. OrcaSlicer installs a CPython
+    audit hook *before* it imports any plugin, and a write during import has
+    no plugin identity attached: it can throw a permission prompt in the
+    owner's face mid-install, or fail the load outright. A failed load is
+    invisible except in the Plugins dialog's **Diagnostics** tab, so it looks
+    to the owner like "it won't install". Log lazily instead — a
+    `_LOADED_LOGGED` flag plus `_log_loaded_once()` as the first statement of
+    every capability's `execute()`. v0.3.0 / v0.0.5 shipped this bug;
+    `tests/test_plugin_audit.py` is the regression guard and imports each
+    plugin under a hook that denies every write.
+14. **One entry file per plugin folder.** Orca picks a plugin's entry point by
+    scanning its folder for a single `.py` (or `.whl`). A second `.py` beside
+    it makes the entry ambiguous. This is why the standalone tools stage to
+    `Downloads\OrcaPlugins\tools\` (`%TOOLDIR%`) and never beside the plugin
+    copies.
 
 ## 5. How to verify your work
 
@@ -172,6 +190,7 @@ you forget, and it is the safety net for exactly this.
 python3 tests/test_installer.py        # catalogue / .bat / files agree
 python3 tests/test_post_script.py      # the engine really rewrites G-code
 python3 tests/test_plugin_runtime.py   # the plugin loads, runs, and logs
+python3 tests/test_plugin_audit.py     # it imports under Orca's audit hook
 python3 tools/sync_engine.py --check   # the two engine copies are identical
 git ls-files --eol Update-Orca-Plugins.bat   # must say i/crlf
 ```

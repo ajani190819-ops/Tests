@@ -95,10 +95,20 @@ with tempfile.TemporaryDirectory() as tmp:
     check("Unlayered Infill" in names and "Unlayered Infill - Check setup" in names,
           f"capability names changed: {names}. A process preset stores these, so "
           f"renaming one orphans the preset.")
+    # Importing must be SILENT on disk (see the audit test below). The
+    # "loaded" line appears on the first capability call instead.
+    check(read_log(logs) == "",
+          f"the plugin wrote to disk during import. Orca's audit hook turns "
+          f"that into a permission prompt or a failed load:\n{read_log(logs)}")
+    orca.REGISTERED[1]().execute()          # Check setup -> first capability use
     log = read_log(logs)
     check("loaded" in log and plugin.PLUGIN_VERSION in log,
-          f"the plugin did not log that it loaded. Log was:\n{log}")
+          f"the plugin never logged that it loaded. Log was:\n{log}")
     check("engine ok" in log, "the load line does not report engine health")
+    before_n = log.count("loaded")
+    orca.REGISTERED[1]().execute()
+    check(read_log(logs).count("loaded") == before_n,
+          "the 'loaded' line is repeated on every call; it must be once")
 
     # ----------------------------------------------------------------------
     # 2. the defaults are the ones the owner asked for

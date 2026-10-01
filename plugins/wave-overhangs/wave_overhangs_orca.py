@@ -3,10 +3,10 @@
 # dependencies = ["numpy>=2.0", "shapely>=2.0"]
 #
 # [tool.orcaslicer.plugin]
-# name = "Wave Overhangs v0.0.5"
+# name = "Wave Overhangs v0.0.6"
 # description = "Experimental: print steep overhangs support-free by replacing the overhang region with wave-propagated toolpaths (port of the WaveOverhangs fork's algorithm as a slicing-pipeline plugin)."
 # author = "Wave Overhangs plugin lane"
-# version = "0.0.5"
+# version = "0.0.6"
 # ///
 """Wave Overhangs for OrcaSlicer -- experimental slicing-pipeline plugin.
 
@@ -113,7 +113,7 @@ _DEFAULTS = {
 # The version this file was built as. Kept in lockstep with the PEP 723 header
 # at the top (tests/test_installer.py fails if they drift), so everything that
 # reports a version at runtime reports the one actually running.
-PLUGIN_VERSION = "0.0.5"
+PLUGIN_VERSION = "0.0.6"
 
 # Stamped into the exported G-code, so the file itself says which build made
 # the waves -- no need to open OrcaSlicer to find out.
@@ -438,6 +438,7 @@ class WaveOverhangsSlicing(orca.slicing.SlicingPipelineCapabilityBase):
         return _DEFAULTS
 
     def execute(self, ctx):
+        _log_loaded_once()
         cfg = _cfg(self)
         if not cfg["enabled"]:
             return orca.ExecutionResult.success("Wave Overhangs: disabled")
@@ -539,6 +540,7 @@ class WaveOverhangsCheck(orca.script.ScriptPluginCapabilityBase):
         return "Wave Overhangs - Check setup"
 
     def execute(self):
+        _log_loaded_once()
         lines = [f"Wave Overhangs v{PLUGIN_VERSION} -- setup check"]
         if np is None or shapely is None:
             return orca.ExecutionResult.failure(
@@ -628,7 +630,9 @@ def _log(headline, *detail):
             f.write(f"{stamp}  {headline}\n")
             for line in detail:
                 f.write(f"{pad}    {line}\n")
-    except Exception:
+    except BaseException:
+        # Broader than Exception on purpose: Orca's audit hook can raise
+        # non-Exception types, and a lost log line must never fail a print.
         pass
 
 
@@ -654,11 +658,21 @@ def _write_log(entry):
     _log(head, *detail)
 
 
-# One line at import, so the log shows the plugin loaded even if it is never
-# selected in a preset. Defined down here because it needs _log() above.
-_log(f"Wave Overhangs v{PLUGIN_VERSION} loaded",
-     f"numpy/shapely : {'ok' if (np is not None and shapely is not None) else 'MISSING'}",
-     *([f"dependency problem: {_DEPS_ERROR}"] if _DEPS_ERROR else []))
+# NEVER log at import time -- see the note in unlayered_infill_orca.py. Orca's
+# audit hook turns a filesystem write during PluginLoader's import into a
+# permission prompt or a failed load. Emitted lazily instead.
+_LOADED_LOGGED = False
+
+
+def _log_loaded_once():
+    global _LOADED_LOGGED
+    if _LOADED_LOGGED:
+        return
+    _LOADED_LOGGED = True
+    ok = np is not None and shapely is not None
+    _log(f"Wave Overhangs v{PLUGIN_VERSION} loaded",
+         f"numpy/shapely : {'ok' if ok else 'MISSING'}",
+         *([f"dependency problem: {_DEPS_ERROR}"] if _DEPS_ERROR else []))
 
 
 @orca.plugin

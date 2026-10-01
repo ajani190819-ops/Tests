@@ -10,8 +10,8 @@ Read it before touching anything, and **update it before your session ends** —
 §9 is the checklist. A session that changed something and did not update this
 file has left the next session worse off.
 
-* **Last updated:** 2026-09-30 (session 4)
-* **Verified against the repo:** 2026-09-30 — all three test files pass and
+* **Last updated:** 2026-09-30 (session 5)
+* **Verified against the repo:** 2026-09-30 — all four test files pass and
   were mutation-tested (24 mutations, 24 caught),
   `git ls-files --eol Update-Orca-Plugins.bat` says `i/crlf`, `plugins.json`
   confirmed live on `main`.
@@ -59,6 +59,7 @@ which does not block starting.
 | Contract test | `python3 tests/test_installer.py` → **passing** |
 | Functional test | `python3 tests/test_post_script.py` → **passing** |
 | Runtime test | `python3 tests/test_plugin_runtime.py` → **passing** — the plugin itself now runs here |
+| Audit test | `python3 tests/test_plugin_audit.py` → **passing** — both plugins import under a hook that denies every write |
 | Log | both plugins append to `<Downloads>/orca-plugins.log` |
 | CI | **None.** See the known gap in §3. |
 | Work C (Wave Overhangs post-processing script) | not started — **unblocked**, design settled (C1 + C2 answered) |
@@ -66,13 +67,13 @@ which does not block starting.
 | Work E (updater self-update) | **done in code, never run on Windows** |
 | Defaults | amplitude `"200%"` of layer height; grid `"auto"` = nozzle diameter |
 
-**What changed most recently and matters (session 4):** the owner finally gave
+**What changed most recently and matters (session 5):** the owner finally gave
 the D1 detail — *"they don't do anything: no change in the preview, and none
 when reopening the G-code file."* Research turned up that **half of that
 symptom is expected behaviour**: no slicer redraws its preview after
 post-processing, and Orca's post-processing only runs on *Export G-code file*,
 never on Print or Send. So the most likely explanation is that the plugin
-never ran. In response, session 4 shipped
+never ran. In response, session 5 shipped
 `plugins/unlayered-infill/unlayered_infill_post.py` — the same engine as a
 standalone tool that does not need the plugin system at all — and made the
 updater self-updating. **The standalone tool is the first piece of this repo
@@ -92,7 +93,7 @@ OrcaSlicer build first and then update the file with the evidence.
   once bricked a plugin; the export step can run **twice**, so G-code
   transforms must be idempotent; the audit hook blocks lazy imports inside a
   capability, so import third-party deps at module load.
-* **`AGENTS.md` §4** — the twelve hard rules. The ones easiest to break by
+* **`AGENTS.md` §4** — the fourteen hard rules. The ones easiest to break by
   accident: the .bat must stay **CRLF** (never write it with a tool that
   converts line endings); a version bump is **three edits in lockstep**
   (PEP 723 header + `plugins.json` + the .bat's fallback list); no
@@ -161,7 +162,7 @@ get quietly lost between sessions.
   traceback would land in `data_dir()/log/python_*.log`.
 * The .bat has never been executed. There is no Windows in the sandbox. It was
   audited statically and simulated, not run.
-* **`:self_update` and `:stage_tools` have never run** (added session 4). The
+* **`:self_update` and `:stage_tools` have never run** (added session 5). The
   logic is guarded and test-pinned, but network-dependent batch code that has
   never executed is not proven. If self-update misbehaves, the fallback is
   `--no-self-update`, and the on-disk .bat is never modified so it cannot be
@@ -256,7 +257,7 @@ it references the old path `test_installer.py`, which is now
   [OrcaSlicer#7489]: https://github.com/OrcaSlicer/OrcaSlicer/issues/7489
   [#4432]: https://github.com/SoftFever/OrcaSlicer/issues/4432
 * **The updater must never overwrite itself while running.** (Design decision,
-  session 4.) `cmd.exe` streams a .bat from disk by byte offset as it
+  session 5.) `cmd.exe` streams a .bat from disk by byte offset as it
   executes; a self-overwrite can jump into garbage, and a bad download would
   leave the owner with no working updater. `:self_update` downloads to
   `%TEMP%`, verifies, and delegates. Now hard rule 12 in `AGENTS.md`.
@@ -293,11 +294,22 @@ fails, that is expected-unknown territory, not a surprise — say so plainly.
 
 ## 6. Next actions, in priority order
 
+0. **Get the Diagnostics tab text** (blocks everything else). The owner says
+   the plugins will not install. Orca records the reason in the Plugins
+   dialog's **Diagnostics** tab and in `data_dir()/log/python_*.log`, and
+   neither has been seen yet. Their attached debug log did not survive the
+   workspace reset — ask again, and read it the same turn it arrives.
+   Session 5 fixed two plausible causes blind (import-time write, two `.py`
+   in the staging folder) but neither is confirmed.
+0b. **Merge PR #2, or tell them to set `PLUGIN_BRANCH`.** `main` still serves
+   0.0.3 / 0.2.0. Until it is merged the updater installs versions older than
+   anything in sessions 3-5, which on its own looks like "the update did
+   nothing".
 1. **Get the owner to actually run the standalone tool** — this is now the
    highest-value action in the whole repo. It is the only piece other than
    `tools/nonplanar-infill-tool` with functional evidence behind it, and a
    single real run converts "should work" into "works". Point them at
-   `%USERPROFILE%\Downloads\OrcaPlugins\unlayered_infill_post.py` after an
+   `%USERPROFILE%\Downloads\OrcaPlugins\tools\unlayered_infill_post.py` after an
    updater run, or straight at the file on GitHub.
 2. **Get the log.** After the owner's next slice-and-export, ask them to
    paste `<Downloads>/orca-plugins.log`. It is now the fastest route to a
@@ -346,7 +358,7 @@ fails, that is expected-unknown territory, not a surprise — say so plainly.
 Append one entry per session. Keep entries short: what happened, what landed,
 what was verified, what was left undone.
 
-### Session 4 — 2026-09-30 — branch `arena/01a0f48b-tests`
+### Session 5 — 2026-09-30 — branch `arena/01a0f48b-tests`
 
 **The owner said the plugins "don't do anything — no change in the preview,
 and none when reopening the G-code file", and asked whether the installer
@@ -480,6 +492,54 @@ displayed.
   in a real OrcaSlicer.
 
 ---
+
+## 8b. Session 5 — "they wouldn't install" (2026-09-30)
+
+The owner reported: *"these new versions couldn't even install in orca, also
+where did the updater/installer go"*, with an OrcaSlicer debug log attached.
+**The attachment never reached the sandbox** (the workspace had been reset);
+it was asked for again. Everything below was found without it.
+
+**Two real defects found and fixed, neither confirmed as *the* cause.**
+
+1. **Import-time filesystem write (the serious one).** v0.3.0 / v0.0.5 logged
+   a `"... loaded"` line at module import. Orca installs its CPython audit
+   hook at `PythonInterpreter::initialize()` — step 2 of the lifecycle —
+   which is *before* `PluginLoader::load_plugin()` imports the module at step
+   4, and before `set_audit_plugin_key()` stamps the plugin's identity. So the
+   write was an audited, unattributed filesystem event during load. Fixed:
+   `_LOADED_LOGGED` + `_log_loaded_once()` called as the first statement of
+   each capability `execute()`; `_log` now swallows `BaseException`, not just
+   `Exception`. New `tests/test_plugin_audit.py` imports both plugins under a
+   hook that denies every write.
+2. **Two `.py` files in one staging folder.** The wiki is explicit: a plugin
+   folder holds *exactly one* entry file. `:stage_tools` was dropping the
+   standalone `unlayered_infill_post.py` into `Downloads\OrcaPlugins`, the
+   folder the README tells people to point Orca's installer at. Moved to
+   `%TOOLDIR%` = `Downloads\OrcaPlugins\tools\`.
+
+**Ruled out:** `requires-python = ">=3.12"` is "read but not stored or
+enforced against the bundled interpreter today" — it cannot block an install.
+The PEP 723 headers parse correctly (an earlier probe that said otherwise was
+missing `re.MULTILINE`; a false alarm).
+
+**Still unknown without the owner's evidence:** whether either defect is what
+they actually hit. The decisive artefacts are the Plugins dialog's
+**Diagnostics** tab ("A plugin that fails to load shows its error" there) and
+`data_dir()/log/python_*.log`. Both are now documented in `README.md`.
+
+**Context that probably caused half the confusion:** PR #2 is still open, so
+`main` serves wave-overhangs **0.0.3** / unlayered-infill **0.2.0** — older
+than anything discussed in sessions 3–5. The updater defaults to `main`, so it
+installs those. `README.md` now has an "Installing a test build" section
+showing `set PLUGIN_BRANCH=arena/01a0f48b-tests`.
+
+**The updater was never missing.** `Update-Orca-Plugins.bat` is at the repo
+root on both refs. `README.md` now gives the raw URL outright.
+
+Versions: unlayered-infill **0.3.1**, wave-overhangs **0.0.6**.
+Hard rules are now **fourteen** (13 = no I/O at import, 14 = one entry file
+per plugin folder). Mutation score across three rounds: **30/30**.
 
 ## 9. End-of-session checklist — how to leave this file
 

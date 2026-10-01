@@ -26,17 +26,28 @@ left off.
 
 ## Updating your installed plugins (Windows)
 
-1. Download [`Update-Orca-Plugins.bat`](Update-Orca-Plugins.bat) once (open it
-   on GitHub, Raw button) and keep it anywhere — `Downloads` is fine.
+**The updater is the file `Update-Orca-Plugins.bat` at the top level of this
+repository.** It has not moved and it has not been renamed. Direct download
+link (right-click → *Save link as…*):
+
+<https://raw.githubusercontent.com/ajani190819-ops/Tests/main/Update-Orca-Plugins.bat>
+
+1. Save it once and keep it anywhere — `Downloads` is fine.
 2. Double-click it whenever you want to install or update.
+
+It keeps itself up to date: on each run it checks whether a newer updater
+exists and hands over to it, so you only ever download it by hand once.
 
 It fetches `plugins.json` and the plugin files from this repo's `main`
 branch and copies them into Orca's data folder
 (`%APPDATA%\OrcaSlicer*\orca_plugins`, preferring a nightly folder), writing
 the `.install_state.json` sidecar so the plugins show up already enabled.
 Any other copies under `orca_plugins` are refreshed too (never `_subscribed`
-cloud copies), and a copy of each file is staged in `Downloads\OrcaPlugins`
-for Orca's UI installer. No Python, Node or Git needed — just Windows.
+cloud copies), and a copy of each plugin is staged in `Downloads\OrcaPlugins`
+for Orca's UI installer. The standalone tools — which are **not** plugins —
+go in `Downloads\OrcaPlugins\tools\`, deliberately kept out of the plugin
+folder: Orca requires exactly one `.py` per plugin folder and a stray second
+file stops the plugin loading. No Python, Node or Git needed — just Windows.
 
 ```
 Update-Orca-Plugins.bat [data_dir] [--local] [--no-self-update] [--help]
@@ -152,6 +163,60 @@ they explain most reports:
    design), and needs a genuine overhang to work on.
 6. **Check the log** if a plugin failed to load: `<data dir>/log/python_*.log`.
    Wave Overhangs needs numpy and shapely.
+
+## If a plugin will not install, or never appears in the Plugins list
+
+OrcaSlicer does not pop up an error when a plugin fails to load. It records it
+quietly. Here is where to look, in order:
+
+1. **Plugins dialog → click the plugin → `Diagnostics` tab.** This is the
+   answer in almost every case: Orca prints the actual load error there. If
+   the plugin is not in the list at all, go to step 3.
+2. **`Plugin Info` tab** — check the *installed version*. It should read
+   **0.3.1** for Unlayered Infill and **0.0.6** for Wave Overhangs. If it
+   shows something older, the updater installed from `main`, and `main` does
+   not have the new versions yet (see the note below).
+3. **Is the folder right?** Each plugin needs its own folder holding exactly
+   **one** `.py` file plus the `.install_state.json` record:
+
+   ```
+   %APPDATA%\OrcaSlicer\orca_plugins\UnlayeredInfill\unlayered_infill_orca.py
+   %APPDATA%\OrcaSlicer\orca_plugins\UnlayeredInfill\.install_state.json
+   ```
+
+   A **second** `.py` in that folder stops the plugin loading — Orca cannot
+   tell which file is the plugin. (Use `OrcaSlicerNightly` instead of
+   `OrcaSlicer` if you run the nightly build.)
+4. **`%APPDATA%\OrcaSlicer\log\python_*.log`** — Orca sends Python error
+   messages here. Open the newest one and look at the bottom.
+5. Press **Refresh** in the Plugins dialog, or restart OrcaSlicer. Orca
+   captures plugins at load time.
+
+> **Heads up:** the new versions are on the pull-request branch, not on `main`
+> yet. Until that PR is merged, the updater installs the older versions that
+> are on `main`. To get the new ones now, see "Installing a test build" below.
+
+## Installing a test build (before the pull request is merged)
+
+The updater downloads from **`main`** by default. New work lives on a branch
+until it is merged, so `main` can be behind. To install straight from a
+branch, set `PLUGIN_BRANCH` first.
+
+Open **Command Prompt** (press Start, type `cmd`, Enter), then paste these two
+lines one at a time:
+
+```bat
+set PLUGIN_BRANCH=arena/01a0f48b-tests
+"%USERPROFILE%\Downloads\Update-Orca-Plugins.bat"
+```
+
+The updater prints the ref it is using near the top — check it says
+`ref: arena/01a0f48b-tests`, not `ref: main`. If a file is missing on the
+branch it quietly falls back to `main`, so always confirm the version
+afterwards in the Plugins dialog (**0.3.1** / **0.0.6**).
+
+Closing that Command Prompt window clears `PLUGIN_BRANCH`. Double-clicking the
+`.bat` normally always goes back to `main`.
 
 ## The log file — start here when something seems wrong
 

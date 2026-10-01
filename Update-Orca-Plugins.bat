@@ -65,6 +65,11 @@ if "%HERE:~-1%"=="\" set "HERE=%HERE:~0,-1%"
 rem A copy of each downloaded file lands here for Orca's UI installer.
 set "DLDIR=%USERPROFILE%\Downloads\OrcaPlugins"
 
+rem Standalone tools live in their own subfolder. They are NOT plugins, and a
+rem plugin folder must contain exactly one entry .py or Orca cannot tell which
+rem file is the plugin.
+set "TOOLDIR=%DLDIR%\tools"
+
 set "LOCAL_MODE="
 set "DATA_DIR_ARG="
 set "NO_SELF_UPDATE="
@@ -154,8 +159,8 @@ echo    * The 3D preview NEVER shows the result. No slicer redraws its preview
 echo      after post-processing. To see the change, drag the exported .gcode
 echo      file back into OrcaSlicer and look at that.
 if exist "%DLDIR%" echo    * Copies for Orca's UI installer are in "%DLDIR%"
-if exist "%DLDIR%\unlayered_infill_post.py" echo    * No plugin needed: double-click
-if exist "%DLDIR%\unlayered_infill_post.py" echo      "%DLDIR%\unlayered_infill_post.py" and point it at an exported .gcode
+if exist "%TOOLDIR%\unlayered_infill_post.py" echo    * No plugin needed: double-click
+if exist "%TOOLDIR%\unlayered_infill_post.py" echo      "%TOOLDIR%\unlayered_infill_post.py" and point it at an exported .gcode
 echo.
 echo  Install/update complete.
 goto :done
@@ -332,8 +337,8 @@ rem  writes, and this way it lands on a field nothing reads.
 rem ---------------------------------------------------------------------------
 :fallback_plan
 echo   Using the fallback plan built into this file.
->  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.5^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
->> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.3.0^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
+>  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.6^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
+>> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.3.1^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
 exit /b 0
 
 rem ---------------------------------------------------------------------------
@@ -519,21 +524,26 @@ exit /b 0
 rem ---------------------------------------------------------------------------
 rem  stage_tools -- the standalone scripts. These are NOT plugins: they run on
 rem  an already-exported .gcode file, so they work even if Orca's plugin system
-rem  is not cooperating. They go in the Downloads folder next to the plugin
-rem  copies. A failure here is not fatal; the plugins are already installed.
+rem  is not cooperating.
+rem
+rem  They go in a SEPARATE tools\ subfolder, never beside the plugin copies.
+rem  Orca requires a plugin folder to hold exactly ONE entry .py file, and
+rem  %DLDIR% is the folder users are told to point Orca's installer at. A
+rem  stray second .py in there makes the entry point ambiguous.
+rem  A failure here is not fatal; the plugins are already installed.
 :stage_tools
 if defined LOCAL_MODE exit /b 0
-if not exist "%DLDIR%" mkdir "%DLDIR%" 2>nul
+if not exist "%TOOLDIR%" mkdir "%TOOLDIR%" 2>nul
 call :stage_one_tool "plugins/unlayered-infill/unlayered_infill_post.py" "unlayered_infill_post.py"
 exit /b 0
 
 :stage_one_tool
-call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%~1" "%DLDIR%\%~2"
+call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%~1" "%TOOLDIR%\%~2"
 if errorlevel 1 (
     echo  - tool %~2: download failed, skipped
     exit /b 0
 )
-echo  - tool %~2: saved to "%DLDIR%"
+echo  - tool %~2: saved to "%TOOLDIR%"
 exit /b 0
 
 rem ---------------------------------------------------------------------------

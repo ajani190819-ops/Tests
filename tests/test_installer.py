@@ -393,6 +393,24 @@ for _tpath, _tname in _tools:
 
 
 # --------------------------------------------------------------------------
+# 3d. the staging folder must not mix tools in with the plugin copies
+# ---------------------------------------------------------------------------
+# %DLDIR% is the folder the README tells people to point Orca's installer at.
+# Orca wants exactly one entry .py per plugin folder, so the standalone tools
+# (which are not plugins) must be staged somewhere else.
+bat_txt = BAT.read_text(encoding="utf-8", errors="replace")
+check('set "TOOLDIR=' in bat_txt,
+      "the .bat no longer defines TOOLDIR; standalone tools would land beside "
+      "the plugin copies and make the plugin entry file ambiguous")
+tool_dl = re.search(r':stage_one_tool\s*\r?\n\s*call :download\s+"[^"]+"\s+"([^"]+)"',
+                    bat_txt)
+check(tool_dl is not None, "could not find the :stage_one_tool download line")
+if tool_dl:
+    check("%TOOLDIR%" in tool_dl.group(1),
+          f"standalone tools are staged to {tool_dl.group(1)!r}, which is the "
+          f"plugin staging folder. Use %TOOLDIR%.")
+
+# ---------------------------------------------------------------------------
 # 4. replay the updater's install loop
 # --------------------------------------------------------------------------
 def report_and_exit() -> None:
@@ -497,6 +515,17 @@ with tempfile.TemporaryDirectory() as tmp:
             check(state["plugin_name"].endswith(f"v{p['version']}"),
                   f"{p['id']}: sidecar plugin_name {state['plugin_name']!r} does not "
                   f"show the installed version, so the Plugins dialog cannot either")
+
+        # Orca requires a plugin folder to contain EXACTLY ONE entry file
+        # (one .py or one .whl): find_installed_plugin_entry in
+        # PythonFileUtils.cpp picks the entry point by scanning the folder.
+        # Two .py files there and the plugin does not load.
+        entries = sorted(q.name for q in (root / p["orca_dir"]).glob("*.py"))
+        check(len(entries) == 1,
+              f"{p['id']}: the plugin folder holds {len(entries)} .py files "
+              f"({entries}). Orca needs exactly one entry file per folder.")
+        whls = sorted(q.name for q in (root / p["orca_dir"]).glob("*.whl"))
+        check(not whls, f"{p['id']}: unexpected .whl beside the entry file: {whls}")
 
     # -- an older copy under a different folder name, plus a cloud copy
     p0 = plan[0]
