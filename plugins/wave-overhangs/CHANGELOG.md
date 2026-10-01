@@ -6,10 +6,104 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.19 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.23 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.23 — 2026-10-01
+
+* Much less work per export. Geometry is now built only for layers that have
+  a Bridge section and the layer that holds each one up. On the owner's own
+  export that is 7 layers out of 134, so 95% of the shapely objects that used
+  to be created were never looked at: parsing went from 1.65 s to 0.2 s. An
+  export with no Bridge section anywhere now returns in about 0.01 s without
+  building a single piece of geometry.
+* Extrusion footprints are buffered once per line width instead of once per
+  move, which on a layer with twenty thousand moves is one GEOS call instead
+  of twenty thousand.
+* Cleanup no longer rebuilds its guard shapes for every front. They depend
+  only on the region and the tolerance, so they are built once per section.
+* The log now records `seconds`, `parse_seconds`, `plan_seconds`,
+  `geometry_layers` and `layers_scanned`, so a slow export can be diagnosed
+  from the log instead of guessed at.
+* Note on what was actually making exports slow: 0.0.20 wrote 29,374 Wave
+  moves into the owner's export -- 0.89 MB, a third of the whole file --
+  because of the simplification fault fixed in 0.0.21. The same input now
+  produces 2,006 moves and 74 arcs in 0.07 MB, and the finished file drops
+  from 2.66 MB to 1.82 MB. Everything downstream that walks those moves
+  (preview, time estimate, transfer to the printer) gets that back.
+
+## 0.0.22 — 2026-10-01
+
+* Fixed the unfilled corner the owner photographed. A wavefront is a contour
+  of equal distance from the supported edge, and the contours step outward one
+  line spacing at a time, so where the far boundary runs at an angle to that
+  march -- the tip of a corner -- the last contour stops short and leaves a
+  small sliver with nothing in it. Measured in the owner's own export: a
+  0.22 mm^2 void, 0.53 x 0.75 mm, in the corner of the plate. Wave now fills
+  such a sliver with one short path down its middle. `gap_fill` (on) and
+  `gap_fill_min_area` (0.05 mm^2) control it. It only ever adds material where
+  there is none: a part with no sliver comes out byte for byte identical.
+* A short wavefront that touches a full-length rung is now kept instead of
+  discarded. Short fronts were dropped to avoid specks printed into thin air,
+  but one that touches a rung already on the plate is anchored, and dropping
+  it was leaving holes in exactly the places this release is about. Whether a
+  front survives is measured against every rung, not the ones kept so far, so
+  print order cannot change which bridge extrusion ends up covered.
+* Investigated the second thing the owner circled -- a rounded wall whose Wave
+  edge looks like a staircase. Measured in their export, every Wave end along
+  that curve sits 0.456 to 0.457 mm from the wall: a spread of 0.001 mm, so the
+  ends are already on the wall. What the preview shows is the flat end of each
+  rung meeting a curve at 0.35 mm intervals. Smoothing that needs a rung laid
+  *along* the wall with the others trimmed back to make room; the first attempt
+  made the edge worse and was not shipped.
+
+## 0.0.21 — 2026-10-01
+
+* Wave can now emit **G2/G3 arc moves**. Wave runs after Orca has written the
+  file, so Orca's own arc fitter never sees these toolpaths; Wave fits its own
+  arcs instead. `arc_fitting` is `auto` by default, which follows the export's
+  own `enable_arc_fitting` setting: switch Arc fitting on in the print profile
+  and the Waves become arcs too, leave it off and nothing changes. An arc is
+  only used where it is measurably closer to the real wavefront than the
+  straight moves it replaces, and it is re-checked against the overhang region
+  so a bowed arc cannot push into a wall or a hole.
+* Wave now **reads** G2/G3 moves out of the export. With arc fitting switched
+  on, a round hole's wall is exported as arcs; before this, Wave could not see
+  that wall at all, which would have silently undone the 0.0.20 perimeter fix
+  on exactly the parts that need it most. Both the `I J` and `R` forms are
+  understood.
+* Fixed a large file-size problem on parts with holes. Cleanup refused to
+  simplify any front that *touched* a hole, and since 0.0.20 ends deliberately
+  finish on hole walls, nearly every front fell back to its raw form: a 9.9 mm
+  front was being written as 980 moves instead of 9. Touching a hole is no
+  longer treated as cutting across one, and when a shortcut really would cut a
+  corner, Wave retries with a tighter tolerance before giving up. On the test
+  part with a hole this cut the Wave G-code from 316 KB to 9 KB.
+* Added `arc_tolerance` (`auto` follows the profile's own `resolution`, capped
+  at 0.05 mm).
+
+## 0.0.20 — 2026-10-01
+
+* Fixed the frayed Wave edges. Orca exports bridge infill as separate lines, so
+  the area those lines cover has a castellated edge that also stops short of
+  the perimeter. Wave was clipping its fronts to that edge, which is what made
+  the ends look jagged. Wave now reads the wall moves the layer actually
+  printed and squares the overhang area up against them, so fronts run from the
+  supported perimeter all the way to the overhang perimeter and to any hole.
+* Wave ends now finish inside the wall bead, overlapping it by 25% of the Wave
+  line width by default (`wall_overlap`), so the following perimeter has a
+  straight, fully bonded edge to print against instead of a sawtooth.
+* Added `wall_snap` (on by default; set it to `false` to get the 0.0.19 edges
+  back for comparison), `wall_reach` (how far the area may be stretched to
+  reach a wall, `auto` = 1.5 line widths) and `wall_overlap`.
+* Fixed wall material being measured one G-code move at a time, which left a
+  hairline slit at every vertex of a curved wall. A Wave end could slip through
+  one of those slits and finish on the visible surface of a hole.
+* Stretching the area to the wall can never create a Wave where there was not
+  one: a region still has to come from bridge extrusion Orca exported over
+  unsupported space, and nothing may be placed outside the part.
 
 ## 0.0.19 — 2026-10-01
 

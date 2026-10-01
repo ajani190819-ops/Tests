@@ -22,7 +22,9 @@ except ImportError:
     raise SystemExit(0)
 
 import fake_orca
-from shapely.geometry import LineString, Point, Polygon
+import wave_cases
+from shapely.geometry import LineString, MultiLineString, Point, Polygon
+from shapely.ops import unary_union
 
 orca = fake_orca.install()
 path = ROOT / "plugins/wave-overhangs/wave_overhangs_orca.py"
@@ -146,13 +148,16 @@ assert curved_allowed.buffer(0.02).covers(LineString(clean_arc)), (
 
 assert stats["wave_layers"] == 3, stats
 assert stats["replaced_sections"] == 3, stats
-assert stats["removed_moves"] == 101, stats
-assert stats["kept_fragments"] == 31, (
+assert stats["removed_moves"] == 107, stats
+assert stats["kept_fragments"] == 25, (
     "substantial uncovered bridge fragments must remain", stats)
-assert stats["tiny_fragments_dropped"] == 112, (
+assert stats["tiny_fragments_dropped"] == 122, (
     "sub-nozzle edge remnants should be cleaned up", stats)
-assert stats["short_wave_paths_dropped"] == 29, (
+assert stats["short_wave_paths_dropped"] == 11, (
     "isolated short wavefronts should be cleaned up", stats)
+assert stats["wall_bounded_sections"] == 3, (
+    "every exported bridge section should be squared up against the wall "
+    "the layer actually printed", stats)
 assert out.startswith("; wave-overhangs v"), "missing build stamp"
 assert out.count("; ==== WAVE OVERHANG BEGIN ====") == 3
 assert out.count("; ==== WAVE OVERHANG END ====") == 3
@@ -160,6 +165,31 @@ wave_blocks = re.findall(
     r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
     r"; ==== WAVE OVERHANG END ====", out, re.DOTALL)
 wave_move_count = sum(block.count("\nG1 X") for block in wave_blocks)
+
+
+def wave_polylines(blocks):
+    """The Wave paths inside emitted Wave blocks, as point lists."""
+    paths = []
+    for block in blocks:
+        current = None
+        for line in block.splitlines():
+            if line.startswith("G0"):
+                words = wave._gwords(line)
+                if "X" in words and "Y" in words:
+                    if current and len(current) > 1:
+                        paths.append(current)
+                    current = [(words["X"], words["Y"])]
+            elif line.startswith("G1") and " X" in line and " E" in line:
+                words = wave._gwords(line)
+                if current is not None and "X" in words and "Y" in words:
+                    current.append((words["X"], words["Y"]))
+        if current and len(current) > 1:
+            paths.append(current)
+    return paths
+
+
+def wave_path_length(blocks):
+    return sum(wave._polyline_length(path) for path in wave_polylines(blocks))
 old_style_out, old_style_stats = wave._gcode_wave_rewrite(
     source, dict(cfg, edge_taper_distance=0.0, edge_clearance=0.0,
                  edge_snap_distance=0.0))
@@ -175,10 +205,11 @@ clearance_only_blocks = re.findall(
 clearance_only_move_count = sum(
     block.count("\nG1 X") for block in clearance_only_blocks)
 assert old_style_stats["removed_moves"] == stats["removed_moves"]
-assert old_style_move_count == 399, (
+assert old_style_move_count == 508, (
     "old no-clearance/no-taper cleanup changed unexpectedly")
 assert clearance_only_stats["removed_moves"] == stats["removed_moves"]
-assert clearance_only_move_count <= old_style_move_count, (
+assert wave_path_length(clearance_only_blocks) < wave_path_length(
+        old_style_blocks), (
     "edge clearance should trim emitted paths without changing bridge coverage")
 assert wave_move_count == old_style_move_count, (
     "default endpoint taper must not add tiny grid-like endpoint moves")
@@ -335,6 +366,378 @@ assert nearest_stats["removed_moves"] == stats["removed_moves"]
 assert nearest.count("; ==== WAVE OVERHANG BEGIN ====") == 3
 assert nearest != out, "nearest component ordering did not change toolpath order"
 
+# ---------------------------------------------------------------------------
+# Perimeter conformance (the 0.0.20 fix).
+#
+# Orca exports bridge infill as separate lines, so the area they cover has a
+# castellated edge that stops short of the wall. Wave used to clip its fronts
+# to that edge, which is what made the ends look frayed. The ends must now sit
+# on one straight line along each wall, inside the wall bead.
+# ---------------------------------------------------------------------------
+legacy_out, legacy_stats = wave._gcode_wave_rewrite(source, dict(cfg, wall_snap=False))
+legacy_blocks = re.findall(
+    r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
+    r"; ==== WAVE OVERHANG END ====", legacy_out, re.DOTALL)
+assert legacy_stats["wall_bounded_sections"] == 0, legacy_stats
+assert sum(block.count("\nG1 X") for block in legacy_blocks) == 739, (
+    "wall_snap=False must still produce the 0.0.19 bridge-footprint edges")
+
+
+def endpoints_along(paths, pick, keep):
+    """Front endpoint coordinates that belong to one straight wall."""
+    values = []
+    for path in paths:
+        for end in (path[0], path[-1]):
+            if keep(end):
+                values.append(pick(end))
+    return values
+
+
+# The real export's open-air overhang layer: the L-shaped arm at z 5.65.
+overhang_paths = [path for path in wave_polylines(wave_blocks[:1])]
+legacy_paths = [path for path in wave_polylines(legacy_blocks[:1])]
+walls_5_4 = wave._wall_material(
+    wave._parse_gcode_geometry(source.splitlines(keepends=True))[17])
+edges = {
+    "left": (lambda p: p[0], lambda p: p[0] < 103.6 and 103.4 < p[1] < 111.6),
+    "bottom": (lambda p: p[1], lambda p: p[1] < 103.6 and 103.4 < p[0] < 111.6),
+    "right": (lambda p: p[0], lambda p: p[0] > 111.4 and 103.4 < p[1] < 107.2),
+    "top": (lambda p: p[1], lambda p: p[1] > 111.4 and 103.4 < p[0] < 107.2),
+}
+for name, (pick, keep) in edges.items():
+    fixed = endpoints_along(overhang_paths, pick, keep)
+    assert len(fixed) >= 5, (name, len(fixed))
+    assert max(fixed) - min(fixed) <= 0.02, (
+        f"Wave ends along the {name} wall must lie on one straight line",
+        name, sorted(fixed))
+# The same measurement on the old behaviour is visibly ragged: this is the bug
+# being fixed, so the test must be able to see it.
+ragged = endpoints_along(legacy_paths, *edges["top"])
+assert max(ragged) - min(ragged) > 0.2, (
+    "the 0.0.19 comparison run should still show the castellated edge",
+    sorted(ragged))
+
+# No end may stop in the "just short of the wall" band: an end either sits in
+# the wall bead or is an interior/support-side anchor well away from a wall.
+def ends_just_short(paths, bead, minimum=1.0):
+    """Full-length rungs whose end stops in the 'nearly at the wall' band.
+
+    Short anchored stubs are excluded: a 0.6 mm rung tucked into a corner is
+    not a rung that failed to reach the wall, and it is the full-length ones
+    that made the edge look castellated.
+    """
+    return [round(bead.distance(Point(end)), 3) for path in paths
+            if wave._polyline_length(path) >= minimum
+            for end in (path[0], path[-1])
+            if 0.001 < bead.distance(Point(end)) < 0.30]
+
+
+assert ends_just_short(overhang_paths, walls_5_4) == [], (
+    "Wave ends must not stop just short of the wall",
+    ends_just_short(overhang_paths, walls_5_4))
+assert len(ends_just_short(legacy_paths, walls_5_4)) >= 5, (
+    "the 0.0.19 comparison run should still stop short of the wall")
+# A higher share of ends finish inside the wall bead, and none of them are
+# left hovering just outside it.
+def bead_share(paths):
+    ends = [end for path in paths for end in (path[0], path[-1])]
+    inside = sum(1 for end in ends if walls_5_4.covers(Point(end)))
+    return inside, len(ends)
+
+
+in_bead, total_ends = bead_share(overhang_paths)
+legacy_in_bead, legacy_total = bead_share(legacy_paths)
+assert in_bead / total_ends > legacy_in_bead / legacy_total, (
+    "more of the Wave ends should finish in the wall bead than in 0.0.19",
+    (in_bead, total_ends), (legacy_in_bead, legacy_total))
+assert in_bead >= 30, in_bead
+
+
+hole_source, (hx, hy, hr) = wave_cases.synthetic_overhang_with_hole()
+hole_out, hole_stats = wave._gcode_wave_rewrite(hole_source, dict(cfg))
+hole_legacy_out, _ = wave._gcode_wave_rewrite(
+    hole_source, dict(cfg, wall_snap=False))
+assert hole_stats["wall_bounded_sections"] == 1, hole_stats
+
+
+def hole_paths(text):
+    return wave_polylines(re.findall(
+        r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
+        r"; ==== WAVE OVERHANG END ====", text, re.DOTALL))
+
+
+paths = hole_paths(hole_out)
+legacy_hole_paths = hole_paths(hole_legacy_out)
+assert paths and legacy_hole_paths
+
+# 1. Nothing may be printed inside the opening.
+for path in paths:
+    for x, y in path:
+        assert math.hypot(x - hx, y - hy) >= hr - 1e-6, (
+            "a Wave path entered the hole", (x, y))
+
+# 2. Ends that reach the hole must land on its perimeter, all at one radius.
+hole_radii = [math.hypot(x - hx, y - hy) for path in paths
+              for x, y in (path[0], path[-1])
+              if math.hypot(x - hx, y - hy) < 4.3]
+assert len(hole_radii) >= 20, len(hole_radii)
+assert max(hole_radii) - min(hole_radii) <= 0.02, (
+    "Wave ends around a hole must follow the hole, not a staircase",
+    round(min(hole_radii), 3), round(max(hole_radii), 3))
+assert hr < min(hole_radii) <= hr + 0.5, (
+    "hole ends must sit in the hole's wall bead", min(hole_radii))
+legacy_radii = [math.hypot(x - hx, y - hy) for path in legacy_hole_paths
+                for x, y in (path[0], path[-1])
+                if math.hypot(x - hx, y - hy) < 4.3]
+assert max(legacy_radii) - min(legacy_radii) > 0.2, (
+    "the comparison run should still show ragged hole ends")
+
+# 3. Ends at the straight top and bottom walls must be on one line, and must
+#    reach the wall instead of stopping a third of a millimetre short.
+for pick, keep, label in (
+        (lambda p: p[1], lambda p: p[1] > 118.6 and p[0] > 111.0, "top"),
+        (lambda p: p[1], lambda p: p[1] < 101.4 and p[0] > 111.0, "bottom")):
+    values = sorted(endpoints_along(paths, pick, keep))
+    legacy_values = sorted(endpoints_along(legacy_hole_paths, pick, keep))
+    assert len(values) >= 20, (label, len(values))
+    trimmed = values[1:-1] if len(values) > 4 else values
+    assert max(trimmed) - min(trimmed) <= 0.02, (label, trimmed[:5], trimmed[-5:])
+    reach = (min(values) if label == "top" else -max(values))
+    legacy_reach = (min(legacy_values) if label == "top" else -max(legacy_values))
+    assert reach > legacy_reach + 0.2, (
+        f"{label} ends must now reach the wall", reach, legacy_reach)
+
+# 4. The field itself must march all the way to the far overhang perimeter.
+far = max(x for path in paths for x, _y in path)
+legacy_far = max(x for path in legacy_hole_paths for x, _y in path)
+assert far >= 119.5, ("Wave must reach the far wall's inner edge", far)
+assert far > legacy_far + 0.2, (far, legacy_far)
+
+# 5. Nothing may be printed outside the part.
+for path in paths:
+    for x, y in path:
+        assert 100.0 <= x <= 120.0 and 100.0 <= y <= 120.0, (x, y)
+
+# ---------------------------------------------------------------------------
+# Arc moves (the 0.0.21 feature).
+#
+# Wave runs after Orca has written the file, so Orca's own arc fitter never
+# sees these moves. Wave emits its own G2/G3 -- but only when the export says
+# the profile has arc fitting switched on, so a printer whose firmware cannot
+# read arcs never receives any.
+# ---------------------------------------------------------------------------
+def arc_points(blocks, step=0.05):
+    """Replay Wave blocks, expanding G2/G3 back into points."""
+    paths, extrusion = [], 0.0
+    for block in blocks:
+        current, x, y = None, None, None
+        for line in block.splitlines():
+            words = wave._gwords(line)
+            if line.startswith("G0") and "X" in words:
+                if current and len(current) > 1:
+                    paths.append(current)
+                x, y = words["X"], words["Y"]
+                current = [(x, y)]
+            elif line.startswith("G1") and "X" in words:
+                x, y = words["X"], words["Y"]
+                extrusion += words.get("E", 0.0)
+                if current is not None:
+                    current.append((x, y))
+            elif line.startswith(("G2 ", "G3 ")):
+                target = (words["X"], words["Y"])
+                arc = wave._arc_move_points(
+                    (x, y), target, words, line.startswith("G2"), step=step)
+                extrusion += words.get("E", 0.0)
+                if current is not None:
+                    current.extend(arc[1:])
+                x, y = target
+        if current and len(current) > 1:
+            paths.append(current)
+    return paths, extrusion
+
+
+def wave_blocks_of(text):
+    return re.findall(
+        r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
+        r"; ==== WAVE OVERHANG END ====", text, re.DOTALL)
+
+
+# 1. The captured export has `enable_arc_fitting = 0`, so "auto" must leave it
+#    completely alone -- byte for byte.
+assert "; enable_arc_fitting = 0" in source, "fixture precondition"
+assert stats["arc_moves"] == 0, stats
+assert not re.search(r"^G[23] ", out, re.MULTILINE), (
+    "no arc may be emitted when the profile has arc fitting switched off")
+forced_off, _ = wave._gcode_wave_rewrite(source, dict(cfg, arc_fitting=False))
+assert forced_off == out, "arc_fitting=auto must match arc_fitting=false here"
+
+# 2. Flip that one profile line and the same export gains arcs.
+arc_source = source.replace("; enable_arc_fitting = 0",
+                            "; enable_arc_fitting = 1")
+arc_out, arc_stats = wave._gcode_wave_rewrite(arc_source, dict(cfg))
+arc_blocks = wave_blocks_of(arc_out)
+emitted_arcs = sum(block.count("\nG2 ") + block.count("\nG3 ")
+                   for block in arc_blocks)
+assert arc_stats["arc_moves"] == emitted_arcs == 44, (arc_stats, emitted_arcs)
+arc_move_count = sum(block.count("\nG1 X") for block in arc_blocks)
+assert arc_move_count == 329, arc_move_count
+assert arc_move_count + emitted_arcs < wave_move_count, (
+    "arcs must reduce the number of commands, not add to them")
+assert arc_stats["removed_moves"] == stats["removed_moves"], (
+    "arc fitting must not change which bridge extrusion is replaced")
+
+# 3. Same shape, same plastic. The arcs are checked by expanding them back
+#    into points and comparing with the straight-move version.
+straight_paths, straight_e = arc_points(wave_blocks)
+curved_paths, curved_e = arc_points(arc_blocks)
+assert abs(curved_e - straight_e) <= straight_e * 0.005, (straight_e, curved_e)
+straight_shape = MultiLineString([p for p in straight_paths if len(p) > 1])
+worst = max(straight_shape.distance(Point(q))
+            for path in curved_paths for q in path)
+assert worst <= 0.12, ("an arc strayed too far from the path it replaced", worst)
+
+# 4. Arcs must respect the same perimeters the straight moves do.
+arc_hole_source, (ax, ay, ar) = wave_cases.synthetic_overhang_with_hole()
+arc_hole_out, _ = wave._gcode_wave_rewrite(
+    arc_hole_source, dict(cfg, arc_fitting=True))
+for path in arc_points(wave_blocks_of(arc_hole_out))[0]:
+    for x, y in path:
+        assert math.hypot(x - ax, y - ay) >= ar - 1e-6, (
+            "an arc entered the hole", (x, y))
+        assert 100.0 <= x <= 120.0 and 100.0 <= y <= 120.0, (x, y)
+
+# 5. Reading arcs back. With arc fitting on, Orca exports a round hole's wall
+#    as G2/G3, and Wave has to see the same circle it sees from straight
+#    moves -- otherwise the wall-conformance fix above goes blind.
+straight_walls = wave._wall_material(wave._parse_gcode_geometry(
+    wave_cases.synthetic_overhang_with_hole()[0].splitlines(keepends=True))[1])
+arced_walls = wave._wall_material(wave._parse_gcode_geometry(
+    wave_cases.synthetic_overhang_with_hole(arc_walls=True)[0]
+    .splitlines(keepends=True))[1])
+straight_ring = [p for p in wave._polygon_parts(straight_walls)
+                 if p.bounds[0] > 110.0][0]
+arced_ring = [p for p in wave._polygon_parts(arced_walls)
+              if p.bounds[0] > 110.0][0]
+assert abs(arced_ring.area - straight_ring.area) < 0.01, (
+    "a hole wall written as arcs must give the same wall material",
+    straight_ring.area, arced_ring.area)
+assert arced_ring.symmetric_difference(straight_ring).area < 0.05
+quarter = wave._arc_move_points((15.0, 10.0), (10.0, 15.0),
+                                {"I": -5.0, "J": 0.0}, False)
+assert max(abs(math.hypot(x - 10.0, y - 10.0) - 5.0)
+           for x, y in quarter) < 1e-9, "I/J arcs must be read exactly"
+assert wave._arc_move_points((0.0, 0.0), (10.0, 0.0), {"R": 1.0}, False) == [
+    (0.0, 0.0), (10.0, 0.0)], "an impossible radius falls back to the chord"
+assert wave._MOVE_CODE.match("G28 X0 Y0") is None, "G28 is not a move"
+
+# 6. Arcs stay idempotent and fail closed like everything else.
+arc_again, arc_second = wave._gcode_wave_rewrite(arc_out, dict(cfg))
+assert arc_second.get("already_processed") is True, arc_second
+assert arc_again == arc_out, "a second pass over arc output must change nothing"
+
+# ---------------------------------------------------------------------------
+# Corner slivers (the 0.0.22 fix).
+#
+# A wavefront is a contour of equal distance from the supported edge, and the
+# contours step outward one spacing at a time. Where the far boundary runs at
+# an angle to that march -- the tip of a corner -- the last contour stops
+# short and leaves a sliver with nothing in it. The owner photographed one.
+# ---------------------------------------------------------------------------
+wedge_source, wedge_info = wave_cases.synthetic_wedge_corner()
+
+
+def unfilled_slivers(text, source_text, minimum=0.02):
+    """Area inside the walls that no extrusion covers, by piece."""
+    layers = wave._parse_gcode_geometry(source_text.splitlines(keepends=True))
+    silhouette = wave._layer_outline(layers[1])
+    support = wave._footprint(layers[0]["all"])
+    beads = []
+    for path in wave_polylines(wave_blocks_of(text)):
+        if len(path) > 1:
+            beads.append(LineString(path).buffer(0.25, cap_style=2))
+    covered = unary_union(beads) if beads else Polygon()
+    gap = silhouette.buffer(-0.375).difference(covered).difference(
+        support.buffer(0.05))
+    return sorted((p for p in wave._polygon_parts(gap) if p.area > minimum),
+                  key=lambda p: -p.area)
+
+
+wedge_plain, wedge_plain_stats = wave._gcode_wave_rewrite(
+    wedge_source, dict(cfg, gap_fill=False))
+wedge_filled, wedge_stats = wave._gcode_wave_rewrite(wedge_source, dict(cfg))
+tip_x = wedge_info["tip"][0]
+
+
+def near_tip(text):
+    return sum(p.area for p in unfilled_slivers(text, wedge_source)
+               if p.centroid.x > tip_x - 10.0)
+
+
+assert wedge_plain_stats["gap_fills"] == 0, wedge_plain_stats
+assert wedge_stats["gap_fills"] >= 1, wedge_stats
+assert near_tip(wedge_plain) > 0.1, (
+    "the wedge fixture must still show the unfilled corner being fixed",
+    near_tip(wedge_plain))
+assert near_tip(wedge_filled) < 0.05, (
+    "the corner sliver must be filled", near_tip(wedge_filled))
+
+# Gap fill only ever adds material where there is none: a part with no sliver
+# must come out byte for byte identical.
+hole_no_fill, _ = wave._gcode_wave_rewrite(hole_source, dict(cfg, gap_fill=False))
+assert hole_no_fill == hole_out, (
+    "gap fill must not change a part that has no slivers")
+
+# A short front that touches a full-length rung is anchored, so it is kept;
+# an isolated speck is still dropped. Which ones survive must not depend on
+# the print order, or two orderings would cover different bridge area.
+for ordering in ({"component_order": "nearest"}, {"pattern": "monotonic"},
+                 {"pattern": "zigzag"}):
+    _text, ordered_stats = wave._gcode_wave_rewrite(source, dict(cfg, **ordering))
+    assert ordered_stats["removed_moves"] == stats["removed_moves"], (
+        "print order must not change which bridge extrusion is covered",
+        ordering, ordered_stats["removed_moves"], stats["removed_moves"])
+    assert ordered_stats["kept_fragments"] == stats["kept_fragments"], ordering
+
+# ---------------------------------------------------------------------------
+# Processing cost (the 0.0.23 work).
+#
+# Geometry is only built for layers that have a Bridge section and the layer
+# that holds each one up. On a tall export that is a handful of layers out of
+# hundreds, and building the rest was pure waste.
+# ---------------------------------------------------------------------------
+interesting = wave._bridge_layer_indices(source.splitlines(keepends=True))
+all_layers = wave._parse_gcode_geometry(source.splitlines(keepends=True))
+assert interesting == {16, 17, 18, 30, 31, 46, 47}, sorted(interesting)
+selective = wave._parse_gcode_geometry(
+    source.splitlines(keepends=True), interesting)
+built = sum(len(layer["all"]) for layer in selective)
+everything = sum(len(layer["all"]) for layer in all_layers)
+assert built < everything * 0.5, (built, everything)
+# The layers that are built must be byte-identical to building all of them.
+for index in sorted(interesting):
+    assert len(selective[index]["all"]) == len(all_layers[index]["all"]), index
+    assert len(selective[index]["walls"]) == len(all_layers[index]["walls"]), index
+assert selective[17]["z"] == all_layers[17]["z"]
+# ... and the result is the same either way.
+full_out, full_stats = wave._gcode_wave_rewrite(source, dict(cfg))
+assert full_out == out and full_stats["removed_moves"] == stats["removed_moves"]
+
+# An export with no Bridge section at all must cost almost nothing: no
+# geometry is built for it.
+plain = source.replace(";TYPE:Bridge", ";TYPE:Internal solid infill").replace(
+    ";TYPE:Internal Bridge", ";TYPE:Internal solid infill")
+plain_out, plain_stats = wave._gcode_wave_rewrite(plain, dict(cfg))
+assert plain_out == plain, "a file with no bridge must come back untouched"
+assert plain_stats["wave_layers"] == 0, plain_stats
+assert wave._bridge_layer_indices(plain.splitlines(keepends=True)) == set()
+
+# The stats carry timings so a slow export can be diagnosed from the log.
+for key in ("seconds", "parse_seconds", "plan_seconds", "geometry_layers",
+            "layers_scanned"):
+    assert key in stats, (key, sorted(stats))
+assert stats["layers_scanned"] == len(all_layers)
+assert stats["geometry_layers"] == len(interesting)
+
 again, second = wave._gcode_wave_rewrite(out, cfg)
 assert again == out and second["already_processed"], "second pass must be a no-op"
 
@@ -351,4 +754,8 @@ assert "error" in failure_stats
 
 print("ok -- real Cube^2 export: 3 cleaned wave layers use actual offset Z, "
       "replace covered moves, retain substantial fragments, snap/taper edge "
-      "endpoints, restore fan state, fail closed, and are idempotent")
+      "endpoints, restore fan state, fail closed, and are idempotent; Wave "
+      "ends now sit on one straight line in the wall bead (and on a hole's "
+      "perimeter in the synthetic overhang-with-hole export) instead of the "
+      "0.0.19 castellated edge, and G2/G3 arcs are both read from the export "
+      "and emitted when the profile asks for them")

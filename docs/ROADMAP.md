@@ -1,7 +1,7 @@
 # Roadmap — OrcaSlicer plugin lane
 
 This document is the plan, not a release promise. Current versions are Wave
-Overhangs **0.0.19**, Wave Overhangs Geometry **0.1.4**, Unlayered Infill
+Overhangs **0.0.23**, Wave Overhangs Geometry **0.1.4**, Unlayered Infill
 **0.3.4**, and updater **1.4.0** on the
 session test branch. Package and capability names remain permanently:
 `Wave Overhangs`, `Wave Overhangs Geometry`, and `Unlayered Infill`.
@@ -13,10 +13,10 @@ session test branch. Package and capability names remain permanently:
 | One-click updater and catalogue | Built; contract-tested. Direct updater defaults to released `main`. |
 | Branch chooser | Built; selects, downloads, validates, and runs the updater from exactly the selected branch. Missing branch files fail closed. Windows behavior was previously verified for the chooser flow; rerun after future batch changes. |
 | Unlayered Infill | 0.3.4. Full 0.3.0 control set preserved, including percentage amplitude, frequency, segment length, nozzle-width grid, blending, and full-strength controls. Restore defaults handles stale Orca configuration. |
-| Wave Overhangs | 0.0.19. Visible conforming waves were confirmed in the owner's real Orca export with 0.0.11. Z correction, endpoint cleanup, straight-direction snap-to-boundary behavior, and no-default-micro-move taper pass the captured real-export regression. |
+| Wave Overhangs | 0.0.23. Visible conforming waves were confirmed in the owner's real Orca export with 0.0.11. Z correction, endpoint cleanup, taper, and the new wall-bounded Wave area pass the captured real-export regression: ends along each wall lie on one line within 0.02 mm, and a synthetic overhang-with-hole export puts every hole end on one radius. |
 | Wave Overhangs Geometry | 0.1.4. Separate experimental `posPrepareInfill` fill-surface prototype. It now leaves Orca's original perimeter in place and replaces unsupported prepared fill with bridge-classified Wave ribbons from support outward, to avoid the dark-blue overhang-wall-island preview problem. Physical output and final ordering remain unverified. |
 | Repository organization | This pass groups reference PDFs and real fixtures, removes the runtime log from source control, and reconciles the documentation. |
-| Physical print | Not verified. A fresh 0.0.19 export and print are still required. |
+| Physical print | The owner printed a part with 0.0.20 and photographed the first layer. That photograph is what drove 0.0.22. A print with 0.0.22 itself is still required. |
 
 ## Wave Overhangs — current implementation
 
@@ -144,8 +144,24 @@ State clearly which evidence exists:
   captured real-export Wave transformation, idempotence, and fail-closed output.
 - **Confirmed by the owner:** visible Wave output in a real Orca export from the
   previous release; Unlayered real-Orca operation from earlier testing.
-- **Still open:** fresh 0.0.19 export, physical print quality, and any future
+- **Still open:** fresh 0.0.23 export, physical print quality, and any future
   changes to the Windows batch files.
+
+## Known open item: a Wave edge against a curved wall
+
+Every Wave end already lands on the wall: measured on the owner's 13 mm radius
+corner, 21 ends sat 0.456 to 0.457 mm from the silhouette, a spread of
+0.001 mm. The edge still *reads* as a staircase because each rung ends flat
+and the rungs are one line spacing apart, so a curve is met in 0.35 mm steps.
+
+Making that edge smooth needs a rung laid along the wall, with the rungs that
+land on it trimmed back by half a line width so the plastic is moved rather
+than added. A first attempt (0.0.22 development) placed the rung on the
+inset boundary wherever fronts landed and trimmed every front whose tip it
+covered. The rung coverage was patchy, so the trimming bit scallops out of the
+edge and the result was worse than doing nothing. It was reverted. A correct
+attempt needs the trim driven by the rung that actually covers each tip, and a
+rung that is continuous along the whole stretch of wall being hugged.
 
 ## Verification commands
 

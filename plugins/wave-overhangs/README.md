@@ -10,9 +10,9 @@ This is a port of the algorithm behind
 (a C++ fork of OrcaSlicer, algorithm by Janis A. Andersons) as a Python
 slicing-pipeline plugin. Earlier builds ran in real Orca but inserted no waves.
 The owner confirmed that 0.0.11 produced visible, perimeter-conforming waves
-in real Orca. Version 0.0.19 is regression-tested against the captured export
-with corrected Z alignment, edge cleanup, straight snap-to-boundary endpoints,
-and tapered endpoint flow; it still
+in real Orca. Version 0.0.23 is regression-tested against the captured export
+with corrected Z alignment, edge cleanup, wall-bounded Wave areas whose ends
+land on the real wall and hole perimeters, and tapered endpoint flow; it still
 needs a fresh Orca export and physical-print validation.
 
 ## Install
@@ -27,7 +27,7 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 
 1. Restart OrcaSlicer (needs newer than 2.4.2, or a nightly).
 2. File → Plugins → confirm *Wave Overhangs* is enabled and its separate
-   Version column reads **0.0.19**. The package name is permanently
+   Version column reads **0.0.23**. The package name is permanently
    version-free.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Wave Overhangs*.
 4. Slice a part with a small overhang, then run the
@@ -59,6 +59,92 @@ failure returns the original G-code unchanged.
 ## Configuration
 
 The complete configuration is exposed through `get_default_config()`:
+
+### Perimeter conformance (new in 0.0.20)
+
+Orca exports bridge infill as separate lines. The area those lines cover has a
+castellated edge — it alternates in and out by about half a line width — and it
+also stops short of the wall. Earlier versions clipped their wavefronts to that
+edge, which is why Wave ends looked frayed and why the perimeter printed after
+them had a sawtooth to follow. Wave now also reads the wall moves the layer
+actually printed and squares the Wave area up against them.
+
+* `wall_snap`: `true`/`false`. `true` (default) measures the overhang against
+  the real wall. `false` restores the 0.0.19 bridge-footprint edges, which is
+  useful only for comparison.
+* `wall_reach`: how far, in millimetres, the Wave area may be stretched to
+  reach a wall. `auto` is 1.5 Wave line widths. Only the gap between the bridge
+  lines and the wall is ever filled; a wide open space, such as the inside of a
+  hole, is never closed.
+* `wall_overlap`: how far a Wave end finishes inside the wall bead, as a
+  fraction of the Wave line width. `0.25` by default, which bonds the end to
+  the perimeter without a bulge. `0` makes ends stop exactly at the inner edge
+  of the wall.
+
+Stretching the area to the wall can never create a Wave where there was not
+one. The region still has to come from bridge extrusion Orca exported over
+unsupported space, and nothing may be placed outside the part.
+
+### If an export feels slow
+
+Wave only builds geometry for layers that have a Bridge section and the layer
+holding each one up -- typically a handful out of hundreds -- and an export
+with no Bridge section at all costs about a hundredth of a second. The Wave
+pass on a 1.75 MB export measures about two seconds.
+
+If your export still feels slow, run **Check setup** to find the log file: each
+run records `seconds`, `parse_seconds` (reading the G-code) and `plan_seconds`
+(working out and writing the waves), along with `geometry_layers` and
+`layers_scanned`. `plan_seconds` scales with the number of Bridge layers, so a
+model with bridges on dozens of layers costs proportionally more.
+
+Note that the biggest cost of a Wave export is usually not the pass itself but
+what Orca does afterwards: it re-reads the finished file and re-estimates every
+move. Versions before 0.0.21 could write tens of thousands of surplus Wave
+moves (29,374 on one real part, a third of the whole file), which made
+everything downstream slow. That is fixed.
+
+### Corner slivers (new in 0.0.22)
+
+A wavefront is a contour of equal distance from the supported edge, and the
+contours step outward one line spacing at a time. Where the far boundary runs
+at an angle to that march -- the tip of a corner -- the last contour stops
+short and leaves a small sliver with nothing in it.
+
+* `gap_fill`: `true` (default) fills such a sliver with one short path down
+  its middle. It only ever adds material where there is none, so a part
+  without slivers is unaffected.
+* `gap_fill_min_area`: mm² below which a sliver is left alone (0.05).
+
+A short wavefront that touches a full-length rung is also kept rather than
+discarded, because it is anchored rather than a speck in thin air.
+
+**Known limit:** where a wall curves, the flat end of each rung meets it at
+one line-spacing intervals, so the edge of the Wave area reads as a fine
+staircase even though every end lands on the wall (measured: 0.001 mm of
+spread across 21 ends on a 13 mm radius). Smoothing it needs a rung laid along
+the wall with the others trimmed back; that is not implemented.
+
+### Arc moves (new in 0.0.21)
+
+Wave runs after Orca has written the G-code file, so Orca's own arc fitter
+never sees Wave's toolpaths. Wave fits its own arcs instead.
+
+* `arc_fitting`: `auto` (default), `true` or `false`. `auto` reads the
+  export's own `enable_arc_fitting` line, so switching **Arc fitting** on in
+  Quality → Precision switches it on for Waves too, and leaving it off means
+  no `G2`/`G3` is ever sent to a printer that may not understand it.
+* `arc_tolerance`: how far an arc may stray, in millimetres. `auto` follows
+  the profile's own `resolution`, capped at 0.05 mm.
+
+An arc is only used where it passes through the kept points of the front, does
+not bow more than a quarter of the rung spacing away from the moves it
+replaces, and still sits inside the overhang region after the bow. On the
+captured Cube export, 44 arcs replace 180 straight moves.
+
+Wave also *reads* arcs. With arc fitting switched on, a round hole's wall is
+exported as `G2`/`G3`, and a slicer-written arc has to be understood or Wave
+would not see that wall at all. Both the `I J` and the `R` forms are read.
 
 ### Detection and geometry
 
@@ -159,7 +245,7 @@ stopping at only the supported boundary. Topology-safe cleanup falls back to
 the original curved boundary if simplification would cross a hole or concave
 void.
 
-For cleaner surfaces, v0.0.19 snaps Wave endpoints back onto non-support detail
+For cleaner surfaces, Wave also snaps endpoints back onto non-support detail
 boundaries by extending the endpoint along its own Wave direction, then tapers
 extrusion at the endpoint without adding extra tiny G-code moves by default.
 This is intended to conform to the same visible wall and hole perimeters that
