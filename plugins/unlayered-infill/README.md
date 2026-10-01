@@ -24,14 +24,17 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 2. **Enable "Use relative E distances"** (Printer Settings → Advanced).
    The plugin refuses absolute-E (M82) G-code rather than corrupt it.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Unlayered Infill*.
-4. Slice, then run **Unlayered Infill - Check setup** (Plugins dialog) — it
+4. If Orca preserved an old configuration, open the plugin settings and use
+   **Restore defaults**. This keeps the complete working control set while
+   clearing stale saved values.
+5. Slice, then run **Unlayered Infill - Check setup** (Plugins dialog) — it
    reports the running version on its first line, then whether the export
    step actually fired.
 
-The plugin shows up as *Unlayered Infill v0.3.0* in the Plugins dialog
-(the version is part of the name), and stamps the exported G-code with
-`; unlayered-infill v0.3.0`. The capability names stay version-free so an
-update never orphans your process preset.
+The plugin appears as *Unlayered Infill* in the Plugins dialog. Its separate
+Version column currently reads **0.3.4**, and exported G-code is stamped with
+`; unlayered-infill v0.3.4`. The package and capability names stay version-free
+so an update never orphans your process preset.
 
 ## Configuration
 
@@ -78,8 +81,8 @@ It rolls over at about 1 MB. Set `ORCA_PLUGIN_LOG_DIR` to put it elsewhere, or
 `"log": false` to turn it off. A run looks like this:
 
 ```
-2026-09-30 21:14:02  Unlayered Infill v0.3.0 loaded (engine ok)
-2026-09-30 21:14:19  Unlayered Infill v0.3.0: EXPORT STEP RUNNING
+2026-09-30 21:14:02  Unlayered Infill v0.3.4 loaded (engine ok)
+2026-09-30 21:14:19  Unlayered Infill v0.3.4: EXPORT STEP RUNNING
                        file         : C:\Users\you\AppData\Local\Temp\x.gcode
                        settings     : amplitude='200%' frequency=1.5 cell_mm='auto'
 2026-09-30 21:14:20  Unlayered Infill: DONE -- the G-code was rewritten

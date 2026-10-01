@@ -33,6 +33,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent
 MANIFEST = REPO / "plugins.json"
 BAT = REPO / "Update-Orca-Plugins.bat"
+CHOOSER = REPO / "Choose-Orca-Plugin-Version.bat"
 GATTR = REPO / ".gitattributes"
 
 failures: list[str] = []
@@ -147,25 +148,62 @@ for p in plugins:
         check("# /// script" in head,
               f"{pid}: shipped file has no `# /// script` fence, so the .bat would reject it")
 
-        # The PEP 723 *name* carries the version, so OrcaSlicer's Plugins
-        # dialog shows which build is installed in its Name column (it has a
-        # Version column too -- this is belt and braces, and it is the column
-        # people actually read). The version deliberately does NOT go in the
-        # capability names: a process preset stores the capability name as its
-        # value, so renaming capabilities per version would make every update
-        # orphan the preset and block slicing until it was re-picked.
+        # The PEP 723 plugin name is a stable identity. Orca's development
+        # guide says the full preset reference includes plugin_name as well as
+        # capability_name, so putting a release number here can leave a preset
+        # pointing at yesterday's identity. Version belongs in Orca's separate
+        # Version column, Check setup, logs and G-code stamps.
         mname = re.search(r'^#\s*name\s*=\s*"([^"]+)"', head, re.MULTILINE)
         check(mname is not None, f"{pid}: no PEP 723 name header in the shipped plugin")
         if mname:
-            want = f"{p['name']} v{p['version']}"
+            want = p["name"]
             check(mname.group(1) == want,
-                  f"{pid}: PEP 723 name is {mname.group(1)!r} but the catalogue "
-                  f"implies {want!r} (catalogue name + ' v' + version). The .bat "
-                  f"composes the sidecar's plugin_name the same way, so these "
-                  f"must agree or Orca's .install_state.json names a plugin that "
-                  f"does not exist.")
+                  f"{pid}: PEP 723 name is {mname.group(1)!r} but the stable "
+                  f"catalogue identity is {want!r}. Never put the version in the "
+                  f"plugin name; it can break saved preset references.")
+            check(p["version"] not in mname.group(1),
+                  f"{pid}: version {p['version']} leaked into the permanent plugin name")
 
         body = shipped.read_text(encoding="utf-8")
+
+        # Contract copied from the repository's OrcaSlicer Plugin Development
+        # PDF: one @orca.plugin package class, typed capability bases, required
+        # execute signatures, and dependencies at the PEP 723 TOML root.
+        check(body.count("@orca.plugin") == 1,
+              f"{pid}: the PDF requires exactly one @orca.plugin class per file")
+        check(re.search(r'@orca\.plugin\s+class\s+\w+\(orca\.base\):', body),
+              f"{pid}: package class does not subclass orca.base as documented")
+        check("def register_capabilities(self):" in body and
+              body.count("orca.register_capability(") == len(p["capabilities"]),
+              f"{pid}: registered capabilities do not match the catalogue")
+        check("orca.slicing.SlicingPipelineCapabilityBase" in body and
+              re.search(r'def execute\(self,\s*ctx\):', body),
+              f"{pid}: slicing capability does not match the PDF signature")
+        check("orca.script.ScriptPluginCapabilityBase" in body and
+              re.search(r'def execute\(self\):', body),
+              f"{pid}: Check setup does not match the PDF script signature")
+        if pid == "wave-overhangs":
+            deps_line = re.search(r'^# dependencies = \[([^\n]+)\]$', head, re.MULTILINE)
+            table_at = head.find("# [tool.orcaslicer.plugin]")
+            check(deps_line is not None and deps_line.start() < table_at,
+                  "wave-overhangs: dependencies must be in the PEP 723 TOML root, "
+                  "before [tool.orcaslicer.plugin]")
+            if deps_line:
+                check("numpy" in deps_line.group(1) and "shapely" in deps_line.group(1),
+                      "wave-overhangs: Orca's uv installer was not told to install "
+                      "both numpy and shapely")
+            imports_at = [body.find("import numpy"), body.find("import shapely")]
+            first_class = body.find("class WaveOverhangsSlicing")
+            check(all(0 <= pos < first_class for pos in imports_at),
+                  "wave-overhangs: dependencies must import at module load, not "
+                  "inside an audited capability call")
+            check("one transactional G-code pass" in body and
+                  "uncovered fragments were retained" in body and
+                  "no cross-callback geometry" in body and
+                  "_PLAN" not in body and
+                  "Safety kept Orca's" not in body,
+                  "wave-overhangs: the shipped plugin does not enforce/report "
+                  "transactional, geometry-bounded bridge replacement")
 
         # What the plugin reports about itself at runtime -- "Check setup" and
         # the G-code stamp -- must be the version that was actually installed.
@@ -226,13 +264,12 @@ check('{ "%~3": true }' in bat and '{ "%~4": true }' in bat,
 check('"installed_from": "local"' in bat and '"installed_version": "%~5"' in bat
       and '"plugin_name": "%~2"' in bat,
       "the .bat sidecar template no longer matches Orca's .install_state.json")
-# The sidecar's plugin_name must match the plugin's PEP 723 name, which now
-# carries the version. Composing it from PL_VER -- which the .bat reads out of
-# the downloaded file's own header -- means it tracks what was really installed
-# instead of whatever the catalogue happened to say.
-check('call :write_state "%STATE_FILE%" "%PL_NAME% v%PL_VER%"' in bat,
-      "the .bat no longer composes the versioned plugin name for the sidecar, so "
-      "Orca's .install_state.json would name a plugin that does not exist")
+# The sidecar's plugin_name must match the stable PEP 723 name exactly. The
+# version is a separate sidecar field; adding it to plugin_name changes the
+# identity embedded in preset capability references.
+check('call :write_state "%STATE_FILE%" "%PL_NAME%"' in bat and
+      "PL_IDENTITY" not in bat,
+      "the .bat must write permanent version-free package names to sidecars")
 check('echo   [%PL_ACTION%] %PL_NAME% v%PL_VER% %PL_VERMSG%-- %PL_SIZE% bytes' in bat,
       "the .bat's install summary no longer reports the installed version")
 check('"enabled": true' in bat,
@@ -242,7 +279,12 @@ check('"enabled": true' in bat,
 check("curl.exe -fLsS --retry 2" in bat, "the .bat lost its curl.exe download path")
 check("Tls12" in bat and "Invoke-WebRequest" in bat, "the .bat lost its PowerShell download path")
 check("bitsadmin /transfer" in bat, "the .bat lost its bitsadmin download path")
-check("GTR 2000" in bat, "the .bat lost its 2000-byte download sanity floor")
+check('set "DL_MIN=2000"' in bat and "GEQ %DL_MIN%" in bat,
+      "the .bat lost its default 2000-byte code download sanity floor")
+check('call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%MANIFEST_PATH%" "%MANIFEST_TMP%" 100' in bat,
+      "plugins.json still uses the 2000-byte plugin floor; the real catalogue is smaller")
+check(MANIFEST.stat().st_size >= 100 and MANIFEST.stat().st_size < 2000,
+      "the manifest regression fixture must prove why catalogue and plugin size floors differ")
 check("_subscribed" in bat, "the .bat no longer skips _subscribed cloud copies")
 check("Slicing Pipeline Plugin" in bat,
       "the .bat no longer tells users where to select the plugin")
@@ -450,6 +492,133 @@ if tool_dl:
           f"plugin staging folder. Use %TOOLDIR%.")
 
 # ---------------------------------------------------------------------------
+# 3e. test-branch chooser and strict branch isolation
+# ---------------------------------------------------------------------------
+# A normal double-click must remain released-main. The chooser is deliberately
+# separate so its remembered test branch cannot surprise a normal updater run.
+check(CHOOSER.exists(), "the double-click branch chooser is missing")
+chooser_raw = CHOOSER.read_bytes() if CHOOSER.exists() else b""
+chooser = chooser_raw.decode("utf-8", "replace")
+check(chooser_raw.count(b"\r\n") == chooser_raw.count(b"\n") > 0,
+      "the chooser .bat must use CRLF throughout")
+check(chooser_raw.endswith(b"\r\n"), "the chooser .bat does not end with CRLF")
+check('set "REF_1=main"' in bat and
+      'if defined PLUGIN_BRANCH set "REF_1=%PLUGIN_BRANCH%"' in bat,
+      "plain updater runs must default to main; only an explicit environment "
+      "override may select a test branch")
+check('set "STATE_FILE=%STATE_DIR%\\branch.txt"' in chooser,
+      "the chooser no longer remembers its selection between runs")
+check('set "PLUGIN_BRANCH=%CHOSEN%"' in chooser and
+      'call "%UPDATER%"' in chooser,
+      "the chooser does not pass its selected branch to the updater")
+check('set "UPDATER=%TEMP%\\orca_selected_updater_%RANDOM%.bat"' in chooser and
+      '/%CHOSEN%/Update-Orca-Plugins.bat' in chooser and
+      'findstr /b /c:"set UPDATER_VERSION=" "%UPDATER%"' in chooser,
+      "the chooser must download and validate the updater from the selected branch")
+check("will not borrow another branch's updater" in chooser and
+      'if errorlevel 1 goto :updater_failed' in chooser,
+      "a missing selected-branch updater must stop instead of borrowing main")
+check('del "%UPDATER%" 2>nul' in chooser and
+      'copy /Y "%UPDATER%"' not in chooser,
+      "the chooser must run a temporary updater without replacing either .bat")
+check('if /i "%PICK%"=="R" (set "CHOSEN=main"&goto :chosen)' in chooser,
+      "the chooser has no obvious Return to released main choice")
+check("api.github.com/repos/ajani190819-ops/Tests/branches?per_page=100" in chooser,
+      "the chooser no longer fetches the public live GitHub branch list")
+check("$b.commit.url" in chooser and "Sort-Object Date -Descending" in chooser,
+      "the chooser does not fetch commit dates and sort test branches newest first")
+check("$bs=Invoke-RestMethod" in chooser and "$bs=@(Invoke-RestMethod" not in chooser,
+      "Windows PowerShell 5.1 would preserve GitHub's branch array as one nested "
+      "System.Object[] and fail to convert the commit URL to System.Uri")
+check("$commitUri=[string]$b.commit.url" in chooser and
+      "-Uri $commitUri" in chooser,
+      "the chooser does not force each GitHub commit URL to one string URI")
+check("if !COUNT! LSS 6" in chooser and "Show all branches" in chooser,
+      "the chooser must show main plus five recent branches and offer the full list")
+check("Nothing will silently switch to another branch" in chooser and
+      'if /i "%PICK%"=="R" goto :refresh' in chooser,
+      "a GitHub API failure must offer retry/manual/cancel, never silently use main")
+check('findstr /r /x "[A-Za-z0-9][A-Za-z0-9._/-]*"' in chooser and
+      'findstr /c:".."' in chooser,
+      "manually typed branch names are not validated before becoming a URL")
+
+# The old bug was REF_1 -> REF_2(main) fallback for both manifests and plugin
+# files. A test build must now be one ref only, and a bad catalogue must stop.
+check('set "REF_2="' in bat,
+      "the updater still configures a second ref; test builds could mix with main")
+_try_start = _bat_text.find(":try_download")
+_try_end = _bat_text.find(":fetch_manifest")
+_try_body = _bat_text[_try_start:_try_end]
+check("%REF_2%" not in _try_body and ":try_ref2" not in _try_body,
+      ":try_download still falls back to REF_2/main")
+_fm_start = _bat_text.find(":fetch_manifest")
+_fm_end = _bat_text.find(":preflight_branch")
+_fm_body = _bat_text[_fm_start:_fm_end]
+check("%REF_2%" not in _fm_body and ":fm_ref2" not in _fm_body,
+      "manifest fetch still falls back to REF_2/main")
+check("if not defined PLAN_SRC if defined BRANCH_MODE goto :branch_manifest_failed" in bat and
+      "if not defined PLAN_MADE if defined BRANCH_MODE goto :branch_manifest_failed" in bat,
+      "a missing or invalid test-branch catalogue does not stop the install")
+
+# All-or-nothing means preflight must occur before the install loop and retain
+# a failure from ANY plugin (not merely whichever plugin was checked last).
+_preflight_call = bat.find("call :preflight_branch")
+_install_loop = bat.find('for /f "usebackq tokens=1-9 delims=|" %%A in ("%PLAN_FILE%") do (')
+_select_data = bat.find('call :select_data_dir "%DATA_DIR_ARG%"')
+check(0 <= _preflight_call < _select_data < _install_loop and
+      "if not defined BRANCH_MODE goto :preflight_done" in bat,
+      "test-branch preflight must finish before Orca folders are selected or "
+      "the first plugin is installed")
+_plan_report = bat.find("echo  Plan: %PLAN_COUNT% plugin(s).")
+check(_install_loop < _plan_report and
+      'if "%PLAN_COUNT%"=="0" goto :no_plan' in bat[_install_loop:_plan_report] and
+      ":branch_manifest_failed" not in bat[_install_loop:_plan_report],
+      "the normal install loop must reach its Plan summary; a branch-failure "
+      "label inserted here would make every successful run fail")
+check(bat.count("\n:branch_manifest_failed\n") == 1,
+      "expected exactly one branch-manifest failure routine")
+check('set "PREFLIGHT_FAILED=1"' in bat and
+      "if defined PREFLIGHT_FAILED exit /b 1" in bat,
+      "preflight does not remember an early missing plugin; a later success could hide it")
+check('if defined BRANCH_MODE if exist "%PREFLIGHT_DIR%\\%PL_FILE%"' in bat,
+      "branch installs do not use the files that passed all-or-nothing preflight")
+check("This updater will NOT use main" in bat,
+      "the strict branch failure does not plainly tell the user that main was not used")
+check("if defined BRANCH_MODE exit /b 0" in _su,
+      "test mode self-update could replace the strict updater with an older copy from the branch")
+
+# The branch and versions must be hard to miss at both ends. The end summary is
+# populated only after a plugin is successfully copied, using the downloaded
+# file's header version rather than the catalogue's claim.
+check(bat.count("***************************************************************") >= 8 and
+      "* BRANCH: %REF_1%" in bat and "* BUILD TO INSTALL -- branch: %REF_1%" in bat,
+      "the selected branch is not printed loudly at the start")
+check("* INSTALLED FROM BRANCH: %REF_1%" in bat and
+      '>> "%INSTALLED_SUMMARY%" echo    %PL_NAME% v%PL_VER%' in bat and
+      'type "%INSTALLED_SUMMARY%"' in bat,
+      "the final banner does not report the actual installed plugin versions")
+
+# A small install replay for the new failure path: if the second file is absent,
+# preflight returns no staged set and therefore installation has not begun.
+def replay_branch_preflight(plan: list[dict], available: set[str]) -> tuple[bool, list[str]]:
+    staged = []
+    for plugin in plan:
+        if plugin["path"] not in available:
+            return False, []
+        staged.append(plugin["path"])
+    return True, staged
+
+_branch_paths = {p["path"] for p in ready}
+_ok, _staged = replay_branch_preflight(ready, _branch_paths)
+check(_ok and set(_staged) == _branch_paths,
+      "branch preflight replay should stage a complete branch")
+if len(ready) >= 2:
+    _ok, _staged = replay_branch_preflight(ready, {ready[0]["path"]})
+    check(not _ok and not _staged,
+          "a missing later branch plugin must leave nothing ready to install")
+
+
+# ---------------------------------------------------------------------------
 # 4. replay the updater's install loop
 # --------------------------------------------------------------------------
 def report_and_exit() -> None:
@@ -498,9 +667,9 @@ def install_one(p: dict, plugin_root: pathlib.Path) -> str:
         '  "enabled": true,\n'
         '  "installed_from": "local",\n'
         f'  "installed_version": "{p["version"]}",\n'
-        # ":install_one" composes this as "%PL_NAME% v%PL_VER%" so it matches
-        # the PEP 723 name Orca reads out of the plugin file itself.
-        f'  "plugin_name": "{p["name"]} v{p["version"]}"\n'
+        # :install_one writes the permanent version-free PEP 723/config identity.
+        # Release numbers belong only in installed_version.
+        f'  "plugin_name": "{p["name"]}"\n'
         "}\n"
     )
     (dest_dir / ".install_state.json").write_text(sidecar, encoding="utf-8")
@@ -551,9 +720,10 @@ with tempfile.TemporaryDirectory() as tmp:
             check(state["plugin_name"] == hdr_name_val,
                   f"{p['id']}: sidecar plugin_name {state['plugin_name']!r} != the "
                   f"installed file's PEP 723 name {hdr_name_val!r}")
-            check(state["plugin_name"].endswith(f"v{p['version']}"),
-                  f"{p['id']}: sidecar plugin_name {state['plugin_name']!r} does not "
-                  f"show the installed version, so the Plugins dialog cannot either")
+            want_identity = p["name"]
+            check(state["plugin_name"] == want_identity,
+                  f"{p['id']}: sidecar plugin_name must preserve {want_identity!r}; "
+                  f"got {state['plugin_name']!r}")
 
         # Orca requires a plugin folder to contain EXACTLY ONE entry file
         # (one .py or one .whl): find_installed_plugin_entry in

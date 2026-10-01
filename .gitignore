@@ -10,3 +10,7 @@ __pycache__/
 
 # Sliced output used for hand-testing the G-code tools.
 *.gcode
+
+# Runtime logs created by Orca/plugin tests; never source.
+*.log
+*.log.*
