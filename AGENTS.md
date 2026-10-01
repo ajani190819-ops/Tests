@@ -123,12 +123,11 @@ you forget, and it is the safety net for exactly this.
    `TOOL_VERSION` in the standalone `*_post.py` (edit `MARKER_VERSION` in the
    standalone and run `tools/sync_engine.py` so both engine copies move).
    **Never change the PEP 723 `name` casually.** The Plugin Development PDF
-   says Orca saves `plugin_name` inside preset/config identities. New plugins
-   use version-free names. The two existing plugins keep their old package
-   identities permanently for compatibility: `Wave Overhangs v0.0.6` and
-   `Unlayered Infill v0.3.0`. Their real versions advance separately in the
-   Version field. `tests/test_installer.py` enforces these identities and
-   versions — run it. (The .bat stamps the installed version from the
+   says Orca saves `plugin_name` inside preset/config identities. Both package
+   and capability names are permanently version-free: `Wave Overhangs` and
+   `Unlayered Infill`. Release numbers belong only in explicit version fields,
+   logs, Check setup, changelogs, tools and G-code stamps. Never rename these
+   identities again. `tests/test_installer.py` enforces this — run it. (The .bat stamps the installed version from the
    downloaded file's header, so the header is the source of truth, and it
    composes the sidecar's `plugin_name` as `"%PL_NAME% v%PL_VER%"` to match the
    name header automatically.)

@@ -338,8 +338,8 @@ with tempfile.TemporaryDirectory() as tmp:
         names = [c().get_name() for c in orca.REGISTERED]
         check(names == ["Wave Overhangs", "Wave Overhangs - Check setup"],
               f"Wave capability identities changed: {names}")
-        check(wave.PLUGIN_VERSION == "0.0.8",
-              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.8")
+        check(wave.PLUGIN_VERSION == "0.0.9",
+              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.9")
         result = orca.REGISTERED[1]().execute()
         check(not result.ok and result.kind == fake_orca.PluginResult.RecoverableError,
               "Check setup must return a recoverable failure when dependencies are absent")
@@ -348,7 +348,7 @@ with tempfile.TemporaryDirectory() as tmp:
               "Diagnostics" in result.message,
               f"dependency failure does not give a complete beginner-safe fix: {result.message!r}")
         log = read_log(logs)
-        check("Wave Overhangs v0.0.8 loaded" in log and "MISSING" in log,
+        check("Wave Overhangs v0.0.9 loaded" in log and "MISSING" in log,
               f"Wave dependency state was not logged clearly:\n{log}")
         pipeline = orca.REGISTERED[0]()
         result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))

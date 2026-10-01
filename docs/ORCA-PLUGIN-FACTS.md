@@ -120,12 +120,12 @@ is a bug in the plugin:
   Session 6's real evidence matched that failure shape for Wave Overhangs:
   installed, activated and reportedly selected, but never invoked and absent
   from the log. This is a strong diagnosis, not yet proven until v0.0.7 runs.
-* Capability names stay version-free. Both existing package names are now
-  permanent compatibility identities: `Wave Overhangs v0.0.6` and
-  `Unlayered Infill v0.3.0`. Renaming Unlayered in 0.3.2 disconnected the
-  owner's saved controls; Wave 0.0.7 had the same risk for its saved pipeline
-  reference. Real release versions advance independently in the Version
-  column. The updater sidecar must exactly match each PEP 723 identity.
+* Package and capability names are permanently version-free: `Wave Overhangs`
+  and `Unlayered Infill`. Versions appear only in the Version column, Check
+  setup, logs, changelogs, updater output, tools and G-code stamps. The owner
+  explicitly chose one final migration over retaining confusing old-looking
+  compatibility names. Never rename these identities again. Updater sidecars
+  exactly match the PEP 723 package names.
 
 ## Where plugins live on disk
 

@@ -9,6 +9,17 @@ print.** Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
 
+## 0.0.9 — 2026-09-30
+
+* **The permanent package name is now simply `Wave Overhangs`.** Release
+  numbers will never be placed in the package or capability names again. Read
+  Orca's separate Version column for the installed release.
+* This is the final naming migration. Reselect `Wave Overhangs` once after
+  updating; future releases keep that exact identity.
+* Replacement remains the chosen behavior. Safe same-export removal of only
+  bridge extrusion covered by successfully inserted waves is still open and
+  is not claimed working in this release.
+
 ## 0.0.8 — 2026-09-30
 
 * **Restored `Wave Overhangs v0.0.6` as the permanent compatibility

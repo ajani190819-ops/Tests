@@ -195,11 +195,9 @@ quietly. Here is where to look, in order:
    answer in almost every case: Orca prints the actual load error there. If
    the plugin is not in the list at all, go to step 3.
 2. **`Plugin Info` tab** — check the *installed version*. The current test
-   build reads **0.3.3** for Unlayered Infill and **0.0.8** for Wave
-   Overhangs. Their displayed compatibility names remain
-   `Unlayered Infill v0.3.0` and `Wave Overhangs v0.0.6` so Orca reconnects to
-   the saved preset/config slots; the separate Version column is the real
-   release.
+   build reads **0.3.4** for Unlayered Infill and **0.0.9** for Wave
+   Overhangs. Their permanent names are simply `Unlayered Infill` and `Wave
+   Overhangs`; version numbers appear only in the separate Version column.
 3. **Is the folder right?** Each plugin needs its own folder holding exactly
    **one** `.py` file plus the `.install_state.json` record:
 
@@ -245,15 +243,10 @@ missing or invalid, it stops and names the file. It never fills the gap with a
 plugin from `main`. Large banners at the beginning and end show the branch and
 the plugin versions so it is clear what was installed.
 
-After installing, the Plugins list shows compatibility package names:
-
-* `Wave Overhangs v0.0.6` means actual release **0.0.8**.
-* `Unlayered Infill v0.3.0` means actual release **0.3.3**.
-
-In **Process → Others → Slicing Pipeline Plugin**, reselect the version-free
-capability name (`Wave Overhangs` or `Unlayered Infill`). That makes Orca save
-the full reference again. Use the Plugins dialog's separate Version column to
-confirm the real release.
+After installing this final naming migration, reselect `Wave Overhangs` or
+`Unlayered Infill` once in **Process → Others → Slicing Pipeline Plugin**.
+Those exact version-free package/capability names will not change again. Use
+the Plugins dialog's separate Version column to confirm 0.0.9 / 0.3.4.
 
 ## The log file — start here when something seems wrong
 

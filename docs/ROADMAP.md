@@ -301,11 +301,11 @@ full capability reference includes both `plugin_name` and `capability_name`.
 The old `<Name> v<version>` plugin names therefore changed a saved identity on
 every release.
 
-* Both packages now keep their last known saved identities permanently:
-  `Wave Overhangs v0.0.6` and `Unlayered Infill v0.3.0`. Unlayered 0.3.2
-  proved that renaming an existing plugin changes its config identity; Wave's
-  0.0.7 rename carried the same preset/config risk. Their capability names
-  remain version-free and their real release versions advance normally.
+* Owner rejected confusing compatibility names and chose one final migration.
+  Both permanent package/capability identities are version-free: `Wave
+  Overhangs` and `Unlayered Infill`. Releases 0.0.9 / 0.3.4 carry that
+  migration; the names must never change again. Unlayered's complete 0.3.0
+  control set is pinned as defaults instead of depending on an old config key.
 * Wave Overhangs 0.0.7 did not solve the real problem: reopened exported
   G-code still retained the ordinary bridge. The identity diagnosis is
   disproven. Next work is same-export, geometry-bounded removal of only bridge

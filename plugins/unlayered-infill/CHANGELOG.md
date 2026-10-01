@@ -6,6 +6,18 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.3.4 — 2026-09-30
+
+* **The permanent package name is now simply `Unlayered Infill`.** Release
+  numbers will never be placed in the package or capability names again. Read
+  the separate Version column for the installed release.
+* The complete 0.3.0 control set is pinned as the default configuration:
+  percentage amplitude (`200%`), frequency, segment length, automatic
+  nozzle-width grid, blending radius, and full-strength switch. The controls
+  no longer depend on finding a configuration slot with an old versioned name.
+* This is the final naming migration. Reselect `Unlayered Infill` once after
+  updating; future releases keep that exact identity.
+
 ## 0.3.3 — 2026-09-30
 
 * **Restored the `Unlayered Infill v0.3.0` compatibility identity.** Changing

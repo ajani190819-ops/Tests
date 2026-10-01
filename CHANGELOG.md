@@ -18,6 +18,22 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-09-30 — final version-free plugin names
+
+**Wave Overhangs:** 0.0.9. **Unlayered Infill:** 0.3.4.
+**Updater:** 1.2.5.
+
+* Both permanent package names are now simple and version-free: `Wave
+  Overhangs` and `Unlayered Infill`. Capability names match and also remain
+  version-free. Release numbers appear only in explicit version displays.
+* Removed every compatibility-name special case from the catalogue, updater
+  sidecars, tests and instructions.
+* Pinned the complete Unlayered 0.3.0 control set as defaults so percentage,
+  nozzle-grid, blending, frequency, segment length and full-strength controls
+  do not depend on an old version-named configuration slot.
+* This is the final identity migration. Reselect each capability once after
+  installing; future releases will not rename either package.
+
 ## 2026-09-30 — restore Wave Overhangs' saved identity
 
 **Wave Overhangs:** 0.0.8. **Updater:** 1.2.4.

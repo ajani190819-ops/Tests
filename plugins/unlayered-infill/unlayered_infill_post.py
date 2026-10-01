@@ -38,7 +38,7 @@ import argparse
 import os
 import sys
 
-TOOL_VERSION = "0.3.3"
+TOOL_VERSION = "0.3.4"
 
 # =============================================================================
 # ENGINE -- verbatim copy of the `nonplanar_core` source inlined in
@@ -122,7 +122,7 @@ DEFAULT_BLEND_MM = 2.0       # smooth the taper across this radius of columns
 # upload are separate calls), and waving an already-waved file would double
 # every displacement.
 MARKER_PREFIX = "; unlayered-infill"
-MARKER_VERSION = "0.3.3"
+MARKER_VERSION = "0.3.4"
 MARKER = f"{MARKER_PREFIX} v{MARKER_VERSION} (non-planar sparse infill)\n"
 
 _WORD = re.compile(r"([A-Za-z])\s*([-+]?\d*\.?\d+)")
@@ -425,7 +425,7 @@ def _empty_stats(**over):
             "solid_layers": 0, "solid_columns": 0, "sections": 0, "moves": 0,
             "segments": 0, "max_wiggle": 0.0, "skipped_unbracketed": 0,
             "already_processed": False, "cell_mm": 0.0, "cell_desc": "",
-            "nozzle_mm": None, "layer_height_mm": None, "blend_mm": 0.0,
+            "nozzle_mm": None, "layer_height_mm": None, "blend_mm": 2.0,
             "full_strength": False}
     base.update(over)
     return base

@@ -22,12 +22,11 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 ## Use
 
 1. Restart OrcaSlicer (needs newer than 2.4.2, or a nightly).
-2. File → Plugins → confirm *Wave Overhangs v0.0.6* is enabled and its
-   separate Version column reads **0.0.8**. The old-looking name is a permanent
-   compatibility identity for Orca's saved preset/config reference.
+2. File → Plugins → confirm *Wave Overhangs* is enabled and its separate
+   Version column reads **0.0.9**. The package name is permanently
+   version-free.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Wave Overhangs*.
-   Reselect it once after installing 0.0.8 so Orca reconnects the capability
-   to the `Wave Overhangs v0.0.6` package identity.
+   Reselect it once after installing 0.0.9; this is the final name migration.
 4. Slice a part with a small overhang, then run the
    **Wave Overhangs - Check setup** capability (Plugins dialog) — it reports
    which pipeline steps actually fired.
