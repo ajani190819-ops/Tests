@@ -206,6 +206,7 @@ python3 tests/test_installer.py        # catalogue / .bat / files agree
 python3 tests/test_post_script.py      # the engine really rewrites G-code
 python3 tests/test_plugin_runtime.py   # the plugin loads, runs, and logs
 python3 tests/test_plugin_audit.py     # it imports under Orca's audit hook
+python3 tests/test_wave_gcode.py       # captured export; needs numpy + shapely
 python3 tools/sync_engine.py --check   # the two engine copies are identical
 python3 tools/sync_changelog.py --check  # changelogs match the plugins
 git ls-files --eol Update-Orca-Plugins.bat   # must say i/crlf

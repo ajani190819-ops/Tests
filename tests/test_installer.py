@@ -197,11 +197,12 @@ for p in plugins:
             check(all(0 <= pos < first_class for pos in imports_at),
                   "wave-overhangs: dependencies must import at module load, not "
                   "inside an audited capability call")
-            check("Safety kept Orca's" in body and "original bridge" in body and
-                  "Slice and" in body and "export once more" in body and
-                  "replacement carving enabled" in body,
-                  "wave-overhangs: first-export safety behavior is hidden; the "
-                  "user would mistake the retained bridge for another failure")
+            check("one transactional G-code pass" in body and
+                  "uncovered fragments were retained" in body and
+                  "no fragile dependency on _PLAN" in body and
+                  "Safety kept Orca's" not in body,
+                  "wave-overhangs: the shipped plugin does not enforce/report "
+                  "transactional, geometry-bounded bridge replacement")
 
         # What the plugin reports about itself at runtime -- "Check setup" and
         # the G-code stamp -- must be the version that was actually installed.

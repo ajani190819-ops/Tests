@@ -8,8 +8,9 @@ time, slowly (2 mm/s) with the cooling fan forced to 100%.
 This is a port of the algorithm behind
 [dennisklappe/OrcaSlicer-WaveOverhangs](https://github.com/dennisklappe/OrcaSlicer-WaveOverhangs)
 (a C++ fork of OrcaSlicer, algorithm by Janis A. Andersons) as a Python
-slicing-pipeline plugin. Nothing here has run on a real OrcaSlicer yet — see
-`docs/ORCA-PLUGIN-FACTS.md` ("Known gaps") before trusting output.
+slicing-pipeline plugin. Earlier builds ran in real Orca but inserted no waves.
+Version 0.0.11 is proven offline against that captured real export; it still
+needs a fresh Orca export and physical-print validation.
 
 ## Install
 
@@ -23,27 +24,23 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 
 1. Restart OrcaSlicer (needs newer than 2.4.2, or a nightly).
 2. File → Plugins → confirm *Wave Overhangs* is enabled and its separate
-   Version column reads **0.0.9**. The package name is permanently
+   Version column reads **0.0.11**. The package name is permanently
    version-free.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Wave Overhangs*.
-   Reselect it once after installing 0.0.9; this is the final name migration.
 4. Slice a part with a small overhang, then run the
    **Wave Overhangs - Check setup** capability (Plugins dialog) — it reports
    which pipeline steps actually fired.
 5. Inspect the G-code preview before printing.
 
-## How it works (two seams, one plugin)
+## How it works (one transactional export pass)
 
-1. **Planning** (`posSlice`, per object): reads each layer's sliced polygons,
-   computes the overhang vs the layer below, grows the wavefronts, and may
-   **carve** the overhang out of the slices so Orca doesn't also fill it.
-2. **Export** (`psGCodePostProcess`): splices the wave moves into the
-   exported G-code with wave-specific speed / fan / flow.
-
-**Carving is gated:** carving without the splice leaves a hole in the part,
-so carving enables itself only after the G-code splice has been observed
-running at least once. The first slice after a fresh install never carves —
-that is intended.
+At `psGCodePostProcess`, the plugin reads Orca's actual exported toolpaths. It
+reconstructs the previous layer's support footprint and each `Bridge` or
+`Internal Bridge` footprint, then propagates wavefronts through unsupported
+bridge area. It removes only original extrusion geometrically covered by those
+successful wave paths and re-emits every uncovered fragment. Planning,
+insertion, and subtraction happen in memory before the file is written; any
+failure returns the original G-code unchanged.
 
 ## Configuration
 

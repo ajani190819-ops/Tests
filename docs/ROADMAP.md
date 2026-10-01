@@ -20,7 +20,7 @@ Read that one first.
 | E | Updater self-updates itself + stages the standalone tools | **Done 2026-09-30** — code written, **never run on Windows** |
 | F | Double-click branch chooser + strict test-build installs | **Verified on Windows 2026-09-30** after v1.2.1 fixes |
 | G | Stable plugin identities + PDF contract audit | **Built 2026-09-30** — names verified in real Orca |
-| H | Wave real-export repair on `Cube^2.STL` | **In progress 2026-10-01** — 0.0.9 proved 4 plans, 0 inserts, 0 carves; fixing print-Z matching and host Polygon construction first |
+| H | Wave real-export repair on `Cube^2.STL` | **0.0.11 built offline 2026-10-01** — replaced two-stage host geometry with transactional G-code bridge interception; real rerun still required |
 
 **PR #1 is merged** (2026-09-30, from `arena/01a0f42b-tests`), so `main` now
 carries `plugins.json` and both plugin files — **the updater is live**. A .bat

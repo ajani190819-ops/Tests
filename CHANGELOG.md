@@ -18,6 +18,19 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — rebuild Wave as one transactional G-code pass
+
+**Wave Overhangs:** 0.0.11. **Updater:** 1.2.7.
+
+Research into the production WaveOverhangs forks confirmed that wave paths
+intercept bridge residuals. The plugin now performs that interception directly
+on Orca's exported `Bridge` and `Internal Bridge` toolpaths instead of passing
+plans between two unreliable Orca callbacks. On the owner's real 0.30 mm cube
+export, the offline regression creates three wave layers, removes only covered
+bridge extrusion, retains 158 uncovered fragments, restores fan state, fails
+closed, and is idempotent. Real-Orca export and physical-print verification are
+still outstanding.
+
 ## 2026-10-01 — fix Wave's measured Orca integration failures
 
 **Wave Overhangs:** 0.0.10. **Updater:** 1.2.6.

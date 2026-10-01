@@ -184,21 +184,23 @@ is a bug in the plugin:
 * **Failure modes are contained.** Test-enforced: geometry steps no-op;
   refusals and internal errors never touch the G-code file; an unexpected
   exception returns Success so a plugin bug cannot fail someone's export.
-* **Wave Overhangs will not carve until the splice is proven.** Carving
-  without the splice leaves a hole in the part, so carving stays off until
-  the G-code splice has been observed running at least once. First slice
-  after a fresh install never carves. That is intended.
+* **Wave Overhangs replacement is one G-code transaction.** Do not restore
+  pre-export slice carving or cross-callback plan state. Version 0.0.11 builds
+  support and bridge footprints from exported moves, generates waves, removes
+  only geometrically covered bridge extrusion, and retains every uncovered
+  fragment. Any exception returns the original text unchanged.
 
 ## Known gaps (read before trusting output)
 
-* Nothing in `plugins/` has run in a real OrcaSlicer. Every test is against
-  a fake harness. The first real slice is the real test; if it fails,
-  `data_dir()/log/python_*.log` has the traceback.
-* Wave Overhangs is `sin(f·x)` only — invariant along Y. Ridges, not a
+* Both plugins have run in the owner's real OrcaSlicer. Unlayered rewrote real
+  exports. Wave 0.0.9 ran but produced zero inserted layers; 0.0.11's one-pass
+  replacement passes offline against that captured real export and still needs
+  a fresh real-Orca export and physical print.
+* Unlayered Infill is `sin(f·x)` only — invariant along Y. Ridges, not a
   lattice; interlocking is directional.
 * Defaults are untuned on hardware (`amplitude=-0.2`, `frequency=1.5` are
   guesses; `cell_mm=0.6` vs ~0.42 mm solid line spacing is unverified).
 * `full_strength` can displace by the entire gap to the nearest skin in a
   thin part. Off by default for that reason.
-* Wave Overhangs' object→bed XY mapping (`_bed_offset`) is unvalidated. Its
-  Check setup says so.
+* Wave 0.0.11 no longer needs object→bed calibration because it reads the bed
+  coordinates Orca already wrote into exported G-code.

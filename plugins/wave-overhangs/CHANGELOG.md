@@ -9,6 +9,24 @@ print.** Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
 
+## 0.0.11 — 2026-10-01
+
+* Replaced the unreliable two-stage Orca slice-object design with one
+  transactional exported-G-code pass. It no longer depends on an internal
+  Polygon constructor, `slice_z`, `print_z`, object-to-bed calibration, or an
+  in-memory plan surviving between Orca callbacks.
+* The pass reconstructs the preceding layer's support footprint and each
+  `Bridge` / `Internal Bridge` footprint from Orca's actual extrusion moves,
+  then propagates wavefronts only through unsupported bridge area.
+* Original bridge extrusion is subtracted only where buffered wave paths cover
+  it. Every uncovered fragment is re-emitted. Any parsing or generation error
+  returns the original G-code unchanged.
+* Tested against the owner's real 0.30 mm `Cube^2_3m53s.gcode`: three layers
+  receive wave blocks, 112 covered bridge moves are replaced, 158 uncovered
+  fragments remain, fan state is restored, and a second pass is a no-op.
+* This is offline proof against the real export, not yet proof from a new Orca
+  export or a physical print.
+
 ## 0.0.10 — 2026-10-01
 
 * Fixed the two failures measured with the owner's `Cube^2.STL` at 0.30 mm:
