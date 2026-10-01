@@ -18,6 +18,17 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — repository organization and documentation cleanup
+
+* Grouped the supplied OrcaSlicer reference PDFs under `docs/reference/` and
+  the `Cube^2.STL` model plus captured G-code under `tests/fixtures/`.
+* Removed the captured `orca-plugins.log` from version control and ignored
+  runtime logs so a user's machine output cannot be mistaken for source.
+* Reconciled the README, plugin guides, roadmap, facts, and handoff with the
+  current permanent names, Wave 0.0.12 behavior, Unlayered Infill 0.3.4, and
+  the tests that actually run in this repository.
+* No plugin algorithm or installer behavior changed in this cleanup.
+
 ## 2026-10-01 — align and clean real Wave paths
 
 **Wave Overhangs:** 0.0.12. **Updater:** 1.2.8.

@@ -4,8 +4,10 @@ What changed in each version, newest first. The version you have is shown in
 OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 **Wave Overhangs - Check setup** prints it with a short version history.
 
-**This plugin is still experimental and has never completed a verified real
-print.** Treat every version here as a work in progress.
+**This plugin is still experimental and has not completed a verified physical
+print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
+waves in a reopened real Orca export; 0.0.12 still needs a fresh export and
+physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
 

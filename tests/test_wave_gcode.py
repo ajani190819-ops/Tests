@@ -29,7 +29,8 @@ wave = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = wave
 spec.loader.exec_module(wave)
 
-source = (ROOT / "Cube^2_3m53s.gcode").read_text(encoding="utf-8")
+source = (ROOT / "tests/fixtures/Cube^2_3m53s.gcode").read_text(
+    encoding="utf-8")
 cfg = dict(wave._DEFAULTS)
 cfg["_lh"] = 0.3
 out, stats = wave._gcode_wave_rewrite(source, cfg)

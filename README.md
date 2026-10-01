@@ -7,8 +7,11 @@ that's a bug; open an issue.
 
 | Plugin | Version | What it does |
 | --- | --- | --- |
-| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.5 | prints steep overhangs support-free by wave-propagating toolpaths into thin air |
-| [Unlayered Infill](plugins/unlayered-infill/) | 0.3.0 | rewrites sparse infill onto a sine wave in Z so layers interlock instead of stacking as clean planes |
+| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.12 | replaces covered Bridge extrusion with support-anchored wave toolpaths |
+| [Unlayered Infill](plugins/unlayered-infill/) | 0.3.4 | rewrites sparse infill onto a sine wave in Z so layers interlock instead of stacking as clean planes |
+
+These are the versions in the current test branch. Direct updater runs use
+released `main`; use the chooser section below to install these branch files.
 
 Also here:
 
@@ -16,7 +19,9 @@ Also here:
   double-click G-code tool (the predecessor of the Unlayered Infill plugin)
 * [`keyboard-lighting/`](keyboard-lighting/) — unrelated personal project,
   stored as-is
-* [`docs/`](docs/) — the roadmap, and the hard-won OrcaSlicer plugin facts
+* [`docs/`](docs/) — the roadmap, OrcaSlicer facts, and the reference PDFs
+* [`tests/fixtures/`](tests/fixtures/) — the supplied `Cube^2.STL` model and
+  captured real Orca export used by the Wave regression test
 
 **Working on this repo with an AI assistant?** Point it at
 [`AGENTS.md`](AGENTS.md) (the rulebook) and [`MEMORY.md`](MEMORY.md) (the
@@ -127,24 +132,20 @@ prompt does not come back on every update.
 
 ## Checking which version you actually have
 
-The version is written into the plugin's own name, so you can see it in four
-places without digging:
+Package and capability names are permanently version-free. This is important:
+Orca saves those names inside process-preset references, so putting a release
+number into them can orphan a saved preset.
 
 | Where | What you see |
 | --- | --- |
-| File → Plugins, **Name** column | `Wave Overhangs v0.0.5` |
-| File → Plugins, **Version** column | `0.0.5` (Orca reads this itself) |
-| The updater's output | `[UPDATED] Wave Overhangs v0.0.5 (was v0.0.4) -- 39649 bytes` |
-| **Check setup**, first line | `Wave Overhangs v0.0.5 -- setup check` |
+| File → Plugins, **Name** column | `Wave Overhangs` |
+| File → Plugins, **Version** column | `0.0.12` (Orca reads the PEP 723 header) |
+| The updater's output | `Wave Overhangs v0.0.12` |
+| **Check setup**, first line | `Wave Overhangs v0.0.12 -- setup check` |
 
 The exported G-code is stamped too — search it for `; wave-overhangs v` or
-`; unlayered-infill v` to see which build produced the file.
-
-The one place the version is deliberately **not** shown is the *Slicing
-Pipeline Plugin* dropdown in your process preset. That dropdown stores the
-capability name, so if the name changed with every release, every update would
-orphan your preset and Orca would refuse to slice until you re-picked it. The
-capability names stay fixed on purpose; use Check setup instead.
+`; unlayered-infill v` to see which build produced the file. The same rule
+applies to `Unlayered Infill`; its current test-build version is `0.3.4`.
 
 ## After installing
 
@@ -220,10 +221,11 @@ quietly. Here is where to look, in order:
 > `Update-Orca-Plugins.bat` again (link at the top of this page) and run it
 > once. From v1.1.0 on it keeps itself current automatically.
 
-## Installing a test build (before the pull request is merged)
+## Installing a test build from a branch
 
 The updater downloads from **`main`** by default, which is where released
-versions live. To test work before it is merged, put these two files together
+versions live. The current Wave 0.0.12 / Unlayered 0.3.4 work is on the test
+branch, so put these two files together
 in Downloads and double-click the chooser:
 
 * `Choose-Orca-Plugin-Version.bat`
@@ -279,7 +281,9 @@ as the plugin, but on a finished `.gcode` file. It does not care whether
 Orca's plugin system is wired up correctly, which makes it both the easy
 option and the way to prove the engine itself works.
 
-The updater drops a copy in `%USERPROFILE%\Downloads\OrcaPlugins`.
+The updater drops a copy in `%USERPROFILE%\Downloads\OrcaPlugins\tools`.
+That separate folder is intentional: Orca plugin folders must contain one entry
+file, so the standalone tool must not sit beside a plugin `.py`.
 
 * **Double-click it** → a small window. Choose your exported `.gcode`, tick
   *Full strength* if you want the wave obvious, press **MAKE IT WAVY**. It
@@ -303,9 +307,9 @@ above applies rather than claiming success.
 ## Changing things
 
 * Replace a plugin file and bump its `# version = "..."` (PEP 723 header).
-  A version bump is **six edits in lockstep** — see rule 3 in
+  Keep every version surface in lockstep — see rule 3 in
   [`AGENTS.md`](AGENTS.md). `python3 tests/test_installer.py` fails if you
-  forget one.
+  forget one; run the changelog synchronizer after release-note edits.
 * The plugin and the standalone tool share one engine, stored as a verbatim
   copy in each. Change one, copy it into the other;
   `python3 tests/test_post_script.py` fails if they drift.
@@ -317,10 +321,13 @@ above applies rather than claiming success.
 ## Verification
 
 ```bash
-python3 tests/test_installer.py      # catalogue / updater / files agree
-python3 tests/test_post_script.py    # the engine really does rewrite G-code
-python3 tests/test_plugin_runtime.py # the plugin itself runs, and logs
-python3 tools/sync_engine.py --check # the two engine copies match
+python3 tests/test_installer.py          # catalogue / updater / files agree
+python3 tests/test_post_script.py        # the engine really does rewrite G-code
+python3 tests/test_plugin_runtime.py     # the plugin itself runs, and logs
+python3 tests/test_plugin_audit.py       # import-time writes are blocked
+PYTHONPATH=/tmp/wavedeps python3 tests/test_wave_gcode.py  # real fixture
+python3 tools/sync_engine.py --check     # the two engine copies match
+python3 tools/sync_changelog.py --check  # embedded plugin notes match source
 ```
 
 The second one builds a synthetic sliced cube and checks the tool waves it,

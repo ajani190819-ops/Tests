@@ -9,8 +9,10 @@ This is a port of the algorithm behind
 [dennisklappe/OrcaSlicer-WaveOverhangs](https://github.com/dennisklappe/OrcaSlicer-WaveOverhangs)
 (a C++ fork of OrcaSlicer, algorithm by Janis A. Andersons) as a Python
 slicing-pipeline plugin. Earlier builds ran in real Orca but inserted no waves.
-Version 0.0.12 is proven offline against that captured real export; it still
-needs a fresh Orca export and physical-print validation.
+The owner confirmed that 0.0.11 produced visible, perimeter-conforming waves
+in real Orca. Version 0.0.12 is regression-tested against the captured export
+with corrected Z alignment and edge cleanup; it still needs a fresh Orca export
+and physical-print validation.
 
 ## Install
 
@@ -30,7 +32,9 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 4. Slice a part with a small overhang, then run the
    **Wave Overhangs - Check setup** capability (Plugins dialog) — it reports
    which pipeline steps actually fired.
-5. Inspect the G-code preview before printing.
+5. Export the G-code, then reopen that exported file in OrcaSlicer; the normal
+   slicer preview is generated before post-processing and will not show the
+   Wave result.
 
 ## How it works (one transactional export pass)
 
@@ -44,18 +48,22 @@ failure returns the original G-code unchanged.
 
 ## Configuration
 
-`enabled`, `apply_to`, `carve_overhang`, `overhang_tol`, `min_overhang_area`,
-`line_spacing`, `line_width`, `perimeter_overlap`, `pattern`, `flow_ratio`,
-`print_speed`, `travel_speed`, `fan`, `max_iterations`, `xy_offset`.
+`enabled`, `overhang_tol`, `min_overhang_area`, `line_spacing`,
+`line_width`, `perimeter_overlap`, `pattern`, `flow_ratio`, `print_speed`,
+`travel_speed`, `fan`, and `max_iterations`. For an exported bridge section,
+Wave uses Orca's measured bridge width for coverage and extrusion geometry.
 
 The fork's reference defaults (for comparison): spacing 0.35 mm, speed
 2 mm/s, fan 100%, flow = nozzle² in mm³/mm (0.16 for a 0.4 nozzle), 1 outer
 perimeter kept inside the overhang, 2 solid floor layers above.
 
-## Planned
+## Current boundary
 
-A standalone **post-processing script** version that runs on exported
-G-code and needs no plugin system at all — see `docs/ROADMAP.md` §C.
+The shipped Wave implementation is the Orca slicing-pipeline plugin. It waits
+for exported `Bridge` and `Internal Bridge` sections and performs the complete
+replacement in one pass; it does not rely on pre-export slice plans. A
+standalone Wave post-processing script is not shipped yet, so do not describe
+one as installed or tested.
 
 ## Dependencies
 

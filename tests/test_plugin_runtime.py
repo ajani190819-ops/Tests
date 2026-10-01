@@ -341,34 +341,20 @@ with tempfile.TemporaryDirectory() as tmp:
         check(wave.PLUGIN_VERSION == "0.0.12",
               f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.12")
 
-        # The owner's real 0.30 mm export exposed two host-integration bugs:
-        # Orca's slice plane was 5.45 while its exported print Z was 5.4, and
-        # released Polygon bindings accept only Polygon() + append(Point).
-        layer = type("Layer", (), {"slice_z": 5.45, "print_z": 5.4})()
-        check(wave._layer_print_z(layer) == 5.4,
-              "Wave plans use slice_z instead of the exported print_z")
-
-        class HostPoint:
-            def __init__(self, x, y):
-                self.x, self.y = x, y
-
-        class HostPolygon:
-            def __init__(self):
-                self.points = []
-            def append(self, point):
-                self.points.append(point)
-
-        orca.host.Point = HostPoint
-        orca.host.Polygon = HostPolygon
-        ring = wave._host_polygon([(1.2, 3.4), (5.6, 7.8)], 1000)
-        check([(p.x, p.y) for p in ring.points] == [(1200, 3400), (5600, 7800)],
-              "Wave does not build Orca polygons through Polygon() + append(Point)")
+        # The active Wave implementation is deliberately G-code-only. Its
+        # source must not retain the removed slice-object planner, host Polygon
+        # conversion, or cross-callback geometry stash.
         wave_source = WAVE_PLUGIN.read_text(encoding="utf-8")
-        check("z = _layer_print_z(layer)" in wave_source and
-              "z = float(layer.slice_z)" not in wave_source,
-              "Wave planning no longer keys plans by exported print_z")
-        check(wave_source.count("_carve_layer(") == 1,
-              "Wave still calls unsafe early carving before insertion is proven")
+        check("def _parse_gcode_geometry(" in wave_source and
+              "actual_z = sec[\"segments\"][0].get(\"z\")" in wave_source,
+              "Wave does not derive replacement Z from exported bridge moves")
+        check("_PLAN" not in wave_source and
+              "_carve_layer" not in wave_source and
+              "orca.host.Polygon" not in wave_source,
+              "Wave still contains the removed slice-object planning path")
+        check("no cross-callback geometry" in wave_source and
+              "one transactional G-code pass" in wave_source,
+              "Wave source no longer documents its transactional architecture")
 
         result = orca.REGISTERED[1]().execute()
         check(not result.ok and result.kind == fake_orca.PluginResult.RecoverableError,

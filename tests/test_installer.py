@@ -199,7 +199,8 @@ for p in plugins:
                   "inside an audited capability call")
             check("one transactional G-code pass" in body and
                   "uncovered fragments were retained" in body and
-                  "no fragile dependency on _PLAN" in body and
+                  "no cross-callback geometry" in body and
+                  "_PLAN" not in body and
                   "Safety kept Orca's" not in body,
                   "wave-overhangs: the shipped plugin does not enforce/report "
                   "transactional, geometry-bounded bridge replacement")
