@@ -175,17 +175,17 @@ is a bug in the plugin:
 * Pipeline steps: `posSlice`, `posPerimeters`, `posPrepareInfill`, `posInfill`,
   `posIroning`, `posContouring`, `posSupportMaterial`, `posSimplifyPath`,
   `psWipeTower`, `psSkirtBrim`, `psGCodePostProcess`.
-* Current Orca development bindings expose editable slice geometry during
-  geometry callbacks: `LayerRegion.slices` is a `SurfaceCollection` with
-  `set()`, `append()`, and `clear()`; `Surface` and `ExPolygon` can be
-  constructed; and `Layer.make_slices()` refreshes derived layer islands after
-  edits. Existing `ExtrusionPath` points and collections are read-only from
-  Python. A geometry-stage plugin can replace/add slice surfaces, but cannot
-  yet inject a raw Wave `ExtrusionPath` directly. References are valid only
-  during `execute(ctx)` and are invalidated by container replacement. This was
-  checked against Orca's current `PluginHostGeometry.cpp` and
-  `PluginHostSlicing.cpp` on 2026-10-01; a real installed build still needs to
-  verify the shipped host version.
+* Current Orca development bindings expose editable surface collections during
+  geometry callbacks: `LayerRegion.slices` and `LayerRegion.fill_surfaces` are
+  `SurfaceCollection` values with `set()`, `append()`, and `clear()`; `Surface`
+  and `ExPolygon` can be constructed; and `Layer.make_slices()` refreshes
+  derived layer islands after slice edits. Existing `ExtrusionPath` points and
+  collections are read-only from Python. A geometry-stage plugin can replace/add
+  slice or fill surfaces, but cannot yet inject or reorder a raw Wave
+  `ExtrusionPath` directly. References are valid only during `execute(ctx)` and
+  are invalidated by container replacement. This was checked against Orca's
+  current `PluginHostGeometry.cpp` and `PluginHostSlicing.cpp` on 2026-10-01; a
+  real installed build still needs to verify the shipped host version.
 * Requires OrcaSlicer newer than 2.4.2, or a nightly. Plugins declare
   `requires-python >=3.12`.
 * G-code section markers differ by slicer: PrusaSlicer writes

@@ -6,6 +6,7 @@ OrcaSlicer will do differently:
 
 * [`plugins/unlayered-infill/CHANGELOG.md`](plugins/unlayered-infill/CHANGELOG.md)
 * [`plugins/wave-overhangs/CHANGELOG.md`](plugins/wave-overhangs/CHANGELOG.md)
+* [`plugins/wave-overhangs-geometry/CHANGELOG.md`](plugins/wave-overhangs-geometry/CHANGELOG.md)
 
 This file covers the repository as a whole: the updater, the tests, the
 documentation and the handoff notes as well as the plugins. It is part of the
@@ -17,6 +18,19 @@ Dates are the day the work was done. "Not verified" means exactly that: no
 real OrcaSlicer was involved.
 
 ---
+
+## 2026-10-01 — Wave Geometry fill-surface bridge method
+
+**Wave Overhangs Geometry:** 0.1.4.
+
+Changed the preview-visible geometry experiment from `posSlice` slice-island
+mutation to `posPrepareInfill` fill-surface mutation. Orca now keeps the
+original perimeter it already generated, while the plugin replaces unsupported
+prepared fill with `stBottomBridge` Wave ribbons handed to Orca from the
+supported edge outward. This is meant to address the preview problem where Wave
+ribbons appeared as many dark-blue overhang-wall islands. The same Python API
+limit remains: existing generated `ExtrusionPath` objects are read-only, so the
+plugin still cannot promise final bridge/perimeter G-code ordering by itself.
 
 ## 2026-10-01 — Wave Overhangs Geometry preview prototype
 

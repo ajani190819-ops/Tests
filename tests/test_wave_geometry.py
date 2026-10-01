@@ -32,9 +32,7 @@ wave = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = wave
 spec.loader.exec_module(wave)
 assert wave._bridge_surface_type().name == "stBottomBridge", (
-    "Wave preview geometry must be classified as bridge surfaces")
-assert wave._wall_surface_type().name == "stBottom", (
-    "the outer shell should stay non-bridge so it previews as the overhang wall")
+    "Wave preview geometry must be classified as bridge fill surfaces")
 
 cfg = dict(wave._DEFAULTS)
 cfg.update({"line_spacing": 0.5, "line_width": 0.4,
@@ -71,33 +69,26 @@ tiny = wave._ribbons([LineString([(2.10, 1.0), (2.20, 1.0)])],
                      current, support, cfg)
 assert not tiny, "a tiny clipped front survived as a preview dot"
 
-boundary_band = wave._outer_boundary_band(current, overhang, support, cfg)
-assert boundary_band, "the overhang boundary shell was not preserved"
-assert any(piece.distance(Point(12, 5)) < 0.25 for piece in boundary_band), (
-    "the outer overhang wall is missing from the preview geometry")
-
 original, edited, bridge_parts, wall_parts, count = wave.plan_layer_geometry(
     [(None, [], [current])], support, cfg)
 assert not original.is_empty
 assert not edited.is_empty
 assert bridge_parts
-assert wall_parts
+assert not wall_parts, (
+    "the fill-surface method must not rebuild a separate wall shell; Orca keeps the original perimeter")
 assert count >= 1
 assert edited.area < original.area, (
     "the geometry-stage prototype should replace unsupported fill with bridge ribbons")
-assert any(part.distance(Point(12, 5)) < 0.25 for part in wall_parts), (
-    "the planned wall shell did not keep the continuous outer wall")
 for bridge in bridge_parts:
-    for wall in wall_parts:
-        assert not bridge.buffer(0.001).intersects(wall), (
-            "bridge-classified Waves must stay inside the outer wall shell")
+    assert current.buffer(0.002).covers(bridge), (
+        "bridge-classified Waves must stay inside the prepared fill domain")
 
 blocked_cfg = dict(cfg)
 blocked_cfg["min_wave_length"] = 999.0
 blocked_original, blocked_edited, blocked_bridges, blocked_walls, _ = wave.plan_layer_geometry(
     [(None, [], [current])], support, blocked_cfg)
 assert not blocked_bridges and not blocked_walls and blocked_edited.equals(blocked_original), (
-    "the outer wall shell must not print by itself when no anchored Wave survives")
+    "unsupported fill must remain unchanged when no anchored Wave survives")
 
 # The capability remains harmless when the fake host does not provide a live
 # PrintObject. This is the fail-closed path used by older Orca builds.
@@ -105,10 +96,10 @@ cap = wave.WaveOverhangsGeometrySlicing()
 with tempfile.TemporaryDirectory() as tmp:
     os.environ["ORCA_PLUGIN_STORAGE_DIR"] = tmp
     try:
-        result = cap.execute(fake_orca.Context(fake_orca.Step.posSlice))
+        result = cap.execute(fake_orca.Context(fake_orca.Step.posPrepareInfill))
     finally:
         os.environ.pop("ORCA_PLUGIN_STORAGE_DIR", None)
 assert result.ok
 
-print("ok -- geometry-stage Wave fronts and preview ribbons stay inside the "
-      "overhang domain and avoid the circular hole")
+print("ok -- geometry-stage Wave fronts become bridge fill surfaces, stay "
+      "inside the fill domain, and avoid the circular hole")

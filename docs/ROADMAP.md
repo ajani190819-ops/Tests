@@ -1,7 +1,7 @@
 # Roadmap — OrcaSlicer plugin lane
 
 This document is the plan, not a release promise. Current versions are Wave
-Overhangs **0.0.15**, Wave Overhangs Geometry **0.1.3**, Unlayered Infill
+Overhangs **0.0.15**, Wave Overhangs Geometry **0.1.4**, Unlayered Infill
 **0.3.4**, and updater **1.4.0** on the
 session test branch. Package and capability names remain permanently:
 `Wave Overhangs`, `Wave Overhangs Geometry`, and `Unlayered Infill`.
@@ -14,7 +14,7 @@ session test branch. Package and capability names remain permanently:
 | Branch chooser | Built; selects, downloads, validates, and runs the updater from exactly the selected branch. Missing branch files fail closed. Windows behavior was previously verified for the chooser flow; rerun after future batch changes. |
 | Unlayered Infill | 0.3.4. Full 0.3.0 control set preserved, including percentage amplitude, frequency, segment length, nozzle-width grid, blending, and full-strength controls. Restore defaults handles stale Orca configuration. |
 | Wave Overhangs | 0.0.15. Visible conforming waves were confirmed in the owner's real Orca export with 0.0.11. The 0.0.15 Z correction and edge cleanup pass the captured real-export regression. |
-| Wave Overhangs Geometry | 0.1.3. Separate experimental `posSlice` prototype. The owner confirmed it registers and produces much cleaner preview geometry; 0.1.3 now removes dot crumbs, keeps one outer non-bridge overhang-wall shell, clips bridge-classified Wave ribbons inside it, and orders bridge pieces from support outward. Physical output remains unverified. |
+| Wave Overhangs Geometry | 0.1.4. Separate experimental `posPrepareInfill` fill-surface prototype. It now leaves Orca's original perimeter in place and replaces unsupported prepared fill with bridge-classified Wave ribbons from support outward, to avoid the dark-blue overhang-wall-island preview problem. Physical output and final ordering remain unverified. |
 | Repository organization | This pass groups reference PDFs and real fixtures, removes the runtime log from source control, and reconciles the documentation. |
 | Physical print | Not verified. A fresh 0.0.15 export and print are still required. |
 
@@ -72,24 +72,24 @@ only if the owner asks for it.
 ## Wave Overhangs Geometry — experimental prototype
 
 `plugins/wave-overhangs-geometry/` is a separate plugin so the proven
-post-processing Wave path remains available. It runs at `posSlice`, reads the
-previous layer's live slice, generates obstacle-aware Wave fronts, removes tiny
-clipped preview crumbs, keeps one continuous non-bridge outer overhang-wall
-shell, and writes bridge-classified Wave ribbons inside that shell into
-`LayerRegion.slices` before Orca generates perimeters and infill. This is the
-route intended to make Wave geometry visible in the normal preview.
+post-processing Wave path remains available. Version 0.1.4 runs at
+`posPrepareInfill`, reads prepared `LayerRegion.fill_surfaces`, generates
+obstacle-aware Wave fronts, removes tiny clipped preview crumbs, and replaces
+reachable unsupported fill with `stBottomBridge` Wave ribbons. It deliberately
+leaves `LayerRegion.slices` alone so Orca keeps the original overhang perimeter
+instead of generating wall loops around each Wave ribbon.
 
 Current Orca bindings expose existing `ExtrusionPath` objects read-only. The
-prototype therefore creates geometry ribbons rather than injecting raw
-extrusion paths. It orders those bridge surfaces from the supported edge
-outward, but Orca still owns the final path order. It must not be described as
-a direct toolpath injector until Orca exposes a writable extrusion collection.
-If the host geometry bindings are missing or a mutation fails, the prototype
-returns a recoverable error and does not continue with a partial edit.
+prototype therefore creates bridge-tagged fill surfaces rather than injecting
+raw extrusion paths. It orders those bridge surfaces from the supported edge
+outward, but Orca still owns the final bridge/perimeter path order. It must not
+be described as a direct toolpath injector until Orca exposes a writable
+extrusion collection or the exported G-code is post-processed.
 
-A real current-Orca slice is required to verify preview visibility, geometry
-lifetime, island handling, and the resulting physical toolpath. The synthetic
-regression only proves hole-safe Wave geometry and fail-closed behavior.
+A real current-Orca slice is required to verify preview visibility, fill-surface
+lifetime, bridge classification, perimeter preservation, and the resulting
+physical toolpath. The synthetic regression only proves hole-safe Wave geometry
+and fail-closed behavior.
 
 ## Unlayered Infill — maintenance plan
 

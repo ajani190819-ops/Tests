@@ -8,7 +8,7 @@ that's a bug; open an issue.
 | Plugin | Version | What it does |
 | --- | --- | --- |
 | [Wave Overhangs](plugins/wave-overhangs/) | 0.0.15 | replaces covered Bridge extrusion with support-anchored wave toolpaths |
-| [Wave Overhangs Geometry](plugins/wave-overhangs-geometry/) | 0.1.3 | experimental `posSlice` Wave geometry intended to appear in Orca's preview |
+| [Wave Overhangs Geometry](plugins/wave-overhangs-geometry/) | 0.1.4 | experimental `posPrepareInfill` Wave fill-surface geometry intended to appear as bridge fill in Orca's preview |
 | [Unlayered Infill](plugins/unlayered-infill/) | 0.3.4 | rewrites sparse infill onto a sine wave in Z so layers interlock instead of stacking as clean planes |
 
 These are the versions in the current test branch. Direct updater runs use
@@ -144,8 +144,8 @@ number into them can orphan a saved preset.
 | File → Plugins, **Version** column | `0.0.15` (Orca reads the PEP 723 header) |
 | The updater's output | `Wave Overhangs v0.0.15` |
 | **Check setup**, first line | `Wave Overhangs v0.0.15 -- setup check` |
-| Geometry plugin Version | `0.1.3` |
-| Geometry Check setup | `Wave Overhangs Geometry v0.1.3` |
+| Geometry plugin Version | `0.1.4` |
+| Geometry Check setup | `Wave Overhangs Geometry v0.1.4` |
 
 The exported G-code is stamped too — search it for `; wave-overhangs v` or
 `; unlayered-infill v` to see which build produced the file. The same rule
@@ -172,10 +172,11 @@ applies to `Unlayered Infill`; its current test-build version is `0.3.4`.
 Work through these in order. The two Wave plugins use different pipeline
 stages, so the selected capability matters:
 
-1. **Wave Overhangs Geometry is experimental.** It edits the slice at `posSlice`
-   and is intended to appear in the normal preview. If the installed Orca build
-   lacks the editable geometry bindings, it reports a recoverable error and
-   leaves the slice unchanged.
+1. **Wave Overhangs Geometry is experimental.** It edits prepared
+   `fill_surfaces` at `posPrepareInfill` so Orca can keep the original perimeter
+   while showing Wave ribbons as bridge fill in the normal preview. If the
+   installed Orca build lacks the editable fill-surface bindings, it reports a
+   recoverable error and leaves the slice unchanged.
 2. **The original Wave Overhangs preview will not show its result.** Orca draws
    the preview from the slice; that plugin runs afterwards at export. Nothing
    redraws the preview — this is a known open request

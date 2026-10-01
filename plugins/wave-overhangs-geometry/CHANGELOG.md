@@ -1,5 +1,15 @@
 # Changelog — Wave Overhangs Geometry
 
+## 0.1.4 — 2026-10-01
+
+* Moves Wave output to `fill_surfaces` at `posPrepareInfill` so Orca keeps the
+  original perimeter and the ribbons become bridge fill.
+* Replaces only unsupported prepared fill with `stBottomBridge` Wave ribbons,
+  preserving supported normal fill surfaces and handing Wave parts to Orca from
+  the supported edge outward.
+* Removed the plugin-built outer wall shell path from the active output; the
+  overhang perimeter is now the original perimeter Orca already generated.
+
 ## 0.1.3 — 2026-10-01
 
 * Split preview roles: the outer overhang edge is now one non-bridge wall shell,

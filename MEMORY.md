@@ -8,9 +8,9 @@ binding record of OrcaSlicer behavior.
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0f4f1-tests`. Never switch branches or push to
   `main`.
-* **Latest code state:** `613ff8f Integrate prior Wave branch history` includes
-  the new separate Wave Overhangs Geometry prototype locally; push is pending.
-* **Current versions:** Wave Overhangs 0.0.15, Wave Overhangs Geometry 0.1.3,
+* **Latest code state:** Wave Overhangs Geometry 0.1.4 uses the new
+  `posPrepareInfill` fill-surface method; see git log for the exact head.
+* **Current versions:** Wave Overhangs 0.0.15, Wave Overhangs Geometry 0.1.4,
   Unlayered Infill 0.3.4, updater 1.4.0.
 * **Permanent identities:** `Wave Overhangs`, `Wave Overhangs Geometry`, and
   `Unlayered Infill`. Release numbers must remain out of package and capability
@@ -31,8 +31,8 @@ Important locations:
   branch from `main`.
 - `plugins.json` — catalogue and version source used by the updater.
 - `plugins/wave-overhangs/` — exported-G-code Wave plugin and its release notes.
-- `plugins/wave-overhangs-geometry/` — separate preview-visible `posSlice`
-  Wave ribbon prototype and notes.
+- `plugins/wave-overhangs-geometry/` — separate preview-visible
+  `posPrepareInfill` Wave fill-surface prototype and notes.
 - `plugins/unlayered-infill/` — Unlayered plugin, standalone tool, and notes.
 - `tests/fixtures/` — the supplied `Cube^2.STL` and captured
   `Cube^2_3m53s.gcode` real-export fixture.
@@ -90,28 +90,27 @@ There is no standalone Wave post-processing script in this repository. The
 plugin waits for exported Bridge G-code; do not claim a Wave standalone tool
 is installed or tested.
 
-### Wave Overhangs Geometry 0.1.3
+### Wave Overhangs Geometry 0.1.4
 
-A separate experimental geometry-stage plugin now runs at `posSlice`. It reads
-live `LayerRegion.slices` and the previous layer's `lslices`, generates
-obstacle-aware fixed-spacing Wave fronts, converts them to narrow preview
-ribbons, removes tiny clipped dot islands, preserves one continuous non-bridge
-outer shell for the overhang wall, and writes bridge-classified Wave ribbons
-inside that shell through `SurfaceCollection.set()` before Orca creates
-perimeters and infill. Bridge pieces are handed to Orca from the supported side
-outward. It keeps the post-processing Wave plugin unchanged as the fallback.
+A separate experimental geometry-stage plugin now runs at `posPrepareInfill`.
+It reads live `LayerRegion.fill_surfaces` and the previous layer's `lslices`,
+generates obstacle-aware fixed-spacing Wave fronts, converts them to narrow
+preview ribbons, removes tiny clipped dot islands, and replaces only reachable
+unsupported prepared fill with `stBottomBridge` Wave ribbons. It deliberately
+leaves `LayerRegion.slices` alone, so Orca keeps the original overhang perimeter
+instead of generating dark-blue overhang-wall loops around every Wave ribbon.
+Bridge fill surfaces are handed to Orca from the supported side outward. It
+keeps the post-processing Wave plugin unchanged as the fallback.
 
 Current Orca bindings expose existing `ExtrusionPath` objects read-only, so
-this is preview-visible Wave geometry rather than direct raw path injection.
-The plugin documents that limitation, snapshots layers, rolls back an object on
-mutation failure, and fails closed when dependencies or host geometry bindings
-are unavailable. Version 0.1.1 fixed the real-Orca registration failure caused
-by passing `None` to `SlicingPipelineCapabilityBase.__init__()`, and 0.1.3
-addresses the user's latest preview findings: dots, missing outer wall, bridge
-classification, wave containment inside the perimeter, and supported-edge
-ordering bias. Routine logs/state now default to plugin storage to avoid normal
-approval prompts. Synthetic geometry, installer, runtime, audit, and sync tests
-pass. A follow-up real Orca preview and physical print remain unverified.
+this is preview-visible Wave fill-surface geometry rather than direct raw path
+injection or path reordering. The plugin documents that limitation, snapshots
+fill surfaces, rolls back an object on mutation failure, and fails closed when
+dependencies or host fill-surface bindings are unavailable. Routine logs/state
+still default to plugin storage to avoid normal approval prompts. Synthetic
+geometry, installer, runtime, audit, G-code, sync, compilation, whitespace, and
+CRLF checks passed for 0.1.4 in the sandbox; a real Orca preview and physical
+print remain unverified.
 
 ### Unlayered Infill 0.3.4
 
@@ -144,7 +143,7 @@ These checks have passed in the repository:
 - `python3 tools/sync_engine.py --check` — Unlayered engine copies match.
 - `python3 tools/sync_changelog.py --check` — embedded plugin notes match their
   source changelogs.
-- Raw CRLF assertions — `Update-Orca-Plugins.bat` has 689 CRLF lines and
+- Raw CRLF assertions — `Update-Orca-Plugins.bat` has 690 CRLF lines and
   `Choose-Orca-Plugin-Version.bat` has 136 CRLF lines.
 - Python compilation and `git diff --check` pass for normal text files.
 
@@ -179,7 +178,8 @@ or a printer.
 1. Install this branch with the chooser and confirm all three plugin versions
    in Orca's separate Version column.
 2. Run a fresh current-Orca slice with `Wave Overhangs Geometry` selected and
-   confirm the edited ribbons appear in the normal preview.
+   confirm the edited ribbons appear as bridge fill in the normal preview while
+   the original overhang perimeter remains intact.
 3. Export `Cube^2.STL` again at the owner's 0.30 mm / 0.60 mm settings with the
    original post-processing Wave plugin and inspect Z alignment and cleaned
    outer edges.
@@ -189,6 +189,17 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-01 — Wave Geometry fill-surface method
+
+After the owner clarified that the preview showed Wave shapes but they were
+still behaving as overhang-wall islands, the geometry prototype moved from
+`LayerRegion.slices` at `posSlice` to `LayerRegion.fill_surfaces` at
+`posPrepareInfill`. This should preserve Orca's original perimeter and make the
+unsupported Wave ribbons bridge-classified fill surfaces instead of separate
+slice islands. It still cannot guarantee final bridge/perimeter G-code order
+because generated `ExtrusionPath` collections remain read-only in Python.
+Sandbox verification passed for the implementation in this branch.
 
 ### 2026-10-01 — Wave Overhangs Geometry prototype
 
