@@ -13,7 +13,7 @@ file has left the next session worse off.
 * **Last updated:** 2026-09-30 (session 6, plugin PDF audit)
 * **Verified against the repo:** 2026-09-30 — all four test files pass, both
   sync tools are clean, both `.bat` files are CRLF, and the chooser/updater
-  worked on real Windows. Current test versions: Wave 0.0.9 / Unlayered 0.3.4,
+  worked on real Windows. Current test versions: Wave 0.0.10 / Unlayered 0.3.4,
   both with permanent version-free names; naming/default guards caught 4/4
   mutations. The chooser now runs the selected branch's temporary updater and
   its safety guards caught 3/3 mutations. Wave bridge replacement remains open.
@@ -56,7 +56,7 @@ which does not block starting.
 | Updater | `Update-Orca-Plugins.bat` v1.2.5, CRLF. Writes only permanent version-free package names. |
 | Branch chooser | `Choose-Orca-Plugin-Version.bat`, CRLF. Live numbered GitHub branch menu; downloads and validates the selected branch's updater into `%TEMP%` so updater changes are tested too; latest change **not yet run on Windows**. |
 | Catalogue | `plugins.json` — confirmed reachable at `raw.githubusercontent.com/.../main/plugins.json` |
-| Wave Overhangs | v0.0.9 test build, permanent name `Wave Overhangs`; ordinary bridge still remained in reopened real G-code |
+| Wave Overhangs | v0.0.10 test build, permanent name `Wave Overhangs`; owner's 0.30 mm `Cube^2` export proved v0.0.9 planned 4 layers but inserted/carved 0; print-Z and Polygon API fixes built, unsafe early carving disabled, awaiting real rerun |
 | Unlayered Infill | v0.3.4 test build, permanent name `Unlayered Infill`; complete 0.3.0 controls pinned as defaults; older versions ran in real Orca |
 | Standalone tool | `plugins/unlayered-infill/unlayered_infill_post.py` v0.3.4 — **works, functionally tested** |
 | Contract test | `python3 tests/test_installer.py` → **passing** |

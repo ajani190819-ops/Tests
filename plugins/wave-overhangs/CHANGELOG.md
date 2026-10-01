@@ -9,6 +9,22 @@ print.** Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
 
+## 0.0.10 — 2026-10-01
+
+* Fixed the two failures measured with the owner's `Cube^2.STL` at 0.30 mm:
+  wave plans now use Orca's exported `print_z` instead of its offset internal
+  `slice_z`, and replacement geometry is built with Orca's supported empty
+  `Polygon()` plus `append(Point)` API.
+* The failed 0.0.9 export planned four wave layers but matched and inserted
+  none, while carving failed safely. This release is intended to make those
+  four layers match and remove that constructor error.
+* Unsafe early slice carving is disabled. It happened before insertion could be
+  proven, so a later splice failure could have left a print hollow. This test
+  release keeps the original bridge while we verify wave insertion; final
+  replacement will remove only G-code bridge moves covered by inserted waves.
+* Bridge replacement is still not claimed working until a new real-Orca export
+  contains wave blocks and proves geometrically bounded bridge removal.
+
 ## 0.0.9 — 2026-09-30
 
 * **The permanent package name is now simply `Wave Overhangs`.** Release

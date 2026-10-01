@@ -18,6 +18,17 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — fix Wave's measured Orca integration failures
+
+**Wave Overhangs:** 0.0.10. **Updater:** 1.2.6.
+
+The owner's 0.30 mm `Cube^2.STL` export proved that Wave 0.0.9 planned four
+layers but inserted zero wave blocks. Orca's internal `slice_z` values did not
+match exported layer Z values, and its released Polygon binding rejected the
+plugin's list constructor. Wave now keys plans by `print_z` and builds host
+polygons through the supported empty constructor plus appended Points. Failure
+still retains Orca's original bridge; replacement is not yet declared proven.
+
 ## 2026-10-01 — chooser uses the selected branch's updater
 
 The branch chooser now downloads and validates `Update-Orca-Plugins.bat` from
