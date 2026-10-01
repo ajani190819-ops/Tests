@@ -12,10 +12,9 @@ file has left the next session worse off.
 
 * **Last updated:** 2026-09-30 (session 6, plugin PDF audit)
 * **Verified against the repo:** 2026-09-30 — all four test files pass, both
-  sync tools are clean, both `.bat` files are CRLF, the chooser/updater worked
-  on real Windows, and the 0.3.3 compatibility identity plus percentage/blend
-  controls caught 4/4 deliberate mutations. Wave's bridge replacement remains
-  unresolved.
+  sync tools are clean, both `.bat` files are CRLF, and the chooser/updater
+  worked on real Windows. Current test versions: Wave 0.0.8 / Unlayered 0.3.3.
+  Wave same-export bridge replacement remains unresolved.
 
 ---
 
@@ -52,10 +51,10 @@ which does not block starting.
 | Repo | `ajani190819-ops/Tests`, **public** (must stay public — the updater downloads unauthenticated) |
 | Default branch | `main`, at commit `8f2f6f1` "Recreate the plugin updater + reorganize the repo (PR #1)" |
 | PR #1 | **MERGED** 2026-09-30 22:54 UTC, from branch `arena/01a0f42b-tests` |
-| Updater | `Update-Orca-Plugins.bat` v1.2.3, CRLF. Strict branch installs verified on Windows; 1.2.3 restores Unlayered's config-compatible sidecar identity. |
+| Updater | `Update-Orca-Plugins.bat` v1.2.4, CRLF. Writes both compatibility identities and prints the old-name/real-version mapping. |
 | Branch chooser | `Choose-Orca-Plugin-Version.bat`, CRLF. Live numbered GitHub branch menu, remembers its choice, obvious return to `main`; **never run on Windows**. |
 | Catalogue | `plugins.json` — confirmed reachable at `raw.githubusercontent.com/.../main/plugins.json` |
-| Wave Overhangs | v0.0.7 test build, stable identity migration; installed/activated v0.0.6 was seen in real Orca but never invoked or logged |
+| Wave Overhangs | v0.0.8 test build, `Wave Overhangs v0.0.6` compatibility identity restored; ordinary bridge still remained in reopened real G-code |
 | Unlayered Infill | v0.3.3 test build, compatibility identity restored; **v0.3.0/v0.3.1 ran in real Orca and rewrote real exported G-code**, proven by the owner's Downloads log |
 | Standalone tool | `plugins/unlayered-infill/unlayered_infill_post.py` v0.3.0 — **works, functionally tested** |
 | Contract test | `python3 tests/test_installer.py` → **passing** |
@@ -226,12 +225,11 @@ it references the old path `test_installer.py`, which is now
   version. An engine fix must therefore land in both, so the engine stays a
   separate, front-end-agnostic module. Do not retire the plugins.
 * **Plugin/capability identities must not change.** The PDF says Orca keys
-  presets/config by full identity. Wave uses stable `Wave Overhangs`.
-  **Unlayered compatibility exception:** permanently keep the old identity
-  `Unlayered Infill v0.3.0`; changing it in 0.3.2 disconnected the owner's
-  saved percentage/grid/blending controls. The actual release version remains
-  separate (0.3.3 onward). Owner chose this over rolling code back to unsafe
-  0.3.0.
+  presets/config by full identity. Permanently keep package identities
+  `Wave Overhangs v0.0.6` and `Unlayered Infill v0.3.0`; capabilities remain
+  version-free. Real releases advance separately. Changing Unlayered in 0.3.2
+  disconnected saved controls; Wave 0.0.7 carried the same risk. Owner chose
+  compatibility identities over rolling back code.
 * **In the wave region, the waves REPLACE the slicer's own extrusions.**
   (Owner's answer to C2, 2026-09-30.) This matches the upstream
   WaveOverhangs fork: no double material, at the cost of careful G-code
@@ -408,8 +406,11 @@ Plugin Development PDF revealed that the preset's full reference includes
 Owner initially chose stable names for both. Real testing disproved that as a
 complete fix: Wave 0.0.7 still left the ordinary bridge in reopened exported
 G-code, and Unlayered 0.3.2 lost access to the owner's saved 0.3.0 controls.
-Unlayered 0.3.3 now restores `Unlayered Infill v0.3.0` as a permanent config
-compatibility identity without rolling back current fixes.
+Unlayered 0.3.3 restores `Unlayered Infill v0.3.0` as a permanent config
+compatibility identity without rolling back current fixes. Wave 0.0.8 likewise
+restores `Wave Overhangs v0.0.6`; updater 1.2.4 prints both old-looking package
+names beside their real versions. Wave's first successful export now explicitly
+says the safety gate retained the bridge and requests one more slice/export.
 
 Verified: the chooser/updater worked on real Windows; Unlayered ran in real
 Orca; all repository tests pass.

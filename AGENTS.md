@@ -124,11 +124,11 @@ you forget, and it is the safety net for exactly this.
    standalone and run `tools/sync_engine.py` so both engine copies move).
    **Never change the PEP 723 `name` casually.** The Plugin Development PDF
    says Orca saves `plugin_name` inside preset/config identities. New plugins
-   use version-free names. Unlayered Infill is the explicit compatibility
-   exception: its permanent name is `Unlayered Infill v0.3.0` so Orca can find
-   the owner's working percentage/grid/blending config. Its real version still
-   advances separately. `tests/test_installer.py` enforces these identities
-   and versions — run it. (The .bat stamps the installed version from the
+   use version-free names. The two existing plugins keep their old package
+   identities permanently for compatibility: `Wave Overhangs v0.0.6` and
+   `Unlayered Infill v0.3.0`. Their real versions advance separately in the
+   Version field. `tests/test_installer.py` enforces these identities and
+   versions — run it. (The .bat stamps the installed version from the
    downloaded file's header, so the header is the source of truth, and it
    composes the sidecar's `plugin_name` as `"%PL_NAME% v%PL_VER%"` to match the
    name header automatically.)

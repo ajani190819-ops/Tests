@@ -18,6 +18,19 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-09-30 — restore Wave Overhangs' saved identity
+
+**Wave Overhangs:** 0.0.8. **Updater:** 1.2.4.
+
+* Restored `Wave Overhangs v0.0.6` as its permanent compatibility identity so
+  Orca can reconnect to the pipeline selection/configuration saved before the
+  unsuccessful 0.0.7 rename. The actual version remains visible separately.
+* Updater output now prints both compatibility names explicitly: select
+  `Wave Overhangs v0.0.6` and `Unlayered Infill v0.3.0`; check the Version
+  column for the actual 0.0.8 / 0.3.3 releases.
+* Replacement remains the chosen Wave behavior. Same-export, geometry-bounded
+  bridge removal is still under development and is not claimed working here.
+
 ## 2026-09-30 — restore Unlayered Infill's working configuration identity
 
 **Unlayered Infill:** 0.3.3. **Updater:** 1.2.3.

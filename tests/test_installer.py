@@ -198,6 +198,11 @@ for p in plugins:
             check(all(0 <= pos < first_class for pos in imports_at),
                   "wave-overhangs: dependencies must import at module load, not "
                   "inside an audited capability call")
+            check("Safety kept Orca's" in body and "original bridge" in body and
+                  "Slice and" in body and "export once more" in body and
+                  "replacement carving enabled" in body,
+                  "wave-overhangs: first-export safety behavior is hidden; the "
+                  "user would mistake the retained bridge for another failure")
 
         # What the plugin reports about itself at runtime -- "Check setup" and
         # the G-code stamp -- must be the version that was actually installed.
@@ -262,9 +267,10 @@ check('"installed_from": "local"' in bat and '"installed_version": "%~5"' in bat
 # version is a separate sidecar field; adding it to plugin_name changes the
 # identity embedded in preset capability references.
 check('set "PL_IDENTITY=%PL_NAME%"' in bat and
+      'set "PL_IDENTITY=Wave Overhangs v0.0.6"' in bat and
       'set "PL_IDENTITY=Unlayered Infill v0.3.0"' in bat and
       'call :write_state "%STATE_FILE%" "%PL_IDENTITY%"' in bat,
-      "the .bat does not preserve Unlayered Infill's v0.3.0 config identity")
+      "the .bat does not preserve both plugins' working config identities")
 check('echo   [%PL_ACTION%] %PL_NAME% v%PL_VER% %PL_VERMSG%-- %PL_SIZE% bytes' in bat,
       "the .bat's install summary no longer reports the installed version")
 check('"enabled": true' in bat,

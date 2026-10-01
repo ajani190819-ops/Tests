@@ -120,12 +120,12 @@ is a bug in the plugin:
   Session 6's real evidence matched that failure shape for Wave Overhangs:
   installed, activated and reportedly selected, but never invoked and absent
   from the log. This is a strong diagnosis, not yet proven until v0.0.7 runs.
-* Capability names and new plugin identities stay version-free. **Compatibility
-  exception:** Unlayered Infill permanently uses the legacy identity
-  `Unlayered Infill v0.3.0`. Changing it to a clean version-free name in 0.3.2
-  disconnected Orca from the owner's saved percentage/grid/blending config.
-  Its real release version still advances independently. The updater sidecar
-  must exactly match each plugin's PEP 723 identity.
+* Capability names stay version-free. Both existing package names are now
+  permanent compatibility identities: `Wave Overhangs v0.0.6` and
+  `Unlayered Infill v0.3.0`. Renaming Unlayered in 0.3.2 disconnected the
+  owner's saved controls; Wave 0.0.7 had the same risk for its saved pipeline
+  reference. Real release versions advance independently in the Version
+  column. The updater sidecar must exactly match each PEP 723 identity.
 
 ## Where plugins live on disk
 

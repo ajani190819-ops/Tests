@@ -9,6 +9,22 @@ print.** Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
 
+## 0.0.8 — 2026-09-30
+
+* **Restored `Wave Overhangs v0.0.6` as the permanent compatibility
+  identity.** Version 0.0.7 changed the identity and could disconnect Orca's
+  saved pipeline selection/configuration just as 0.3.2 did to Unlayered
+  Infill. The actual release remains visible as 0.0.8 in Orca's Version
+  column, Check setup, logs, G-code stamp, and updater output.
+* Confirmed the desired print behavior: replacement, not reinforcement. Waves
+  must be generated and inserted successfully before only the covered bridge
+  extrusion is removed. A failure must leave the original bridge untouched.
+* A successful first export now says plainly that the original bridge was kept
+  by the safety gate and instructs you to slice/export once more. Later exports
+  report that replacement carving is enabled.
+* The same-export replacement surgery is still under development and is not
+  claimed as working in this release.
+
 ## 0.0.7 — 2026-09-30
 
 * **The plugin name is now permanently `Wave Overhangs`.** Orca's development
