@@ -8,8 +8,8 @@ binding record of OrcaSlicer behavior.
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0f4f1-tests`. Never switch branches or push to
   `main`.
-* **Latest cleanup commit:** `bb346bb Record repository cleanup in handoff`,
-  pushed after the organization commit.
+* **Latest commit:** `4e7cf4d Refine Wave cleanup and extrusion handoff`,
+  pushed on the session branch after the organization commit.
 * **Current versions:** Wave Overhangs 0.0.13, Unlayered Infill 0.3.4,
   updater 1.2.9.
 * **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
