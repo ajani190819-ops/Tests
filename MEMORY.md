@@ -8,8 +8,8 @@ binding record of OrcaSlicer behavior.
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0f4f1-tests`. Never switch branches or push to
   `main`.
-* **Latest commit:** `363c49a Preserve absolute E across split fragments`,
-  pushed on the session branch after the Wave refinement commits.
+* **Latest commit:** `d9e3706 Merge remote Wave refinement history`,
+  pushed on the session branch after the final Wave and documentation updates.
 * **Current versions:** Wave Overhangs 0.0.13, Unlayered Infill 0.3.4,
   updater 1.2.9.
 * **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
