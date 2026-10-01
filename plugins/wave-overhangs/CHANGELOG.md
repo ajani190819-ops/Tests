@@ -6,10 +6,24 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.16 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.17 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.17 — 2026-10-01
+
+* Added `edge_clearance` for cleaner Wave terminations near overhang walls,
+  holes, and concave detail boundaries. The emitted Wave centerline is clipped
+  back from those non-support boundaries so the bead should not bleed into the
+  overhang perimeter.
+* Kept bridge replacement coverage based on the untrimmed cleaned Wave paths, so
+  old straight Bridge fragments are still removed at the boundary instead of
+  reappearing where the visible Wave bead was inset.
+* `edge_clearance="auto"` follows the exported bridge width; set
+  `edge_clearance=0` to compare against the previous full-length endpoint
+  behavior. Endpoint flow taper remains active after the inset unless disabled
+  separately.
 
 ## 0.0.16 — 2026-10-01
 

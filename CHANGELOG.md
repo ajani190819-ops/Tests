@@ -19,6 +19,18 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — Wave edge clearance before taper
+
+**Wave Overhangs:** 0.0.17.
+
+Added an edge-clearance stage to the original post-processing Wave plugin.
+Emitted Wave centerlines are now clipped back from non-support detail boundaries
+such as outer overhang walls, holes, and concave edges before endpoint taper is
+applied. Bridge-removal coverage still uses the untrimmed cleaned Wave paths, so
+old straight Bridge fragments do not reappear at the edge. `edge_clearance="auto"`
+follows the exported bridge width; `edge_clearance=0` disables the inset for
+comparison.
+
 ## 2026-10-01 — Wave endpoint flow taper
 
 **Wave Overhangs:** 0.0.16.

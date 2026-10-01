@@ -160,16 +160,28 @@ wave_blocks = re.findall(
     r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
     r"; ==== WAVE OVERHANG END ====", out, re.DOTALL)
 wave_move_count = sum(block.count("\nG1 X") for block in wave_blocks)
-legacy_out, legacy_stats = wave._gcode_wave_rewrite(
-    source, dict(cfg, edge_taper_distance=0.0))
-legacy_blocks = re.findall(
+old_style_out, old_style_stats = wave._gcode_wave_rewrite(
+    source, dict(cfg, edge_taper_distance=0.0, edge_clearance=0.0))
+old_style_blocks = re.findall(
     r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
-    r"; ==== WAVE OVERHANG END ====", legacy_out, re.DOTALL)
-legacy_move_count = sum(block.count("\nG1 X") for block in legacy_blocks)
-assert legacy_stats["removed_moves"] == stats["removed_moves"]
-assert legacy_move_count == 399, "legacy no-taper cleanup changed unexpectedly"
-assert wave_move_count > legacy_move_count, (
+    r"; ==== WAVE OVERHANG END ====", old_style_out, re.DOTALL)
+old_style_move_count = sum(block.count("\nG1 X") for block in old_style_blocks)
+clearance_only_out, clearance_only_stats = wave._gcode_wave_rewrite(
+    source, dict(cfg, edge_taper_distance=0.0))
+clearance_only_blocks = re.findall(
+    r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
+    r"; ==== WAVE OVERHANG END ====", clearance_only_out, re.DOTALL)
+clearance_only_move_count = sum(
+    block.count("\nG1 X") for block in clearance_only_blocks)
+assert old_style_stats["removed_moves"] == stats["removed_moves"]
+assert old_style_move_count == 399, (
+    "old no-clearance/no-taper cleanup changed unexpectedly")
+assert clearance_only_stats["removed_moves"] == stats["removed_moves"]
+assert clearance_only_move_count <= old_style_move_count, (
+    "edge clearance should trim emitted paths without changing bridge coverage")
+assert wave_move_count > old_style_move_count, (
     "edge taper should split only tapered Wave endpoints into shorter moves")
+assert "; wave-overhangs edge clearance" in out
 assert "; wave-overhangs edge taper" in out
 
 def wave_e_per_mm_values(blocks):
@@ -192,10 +204,10 @@ def wave_e_per_mm_values(blocks):
     return values
 
 default_ratios = wave_e_per_mm_values(wave_blocks)
-legacy_ratios = wave_e_per_mm_values(legacy_blocks)
-assert min(default_ratios) < min(legacy_ratios) * 0.75, (
+old_style_ratios = wave_e_per_mm_values(old_style_blocks)
+assert min(default_ratios) < min(old_style_ratios) * 0.75, (
     "tapered Wave endpoint flow should be visibly lower than normal flow")
-assert max(default_ratios) <= max(legacy_ratios) * 1.01
+assert max(default_ratios) <= max(old_style_ratios) * 1.01
 
 synthetic_settings = wave._wave_taper_settings(
     cfg, internal_target, internal_support, geometry_cfg)
@@ -209,6 +221,31 @@ assert wave._endpoint_touches_detail(
 assert wave._endpoint_touches_detail(
     (9.0, 5.0), synthetic_settings["detail"], geometry_cfg.line_width), (
     "hole wall endpoint should taper")
+
+clear_cfg = dict(cfg, edge_clearance=0.30, edge_taper_distance=0.0)
+clear_domain, clear_distance = wave._clearance_domain(
+    internal_target, internal_support, geometry_cfg, clear_cfg)
+assert abs(clear_distance - 0.30) < 1e-9
+clear_detail = wave._detail_boundary(internal_target, internal_support, geometry_cfg)
+outer_trim = wave._inset_wave_polylines(
+    [[(2.05, 1.0), (12.0, 1.0)]], internal_target,
+    internal_support, geometry_cfg, clear_cfg)
+assert outer_trim, "edge clearance removed the whole outer-wall test line"
+outer_line = LineString(outer_trim[0])
+assert min(x for x, _y in outer_trim[0]) <= 2.06, (
+    "support-side anchor boundary should not be inset")
+assert max(x for x, _y in outer_trim[0]) < 11.75, (
+    "outer wall endpoint should stop before the perimeter")
+assert outer_line.distance(clear_detail) >= 0.28, (
+    "trimmed Wave line still bleeds into a detail boundary")
+hole_trim = wave._inset_wave_polylines(
+    [[(2.05, 5.0), (5.0, 5.0)]], internal_target,
+    internal_support, geometry_cfg, clear_cfg)
+assert hole_trim, "edge clearance removed the whole hole-wall test line"
+assert max(x for x, _y in hole_trim[0]) < 4.75, (
+    "hole endpoint should stop before the hole perimeter")
+assert LineString(hole_trim[0]).distance(clear_detail) >= 0.28, (
+    "trimmed hole Wave line still bleeds into the hole boundary")
 
 assert "; wave-overhangs replaced covered bridge move" in out
 lines = out.splitlines()
@@ -274,5 +311,5 @@ assert failed == source, "generation failure must retain the original G-code byt
 assert "error" in failure_stats
 
 print("ok -- real Cube^2 export: 3 cleaned wave layers use actual offset Z, "
-      "replace covered moves, retain substantial fragments, restore fan state, "
-      "fail closed, and are idempotent")
+      "replace covered moves, retain substantial fragments, trim/taper edge "
+      "endpoints, restore fan state, fail closed, and are idempotent")

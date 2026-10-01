@@ -8,10 +8,10 @@ binding record of OrcaSlicer behavior.
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0f4f1-tests`. Never switch branches or push to
   `main`.
-* **Latest code state:** Wave Overhangs 0.0.16 is back to the original
-  post-processing path with endpoint flow taper; Geometry 0.1.4 remains an
-  experimental alternate.
-* **Current versions:** Wave Overhangs 0.0.16, Wave Overhangs Geometry 0.1.4,
+* **Latest code state:** Wave Overhangs 0.0.17 is back to the original
+  post-processing path with edge clearance plus endpoint flow taper; Geometry
+  0.1.4 remains an experimental alternate.
+* **Current versions:** Wave Overhangs 0.0.17, Wave Overhangs Geometry 0.1.4,
   Unlayered Infill 0.3.4, updater 1.4.0.
 * **Permanent identities:** `Wave Overhangs`, `Wave Overhangs Geometry`, and
   `Unlayered Infill`. Release numbers must remain out of package and capability
@@ -49,7 +49,7 @@ Important locations:
 
 ## Current implementation
 
-### Wave Overhangs 0.0.16
+### Wave Overhangs 0.0.17
 
 The active implementation is one transactional G-code pass at
 `psGCodePostProcess`:
@@ -72,24 +72,25 @@ The active implementation is one transactional G-code pass at
    re-emit substantial uncovered fragments with proportional extrusion.
 7. Restore the expected XY, fan, and E mode/value state. Uniform absolute-E
    sections restore `M82` and `G92`; mixed E-mode sections remain untouched.
-8. Taper Wave endpoint flow near outer walls, holes, and concave details using
-   short sub-moves with reduced E, while excluding the support-side anchor
-   boundary so anchored starts stay strong.
+8. Clip emitted Wave centerlines back from non-support detail boundaries, then
+   taper E over short endpoint sub-moves. Bridge-removal coverage still uses the
+   untrimmed cleaned Wave path, and the support-side anchor boundary is excluded
+   from both clearance and taper.
 9. Write only after parsing, generation, subtraction, and assembly succeed. Any
    exception returns the original G-code unchanged.
 
 The Wave pass uses the bridge move's actual modal nozzle Z. In the supplied
 fixture, the nominal `;Z:` comments differ from the actual height because the
-profile contains a 0.25 mm Z offset. The 0.0.16 fixture output uses 5.650,
+profile contains a 0.25 mm Z offset. The 0.0.17 fixture output uses 5.650,
 9.850, and 14.650 mm for the three Wave blocks.
 
 The captured regression reports three Wave layers, 101 covered bridge moves,
 31 substantial retained fragments, 112 tiny remnants removed, 29 short Wave
-fronts removed, 399 no-taper comparison moves, default tapered endpoint G-code
-with lower E near detail boundaries, restored fan state, exact second-pass
+fronts removed, 399 no-taper comparison moves, default edge-clearanced and tapered endpoint G-code
+with cleaner detail-boundary terminations, restored fan state, exact second-pass
 idempotence, and byte-for-byte unchanged output after deliberate generation
 failure. The owner confirmed that the previous 0.0.11 output visibly produced
-perimeter-conforming waves in real Orca. A fresh 0.0.16 export and physical
+perimeter-conforming waves in real Orca. A fresh 0.0.17 export and physical
 print remain open.
 
 There is no standalone Wave post-processing script in this repository. The
@@ -195,6 +196,16 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-01 — Wave edge clearance before taper
+
+Wave Overhangs moved to 0.0.17. The post-processing plugin now clips emitted
+Wave centerlines back from non-support detail boundaries before applying endpoint
+flow taper. The old cleaned Wave paths still drive bridge-removal coverage, so
+straight Bridge fragments do not reappear just because the visible Wave bead was
+inset. `edge_clearance="auto"` follows the exported bridge width; set it to `0`
+to compare against the previous full-length endpoint behavior. Sandbox
+regressions pass; a real Orca export/print remains open.
 
 ### 2026-10-01 — Wave endpoint flow taper
 
