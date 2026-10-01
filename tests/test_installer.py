@@ -147,6 +147,45 @@ for p in plugins:
         check("# /// script" in head,
               f"{pid}: shipped file has no `# /// script` fence, so the .bat would reject it")
 
+        # The PEP 723 *name* carries the version, so OrcaSlicer's Plugins
+        # dialog shows which build is installed in its Name column (it has a
+        # Version column too -- this is belt and braces, and it is the column
+        # people actually read). The version deliberately does NOT go in the
+        # capability names: a process preset stores the capability name as its
+        # value, so renaming capabilities per version would make every update
+        # orphan the preset and block slicing until it was re-picked.
+        mname = re.search(r'^#\s*name\s*=\s*"([^"]+)"', head, re.MULTILINE)
+        check(mname is not None, f"{pid}: no PEP 723 name header in the shipped plugin")
+        if mname:
+            want = f"{p['name']} v{p['version']}"
+            check(mname.group(1) == want,
+                  f"{pid}: PEP 723 name is {mname.group(1)!r} but the catalogue "
+                  f"implies {want!r} (catalogue name + ' v' + version). The .bat "
+                  f"composes the sidecar's plugin_name the same way, so these "
+                  f"must agree or Orca's .install_state.json names a plugin that "
+                  f"does not exist.")
+
+        body = shipped.read_text(encoding="utf-8")
+
+        # What the plugin reports about itself at runtime -- "Check setup" and
+        # the G-code stamp -- must be the version that was actually installed.
+        mpv = re.search(r'^PLUGIN_VERSION\s*=\s*"([^"]+)"', body, re.MULTILINE)
+        check(mpv is not None,
+              f"{pid}: no module-level PLUGIN_VERSION constant; Check setup and the "
+              f"G-code stamp have nothing truthful to report")
+        if mpv:
+            check(mpv.group(1) == p["version"],
+                  f"{pid}: PLUGIN_VERSION is {mpv.group(1)!r} but the file ships as "
+                  f"v{p['version']}")
+
+        # Some engines carry their own stamp version inside the inlined source
+        # (it is what lands in the exported G-code). Same rule.
+        mmv = re.search(r'MARKER_VERSION\s*=\s*\\"([^"\\]+)\\"', body)
+        if mmv:
+            check(mmv.group(1) == p["version"],
+                  f"{pid}: the G-code stamp says v{mmv.group(1)} but the plugin "
+                  f"ships as v{p['version']}")
+
         # Every capability the sidecar advertises must actually exist in the
         # file Orca will load.
         for cap in p["capabilities"]:
@@ -187,6 +226,15 @@ check('{ "%~3": true }' in bat and '{ "%~4": true }' in bat,
 check('"installed_from": "local"' in bat and '"installed_version": "%~5"' in bat
       and '"plugin_name": "%~2"' in bat,
       "the .bat sidecar template no longer matches Orca's .install_state.json")
+# The sidecar's plugin_name must match the plugin's PEP 723 name, which now
+# carries the version. Composing it from PL_VER -- which the .bat reads out of
+# the downloaded file's own header -- means it tracks what was really installed
+# instead of whatever the catalogue happened to say.
+check('call :write_state "%STATE_FILE%" "%PL_NAME% v%PL_VER%"' in bat,
+      "the .bat no longer composes the versioned plugin name for the sidecar, so "
+      "Orca's .install_state.json would name a plugin that does not exist")
+check('echo   [%PL_ACTION%] %PL_NAME% v%PL_VER% %PL_VERMSG%-- %PL_SIZE% bytes' in bat,
+      "the .bat's install summary no longer reports the installed version")
 check('"enabled": true' in bat,
       "the .bat no longer installs the plugins as enabled")
 
@@ -218,6 +266,190 @@ check(re.search(r"(?m)^\*\.bat\s+-text\s*$", ga),
 
 
 # --------------------------------------------------------------------------
+# 3b. static analysis of the .bat -- it can never be executed in CI, so the
+#     cheap structural mistakes have to be caught by reading it
+# --------------------------------------------------------------------------
+bat_lines = raw.decode("utf-8", "replace").split("\r\n")
+
+bat_labels = {}
+for _i, _l in enumerate(bat_lines, 1):
+    _s = _l.strip()
+    if _s.startswith(":") and not _s.startswith("::") and re.match(r":\w+\s*$", _s):
+        bat_labels[_s[1:].strip().lower()] = _i
+
+bat_refs: dict[str, list[int]] = {}
+for _i, _l in enumerate(bat_lines, 1):
+    if _l.strip().lower().startswith("rem "):
+        continue
+    for _m in re.finditer(r"\b(?:goto|call)\s+:(\w+)", _l, re.I):
+        bat_refs.setdefault(_m.group(1).lower(), []).append(_i)
+
+_dangling = {k: v for k, v in bat_refs.items() if k not in bat_labels}
+check(not _dangling,
+      f"the .bat jumps to labels that do not exist: {_dangling}. On Windows "
+      f"that aborts the script mid-run.")
+check(not (set(bat_labels) - set(bat_refs)),
+      f"the .bat defines labels nothing jumps to: "
+      f"{sorted(set(bat_labels) - set(bat_refs))}")
+
+_bal = 0
+_neg = []
+for _i, _l in enumerate(bat_lines, 1):
+    _s = _l.strip().lower()
+    if _s.startswith("rem") or _s.startswith("::") or _s.startswith("echo"):
+        continue
+    _bal += re.sub(r'"[^"]*"', "", _l).count("(") - re.sub(r'"[^"]*"', "", _l).count(")")
+    if _bal < 0:
+        _neg.append(_i)
+check(_bal == 0 and not _neg,
+      f"unbalanced parentheses in the .bat (net {_bal}, negative at {_neg})")
+
+# --- the self-updater ------------------------------------------------------
+_set_uv = re.findall(r"(?m)^set UPDATER_VERSION=(\S+)$", "\n".join(bat_lines))
+_rem_uv = re.findall(r"(?m)^rem UPDATER_VERSION (\S+) end$", "\n".join(bat_lines))
+check(len(_set_uv) == 1 and len(_rem_uv) == 1,
+      f"expected exactly one `set UPDATER_VERSION=` and one "
+      f"`rem UPDATER_VERSION <v> end` line; got {_set_uv} and {_rem_uv}")
+if len(_set_uv) == 1 and len(_rem_uv) == 1:
+    check(_set_uv[0] == _rem_uv[0],
+          f"the updater's two version lines disagree: set={_set_uv[0]} "
+          f"rem={_rem_uv[0]}. :self_update compares the rem line, so a "
+          f"mismatch makes it hand over to itself forever.")
+    check(re.fullmatch(r"\d+\.\d+\.\d+", _set_uv[0]),
+          f"UPDATER_VERSION {_set_uv[0]!r} is not x.y.z")
+
+_bat_text = "\n".join(bat_lines)
+_m_start = re.search(r"(?m)^:self_update$", _bat_text)
+_m_end = re.search(r"(?m)^:stage_tools$", _bat_text)
+check(_m_start is not None, "the .bat has no :self_update routine")
+check(_m_end is not None, "the .bat has no :stage_tools routine")
+_su = _bat_text[_m_start.end():_m_end.start()] if (_m_start and _m_end) else ""
+for _guard, _why in (
+        ("ORCA_UPDATER_CHILD", "the new copy would self-update again, forever"),
+        ("NO_SELF_UPDATE", "--no-self-update would be ignored"),
+        ("LOCAL_MODE", "--local would still hit the network")):
+    check(re.search(rf"(?m)^if defined {_guard} exit /b 0$", _su),
+          f":self_update lost its `if defined {_guard} exit /b 0` line -- {_why}")
+
+# Verify-before-execute: every bail-out between downloading the replacement and
+# running it is what stops a 404 page or a wifi portal from being executed.
+_verify = re.findall(r"(?m)^findstr .*%NEWBAT%.*$", _su)
+_bail = re.findall(r"(?m)^if (?:not )?errorlevel 1 goto :su_skip$", _su)
+check(len(_verify) >= 3 and len(_bail) >= 3,
+      f":self_update must verify the download before running it; found "
+      f"{len(_verify)} findstr check(s) and {len(_bail)} bail-out(s), want 3+ of "
+      f"each (is it our .bat? is it a different version?)")
+_call_at = _su.find('call "%NEWBAT%"')
+check(_call_at != -1, ":self_update never hands over to the downloaded copy")
+if _call_at != -1:
+    check(_su[:_call_at].count("goto :su_skip") >= 3,
+          "the verification bail-outs must all come BEFORE the handover, "
+          "otherwise an unverified file gets executed first")
+# A running .bat must never be overwritten in place: cmd.exe reads it by byte
+# offset and will execute garbage. The design deliberately delegates instead.
+check(not re.search(r"(?mi)^\s*(copy|move|xcopy)\b[^\r\n]*%~f0", "\n".join(bat_lines)),
+      "the .bat overwrites itself while running -- cmd.exe streams a batch file "
+      "from disk as it executes, so this can jump into garbage mid-run")
+
+# --- staged standalone tools ----------------------------------------------
+_tools = re.findall(r'call :stage_one_tool "([^"]+)" "([^"]+)"', "\n".join(bat_lines))
+check(_tools, "the .bat no longer stages any standalone tool")
+for _tpath, _tname in _tools:
+    check((REPO / _tpath).exists(),
+          f"the .bat stages {_tpath!r}, which is not in the repo -- the download "
+          f"would 404")
+    check(_tpath.endswith("/" + _tname),
+          f"staged tool name {_tname!r} does not match its path {_tpath!r}")
+    check("\\" not in _tpath,
+          f"staged tool path {_tpath!r} must use forward slashes for a URL")
+
+
+# --------------------------------------------------------------------------
+# 3c. the standalone tools themselves
+# --------------------------------------------------------------------------
+for _tpath, _tname in _tools:
+    _tf = REPO / _tpath
+    if not _tf.exists():
+        continue
+    _tsrc = _tf.read_text(encoding="utf-8")
+    _tv = re.search(r'(?m)^TOOL_VERSION\s*=\s*"([^"]+)"', _tsrc)
+    check(_tv is not None, f"{_tname} has no TOOL_VERSION")
+    # it must agree with the plugin it shares an engine with
+    _sib = _tf.parent
+    _plug = next((q for q in _sib.glob("*_orca.py")), None)
+    if _tv and _plug is not None:
+        _pv = re.search(r'(?m)^PLUGIN_VERSION\s*=\s*"([^"]+)"',
+                        _plug.read_text(encoding="utf-8"))
+        check(_pv and _tv.group(1) == _pv.group(1),
+              f"{_tname} is v{_tv.group(1)} but {_plug.name} is "
+              f"v{_pv.group(1) if _pv else '?'} -- they share an engine and must "
+              f"share a version")
+    check(re.search(r'add_argument\([^)]*"--inplace"', _tsrc, re.S),
+          f"{_tname} does not register an --inplace argument, so it cannot be "
+          f"used as a slicer post-processing script")
+    check(re.search(r'add_argument\([^)]*"--version"', _tsrc, re.S),
+          f"{_tname} has no --version flag, so the owner cannot check which "
+          f"copy they are running")
+
+
+# --------------------------------------------------------------------------
+# 3c2. every plugin has a changelog, and it is in step with the version
+# ---------------------------------------------------------------------------
+# The changelog is what the owner reads in the Plugins dialog (via Check
+# setup) and on GitHub. A version bump without a changelog entry is the
+# easiest thing in the world to forget, so it is a hard failure here.
+CHANGELOG_HEAD = re.compile(r"^##\s+(\d+\.\d+\.\d+)\s*[\u2014\u2013-]\s*(\S+)\s*$",
+                            re.MULTILINE)
+for p_ in manifest["plugins"]:
+    cl = REPO / "plugins" / p_["id"] / "CHANGELOG.md"
+    if not check(cl.exists(), f"{p_['id']}: no CHANGELOG.md"):
+        continue
+    heads = CHANGELOG_HEAD.findall(cl.read_text(encoding="utf-8"))
+    if not check(bool(heads), f"{p_['id']}: CHANGELOG.md has no version headings"):
+        continue
+    newest = heads[0][0]
+    check(newest == p_["version"],
+          f"{p_['id']}: newest CHANGELOG.md entry is {newest} but the "
+          f"catalogue ships {p_['version']}. Write the changelog entry.")
+    versions = [h[0] for h in heads]
+    check(len(versions) == len(set(versions)),
+          f"{p_['id']}: duplicate versions in CHANGELOG.md: {versions}")
+    # the plugin carries a copy of it for Check setup to print
+    src = (REPO / p_["path"]).read_text(encoding="utf-8")
+    check("CHANGELOG_RECENT" in src,
+          f"{p_['id']}: the plugin does not carry CHANGELOG_RECENT, so Check "
+          f"setup cannot show the owner what changed")
+    check(f"v{newest}" in src.split("CHANGELOG_RECENT", 1)[-1][:4000],
+          f"{p_['id']}: the embedded changelog does not start at v{newest}. "
+          f"Run: python3 tools/sync_changelog.py")
+
+# a project-wide changelog must exist and mention the current versions
+root_cl = REPO / "CHANGELOG.md"
+if check(root_cl.exists(), "no project-wide CHANGELOG.md at the repo root"):
+    rc = root_cl.read_text(encoding="utf-8")
+    for p_ in manifest["plugins"]:
+        check(p_["version"] in rc,
+              f"CHANGELOG.md never mentions {p_['id']} {p_['version']}")
+
+# ---------------------------------------------------------------------------
+# 3d. the staging folder must not mix tools in with the plugin copies
+# ---------------------------------------------------------------------------
+# %DLDIR% is the folder the README tells people to point Orca's installer at.
+# Orca wants exactly one entry .py per plugin folder, so the standalone tools
+# (which are not plugins) must be staged somewhere else.
+bat_txt = BAT.read_text(encoding="utf-8", errors="replace")
+check('set "TOOLDIR=' in bat_txt,
+      "the .bat no longer defines TOOLDIR; standalone tools would land beside "
+      "the plugin copies and make the plugin entry file ambiguous")
+tool_dl = re.search(r':stage_one_tool\s*\r?\n\s*call :download\s+"[^"]+"\s+"([^"]+)"',
+                    bat_txt)
+check(tool_dl is not None, "could not find the :stage_one_tool download line")
+if tool_dl:
+    check("%TOOLDIR%" in tool_dl.group(1),
+          f"standalone tools are staged to {tool_dl.group(1)!r}, which is the "
+          f"plugin staging folder. Use %TOOLDIR%.")
+
+# ---------------------------------------------------------------------------
 # 4. replay the updater's install loop
 # --------------------------------------------------------------------------
 def report_and_exit() -> None:
@@ -266,7 +498,9 @@ def install_one(p: dict, plugin_root: pathlib.Path) -> str:
         '  "enabled": true,\n'
         '  "installed_from": "local",\n'
         f'  "installed_version": "{p["version"]}",\n'
-        f'  "plugin_name": "{p["name"]}"\n'
+        # ":install_one" composes this as "%PL_NAME% v%PL_VER%" so it matches
+        # the PEP 723 name Orca reads out of the plugin file itself.
+        f'  "plugin_name": "{p["name"]} v{p["version"]}"\n'
         "}\n"
     )
     (dest_dir / ".install_state.json").write_text(sidecar, encoding="utf-8")
@@ -307,6 +541,30 @@ with tempfile.TemporaryDirectory() as tmp:
                   f"{p['id']}: sidecar does not enable the plugin")
             check(state["installed_from"] == "local",
                   f"{p['id']}: sidecar installed_from should be 'local'")
+            # The whole point of the versioned name: the sidecar must call the
+            # plugin exactly what the plugin calls itself, or Orca's saved
+            # enable-state belongs to a plugin name that does not exist.
+            hdr_name = re.search(
+                r'^#\s*name\s*=\s*"([^"]+)"',
+                installed.read_text(encoding="utf-8")[:4000], re.MULTILINE)
+            hdr_name_val = hdr_name.group(1) if hdr_name else None
+            check(state["plugin_name"] == hdr_name_val,
+                  f"{p['id']}: sidecar plugin_name {state['plugin_name']!r} != the "
+                  f"installed file's PEP 723 name {hdr_name_val!r}")
+            check(state["plugin_name"].endswith(f"v{p['version']}"),
+                  f"{p['id']}: sidecar plugin_name {state['plugin_name']!r} does not "
+                  f"show the installed version, so the Plugins dialog cannot either")
+
+        # Orca requires a plugin folder to contain EXACTLY ONE entry file
+        # (one .py or one .whl): find_installed_plugin_entry in
+        # PythonFileUtils.cpp picks the entry point by scanning the folder.
+        # Two .py files there and the plugin does not load.
+        entries = sorted(q.name for q in (root / p["orca_dir"]).glob("*.py"))
+        check(len(entries) == 1,
+              f"{p['id']}: the plugin folder holds {len(entries)} .py files "
+              f"({entries}). Orca needs exactly one entry file per folder.")
+        whls = sorted(q.name for q in (root / p["orca_dir"]).glob("*.whl"))
+        check(not whls, f"{p['id']}: unexpected .whl beside the entry file: {whls}")
 
     # -- an older copy under a different folder name, plus a cloud copy
     p0 = plan[0]
