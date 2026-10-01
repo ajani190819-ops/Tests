@@ -403,7 +403,7 @@ rem ---------------------------------------------------------------------------
 :fallback_plan
 echo   Using the fallback plan built into this file.
 >  "%PLAN_FILE%" echo wave-overhangs-geometry^|Wave Overhangs Geometry^|0.1.4^|WaveOverhangsGeometry^|wave_overhangs_geometry_orca.py^|plugins/wave-overhangs-geometry/wave_overhangs_geometry_orca.py^|Wave Overhangs Geometry^|Wave Overhangs Geometry - Check setup^|end
->> "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.15^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
+>> "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.16^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
 >> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.3.4^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
 exit /b 0
 

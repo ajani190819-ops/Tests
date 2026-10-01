@@ -19,6 +19,18 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — Wave endpoint flow taper
+
+**Wave Overhangs:** 0.0.16.
+
+Kept the original post-processing Wave path as the active direction and added
+Arachne-like endpoint flow taper to the G-code emitter. Wave centerlines and
+covered-bridge subtraction stay the same, but endpoints touching outer walls,
+holes, or concave detail boundaries are split into short moves with reduced E
+near the boundary. The support-side anchor boundary is excluded so the first
+Wave rung still prints at full flow. The plugin-storage log/state behavior from
+0.0.15 remains in place to avoid routine approval prompts.
+
 ## 2026-10-01 — Wave Geometry fill-surface bridge method
 
 **Wave Overhangs Geometry:** 0.1.4.

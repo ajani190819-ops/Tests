@@ -8,9 +8,10 @@ binding record of OrcaSlicer behavior.
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0f4f1-tests`. Never switch branches or push to
   `main`.
-* **Latest code state:** Wave Overhangs Geometry 0.1.4 uses the new
-  `posPrepareInfill` fill-surface method; see git log for the exact head.
-* **Current versions:** Wave Overhangs 0.0.15, Wave Overhangs Geometry 0.1.4,
+* **Latest code state:** Wave Overhangs 0.0.16 is back to the original
+  post-processing path with endpoint flow taper; Geometry 0.1.4 remains an
+  experimental alternate.
+* **Current versions:** Wave Overhangs 0.0.16, Wave Overhangs Geometry 0.1.4,
   Unlayered Infill 0.3.4, updater 1.4.0.
 * **Permanent identities:** `Wave Overhangs`, `Wave Overhangs Geometry`, and
   `Unlayered Infill`. Release numbers must remain out of package and capability
@@ -48,7 +49,7 @@ Important locations:
 
 ## Current implementation
 
-### Wave Overhangs 0.0.15
+### Wave Overhangs 0.0.16
 
 The active implementation is one transactional G-code pass at
 `psGCodePostProcess`:
@@ -71,20 +72,25 @@ The active implementation is one transactional G-code pass at
    re-emit substantial uncovered fragments with proportional extrusion.
 7. Restore the expected XY, fan, and E mode/value state. Uniform absolute-E
    sections restore `M82` and `G92`; mixed E-mode sections remain untouched.
-8. Write only after parsing, generation, subtraction, and assembly succeed. Any
+8. Taper Wave endpoint flow near outer walls, holes, and concave details using
+   short sub-moves with reduced E, while excluding the support-side anchor
+   boundary so anchored starts stay strong.
+9. Write only after parsing, generation, subtraction, and assembly succeed. Any
    exception returns the original G-code unchanged.
 
 The Wave pass uses the bridge move's actual modal nozzle Z. In the supplied
 fixture, the nominal `;Z:` comments differ from the actual height because the
-profile contains a 0.25 mm Z offset. The 0.0.15 fixture output uses 5.650,
+profile contains a 0.25 mm Z offset. The 0.0.16 fixture output uses 5.650,
 9.850, and 14.650 mm for the three Wave blocks.
 
 The captured regression reports three Wave layers, 101 covered bridge moves,
 31 substantial retained fragments, 112 tiny remnants removed, 29 short Wave
-fronts removed, 399 smoothed Wave extrusion moves, restored fan state, exact second-pass
-idempotence, and byte-for-byte unchanged output after deliberate generation failure. The owner
-confirmed that the previous 0.0.11 output visibly produced perimeter-conforming
-waves in real Orca. A fresh 0.0.15 export and physical print remain open.
+fronts removed, 399 no-taper comparison moves, default tapered endpoint G-code
+with lower E near detail boundaries, restored fan state, exact second-pass
+idempotence, and byte-for-byte unchanged output after deliberate generation
+failure. The owner confirmed that the previous 0.0.11 output visibly produced
+perimeter-conforming waves in real Orca. A fresh 0.0.16 export and physical
+print remain open.
 
 There is no standalone Wave post-processing script in this repository. The
 plugin waits for exported Bridge G-code; do not claim a Wave standalone tool
@@ -190,6 +196,17 @@ or a printer.
 
 ## Session log
 
+### 2026-10-01 — Wave endpoint flow taper
+
+After the owner decided to stick with the original post-processing Wave plugin,
+Wave Overhangs moved to 0.0.16. The geometry/path planner stays the same, but
+the emitted Wave G-code now tapers E near endpoints that touch outer walls,
+holes, or concave detail boundaries. The support-side anchor boundary is
+excluded from tapering so starts keep full flow. `edge_taper_distance=0`
+restores the old no-taper 399-move Cube output for comparison. The post-
+processing plugin already used Orca plugin storage for log/state writes, so the
+no-approval-prompt behavior remains in place.
+
 ### 2026-10-01 — Wave Geometry fill-surface method
 
 After the owner clarified that the preview showed Wave shapes but they were
@@ -254,14 +271,15 @@ Tests and synchronization checks are the release gate before commit.
 
 ### 2026-10-01 — Wave 0.0.15
 
-The owner asked for smoother, cleaner fronts and more control. The current
-configuration now documents every setting, including obstacle propagation,
-pattern, endpoint, component ordering, cleanup, extrusion, speed, fan, and
-iteration safety. `component_order="nearest"` can reduce same-distance travel
-moves while preserving near-to-far anchoring; the safe default remains
-`component_order="support"`. The Cube regression remains unchanged.
+The owner asked for smoother, cleaner fronts and more control. The configuration
+then documented every setting, including obstacle propagation, pattern,
+endpoint, component ordering, cleanup, extrusion, speed, fan, and iteration
+safety. `component_order="nearest"` can reduce same-distance travel moves while
+preserving near-to-far anchoring; the safe default remains
+`component_order="support"`. The Cube regression remained unchanged.
 
-A fresh 0.0.15 Orca export and physical print remain unverified.
+A fresh 0.0.15 Orca export and physical print were still unverified at that
+point.
 
 ### 2026-10-01 — Wave 0.0.14
 

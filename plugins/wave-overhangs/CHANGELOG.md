@@ -6,10 +6,23 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.13 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.16 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.16 — 2026-10-01
+
+* Added Arachne-like endpoint flow taper for the post-processing Wave emitter.
+  Wave endpoints that touch outer walls, holes, or concave detail boundaries are
+  split into short moves and extruded with less E near the boundary, so they can
+  finish cleaner instead of leaving full-width jagged blobs.
+* Excludes the support-side anchor boundary from tapering so the first Wave rung
+  keeps full flow where it needs to bite into supported material.
+* Keeps the original one-pass G-code replacement, plugin-storage logging, fan
+  restoration, idempotence, retained-fragment behavior, and fail-closed safety.
+  Setting `edge_taper_distance=0` restores the previous 399-move no-taper Cube
+  output for comparison.
 
 ## 0.0.15 — 2026-10-01
 

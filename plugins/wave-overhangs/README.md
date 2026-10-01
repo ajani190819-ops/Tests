@@ -10,9 +10,9 @@ This is a port of the algorithm behind
 (a C++ fork of OrcaSlicer, algorithm by Janis A. Andersons) as a Python
 slicing-pipeline plugin. Earlier builds ran in real Orca but inserted no waves.
 The owner confirmed that 0.0.11 produced visible, perimeter-conforming waves
-in real Orca. Version 0.0.15 is regression-tested against the captured export
-with corrected Z alignment and edge cleanup; it still needs a fresh Orca export
-and physical-print validation.
+in real Orca. Version 0.0.16 is regression-tested against the captured export
+with corrected Z alignment, edge cleanup, and tapered endpoint flow; it still
+needs a fresh Orca export and physical-print validation.
 
 ## Install
 
@@ -26,7 +26,7 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 
 1. Restart OrcaSlicer (needs newer than 2.4.2, or a nightly).
 2. File → Plugins → confirm *Wave Overhangs* is enabled and its separate
-   Version column reads **0.0.15**. The package name is permanently
+   Version column reads **0.0.16**. The package name is permanently
    version-free.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Wave Overhangs*.
 4. Slice a part with a small overhang, then run the
@@ -35,6 +35,15 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 5. Export the G-code, then reopen that exported file in OrcaSlicer; the normal
    slicer preview is generated before post-processing and will not show the
    Wave result.
+
+## Log and approval prompts
+
+Routine logs and state now default to Orca's plugin storage folder, the same
+safe location used by the other plugins in this repo. That avoids approval
+prompts during normal slicing/export. Run **Wave Overhangs - Check setup** to
+print the exact `orca-plugins.log` path. `ORCA_PLUGIN_LOG_DIR` remains only as a
+debug override; pointing it outside plugin storage can bring approval prompts
+back.
 
 ## How it works (one transactional export pass)
 
@@ -96,6 +105,15 @@ The complete configuration is exposed through `get_default_config()`:
   material remains.
 * `flow_ratio`: multiplies calculated Wave extrusion volume. Keep at `1.0`
   unless you deliberately want more or less plastic.
+* `edge_taper_distance`: Arachne-like cleanup distance in millimetres. Wave
+  endpoints that touch outer walls, holes, or concave detail boundaries are
+  split into short moves and extruded with less E near the boundary. Set to
+  `0` to disable and compare with the older full-flow endpoint behavior.
+* `edge_taper_min_flow`: lowest endpoint flow as a fraction of normal Wave
+  flow. The default keeps more than half flow at the boundary so the line still
+  bonds, but it avoids full-width blobs at curved walls and holes.
+* `edge_taper_segment`: maximum G-code move length inside the taper zone. Lower
+  values make the taper smoother but add more G-code moves.
 
 ### Speed, cooling, and safety
 
@@ -131,6 +149,10 @@ plane is treated as an obstacle, so fronts continue around it instead of
 stopping at only the supported boundary. Topology-safe cleanup falls back to
 the original curved boundary if simplification would cross a hole or concave
 void.
+
+For cleaner surfaces, v0.0.16 tapers extrusion only at Wave endpoints that touch
+non-support detail boundaries. The support-side anchor boundary is excluded, so
+the first Wave rung keeps full flow where it needs to grab supported material.
 
 The fork's reference defaults (for comparison): spacing 0.35 mm, speed
 2 mm/s, fan 100%, flow = nozzle² in mm³/mm (0.16 for a 0.4 nozzle), 1 outer

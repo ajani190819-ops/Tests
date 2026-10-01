@@ -156,11 +156,60 @@ assert stats["short_wave_paths_dropped"] == 29, (
 assert out.startswith("; wave-overhangs v"), "missing build stamp"
 assert out.count("; ==== WAVE OVERHANG BEGIN ====") == 3
 assert out.count("; ==== WAVE OVERHANG END ====") == 3
-wave_move_count = sum(
-    block.count("\nG1 X") for block in re.findall(
-        r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
-        r"; ==== WAVE OVERHANG END ====", out, re.DOTALL))
-assert wave_move_count == 399, "wavefront cleanup changed unexpectedly"
+wave_blocks = re.findall(
+    r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
+    r"; ==== WAVE OVERHANG END ====", out, re.DOTALL)
+wave_move_count = sum(block.count("\nG1 X") for block in wave_blocks)
+legacy_out, legacy_stats = wave._gcode_wave_rewrite(
+    source, dict(cfg, edge_taper_distance=0.0))
+legacy_blocks = re.findall(
+    r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
+    r"; ==== WAVE OVERHANG END ====", legacy_out, re.DOTALL)
+legacy_move_count = sum(block.count("\nG1 X") for block in legacy_blocks)
+assert legacy_stats["removed_moves"] == stats["removed_moves"]
+assert legacy_move_count == 399, "legacy no-taper cleanup changed unexpectedly"
+assert wave_move_count > legacy_move_count, (
+    "edge taper should split only tapered Wave endpoints into shorter moves")
+assert "; wave-overhangs edge taper" in out
+
+def wave_e_per_mm_values(blocks):
+    values = []
+    for block in blocks:
+        x = y = None
+        for line in block.splitlines():
+            if line.startswith("G0"):
+                words = wave._gwords(line)
+                x, y = words.get("X", x), words.get("Y", y)
+            elif line.startswith("G1") and " X" in line and " E" in line:
+                words = wave._gwords(line)
+                nx, ny = words.get("X", x), words.get("Y", y)
+                e = words.get("E")
+                if None not in (x, y, nx, ny, e):
+                    length = math.hypot(nx - x, ny - y)
+                    if length > 1e-6:
+                        values.append(e / length)
+                x, y = nx, ny
+    return values
+
+default_ratios = wave_e_per_mm_values(wave_blocks)
+legacy_ratios = wave_e_per_mm_values(legacy_blocks)
+assert min(default_ratios) < min(legacy_ratios) * 0.75, (
+    "tapered Wave endpoint flow should be visibly lower than normal flow")
+assert max(default_ratios) <= max(legacy_ratios) * 1.01
+
+synthetic_settings = wave._wave_taper_settings(
+    cfg, internal_target, internal_support, geometry_cfg)
+assert synthetic_settings is not None
+assert not wave._endpoint_touches_detail(
+    (2.0, 5.0), synthetic_settings["detail"], geometry_cfg.line_width), (
+    "support-side anchor boundary should not be tapered")
+assert wave._endpoint_touches_detail(
+    (12.0, 5.0), synthetic_settings["detail"], geometry_cfg.line_width), (
+    "outer overhang wall endpoint should taper")
+assert wave._endpoint_touches_detail(
+    (9.0, 5.0), synthetic_settings["detail"], geometry_cfg.line_width), (
+    "hole wall endpoint should taper")
+
 assert "; wave-overhangs replaced covered bridge move" in out
 lines = out.splitlines()
 for marker in [i for i, line in enumerate(lines)
