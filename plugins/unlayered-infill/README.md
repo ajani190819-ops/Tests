@@ -24,14 +24,17 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 2. **Enable "Use relative E distances"** (Printer Settings → Advanced).
    The plugin refuses absolute-E (M82) G-code rather than corrupt it.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Unlayered Infill*.
-4. Slice, then run **Unlayered Infill - Check setup** (Plugins dialog) — it
+4. If Orca preserved an old configuration, open the plugin settings and use
+   **Restore defaults**. This keeps the complete working control set while
+   clearing stale saved values.
+5. Slice, then run **Unlayered Infill - Check setup** (Plugins dialog) — it
    reports the running version on its first line, then whether the export
    step actually fired.
 
-The plugin shows up as *Unlayered Infill v0.3.0* in the Plugins dialog
-(the version is part of the name), and stamps the exported G-code with
-`; unlayered-infill v0.3.0`. The capability names stay version-free so an
-update never orphans your process preset.
+The plugin appears as *Unlayered Infill* in the Plugins dialog. Its separate
+Version column currently reads **0.3.4**, and exported G-code is stamped with
+`; unlayered-infill v0.3.4`. The package and capability names stay version-free
+so an update never orphans your process preset.
 
 ## Configuration
 
@@ -44,7 +47,7 @@ update never orphans your process preset.
 | blend_mm | 2.0 | smooths the taper across neighbouring columns |
 | full_strength | false | classic taper peaks at 0.5; this reaches 1.0 mid-span |
 | require_relative_e | true | refuse M82 rather than corrupt it |
-| log | true | append a readable record of every run to `<Downloads>/orca-plugins.log` |
+| log | true | append a readable record of every run to the plugin-storage `orca-plugins.log` |
 
 Set these per process preset via the plugin's config in Orca. Defaults are
 used when you set nothing.
@@ -68,18 +71,18 @@ actually lay down.
 
 ## The log
 
-Both plugins in this repo append to one plain-text file:
+By default, the plugin writes `orca-plugins.log` in its Orca plugin storage
+folder. Orca allows writes there without prompting during slicing. Run
+**Unlayered Infill - Check setup** to print the exact path, or use Orca's
+Plugins dialog → Show in folder.
 
-```
-%USERPROFILE%\Downloads\orca-plugins.log
-```
-
-It rolls over at about 1 MB. Set `ORCA_PLUGIN_LOG_DIR` to put it elsewhere, or
+It rolls over at about 1 MB. `ORCA_PLUGIN_LOG_DIR` is only a debug override;
+pointing it outside plugin storage can reintroduce approval prompts. Set
 `"log": false` to turn it off. A run looks like this:
 
 ```
-2026-09-30 21:14:02  Unlayered Infill v0.3.0 loaded (engine ok)
-2026-09-30 21:14:19  Unlayered Infill v0.3.0: EXPORT STEP RUNNING
+2026-09-30 21:14:02  Unlayered Infill v0.3.4 loaded (engine ok)
+2026-09-30 21:14:19  Unlayered Infill v0.3.4: EXPORT STEP RUNNING
                        file         : C:\Users\you\AppData\Local\Temp\x.gcode
                        settings     : amplitude='200%' frequency=1.5 cell_mm='auto'
 2026-09-30 21:14:20  Unlayered Infill: DONE -- the G-code was rewritten

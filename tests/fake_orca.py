@@ -16,6 +16,7 @@ slicing pipeline, and an `@orca.plugin` class whose `register_capabilities`
 calls `orca.register_capability`.
 """
 import enum
+import os
 import sys
 import types
 
@@ -64,10 +65,16 @@ class Step(enum.Enum):
 
 
 class _CapabilityBase:
-    """Capabilities are constructed by the host, with config injected."""
+    """Capabilities are constructed by the host with no Python args.
 
-    def __init__(self, config=None):
-        self._config = config
+    Real Orca's bound base constructors accept no arguments. Configuration is
+    available later through get_config(), so tests use set_config() to mimic
+    that host injection. Keeping this constructor strict catches plugins that
+    call super().__init__(None), which fails in Orca at registration time.
+    """
+
+    def __init__(self):
+        self._config = None
 
     def get_config(self):
         """Orca hands back the capability's config as a JSON string."""
@@ -88,6 +95,14 @@ class SlicingPipelineCapabilityBase(_CapabilityBase):
 
 class ScriptPluginCapabilityBase(_CapabilityBase):
     pass
+
+
+class SurfaceType(enum.Enum):
+    stTop = "stTop"
+    stBottom = "stBottom"
+    stBottomBridge = "stBottomBridge"
+    stInternal = "stInternal"
+    stInternalBridge = "stInternalBridge"
 
 
 class Context:
@@ -161,10 +176,23 @@ def install():
     host.model = None
     host.Polygon = object
     host.ExPolygon = object
+    host.SurfaceType = SurfaceType
+
+    plugin_mod = types.ModuleType("orca.host.plugin")
+
+    def storage():
+        path = os.environ.get("ORCA_PLUGIN_STORAGE_DIR")
+        if not path:
+            raise RuntimeError("fake plugin.storage() needs ORCA_PLUGIN_STORAGE_DIR")
+        return path
+
+    plugin_mod.storage = storage
+    host.plugin = plugin_mod
     orca.host = host
 
     sys.modules["orca"] = orca
     sys.modules["orca.slicing"] = slicing
     sys.modules["orca.script"] = script
     sys.modules["orca.host"] = host
+    sys.modules["orca.host.plugin"] = plugin_mod
     return orca

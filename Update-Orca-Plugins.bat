@@ -25,9 +25,9 @@ rem
 rem  How it decides what to install:
 rem    1. fetch plugins.json -- the catalogue -- from REPO at ref REF_1
 rem    2. inline PowerShell turns the catalogue into a pipe-delimited plan
-rem    3. if the catalogue cannot be fetched or parsed, it falls back to the
-rem       hardcoded list at :fallback_plan, which test_installer.py keeps in
-rem       sync with plugins.json
+rem    3. released main can use the hardcoded list if its catalogue is down;
+rem       a test branch instead stops before changing anything. The fallback
+rem       list is kept in sync by test_installer.py
 rem
 rem  The repo must stay public: downloads are unauthenticated
 rem  raw.githubusercontent.com requests, and a private repo 404s every file.
@@ -48,13 +48,14 @@ set "REPO=ajani190819-ops/Tests"
 set "MANIFEST_PATH=plugins.json"
 set "REF_1=main"
 if defined PLUGIN_BRANCH set "REF_1=%PLUGIN_BRANCH%"
-set "REF_2=main"
-if "%REF_2%"=="%REF_1%" set "REF_2="
+set "REF_2="
+set "BRANCH_MODE="
+if /i not "%REF_1%"=="main" set "BRANCH_MODE=1"
 
 rem This updater's own version. The line below it is the machine-readable
 rem copy :self_update compares against; test_installer.py keeps them equal.
-set UPDATER_VERSION=1.1.0
-rem UPDATER_VERSION 1.1.0 end
+set UPDATER_VERSION=1.4.0
+rem UPDATER_VERSION 1.4.0 end
 
 rem PLUGIN_ONLY is matched as a substring against each plugin id.
 if defined PLUGIN_ONLY set "PLUGIN_ONLY=%PLUGIN_ONLY: =%"
@@ -92,6 +93,9 @@ echo ===========================================================================
 echo  OrcaSlicer plugins  --  install / update
 echo  Wave Overhangs + Unlayered Infill
 echo.
+echo  ***************************************************************
+echo  * BRANCH: %REF_1%
+echo  ***************************************************************
 echo  source:    https://github.com/%REPO%   ref: %REF_1%
 echo  catalogue: %MANIFEST_PATH%
 if defined LOCAL_MODE echo  mode:      --local, plugin files from next to this .bat
@@ -101,30 +105,50 @@ echo.
 call :self_update
 if defined SELF_UPDATED goto :child_done
 
-call :select_data_dir "%DATA_DIR_ARG%"
-if errorlevel 1 goto :fail
-
-set "PLUGIN_ROOT=%TARGET_DATA_DIR%\orca_plugins"
-if not exist "%PLUGIN_ROOT%" mkdir "%PLUGIN_ROOT%"
-if errorlevel 1 goto :mkdir_failed
-
-echo  Installing into: "%PLUGIN_ROOT%"
-echo.
-
 set "MANIFEST_TMP=%TEMP%\orca_manifest_%RANDOM%.json"
 set "PLAN_FILE=%TEMP%\orca_plan_%RANDOM%.txt"
 set "PLAN_SRC="
 set "PLAN_MADE="
 
 call :fetch_manifest
+if not defined PLAN_SRC if defined BRANCH_MODE goto :branch_manifest_failed
 if not defined PLAN_SRC echo  Catalogue unavailable; using the fallback list built into this file.
 if defined PLAN_SRC call :build_plan
+if not defined PLAN_MADE if defined BRANCH_MODE goto :branch_manifest_failed
 if not defined PLAN_MADE call :fallback_plan
 if not exist "%PLAN_FILE%" goto :no_plan
+
+rem A test branch is all-or-nothing. Download and validate every plugin before
+rem changing Orca's folders, so a missing second plugin cannot leave a mixed
+rem or half-updated installation.
+if not defined BRANCH_MODE goto :preflight_done
+call :preflight_branch
+if errorlevel 1 goto :fail
+:preflight_done
+
+echo.
+echo  ***************************************************************
+echo  * BUILD TO INSTALL -- branch: %REF_1%
+echo  ***************************************************************
+if defined BRANCH_MODE type "%PREFLIGHT_SUMMARY%"
+if not defined BRANCH_MODE for /f "usebackq tokens=2,3 delims=|" %%A in ("%PLAN_FILE%") do echo    %%A v%%B
+echo  ***************************************************************
+
+rem Only choose or create Orca folders after a test branch has passed its
+rem all-files preflight. A missing branch file therefore changes nothing.
+call :select_data_dir "%DATA_DIR_ARG%"
+if errorlevel 1 goto :fail
+set "PLUGIN_ROOT=%TARGET_DATA_DIR%\orca_plugins"
+if not exist "%PLUGIN_ROOT%" mkdir "%PLUGIN_ROOT%"
+if errorlevel 1 goto :mkdir_failed
+echo  Installing into: "%PLUGIN_ROOT%"
+echo.
 
 set /a PLAN_COUNT=0
 set /a OK_COUNT=0
 set /a FAIL_COUNT=0
+set "INSTALLED_SUMMARY=%TEMP%\orca_installed_%RANDOM%.txt"
+> "%INSTALLED_SUMMARY%" echo    Installed versions:
 
 rem id|name|version|orca_dir|file|repo_path|cap1|cap2 -- plus a sacrificial
 rem 9th field that absorbs the CR `echo` appends to the fallback lines.
@@ -152,15 +176,21 @@ echo       -- the worker and "... - Check setup".
 echo    3. To use one, pick it under Others ^> Slicing Pipeline Plugin.
 echo    4. Unlayered Infill needs "Use relative E distances" enabled.
 echo.
-echo  IMPORTANT -- two reasons it can look like nothing happened:
-echo    * Plugins run on "Export G-code file" ONLY. They do NOT run when you
-echo      press Print or Send.
-echo    * The 3D preview NEVER shows the result. No slicer redraws its preview
-echo      after post-processing. To see the change, drag the exported .gcode
-echo      file back into OrcaSlicer and look at that.
+echo  IMPORTANT -- the two Wave plugins use different pipeline stages:
+echo    * Wave Overhangs Geometry edits fill surfaces and is intended to
+echo      appear in the normal preview. It is experimental and fail-closed.
+echo    * Wave Overhangs edits exported Bridge G-code after slicing. Its
+echo      changes do NOT appear in the normal preview; export and reopen the file.
+echo    * Post-processing runs on Export G-code file, not Print or Send.
 if exist "%DLDIR%" echo    * Copies for Orca's UI installer are in "%DLDIR%"
 if exist "%TOOLDIR%\unlayered_infill_post.py" echo    * No plugin needed: double-click
 if exist "%TOOLDIR%\unlayered_infill_post.py" echo      "%TOOLDIR%\unlayered_infill_post.py" and point it at an exported .gcode
+echo.
+echo  ***************************************************************
+echo  * INSTALLED FROM BRANCH: %REF_1%
+echo  * Versions installed:
+if exist "%INSTALLED_SUMMARY%" type "%INSTALLED_SUMMARY%"
+echo  ***************************************************************
 echo.
 echo  Install/update complete.
 goto :done
@@ -198,6 +228,7 @@ echo   [SKIP] --local: no "%PL_PATH%" next to this .bat.
 exit /b 1
 
 :get_remote
+if defined BRANCH_MODE if exist "%PREFLIGHT_DIR%\%PL_FILE%" ( set "PL_SRC=%PREFLIGHT_DIR%\%PL_FILE%" & goto :have_src )
 call :try_download
 if defined PL_SRC goto :have_src
 echo   [FAIL] could not download %PL_NAME%.
@@ -240,11 +271,9 @@ if errorlevel 1 (
 
 rem Orca's Plugins dialog writes this sidecar when installing locally; writing
 rem it here keeps the copy discoverable and already enabled.
-rem The name is composed as "<name> v<version>" to match the plugin's PEP 723
-rem name header, which carries the version so the Plugins dialog shows it.
-rem Composing it from PL_VER (read from the downloaded file's header) means it
-rem cannot drift from what is actually installed.
-call :write_state "%STATE_FILE%" "%PL_NAME% v%PL_VER%" "%PL_CAP1%" "%PL_CAP2%" "%PL_VER%"
+rem Package names are permanent and version-free. Orca stores them in saved
+rem preset/config identities; real versions live in installed_version.
+call :write_state "%STATE_FILE%" "%PL_NAME%" "%PL_CAP1%" "%PL_CAP2%" "%PL_VER%"
 if errorlevel 1 (
     echo   [FAIL] could not write "%STATE_FILE%".
     exit /b 1
@@ -276,47 +305,83 @@ set "PL_VERMSG="
 if defined OLD_VER if not "%OLD_VER%"=="%PL_VER%" set "PL_VERMSG=(was v%OLD_VER%) "
 for %%A in ("%PL_DEST_FILE%") do set "PL_SIZE=%%~zA"
 echo   [%PL_ACTION%] %PL_NAME% v%PL_VER% %PL_VERMSG%-- %PL_SIZE% bytes
+>> "%INSTALLED_SUMMARY%" echo    %PL_NAME% v%PL_VER%
 echo              "%PL_DEST_FILE%"
 if not "%SIB_COUNT%"=="0" echo              refreshed %SIB_COUNT% other copy/copies under the plugin root
 if defined STAGED echo              copy for Orca's UI installer: "%STAGED%"
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem  try_download  --  fill PL_SRC from REF_1, then REF_2; leaves it empty on
-rem  total failure
+rem  try_download  --  fill PL_SRC from the selected ref only. Never fall
+rem  back to main: mixing branch and released files makes a test meaningless.
 rem ---------------------------------------------------------------------------
 :try_download
 set "PL_SRC="
-if "%REF_1%"=="" goto :try_ref2
+if "%REF_1%"=="" goto :try_done
 set "PL_TMP=%TEMP%\orca_%RANDOM%_%PL_FILE%"
 call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%PL_PATH%" "%PL_TMP%"
-if not errorlevel 1 ( set "PL_SRC=%PL_TMP%" & goto :try_done )
-:try_ref2
-if "%REF_2%"=="" goto :try_done
-set "PL_TMP=%TEMP%\orca_%RANDOM%_%PL_FILE%"
-call :download "https://raw.githubusercontent.com/%REPO%/%REF_2%/%PL_PATH%" "%PL_TMP%"
 if not errorlevel 1 set "PL_SRC=%PL_TMP%"
 :try_done
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem  fetch_manifest  --  fill PLAN_SRC: a local catalogue in --local mode,
-rem  else a download (REF_1, then REF_2)
+rem  fetch_manifest  --  fill PLAN_SRC from the selected ref only. In test
+rem  branch mode the caller stops if it is absent; it never borrows main.
 rem ---------------------------------------------------------------------------
 :fetch_manifest
 set "PLAN_SRC="
 if not defined LOCAL_MODE goto :fm_remote
 if exist "%HERE%\%MANIFEST_PATH%" ( set "PLAN_SRC=%HERE%\%MANIFEST_PATH%" & goto :fm_done )
 :fm_remote
-if "%REF_1%"=="" goto :fm_ref2
-call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%MANIFEST_PATH%" "%MANIFEST_TMP%"
-if not errorlevel 1 ( set "PLAN_SRC=%MANIFEST_TMP%" & goto :fm_done )
-:fm_ref2
-if "%REF_2%"=="" goto :fm_done
-call :download "https://raw.githubusercontent.com/%REPO%/%REF_2%/%MANIFEST_PATH%" "%MANIFEST_TMP%"
+if "%REF_1%"=="" goto :fm_done
+call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%MANIFEST_PATH%" "%MANIFEST_TMP%" 100
 if not errorlevel 1 set "PLAN_SRC=%MANIFEST_TMP%"
 :fm_done
 exit /b 0
+
+rem ---------------------------------------------------------------------------
+rem  preflight_branch -- fetch every selected test-branch plugin before install.
+rem ---------------------------------------------------------------------------
+:preflight_branch
+set "PREFLIGHT_DIR=%TEMP%\orca_preflight_%RANDOM%"
+set "PREFLIGHT_SUMMARY=%PREFLIGHT_DIR%\versions.txt"
+mkdir "%PREFLIGHT_DIR%" 2>nul
+if errorlevel 1 exit /b 1
+> "%PREFLIGHT_SUMMARY%" echo    Selected test build:
+set "PREFLIGHT_FAILED="
+for /f "usebackq tokens=1-9 delims=|" %%A in ("%PLAN_FILE%") do call :preflight_one "%%A" "%%B" "%%E" "%%F"
+if defined PREFLIGHT_FAILED exit /b 1
+exit /b 0
+
+:preflight_one
+set "PF_ID=%~1"
+set "PF_NAME=%~2"
+set "PF_FILE=%~3"
+set "PF_PATH=%~4"
+if defined PLUGIN_ONLY (
+    set "PF_TEST=%PLUGIN_ONLY%"
+    set "PF_TEST=!PF_TEST:%PF_ID%=!"
+    if "!PF_TEST!"=="%PLUGIN_ONLY%" exit /b 0
+)
+call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%PF_PATH%" "%PREFLIGHT_DIR%\%PF_FILE%"
+if errorlevel 1 goto :pf_fail
+findstr /c:"# /// script" "%PREFLIGHT_DIR%\%PF_FILE%" >nul 2>nul
+if errorlevel 1 goto :pf_fail
+set "PF_VER="
+for /f "usebackq tokens=3 delims== " %%V in (`findstr /b /c:"# version = " "%PREFLIGHT_DIR%\%PF_FILE%"`) do set "PF_VER=%%~V"
+if not defined PF_VER goto :pf_fail
+>> "%PREFLIGHT_SUMMARY%" echo    %PF_NAME% v%PF_VER%
+exit /b 0
+:pf_fail
+set "PREFLIGHT_FAILED=1"
+echo.
+echo  ***************************************************************
+echo  * TEST BUILD NOT INSTALLED
+echo  * Branch: %REF_1%
+echo  * Missing or invalid: %PF_PATH%
+echo  * Nothing has been changed. This updater will NOT use main.
+echo  ***************************************************************
+exit /b 1
 
 rem ---------------------------------------------------------------------------
 rem  build_plan  --  inline PowerShell turns the catalogue into the plan file.
@@ -337,14 +402,18 @@ rem  writes, and this way it lands on a field nothing reads.
 rem ---------------------------------------------------------------------------
 :fallback_plan
 echo   Using the fallback plan built into this file.
->  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.6^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
->> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.3.1^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
+>  "%PLAN_FILE%" echo wave-overhangs-geometry^|Wave Overhangs Geometry^|0.1.4^|WaveOverhangsGeometry^|wave_overhangs_geometry_orca.py^|plugins/wave-overhangs-geometry/wave_overhangs_geometry_orca.py^|Wave Overhangs Geometry^|Wave Overhangs Geometry - Check setup^|end
+>> "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.19^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
+>> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.3.4^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem  download %1=url %2=dest   (tries curl.exe, then PowerShell, then BITS)
+rem  download %1=url %2=dest %3=minimum bytes (default 2000 for code)
+rem  The catalogue passes 100 because valid JSON is much smaller than a plugin.
 rem ---------------------------------------------------------------------------
 :download
+set "DL_MIN=2000"
+if not "%~3"=="" set "DL_MIN=%~3"
 del "%~2" 2>nul
 where curl.exe >nul 2>nul
 if not errorlevel 1 (
@@ -363,7 +432,7 @@ exit /b 1
 
 :download_check
 rem Reject empty / truncated files (e.g. an error page saved as the plugin).
-for %%A in ("%~2") do if %%~zA GTR 2000 exit /b 0
+for %%A in ("%~2") do if %%~zA GEQ %DL_MIN% exit /b 0
 echo   Downloaded file looks empty or truncated.
 del "%~2" 2>nul
 exit /b 1
@@ -487,6 +556,7 @@ rem  Plugin updates never need any of this: the plugin files and the catalogue
 rem  are downloaded fresh on every run already.
 :self_update
 if defined ORCA_UPDATER_CHILD exit /b 0
+if defined BRANCH_MODE exit /b 0
 if defined NO_SELF_UPDATE exit /b 0
 if defined LOCAL_MODE exit /b 0
 echo  Checking for a newer version of this updater...
@@ -503,7 +573,7 @@ rem Same version as ours? Nothing to do.
 findstr /b /c:"rem UPDATER_VERSION %UPDATER_VERSION% end" "%NEWBAT%" >nul 2>nul
 if not errorlevel 1 goto :su_skip
 set "NEW_UV=?"
-rem "rem UPDATER_VERSION 1.1.0 end" -- token 3 is the version, and the
+rem "rem UPDATER_VERSION 1.4.0 end" -- token 3 is the version, and the
 rem trailing "end" absorbs the CR so it never lands in the variable.
 for /f "usebackq tokens=3" %%V in (`findstr /b /c:"rem UPDATER_VERSION " "%NEWBAT%"`) do set "NEW_UV=%%V"
 echo  Updater: this copy is v%UPDATER_VERSION%, v%NEW_UV% is available.
@@ -552,6 +622,16 @@ if not defined CHILD_RC set "CHILD_RC=0"
 exit /b %CHILD_RC%
 
 rem ---------------------------------------------------------------------------
+:branch_manifest_failed
+echo.
+echo  ***************************************************************
+echo  * TEST BUILD NOT INSTALLED
+echo  * Branch: %REF_1%
+echo  * plugins.json is missing or invalid on that branch.
+echo  * Nothing has been changed. This updater will NOT use main.
+echo  ***************************************************************
+goto :fail
+
 :no_plan
 echo.
 echo ERROR: no plan could be built -- the catalogue fetch and the fallback
@@ -596,11 +676,15 @@ echo.
 echo Install/update FAILED.
 if exist "%PLAN_FILE%" del "%PLAN_FILE%" 2>nul
 if exist "%MANIFEST_TMP%" del "%MANIFEST_TMP%" 2>nul
+if defined PREFLIGHT_DIR if exist "%PREFLIGHT_DIR%" rmdir /s /q "%PREFLIGHT_DIR%" 2>nul
+if defined INSTALLED_SUMMARY if exist "%INSTALLED_SUMMARY%" del "%INSTALLED_SUMMARY%" 2>nul
 pause
 exit /b 1
 
 :done
 if exist "%PLAN_FILE%" del "%PLAN_FILE%" 2>nul
 if exist "%MANIFEST_TMP%" del "%MANIFEST_TMP%" 2>nul
+if defined PREFLIGHT_DIR if exist "%PREFLIGHT_DIR%" rmdir /s /q "%PREFLIGHT_DIR%" 2>nul
+if defined INSTALLED_SUMMARY if exist "%INSTALLED_SUMMARY%" del "%INSTALLED_SUMMARY%" 2>nul
 pause
 exit /b 0

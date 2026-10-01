@@ -2,11 +2,17 @@
 __pycache__/
 *.py[cod]
 
-# Runtime state a plugin writes next to itself once installed in Orca's data
-# dir ("Check setup" reads these -- see docs/ORCA-PLUGIN-FACTS.md). They are
+# Runtime state a plugin writes in Orca's plugin storage ("Check setup" reads
+# these -- see docs/ORCA-PLUGIN-FACTS.md). They are
 # per-machine facts, never shipped, and must not land in the repo.
 *_state.json
 .install_state.json
 
-# Sliced output used for hand-testing the G-code tools.
+# Sliced output used for hand-testing the G-code tools. Keep the captured
+# regression fixture under version control.
 *.gcode
+!tests/fixtures/*.gcode
+
+# Runtime logs created by Orca/plugin tests; never source.
+*.log
+*.log.*

@@ -83,6 +83,7 @@ README.md                   human-facing front door / tour
 docs/
   ORCA-PLUGIN-FACTS.md      OrcaSlicer plugin-system facts (do not re-derive)
   ROADMAP.md                what's planned and every open question
+  reference/                supplied OrcaSlicer wiki/PDF reference snapshots
 plugins/
   wave-overhangs/           OrcaSlicer pipeline plugin: support-free steep overhangs
   unlayered-infill/         OrcaSlicer pipeline plugin: sine-wave interlocking infill
@@ -92,13 +93,13 @@ tools/
 keyboard-lighting/          unrelated personal project; DO NOT reorganize or "fix" it
 tests/
   fake_orca.py              minimal stand-in for Orca's `orca` module
+  fixtures/                 supplied STL and captured real G-code regression input
   test_installer.py         contract test: catalogue / .bat / files must agree
   test_post_script.py       functional test: the engine really rewrites G-code
   test_plugin_runtime.py    runtime test: the PLUGIN loads, runs and logs
-  test_plugin_audit.py      imports both plugins under Orca's audit hook
-  CHANGELOG.md              project-wide history (part of the memory system)
-  plugins/<id>/CHANGELOG.md per-plugin history, shown by Check setup
-  tools/sync_changelog.py   CHANGELOG.md -> CHANGELOG_RECENT + description
+  test_plugin_audit.py      imports all shipped plugins under Orca's audit hook
+  test_wave_gcode.py        captured real-export Wave replacement regression
+  test_wave_geometry.py     preview-visible geometry-stage Wave regression
 ```
 
 The `plugins.json` entry `path` is a URL path into this repo (forward slashes,
@@ -116,30 +117,28 @@ you forget, and it is the safety net for exactly this.
    `*.bat -text` in `.gitattributes` keeps git from re-normalizing it. Never
    edit it with tools that convert line endings (Python `Path.write_text`
    does — use binary mode). After editing, assert the CRLF count.
-3. **Version bumps take edits in lockstep**, in the plugin file: the PEP 723
-   `# version = "..."` header, the PEP 723 `# name = "..."` header (spelled
-   `<Name> v<version>` so Orca's Plugins dialog shows the version), the
-   module-level `PLUGIN_VERSION` constant, and any `MARKER_VERSION` inside an
-   inlined engine (it lands in the exported G-code). Then `plugins.json`, the
-   .bat fallback list, and — for unlayered-infill — `TOOL_VERSION` in the
-   standalone `*_post.py` (seven places in total; edit `MARKER_VERSION` in the
-   standalone and run `tools/sync_engine.py` so both engine copies move). `tests/test_installer.py` enforces that every one of
-   them agrees — run it. (The .bat stamps the installed version from the
-   downloaded file's header, so the header is the source of truth, and it
-   composes the sidecar's `plugin_name` as `"%PL_NAME% v%PL_VER%"` to match the
-   name header automatically.)
+3. **Version bumps take edits in lockstep.** Update the plugin's PEP 723
+   `# version = "..."` header, its module-level `PLUGIN_VERSION`, the catalogue
+   entry, and the .bat fallback row. For Unlayered Infill also update
+   `TOOL_VERSION` and the standalone engine marker, then run
+   `python3 tools/sync_engine.py` so both engine copies move together. The
+   tests enforce every version surface, including exported G-code stamps.
+   **Never change the PEP 723 `name` casually.** The Plugin Development PDF
+   says Orca saves `plugin_name` inside preset/config identities. Both package
+   and capability names are permanently version-free: `Wave Overhangs` and
+   `Unlayered Infill`. Release numbers belong only in explicit version fields,
+   logs, Check setup, changelogs, tools and G-code stamps. The updater writes
+   that stable package name to its sidecar; it does not append the release
+   number to the identity. `tests/test_installer.py` enforces this — run it.
    **Every bump also needs a changelog entry.** Add a `## <version> — <date>`
-   section at the top of `plugins/<id>/CHANGELOG.md` describing the change in
-   the owner's language (what they will notice, not what you refactored), add
-   a dated entry to the root `CHANGELOG.md`, then run
-   `python3 tools/sync_changelog.py` — it copies the newest three releases
-   into the plugin as `CHANGELOG_RECENT` (printed by *Check setup*) and
-   refreshes the "What's new in vX.Y.Z" suffix on the PEP 723 description
-   (shown in Orca's Description tab). `tests/test_installer.py` fails if the
-   newest changelog entry does not match the shipped version.
+   section at the top of `plugins/<id>/CHANGELOG.md` describing what the owner
+   will notice, add a dated entry to the root `CHANGELOG.md`, then run
+   `python3 tools/sync_changelog.py`. The generator copies the newest three
+   plugin releases into `CHANGELOG_RECENT` and refreshes the PEP 723 description.
+   `tests/test_installer.py` fails if the newest entry does not match the file.
    **The version must never go into a capability name** — a process preset
-   stores the capability name as its value, so renaming capabilities orphans
-   the preset and Orca refuses to slice. See `docs/ORCA-PLUGIN-FACTS.md`.
+   stores that name as its value, so renaming it orphans the preset. See
+   `docs/ORCA-PLUGIN-FACTS.md`.
 4. **No `|`, `^`, `%`, `!` in any catalogue field** — they corrupt the .bat's
    pipe-delimited plan or cmd.exe parsing.
 5. **Exactly two capabilities per plugin** in the catalogue — the .bat's plan
@@ -170,7 +169,7 @@ you forget, and it is the safety net for exactly this.
     wrapped so that a full disk, a read-only folder or a missing Downloads
     directory can only lose the log line, never fail the export. The log goes
     to `<Downloads>/orca-plugins.log` because the owner has to be able to find
-    it; both plugins share the one file. Keep the step trace bounded (log each
+    it; all plugins share the one file. Keep the step trace bounded (log each
     pipeline step once) or it will fill their Downloads folder.
 12. **Never make the .bat overwrite itself while it runs.** `cmd.exe` streams
     a batch file from disk by byte offset as it executes, so a self-overwrite
@@ -203,6 +202,7 @@ python3 tests/test_installer.py        # catalogue / .bat / files agree
 python3 tests/test_post_script.py      # the engine really rewrites G-code
 python3 tests/test_plugin_runtime.py   # the plugin loads, runs, and logs
 python3 tests/test_plugin_audit.py     # it imports under Orca's audit hook
+python3 tests/test_wave_gcode.py       # captured export; needs numpy + shapely
 python3 tools/sync_engine.py --check   # the two engine copies are identical
 python3 tools/sync_changelog.py --check  # changelogs match the plugins
 git ls-files --eol Update-Orca-Plugins.bat   # must say i/crlf

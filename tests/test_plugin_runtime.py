@@ -25,6 +25,9 @@ import tempfile
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent
 PLUGIN = REPO / "plugins" / "unlayered-infill" / "unlayered_infill_orca.py"
+WAVE_PLUGIN = REPO / "plugins" / "wave-overhangs" / "wave_overhangs_orca.py"
+GEOMETRY_PLUGIN = (REPO / "plugins" / "wave-overhangs-geometry" /
+                   "wave_overhangs_geometry_orca.py")
 sys.path.insert(0, str(HERE))
 
 import fake_orca  # noqa: E402
@@ -120,6 +123,10 @@ with tempfile.TemporaryDirectory() as tmp:
     check(d["amplitude"] == "200%", f"amplitude default is {d['amplitude']!r}, want '200%'")
     check(d["cell_mm"] == "auto",
           f"cell_mm default is {d['cell_mm']!r}; it must follow the nozzle diameter")
+    check(d["frequency"] == 1.5 and d["segment_mm"] == 1.0,
+          f"0.3.0 frequency/segment controls drifted: {d}")
+    check(d["blend_mm"] == 2.0 and d["full_strength"] is False,
+          f"0.3.0 blending/full-strength controls drifted: {d}")
     check(d["log"] is True, "logging must be on by default")
 
     # 200% of a 0.3 mm layer is 0.6 mm — the owner's own worked example
@@ -156,7 +163,7 @@ with tempfile.TemporaryDirectory() as tmp:
     log = read_log(logs)
     check(log.count("posSlice") == 1,
           f"posSlice should be logged exactly once, saw {log.count('posSlice')} "
-          f"— an unbounded log would fill the owner's Downloads folder")
+          f"— an unbounded log would fill the plugin storage folder")
 
     # ----------------------------------------------------------------------
     # 5. the real thing: run the export step on a sliced cube
@@ -225,7 +232,8 @@ with tempfile.TemporaryDirectory() as tmp:
     # ----------------------------------------------------------------------
     g2 = tmp / "cube2.gcode"
     g2.write_text(src, encoding="utf-8")
-    cap2 = orca.REGISTERED[0]({"amplitude": "50%", "frequency": 3.0})
+    cap2 = orca.REGISTERED[0]()
+    cap2.set_config({"amplitude": "50%", "frequency": 3.0})
     r = cap2.execute(fake_orca.Context(fake_orca.Step.psGCodePostProcess, str(g2)))
     check(r.ok, f"a configured run failed: {r!r}")
     check("50% of layer height" in read_log(logs),
@@ -233,7 +241,8 @@ with tempfile.TemporaryDirectory() as tmp:
 
     g3 = tmp / "cube3.gcode"
     g3.write_text(src, encoding="utf-8")
-    cap3 = orca.REGISTERED[0]({"enabled": False})
+    cap3 = orca.REGISTERED[0]()
+    cap3.set_config({"enabled": False})
     r = cap3.execute(fake_orca.Context(fake_orca.Step.psGCodePostProcess, str(g3)))
     check(r.ok and g3.read_text(encoding="utf-8") == src,
           "enabled=false should leave the file alone")
@@ -259,7 +268,8 @@ with tempfile.TemporaryDirectory() as tmp:
     size_before = (logs / "orca-plugins.log").stat().st_size
     g4 = tmp / "cube4.gcode"
     g4.write_text(src, encoding="utf-8")
-    cap4 = orca.REGISTERED[0]({"log": False})
+    cap4 = orca.REGISTERED[0]()
+    cap4.set_config({"log": False})
     r = cap4.execute(fake_orca.Context(fake_orca.Step.psGCodePostProcess, str(g4)))
     check(r.ok and g4.read_text(encoding="utf-8") != src,
           "log=false should still do the work")
@@ -267,32 +277,23 @@ with tempfile.TemporaryDirectory() as tmp:
           "log=false still wrote to the log")
 
     # ----------------------------------------------------------------------
-    # 11b. with no override, the log really does land in Downloads
-    #      (every check above sets ORCA_PLUGIN_LOG_DIR, so without this the
-    #      default path would be completely untested)
+    # 11b. with no override, the log lands in Orca's plugin storage.
+    #      That is the no-prompt path: normal slicing must not ask the owner to
+    #      authorize writes to Downloads just so a diagnostic line can be saved.
     # ----------------------------------------------------------------------
-    saved_home = os.environ.get("HOME")
     os.environ.pop("ORCA_PLUGIN_LOG_DIR", None)
-    home = tmp / "fakehome"
-    (home / "Downloads").mkdir(parents=True)
-    os.environ["HOME"] = str(home)
+    storage = tmp / "plugin-storage"
+    storage.mkdir()
+    os.environ["ORCA_PLUGIN_STORAGE_DIR"] = str(storage)
     try:
         lp = pathlib.Path(plugin.log_path())
-        check(lp == home / "Downloads" / "orca-plugins.log",
-              f"with a Downloads folder present the log must go there; "
-              f"log_path() gave {lp}")
-        # no Downloads folder (non-English Windows, or Linux): fall back home,
-        # never to somewhere the owner will not find
-        home2 = tmp / "fakehome2"
-        home2.mkdir()
-        os.environ["HOME"] = str(home2)
-        lp2 = pathlib.Path(plugin.log_path())
-        check(lp2 == home2 / "orca-plugins.log",
-              f"with no Downloads folder the log should fall back to the home "
-              f"directory; got {lp2}")
+        check(lp == storage / "orca-plugins.log",
+              f"default log path must use plugin storage to avoid approval "
+              f"prompts; log_path() gave {lp}")
+        check(pathlib.Path(plugin._state_path()).parent == storage,
+              "state diagnostics must also use plugin storage by default")
     finally:
-        if saved_home is not None:
-            os.environ["HOME"] = saved_home
+        os.environ.pop("ORCA_PLUGIN_STORAGE_DIR", None)
         os.environ["ORCA_PLUGIN_LOG_DIR"] = str(logs)
 
     # an unwritable log directory must not break the export
@@ -305,12 +306,110 @@ with tempfile.TemporaryDirectory() as tmp:
           "be able to ruin a print")
     os.environ["ORCA_PLUGIN_LOG_DIR"] = str(logs)
 
+# --------------------------------------------------------------------------
+# 12. Wave Overhangs follows the PDF contract and explains missing deps
+# --------------------------------------------------------------------------
+# numpy/shapely are deliberately absent in this sandbox. That lets us exercise
+# the first-install failure the owner is facing without pretending geometry ran.
+with tempfile.TemporaryDirectory() as tmp:
+    logs = pathlib.Path(tmp) / "Downloads"
+    logs.mkdir()
+    os.environ["ORCA_PLUGIN_LOG_DIR"] = str(logs)
+    orca = fake_orca.install()
+    sys.modules.pop("wave_overhangs_orca", None)
+    sys.modules.pop("wave_core", None)
+    spec = importlib.util.spec_from_file_location("wave_overhangs_orca", WAVE_PLUGIN)
+    wave = importlib.util.module_from_spec(spec)
+    sys.modules["wave_overhangs_orca"] = wave
+    try:
+        spec.loader.exec_module(wave)
+    except Exception as e:
+        check(False, f"Wave Overhangs could not load without optional deps: {e}")
+    else:
+        check(read_log(logs) == "",
+              "Wave Overhangs wrote during import; Orca's audit hook can block it")
+        check(len(orca.PLUGINS) == 1,
+              f"Wave Overhangs needs exactly one @orca.plugin package, got {len(orca.PLUGINS)}")
+        orca.PLUGINS[0]().register_capabilities()
+        names = [c().get_name() for c in orca.REGISTERED]
+        check(names == ["Wave Overhangs", "Wave Overhangs - Check setup"],
+              f"Wave capability identities changed: {names}")
+        check(wave.PLUGIN_VERSION == "0.0.19",
+              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.19")
+
+        # The active Wave implementation is deliberately G-code-only. Its
+        # source must not retain the removed slice-object planner, host Polygon
+        # conversion, or cross-callback geometry stash.
+        wave_source = WAVE_PLUGIN.read_text(encoding="utf-8")
+        check("def _parse_gcode_geometry(" in wave_source and
+              "actual_z = sec[\"segments\"][0].get(\"z\")" in wave_source,
+              "Wave does not derive replacement Z from exported bridge moves")
+        check("_PLAN" not in wave_source and
+              "_carve_layer" not in wave_source and
+              "orca.host.Polygon" not in wave_source,
+              "Wave still contains the removed slice-object planning path")
+        check("no cross-callback geometry" in wave_source and
+              "one transactional G-code pass" in wave_source,
+              "Wave source no longer documents its transactional architecture")
+
+        result = orca.REGISTERED[1]().execute()
+        check(not result.ok and result.kind == fake_orca.PluginResult.RecoverableError,
+              "Check setup must return a recoverable failure when dependencies are absent")
+        check("numpy" in result.message and "shapely" in result.message and
+              "Fully quit OrcaSlicer (not just close the window)" in result.message and
+              "Diagnostics" in result.message,
+              f"dependency failure does not give a complete beginner-safe fix: {result.message!r}")
+        log = read_log(logs)
+        check("Wave Overhangs v0.0.19 loaded" in log and "MISSING" in log,
+              f"Wave dependency state was not logged clearly:\n{log}")
+        pipeline = orca.REGISTERED[0]()
+        result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))
+        check(not result.ok and "dependency" in result.message.lower(),
+              "Wave pipeline must refuse clearly rather than silently no-op without deps")
+
+# The geometry alternate has the same recoverable dependency behavior, while
+# its real geometry mutation is covered by tests/test_wave_geometry.py with the
+# dependencies installed.
+with tempfile.TemporaryDirectory() as tmp:
+    logs = pathlib.Path(tmp) / "Downloads"
+    logs.mkdir()
+    os.environ["ORCA_PLUGIN_LOG_DIR"] = str(logs)
+    orca = fake_orca.install()
+    sys.modules.pop("wave_overhangs_geometry_orca", None)
+    spec = importlib.util.spec_from_file_location(
+        "wave_overhangs_geometry_orca", GEOMETRY_PLUGIN)
+    geometry = importlib.util.module_from_spec(spec)
+    sys.modules["wave_overhangs_geometry_orca"] = geometry
+    try:
+        spec.loader.exec_module(geometry)
+    except Exception as e:
+        check(False, f"Wave Overhangs Geometry could not load without optional deps: {e}")
+    else:
+        orca.PLUGINS[0]().register_capabilities()
+        names = [c().get_name() for c in orca.REGISTERED]
+        check(names == ["Wave Overhangs Geometry",
+                        "Wave Overhangs Geometry - Check setup"],
+              f"Geometry capability identities changed: {names}")
+        check(geometry.PLUGIN_VERSION == "0.1.4",
+              f"Geometry runtime version is {geometry.PLUGIN_VERSION}, want 0.1.4")
+        result = orca.REGISTERED[1]().execute()
+        check(result.ok and "posPrepareInfill" in result.message and
+              "fill-surface" in result.message and "original Orca perimeter" in result.message and
+              "bridge" in result.message and "outward" in result.message and
+              "read-only" in result.message,
+              "Geometry Check setup must explain the fill-surface stage, bridge "
+              "classification, original-perimeter preservation, ordering bias, and API limit")
+        result = orca.REGISTERED[0]().execute(
+            fake_orca.Context(fake_orca.Step.posPrepareInfill))
+        check(not result.ok and "numpy" in result.message,
+              "Geometry must report missing dependencies rather than silently no-op")
+
 if failures:
     print(f"FAILED ({len(failures)})")
     for f in failures:
         print(f"  - {f}")
     sys.exit(1)
 
-print("ok -- the plugin loads, registers 2 capabilities, rewrites G-code at "
-      "psGCodePostProcess, refuses absolute E, is idempotent, honours preset "
-      "config, and logs to the Downloads folder")
+print("ok -- Unlayered Infill rewrites G-code; Wave plugins register their "
+      "capabilities and report missing numpy/shapely as clear recoverable "
+      "dependency failures")
