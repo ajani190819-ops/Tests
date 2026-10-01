@@ -1,11 +1,45 @@
 # Changelog — Unlayered Infill
 
 What changed in each version, newest first. The version you have is shown in
-OrcaSlicer's **Plugins** dialog (the Name column reads `Unlayered Infill v…`),
-and running the **Unlayered Infill - Check setup** capability prints it along
-with a short version history.
+OrcaSlicer's **Plugins** dialog in its separate Version column, and running
+**Unlayered Infill - Check setup** prints it with a short version history.
 
 Dates are the day the change was made, not a release date.
+
+## 0.3.4 — 2026-09-30
+
+* **The permanent package name is now simply `Unlayered Infill`.** Release
+  numbers will never be placed in the package or capability names again. Read
+  the separate Version column for the installed release.
+* The complete 0.3.0 control set is pinned as the default configuration:
+  percentage amplitude (`200%`), frequency, segment length, automatic
+  nozzle-width grid, blending radius, and full-strength switch. The controls
+  no longer depend on finding a configuration slot with an old versioned name.
+* This is the final naming migration. Reselect `Unlayered Infill` once after
+  updating; future releases keep that exact identity.
+
+## 0.3.3 — 2026-09-30
+
+* **Restored the `Unlayered Infill v0.3.0` compatibility identity.** Changing
+  the plugin name in 0.3.2 made Orca look in a new configuration slot, so the
+  owner's saved percentage amplitude, nozzle grid, blending, frequency, and
+  full-strength controls appeared to stop working. The actual code was still
+  present; this reconnects Orca to the configuration that worked in 0.3.0.
+* The current import-safety, logging, G-code, and updater fixes remain. This is
+  not a rollback to the unsafe 0.3.0 source.
+* The real release remains visible as 0.3.3 in Orca's Version column, Check
+  setup, logs, updater output, standalone tool, and G-code stamp.
+
+## 0.3.2 — 2026-09-30
+
+* **The plugin name is now permanently `Unlayered Infill`.** Orca's
+  development guide says a process preset saves the plugin name as part of its
+  full capability reference. A version inside that name changed the saved
+  identity every release. The version remains visible in Orca's Version
+  column, Check setup, logs, G-code stamps, the standalone tool, and updater
+  output.
+* After updating, select Unlayered Infill once more in the process preset so
+  Orca saves the stable reference.
 
 ## 0.3.1 — 2026-09-30
 
