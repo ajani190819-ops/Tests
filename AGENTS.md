@@ -96,6 +96,9 @@ tests/
   test_post_script.py       functional test: the engine really rewrites G-code
   test_plugin_runtime.py    runtime test: the PLUGIN loads, runs and logs
   test_plugin_audit.py      imports both plugins under Orca's audit hook
+  CHANGELOG.md              project-wide history (part of the memory system)
+  plugins/<id>/CHANGELOG.md per-plugin history, shown by Check setup
+  tools/sync_changelog.py   CHANGELOG.md -> CHANGELOG_RECENT + description
 ```
 
 The `plugins.json` entry `path` is a URL path into this repo (forward slashes,
@@ -125,6 +128,15 @@ you forget, and it is the safety net for exactly this.
    downloaded file's header, so the header is the source of truth, and it
    composes the sidecar's `plugin_name` as `"%PL_NAME% v%PL_VER%"` to match the
    name header automatically.)
+   **Every bump also needs a changelog entry.** Add a `## <version> — <date>`
+   section at the top of `plugins/<id>/CHANGELOG.md` describing the change in
+   the owner's language (what they will notice, not what you refactored), add
+   a dated entry to the root `CHANGELOG.md`, then run
+   `python3 tools/sync_changelog.py` — it copies the newest three releases
+   into the plugin as `CHANGELOG_RECENT` (printed by *Check setup*) and
+   refreshes the "What's new in vX.Y.Z" suffix on the PEP 723 description
+   (shown in Orca's Description tab). `tests/test_installer.py` fails if the
+   newest changelog entry does not match the shipped version.
    **The version must never go into a capability name** — a process preset
    stores the capability name as its value, so renaming capabilities orphans
    the preset and Orca refuses to slice. See `docs/ORCA-PLUGIN-FACTS.md`.
@@ -192,6 +204,7 @@ python3 tests/test_post_script.py      # the engine really rewrites G-code
 python3 tests/test_plugin_runtime.py   # the plugin loads, runs, and logs
 python3 tests/test_plugin_audit.py     # it imports under Orca's audit hook
 python3 tools/sync_engine.py --check   # the two engine copies are identical
+python3 tools/sync_changelog.py --check  # changelogs match the plugins
 git ls-files --eol Update-Orca-Plugins.bat   # must say i/crlf
 ```
 

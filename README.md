@@ -24,6 +24,28 @@ handoff file: where the work stands, what's already decided, what's next).
 Starting a new chat? Those two files are how it picks up where the last one
 left off.
 
+## Download the updater
+
+**[`Update-Orca-Plugins.bat`](Update-Orca-Plugins.bat)** — this is the
+installer/updater. It is the file with that exact name at the **top level of
+this repository**, in the file list above. Click it, then press the **Raw**
+(or **Download**) button.
+
+Or save this link directly (right-click → *Save link as…*):
+
+<https://raw.githubusercontent.com/ajani190819-ops/Tests/main/Update-Orca-Plugins.bat>
+
+You only need to download it once — it updates itself from then on.
+
+## What changed recently
+
+* [`CHANGELOG.md`](CHANGELOG.md) — the whole project
+* [`plugins/unlayered-infill/CHANGELOG.md`](plugins/unlayered-infill/CHANGELOG.md)
+* [`plugins/wave-overhangs/CHANGELOG.md`](plugins/wave-overhangs/CHANGELOG.md)
+
+Inside OrcaSlicer, run the plugin's **Check setup** capability — it prints the
+running version and what changed in the last three releases.
+
 ## Updating your installed plugins (Windows)
 
 **The updater is the file `Update-Orca-Plugins.bat` at the top level of this

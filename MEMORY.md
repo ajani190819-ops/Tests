@@ -11,7 +11,7 @@ Read it before touching anything, and **update it before your session ends** —
 file has left the next session worse off.
 
 * **Last updated:** 2026-09-30 (session 5)
-* **Verified against the repo:** 2026-09-30 — all four test files pass and
+* **Verified against the repo:** 2026-09-30 — all four test files pass, both sync tools are clean, and
   were mutation-tested (24 mutations, 24 caught),
   `git ls-files --eol Update-Orca-Plugins.bat` says `i/crlf`, `plugins.json`
   confirmed live on `main`.
@@ -60,6 +60,7 @@ which does not block starting.
 | Functional test | `python3 tests/test_post_script.py` → **passing** |
 | Runtime test | `python3 tests/test_plugin_runtime.py` → **passing** — the plugin itself now runs here |
 | Audit test | `python3 tests/test_plugin_audit.py` → **passing** — both plugins import under a hook that denies every write |
+| Changelog sync | `python3 tools/sync_changelog.py --check` → **passing** |
 | Log | both plugins append to `<Downloads>/orca-plugins.log` |
 | CI | **None.** See the known gap in §3. |
 | Work C (Wave Overhangs post-processing script) | not started — **unblocked**, design settled (C1 + C2 answered) |
@@ -540,6 +541,42 @@ root on both refs. `README.md` now gives the raw URL outright.
 Versions: unlayered-infill **0.3.1**, wave-overhangs **0.0.6**.
 Hard rules are now **fourteen** (13 = no I/O at import, 14 = one entry file
 per plugin folder). Mutation score across three rounds: **30/30**.
+
+## 8c. The changelog system (added 2026-09-30, session 5)
+
+The owner asked for changelogs — "not just for these plugins which I would
+like but for the entire project as a whole as a part of the memory thing",
+and **specifically visible when adding the plugins into Orca**.
+
+Three files, one generator:
+
+| File | Covers |
+|---|---|
+| `CHANGELOG.md` (root) | the whole repo: updater, tests, docs, plugins |
+| `plugins/unlayered-infill/CHANGELOG.md` | that plugin only |
+| `plugins/wave-overhangs/CHANGELOG.md` | that plugin only |
+
+`python3 tools/sync_changelog.py` reads each per-plugin changelog and writes
+two things into the plugin file:
+
+1. `CHANGELOG_RECENT` — the newest three releases as plain text. **Check
+   setup prints it**, including on Wave Overhangs' dependency-failure path,
+   which is the state the owner is most likely to be looking at.
+2. a `| What's new in vX.Y.Z: ...` suffix on the PEP 723 `description`, which
+   Orca shows in the **Description** tab — the tab you read while installing.
+
+`--check` fails without writing, for the gate.
+
+**Why not Orca's own Changelog tab:** it exists ("version / date / changes
+table"), but `PluginDescriptor.changelog` is filled from the **cloud listing**,
+and the PEP 723 parser reads only name / description / author / version /
+requires-python / dependencies. There is no documented way for a side-loaded
+`.py` to populate that tab. The two routes above are the ones that provably
+work. If these plugins are ever published to Orca Cloud, fill the listing's
+Changelog field from `plugins/<id>/CHANGELOG.md`.
+
+Writing a changelog entry is now **part of hard rule 3** and
+`tests/test_installer.py` fails a version bump that lacks one.
 
 ## 9. End-of-session checklist — how to leave this file
 

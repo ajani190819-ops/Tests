@@ -393,6 +393,45 @@ for _tpath, _tname in _tools:
 
 
 # --------------------------------------------------------------------------
+# 3c2. every plugin has a changelog, and it is in step with the version
+# ---------------------------------------------------------------------------
+# The changelog is what the owner reads in the Plugins dialog (via Check
+# setup) and on GitHub. A version bump without a changelog entry is the
+# easiest thing in the world to forget, so it is a hard failure here.
+CHANGELOG_HEAD = re.compile(r"^##\s+(\d+\.\d+\.\d+)\s*[\u2014\u2013-]\s*(\S+)\s*$",
+                            re.MULTILINE)
+for p_ in manifest["plugins"]:
+    cl = REPO / "plugins" / p_["id"] / "CHANGELOG.md"
+    if not check(cl.exists(), f"{p_['id']}: no CHANGELOG.md"):
+        continue
+    heads = CHANGELOG_HEAD.findall(cl.read_text(encoding="utf-8"))
+    if not check(bool(heads), f"{p_['id']}: CHANGELOG.md has no version headings"):
+        continue
+    newest = heads[0][0]
+    check(newest == p_["version"],
+          f"{p_['id']}: newest CHANGELOG.md entry is {newest} but the "
+          f"catalogue ships {p_['version']}. Write the changelog entry.")
+    versions = [h[0] for h in heads]
+    check(len(versions) == len(set(versions)),
+          f"{p_['id']}: duplicate versions in CHANGELOG.md: {versions}")
+    # the plugin carries a copy of it for Check setup to print
+    src = (REPO / p_["path"]).read_text(encoding="utf-8")
+    check("CHANGELOG_RECENT" in src,
+          f"{p_['id']}: the plugin does not carry CHANGELOG_RECENT, so Check "
+          f"setup cannot show the owner what changed")
+    check(f"v{newest}" in src.split("CHANGELOG_RECENT", 1)[-1][:4000],
+          f"{p_['id']}: the embedded changelog does not start at v{newest}. "
+          f"Run: python3 tools/sync_changelog.py")
+
+# a project-wide changelog must exist and mention the current versions
+root_cl = REPO / "CHANGELOG.md"
+if check(root_cl.exists(), "no project-wide CHANGELOG.md at the repo root"):
+    rc = root_cl.read_text(encoding="utf-8")
+    for p_ in manifest["plugins"]:
+        check(p_["version"] in rc,
+              f"CHANGELOG.md never mentions {p_['id']} {p_['version']}")
+
+# ---------------------------------------------------------------------------
 # 3d. the staging folder must not mix tools in with the plugin copies
 # ---------------------------------------------------------------------------
 # %DLDIR% is the folder the README tells people to point Orca's installer at.
