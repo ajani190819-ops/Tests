@@ -189,9 +189,19 @@ WAVE_STAMP = f"{WAVE_STAMP_PREFIX} v{PLUGIN_VERSION} (wave overhang toolpaths)\n
 # The active implementation is intentionally G-code-only. These state helpers
 # record diagnostics for Check setup; they do not carry geometry between steps.
 
+def _plugin_storage_dir():
+    """No-prompt plugin storage folder, with a local fallback for tests."""
+    try:
+        storage = orca.host.plugin.storage()
+        if storage:
+            return storage
+    except BaseException:
+        pass
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 def _state_path():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "wave_overhangs_state.json")
+    return os.path.join(_plugin_storage_dir(), "wave_overhangs_state.json")
 
 
 def _load_state():
@@ -833,6 +843,10 @@ class WaveOverhangsCheck(orca.script.ScriptPluginCapabilityBase):
             lines.append("No export recorded yet. Select Wave Overhangs under")
             lines.append("Others -> Slicing Pipeline Plugin and use Export G-code file.")
         lines.append("")
+        lines.append("--- log ---")
+        lines.append("Routine diagnostics are written without approval prompts to:")
+        lines.append(f"  {log_path()}")
+        lines.append("")
         lines.append("--- what changed recently ---")
         lines.extend(CHANGELOG_RECENT.splitlines())
         lines.append("")
@@ -843,23 +857,21 @@ class WaveOverhangsCheck(orca.script.ScriptPluginCapabilityBase):
 # ---------------------------------------------------------------------------
 #  Logging -- shared with the other plugins in this repo.
 #
-#  This used to be JSONL written next to the plugin file, inside Orca's data
-#  folder: unfindable, and unreadable once found. It now appends plain text to
-#  <Downloads>/orca-plugins.log, the same file Unlayered Infill writes to, so
-#  one paste shows everything that happened.
+#  Default logs live in Orca's plugin storage folder. Orca allows writes there
+#  without prompting, so normal slicing should not ask the user to authorize a
+#  log or state-file write. ORCA_PLUGIN_LOG_DIR remains as an explicit debug
+#  override for local tests or a user who deliberately wants an external log.
 # ---------------------------------------------------------------------------
 LOG_NAME = "orca-plugins.log"
 LOG_MAX_BYTES = 1000000          # roll over at ~1 MB so it cannot grow forever
 
 
 def log_path():
-    """<Downloads>/orca-plugins.log, or the best available stand-in."""
+    """Default no-prompt plugin-storage log path."""
     override = os.environ.get("ORCA_PLUGIN_LOG_DIR")
     if override:
         return os.path.join(override, LOG_NAME)
-    home = os.path.expanduser("~")
-    downloads = os.path.join(home, "Downloads")
-    return os.path.join(downloads if os.path.isdir(downloads) else home, LOG_NAME)
+    return os.path.join(_plugin_storage_dir(), LOG_NAME)
 
 
 def _log(headline, *detail):

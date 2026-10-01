@@ -8,7 +8,7 @@ that's a bug; open an issue.
 | Plugin | Version | What it does |
 | --- | --- | --- |
 | [Wave Overhangs](plugins/wave-overhangs/) | 0.0.15 | replaces covered Bridge extrusion with support-anchored wave toolpaths |
-| [Wave Overhangs Geometry](plugins/wave-overhangs-geometry/) | 0.1.2 | experimental `posSlice` Wave geometry intended to appear in Orca's preview |
+| [Wave Overhangs Geometry](plugins/wave-overhangs-geometry/) | 0.1.3 | experimental `posSlice` Wave geometry intended to appear in Orca's preview |
 | [Unlayered Infill](plugins/unlayered-infill/) | 0.3.4 | rewrites sparse infill onto a sine wave in Z so layers interlock instead of stacking as clean planes |
 
 These are the versions in the current test branch. Direct updater runs use
@@ -144,8 +144,8 @@ number into them can orphan a saved preset.
 | File → Plugins, **Version** column | `0.0.15` (Orca reads the PEP 723 header) |
 | The updater's output | `Wave Overhangs v0.0.15` |
 | **Check setup**, first line | `Wave Overhangs v0.0.15 -- setup check` |
-| Geometry plugin Version | `0.1.2` |
-| Geometry Check setup | `Wave Overhangs Geometry v0.1.2` |
+| Geometry plugin Version | `0.1.3` |
+| Geometry Check setup | `Wave Overhangs Geometry v0.1.3` |
 
 The exported G-code is stamped too — search it for `; wave-overhangs v` or
 `; unlayered-infill v` to see which build produced the file. The same rule
@@ -265,26 +265,27 @@ the Plugins dialog's separate Version column to confirm 0.0.15 / 0.3.4.
 
 ## The log file — start here when something seems wrong
 
-Both plugins append a plain-text record of every run to:
+Plugins append a plain-text record of every run to their own Orca plugin
+storage folder by default. That location is deliberate: Orca allows plugins to
+write there without asking you to approve a log or state-file write during
+slicing. Run the plugin's **Check setup** action to print the exact path, or use
+Plugins → select the plugin → **Show in folder** and open `orca-plugins.log`.
 
-```
-%USERPROFILE%\Downloads\orca-plugins.log
-```
-
-Open it in Notepad. It answers, in order: did the plugin load, was it
-selected, did the export step run, and what did it do? Read it as a ladder:
+The log answers, in order: did the plugin load, was it selected, did the export
+or geometry step run, and what did it do? Read it as a ladder:
 
 | What you see | What it means |
 | --- | --- |
 | no file at all | not installed, or Orca never loaded it |
 | `loaded` only | installed, but not selected in a process preset — or you never sliced |
-| `pipeline step '...' seen`, no export step | running, but you pressed **Print/Send** instead of **Export G-code file** |
+| `pipeline step '...' seen`, no export step | post-processing plugin is running, but you pressed **Print/Send** instead of **Export G-code file** |
 | `EXPORT STEP RUNNING` then `NOTHING CHANGED` | it ran, and the log names the reason |
 | `EXPORT STEP RUNNING` then `DONE` | it worked |
 | `REFUSED` | usually absolute E — turn on relative E distances |
 
-It rolls over at ~1 MB. `ORCA_PLUGIN_LOG_DIR` moves it; `"log": false` in the
-plugin's config turns it off.
+It rolls over at ~1 MB. `ORCA_PLUGIN_LOG_DIR` is only a debug override; pointing
+it outside plugin storage can reintroduce approval prompts. `"log": false` in
+the plugin's config turns Unlayered logging off.
 
 ## The standalone tool (no plugin needed)
 

@@ -16,6 +16,7 @@ slicing pipeline, and an `@orca.plugin` class whose `register_capabilities`
 calls `orca.register_capability`.
 """
 import enum
+import os
 import sys
 import types
 
@@ -176,10 +177,22 @@ def install():
     host.Polygon = object
     host.ExPolygon = object
     host.SurfaceType = SurfaceType
+
+    plugin_mod = types.ModuleType("orca.host.plugin")
+
+    def storage():
+        path = os.environ.get("ORCA_PLUGIN_STORAGE_DIR")
+        if not path:
+            raise RuntimeError("fake plugin.storage() needs ORCA_PLUGIN_STORAGE_DIR")
+        return path
+
+    plugin_mod.storage = storage
+    host.plugin = plugin_mod
     orca.host = host
 
     sys.modules["orca"] = orca
     sys.modules["orca.slicing"] = slicing
     sys.modules["orca.script"] = script
     sys.modules["orca.host"] = host
+    sys.modules["orca.host.plugin"] = plugin_mod
     return orca

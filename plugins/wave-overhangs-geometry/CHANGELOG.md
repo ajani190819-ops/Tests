@@ -1,5 +1,14 @@
 # Changelog — Wave Overhangs Geometry
 
+## 0.1.3 — 2026-10-01
+
+* Split preview roles: the outer overhang edge is now one non-bridge wall shell,
+  while only the interior Wave ribbons are bridge-classified.
+* Clipped bridge-classified Waves inside that wall shell so they do not spill
+  outside the visible overhang perimeter.
+* Kept the support-outward ordering bias and added a guard that refuses to emit
+  the wall shell by itself if no anchored Wave ribbon survives cleanup.
+
 ## 0.1.2 — 2026-10-01
 
 * Cleaned preview output by dropping tiny clipped ribbon crumbs.

@@ -2,8 +2,8 @@
 __pycache__/
 *.py[cod]
 
-# Runtime state a plugin writes next to itself once installed in Orca's data
-# dir ("Check setup" reads these -- see docs/ORCA-PLUGIN-FACTS.md). They are
+# Runtime state a plugin writes in Orca's plugin storage ("Check setup" reads
+# these -- see docs/ORCA-PLUGIN-FACTS.md). They are
 # per-machine facts, never shipped, and must not land in the repo.
 *_state.json
 .install_state.json

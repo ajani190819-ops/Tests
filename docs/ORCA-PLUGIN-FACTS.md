@@ -107,7 +107,10 @@ is a bug in the plugin:
   #15944).
 * Writes inside `data_dir()` need no prompt, and plugins live at
   `data_dir()/orca_plugins/<plugin>/`. So the state and log files these
-  plugins write next to themselves are fine.
+  plugins write through `orca.host.plugin.storage()` are fine. Do not default
+  diagnostics to `Downloads`: that is outside plugin storage and can trigger
+  approval prompts during normal slicing. `ORCA_PLUGIN_LOG_DIR` is allowed only
+  as an explicit debug override.
 
 ## Where a version number is visible to the user
 
@@ -194,11 +197,11 @@ is a bug in the plugin:
 
 ## Design properties to keep
 
-* **"Check setup" measures, it doesn't infer.** Both plugins record which
-  pipeline steps actually fired in a small JSON file next to themselves
-  (`*_state.json`, gitignored). Check setup reports the recorded facts. This
-  works on any build, including UI neither of us has seen. Keep this
-  property.
+* **"Check setup" measures, it doesn't infer.** Plugins record which pipeline
+  steps actually fired in a small JSON file under `orca.host.plugin.storage()`.
+  Check setup reports the recorded facts. This works on any build, including UI
+  neither of us has seen, and it avoids audit prompts because plugin storage is
+  the approved write location. Keep this property.
 * **Failure modes are contained.** Test-enforced: geometry steps no-op;
   refusals and internal errors never touch the G-code file; an unexpected
   exception returns Success so a plugin bug cannot fail someone's export.

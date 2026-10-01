@@ -138,8 +138,7 @@ _DEFAULTS = {
     "full_strength": False,
     # Refuse to run on absolute-E G-code rather than corrupt it.
     "require_relative_e": True,
-    # Append a human-readable record of every run to
-    # <your Downloads folder>/orca-plugins.log
+    # Append a human-readable record of every run to the plugin storage log.
     "log": True,
 }
 
@@ -163,9 +162,19 @@ def _truthy(v):
     return bool(v)
 
 
+def _plugin_storage_dir():
+    """No-prompt plugin storage folder, with a local fallback for tests."""
+    try:
+        storage = orca.host.plugin.storage()
+        if storage:
+            return storage
+    except BaseException:
+        pass
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 def _state_path():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "unlayered_infill_state.json")
+    return os.path.join(_plugin_storage_dir(), "unlayered_infill_state.json")
 
 
 def _load_state():
@@ -203,29 +212,25 @@ def _record_run(**fields):
 # ---------------------------------------------------------------------------
 #  Logging
 #
-#  The old log was JSONL written next to the plugin file, inside Orca's data
-#  folder -- somewhere nobody would ever find it, in a format nobody would
-#  want to read. It now goes to the Downloads folder as plain text, because
-#  the question it has to answer is "did this thing run at all, and if it did
-#  nothing, why?".
+#  Default logs live in Orca's plugin storage folder. Orca allows writes there
+#  without prompting, so normal slicing should not ask the user to authorize a
+#  log or state-file write. ORCA_PLUGIN_LOG_DIR remains as an explicit debug
+#  override for local tests or a user who deliberately wants an external log.
 # ---------------------------------------------------------------------------
 LOG_NAME = "orca-plugins.log"
 LOG_MAX_BYTES = 1000000          # roll over at ~1 MB so it cannot grow forever
 
 
 def log_path():
-    """<Downloads>/orca-plugins.log, or the best available stand-in.
+    """Default no-prompt plugin-storage log path.
 
-    ORCA_PLUGIN_LOG_DIR overrides it. If there is no Downloads folder (a
-    non-English Windows, or a Linux build), fall back to the home directory
-    rather than losing the log.
+    ORCA_PLUGIN_LOG_DIR is an explicit debug override and may trigger Orca's
+    audit prompt if it points outside plugin storage.
     """
     override = os.environ.get("ORCA_PLUGIN_LOG_DIR")
     if override:
         return os.path.join(override, LOG_NAME)
-    home = os.path.expanduser("~")
-    downloads = os.path.join(home, "Downloads")
-    return os.path.join(downloads if os.path.isdir(downloads) else home, LOG_NAME)
+    return os.path.join(_plugin_storage_dir(), LOG_NAME)
 
 
 def _log(headline, *detail, **kw):
@@ -475,7 +480,7 @@ class UnlayeredInfillCheck(orca.script.ScriptPluginCapabilityBase):
         lines.append("")
         lines.append("--- log ---")
         lp = log_path()
-        lines.append(f"Every run is appended to:")
+        lines.append("Every run is appended without approval prompts to:")
         lines.append(f"  {lp}")
         if os.path.isfile(lp):
             try:

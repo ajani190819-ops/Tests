@@ -163,7 +163,7 @@ with tempfile.TemporaryDirectory() as tmp:
     log = read_log(logs)
     check(log.count("posSlice") == 1,
           f"posSlice should be logged exactly once, saw {log.count('posSlice')} "
-          f"— an unbounded log would fill the owner's Downloads folder")
+          f"— an unbounded log would fill the plugin storage folder")
 
     # ----------------------------------------------------------------------
     # 5. the real thing: run the export step on a sliced cube
@@ -277,32 +277,23 @@ with tempfile.TemporaryDirectory() as tmp:
           "log=false still wrote to the log")
 
     # ----------------------------------------------------------------------
-    # 11b. with no override, the log really does land in Downloads
-    #      (every check above sets ORCA_PLUGIN_LOG_DIR, so without this the
-    #      default path would be completely untested)
+    # 11b. with no override, the log lands in Orca's plugin storage.
+    #      That is the no-prompt path: normal slicing must not ask the owner to
+    #      authorize writes to Downloads just so a diagnostic line can be saved.
     # ----------------------------------------------------------------------
-    saved_home = os.environ.get("HOME")
     os.environ.pop("ORCA_PLUGIN_LOG_DIR", None)
-    home = tmp / "fakehome"
-    (home / "Downloads").mkdir(parents=True)
-    os.environ["HOME"] = str(home)
+    storage = tmp / "plugin-storage"
+    storage.mkdir()
+    os.environ["ORCA_PLUGIN_STORAGE_DIR"] = str(storage)
     try:
         lp = pathlib.Path(plugin.log_path())
-        check(lp == home / "Downloads" / "orca-plugins.log",
-              f"with a Downloads folder present the log must go there; "
-              f"log_path() gave {lp}")
-        # no Downloads folder (non-English Windows, or Linux): fall back home,
-        # never to somewhere the owner will not find
-        home2 = tmp / "fakehome2"
-        home2.mkdir()
-        os.environ["HOME"] = str(home2)
-        lp2 = pathlib.Path(plugin.log_path())
-        check(lp2 == home2 / "orca-plugins.log",
-              f"with no Downloads folder the log should fall back to the home "
-              f"directory; got {lp2}")
+        check(lp == storage / "orca-plugins.log",
+              f"default log path must use plugin storage to avoid approval "
+              f"prompts; log_path() gave {lp}")
+        check(pathlib.Path(plugin._state_path()).parent == storage,
+              "state diagnostics must also use plugin storage by default")
     finally:
-        if saved_home is not None:
-            os.environ["HOME"] = saved_home
+        os.environ.pop("ORCA_PLUGIN_STORAGE_DIR", None)
         os.environ["ORCA_PLUGIN_LOG_DIR"] = str(logs)
 
     # an unwritable log directory must not break the export
@@ -399,8 +390,8 @@ with tempfile.TemporaryDirectory() as tmp:
         check(names == ["Wave Overhangs Geometry",
                         "Wave Overhangs Geometry - Check setup"],
               f"Geometry capability identities changed: {names}")
-        check(geometry.PLUGIN_VERSION == "0.1.2",
-              f"Geometry runtime version is {geometry.PLUGIN_VERSION}, want 0.1.2")
+        check(geometry.PLUGIN_VERSION == "0.1.3",
+              f"Geometry runtime version is {geometry.PLUGIN_VERSION}, want 0.1.3")
         result = orca.REGISTERED[1]().execute()
         check(result.ok and "posSlice" in result.message and
               "read-only" in result.message and "bridge" in result.message and

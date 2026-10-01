@@ -10,7 +10,7 @@ binding record of OrcaSlicer behavior.
   `main`.
 * **Latest code state:** `613ff8f Integrate prior Wave branch history` includes
   the new separate Wave Overhangs Geometry prototype locally; push is pending.
-* **Current versions:** Wave Overhangs 0.0.15, Wave Overhangs Geometry 0.1.2,
+* **Current versions:** Wave Overhangs 0.0.15, Wave Overhangs Geometry 0.1.3,
   Unlayered Infill 0.3.4, updater 1.4.0.
 * **Permanent identities:** `Wave Overhangs`, `Wave Overhangs Geometry`, and
   `Unlayered Infill`. Release numbers must remain out of package and capability
@@ -90,27 +90,28 @@ There is no standalone Wave post-processing script in this repository. The
 plugin waits for exported Bridge G-code; do not claim a Wave standalone tool
 is installed or tested.
 
-### Wave Overhangs Geometry 0.1.2
+### Wave Overhangs Geometry 0.1.3
 
 A separate experimental geometry-stage plugin now runs at `posSlice`. It reads
 live `LayerRegion.slices` and the previous layer's `lslices`, generates
 obstacle-aware fixed-spacing Wave fronts, converts them to narrow preview
-ribbons, removes tiny clipped dot islands, preserves a continuous outer bridge
-shell for the overhang wall, and writes bridge-classified surfaces back through
-`SurfaceCollection.set()` before Orca creates perimeters and infill. Bridge
-pieces are handed to Orca from the supported side outward. It keeps the
-post-processing Wave plugin unchanged as the fallback.
+ribbons, removes tiny clipped dot islands, preserves one continuous non-bridge
+outer shell for the overhang wall, and writes bridge-classified Wave ribbons
+inside that shell through `SurfaceCollection.set()` before Orca creates
+perimeters and infill. Bridge pieces are handed to Orca from the supported side
+outward. It keeps the post-processing Wave plugin unchanged as the fallback.
 
 Current Orca bindings expose existing `ExtrusionPath` objects read-only, so
 this is preview-visible Wave geometry rather than direct raw path injection.
 The plugin documents that limitation, snapshots layers, rolls back an object on
 mutation failure, and fails closed when dependencies or host geometry bindings
 are unavailable. Version 0.1.1 fixed the real-Orca registration failure caused
-by passing `None` to `SlicingPipelineCapabilityBase.__init__()`, and 0.1.2
+by passing `None` to `SlicingPipelineCapabilityBase.__init__()`, and 0.1.3
 addresses the user's latest preview findings: dots, missing outer wall, bridge
-classification, and supported-edge ordering bias. Synthetic geometry,
-installer, runtime, audit, and sync tests pass. A follow-up real Orca preview
-and physical print remain unverified.
+classification, wave containment inside the perimeter, and supported-edge
+ordering bias. Routine logs/state now default to plugin storage to avoid normal
+approval prompts. Synthetic geometry, installer, runtime, audit, and sync tests
+pass. A follow-up real Orca preview and physical print remain unverified.
 
 ### Unlayered Infill 0.3.4
 
@@ -182,8 +183,8 @@ or a printer.
 3. Export `Cube^2.STL` again at the owner's 0.30 mm / 0.60 mm settings with the
    original post-processing Wave plugin and inspect Z alignment and cleaned
    outer edges.
-4. Save the fresh export and Downloads log if behavior differs from the
-   fixtures.
+4. Save the fresh export and the plugin-storage log path reported by Check
+   setup if behavior differs from the fixtures.
 5. Perform a small physical print; no physical Wave result is claimed yet.
 6. Run the Windows batch flow again whenever either batch file changes.
 
@@ -195,21 +196,23 @@ The owner chose a separate alternate plugin that runs before G-code so Wave can
 interact with Orca's geometry and appear in the preview. Current Orca source
 bindings expose editable `LayerRegion.slices` and `Layer.make_slices()`, but
 existing `ExtrusionPath` collections are read-only. Added
-`plugins/wave-overhangs-geometry/` v0.1.2: it generates obstacle-aware Wave
-fronts and writes bridge-classified ribbon polygons at `posSlice`, while
-keeping the post-processing Wave plugin as fallback. It reports the raw-path
-limitation, uses object-level rollback on mutation failure, and fails closed
-when the host API or dependencies are unavailable.
+`plugins/wave-overhangs-geometry/` v0.1.3: it generates obstacle-aware Wave
+fronts and writes a non-bridge outer wall shell plus bridge-classified interior
+Wave ribbons at `posSlice`, while keeping the post-processing Wave plugin as
+fallback. It reports the raw-path limitation, uses object-level rollback on
+mutation failure, and fails closed when the host API or dependencies are
+unavailable.
 
 The owner confirmed the geometry version registers in Orca and is much cleaner
 than the previous version, then reported remaining preview issues: tiny dots,
 missing/broken outer overhang wall, overhang-wall classification instead of
-bridge, and a thin-air start order. Version 0.1.2 addresses those with dot
-filtering, a continuous outer bridge shell, `stBottomBridge` replacement
-surfaces, and support-outward bridge surface ordering. Synthetic Wave geometry,
-circular-hole safety, installer, runtime, audit, changelog, compilation, and
-CRLF checks pass. A follow-up real-Orca preview of 0.1.2 and physical printing
-remain unverified.
+bridge, and a thin-air start order. Version 0.1.3 addresses those with dot
+filtering, a continuous non-bridge outer wall shell, `stBottomBridge` interior
+Wave ribbons clipped inside that shell, and support-outward bridge surface
+ordering. It also moves routine logs/state to plugin storage to avoid normal
+approval prompts. Synthetic Wave geometry, circular-hole safety, installer,
+runtime, audit, changelog, compilation, and CRLF checks pass. A follow-up
+real-Orca preview of 0.1.3 and physical printing remain unverified.
 
 ### 2026-10-01 — Wave endpoint cleanup
 
@@ -303,6 +306,7 @@ then confirmed visible waves in real Orca.
 - Plugin identities were made permanently version-free after Orca preset
   identity research.
 - Unlayered Infill received its standalone tool, complete controls, shared
-  engine synchronization, relative-E refusal, and Downloads logging.
+  engine synchronization, relative-E refusal, and later no-prompt plugin-storage
+  logging.
 - Import-time filesystem writes were removed from all shipped plugins and
   guarded by the audit test.

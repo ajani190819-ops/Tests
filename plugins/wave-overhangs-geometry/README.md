@@ -7,10 +7,10 @@ version of Wave Overhangs. It does not edit exported G-code.
 
 At OrcaSlicer's `posSlice` stage it reads the previous layer's support footprint
 and the current layer's slice surfaces. Reachable unsupported regions are filled
-with fixed-spacing Wave fronts. Each front is written back as a narrow polygon
-ribbon, and Orca continues with its normal perimeter and infill generation.
-Because the change happens before those stages, the result is intended to be
-visible in Orca's normal preview.
+with fixed-spacing Wave fronts. The visible overhang edge is kept as one
+non-bridge wall shell, while the Wave ribbons inside it are bridge-classified
+surfaces. Orca continues with its normal perimeter and infill generation, so
+the result is intended to be visible in Orca's normal preview.
 
 The original `Wave Overhangs` plugin remains separate and unchanged. It waits
 for exported Bridge G-code and is the safer fallback while this prototype is
@@ -52,15 +52,16 @@ The visible configuration defaults are conservative:
 * `min_wave_length`: ignores very short front fragments.
 * `min_preview_island_area`: removes tiny clipped preview dots left at corners
   and holes.
-* `outer_boundary_band`: keeps the visible overhang edge as a continuous
-  bridge-classified shell. `auto` follows `line_width`.
+* `outer_boundary_band`: keeps the visible overhang edge as one continuous
+  non-bridge wall shell. `auto` follows `line_width`.
 * `simplify_tolerance`: removes harmless boundary noise.
 * `max_iterations`: safety limit for propagation.
 
-Generated replacement surfaces are tagged as `stBottomBridge` when the host
-exposes that type. Bridge pieces are handed to Orca from the supported edge
-outward; Orca still owns final path planning until Python can write
-`ExtrusionPath` objects directly.
+Interior Wave replacement surfaces are tagged as `stBottomBridge` when the host
+exposes that type. The outer shell is deliberately non-bridge so preview can
+show it as the containing overhang wall. Bridge pieces are handed to Orca from
+the supported edge outward; Orca still owns final path planning until Python
+can write `ExtrusionPath` objects directly.
 
 The plugin processes each object once per slicing execution. Invalid geometry,
 missing host bindings, or a failed mutation return a recoverable error and try
