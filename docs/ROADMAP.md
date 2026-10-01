@@ -263,7 +263,9 @@ every chat, so copying a name into Command Prompt was not a useful workflow.
 
 * Ship a separate `Choose-Orca-Plugin-Version.bat`. Keeping the menu separate
   means a normal double-click on `Update-Orca-Plugins.bat` still installs the
-  released `main` branch exactly as before.
+  released `main` branch exactly as before. The chooser downloads and validates
+  the updater from the selected branch into `%TEMP%`; it never tests a branch
+  with an older adjacent updater and never overwrites either running `.bat`.
 * The chooser fetches the public GitHub branch API without a login or token.
   It shows released `main`, the five newest test branches, an all-branches
   view, and manual entry. It remembers the chooser's selection under

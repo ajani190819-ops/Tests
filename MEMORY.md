@@ -15,7 +15,8 @@ file has left the next session worse off.
   sync tools are clean, both `.bat` files are CRLF, and the chooser/updater
   worked on real Windows. Current test versions: Wave 0.0.9 / Unlayered 0.3.4,
   both with permanent version-free names; naming/default guards caught 4/4
-  mutations. Wave bridge replacement remains open.
+  mutations. The chooser now runs the selected branch's temporary updater and
+  its safety guards caught 3/3 mutations. Wave bridge replacement remains open.
 
 ---
 
@@ -53,7 +54,7 @@ which does not block starting.
 | Default branch | `main`, at commit `8f2f6f1` "Recreate the plugin updater + reorganize the repo (PR #1)" |
 | PR #1 | **MERGED** 2026-09-30 22:54 UTC, from branch `arena/01a0f42b-tests` |
 | Updater | `Update-Orca-Plugins.bat` v1.2.5, CRLF. Writes only permanent version-free package names. |
-| Branch chooser | `Choose-Orca-Plugin-Version.bat`, CRLF. Live numbered GitHub branch menu, remembers its choice, obvious return to `main`; **never run on Windows**. |
+| Branch chooser | `Choose-Orca-Plugin-Version.bat`, CRLF. Live numbered GitHub branch menu; downloads and validates the selected branch's updater into `%TEMP%` so updater changes are tested too; latest change **not yet run on Windows**. |
 | Catalogue | `plugins.json` — confirmed reachable at `raw.githubusercontent.com/.../main/plugins.json` |
 | Wave Overhangs | v0.0.9 test build, permanent name `Wave Overhangs`; ordinary bridge still remained in reopened real G-code |
 | Unlayered Infill | v0.3.4 test build, permanent name `Unlayered Infill`; complete 0.3.0 controls pinned as defaults; older versions ran in real Orca |

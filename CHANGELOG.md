@@ -18,6 +18,14 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — chooser uses the selected branch's updater
+
+The branch chooser now downloads and validates `Update-Orca-Plugins.bat` from
+exactly the selected branch and runs it from the Windows temporary folder. This
+ensures a branch test includes its updater changes, not merely its plugin files.
+A missing or invalid branch updater stops safely and never borrows `main`.
+Neither downloaded batch file is overwritten while running.
+
 ## 2026-09-30 — final version-free plugin names
 
 **Wave Overhangs:** 0.0.9. **Unlayered Infill:** 0.3.4.

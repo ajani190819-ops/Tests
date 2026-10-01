@@ -509,6 +509,16 @@ check('set "STATE_FILE=%STATE_DIR%\\branch.txt"' in chooser,
 check('set "PLUGIN_BRANCH=%CHOSEN%"' in chooser and
       'call "%UPDATER%"' in chooser,
       "the chooser does not pass its selected branch to the updater")
+check('set "UPDATER=%TEMP%\\orca_selected_updater_%RANDOM%.bat"' in chooser and
+      '/%CHOSEN%/Update-Orca-Plugins.bat' in chooser and
+      'findstr /b /c:"set UPDATER_VERSION=" "%UPDATER%"' in chooser,
+      "the chooser must download and validate the updater from the selected branch")
+check("will not borrow another branch's updater" in chooser and
+      'if errorlevel 1 goto :updater_failed' in chooser,
+      "a missing selected-branch updater must stop instead of borrowing main")
+check('del "%UPDATER%" 2>nul' in chooser and
+      'copy /Y "%UPDATER%"' not in chooser,
+      "the chooser must run a temporary updater without replacing either .bat")
 check('if /i "%PICK%"=="R" (set "CHOSEN=main"&goto :chosen)' in chooser,
       "the chooser has no obvious Return to released main choice")
 check("api.github.com/repos/ajani190819-ops/Tests/branches?per_page=100" in chooser,

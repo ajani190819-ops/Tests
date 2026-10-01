@@ -3,19 +3,12 @@ setlocal EnableExtensions EnableDelayedExpansion
 title Choose OrcaSlicer plugin version
 
 set "REPO=ajani190819-ops/Tests"
-set "UPDATER=%~dp0Update-Orca-Plugins.bat"
+set "UPDATER=%TEMP%\orca_selected_updater_%RANDOM%.bat"
 set "STATE_DIR=%LOCALAPPDATA%\OrcaPluginUpdater"
 set "STATE_FILE=%STATE_DIR%\branch.txt"
 set "BRANCH_FILE=%TEMP%\orca_branches_%RANDOM%.txt"
 set "REMEMBERED=main"
 if exist "%STATE_FILE%" set /p REMEMBERED=<"%STATE_FILE%"
-
-if not exist "%UPDATER%" (
-  echo ERROR: Update-Orca-Plugins.bat is not beside this chooser.
-  echo Put both .bat files in the same folder, then try again.
-  pause
-  exit /b 1
-)
 
 :refresh
 del "%BRANCH_FILE%" 2>nul
@@ -95,6 +88,8 @@ echo(!CHOSEN!| findstr /c:".." >nul
 if not errorlevel 1 (echo Invalid branch name: two dots are not allowed.&goto :type)
 
 :chosen
+call :download_selected_updater
+if errorlevel 1 goto :updater_failed
 if not exist "%STATE_DIR%" mkdir "%STATE_DIR%" 2>nul
 >"%STATE_FILE%" echo %CHOSEN%
 set "PLUGIN_BRANCH=%CHOSEN%"
@@ -106,11 +101,36 @@ echo ===============================================================
 echo.
 call "%UPDATER%"
 set "RC=%ERRORLEVEL%"
+del "%UPDATER%" 2>nul
 del "%BRANCH_FILE%" 2>nul
 echo.
 echo Chooser remembered: %CHOSEN%
 exit /b %RC%
 
+:download_selected_updater
+del "%UPDATER%" 2>nul
+echo Downloading the updater from selected branch %CHOSEN%...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; try { Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/ajani190819-ops/Tests/%CHOSEN%/Update-Orca-Plugins.bat' -OutFile '%UPDATER%' } catch { Write-Host ('Selected-branch updater download failed: '+$_.Exception.Message); exit 1 }"
+if errorlevel 1 exit /b 1
+if not exist "%UPDATER%" exit /b 1
+for %%A in ("%UPDATER%") do if %%~zA LSS 2000 exit /b 1
+findstr /b /c:"set UPDATER_VERSION=" "%UPDATER%" >nul 2>nul
+if errorlevel 1 exit /b 1
+findstr /c:"if defined PLUGIN_BRANCH set" "%UPDATER%" >nul 2>nul
+if errorlevel 1 exit /b 1
+exit /b 0
+
+:updater_failed
+del "%UPDATER%" 2>nul
+echo.
+echo SELECTED BUILD NOT INSTALLED.
+echo The updater is missing or invalid on branch %CHOSEN%.
+echo Nothing was installed, and the chooser will not borrow another branch's updater.
+del "%BRANCH_FILE%" 2>nul
+pause
+exit /b 1
+
 :cancel
+del "%UPDATER%" 2>nul
 del "%BRANCH_FILE%" 2>nul
 exit /b 0
