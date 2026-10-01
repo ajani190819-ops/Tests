@@ -250,8 +250,10 @@ that logic needs fixing, the owner has to re-download once.
 
 ## F. Install and test any branch without Command Prompt
 
-**Built 2026-09-30. Static analysis and install replay pass; neither `.bat`
-has been run on Windows in this sandbox.**
+**Built 2026-09-30. The first Windows run exposed and documented two bugs:
+PowerShell 5.1 nested the API array, and the small catalogue hit the plugin
+size floor. Both are fixed in updater 1.2.1 with regression tests. A second
+Windows run is still needed to confirm the corrected menu and install.**
 
 The owner needs to test an Arena branch before merging it. Branch names change
 every chat, so copying a name into Command Prompt was not a useful workflow.

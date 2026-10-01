@@ -18,6 +18,26 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-09-30 — first Windows run fixes
+
+**Updater:** 1.2.1. **Plugin versions unchanged:** Unlayered Infill 0.3.1,
+Wave Overhangs 0.0.6.
+
+The owner's first real Windows run found two failures that Linux static checks
+could not expose:
+
+* Windows PowerShell 5.1 kept GitHub's branch response as one nested
+  `System.Object[]`. The chooser now enumerates the response directly and
+  converts each commit URL to one string before requesting it.
+* The 747-byte `plugins.json` catalogue was rejected by the 2,000-byte safety
+  floor intended for large plugin files. Catalogue downloads now use a
+  separate 100-byte floor and still have to parse as valid JSON before use.
+
+The strict safety behavior itself worked: the updater reported the selected
+branch, refused to borrow from `main`, and changed no Orca plugin files.
+Regression checks pin both fixes. The corrected menu and successful install
+still need a second Windows run.
+
 ## 2026-09-30 — choose and test any branch by double-clicking
 
 **Updater:** 1.2.0. **Plugin versions unchanged:** Unlayered Infill 0.3.1,

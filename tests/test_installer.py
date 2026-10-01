@@ -243,7 +243,12 @@ check('"enabled": true' in bat,
 check("curl.exe -fLsS --retry 2" in bat, "the .bat lost its curl.exe download path")
 check("Tls12" in bat and "Invoke-WebRequest" in bat, "the .bat lost its PowerShell download path")
 check("bitsadmin /transfer" in bat, "the .bat lost its bitsadmin download path")
-check("GTR 2000" in bat, "the .bat lost its 2000-byte download sanity floor")
+check('set "DL_MIN=2000"' in bat and "GEQ %DL_MIN%" in bat,
+      "the .bat lost its default 2000-byte code download sanity floor")
+check('call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%MANIFEST_PATH%" "%MANIFEST_TMP%" 100' in bat,
+      "plugins.json still uses the 2000-byte plugin floor; the real catalogue is smaller")
+check(MANIFEST.stat().st_size >= 100 and MANIFEST.stat().st_size < 2000,
+      "the manifest regression fixture must prove why catalogue and plugin size floors differ")
 check("_subscribed" in bat, "the .bat no longer skips _subscribed cloud copies")
 check("Slicing Pipeline Plugin" in bat,
       "the .bat no longer tells users where to select the plugin")
@@ -476,6 +481,12 @@ check("api.github.com/repos/ajani190819-ops/Tests/branches?per_page=100" in choo
       "the chooser no longer fetches the public live GitHub branch list")
 check("$b.commit.url" in chooser and "Sort-Object Date -Descending" in chooser,
       "the chooser does not fetch commit dates and sort test branches newest first")
+check("$bs=Invoke-RestMethod" in chooser and "$bs=@(Invoke-RestMethod" not in chooser,
+      "Windows PowerShell 5.1 would preserve GitHub's branch array as one nested "
+      "System.Object[] and fail to convert the commit URL to System.Uri")
+check("$commitUri=[string]$b.commit.url" in chooser and
+      "-Uri $commitUri" in chooser,
+      "the chooser does not force each GitHub commit URL to one string URI")
 check("if !COUNT! LSS 6" in chooser and "Show all branches" in chooser,
       "the chooser must show main plus five recent branches and offer the full list")
 check("Nothing will silently switch to another branch" in chooser and

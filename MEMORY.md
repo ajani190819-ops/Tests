@@ -10,11 +10,11 @@ Read it before touching anything, and **update it before your session ends** —
 §9 is the checklist. A session that changed something and did not update this
 file has left the next session worse off.
 
-* **Last updated:** 2026-09-30 (session 6)
+* **Last updated:** 2026-09-30 (session 6, first Windows follow-up)
 * **Verified against the repo:** 2026-09-30 — all four test files pass, both
-  sync tools are clean, the new chooser/strict-branch guards were mutation-
-  tested (see session 6), and both `.bat` files are CRLF. **Not run on
-  Windows:** the menu, live GitHub API call, and updater remain unexecuted.
+  sync tools are clean, and both `.bat` files are CRLF. **Windows evidence:**
+  the first run proved strict refusal/no-main-fallback works, but found two
+  bugs now fixed in v1.2.1. The corrected menu/install still need rerunning.
 
 ---
 
@@ -51,7 +51,7 @@ which does not block starting.
 | Repo | `ajani190819-ops/Tests`, **public** (must stay public — the updater downloads unauthenticated) |
 | Default branch | `main`, at commit `8f2f6f1` "Recreate the plugin updater + reorganize the repo (PR #1)" |
 | PR #1 | **MERGED** 2026-09-30 22:54 UTC, from branch `arena/01a0f42b-tests` |
-| Updater | `Update-Orca-Plugins.bat` v1.2.0, CRLF. Released-main behavior remains the default; test branches are strict and all-or-nothing. |
+| Updater | `Update-Orca-Plugins.bat` v1.2.1, CRLF. Released-main behavior remains the default; test branches are strict and all-or-nothing. First Windows run found and fixed the small-catalogue size bug. |
 | Branch chooser | `Choose-Orca-Plugin-Version.bat`, CRLF. Live numbered GitHub branch menu, remembers its choice, obvious return to `main`; **never run on Windows**. |
 | Catalogue | `plugins.json` — confirmed reachable at `raw.githubusercontent.com/.../main/plugins.json` |
 | Wave Overhangs | v0.0.5, `plugins/wave-overhangs/`, ships; **loads + logs under a fake host**, never run in real Orca |
@@ -391,6 +391,16 @@ Landed:
 * Owner chose: whole install stops on a missing test file; API failure offers
   retry/manual/cancel. Wave Overhangs Diagnostics cannot currently be
   accessed, so no cause was guessed.
+
+**First Windows follow-up:** the chooser's API request failed because Windows
+PowerShell 5.1 saw `$b.commit.url` as `System.Object[]`, then manual branch
+entry reached updater 1.2.0 but its 2,000-byte code floor rejected the valid
+747-byte catalogue. The strict guard did exactly the safe thing: named the
+branch, did not use `main`, and stopped without installing. Fixed in 1.2.1 by
+enumerating the API response directly, casting each commit URL to one string,
+and giving only the catalogue a 100-byte floor. Exact regression checks were
+mutation-tested: 4/4 deliberate regressions caught. Corrected Windows paths
+remain unverified until rerun.
 
 Verified: all requested suites and sync checks pass, CRLF is asserted, and
 17/17 deliberate mutations were caught across two rounds. The second round

@@ -54,8 +54,8 @@ if /i not "%REF_1%"=="main" set "BRANCH_MODE=1"
 
 rem This updater's own version. The line below it is the machine-readable
 rem copy :self_update compares against; test_installer.py keeps them equal.
-set UPDATER_VERSION=1.2.0
-rem UPDATER_VERSION 1.2.0 end
+set UPDATER_VERSION=1.2.1
+rem UPDATER_VERSION 1.2.1 end
 
 rem PLUGIN_ONLY is matched as a substring against each plugin id.
 if defined PLUGIN_ONLY set "PLUGIN_ONLY=%PLUGIN_ONLY: =%"
@@ -336,7 +336,7 @@ if not defined LOCAL_MODE goto :fm_remote
 if exist "%HERE%\%MANIFEST_PATH%" ( set "PLAN_SRC=%HERE%\%MANIFEST_PATH%" & goto :fm_done )
 :fm_remote
 if "%REF_1%"=="" goto :fm_done
-call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%MANIFEST_PATH%" "%MANIFEST_TMP%"
+call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%MANIFEST_PATH%" "%MANIFEST_TMP%" 100
 if not errorlevel 1 set "PLAN_SRC=%MANIFEST_TMP%"
 :fm_done
 exit /b 0
@@ -409,9 +409,12 @@ echo   Using the fallback plan built into this file.
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem  download %1=url %2=dest   (tries curl.exe, then PowerShell, then BITS)
+rem  download %1=url %2=dest %3=minimum bytes (default 2000 for code)
+rem  The catalogue passes 100 because valid JSON is much smaller than a plugin.
 rem ---------------------------------------------------------------------------
 :download
+set "DL_MIN=2000"
+if not "%~3"=="" set "DL_MIN=%~3"
 del "%~2" 2>nul
 where curl.exe >nul 2>nul
 if not errorlevel 1 (
@@ -430,7 +433,7 @@ exit /b 1
 
 :download_check
 rem Reject empty / truncated files (e.g. an error page saved as the plugin).
-for %%A in ("%~2") do if %%~zA GTR 2000 exit /b 0
+for %%A in ("%~2") do if %%~zA GEQ %DL_MIN% exit /b 0
 echo   Downloaded file looks empty or truncated.
 del "%~2" 2>nul
 exit /b 1
@@ -571,7 +574,7 @@ rem Same version as ours? Nothing to do.
 findstr /b /c:"rem UPDATER_VERSION %UPDATER_VERSION% end" "%NEWBAT%" >nul 2>nul
 if not errorlevel 1 goto :su_skip
 set "NEW_UV=?"
-rem "rem UPDATER_VERSION 1.1.0 end" -- token 3 is the version, and the
+rem "rem UPDATER_VERSION 1.2.1 end" -- token 3 is the version, and the
 rem trailing "end" absorbs the CR so it never lands in the variable.
 for /f "usebackq tokens=3" %%V in (`findstr /b /c:"rem UPDATER_VERSION " "%NEWBAT%"`) do set "NEW_UV=%%V"
 echo  Updater: this copy is v%UPDATER_VERSION%, v%NEW_UV% is available.
