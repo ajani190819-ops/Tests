@@ -6,10 +6,56 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.19 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.21 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.21 — 2026-10-01
+
+* Wave can now emit **G2/G3 arc moves**. Wave runs after Orca has written the
+  file, so Orca's own arc fitter never sees these toolpaths; Wave fits its own
+  arcs instead. `arc_fitting` is `auto` by default, which follows the export's
+  own `enable_arc_fitting` setting: switch Arc fitting on in the print profile
+  and the Waves become arcs too, leave it off and nothing changes. An arc is
+  only used where it is measurably closer to the real wavefront than the
+  straight moves it replaces, and it is re-checked against the overhang region
+  so a bowed arc cannot push into a wall or a hole.
+* Wave now **reads** G2/G3 moves out of the export. With arc fitting switched
+  on, a round hole's wall is exported as arcs; before this, Wave could not see
+  that wall at all, which would have silently undone the 0.0.20 perimeter fix
+  on exactly the parts that need it most. Both the `I J` and `R` forms are
+  understood.
+* Fixed a large file-size problem on parts with holes. Cleanup refused to
+  simplify any front that *touched* a hole, and since 0.0.20 ends deliberately
+  finish on hole walls, nearly every front fell back to its raw form: a 9.9 mm
+  front was being written as 980 moves instead of 9. Touching a hole is no
+  longer treated as cutting across one, and when a shortcut really would cut a
+  corner, Wave retries with a tighter tolerance before giving up. On the test
+  part with a hole this cut the Wave G-code from 316 KB to 9 KB.
+* Added `arc_tolerance` (`auto` follows the profile's own `resolution`, capped
+  at 0.05 mm).
+
+## 0.0.20 — 2026-10-01
+
+* Fixed the frayed Wave edges. Orca exports bridge infill as separate lines, so
+  the area those lines cover has a castellated edge that also stops short of
+  the perimeter. Wave was clipping its fronts to that edge, which is what made
+  the ends look jagged. Wave now reads the wall moves the layer actually
+  printed and squares the overhang area up against them, so fronts run from the
+  supported perimeter all the way to the overhang perimeter and to any hole.
+* Wave ends now finish inside the wall bead, overlapping it by 25% of the Wave
+  line width by default (`wall_overlap`), so the following perimeter has a
+  straight, fully bonded edge to print against instead of a sawtooth.
+* Added `wall_snap` (on by default; set it to `false` to get the 0.0.19 edges
+  back for comparison), `wall_reach` (how far the area may be stretched to
+  reach a wall, `auto` = 1.5 line widths) and `wall_overlap`.
+* Fixed wall material being measured one G-code move at a time, which left a
+  hairline slit at every vertex of a curved wall. A Wave end could slip through
+  one of those slits and finish on the visible surface of a hole.
+* Stretching the area to the wall can never create a Wave where there was not
+  one: a region still has to come from bridge extrusion Orca exported over
+  unsupported space, and nothing may be placed outside the part.
 
 ## 0.0.19 — 2026-10-01
 

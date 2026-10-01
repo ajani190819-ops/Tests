@@ -4,14 +4,16 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-01, Wave refinement and repository cleanup session.
+* **Last updated:** 2026-10-01, Wave perimeter-conformance and arc-move session (0.0.21).
 * **Repository:** `ajani190819-ops/Tests`, public.
-* **Session branch:** `arena/01a0f4f1-tests`. Never switch branches or push to
+* **Session branch:** `arena/01a0f908-tests`. Never switch branches or push to
   `main`.
-* **Latest code state:** Wave Overhangs 0.0.19 is back to the original
-  post-processing path with straight snap-to-boundary endpoints plus flow taper;
-  Geometry 0.1.4 remains an experimental alternate.
-* **Current versions:** Wave Overhangs 0.0.19, Wave Overhangs Geometry 0.1.4,
+* **Latest code state:** Wave Overhangs 0.0.21 measures the overhang against
+  the layer's real wall moves, so Wave ends land on the wall and hole
+  perimeters instead of the castellated bridge-line edge, and it both reads
+  and writes G2/G3 arc moves; Geometry 0.1.4 remains an experimental
+  alternate.
+* **Current versions:** Wave Overhangs 0.0.21, Wave Overhangs Geometry 0.1.4,
   Unlayered Infill 0.3.4, updater 1.4.0.
 * **Permanent identities:** `Wave Overhangs`, `Wave Overhangs Geometry`, and
   `Unlayered Infill`. Release numbers must remain out of package and capability
@@ -49,15 +51,24 @@ Important locations:
 
 ## Current implementation
 
-### Wave Overhangs 0.0.19
+### Wave Overhangs 0.0.21
 
 The active implementation is one transactional G-code pass at
 `psGCodePostProcess`:
 
 1. Parse actual exported layers, modal XY/Z, relative-E mode, line widths, fan
    state, and `Bridge` / `Internal Bridge` sections.
-2. Build the previous layer's support footprint and the current bridge footprint
-   from actual extrusion paths in absolute bed coordinates.
+2. Build the previous layer's support footprint, the current layer's wall
+   material (wall moves joined into loops first, then given their width), and
+   the current bridge footprint, all from actual extrusion paths in absolute
+   bed coordinates.
+2b. Square the bridge footprint up against that wall material: a closing
+   operation fills the narrow channel Orca leaves between its last bridge line
+   and the wall, ends finish 25% of a line width inside the wall bead
+   (`wall_overlap`), and nothing may be placed outside the part. The decision
+   about *where* a Wave belongs is unchanged -- the area still has to come from
+   exported bridge extrusion over unsupported space. `wall_snap=false`
+   restores the 0.0.19 edges for comparison.
 3. Generate expanding wavefronts from supported material through unsupported
    bridge area; internal holes in that plane are treated as obstacles so fronts
    continue around both sides.
@@ -82,17 +93,23 @@ The active implementation is one transactional G-code pass at
 
 The Wave pass uses the bridge move's actual modal nozzle Z. In the supplied
 fixture, the nominal `;Z:` comments differ from the actual height because the
-profile contains a 0.25 mm Z offset. The 0.0.19 fixture output uses 5.650,
+profile contains a 0.25 mm Z offset. The 0.0.20 fixture output uses 5.650,
 9.850, and 14.650 mm for the three Wave blocks.
 
-The captured regression reports three Wave layers, 101 covered bridge moves,
-31 substantial retained fragments, 112 tiny remnants removed, 29 short Wave
-fronts removed, 399 no-taper comparison moves, default straight snap-to-boundary and tapered endpoint G-code
-with no added endpoint micro-moves, restored fan state, exact second-pass
-idempotence, and byte-for-byte unchanged output after deliberate generation
-failure. The owner confirmed that the previous 0.0.11 output visibly produced
-perimeter-conforming waves in real Orca. A fresh 0.0.19 export and physical
-print remain open.
+The captured regression reports three Wave layers, 104 covered bridge moves,
+28 substantial retained fragments, 115 tiny remnants removed, 16 short Wave
+fronts removed, three wall-bounded sections, 488 default Wave moves (713 with
+`wall_snap=false`, which still shows the 0.0.19 castellated edges), 44 arcs
+replacing 180 straight moves when the profile asks for arc fitting, restored fan
+state, exact second-pass idempotence, and byte-for-byte unchanged output after
+deliberate generation failure. It also measures edge quality directly: Wave
+ends along each wall of the Cube's overhang now lie on one line within
+0.02 mm (0.0.19 varied by 0.29 mm), no end stops in the 0.001-0.30 mm "just
+short of the wall" band, and a new synthetic overhang-with-hole export puts
+every hole end on one radius within 0.001 mm with nothing inside the hole or
+outside the part. The owner confirmed that the previous 0.0.11 output visibly
+produced perimeter-conforming waves in real Orca. A fresh 0.0.20 export and
+physical print remain open.
 
 There is no standalone Wave post-processing script in this repository. The
 plugin waits for exported Bridge G-code; do not claim a Wave standalone tool
@@ -189,14 +206,83 @@ or a printer.
    confirm the edited ribbons appear as bridge fill in the normal preview while
    the original overhang perimeter remains intact.
 3. Export `Cube^2.STL` again at the owner's 0.30 mm / 0.60 mm settings with the
-   original post-processing Wave plugin and inspect Z alignment and cleaned
-   outer edges.
+   original post-processing Wave plugin and inspect Z alignment and the new
+   wall-conforming Wave edges.
+3a. Turn **Arc fitting** on in the print profile for that export, so the
+   arc paths get exercised in real Orca and real firmware. Check the printer
+   accepts the G2/G3 Wave blocks and that curved walls still read back
+   correctly (they now arrive as arcs).
+3b. The owner offered a fresh export plus screenshots of the jagged 0.0.19
+   result from their own model (one with holes would be the most useful). Ask
+   for it, drop it in `tests/fixtures/`, and re-measure edge straightness
+   against it before claiming 0.0.20 is correct on real geometry.
 4. Save the fresh export and the plugin-storage log path reported by Check
    setup if behavior differs from the fixtures.
 5. Perform a small physical print; no physical Wave result is claimed yet.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-01 — Wave speaks arcs; the hole file-size bug (0.0.21)
+
+The owner asked whether Wave could emit arc moves, since they can switch Arc
+fitting on in their print profile. Three things came out of it.
+
+1. Wave runs at `psGCodePostProcess`, after Orca has written the file, so
+   Orca's arc fitter never sees Wave's moves. Wave now fits its own arcs.
+   `arc_fitting` defaults to `auto`, which follows the export's own
+   `enable_arc_fitting` line, so a printer whose firmware cannot read G2/G3
+   never receives one. An arc has to pass through the kept points, must not
+   bow more than a quarter of the rung spacing, and is re-checked against the
+   overhang region afterwards so a bow cannot push into a wall or a hole.
+2. The reverse direction mattered more. Wave's parser ignored G2/G3 entirely.
+   With arc fitting on, a round hole's wall is exported as arcs, so Wave would
+   have gone blind to that wall and quietly lost the 0.0.20 perimeter fix on
+   the parts that need it most. The parser now expands `I J` and `R` arcs;
+   a hole wall written as four arcs gives the same wall material as the same
+   hole written as 72 straight moves (10.208 vs 10.207 mm^2).
+3. A file-size bug, found while measuring the arcs. Cleanup refused to
+   simplify any front that *touched* a hole, and 0.0.20 had just made ends
+   finish on hole walls, so 46 of 58 fronts fell back to raw rasterised form:
+   a 9.9 mm front written as 980 moves instead of 9. Touching is no longer
+   treated as crossing (the void is shrunk by the guard margin before the
+   test), and a shortcut that really would cut a corner now retries at a
+   tighter tolerance before giving up. The synthetic hole part's Wave G-code
+   went from 316 KB to 9 KB.
+
+Sandbox measurements only. The owner will re-export with Arc fitting on.
+
+### 2026-10-01 — Wave ends snap to the real perimeter (0.0.20)
+
+The owner reported that Wave ends would not snap to the overhang perimeter:
+instead of progressing from the supported perimeter all the way out to the
+overhang perimeter and around holes, fronts finished on a jagged edge that made
+it hard to lay the following outer perimeters down.
+
+Diagnosis (reproduced in the sandbox against the captured Cube export): Wave
+measured the overhang from the footprint of Orca's exported bridge *lines*. The
+union of those line footprints is castellated — alternating in and out by about
+half a line width — and stops short of the wall, and the fronts were clipped to
+it. The 0.0.19 "snap to boundary" step could not help because it snapped to
+that same castellated boundary and its guard refused to move an end more than
+0.08 mm.
+
+Fix: parse `Outer wall` / `Inner wall` / `Overhang wall` moves, join them into
+loops before giving them width, close the bridge footprint against that wall
+bead, and let ends finish 25% of a line width inside the bead. Two safety
+rules keep it honest: the growth may reshape a Wave area but never create one
+(the area must still contain bridge extrusion over unsupported space), and
+nothing may be placed deeper than the overlap into the outer wall, because a
+wall loop is not always a sealed band.
+
+Two further bugs were found and fixed along the way: a wall buffered one G-code
+move at a time leaves a hairline slit at every vertex of a curved wall (a Wave
+end slipped through one and finished on the visible surface of a hole), and
+reaching for a wall could put fronts in the gaps between the sparse-infill
+lines of the layer below.
+
+Sandbox evidence is in the regression; a real Orca export and a physical print
+remain open. The owner will supply a fresh export and screenshots on request.
 
 ### 2026-10-01 — Wave endpoint taper without default micro-moves
 

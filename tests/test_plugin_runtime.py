@@ -334,8 +334,8 @@ with tempfile.TemporaryDirectory() as tmp:
         names = [c().get_name() for c in orca.REGISTERED]
         check(names == ["Wave Overhangs", "Wave Overhangs - Check setup"],
               f"Wave capability identities changed: {names}")
-        check(wave.PLUGIN_VERSION == "0.0.19",
-              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.19")
+        check(wave.PLUGIN_VERSION == "0.0.21",
+              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.21")
 
         # The active Wave implementation is deliberately G-code-only. Its
         # source must not retain the removed slice-object planner, host Polygon
@@ -360,7 +360,7 @@ with tempfile.TemporaryDirectory() as tmp:
               "Diagnostics" in result.message,
               f"dependency failure does not give a complete beginner-safe fix: {result.message!r}")
         log = read_log(logs)
-        check("Wave Overhangs v0.0.19 loaded" in log and "MISSING" in log,
+        check("Wave Overhangs v0.0.21 loaded" in log and "MISSING" in log,
               f"Wave dependency state was not logged clearly:\n{log}")
         pipeline = orca.REGISTERED[0]()
         result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))

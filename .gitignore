@@ -16,3 +16,7 @@ __pycache__/
 # Runtime logs created by Orca/plugin tests; never source.
 *.log
 *.log.*
+
+# Local diagnostic renders and scratch scripts from the Wave geometry probes.
+# They are a debugging aid, not source, and must not land in the repo.
+/wave-diagnostics/
