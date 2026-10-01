@@ -524,6 +524,7 @@ def _gcode_wave_rewrite(text, cfg):
                         # original command value. Re-anchor each retained
                         # fragment to the source value before emitting it.
                         out.append(f"G92 E{seg['e_start']:.5f}\n")
+                    e_cursor = seg["e_start"]
                     for part in parts:
                         coords = list(part.coords)
                         if len(coords) < 2 or part.length <= 1e-5:
@@ -536,7 +537,6 @@ def _gcode_wave_rewrite(text, cfg):
                         ax, ay = coords[0]
                         out.append(f"G0 X{ax:.3f} Y{ay:.3f}\n")
                         share = seg["e"] * part.length / original_len
-                        e_cursor = seg["e_start"]
                         for pi, (bx, by) in enumerate(coords[1:], 1):
                             prev = coords[pi - 1]
                             piece = math.hypot(bx - prev[0], by - prev[1])
