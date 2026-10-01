@@ -19,6 +19,18 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — Wave endpoints snap to perimeter by default
+
+**Wave Overhangs:** 0.0.18.
+
+Changed the default edge cleanup after visual feedback showed that centerline
+inset/clearance could leave visible gaps at the wall and hole perimeters. The
+normal post-processing output now snaps Wave endpoints back onto nearby
+non-support detail boundaries, then applies endpoint flow taper to reduce blobs
+while still conforming to the same visible perimeters as Orca's default bridge
+infill. `edge_clearance` remains available as an explicit comparison/debug
+option but defaults to `0`.
+
 ## 2026-10-01 — Wave edge clearance before taper
 
 **Wave Overhangs:** 0.0.17.

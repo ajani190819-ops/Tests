@@ -6,10 +6,22 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.17 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.18 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.18 — 2026-10-01
+
+* Changed the default edge cleanup from clearance/inset to snap-to-boundary.
+  Wave endpoints are projected back onto nearby outer walls, holes, and concave
+  detail boundaries so they conform to the perimeter instead of leaving gaps.
+* Set `edge_clearance` off by default. It remains available as an explicit
+  comparison/debug option, but the normal output now keeps Wave endpoints on the
+  visible perimeter and uses taper to reduce endpoint blobs.
+* Added `edge_snap_distance` (`auto` by default) and regressions proving that
+  wall and hole endpoints snap to their perimeter while support-side anchors are
+  not moved away from support.
 
 ## 0.0.17 — 2026-10-01
 

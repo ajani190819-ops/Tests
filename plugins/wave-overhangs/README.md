@@ -10,9 +10,9 @@ This is a port of the algorithm behind
 (a C++ fork of OrcaSlicer, algorithm by Janis A. Andersons) as a Python
 slicing-pipeline plugin. Earlier builds ran in real Orca but inserted no waves.
 The owner confirmed that 0.0.11 produced visible, perimeter-conforming waves
-in real Orca. Version 0.0.17 is regression-tested against the captured export
-with corrected Z alignment, edge cleanup, edge clearance, and tapered endpoint
-flow; it still
+in real Orca. Version 0.0.18 is regression-tested against the captured export
+with corrected Z alignment, edge cleanup, snap-to-boundary endpoints, and
+tapered endpoint flow; it still
 needs a fresh Orca export and physical-print validation.
 
 ## Install
@@ -27,7 +27,7 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 
 1. Restart OrcaSlicer (needs newer than 2.4.2, or a nightly).
 2. File → Plugins → confirm *Wave Overhangs* is enabled and its separate
-   Version column reads **0.0.17**. The package name is permanently
+   Version column reads **0.0.18**. The package name is permanently
    version-free.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Wave Overhangs*.
 4. Slice a part with a small overhang, then run the
@@ -106,13 +106,16 @@ The complete configuration is exposed through `get_default_config()`:
   material remains.
 * `flow_ratio`: multiplies calculated Wave extrusion volume. Keep at `1.0`
   unless you deliberately want more or less plastic.
-* `edge_clearance`: centerline inset from outer walls, holes, and concave detail
-  boundaries. `auto` follows the exported bridge width. Set to `0` to compare
-  with the older full-length endpoint behavior.
+* `edge_snap_distance`: how far an endpoint may reach to land exactly on an
+  outer wall, hole, or concave detail boundary. `auto` follows the exported
+  bridge width. Set to `0` to compare with older unsnapped endpoints.
+* `edge_clearance`: optional centerline inset from outer walls, holes, and
+  concave detail boundaries. It is `0` by default because inset endpoints can
+  create visible gaps. Use it only as a comparison/debug control.
 * `edge_taper_distance`: Arachne-like cleanup distance in millimetres after the
-  clearance trim. Wave endpoints that touch outer walls, holes, or concave
-  detail boundaries are split into short moves and extruded with less E near the
-  boundary. Set to `0` to disable variable endpoint flow.
+  snap-to-boundary step. Wave endpoints that touch outer walls, holes, or
+  concave detail boundaries are split into short moves and extruded with less E
+  near the boundary. Set to `0` to disable variable endpoint flow.
 * `edge_taper_min_flow`: lowest endpoint flow as a fraction of normal Wave
   flow. The default keeps more than half flow at the boundary so the line still
   bonds, but it avoids full-width blobs at curved walls and holes.
@@ -154,12 +157,13 @@ stopping at only the supported boundary. Topology-safe cleanup falls back to
 the original curved boundary if simplification would cross a hole or concave
 void.
 
-For cleaner surfaces, v0.0.17 first clips emitted Wave centerlines back from
-non-support detail boundaries, then tapers extrusion at the remaining endpoint.
-Bridge replacement still uses the untrimmed cleaned Wave path, so the old
-straight Bridge fragments do not reappear at the edge. The support-side anchor
-boundary is excluded from both clearance and taper, so the first Wave rung keeps
-full flow where it needs to grab supported material.
+For cleaner surfaces, v0.0.18 snaps Wave endpoints back onto non-support detail
+boundaries, then tapers extrusion at the endpoint. This is intended to conform
+to the same visible wall and hole perimeters that Orca's normal bridge infill
+uses, without leaving the gaps caused by default centerline inset. Optional
+`edge_clearance` remains available for comparison, but it is off by default. The
+support-side anchor boundary is excluded from snapping, clearance, and taper, so
+the first Wave rung keeps full flow where it needs to grab supported material.
 
 The fork's reference defaults (for comparison): spacing 0.35 mm, speed
 2 mm/s, fan 100%, flow = nozzle² in mm³/mm (0.16 for a 0.4 nozzle), 1 outer

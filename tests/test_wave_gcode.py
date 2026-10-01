@@ -161,13 +161,14 @@ wave_blocks = re.findall(
     r"; ==== WAVE OVERHANG END ====", out, re.DOTALL)
 wave_move_count = sum(block.count("\nG1 X") for block in wave_blocks)
 old_style_out, old_style_stats = wave._gcode_wave_rewrite(
-    source, dict(cfg, edge_taper_distance=0.0, edge_clearance=0.0))
+    source, dict(cfg, edge_taper_distance=0.0, edge_clearance=0.0,
+                 edge_snap_distance=0.0))
 old_style_blocks = re.findall(
     r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
     r"; ==== WAVE OVERHANG END ====", old_style_out, re.DOTALL)
 old_style_move_count = sum(block.count("\nG1 X") for block in old_style_blocks)
 clearance_only_out, clearance_only_stats = wave._gcode_wave_rewrite(
-    source, dict(cfg, edge_taper_distance=0.0))
+    source, dict(cfg, edge_taper_distance=0.0, edge_clearance="auto"))
 clearance_only_blocks = re.findall(
     r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
     r"; ==== WAVE OVERHANG END ====", clearance_only_out, re.DOTALL)
@@ -181,7 +182,10 @@ assert clearance_only_move_count <= old_style_move_count, (
     "edge clearance should trim emitted paths without changing bridge coverage")
 assert wave_move_count > old_style_move_count, (
     "edge taper should split only tapered Wave endpoints into shorter moves")
-assert "; wave-overhangs edge clearance" in out
+assert "; wave-overhangs edge clearance" not in out, (
+    "default Wave output must not create endpoint gaps with edge clearance")
+assert "; wave-overhangs edge clearance" in clearance_only_out, (
+    "edge clearance should remain available as an explicit comparison option")
 assert "; wave-overhangs edge taper" in out
 
 def wave_e_per_mm_values(blocks):
@@ -222,7 +226,23 @@ assert wave._endpoint_touches_detail(
     (9.0, 5.0), synthetic_settings["detail"], geometry_cfg.line_width), (
     "hole wall endpoint should taper")
 
-clear_cfg = dict(cfg, edge_clearance=0.30, edge_taper_distance=0.0)
+snap_cfg = dict(cfg, edge_snap_distance=0.30, edge_clearance=0.0,
+                edge_taper_distance=0.0)
+snapped_outer = wave._snap_wave_polylines(
+    [[(2.05, 1.0), (11.82, 1.0)]], internal_target,
+    internal_support, geometry_cfg, snap_cfg)
+assert snapped_outer[0][-1][0] > 11.99, (
+    "outer wall endpoint should snap to the perimeter instead of stopping short")
+assert snapped_outer[0][0][0] == 2.05, (
+    "support-side anchor boundary should not be snapped away from support")
+snapped_hole = wave._snap_wave_polylines(
+    [[(2.05, 5.0), (4.82, 5.0)]], internal_target,
+    internal_support, geometry_cfg, snap_cfg)
+assert abs(snapped_hole[0][-1][0] - 5.0) < 0.01, (
+    "hole endpoint should snap to the hole perimeter")
+
+clear_cfg = dict(cfg, edge_clearance=0.30, edge_taper_distance=0.0,
+                 edge_snap_distance=0.0)
 clear_domain, clear_distance = wave._clearance_domain(
     internal_target, internal_support, geometry_cfg, clear_cfg)
 assert abs(clear_distance - 0.30) < 1e-9
@@ -311,5 +331,5 @@ assert failed == source, "generation failure must retain the original G-code byt
 assert "error" in failure_stats
 
 print("ok -- real Cube^2 export: 3 cleaned wave layers use actual offset Z, "
-      "replace covered moves, retain substantial fragments, trim/taper edge "
+      "replace covered moves, retain substantial fragments, snap/taper edge "
       "endpoints, restore fan state, fail closed, and are idempotent")

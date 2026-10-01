@@ -1,7 +1,7 @@
 # Roadmap — OrcaSlicer plugin lane
 
 This document is the plan, not a release promise. Current versions are Wave
-Overhangs **0.0.17**, Wave Overhangs Geometry **0.1.4**, Unlayered Infill
+Overhangs **0.0.18**, Wave Overhangs Geometry **0.1.4**, Unlayered Infill
 **0.3.4**, and updater **1.4.0** on the
 session test branch. Package and capability names remain permanently:
 `Wave Overhangs`, `Wave Overhangs Geometry`, and `Unlayered Infill`.
@@ -13,10 +13,10 @@ session test branch. Package and capability names remain permanently:
 | One-click updater and catalogue | Built; contract-tested. Direct updater defaults to released `main`. |
 | Branch chooser | Built; selects, downloads, validates, and runs the updater from exactly the selected branch. Missing branch files fail closed. Windows behavior was previously verified for the chooser flow; rerun after future batch changes. |
 | Unlayered Infill | 0.3.4. Full 0.3.0 control set preserved, including percentage amplitude, frequency, segment length, nozzle-width grid, blending, and full-strength controls. Restore defaults handles stale Orca configuration. |
-| Wave Overhangs | 0.0.17. Visible conforming waves were confirmed in the owner's real Orca export with 0.0.11. The Z correction, edge cleanup, edge clearance, and endpoint flow taper pass the captured real-export regression. |
+| Wave Overhangs | 0.0.18. Visible conforming waves were confirmed in the owner's real Orca export with 0.0.11. The Z correction, endpoint cleanup, snap-to-boundary behavior, and endpoint flow taper pass the captured real-export regression. |
 | Wave Overhangs Geometry | 0.1.4. Separate experimental `posPrepareInfill` fill-surface prototype. It now leaves Orca's original perimeter in place and replaces unsupported prepared fill with bridge-classified Wave ribbons from support outward, to avoid the dark-blue overhang-wall-island preview problem. Physical output and final ordering remain unverified. |
 | Repository organization | This pass groups reference PDFs and real fixtures, removes the runtime log from source control, and reconciles the documentation. |
-| Physical print | Not verified. A fresh 0.0.17 export and print are still required. |
+| Physical print | Not verified. A fresh 0.0.18 export and print are still required. |
 
 ## Wave Overhangs — current implementation
 
@@ -40,10 +40,10 @@ does not depend on a plan surviving from `posSlice`:
    non-extruding travel moves.
 7. Remove only original bridge centerline portions covered by generated Wave
    coverage. Re-emit substantial uncovered fragments with proportional E.
-8. Clip emitted Wave centerlines back from non-support detail boundaries, then
-   taper E over short endpoint sub-moves. Bridge-removal coverage still uses the
-   untrimmed cleaned Wave path, and the support-side anchor boundary is excluded
-   from both clearance and taper.
+8. Snap emitted Wave endpoints back onto non-support detail boundaries, then
+   taper E over short endpoint sub-moves. Optional centerline clearance exists
+   for comparison but is off by default; the support-side anchor boundary is
+   excluded from snap, clearance, and taper.
 9. Restore the expected XY, fan, and E mode/value state. Write the file only
    after all stages succeed; otherwise return the original G-code unchanged.
 
@@ -143,7 +143,7 @@ State clearly which evidence exists:
   captured real-export Wave transformation, idempotence, and fail-closed output.
 - **Confirmed by the owner:** visible Wave output in a real Orca export from the
   previous release; Unlayered real-Orca operation from earlier testing.
-- **Still open:** fresh 0.0.17 export, physical print quality, and any future
+- **Still open:** fresh 0.0.18 export, physical print quality, and any future
   changes to the Windows batch files.
 
 ## Verification commands
