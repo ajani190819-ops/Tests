@@ -8,8 +8,8 @@ binding record of OrcaSlicer behavior.
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0f4f1-tests`. Never switch branches or push to
   `main`.
-* **Latest code state:** new separate Wave Overhangs Geometry prototype is
-  implemented in the working tree; it still needs its next commit/push.
+* **Latest code state:** `613ff8f Integrate prior Wave branch history` includes
+  the new separate Wave Overhangs Geometry prototype locally; push is pending.
 * **Current versions:** Wave Overhangs 0.0.15, Wave Overhangs Geometry 0.1.0,
   Unlayered Infill 0.3.4, updater 1.4.0.
 * **Permanent identities:** `Wave Overhangs`, `Wave Overhangs Geometry`, and
@@ -30,7 +30,9 @@ Important locations:
   updater downloaded from exactly the selected branch; it never fills a test
   branch from `main`.
 - `plugins.json` — catalogue and version source used by the updater.
-- `plugins/wave-overhangs/` — Wave plugin and its release notes.
+- `plugins/wave-overhangs/` — exported-G-code Wave plugin and its release notes.
+- `plugins/wave-overhangs-geometry/` — separate preview-visible `posSlice`
+  Wave ribbon prototype and notes.
 - `plugins/unlayered-infill/` — Unlayered plugin, standalone tool, and notes.
 - `tests/fixtures/` — the supplied `Cube^2.STL` and captured
   `Cube^2_3m53s.gcode` real-export fixture.
