@@ -6,10 +6,31 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.19 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.20 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.20 — 2026-10-01
+
+* Fixed the frayed Wave edges. Orca exports bridge infill as separate lines, so
+  the area those lines cover has a castellated edge that also stops short of
+  the perimeter. Wave was clipping its fronts to that edge, which is what made
+  the ends look jagged. Wave now reads the wall moves the layer actually
+  printed and squares the overhang area up against them, so fronts run from the
+  supported perimeter all the way to the overhang perimeter and to any hole.
+* Wave ends now finish inside the wall bead, overlapping it by 25% of the Wave
+  line width by default (`wall_overlap`), so the following perimeter has a
+  straight, fully bonded edge to print against instead of a sawtooth.
+* Added `wall_snap` (on by default; set it to `false` to get the 0.0.19 edges
+  back for comparison), `wall_reach` (how far the area may be stretched to
+  reach a wall, `auto` = 1.5 line widths) and `wall_overlap`.
+* Fixed wall material being measured one G-code move at a time, which left a
+  hairline slit at every vertex of a curved wall. A Wave end could slip through
+  one of those slits and finish on the visible surface of a hole.
+* Stretching the area to the wall can never create a Wave where there was not
+  one: a region still has to come from bridge extrusion Orca exported over
+  unsupported space, and nothing may be placed outside the part.
 
 ## 0.0.19 — 2026-10-01
 

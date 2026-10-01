@@ -146,13 +146,16 @@ assert curved_allowed.buffer(0.02).covers(LineString(clean_arc)), (
 
 assert stats["wave_layers"] == 3, stats
 assert stats["replaced_sections"] == 3, stats
-assert stats["removed_moves"] == 101, stats
-assert stats["kept_fragments"] == 31, (
+assert stats["removed_moves"] == 102, stats
+assert stats["kept_fragments"] == 29, (
     "substantial uncovered bridge fragments must remain", stats)
 assert stats["tiny_fragments_dropped"] == 112, (
     "sub-nozzle edge remnants should be cleaned up", stats)
-assert stats["short_wave_paths_dropped"] == 29, (
+assert stats["short_wave_paths_dropped"] == 16, (
     "isolated short wavefronts should be cleaned up", stats)
+assert stats["wall_bounded_sections"] == 3, (
+    "every exported bridge section should be squared up against the wall "
+    "the layer actually printed", stats)
 assert out.startswith("; wave-overhangs v"), "missing build stamp"
 assert out.count("; ==== WAVE OVERHANG BEGIN ====") == 3
 assert out.count("; ==== WAVE OVERHANG END ====") == 3
@@ -160,6 +163,31 @@ wave_blocks = re.findall(
     r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
     r"; ==== WAVE OVERHANG END ====", out, re.DOTALL)
 wave_move_count = sum(block.count("\nG1 X") for block in wave_blocks)
+
+
+def wave_polylines(blocks):
+    """The Wave paths inside emitted Wave blocks, as point lists."""
+    paths = []
+    for block in blocks:
+        current = None
+        for line in block.splitlines():
+            if line.startswith("G0"):
+                words = wave._gwords(line)
+                if "X" in words and "Y" in words:
+                    if current and len(current) > 1:
+                        paths.append(current)
+                    current = [(words["X"], words["Y"])]
+            elif line.startswith("G1") and " X" in line and " E" in line:
+                words = wave._gwords(line)
+                if current is not None and "X" in words and "Y" in words:
+                    current.append((words["X"], words["Y"]))
+        if current and len(current) > 1:
+            paths.append(current)
+    return paths
+
+
+def wave_path_length(blocks):
+    return sum(wave._polyline_length(path) for path in wave_polylines(blocks))
 old_style_out, old_style_stats = wave._gcode_wave_rewrite(
     source, dict(cfg, edge_taper_distance=0.0, edge_clearance=0.0,
                  edge_snap_distance=0.0))
@@ -175,10 +203,11 @@ clearance_only_blocks = re.findall(
 clearance_only_move_count = sum(
     block.count("\nG1 X") for block in clearance_only_blocks)
 assert old_style_stats["removed_moves"] == stats["removed_moves"]
-assert old_style_move_count == 399, (
+assert old_style_move_count == 410, (
     "old no-clearance/no-taper cleanup changed unexpectedly")
 assert clearance_only_stats["removed_moves"] == stats["removed_moves"]
-assert clearance_only_move_count <= old_style_move_count, (
+assert wave_path_length(clearance_only_blocks) < wave_path_length(
+        old_style_blocks), (
     "edge clearance should trim emitted paths without changing bridge coverage")
 assert wave_move_count == old_style_move_count, (
     "default endpoint taper must not add tiny grid-like endpoint moves")
@@ -335,6 +364,196 @@ assert nearest_stats["removed_moves"] == stats["removed_moves"]
 assert nearest.count("; ==== WAVE OVERHANG BEGIN ====") == 3
 assert nearest != out, "nearest component ordering did not change toolpath order"
 
+# ---------------------------------------------------------------------------
+# Perimeter conformance (the 0.0.20 fix).
+#
+# Orca exports bridge infill as separate lines, so the area they cover has a
+# castellated edge that stops short of the wall. Wave used to clip its fronts
+# to that edge, which is what made the ends look frayed. The ends must now sit
+# on one straight line along each wall, inside the wall bead.
+# ---------------------------------------------------------------------------
+legacy_out, legacy_stats = wave._gcode_wave_rewrite(source, dict(cfg, wall_snap=False))
+legacy_blocks = re.findall(
+    r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
+    r"; ==== WAVE OVERHANG END ====", legacy_out, re.DOTALL)
+assert legacy_stats["wall_bounded_sections"] == 0, legacy_stats
+assert sum(block.count("\nG1 X") for block in legacy_blocks) == 399, (
+    "wall_snap=False must still reproduce the 0.0.19 toolpaths for comparison")
+
+
+def endpoints_along(paths, pick, keep):
+    """Front endpoint coordinates that belong to one straight wall."""
+    values = []
+    for path in paths:
+        for end in (path[0], path[-1]):
+            if keep(end):
+                values.append(pick(end))
+    return values
+
+
+# The real export's open-air overhang layer: the L-shaped arm at z 5.65.
+overhang_paths = [path for path in wave_polylines(wave_blocks[:1])]
+legacy_paths = [path for path in wave_polylines(legacy_blocks[:1])]
+walls_5_4 = wave._wall_material(
+    wave._parse_gcode_geometry(source.splitlines(keepends=True))[17])
+edges = {
+    "left": (lambda p: p[0], lambda p: p[0] < 103.6 and 103.4 < p[1] < 111.6),
+    "bottom": (lambda p: p[1], lambda p: p[1] < 103.6 and 103.4 < p[0] < 111.6),
+    "right": (lambda p: p[0], lambda p: p[0] > 111.4 and 103.4 < p[1] < 107.2),
+    "top": (lambda p: p[1], lambda p: p[1] > 111.4 and 103.4 < p[0] < 107.2),
+}
+for name, (pick, keep) in edges.items():
+    fixed = endpoints_along(overhang_paths, pick, keep)
+    assert len(fixed) >= 5, (name, len(fixed))
+    assert max(fixed) - min(fixed) <= 0.02, (
+        f"Wave ends along the {name} wall must lie on one straight line",
+        name, sorted(fixed))
+# The same measurement on the old behaviour is visibly ragged: this is the bug
+# being fixed, so the test must be able to see it.
+ragged = endpoints_along(legacy_paths, *edges["top"])
+assert max(ragged) - min(ragged) > 0.2, (
+    "the 0.0.19 comparison run should still show the castellated edge",
+    sorted(ragged))
+
+# No end may stop in the "just short of the wall" band: an end either sits in
+# the wall bead or is an interior/support-side anchor well away from a wall.
+def ends_just_short(paths, bead):
+    return [round(bead.distance(Point(end)), 3) for path in paths
+            for end in (path[0], path[-1])
+            if 0.001 < bead.distance(Point(end)) < 0.30]
+
+
+assert ends_just_short(overhang_paths, walls_5_4) == [], (
+    "Wave ends must not stop just short of the wall",
+    ends_just_short(overhang_paths, walls_5_4))
+assert len(ends_just_short(legacy_paths, walls_5_4)) >= 5, (
+    "the 0.0.19 comparison run should still stop short of the wall")
+in_bead = sum(1 for path in overhang_paths for end in (path[0], path[-1])
+              if walls_5_4.covers(Point(end)))
+legacy_in_bead = sum(1 for path in legacy_paths for end in (path[0], path[-1])
+                     if walls_5_4.covers(Point(end)))
+assert in_bead > legacy_in_bead, (in_bead, legacy_in_bead)
+
+
+def synthetic_overhang_with_hole():
+    """A layer that overhangs to the right and has a round hole in it.
+
+    The layer below is a 10 x 20 block, so x > 110 hangs in the air. Bridge
+    lines stop short of the walls by a varying amount, exactly like a real
+    export, and they also keep a varying margin around the hole.
+    """
+    hole_x, hole_y, hole_r = 115.0, 110.0, 3.0
+
+    def loop(points, kind="Outer wall"):
+        block = [f";TYPE:{kind}", ";WIDTH:0.50", "G0 X%.3f Y%.3f" % points[0]]
+        for x, y in points[1:]:
+            block.append(f"G1 X{x:.3f} Y{y:.3f} E0.50")
+        return block
+
+    def circle(radius, n=72):
+        return [(hole_x + radius * math.cos(2 * math.pi * i / n),
+                 hole_y + radius * math.sin(2 * math.pi * i / n))
+                for i in range(n + 1)]
+
+    text = ["M83", ";Z:0.3"]
+    text += loop([(100.25, 100.25), (109.75, 100.25), (109.75, 119.75),
+                  (100.25, 119.75), (100.25, 100.25)])
+    text += [";TYPE:Internal solid infill", ";WIDTH:0.45", "G0 X100.6 Y100.7"]
+    y = 100.7
+    while y <= 119.3:
+        text.append(f"G1 X109.4 Y{y:.3f} E0.40")
+        text.append(f"G0 X100.6 Y{y + 0.45:.3f}")
+        y += 0.45
+    text += [";Z:0.6"]
+    text += loop([(100.25, 100.25), (119.75, 100.25), (119.75, 119.75),
+                  (100.25, 119.75), (100.25, 100.25)])
+    text += loop(circle(hole_r + 0.25), kind="Inner wall")
+    text += [";TYPE:Bridge", ";WIDTH:0.50"]
+    y, flip = 100.9, False
+    while y <= 119.3:
+        low, high = (100.6, 119.4) if flip else (100.95, 119.05)
+        if low <= y <= high:
+            spans = [(109.6, 119.4 if flip else 119.05)]
+            outer = hole_r + 0.5
+            if abs(y - hole_y) < outer:
+                dx = math.sqrt(max(0.0, outer ** 2 - (y - hole_y) ** 2))
+                margin = 0.45 if flip else 0.1
+                spans = [(109.6, hole_x - dx - margin),
+                         (hole_x + dx + margin, 119.4 if flip else 119.05)]
+            for a, b in spans:
+                if b - a >= 0.6:
+                    text.append(f"G0 X{a:.3f} Y{y:.3f}")
+                    text.append(f"G1 X{b:.3f} Y{y:.3f} E{(b - a) * 0.033:.5f}")
+        y += 0.5
+        flip = not flip
+    return "\n".join(text) + "\n", (hole_x, hole_y, hole_r)
+
+
+hole_source, (hx, hy, hr) = synthetic_overhang_with_hole()
+hole_out, hole_stats = wave._gcode_wave_rewrite(hole_source, dict(cfg))
+hole_legacy_out, _ = wave._gcode_wave_rewrite(
+    hole_source, dict(cfg, wall_snap=False))
+assert hole_stats["wall_bounded_sections"] == 1, hole_stats
+
+
+def hole_paths(text):
+    return wave_polylines(re.findall(
+        r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
+        r"; ==== WAVE OVERHANG END ====", text, re.DOTALL))
+
+
+paths = hole_paths(hole_out)
+legacy_hole_paths = hole_paths(hole_legacy_out)
+assert paths and legacy_hole_paths
+
+# 1. Nothing may be printed inside the opening.
+for path in paths:
+    for x, y in path:
+        assert math.hypot(x - hx, y - hy) >= hr - 1e-6, (
+            "a Wave path entered the hole", (x, y))
+
+# 2. Ends that reach the hole must land on its perimeter, all at one radius.
+hole_radii = [math.hypot(x - hx, y - hy) for path in paths
+              for x, y in (path[0], path[-1])
+              if math.hypot(x - hx, y - hy) < 4.3]
+assert len(hole_radii) >= 20, len(hole_radii)
+assert max(hole_radii) - min(hole_radii) <= 0.02, (
+    "Wave ends around a hole must follow the hole, not a staircase",
+    round(min(hole_radii), 3), round(max(hole_radii), 3))
+assert hr < min(hole_radii) <= hr + 0.5, (
+    "hole ends must sit in the hole's wall bead", min(hole_radii))
+legacy_radii = [math.hypot(x - hx, y - hy) for path in legacy_hole_paths
+                for x, y in (path[0], path[-1])
+                if math.hypot(x - hx, y - hy) < 4.3]
+assert max(legacy_radii) - min(legacy_radii) > 0.2, (
+    "the comparison run should still show ragged hole ends")
+
+# 3. Ends at the straight top and bottom walls must be on one line, and must
+#    reach the wall instead of stopping a third of a millimetre short.
+for pick, keep, label in (
+        (lambda p: p[1], lambda p: p[1] > 118.6 and p[0] > 111.0, "top"),
+        (lambda p: p[1], lambda p: p[1] < 101.4 and p[0] > 111.0, "bottom")):
+    values = sorted(endpoints_along(paths, pick, keep))
+    legacy_values = sorted(endpoints_along(legacy_hole_paths, pick, keep))
+    assert len(values) >= 20, (label, len(values))
+    trimmed = values[1:-1] if len(values) > 4 else values
+    assert max(trimmed) - min(trimmed) <= 0.02, (label, trimmed[:5], trimmed[-5:])
+    reach = (min(values) if label == "top" else -max(values))
+    legacy_reach = (min(legacy_values) if label == "top" else -max(legacy_values))
+    assert reach > legacy_reach + 0.2, (
+        f"{label} ends must now reach the wall", reach, legacy_reach)
+
+# 4. The field itself must march all the way to the far overhang perimeter.
+far = max(x for path in paths for x, _y in path)
+legacy_far = max(x for path in legacy_hole_paths for x, _y in path)
+assert far >= 119.5, ("Wave must reach the far wall's inner edge", far)
+assert far > legacy_far + 0.2, (far, legacy_far)
+
+# 5. Nothing may be printed outside the part.
+for path in paths:
+    for x, y in path:
+        assert 100.0 <= x <= 120.0 and 100.0 <= y <= 120.0, (x, y)
+
 again, second = wave._gcode_wave_rewrite(out, cfg)
 assert again == out and second["already_processed"], "second pass must be a no-op"
 
@@ -351,4 +570,7 @@ assert "error" in failure_stats
 
 print("ok -- real Cube^2 export: 3 cleaned wave layers use actual offset Z, "
       "replace covered moves, retain substantial fragments, snap/taper edge "
-      "endpoints, restore fan state, fail closed, and are idempotent")
+      "endpoints, restore fan state, fail closed, and are idempotent; Wave "
+      "ends now sit on one straight line in the wall bead (and on a hole's "
+      "perimeter in the synthetic overhang-with-hole export) instead of the "
+      "0.0.19 castellated edge")

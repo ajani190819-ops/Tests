@@ -19,6 +19,36 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — Wave ends snap to the real wall and hole perimeters
+
+**Wave Overhangs:** 0.0.20.
+
+The owner reported that Wave ends would not snap to the overhang perimeter:
+instead of marching from the supported perimeter all the way out to the
+overhang perimeter and around holes, the fronts finished on a jagged edge that
+the following outer perimeter then had to print against.
+
+The cause was that Wave measured the overhang from the footprint of Orca's
+exported bridge *lines*. The union of those line footprints has a castellated
+edge — alternating in and out by about half a line width — that also stops
+short of the wall, and fronts were being clipped to it. Wave now also reads the
+layer's wall moves, squares the overhang area up against the real wall bead
+(overlapping into it by 25% of the Wave width by default), and lets the fronts
+reach that smooth boundary. `wall_snap=false` restores the 0.0.19 behaviour for
+comparison.
+
+A second, related bug was fixed: wall material was measured one G-code move at
+a time, which left a hairline slit at every vertex of a curved wall, and a Wave
+end could slip through one and finish on the visible surface of a hole.
+
+Verified in the sandbox against the captured Cube^2 export (ends along each
+wall now lie on one line within 0.02 mm, where 0.0.19 varied by 0.29 mm) and
+against a new synthetic overhang-with-hole export (all ends around the hole on
+one radius within 0.001 mm, nothing inside the hole, nothing outside the part).
+Not verified on real hardware: no OrcaSlicer and no printer in the sandbox.
+
+---
+
 ## 2026-10-01 — Wave endpoint taper no longer adds default micro-moves
 
 **Wave Overhangs:** 0.0.19.

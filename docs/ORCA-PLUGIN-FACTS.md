@@ -206,9 +206,10 @@ is a bug in the plugin:
   refusals and internal errors never touch the G-code file; an unexpected
   exception returns Success so a plugin bug cannot fail someone's export.
 * **Wave Overhangs replacement is one G-code transaction.** Do not restore
-  pre-export slice carving or cross-callback plan state. Version 0.0.19 builds
-  support and bridge footprints from exported moves, generates waves, removes
-  only geometrically covered bridge extrusion, and retains every uncovered
+  pre-export slice carving or cross-callback plan state. Version 0.0.20 builds
+  support, wall and bridge footprints from exported moves, squares the Wave
+  area up against the real wall bead, generates waves, removes only
+  geometrically covered bridge extrusion, and retains every uncovered
   fragment. It exposes `smart`, `monotonic`, and `zigzag` ordering plus
   deterministic endpoint policies. Relative-E and uniform absolute-E sections
   restore their extrusion state; mixed E-mode sections remain untouched. Any
@@ -218,11 +219,11 @@ is a bug in the plugin:
 
 * Both plugins have run in the owner's real OrcaSlicer. Unlayered rewrote real
   exports. Wave 0.0.11 produced visible, perimeter-conforming waves in a
-  reopened export. Wave 0.0.19 corrects the measured 0.25 mm Z-offset error,
-  cleans edge chatter, snaps Wave endpoints back onto non-support detail
-  boundaries along the Wave
-  direction, and tapers endpoint flow without default micro-moves in the
-  captured fixture; a fresh 0.0.19 export and physical print are still
+  reopened export. Wave 0.0.20 corrects the measured 0.25 mm Z-offset error,
+  cleans edge chatter, measures the overhang against the layer's real wall
+  moves so fronts run from the supported perimeter to the overhang perimeter
+  and to holes, and tapers endpoint flow without default micro-moves in the
+  captured fixture; a fresh 0.0.20 export and physical print are still
   required.
 * The captured real-export regression is `tests/test_wave_gcode.py` and uses
   `tests/fixtures/Cube^2_3m53s.gcode`. It verifies three Wave layers, bounded
@@ -245,5 +246,12 @@ is a bug in the plugin:
   tuning is not a physical-print guarantee.
 * `full_strength` can displace by the entire gap to the nearest skin in a
   thin part. Off by default for that reason.
-* Wave 0.0.19 reads absolute bed coordinates from exported G-code and no
+* Wave 0.0.20 reads absolute bed coordinates from exported G-code and no
   longer needs object-to-bed calibration or cross-callback plan state.
+* **An exported extrusion footprint is not the shape of the region.** Bridge
+  infill is exported as separate lines, so buffering those lines gives a
+  castellated edge that stops short of the perimeter; and buffering a wall one
+  G-code move at a time leaves a hairline slit at every vertex of a curved
+  wall. Wave 0.0.20 joins wall moves into loops before giving them width, and
+  closes the bridge footprint against the wall bead rather than trusting the
+  line footprint as the region boundary.
