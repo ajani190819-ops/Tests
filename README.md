@@ -214,31 +214,34 @@ quietly. Here is where to look, in order:
 5. Press **Refresh** in the Plugins dialog, or restart OrcaSlicer. Orca
    captures plugins at load time.
 
-> **Heads up:** the new versions are on the pull-request branch, not on `main`
-> yet. Until that PR is merged, the updater installs the older versions that
-> are on `main`. To get the new ones now, see "Installing a test build" below.
+> **If the version looks old:** check whether your copy of the updater is an
+> early one. Updaters before v1.1.0 cannot upgrade themselves — download
+> `Update-Orca-Plugins.bat` again (link at the top of this page) and run it
+> once. From v1.1.0 on it keeps itself current automatically.
 
 ## Installing a test build (before the pull request is merged)
 
-The updater downloads from **`main`** by default. New work lives on a branch
-until it is merged, so `main` can be behind. To install straight from a
-branch, set `PLUGIN_BRANCH` first.
+The updater downloads from **`main`** by default, which is where released
+versions live. To test work before it is merged, put these two files together
+in Downloads and double-click the chooser:
 
-Open **Command Prompt** (press Start, type `cmd`, Enter), then paste these two
-lines one at a time:
+* `Choose-Orca-Plugin-Version.bat`
+* `Update-Orca-Plugins.bat`
 
-```bat
-set PLUGIN_BRANCH=arena/01a0f48b-tests
-"%USERPROFILE%\Downloads\Update-Orca-Plugins.bat"
-```
+The chooser fetches the repository's real branches from public GitHub. It
+shows released `main`, the five newest test branches, an option to show every
+branch, and an option to type a branch yourself. Pick a number; no Command
+Prompt and no GitHub login or token are needed.
 
-The updater prints the ref it is using near the top — check it says
-`ref: arena/01a0f48b-tests`, not `ref: main`. If a file is missing on the
-branch it quietly falls back to `main`, so always confirm the version
-afterwards in the Plugins dialog (**0.3.1** / **0.0.6**).
+The chooser remembers its last choice. **Return to released main** is always
+on the menu. This memory applies only when using the chooser: directly
+double-clicking `Update-Orca-Plugins.bat` still installs released `main`.
 
-Closing that Command Prompt window clears `PLUGIN_BRANCH`. Double-clicking the
-`.bat` normally always goes back to `main`.
+A test build is all-or-nothing. Before changing Orca's folders, the updater
+downloads and checks every plugin from the selected branch. If even one is
+missing or invalid, it stops and names the file. It never fills the gap with a
+plugin from `main`. Large banners at the beginning and end show the branch and
+the plugin versions so it is clear what was installed.
 
 ## The log file — start here when something seems wrong
 

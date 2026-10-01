@@ -18,6 +18,37 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-09-30 — choose and test any branch by double-clicking
+
+**Updater:** 1.2.0. **Plugin versions unchanged:** Unlayered Infill 0.3.1,
+Wave Overhangs 0.0.6.
+
+* Added `Choose-Orca-Plugin-Version.bat`: a numbered menu of live GitHub
+  branches, with released `main`, the five newest test branches, all branches,
+  and manual entry. It remembers the chooser's last selection and has an
+  obvious return to released `main`. No Command Prompt or token is needed.
+* Test branches are now strict and all-or-nothing. The updater downloads and
+  validates the catalogue and every plugin before changing Orca's folders. A
+  missing test-branch file stops the install; it never silently borrows the
+  released copy from `main`.
+* Large start and finish banners show the selected branch and plugin versions.
+  A plain double-click of `Update-Orca-Plugins.bat` still uses `main`.
+* Extended `tests/test_installer.py` with static checks and a branch-preflight
+  replay. **Not verified on Windows:** neither batch file can run in this
+  sandbox; the first real double-click is still the real test.
+
+## 2026-09-30 — released to `main`
+
+Everything below this line was merged into `main` (PR #2), so
+`Update-Orca-Plugins.bat` now installs **Unlayered Infill 0.3.1** and **Wave
+Overhangs 0.0.6**. Until this merge the updater was still handing out
+wave-overhangs 0.0.3 and unlayered-infill 0.2.0, which is why version numbers
+appeared not to change.
+
+Updaters older than **v1.1.0** cannot upgrade themselves. If you have one of
+those, download `Update-Orca-Plugins.bat` once more; after that it keeps
+itself current.
+
 ## 2026-09-30 — install fixes
 
 **Plugins:** Unlayered Infill **0.3.1**, Wave Overhangs **0.0.6**.

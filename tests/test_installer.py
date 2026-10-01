@@ -33,6 +33,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent
 MANIFEST = REPO / "plugins.json"
 BAT = REPO / "Update-Orca-Plugins.bat"
+CHOOSER = REPO / "Choose-Orca-Plugin-Version.bat"
 GATTR = REPO / ".gitattributes"
 
 failures: list[str] = []
@@ -448,6 +449,117 @@ if tool_dl:
     check("%TOOLDIR%" in tool_dl.group(1),
           f"standalone tools are staged to {tool_dl.group(1)!r}, which is the "
           f"plugin staging folder. Use %TOOLDIR%.")
+
+# ---------------------------------------------------------------------------
+# 3e. test-branch chooser and strict branch isolation
+# ---------------------------------------------------------------------------
+# A normal double-click must remain released-main. The chooser is deliberately
+# separate so its remembered test branch cannot surprise a normal updater run.
+check(CHOOSER.exists(), "the double-click branch chooser is missing")
+chooser_raw = CHOOSER.read_bytes() if CHOOSER.exists() else b""
+chooser = chooser_raw.decode("utf-8", "replace")
+check(chooser_raw.count(b"\r\n") == chooser_raw.count(b"\n") > 0,
+      "the chooser .bat must use CRLF throughout")
+check(chooser_raw.endswith(b"\r\n"), "the chooser .bat does not end with CRLF")
+check('set "REF_1=main"' in bat and
+      'if defined PLUGIN_BRANCH set "REF_1=%PLUGIN_BRANCH%"' in bat,
+      "plain updater runs must default to main; only an explicit environment "
+      "override may select a test branch")
+check('set "STATE_FILE=%STATE_DIR%\\branch.txt"' in chooser,
+      "the chooser no longer remembers its selection between runs")
+check('set "PLUGIN_BRANCH=%CHOSEN%"' in chooser and
+      'call "%UPDATER%"' in chooser,
+      "the chooser does not pass its selected branch to the updater")
+check('if /i "%PICK%"=="R" (set "CHOSEN=main"&goto :chosen)' in chooser,
+      "the chooser has no obvious Return to released main choice")
+check("api.github.com/repos/ajani190819-ops/Tests/branches?per_page=100" in chooser,
+      "the chooser no longer fetches the public live GitHub branch list")
+check("$b.commit.url" in chooser and "Sort-Object Date -Descending" in chooser,
+      "the chooser does not fetch commit dates and sort test branches newest first")
+check("if !COUNT! LSS 6" in chooser and "Show all branches" in chooser,
+      "the chooser must show main plus five recent branches and offer the full list")
+check("Nothing will silently switch to another branch" in chooser and
+      'if /i "%PICK%"=="R" goto :refresh' in chooser,
+      "a GitHub API failure must offer retry/manual/cancel, never silently use main")
+check('findstr /r /x "[A-Za-z0-9][A-Za-z0-9._/-]*"' in chooser and
+      'findstr /c:".."' in chooser,
+      "manually typed branch names are not validated before becoming a URL")
+
+# The old bug was REF_1 -> REF_2(main) fallback for both manifests and plugin
+# files. A test build must now be one ref only, and a bad catalogue must stop.
+check('set "REF_2="' in bat,
+      "the updater still configures a second ref; test builds could mix with main")
+_try_start = _bat_text.find(":try_download")
+_try_end = _bat_text.find(":fetch_manifest")
+_try_body = _bat_text[_try_start:_try_end]
+check("%REF_2%" not in _try_body and ":try_ref2" not in _try_body,
+      ":try_download still falls back to REF_2/main")
+_fm_start = _bat_text.find(":fetch_manifest")
+_fm_end = _bat_text.find(":preflight_branch")
+_fm_body = _bat_text[_fm_start:_fm_end]
+check("%REF_2%" not in _fm_body and ":fm_ref2" not in _fm_body,
+      "manifest fetch still falls back to REF_2/main")
+check("if not defined PLAN_SRC if defined BRANCH_MODE goto :branch_manifest_failed" in bat and
+      "if not defined PLAN_MADE if defined BRANCH_MODE goto :branch_manifest_failed" in bat,
+      "a missing or invalid test-branch catalogue does not stop the install")
+
+# All-or-nothing means preflight must occur before the install loop and retain
+# a failure from ANY plugin (not merely whichever plugin was checked last).
+_preflight_call = bat.find("call :preflight_branch")
+_install_loop = bat.find('for /f "usebackq tokens=1-9 delims=|" %%A in ("%PLAN_FILE%") do (')
+_select_data = bat.find('call :select_data_dir "%DATA_DIR_ARG%"')
+check(0 <= _preflight_call < _select_data < _install_loop and
+      "if not defined BRANCH_MODE goto :preflight_done" in bat,
+      "test-branch preflight must finish before Orca folders are selected or "
+      "the first plugin is installed")
+_plan_report = bat.find("echo  Plan: %PLAN_COUNT% plugin(s).")
+check(_install_loop < _plan_report and
+      'if "%PLAN_COUNT%"=="0" goto :no_plan' in bat[_install_loop:_plan_report] and
+      ":branch_manifest_failed" not in bat[_install_loop:_plan_report],
+      "the normal install loop must reach its Plan summary; a branch-failure "
+      "label inserted here would make every successful run fail")
+check(bat.count("\n:branch_manifest_failed\n") == 1,
+      "expected exactly one branch-manifest failure routine")
+check('set "PREFLIGHT_FAILED=1"' in bat and
+      "if defined PREFLIGHT_FAILED exit /b 1" in bat,
+      "preflight does not remember an early missing plugin; a later success could hide it")
+check('if defined BRANCH_MODE if exist "%PREFLIGHT_DIR%\\%PL_FILE%"' in bat,
+      "branch installs do not use the files that passed all-or-nothing preflight")
+check("This updater will NOT use main" in bat,
+      "the strict branch failure does not plainly tell the user that main was not used")
+check("if defined BRANCH_MODE exit /b 0" in _su,
+      "test mode self-update could replace the strict updater with an older copy from the branch")
+
+# The branch and versions must be hard to miss at both ends. The end summary is
+# populated only after a plugin is successfully copied, using the downloaded
+# file's header version rather than the catalogue's claim.
+check(bat.count("***************************************************************") >= 8 and
+      "* BRANCH: %REF_1%" in bat and "* BUILD TO INSTALL -- branch: %REF_1%" in bat,
+      "the selected branch is not printed loudly at the start")
+check("* INSTALLED FROM BRANCH: %REF_1%" in bat and
+      '>> "%INSTALLED_SUMMARY%" echo    %PL_NAME% v%PL_VER%' in bat and
+      'type "%INSTALLED_SUMMARY%"' in bat,
+      "the final banner does not report the actual installed plugin versions")
+
+# A small install replay for the new failure path: if the second file is absent,
+# preflight returns no staged set and therefore installation has not begun.
+def replay_branch_preflight(plan: list[dict], available: set[str]) -> tuple[bool, list[str]]:
+    staged = []
+    for plugin in plan:
+        if plugin["path"] not in available:
+            return False, []
+        staged.append(plugin["path"])
+    return True, staged
+
+_branch_paths = {p["path"] for p in ready}
+_ok, _staged = replay_branch_preflight(ready, _branch_paths)
+check(_ok and set(_staged) == _branch_paths,
+      "branch preflight replay should stage a complete branch")
+if len(ready) >= 2:
+    _ok, _staged = replay_branch_preflight(ready, {ready[0]["path"]})
+    check(not _ok and not _staged,
+          "a missing later branch plugin must leave nothing ready to install")
+
 
 # ---------------------------------------------------------------------------
 # 4. replay the updater's install loop

@@ -18,6 +18,7 @@ Read that one first.
 | C | Wave Overhangs as a standalone **post-processing script** | Planned — **design settled 2026-09-30, unblocked** |
 | D | Unlayered Infill: make it actually work | **Done 2026-09-30** — diagnosed, standalone shipped, plugin now runs under test and logs to Downloads |
 | E | Updater self-updates itself + stages the standalone tools | **Done 2026-09-30** — code written, **never run on Windows** |
+| F | Double-click branch chooser + strict test-build installs | **Built 2026-09-30** — statically tested, **never run on Windows** |
 
 **PR #1 is merged** (2026-09-30, from `arena/01a0f42b-tests`), so `main` now
 carries `plugins.json` and both plugin files — **the updater is live**. A .bat
@@ -244,6 +245,45 @@ that logic needs fixing, the owner has to re-download once.
 
 * No Windows test. First real run is the test.
 * `wave_overhangs_post.py` is not staged because it does not exist yet (§C).
+
+---
+
+## F. Install and test any branch without Command Prompt
+
+**Built 2026-09-30. Static analysis and install replay pass; neither `.bat`
+has been run on Windows in this sandbox.**
+
+The owner needs to test an Arena branch before merging it. Branch names change
+every chat, so copying a name into Command Prompt was not a useful workflow.
+
+### Settled design
+
+* Ship a separate `Choose-Orca-Plugin-Version.bat`. Keeping the menu separate
+  means a normal double-click on `Update-Orca-Plugins.bat` still installs the
+  released `main` branch exactly as before.
+* The chooser fetches the public GitHub branch API without a login or token.
+  It shows released `main`, the five newest test branches, an all-branches
+  view, and manual entry. It remembers the chooser's selection under
+  `%LOCALAPPDATA%`, with a conspicuous **Return to released main** option.
+* If GitHub's branch list is unavailable, offer manual entry, retry, or cancel.
+  Never silently select a different build.
+* A test branch is all-or-nothing. Download and validate its catalogue and
+  every selected plugin before changing Orca's folders. If anything is
+  absent or invalid, stop and name it. Never borrow a missing file from
+  `main`.
+* The updater prints the selected branch in a large banner at the beginning
+  and end. It prints planned versions before installation and the versions
+  actually read from successfully installed plugin files afterwards.
+* Do not self-update from a test branch. An old updater copy stored on that
+  branch could replace the strict current updater and reintroduce fallback.
+  Released-main runs retain normal self-update behavior.
+
+### Verification boundary
+
+`tests/test_installer.py` statically checks both batch files and replays the
+all-or-nothing branch preflight. This can catch missing guards and ordering
+mistakes. It cannot execute Windows `cmd.exe`, the live menu, or PowerShell's
+GitHub calls. The owner's first Windows run remains the real test.
 
 ---
 

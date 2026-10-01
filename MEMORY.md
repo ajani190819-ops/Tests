@@ -10,11 +10,11 @@ Read it before touching anything, and **update it before your session ends** —
 §9 is the checklist. A session that changed something and did not update this
 file has left the next session worse off.
 
-* **Last updated:** 2026-09-30 (session 5)
-* **Verified against the repo:** 2026-09-30 — all four test files pass, both sync tools are clean, and
-  were mutation-tested (24 mutations, 24 caught),
-  `git ls-files --eol Update-Orca-Plugins.bat` says `i/crlf`, `plugins.json`
-  confirmed live on `main`.
+* **Last updated:** 2026-09-30 (session 6)
+* **Verified against the repo:** 2026-09-30 — all four test files pass, both
+  sync tools are clean, the new chooser/strict-branch guards were mutation-
+  tested (see session 6), and both `.bat` files are CRLF. **Not run on
+  Windows:** the menu, live GitHub API call, and updater remain unexecuted.
 
 ---
 
@@ -51,7 +51,8 @@ which does not block starting.
 | Repo | `ajani190819-ops/Tests`, **public** (must stay public — the updater downloads unauthenticated) |
 | Default branch | `main`, at commit `8f2f6f1` "Recreate the plugin updater + reorganize the repo (PR #1)" |
 | PR #1 | **MERGED** 2026-09-30 22:54 UTC, from branch `arena/01a0f42b-tests` |
-| Updater | `Update-Orca-Plugins.bat`, ~596 lines, CRLF, **live**. Now self-updating (v1.1.0) and stages the standalone tool. |
+| Updater | `Update-Orca-Plugins.bat` v1.2.0, CRLF. Released-main behavior remains the default; test branches are strict and all-or-nothing. |
+| Branch chooser | `Choose-Orca-Plugin-Version.bat`, CRLF. Live numbered GitHub branch menu, remembers its choice, obvious return to `main`; **never run on Windows**. |
 | Catalogue | `plugins.json` — confirmed reachable at `raw.githubusercontent.com/.../main/plugins.json` |
 | Wave Overhangs | v0.0.5, `plugins/wave-overhangs/`, ships; **loads + logs under a fake host**, never run in real Orca |
 | Unlayered Infill | v0.3.0, `plugins/unlayered-infill/`, ships; **runs end-to-end under a fake host**, never run in real Orca |
@@ -262,6 +263,15 @@ it references the old path `test_installer.py`, which is now
   executes; a self-overwrite can jump into garbage, and a bad download would
   leave the owner with no working updater. `:self_update` downloads to
   `%TEMP%`, verifies, and delegates. Now hard rule 12 in `AGENTS.md`.
+* **Branch selection uses a separate chooser.** (Owner, session 6.)
+  `Choose-Orca-Plugin-Version.bat` remembers its own selection; directly
+  double-clicking `Update-Orca-Plugins.bat` always defaults to released
+  `main`. The short menu is `main` plus the five newest test branches, with
+  show-all and manual-entry choices. If the API fails: retry, manual, or
+  cancel—never silently change branches.
+* **Test branches never borrow from `main`.** (Owner, session 6.) A missing or
+  invalid catalogue/plugin stops the whole install before Orca's folders are
+  changed. This required an all-files preflight, not merely deleting REF_2.
 
 ---
 
@@ -295,17 +305,14 @@ fails, that is expected-unknown territory, not a surprise — say so plainly.
 
 ## 6. Next actions, in priority order
 
-0. **Get the Diagnostics tab text** (blocks everything else). The owner says
-   the plugins will not install. Orca records the reason in the Plugins
-   dialog's **Diagnostics** tab and in `data_dir()/log/python_*.log`, and
-   neither has been seen yet. Their attached debug log did not survive the
-   workspace reset — ask again, and read it the same turn it arrives.
-   Session 5 fixed two plausible causes blind (import-time write, two `.py`
-   in the staging folder) but neither is confirmed.
-0b. **Merge PR #2, or tell them to set `PLUGIN_BRANCH`.** `main` still serves
-   0.0.3 / 0.2.0. Until it is merged the updater installs versions older than
-   anything in sessions 3-5, which on its own looks like "the update did
-   nothing".
+0. **Run the new chooser on Windows.** Put both `.bat` files together,
+   double-click `Choose-Orca-Plugin-Version.bat`, select this session's branch,
+   and confirm the start/end branch and version banners. This is untested
+   Windows code; capture the exact screen if it fails.
+0b. **Get the Diagnostics tab text if it becomes available.** The owner cannot
+   currently access it. Orca records the real Wave Overhangs failure in the
+   Plugins dialog's **Diagnostics** tab and `data_dir()/log/python_*.log`.
+   Do not guess without that evidence.
 1. **Get the owner to actually run the standalone tool** — this is now the
    highest-value action in the whole repo. It is the only piece other than
    `tools/nonplanar-infill-tool` with functional evidence behind it, and a
@@ -358,6 +365,41 @@ fails, that is expected-unknown territory, not a surprise — say so plainly.
 
 Append one entry per session. Keep entries short: what happened, what landed,
 what was verified, what was left undone.
+
+### Session 6 — 2026-09-30 — branch `arena/01a0f4f1-tests`
+
+**Asked for:** install and test any Arena branch by double-clicking a numbered
+menu, remember the choice, clearly show branch/plugin versions, and eliminate
+the silent test-branch-to-main fallback.
+
+Landed:
+
+* Brought in previous branch tip `e7684b1` (README/MEMORY/CHANGELOG docs). The
+  promised ROADMAP F was not actually in that commit, so it was written here.
+* Added `Choose-Orca-Plugin-Version.bat`: public live GitHub branch list,
+  released `main` plus five newest tests, show-all/manual choices, remembered
+  selection, and an obvious return to released main. Direct updater runs still
+  default to `main`.
+* Updater v1.2.0 removes REF_2 fallback. In test mode it preflights the
+  catalogue and every plugin before changing Orca, then uses only those staged
+  files. It also disables branch self-update so an old updater stored on the
+  branch cannot replace the strict current logic.
+* Start/end banners report the branch; planned and actually installed plugin
+  versions are printed. Tests now statically guard the chooser, strict fetch,
+  preflight ordering, summaries, persistence, and safe main default, and
+  replay the missing-second-plugin case.
+* Owner chose: whole install stops on a missing test file; API failure offers
+  retry/manual/cancel. Wave Overhangs Diagnostics cannot currently be
+  accessed, so no cause was guessed.
+
+Verified: all requested suites and sync checks pass, CRLF is asserted, and
+17/17 deliberate mutations were caught across two rounds. The second round
+also caught the control-flow placement mistake found during the full-file
+reread (a branch-failure block had landed inside the normal success path).
+
+Not verified: neither `.bat` ran on Windows; the live menu/API and actual Orca
+installation remain for the owner to test. Wave Overhangs' real Diagnostics
+error remains unseen.
 
 ### Session 5 — 2026-09-30 — branch `arena/01a0f48b-tests`
 
@@ -493,6 +535,25 @@ displayed.
   in a real OrcaSlicer.
 
 ---
+
+## 8a. PR #2 is MERGED (2026-09-30)
+
+`main` = **`84e05c0`**, serving **unlayered-infill 0.3.1 / wave-overhangs
+0.0.6**, updater **1.1.0** (24777 bytes, CRLF 606/606 intact through the
+merge, `TOOLDIR` and `:self_update` both present). Verified by reading the
+blobs back off `main` through `gh api`, not assumed.
+
+This closes the single biggest source of confusion in sessions 3-5: the
+updater downloads from `main`, and `main` had been stuck on 0.0.3 / 0.2.0 the
+whole time, so every "the version did not change" report was correct and had
+nothing to do with the plugin code.
+
+**One residual trap:** the updater that was on `main` before this merge is
+19062 bytes and has **no `:self_update`**. Anyone holding that copy will not
+be upgraded automatically — they must re-download the `.bat` once. It will
+still install the new *plugins* correctly, because it reads `plugins.json`
+from `main` and downloads by `%PL_PATH%`; only its hardcoded fallback row is
+stale. README now says this.
 
 ## 8b. Session 5 — "they wouldn't install" (2026-09-30)
 
