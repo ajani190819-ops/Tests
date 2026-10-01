@@ -1,7 +1,7 @@
 # Roadmap — OrcaSlicer plugin lane
 
 This document is the plan, not a release promise. Current versions are Wave
-Overhangs **0.0.12**, Unlayered Infill **0.3.4**, and updater **1.2.8** on the
+Overhangs **0.0.13**, Unlayered Infill **0.3.4**, and updater **1.2.9** on the
 session test branch. Package and capability names remain permanently:
 `Wave Overhangs` and `Unlayered Infill`.
 
@@ -12,9 +12,9 @@ session test branch. Package and capability names remain permanently:
 | One-click updater and catalogue | Built; contract-tested. Direct updater defaults to released `main`. |
 | Branch chooser | Built; selects, downloads, validates, and runs the updater from exactly the selected branch. Missing branch files fail closed. Windows behavior was previously verified for the chooser flow; rerun after future batch changes. |
 | Unlayered Infill | 0.3.4. Full 0.3.0 control set preserved, including percentage amplitude, frequency, segment length, nozzle-width grid, blending, and full-strength controls. Restore defaults handles stale Orca configuration. |
-| Wave Overhangs | 0.0.12. Visible conforming waves were confirmed in the owner's real Orca export with 0.0.11. The 0.0.12 Z correction and edge cleanup pass the captured real-export regression. |
+| Wave Overhangs | 0.0.13. Visible conforming waves were confirmed in the owner's real Orca export with 0.0.11. The 0.0.13 Z correction and edge cleanup pass the captured real-export regression. |
 | Repository organization | This pass groups reference PDFs and real fixtures, removes the runtime log from source control, and reconciles the documentation. |
-| Physical print | Not verified. A fresh 0.0.12 export and print are still required. |
+| Physical print | Not verified. A fresh 0.0.13 export and print are still required. |
 
 ## Wave Overhangs — current implementation
 
@@ -27,12 +27,15 @@ does not depend on a plan surviving from `posSlice`:
 2. Buffer the previous layer's actual extrusion to form the support footprint.
 3. Buffer the bridge extrusion and find its unsupported area.
 4. Grow wavefronts from supported material through that unsupported area.
-5. Simplify the wave polylines so short edge chatter does not become printed
-   dots.
-6. Remove only original bridge centerline portions covered by generated Wave
+5. Simplify the wave polylines, drop isolated short fronts, and merge short
+   endpoint stubs so edge chatter does not become printed dots.
+6. Order fronts according to the configurable `smart`, `monotonic`, or `zigzag`
+   pattern and deterministic endpoint policy. Connections between fronts remain
+   non-extruding travel moves.
+7. Remove only original bridge centerline portions covered by generated Wave
    coverage. Re-emit substantial uncovered fragments with proportional E.
-7. Restore the expected XY and fan state. Write the file only after all stages
-   succeed; otherwise return the original G-code unchanged.
+8. Restore the expected XY, fan, and E mode/value state. Write the file only
+   after all stages succeed; otherwise return the original G-code unchanged.
 
 The plugin uses the bridge section's actual modal nozzle Z. This matters because
 the supplied export has nominal `;Z:` comments that differ from the actual
@@ -40,9 +43,9 @@ printing height by the profile's `z_offset`.
 
 The regression fixture is `tests/fixtures/Cube^2_3m53s.gcode`; the model is
 `tests/fixtures/Cube^2.STL`. The test currently verifies three Wave layers,
-actual offset Z values, bounded bridge replacement, 25 substantial retained
-fragments, edge cleanup, fail-closed behavior, fan restoration, and exact
-second-pass idempotence.
+actual offset Z values, bounded bridge replacement, 31 substantial retained
+fragments, short-front cleanup, absolute-E restoration, fail-closed behavior,
+fan restoration, and exact second-pass idempotence.
 
 ### Wave follow-up
 
@@ -107,7 +110,7 @@ State clearly which evidence exists:
   captured real-export Wave transformation, idempotence, and fail-closed output.
 - **Confirmed by the owner:** visible Wave output in a real Orca export from the
   previous release; Unlayered real-Orca operation from earlier testing.
-- **Still open:** fresh 0.0.12 export, physical print quality, and any future
+- **Still open:** fresh 0.0.13 export, physical print quality, and any future
   changes to the Windows batch files.
 
 ## Verification commands

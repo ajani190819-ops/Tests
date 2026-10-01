@@ -4,14 +4,14 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-01, repository-wide cleanup session.
+* **Last updated:** 2026-10-01, Wave refinement and repository cleanup session.
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0f4f1-tests`. Never switch branches or push to
   `main`.
-* **Latest cleanup commit:** `766715d Organize fixtures and reconcile
-  repository docs`, pushed after the Wave implementation commits.
-* **Current versions:** Wave Overhangs 0.0.12, Unlayered Infill 0.3.4,
-  updater 1.2.8.
+* **Latest cleanup commit:** `bb346bb Record repository cleanup in handoff`,
+  pushed after the organization commit.
+* **Current versions:** Wave Overhangs 0.0.13, Unlayered Infill 0.3.4,
+  updater 1.2.9.
 * **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
   numbers must remain out of package and capability names.
 
@@ -44,7 +44,7 @@ Important locations:
 
 ## Current implementation
 
-### Wave Overhangs 0.0.12
+### Wave Overhangs 0.0.13
 
 The active implementation is one transactional G-code pass at
 `psGCodePostProcess`:
@@ -55,24 +55,28 @@ The active implementation is one transactional G-code pass at
    from actual extrusion paths in absolute bed coordinates.
 3. Generate expanding wavefronts from supported material through unsupported
    bridge area.
-4. Simplify wave polylines and remove sub-nozzle edge chatter.
-5. Remove only bridge centerline portions covered by generated Wave paths and
+4. Simplify wave polylines, remove isolated short fronts, and merge short
+   endpoint stubs so sub-nozzle edge chatter does not become blobs.
+5. Order fronts using configurable smart, monotonic, or zigzag patterns plus
+   deterministic endpoint policies. Travel between fronts stays non-extruding.
+6. Remove only bridge centerline portions covered by generated Wave paths and
    re-emit substantial uncovered fragments with proportional extrusion.
-6. Restore the expected XY and fan state.
-7. Write only after parsing, generation, subtraction, and assembly succeed. Any
+7. Restore the expected XY, fan, and E mode/value state. Uniform absolute-E
+   sections restore `M82` and `G92`; mixed E-mode sections remain untouched.
+8. Write only after parsing, generation, subtraction, and assembly succeed. Any
    exception returns the original G-code unchanged.
 
 The Wave pass uses the bridge move's actual modal nozzle Z. In the supplied
 fixture, the nominal `;Z:` comments differ from the actual height because the
-profile contains a 0.25 mm Z offset. The 0.0.12 fixture output uses 5.650,
+profile contains a 0.25 mm Z offset. The 0.0.13 fixture output uses 5.650,
 9.850, and 14.650 mm for the three Wave blocks.
 
-The captured regression reports three Wave layers, 108 covered bridge moves,
-25 substantial retained fragments, 121 tiny remnants removed, 436 simplified
-Wave extrusion moves, restored fan state, exact second-pass idempotence, and
-byte-for-byte unchanged output after deliberate generation failure. The owner
+The captured regression reports three Wave layers, 103 covered bridge moves,
+31 substantial retained fragments, 111 tiny remnants removed, 30 short Wave
+fronts removed, 386 simplified Wave extrusion moves, restored fan state, exact second-pass
+idempotence, and byte-for-byte unchanged output after deliberate generation failure. The owner
 confirmed that the previous 0.0.11 output visibly produced perimeter-conforming
-waves in real Orca. A fresh 0.0.12 export and physical print remain open.
+waves in real Orca. A fresh 0.0.13 export and physical print remain open.
 
 There is no standalone Wave post-processing script in this repository. The
 plugin waits for exported Bridge G-code; do not claim a Wave standalone tool
@@ -139,7 +143,7 @@ or a printer.
 
 ## What remains to do
 
-1. Install this branch with the chooser and confirm Wave 0.0.12 in Orca's
+1. Install this branch with the chooser and confirm Wave 0.0.13 in Orca's
    separate Version column.
 2. Export `Cube^2.STL` again at the owner's 0.30 mm / 0.60 mm settings.
 3. Reopen the exported G-code and inspect Wave Z alignment and cleaned outer
@@ -162,6 +166,19 @@ and changelog content were reconciled with the current implementation. The
 obsolete Wave slice-object planning helpers and their stale documentation were
 removed from the active plugin module; the one-pass G-code design remains.
 Tests and synchronization checks are the release gate before commit.
+
+### 2026-10-01 — Wave 0.0.13
+
+The owner reported three refinements: a sharp extruding handoff when the nozzle
+returned to the original bridge, remaining small edge blobs, and a desire for
+pattern/start controls. Wave now emits a non-extruding `G0` to every replaced
+segment endpoint before any retained original `G1` move. Cleanup has configurable
+minimum front and segment lengths, simplification tolerance, and retained
+fragment threshold. `smart`, `monotonic`, and `zigzag` patterns plus deterministic
+endpoint policies are available. The fixture passes with 386 Wave extrusion
+moves and no Wave-block-to-retained-extrusion handoff without a G0.
+
+A fresh 0.0.13 Orca export and physical print remain unverified.
 
 ### 2026-10-01 — Wave 0.0.12
 

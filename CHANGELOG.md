@@ -18,6 +18,20 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — Wave handoff, cleanup, and pattern controls
+
+**Wave Overhangs:** 0.0.13. **Updater:** 1.2.9.
+
+Wave now makes an explicit non-extruding travel to each replaced bridge
+segment's original endpoint before any retained original extrusion resumes.
+This prevents a sharp handoff line from a Wave endpoint. Cleanup now removes
+short complete Wave fronts and short endpoint stubs, while retaining substantial
+uncovered bridge material. The captured fixture emits 386 cleaned Wave moves.
+New `smart`, `monotonic`, and `zigzag` patterns plus deterministic endpoint
+policies are available; monotonic keeps a consistent front direction without
+extruding between separate fronts. Uniform absolute-E bridge sections restore
+`M82` and the prior command value safely; mixed E-mode sections fail closed.
+
 ## 2026-10-01 — repository organization and documentation cleanup
 
 * Grouped the supplied OrcaSlicer reference PDFs under `docs/reference/` and

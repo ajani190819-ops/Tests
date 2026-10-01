@@ -192,17 +192,20 @@ is a bug in the plugin:
   refusals and internal errors never touch the G-code file; an unexpected
   exception returns Success so a plugin bug cannot fail someone's export.
 * **Wave Overhangs replacement is one G-code transaction.** Do not restore
-  pre-export slice carving or cross-callback plan state. Version 0.0.12 builds
+  pre-export slice carving or cross-callback plan state. Version 0.0.13 builds
   support and bridge footprints from exported moves, generates waves, removes
   only geometrically covered bridge extrusion, and retains every uncovered
-  fragment. Any exception returns the original text unchanged.
+  fragment. It exposes `smart`, `monotonic`, and `zigzag` ordering plus
+  deterministic endpoint policies. Relative-E and uniform absolute-E sections
+  restore their extrusion state; mixed E-mode sections remain untouched. Any
+  exception returns the original text unchanged.
 
 ## Known gaps (read before trusting output)
 
 * Both plugins have run in the owner's real OrcaSlicer. Unlayered rewrote real
   exports. Wave 0.0.11 produced visible, perimeter-conforming waves in a
-  reopened export. Wave 0.0.12 corrects the measured 0.25 mm Z-offset error and
-  edge chatter in the captured fixture; a fresh 0.0.12 export and physical
+  reopened export. Wave 0.0.13 corrects the measured 0.25 mm Z-offset error and
+  edge chatter in the captured fixture; a fresh 0.0.13 export and physical
   print are still required.
 * The captured real-export regression is `tests/test_wave_gcode.py` and uses
   `tests/fixtures/Cube^2_3m53s.gcode`. It verifies three Wave layers, bounded
@@ -216,5 +219,5 @@ is a bug in the plugin:
   tuning is not a physical-print guarantee.
 * `full_strength` can displace by the entire gap to the nearest skin in a
   thin part. Off by default for that reason.
-* Wave 0.0.12 reads absolute bed coordinates from exported G-code and no
+* Wave 0.0.13 reads absolute bed coordinates from exported G-code and no
   longer needs object-to-bed calibration or cross-callback plan state.

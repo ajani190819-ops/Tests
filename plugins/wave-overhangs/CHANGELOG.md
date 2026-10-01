@@ -6,10 +6,28 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.12 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.13 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.13 — 2026-10-01
+
+* Fixed the Wave-to-original-toolpath handoff. Every replaced bridge segment
+  now ends with an explicit non-extruding `G0` travel to its original endpoint,
+  so the next retained `G1` move cannot draw a sharp line from a Wave endpoint.
+* Refined cleanup with configurable minimum front length, minimum Wave segment
+  length, simplification tolerance, and retained-bridge fragment threshold.
+  The captured fixture now emits 386 cleaned Wave extrusion moves and removes
+  30 isolated short fronts.
+* Added real pattern and endpoint settings: `smart`, `monotonic`, and `zigzag`,
+  plus `supported`, `consistent`, and min/max X/Y endpoint policies. Monotonic
+  keeps one direction across fronts while all inter-front travel remains
+  non-extruding.
+* Added safe uniform absolute-E support: the temporary relative block restores
+  `M82` and the prior command value with `G92`; mixed E-mode sections fail
+  closed. The fixture retains 31 substantial uncovered fragments and remains
+  idempotent. A fresh 0.0.13 Orca export and physical print are still required.
 
 ## 0.0.12 — 2026-10-01
 
