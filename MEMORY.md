@@ -8,9 +8,8 @@ binding record of OrcaSlicer behavior.
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0f4f1-tests`. Never switch branches or push to
   `main`.
-* **Current branch base:** the prior Wave implementation is pushed as
-  `cb2661f Align Wave Z and clean edge toolpaths`; this cleanup is the next
-  commit.
+* **Latest cleanup commit:** `766715d Organize fixtures and reconcile
+  repository docs`, pushed after the Wave implementation commits.
 * **Current versions:** Wave Overhangs 0.0.12, Unlayered Infill 0.3.4,
   updater 1.2.8.
 * **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
