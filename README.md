@@ -7,8 +7,8 @@ that's a bug; open an issue.
 
 | Plugin | Version | What it does |
 | --- | --- | --- |
-| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.4 | prints steep overhangs support-free by wave-propagating toolpaths into thin air |
-| [Unlayered Infill](plugins/unlayered-infill/) | 0.2.1 | rewrites sparse infill onto a sine wave in Z so layers interlock instead of stacking as clean planes |
+| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.5 | prints steep overhangs support-free by wave-propagating toolpaths into thin air |
+| [Unlayered Infill](plugins/unlayered-infill/) | 0.3.0 | rewrites sparse infill onto a sine wave in Z so layers interlock instead of stacking as clean planes |
 
 Also here:
 
@@ -99,10 +99,10 @@ places without digging:
 
 | Where | What you see |
 | --- | --- |
-| File → Plugins, **Name** column | `Wave Overhangs v0.0.4` |
-| File → Plugins, **Version** column | `0.0.4` (Orca reads this itself) |
-| The updater's output | `[UPDATED] Wave Overhangs v0.0.4 (was v0.0.3) -- 39649 bytes` |
-| **Check setup**, first line | `Wave Overhangs v0.0.4 -- setup check` |
+| File → Plugins, **Name** column | `Wave Overhangs v0.0.5` |
+| File → Plugins, **Version** column | `0.0.5` (Orca reads this itself) |
+| The updater's output | `[UPDATED] Wave Overhangs v0.0.5 (was v0.0.4) -- 39649 bytes` |
+| **Check setup**, first line | `Wave Overhangs v0.0.5 -- setup check` |
 
 The exported G-code is stamped too — search it for `; wave-overhangs v` or
 `; unlayered-infill v` to see which build produced the file.
@@ -153,6 +153,29 @@ they explain most reports:
 6. **Check the log** if a plugin failed to load: `<data dir>/log/python_*.log`.
    Wave Overhangs needs numpy and shapely.
 
+## The log file — start here when something seems wrong
+
+Both plugins append a plain-text record of every run to:
+
+```
+%USERPROFILE%\Downloads\orca-plugins.log
+```
+
+Open it in Notepad. It answers, in order: did the plugin load, was it
+selected, did the export step run, and what did it do? Read it as a ladder:
+
+| What you see | What it means |
+| --- | --- |
+| no file at all | not installed, or Orca never loaded it |
+| `loaded` only | installed, but not selected in a process preset — or you never sliced |
+| `pipeline step '...' seen`, no export step | running, but you pressed **Print/Send** instead of **Export G-code file** |
+| `EXPORT STEP RUNNING` then `NOTHING CHANGED` | it ran, and the log names the reason |
+| `EXPORT STEP RUNNING` then `DONE` | it worked |
+| `REFUSED` | usually absolute E — turn on relative E distances |
+
+It rolls over at ~1 MB. `ORCA_PLUGIN_LOG_DIR` moves it; `"log": false` in the
+plugin's config turns it off.
+
 ## The standalone tool (no plugin needed)
 
 `plugins/unlayered-infill/unlayered_infill_post.py` runs the **same engine**
@@ -198,8 +221,10 @@ above applies rather than claiming success.
 ## Verification
 
 ```bash
-python3 tests/test_installer.py     # catalogue / updater / files agree
-python3 tests/test_post_script.py   # the engine really does rewrite G-code
+python3 tests/test_installer.py      # catalogue / updater / files agree
+python3 tests/test_post_script.py    # the engine really does rewrite G-code
+python3 tests/test_plugin_runtime.py # the plugin itself runs, and logs
+python3 tools/sync_engine.py --check # the two engine copies match
 ```
 
 The second one builds a synthetic sliced cube and checks the tool waves it,

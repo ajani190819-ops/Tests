@@ -16,7 +16,7 @@ Read that one first.
 | A | One-click updater (`Update-Orca-Plugins.bat`) + catalogue + contract test | **Done and merged** (PR #1) |
 | B | Repo reorganization (plugins/ + tools/ + tests/ + docs/ + AGENTS.md) | **Done and merged** (PR #1) |
 | C | Wave Overhangs as a standalone **post-processing script** | Planned — **design settled 2026-09-30, unblocked** |
-| D | Unlayered Infill: make it actually work | **D1 diagnosed, standalone shipped 2026-09-30**; step 3 (plugin diagnostics) open |
+| D | Unlayered Infill: make it actually work | **Done 2026-09-30** — diagnosed, standalone shipped, plugin now runs under test and logs to Downloads |
 | E | Updater self-updates itself + stages the standalone tools | **Done 2026-09-30** — code written, **never run on Windows** |
 
 **PR #1 is merged** (2026-09-30, from `arena/01a0f42b-tests`), so `main` now
@@ -135,10 +135,42 @@ script can't lean on Orca's dependency installer).
    **Tested for real** on synthetic sliced G-code: 54 infill moves → 1080
    segments, extrusion conserved to 1.6e-12 mm, Z restored on every section
    exit, second pass a no-op, absolute-E refused.
-3. **Fold the learnings back** into the plugin version — still to do. Same
-   engine, so engine fixes already land in both; what is *not* shared is the
-   diagnostics. The plugin should report the same "here is why nothing
-   changed" detail through its result message and Check setup.
+3. ~~**Fold the learnings back** into the plugin version~~ **DONE
+   2026-09-30 (owner's follow-up).** The plugin now logs the same detail, and
+   more, to `<Downloads>/orca-plugins.log`.
+
+### Owner's follow-up, 2026-09-30 — what was asked and what was true
+
+> *"the unlayered infill should work like my version, picking a frequency and
+> amplitude (not in mm but in % of the layer height, eg 200% will give .6mm if
+> given a .3mm layer height). also having a grid of nozzle size (.6mm) columns
+> to blend the sin effect so that areas with local ceilings and floors do
+> [not] mess everything up globally. also lets keep it as a pipeline plugin,
+> just make the plugins write logs to my downloads folder."*
+
+Three of the four already existed and simply were not the defaults — worth
+knowing before rebuilding anything:
+
+| Asked for | Status before | Done |
+| --- | --- | --- |
+| amplitude as % of layer height | parser already supported `%`/`x`; default was `-0.2` mm | default is now `"200%"` |
+| pick frequency | already configurable | unchanged (1.5 /mm) |
+| nozzle-size column grid, local skins stay local | **already built** — `SolidGrid`, per-column floor/roof, `cell_mm=0.6`, `blend_mm=2.0` | default is now `"auto"` = nozzle diameter read from the G-code |
+| stay a pipeline plugin | always was | unchanged; the standalone stays alongside it (C1) |
+| logs in Downloads | logged JSONL *next to the plugin file*, unfindable | plain text in `<Downloads>/orca-plugins.log`, both plugins sharing one file |
+
+Versions: Unlayered Infill **0.2.1 → 0.3.0**, Wave Overhangs **0.0.4 → 0.0.5**.
+
+**`tests/test_plugin_runtime.py` is new and matters**: it loads the plugin
+against `tests/fake_orca.py` and drives it the way Orca would. This is the
+first time anything in `plugins/` has ever been executed. It proves the
+plugin loads, registers its two capabilities, rewrites G-code at
+`psGCodePostProcess`, refuses absolute E, is idempotent, honours preset
+config, and writes the log. It cannot prove behaviour *inside* OrcaSlicer.
+
+**`tools/sync_engine.py`** pushes the engine from the standalone (the
+readable copy) into the plugin's string literal, so "one engine, two front
+ends" is mechanical rather than hopeful.
 
 ### D1 — answered 2026-09-30
 
@@ -190,7 +222,7 @@ update itself?"*
 from disk by byte offset as it executes, so a self-overwrite can jump into
 garbage mid-run — and a bad download would leave the owner with no working
 updater at all. Delegating instead means the on-disk file is never at risk;
-it simply always runs the newest logic. This is now hard rule 11 in
+it simply always runs the newest logic. This is now hard rule 12 in
 `AGENTS.md`, enforced by `tests/test_installer.py`.
 
 Guards: `ORCA_UPDATER_CHILD` (no infinite recursion), `NO_SELF_UPDATE` /

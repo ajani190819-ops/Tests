@@ -3,10 +3,10 @@
 # dependencies = ["numpy>=2.0", "shapely>=2.0"]
 #
 # [tool.orcaslicer.plugin]
-# name = "Wave Overhangs v0.0.4"
+# name = "Wave Overhangs v0.0.5"
 # description = "Experimental: print steep overhangs support-free by replacing the overhang region with wave-propagated toolpaths (port of the WaveOverhangs fork's algorithm as a slicing-pipeline plugin)."
 # author = "Wave Overhangs plugin lane"
-# version = "0.0.4"
+# version = "0.0.5"
 # ///
 """Wave Overhangs for OrcaSlicer -- experimental slicing-pipeline plugin.
 
@@ -113,7 +113,7 @@ _DEFAULTS = {
 # The version this file was built as. Kept in lockstep with the PEP 723 header
 # at the top (tests/test_installer.py fails if they drift), so everything that
 # reports a version at runtime reports the one actually running.
-PLUGIN_VERSION = "0.0.4"
+PLUGIN_VERSION = "0.0.5"
 
 # Stamped into the exported G-code, so the file itself says which build made
 # the waves -- no need to open OrcaSlicer to find out.
@@ -591,14 +591,74 @@ class WaveOverhangsCheck(orca.script.ScriptPluginCapabilityBase):
         return orca.ExecutionResult.success("\n".join(lines))
 
 
-def _write_log(entry):
+# ---------------------------------------------------------------------------
+#  Logging -- shared with the other plugins in this repo.
+#
+#  This used to be JSONL written next to the plugin file, inside Orca's data
+#  folder: unfindable, and unreadable once found. It now appends plain text to
+#  <Downloads>/orca-plugins.log, the same file Unlayered Infill writes to, so
+#  one paste shows everything that happened.
+# ---------------------------------------------------------------------------
+LOG_NAME = "orca-plugins.log"
+LOG_MAX_BYTES = 1000000          # roll over at ~1 MB so it cannot grow forever
+
+
+def log_path():
+    """<Downloads>/orca-plugins.log, or the best available stand-in."""
+    override = os.environ.get("ORCA_PLUGIN_LOG_DIR")
+    if override:
+        return os.path.join(override, LOG_NAME)
+    home = os.path.expanduser("~")
+    downloads = os.path.join(home, "Downloads")
+    return os.path.join(downloads if os.path.isdir(downloads) else home, LOG_NAME)
+
+
+def _log(headline, *detail):
+    """Append one readable block. Never raises -- logging must not break a print."""
     try:
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            "wave_overhangs_log.jsonl")
+        path = log_path()
+        try:
+            if os.path.getsize(path) > LOG_MAX_BYTES:
+                os.replace(path, path + ".1")
+        except OSError:
+            pass
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        pad = " " * len(stamp)
         with open(path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, default=str) + "\n")
+            f.write(f"{stamp}  {headline}\n")
+            for line in detail:
+                f.write(f"{pad}    {line}\n")
     except Exception:
         pass
+
+
+def _write_log(entry):
+    """Render one run record into the shared log.
+
+    Kept dict-shaped so every existing call site works unchanged.
+    """
+    if not isinstance(entry, dict):
+        return
+    phase = entry.get("phase") or ("plan" if "object" in entry else "run")
+    head = f"Wave Overhangs v{PLUGIN_VERSION}: {phase}"
+    if entry.get("error"):
+        head = f"Wave Overhangs v{PLUGIN_VERSION}: ERROR during {phase}"
+    detail = []
+    for k, v in entry.items():
+        if k in ("started", "phase"):
+            continue
+        if k == "layers" and isinstance(v, list):
+            detail.append(f"{'layers':<17}: {len(v)} planned layer record(s)")
+            continue
+        detail.append(f"{k:<17}: {v}")
+    _log(head, *detail)
+
+
+# One line at import, so the log shows the plugin loaded even if it is never
+# selected in a preset. Defined down here because it needs _log() above.
+_log(f"Wave Overhangs v{PLUGIN_VERSION} loaded",
+     f"numpy/shapely : {'ok' if (np is not None and shapely is not None) else 'MISSING'}",
+     *([f"dependency problem: {_DEPS_ERROR}"] if _DEPS_ERROR else []))
 
 
 @orca.plugin

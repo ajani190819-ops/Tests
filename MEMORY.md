@@ -11,10 +11,10 @@ Read it before touching anything, and **update it before your session ends** —
 file has left the next session worse off.
 
 * **Last updated:** 2026-09-30 (session 4)
-* **Verified against the repo:** 2026-09-30 — `tests/test_installer.py` and
-  `tests/test_post_script.py` both pass and were mutation-tested (12 mutations,
-  12 caught), `git ls-files --eol Update-Orca-Plugins.bat` says `i/crlf`,
-  `plugins.json` confirmed live on `main`.
+* **Verified against the repo:** 2026-09-30 — all three test files pass and
+  were mutation-tested (24 mutations, 24 caught),
+  `git ls-files --eol Update-Orca-Plugins.bat` says `i/crlf`, `plugins.json`
+  confirmed live on `main`.
 
 ---
 
@@ -53,15 +53,18 @@ which does not block starting.
 | PR #1 | **MERGED** 2026-09-30 22:54 UTC, from branch `arena/01a0f42b-tests` |
 | Updater | `Update-Orca-Plugins.bat`, ~596 lines, CRLF, **live**. Now self-updating (v1.1.0) and stages the standalone tool. |
 | Catalogue | `plugins.json` — confirmed reachable at `raw.githubusercontent.com/.../main/plugins.json` |
-| Wave Overhangs | v0.0.4, `plugins/wave-overhangs/`, ships, never run in real Orca |
-| Unlayered Infill | v0.2.1, `plugins/unlayered-infill/`, ships, never run in real Orca |
-| Standalone tool | `plugins/unlayered-infill/unlayered_infill_post.py` v0.2.1 — **works, functionally tested** |
+| Wave Overhangs | v0.0.5, `plugins/wave-overhangs/`, ships; **loads + logs under a fake host**, never run in real Orca |
+| Unlayered Infill | v0.3.0, `plugins/unlayered-infill/`, ships; **runs end-to-end under a fake host**, never run in real Orca |
+| Standalone tool | `plugins/unlayered-infill/unlayered_infill_post.py` v0.3.0 — **works, functionally tested** |
 | Contract test | `python3 tests/test_installer.py` → **passing** |
 | Functional test | `python3 tests/test_post_script.py` → **passing** |
+| Runtime test | `python3 tests/test_plugin_runtime.py` → **passing** — the plugin itself now runs here |
+| Log | both plugins append to `<Downloads>/orca-plugins.log` |
 | CI | **None.** See the known gap in §3. |
 | Work C (Wave Overhangs post-processing script) | not started — **unblocked**, design settled (C1 + C2 answered) |
 | Work D (make Unlayered Infill actually work) | **D1 answered + standalone shipped**; step 3 (plugin-side diagnostics) open |
 | Work E (updater self-update) | **done in code, never run on Windows** |
+| Defaults | amplitude `"200%"` of layer height; grid `"auto"` = nozzle diameter |
 
 **What changed most recently and matters (session 4):** the owner finally gave
 the D1 detail — *"they don't do anything: no change in the preview, and none
@@ -89,7 +92,7 @@ OrcaSlicer build first and then update the file with the evidence.
   once bricked a plugin; the export step can run **twice**, so G-code
   transforms must be idempotent; the audit hook blocks lazy imports inside a
   capability, so import third-party deps at module load.
-* **`AGENTS.md` §4** — the nine hard rules. The ones easiest to break by
+* **`AGENTS.md` §4** — the twelve hard rules. The ones easiest to break by
   accident: the .bat must stay **CRLF** (never write it with a tool that
   converts line endings); a version bump is **three edits in lockstep**
   (PEP 723 header + `plugins.json` + the .bat's fallback list); no
@@ -138,6 +141,18 @@ get quietly lost between sessions.
 * **The .bat is structurally sound** — every `goto`/`call` target resolves,
   parentheses balance, and the self-update guards are pinned by tests. That
   is static analysis, not execution (see below).
+* **The Unlayered Infill *plugin* runs** — `tests/test_plugin_runtime.py`
+  loads it against `tests/fake_orca.py` and drives it as Orca would. It
+  imports, registers exactly two capabilities, rewrites G-code at
+  `psGCodePostProcess`, refuses absolute E, is idempotent on a second export,
+  honours preset config (`amplitude`, `enabled`, `log`), survives an
+  unwritable log directory, and writes the Downloads log. Wave Overhangs
+  imports and logs too (its deps are absent here, which it reports correctly).
+  **This is the first time anything in `plugins/` has ever been executed.**
+* **The owner's worked example is pinned as a test**: 200% of a 0.3 mm layer
+  resolves to 0.600 mm, and the same setting gives 0.200 mm on a 0.1 mm layer.
+* **The column grid really follows the nozzle**: a 0.4 mm nozzle produces
+  strictly more columns than a 0.6 mm one on the same part.
 
 **Not proven — say so every time:**
 
@@ -157,6 +172,14 @@ get quietly lost between sessions.
   file will have variations.
 * The tkinter window has never been displayed — there is no display in the
   sandbox. Only the CLI paths were executed.
+* **`fake_orca.py` is our guess at Orca's API**, built from the wiki and
+  `docs/ORCA-PLUGIN-FACTS.md`. A green `test_plugin_runtime.py` proves our
+  code is self-consistent; it does **not** prove the real host calls us the
+  same way. If the real Orca differs, that test will have been happily
+  passing all along. Treat it as "the plugin's own logic is sound", nothing
+  more.
+* Wave Overhangs' planning/splicing path is still unexercised — only its
+  import and logging were run. numpy and shapely are not installed here.
 * Wave Overhangs' object→bed XY mapping (`_bed_offset`) is unvalidated.
 * Tuning defaults (`amplitude=-0.2`, `frequency=1.5`, `cell_mm=0.6`) are
   guesses, untested on hardware.
@@ -236,7 +259,7 @@ it references the old path `test_installer.py`, which is now
   session 4.) `cmd.exe` streams a .bat from disk by byte offset as it
   executes; a self-overwrite can jump into garbage, and a bad download would
   leave the owner with no working updater. `:self_update` downloads to
-  `%TEMP%`, verifies, and delegates. Now hard rule 11 in `AGENTS.md`.
+  `%TEMP%`, verifies, and delegates. Now hard rule 12 in `AGENTS.md`.
 
 ---
 
@@ -276,12 +299,12 @@ fails, that is expected-unknown territory, not a surprise — say so plainly.
    single real run converts "should work" into "works". Point them at
    `%USERPROFILE%\Downloads\OrcaPlugins\unlayered_infill_post.py` after an
    updater run, or straight at the file on GitHub.
-2. **Work D step 3 — plugin-side diagnostics.** The standalone tool now
-   explains *why* it changed nothing (no infill / no skin / nothing
-   bracketed). The plugin shares the engine but not that reporting: it should
-   surface the same detail through its result message and its Check setup
-   capability, so the pipeline version stops being a black box. This is the
-   direct fix for "it doesn't do anything" on the plugin side.
+2. **Get the log.** After the owner's next slice-and-export, ask them to
+   paste `<Downloads>/orca-plugins.log`. It is now the fastest route to a
+   real diagnosis, and it distinguishes every failure mode in one read (see
+   the ladder in `plugins/unlayered-infill/README.md`). If the file does not
+   exist at all, the plugin never loaded — that is an install problem, not a
+   plugin bug.
 3. **Work C — Wave Overhangs** — design is now settled (C1 + C2 answered), so
    this is unblocked. Ship `plugins/wave-overhangs/wave_overhangs_post.py`:
    rebuild each layer's footprint from the G-code, feed `wave_core`, splice
@@ -348,17 +371,49 @@ Landed:
   key (a list of capability names). The old claim that it "appears nowhere in
   the official documentation" was wrong. The separate rule against reading it
   from inside a plugin still stands, for a different reason.
-* Added `tests/test_post_script.py`; added hard rules 10 and 11 to
-  `AGENTS.md`; fixed a stale "three edits in lockstep" in `README.md` (it is
-  six).
+* Added `tests/test_post_script.py`; fixed a stale "three edits in lockstep"
+  in `README.md` (it is now seven).
+
+**Owner's follow-up, same day** — *"the unlayered infill should work like my
+version: amplitude in % of layer height (200% of a 0.3 mm layer = 0.6 mm), a
+nozzle-size column grid so local ceilings/floors stay local, keep it a
+pipeline plugin, and write logs to my Downloads folder."*
+
+The important discovery: **three of the four already existed.** The `%`
+parser, the per-column `SolidGrid` with `cell_mm`/`blend_mm`, and the
+pipeline plugin were all already built — they just were not the defaults, and
+the log was JSONL written next to the plugin file where nobody would find it.
+Check what exists before rebuilding.
+
+* Defaults changed: amplitude `-0.2` mm → **`"200%"`** of layer height;
+  `cell_mm` 0.6 → **`"auto"`**, reading `; nozzle_diameter` from the G-code
+  (new `detect_nozzle_diameter()` / `resolve_cell_mm()`).
+* **Logs moved to `<Downloads>/orca-plugins.log`**, plain text, both plugins
+  sharing one file, rolling at 1 MB, `ORCA_PLUGIN_LOG_DIR` to relocate. Added
+  a load line and a once-per-step pipeline trace, which together form a
+  diagnostic ladder (no file / loaded only / step seen / ran).
+* **`tests/fake_orca.py` + `tests/test_plugin_runtime.py`** — the plugin is
+  executed for the first time ever.
+* **`tools/sync_engine.py`** — pushes the engine from the standalone into the
+  plugin's string literal; `--check` mode for CI.
+* Versions: Unlayered Infill **0.3.0**, Wave Overhangs **0.0.5**. Hard rules
+  10–12 added to `AGENTS.md` (engine sync, logging must never break a print,
+  never self-overwrite the .bat).
+
+Verified: 24 mutations, 24 caught across the two rounds. Two rounds were
+needed both times — the first round exposed weak checks (a substring test a
+deleted guard still satisfied; a log-path test that never exercised the
+default because it always set the env override).
 
 Verified: both test files pass; 12 mutations, 12 caught (including four
 weaknesses the harness exposed in the *new* checks, which were then
 tightened). CRLF intact at 596/596.
 
-Not done: nothing ran on Windows or in real OrcaSlicer; the tkinter window
-was never displayed; the plugin still lacks the standalone's diagnostics
-(work D step 3).
+Not done: nothing ran on Windows or in real OrcaSlicer. `fake_orca.py` is our
+*guess* at the host API, so a green runtime test proves our logic is sound,
+not that Orca drives us that way. Wave Overhangs' planning/splicing path is
+still unexercised (no numpy/shapely here). The tkinter window has never been
+displayed.
 
 ### Session 3 — 2026-09-30 — branch `arena/01a0f48b-tests`
 

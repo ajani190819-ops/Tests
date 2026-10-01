@@ -22,7 +22,7 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 ## Use
 
 1. Restart OrcaSlicer (needs newer than 2.4.2, or a nightly).
-2. File → Plugins → confirm *Wave Overhangs v0.0.4* is enabled. The
+2. File → Plugins → confirm *Wave Overhangs v0.0.5* is enabled. The
    version is part of the displayed name, so that line is also how you
    check the update landed.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Wave Overhangs*.

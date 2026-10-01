@@ -91,8 +91,10 @@ tools/
                             unlayered-infill plugin; kept as reference, GPL-3.0)
 keyboard-lighting/          unrelated personal project; DO NOT reorganize or "fix" it
 tests/
+  fake_orca.py              minimal stand-in for Orca's `orca` module
   test_installer.py         contract test: catalogue / .bat / files must agree
   test_post_script.py       functional test: the engine really rewrites G-code
+  test_plugin_runtime.py    runtime test: the PLUGIN loads, runs and logs
 ```
 
 The `plugins.json` entry `path` is a URL path into this repo (forward slashes,
@@ -114,8 +116,10 @@ you forget, and it is the safety net for exactly this.
    `# version = "..."` header, the PEP 723 `# name = "..."` header (spelled
    `<Name> v<version>` so Orca's Plugins dialog shows the version), the
    module-level `PLUGIN_VERSION` constant, and any `MARKER_VERSION` inside an
-   inlined engine (it lands in the exported G-code). Then `plugins.json` and
-   the .bat fallback list. `tests/test_installer.py` enforces that every one of
+   inlined engine (it lands in the exported G-code). Then `plugins.json`, the
+   .bat fallback list, and — for unlayered-infill — `TOOL_VERSION` in the
+   standalone `*_post.py` (seven places in total; edit `MARKER_VERSION` in the
+   standalone and run `tools/sync_engine.py` so both engine copies move). `tests/test_installer.py` enforces that every one of
    them agrees — run it. (The .bat stamps the installed version from the
    downloaded file's header, so the header is the source of truth, and it
    composes the sidecar's `plugin_name` as `"%PL_NAME% v%PL_VER%"` to match the
@@ -142,13 +146,20 @@ you forget, and it is the safety net for exactly this.
    binding: e.g. import third-party deps at module load (never inside a
    capability), never read `post_process_plugin` from config, G-code
    transforms must be idempotent because the export step can run twice.
-10. **The shared engine exists twice, verbatim.** `nonplanar_core` lives as an
-    escaped string literal in `plugins/unlayered-infill/unlayered_infill_orca.py`
-    and as plain source between the `BEGIN/END nonplanar_core` markers in
-    `plugins/unlayered-infill/unlayered_infill_post.py`. Fix one, copy it into
-    the other — `tests/test_post_script.py` fails if they drift. Two front
-    ends, one engine; that is the whole point of decision C1.
-11. **Never make the .bat overwrite itself while it runs.** `cmd.exe` streams
+10. **The shared engine exists twice, verbatim.** `nonplanar_core` lives as
+    plain source between the `BEGIN/END nonplanar_core` markers in
+    `plugins/unlayered-infill/unlayered_infill_post.py` (**edit this one**) and
+    as an escaped string literal in `unlayered_infill_orca.py`. After editing,
+    run `python3 tools/sync_engine.py` to push it across;
+    `tests/test_post_script.py` fails if they drift. Two front ends, one
+    engine; that is the whole point of decision C1.
+11. **Logging must never be able to break a print.** Every `_log()` call is
+    wrapped so that a full disk, a read-only folder or a missing Downloads
+    directory can only lose the log line, never fail the export. The log goes
+    to `<Downloads>/orca-plugins.log` because the owner has to be able to find
+    it; both plugins share the one file. Keep the step trace bounded (log each
+    pipeline step once) or it will fill their Downloads folder.
+12. **Never make the .bat overwrite itself while it runs.** `cmd.exe` streams
     a batch file from disk by byte offset as it executes, so a self-overwrite
     can jump into garbage mid-run, and a bad download would leave the owner
     with no working updater. `:self_update` downloads the new copy to `%TEMP%`,
@@ -160,6 +171,8 @@ you forget, and it is the safety net for exactly this.
 ```bash
 python3 tests/test_installer.py        # catalogue / .bat / files agree
 python3 tests/test_post_script.py      # the engine really rewrites G-code
+python3 tests/test_plugin_runtime.py   # the plugin loads, runs, and logs
+python3 tools/sync_engine.py --check   # the two engine copies are identical
 git ls-files --eol Update-Orca-Plugins.bat   # must say i/crlf
 ```
 

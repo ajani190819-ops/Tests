@@ -65,7 +65,7 @@ is a bug in the plugin:
 
 * The export step (`psGCodePostProcess`) can run **TWICE** for one slice:
   file export and network upload are separate calls. Any G-code transform
-  must be idempotent (Unlayered Infill stamps `; unlayered-infill v0.2.1` and
+  must be idempotent (Unlayered Infill stamps `; unlayered-infill v0.3.0` and
   returns the input untouched if the stamp is already there).
 * At `psGCodePostProcess`, `ctx.print` and `ctx.object` are `None`. You get
   `gcode_path`, `host`, `output_name`.

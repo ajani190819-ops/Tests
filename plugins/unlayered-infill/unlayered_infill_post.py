@@ -38,7 +38,7 @@ import argparse
 import os
 import sys
 
-TOOL_VERSION = "0.2.1"
+TOOL_VERSION = "0.3.0"
 
 # =============================================================================
 # ENGINE -- verbatim copy of the `nonplanar_core` source inlined in
@@ -103,10 +103,18 @@ INFILL_MARKERS = ("internal infill", "sparse infill")
 # skins "top surface" / "bottom surface", which the reference missed.
 SOLID_MARKERS = ("solid infill", "top surface", "bottom surface")
 
-DEFAULT_AMPLITUDE = "-0.2"   # mm, or "%"/"x" of layer height; negative dips in
+# Amplitude is a share of the LAYER HEIGHT by default, not a fixed mm value:
+# "200%" on a 0.3 mm layer is 0.6 mm, and the same setting still makes sense
+# after you change layer height. Plain mm ("-0.2") and multiples ("2x") are
+# still accepted. Sign only phase-shifts a sine wave, so it barely matters.
+DEFAULT_AMPLITUDE = "200%"
 DEFAULT_FREQUENCY = 1.5
 DEFAULT_SEGMENT_MM = 1.0
-DEFAULT_CELL_MM = 0.6        # XY resolution of the solid-column map
+# XY resolution of the solid-column map. "auto" means one column per nozzle
+# diameter, read from the G-code -- the finest grid that still corresponds to
+# something the printer can actually lay down.
+DEFAULT_CELL_MM = "auto"
+FALLBACK_CELL_MM = 0.6       # used when the G-code does not name the nozzle
 DEFAULT_BLEND_MM = 2.0       # smooth the taper across this radius of columns
 
 # Stamped into the output so a second pass is a no-op. Orca can invoke
@@ -114,7 +122,7 @@ DEFAULT_BLEND_MM = 2.0       # smooth the taper across this radius of columns
 # upload are separate calls), and waving an already-waved file would double
 # every displacement.
 MARKER_PREFIX = "; unlayered-infill"
-MARKER_VERSION = "0.2.1"
+MARKER_VERSION = "0.3.0"
 MARKER = f"{MARKER_PREFIX} v{MARKER_VERSION} (non-planar sparse infill)\n"
 
 _WORD = re.compile(r"([A-Za-z])\s*([-+]?\d*\.?\d+)")
@@ -341,7 +349,50 @@ class SolidGrid:
         return total / weight if weight > 0.0 else 0.0
 
 
-def build_solid_grid(lines, cell_mm=DEFAULT_CELL_MM):
+def detect_nozzle_diameter(lines):
+    """The nozzle diameter the slicer recorded, in mm, or None.
+
+    Orca writes `; nozzle_diameter = 0.6` into the config block at the end of
+    the file (comma-separated per extruder on a multi-tool machine; we take
+    the first). This is what makes the column grid match the printer instead
+    of being an arbitrary constant.
+    """
+    for line in lines:
+        if "nozzle_diameter" not in line:
+            continue
+        m = re.search(r";\s*nozzle_diameter\s*=\s*([\d.]+)", line)
+        if m:
+            try:
+                v = float(m.group(1))
+            except ValueError:
+                continue
+            if 0.05 <= v <= 5.0:       # anything else is a misparse
+                return v
+    return None
+
+
+def resolve_cell_mm(spec, lines):
+    """'auto' -> the nozzle diameter; a number -> itself.
+
+    Returns (millimetres, human description).
+    """
+    if spec is None or (isinstance(spec, str) and spec.strip().lower() in ("", "auto")):
+        nozzle = detect_nozzle_diameter(lines)
+        if nozzle is None:
+            return FALLBACK_CELL_MM, (
+                f"{FALLBACK_CELL_MM:.3f} mm (auto, but this G-code does not "
+                f"name a nozzle diameter, so the default was used)")
+        return nozzle, f"{nozzle:.3f} mm (auto: one column per nozzle width)"
+    try:
+        v = float(spec)
+    except (TypeError, ValueError):
+        raise NonPlanarError(
+            f"Could not understand the grid cell size {spec!r}. Use 'auto' to "
+            f"follow the nozzle diameter, or a number of millimetres.")
+    return v, f"{v:.3f} mm (fixed value)"
+
+
+def build_solid_grid(lines, cell_mm=FALLBACK_CELL_MM):
     """Rasterise every solid-skin extrusion into an XY column map."""
     grid = SolidGrid(cell_mm)
     x = y = None
@@ -373,7 +424,8 @@ def _empty_stats(**over):
     base = {"amplitude_mm": 0.0, "amplitude_desc": "", "extrusion_mode": "",
             "solid_layers": 0, "solid_columns": 0, "sections": 0, "moves": 0,
             "segments": 0, "max_wiggle": 0.0, "skipped_unbracketed": 0,
-            "already_processed": False, "cell_mm": 0.0, "blend_mm": 0.0,
+            "already_processed": False, "cell_mm": 0.0, "cell_desc": "",
+            "nozzle_mm": None, "layer_height_mm": None, "blend_mm": 0.0,
             "full_strength": False}
     base.update(over)
     return base
@@ -398,7 +450,8 @@ def process(lines, amplitude_spec=DEFAULT_AMPLITUDE, frequency=DEFAULT_FREQUENCY
             "corrupt it.\n\nFix: OrcaSlicer > Printer Settings > Advanced > "
             "'Use relative E distances', then slice again.")
 
-    grid, solids = build_solid_grid(lines, cell_mm)
+    cell_resolved, cell_desc = resolve_cell_mm(cell_mm, lines)
+    grid, solids = build_solid_grid(lines, cell_resolved)
     frequency = float(frequency)
     segment_mm = max(0.05, float(segment_mm))
     blend_mm = max(0.0, float(blend_mm))
@@ -499,6 +552,9 @@ def process(lines, amplitude_spec=DEFAULT_AMPLITUDE, frequency=DEFAULT_FREQUENCY
         "skipped_unbracketed": skipped_unbracketed,
         "already_processed": False,
         "cell_mm": grid.cell,
+        "cell_desc": cell_desc,
+        "nozzle_mm": detect_nozzle_diameter(lines),
+        "layer_height_mm": detect_layer_height(lines),
         "blend_mm": blend_mm,
         "full_strength": full_strength,
     }
@@ -525,8 +581,15 @@ def describe(stats):
                 "displacement.",
                 "Slice again and run the tool on the fresh file."]
 
+    lh = stats.get("layer_height_mm")
+    noz = stats.get("nozzle_mm")
     out = [
         f"extrusion mode ....... {stats['extrusion_mode']}",
+        f"layer height ......... "
+        + (f"{lh:.3f} mm" if lh else "not stated in the G-code"),
+        f"nozzle ............... "
+        + (f"{noz:.3f} mm" if noz else "not stated in the G-code"),
+        f"grid columns ......... {stats.get('cell_desc', '')}",
         f"amplitude ............ {stats['amplitude_desc']}",
         f"solid skin found ..... {stats['solid_layers']} layer height(s), "
         f"{stats['solid_columns']} XY column(s)",
@@ -574,13 +637,15 @@ def describe(stats):
 
 
 def process_file(path, out_path, amplitude, frequency, inplace=False,
-                 dry_run=False, require_relative_e=True, full_strength=False):
+                 dry_run=False, require_relative_e=True, full_strength=False,
+                 cell_mm=DEFAULT_CELL_MM):
     """Run the engine over one file. Returns (stats, wrote_path_or_None)."""
     lines = read_lines(path)
     new_lines, stats = process(lines, amplitude_spec=amplitude,
                                frequency=frequency,
                                require_relative_e=require_relative_e,
-                               full_strength=full_strength)
+                               full_strength=full_strength,
+                               cell_mm=cell_mm)
     if dry_run or stats["already_processed"] or not stats["moves"]:
         return stats, None
     target = path if inplace else out_path
@@ -599,13 +664,19 @@ def run_cli(argv=None):
                     "interlock. Works on any sliced G-code.")
     p.add_argument("input_file", nargs="?", help="the G-code file to process")
     p.add_argument("-a", "--amplitude", default=DEFAULT_AMPLITUDE,
-                   help='mm, or a share of layer height: -0.2 | -150%% | -1.5x '
-                        '(default: %(default)s). Negative dips into the part.')
+                   help='a share of layer height (200%% of a 0.3 mm layer is '
+                        '0.6 mm), a multiple (2x), or plain mm (0.6). '
+                        'Default: %(default)s')
     p.add_argument("-f", "--frequency", type=float, default=DEFAULT_FREQUENCY,
                    help="ripples per mm along X (default: %(default)s)")
     p.add_argument("-i", "--inplace", action="store_true",
                    help="rewrite the file itself -- what OrcaSlicer's "
                         "Post-processing scripts setting needs")
+    p.add_argument("-c", "--cell", default=DEFAULT_CELL_MM,
+                   help="width of the solid-skin grid columns in mm. "
+                        "'auto' (default) uses the nozzle diameter from the "
+                        "G-code, so a local ceiling or floor only affects the "
+                        "columns beneath it.")
     p.add_argument("-n", "--dry-run", action="store_true",
                    help="report what would happen, write nothing")
     p.add_argument("-s", "--full-strength", action="store_true",
@@ -636,7 +707,7 @@ def run_cli(argv=None):
             args.input_file, out_path, args.amplitude, args.frequency,
             inplace=args.inplace, dry_run=args.dry_run,
             require_relative_e=not args.allow_absolute_e,
-            full_strength=args.full_strength)
+            full_strength=args.full_strength, cell_mm=args.cell)
     except NonPlanarError as e:
         print(f"ERROR: {e}")
         sys.exit(1)
