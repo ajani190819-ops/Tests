@@ -64,10 +64,16 @@ class Step(enum.Enum):
 
 
 class _CapabilityBase:
-    """Capabilities are constructed by the host, with config injected."""
+    """Capabilities are constructed by the host with no Python args.
 
-    def __init__(self, config=None):
-        self._config = config
+    Real Orca's bound base constructors accept no arguments. Configuration is
+    available later through get_config(), so tests use set_config() to mimic
+    that host injection. Keeping this constructor strict catches plugins that
+    call super().__init__(None), which fails in Orca at registration time.
+    """
+
+    def __init__(self):
+        self._config = None
 
     def get_config(self):
         """Orca hands back the capability's config as a JSON string."""

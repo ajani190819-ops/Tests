@@ -36,6 +36,8 @@ PLUGINS = [
      "plugins/unlayered-infill/unlayered_infill_orca.py"),
     ("plugins/wave-overhangs/CHANGELOG.md",
      "plugins/wave-overhangs/wave_overhangs_orca.py"),
+    ("plugins/wave-overhangs-geometry/CHANGELOG.md",
+     "plugins/wave-overhangs-geometry/wave_overhangs_geometry_orca.py"),
 ]
 
 N_RELEASES = 3          # how many releases to carry inside the plugin

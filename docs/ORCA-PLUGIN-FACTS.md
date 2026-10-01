@@ -5,6 +5,11 @@ predecessor repos. Several were learned the hard way. **Do not re-derive them.
 Do not contradict them.** If you believe one is wrong, prove it on a real
 OrcaSlicer build first and update this file with the evidence.
 
+The source snapshots are kept in `docs/reference/`:
+`Plugin Development - OrcaSlicer Wiki.pdf` covers plugin structure and
+registration; `Getting Started - OrcaSlicer Wiki.pdf` covers the user-facing
+plugin workflow. The captured Wave export and model are in `tests/fixtures/`.
+
 ## The preset field
 
 * There is **ONE** preset field: Process preset → Others → **Slicing Pipeline
@@ -65,7 +70,7 @@ is a bug in the plugin:
 
 * The export step (`psGCodePostProcess`) can run **TWICE** for one slice:
   file export and network upload are separate calls. Any G-code transform
-  must be idempotent (Unlayered Infill stamps `; unlayered-infill v0.3.0` and
+  must be idempotent (Unlayered Infill stamps `; unlayered-infill v0.3.4` and
   returns the input untouched if the stamp is already there).
 * At `psGCodePostProcess`, `ctx.print` and `ctx.object` are `None`. You get
   `gcode_path`, `host`, `output_name`.
@@ -111,19 +116,23 @@ is a bug in the plugin:
   and latest version. Orca fills the Version column from the PEP 723
   `# version = "..."` header, so a correct header is already enough to check
   what is installed. (Wiki: Plugin System Overview / Managing Plugins.)
-* The PEP 723 `# name = "..."` header is the **display name** in that dialog.
-  Both plugins here spell it `<Name> v<version>` so the version is readable in
-  the Name column too — the column people actually look at — and so the
-  updater's sidecar, which must carry the same name, proves which build is on
-  disk. This is safe precisely because the *plugin* name is not what a preset
-  stores (see "The preset field" above).
-* The capability names stay version-free for the same reason. The place a
-  version therefore cannot appear is the **Slicing Pipeline Plugin** dropdown;
-  use *Check setup*, which prints the running version as its first line.
-* Not verified on a real build: whether Orca's per-plugin key is derived from
-  the display name. If it is, a rename could make an update look like a new
-  plugin. Nothing observed says it does, and the install folder
-  (`orca_plugins/<orca_dir>/`) does not change.
+* The PEP 723 `# name = "..."` header is the **display name and a stable
+  identity**. The Plugin Development PDF says a preset stores both the
+  capability name and a full reference shaped
+  `<plugin_name>;<cloud_uuid>;<capability_name>`. Therefore the version must
+  not appear in the plugin name either: changing it can leave a preset pointing
+  at yesterday's identity even though the new plugin appears installed.
+  Earlier real evidence matched that failure shape for Wave Overhangs:
+  installed, activated and reportedly selected, but never invoked and absent
+  from the log. The final version-free identity is now in use; the owner later
+  confirmed that Wave 0.0.11 produced visible waves in a reopened real Orca
+  export.
+* Package and capability names are permanently version-free: `Wave Overhangs`
+  and `Unlayered Infill`. Versions appear only in the Version column, Check
+  setup, logs, changelogs, updater output, tools and G-code stamps. The owner
+  explicitly chose one final migration over retaining confusing old-looking
+  compatibility names. Never rename these identities again. Updater sidecars
+  exactly match the PEP 723 package names.
 
 ## Where plugins live on disk
 
@@ -163,6 +172,17 @@ is a bug in the plugin:
 * Pipeline steps: `posSlice`, `posPerimeters`, `posPrepareInfill`, `posInfill`,
   `posIroning`, `posContouring`, `posSupportMaterial`, `posSimplifyPath`,
   `psWipeTower`, `psSkirtBrim`, `psGCodePostProcess`.
+* Current Orca development bindings expose editable slice geometry during
+  geometry callbacks: `LayerRegion.slices` is a `SurfaceCollection` with
+  `set()`, `append()`, and `clear()`; `Surface` and `ExPolygon` can be
+  constructed; and `Layer.make_slices()` refreshes derived layer islands after
+  edits. Existing `ExtrusionPath` points and collections are read-only from
+  Python. A geometry-stage plugin can replace/add slice surfaces, but cannot
+  yet inject a raw Wave `ExtrusionPath` directly. References are valid only
+  during `execute(ctx)` and are invalidated by container replacement. This was
+  checked against Orca's current `PluginHostGeometry.cpp` and
+  `PluginHostSlicing.cpp` on 2026-10-01; a real installed build still needs to
+  verify the shipped host version.
 * Requires OrcaSlicer newer than 2.4.2, or a nightly. Plugins declare
   `requires-python >=3.12`.
 * G-code section markers differ by slicer: PrusaSlicer writes
@@ -182,21 +202,42 @@ is a bug in the plugin:
 * **Failure modes are contained.** Test-enforced: geometry steps no-op;
   refusals and internal errors never touch the G-code file; an unexpected
   exception returns Success so a plugin bug cannot fail someone's export.
-* **Wave Overhangs will not carve until the splice is proven.** Carving
-  without the splice leaves a hole in the part, so carving stays off until
-  the G-code splice has been observed running at least once. First slice
-  after a fresh install never carves. That is intended.
+* **Wave Overhangs replacement is one G-code transaction.** Do not restore
+  pre-export slice carving or cross-callback plan state. Version 0.0.15 builds
+  support and bridge footprints from exported moves, generates waves, removes
+  only geometrically covered bridge extrusion, and retains every uncovered
+  fragment. It exposes `smart`, `monotonic`, and `zigzag` ordering plus
+  deterministic endpoint policies. Relative-E and uniform absolute-E sections
+  restore their extrusion state; mixed E-mode sections remain untouched. Any
+  exception returns the original text unchanged.
 
 ## Known gaps (read before trusting output)
 
-* Nothing in `plugins/` has run in a real OrcaSlicer. Every test is against
-  a fake harness. The first real slice is the real test; if it fails,
-  `data_dir()/log/python_*.log` has the traceback.
-* Wave Overhangs is `sin(f·x)` only — invariant along Y. Ridges, not a
+* Both plugins have run in the owner's real OrcaSlicer. Unlayered rewrote real
+  exports. Wave 0.0.11 produced visible, perimeter-conforming waves in a
+  reopened export. Wave 0.0.15 corrects the measured 0.25 mm Z-offset error and
+  edge chatter in the captured fixture; a fresh 0.0.15 export and physical
+  print are still required.
+* The captured real-export regression is `tests/test_wave_gcode.py` and uses
+  `tests/fixtures/Cube^2_3m53s.gcode`. It verifies three Wave layers, bounded
+  bridge replacement, retained substantial fragments, actual modal Z, cleanup,
+  fail-closed behavior, and idempotence. The embedded Wave geometry grows
+  support buffers through the real support-plus-overhang domain, treating
+  internal holes as obstacles so fronts can continue around both sides and
+  through concave regions. The regression includes synthetic concave,
+  internal-hole, and circular-hole geometry in addition to the captured Cube
+  export.
+* Monotonic order is a mechanical/toolpath policy, not a measured thermal
+  guarantee. Recently deposited plastic may still be warm and soft; high fan,
+  suitable speed, spacing, and later thermal-aware ordering remain print-tuning
+  questions.
+* Unlayered Infill is `sin(f·x)` only — invariant along Y. Ridges, not a
   lattice; interlocking is directional.
-* Defaults are untuned on hardware (`amplitude=-0.2`, `frequency=1.5` are
-  guesses; `cell_mm=0.6` vs ~0.42 mm solid line spacing is unverified).
+* Current Unlayered defaults are `amplitude="200%"`, `frequency=1.5`,
+  `cell_mm="auto"` (one nozzle diameter), `blend_mm=2.0`, and
+  `full_strength=false`. They preserve the complete 0.3.0 control set, but
+  tuning is not a physical-print guarantee.
 * `full_strength` can displace by the entire gap to the nearest skin in a
   thin part. Off by default for that reason.
-* Wave Overhangs' object→bed XY mapping (`_bed_offset`) is unvalidated. Its
-  Check setup says so.
+* Wave 0.0.15 reads absolute bed coordinates from exported G-code and no
+  longer needs object-to-bed calibration or cross-callback plan state.

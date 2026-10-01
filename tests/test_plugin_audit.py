@@ -103,6 +103,8 @@ PLUGINS = [
      "unlayered_infill_orca"),
     (REPO / "plugins" / "wave-overhangs" / "wave_overhangs_orca.py",
      "wave_overhangs_orca"),
+    (REPO / "plugins" / "wave-overhangs-geometry" /
+     "wave_overhangs_geometry_orca.py", "wave_overhangs_geometry_orca"),
 ]
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -176,5 +178,5 @@ if failures:
         print(f"  - {f}")
     sys.exit(1)
 
-print("ok -- both plugins import cleanly under an audit hook that denies every "
-      "filesystem write, and a denied log write cannot break a capability")
+print("ok -- all shipped plugins import cleanly under an audit hook that denies "
+      "every filesystem write, and a denied log write cannot break a capability")

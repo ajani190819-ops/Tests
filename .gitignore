@@ -8,5 +8,11 @@ __pycache__/
 *_state.json
 .install_state.json
 
-# Sliced output used for hand-testing the G-code tools.
+# Sliced output used for hand-testing the G-code tools. Keep the captured
+# regression fixture under version control.
 *.gcode
+!tests/fixtures/*.gcode
+
+# Runtime logs created by Orca/plugin tests; never source.
+*.log
+*.log.*
