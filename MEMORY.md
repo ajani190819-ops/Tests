@@ -4,7 +4,8 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02, archive + Unlayered Infill 0.4.0 session.
+* **Last updated:** 2026-10-02, archive + Unlayered Infill 0.4.0 +
+  launcher 1.0.1 session.
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0fb0f-tests`. Never switch branches or push to
   `main`. (The branch is different every session — use the one you were
@@ -21,7 +22,7 @@ binding record of OrcaSlicer behavior.
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
 * **Current versions:** Wave Overhangs 0.0.27, Unlayered Infill 0.4.0,
-  updater 1.4.0.
+  updater 1.4.0, launcher (`Orca-Plugins.bat`) 1.0.1.
 * **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
   numbers must remain out of package and capability names.
 
@@ -233,6 +234,41 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-02 — Launcher 1.0.1: FINDSTR noise on every start
+
+The owner ran `Orca-Plugins.bat` on Windows and pasted the output. Before the
+menu it printed `FINDSTR: Cannot open >nul`, `FINDSTR: Cannot open 2>nul`, and
+one leaked internal line.
+
+**Cause, worth remembering as a general rule:** `cmd.exe` decides what is a
+redirection by toggling a quote flag on EVERY `"`. It does not understand
+`\"` as an escape. `findstr /b /c:"set \"FRONTDOOR_VERSION=" "%NEWBAT%" >nul
+2>nul` has five quotes, so cmd ends the line still inside a quoted string and
+passes `>nul` / `2>nul` to findstr as filenames. Never put `\"` inside a
+batch string. Fixed by searching for `FRONTDOOR_VERSION=`, which needs no
+embedded quote.
+
+The verification was never actually broken — findstr still matched and still
+returned success, and a 404 page would still have failed all three checks.
+Noise, not a hole.
+
+**Bumped the front door to 1.0.1 deliberately:** a copy on disk compares the
+`rem FRONTDOOR_VERSION ... end` marker to decide whether to hand over to a
+download, so a fix that does not move the number reaches nobody.
+`tests/test_installer.py` now parses both markers and fails if they disagree
+instead of hardcoding the number.
+
+**New guard:** the installer test walks every line of all three .bat files the
+way cmd.exe does and fails if a redirection or pipe lands inside an unclosed
+quote. Verified by re-introducing the old line and watching it fail. The only
+other odd-quote line in the repo is the `set "VAR=%VAR:"=%"` quote-stripping
+idiom, which has no redirection and is correctly ignored.
+
+**Also noticed:** the owner's launcher remembered `arena/01a0f908-tests`, a
+branch from an earlier session. Pressing Enter would have installed that old
+build, not this session's work. There is no staleness warning on the
+remembered build — worth considering.
 
 ### 2026-10-02 — Archived the Geometry prototype; Unlayered Infill 0.4.0
 

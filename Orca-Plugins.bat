@@ -24,8 +24,8 @@ rem ===========================================================================
 
 rem The line below is read by older copies of this file to decide whether a
 rem newer one exists. Keep both forms in step; tests/test_installer.py checks.
-rem FRONTDOOR_VERSION 1.0.0 end
-set "FRONTDOOR_VERSION=1.0.0"
+rem FRONTDOOR_VERSION 1.0.1 end
+set "FRONTDOOR_VERSION=1.0.1"
 
 set "REPO=ajani190819-ops/Tests"
 set "STATE_DIR=%LOCALAPPDATA%\OrcaPluginUpdater"
@@ -268,7 +268,7 @@ call :download "https://raw.githubusercontent.com/%REPO%/%REMEMBERED%/Orca-Plugi
 if errorlevel 1 goto :su_skip
 findstr /b /c:"rem FRONTDOOR_VERSION " "%NEWBAT%" >nul 2>nul
 if errorlevel 1 goto :su_skip
-findstr /b /c:"set \"FRONTDOOR_VERSION=" "%NEWBAT%" >nul 2>nul
+findstr /c:"FRONTDOOR_VERSION=" "%NEWBAT%" >nul 2>nul
 if errorlevel 1 goto :su_skip
 findstr /b /c:"rem FRONTDOOR_VERSION %FRONTDOOR_VERSION% end" "%NEWBAT%" >nul 2>nul
 if not errorlevel 1 goto :su_skip

@@ -22,6 +22,63 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-02 — Launcher 1.0.1: the FINDSTR error on startup
+
+**`Orca-Plugins.bat`:** 1.0.0 → 1.0.1. Reported from a real Windows run.
+
+Every launch printed this before the menu:
+
+```
+Checking for a newer version of this launcher...
+C:\Users\...\Temp\orca_frontdoor_31982.bat:set "FRONTDOOR_VERSION=1.0.0"
+FINDSTR: Cannot open >nul
+FINDSTR: Cannot open 2>nul
+```
+
+Harmless, but alarming, and it leaked an internal line onto the screen.
+
+*The cause.* One of the three checks that verify a downloaded launcher is
+really a launcher was written as:
+
+```bat
+findstr /b /c:"set \"FRONTDOOR_VERSION=" "%NEWBAT%" >nul 2>nul
+```
+
+`cmd.exe` decides what is a redirection by toggling a quoting flag on **every**
+`"` it meets. It has no concept of `\"` as an escape — that is a C convention,
+not a cmd one. The line therefore holds five quotes, so cmd reaches the end of
+it still believing it is inside a quoted string, and `>nul` and `2>nul` are
+passed to findstr as two more **filenames** instead of redirecting the output.
+findstr cannot open them and says so, and because the output was never
+redirected, the matched line is printed too. With more than one file argument
+findstr also prefixes matches with the filename, which is the
+`C:\...\orca_frontdoor_31982.bat:` part.
+
+*The fix.* Search for `FRONTDOOR_VERSION=`, which needs no embedded quote and
+is just as specific — it appears on exactly one line of the launcher. The line
+now has four quotes and the redirections work.
+
+The verification itself was never broken: findstr still matched, still returned
+success, and a 404 page or a wifi login portal would still have failed all
+three checks and been rejected. This was noise, not a hole.
+
+*Why the version number moved.* A launcher already on disk decides whether to
+hand over to a download by comparing the `rem FRONTDOOR_VERSION ... end`
+marker. If the number does not change, every existing copy sees "same version"
+and skips the hand-over — so a fix that does not bump the version reaches
+nobody. `tests/test_installer.py` now parses both markers and fails if they
+disagree, rather than hardcoding the number.
+
+*The guard.* cmd.exe cannot run in this sandbox, so this could only ever have
+been caught by reading. The installer test now walks every line of all three
+.bat files the way cmd.exe does — toggling on each quote — and fails if a
+redirection or pipe ends up inside an unclosed quote. Re-introducing the old
+line makes it fail, which was checked. The only other odd-quote line in the
+repo is `set "VAR=%VAR:"=%"`, the standard quote-stripping idiom, which has no
+redirection after it and is correctly left alone.
+
+---
+
 ## 2026-10-02 — Two plugins instead of three, and a wave with a shape
 
 **Unlayered Infill:** 0.4.0. **Archived:** Wave Overhangs Geometry 0.1.4.
