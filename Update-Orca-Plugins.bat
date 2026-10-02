@@ -403,7 +403,7 @@ rem ---------------------------------------------------------------------------
 :fallback_plan
 echo   Using the fallback plan built into this file.
 >  "%PLAN_FILE%" echo wave-overhangs-geometry^|Wave Overhangs Geometry^|0.1.4^|WaveOverhangsGeometry^|wave_overhangs_geometry_orca.py^|plugins/wave-overhangs-geometry/wave_overhangs_geometry_orca.py^|Wave Overhangs Geometry^|Wave Overhangs Geometry - Check setup^|end
->> "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.19^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Check setup^|end
+>> "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.27^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Settings guide & check^|end
 >> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.3.4^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
 exit /b 0
 
@@ -473,6 +473,12 @@ if not defined APPDATA (
 
 echo.
 echo === Locating your OrcaSlicer data directory ===
+rem The last directory installed into is remembered here so repeat runs
+rem can just press Enter. Delete the file to be asked from scratch.
+set "DIR_STATE_DIR=%LOCALAPPDATA%\OrcaPluginUpdater"
+set "REMEMBERED_DIR="
+if defined LOCALAPPDATA if exist "%DIR_STATE_DIR%\datadir.txt" set /p REMEMBERED_DIR=<"%DIR_STATE_DIR%\datadir.txt"
+if defined REMEMBERED_DIR if not exist "%REMEMBERED_DIR%" set "REMEMBERED_DIR="
 set /a NCOUNT=0
 set /a OCOUNT=0
 for /d %%D in ("%APPDATA%\OrcaSlicer*") do (
@@ -520,7 +526,11 @@ for /L %%I in (1,1,%OCOUNT%) do (
     echo   [!IDX!] !OCAND_%%I!
 )
 echo.
-set /p DPICK=Enter a number, or type a full path:
+if defined REMEMBERED_DIR echo   [Enter] Keep using: %REMEMBERED_DIR%
+if defined REMEMBERED_DIR echo.
+set "DPICK="
+set /p DPICK=Enter a number, a full path, or just Enter to keep:
+if not defined DPICK if defined REMEMBERED_DIR (set "TARGET_DATA_DIR=%REMEMBERED_DIR%"&goto :ensure_data_dir)
 if not defined DPICK exit /b 1
 set "TARGET_DATA_DIR="
 for /L %%I in (1,1,%IDX%) do (
@@ -538,6 +548,11 @@ if not exist "%TARGET_DATA_DIR%" (
     if /I not "!MAKE_DIR!"=="Y" exit /b 1
     mkdir "%TARGET_DATA_DIR%"
     if errorlevel 1 exit /b 1
+)
+rem Remember this directory so the next run can offer it on Enter.
+if defined LOCALAPPDATA (
+    if not exist "%LOCALAPPDATA%\OrcaPluginUpdater" mkdir "%LOCALAPPDATA%\OrcaPluginUpdater" 2>nul
+    >"%LOCALAPPDATA%\OrcaPluginUpdater\datadir.txt" echo %TARGET_DATA_DIR%
 )
 exit /b 0
 

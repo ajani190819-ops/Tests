@@ -4,9 +4,9 @@
 #
 # [tool.orcaslicer.plugin]
 # name = "Wave Overhangs"
-# description = "Experimental: print steep overhangs support-free by replacing the overhang region with wave-propagated toolpaths (port of the WaveOverhangs fork's algorithm as a slicing-pipeline plugin). | What's new in v0.0.19: Stopped creating default tiny endpoint subdivision moves."
+# description = "Experimental: print steep overhangs support-free by replacing the overhang region with wave-propagated toolpaths (port of the WaveOverhangs fork's algorithm as a slicing-pipeline plugin). | What's new in v0.0.27: There is now one file: Orca-Plugins.bat."
 # author = "Wave Overhangs plugin lane"
-# version = "0.0.19"
+# version = "0.0.27"
 # ///
 """Wave Overhangs for OrcaSlicer -- experimental slicing-pipeline plugin.
 
@@ -26,7 +26,7 @@ HOW IT WORKS (one transactional exported-G-code pass)
      only after parsing, generation, subtraction, and assembly succeed.
 
 The captured real-export regression is in `tests/fixtures/` and
-`tests/test_wave_gcode.py`. A fresh 0.0.19 export and a physical print are still
+`tests/test_wave_gcode.py`. A fresh 0.0.27 export and a physical print are still
 needed. Nothing here may crash a slice: failures retain the original G-code.
 """
 import json
@@ -71,7 +71,7 @@ _import_deps()
 # load so its shapely imports run before capability audit restrictions apply.
 import sys as _sys, types as _types
 # Register the embedded module so its dataclasses can resolve annotations.
-_WAVE_CORE_SRC = "\"\"\"Wave-overhang toolpath core -- pure geometry, no OrcaSlicer bindings.\n\nThis is the algorithm behind dennisklappe/OrcaSlicer-WaveOverhangs (itself a port\nof stmcculloch/PrusaSlicer-WaveOverhangs), reimplemented as a slicer-independent\nPython module so it can run inside an Orca slicing-pipeline plugin AND be unit\ntested offline with shapely.\n\nThe idea (see waveoverhangs.com \"How it works\"):\n\n  * For each layer, the *overhang region* is the part of the layer that sticks out\n    past the layer below -- it has nothing underneath it.\n  * A *seed* is taken at the supported edge (the boundary between the overhang and\n    the material below).\n  * Wavefronts are grown outward from the seed into the overhang: each front is\n    the set of points a fixed distance further from the supported edge than the\n    last. Because we grow by buffering the supported region, the fronts naturally\n    diffract around corners and holes, exactly like ripples on a pond.\n  * Each front becomes an extrusion polyline. A pattern mode decides how the\n    fronts are connected into a print order.\n\nEverything here is in millimetres, in the object's own XY frame. Mapping into the\nprinter's absolute G-code coordinates is the plugin's job (see the plugin module).\n\"\"\"\nfrom __future__ import annotations\n\nimport math\nfrom dataclasses import dataclass, field\n\nfrom shapely.geometry import (\n    GeometryCollection,\n    LineString,\n    MultiLineString,\n    MultiPolygon,\n    Polygon,\n)\nfrom shapely.ops import linemerge, unary_union\n\n# ---------------------------------------------------------------------------------\n# Configuration\n# ---------------------------------------------------------------------------------\n\n\n@dataclass\nclass WaveConfig:\n    \"\"\"Mirrors the fork's tunables (waveoverhangs.com \"~20 expert tunables\").\"\"\"\n\n    # Detection\n    overhang_tol: float = 0.05        # mm the layer below is grown before subtracting\n    min_overhang_area: float = 0.5    # mm^2, ignore slivers\n\n    # Wave field\n    line_spacing: float = 0.35        # mm, centreline spacing between wave tracks\n    line_width: float = 0.40          # mm, extrusion width of a wave line\n    max_iterations: int = 400         # safety cap on wavefronts per region\n    perimeter_overlap: float = 0.10   # mm, push the field toward the kept perimeter\n\n    # Pattern: \"monotonic\" | \"zigzag\" | \"smart\"\n    pattern: str = \"smart\"\n\n    # Motion / cooling / flow (used by the G-code emitter)\n    layer_height: float = 0.20\n    flow_ratio: float = 1.0\n    filament_diameter: float = 1.75\n    print_speed: float = 2.0          # mm/s\n    travel_speed: float = 120.0       # mm/s\n    fan: float = 1.0                  # 0..1, forced during wave extrusion\n\n    def mm3_per_mm(self) -> float:\n        return self.line_width * self.layer_height * self.flow_ratio\n\n    def e_per_mm(self) -> float:\n        area = math.pi * (self.filament_diameter / 2.0) ** 2\n        return self.mm3_per_mm() / area\n\n\n# ---------------------------------------------------------------------------------\n# Geometry helpers\n# ---------------------------------------------------------------------------------\n\n\ndef _iter_lines(geom):\n    \"\"\"Yield LineStrings from any shapely geometry (skip empties/points).\"\"\"\n    if geom is None or geom.is_empty:\n        return\n    if isinstance(geom, LineString):\n        yield geom\n    elif isinstance(geom, (MultiLineString, GeometryCollection)):\n        for g in geom.geoms:\n            yield from _iter_lines(g)\n    elif hasattr(geom, \"boundary\"):\n        yield from _iter_lines(geom.boundary)\n\n\ndef overhang_region(layer: Polygon, support: Polygon, cfg: WaveConfig):\n    \"\"\"The part of `layer` that overhangs open air (not over `support`).\n\n    `layer`   : this layer's sliced area.\n    `support` : the layer-below area (what this layer can rest on). Empty for the\n                first layer -> the whole layer is \"supported\" by the bed, so no\n                overhang.\n    \"\"\"\n    if support is None or support.is_empty:\n        # First layer / nothing below: treat as fully supported by the bed.\n        return Polygon()\n    grown = support.buffer(cfg.overhang_tol) if cfg.overhang_tol else support\n    ov = layer.difference(grown)\n    if ov.is_empty:\n        return ov\n    # Drop slivers below the area threshold.\n    keep = [p for p in _polys(ov) if p.area >= cfg.min_overhang_area]\n    return unary_union(keep) if keep else Polygon()\n\n\ndef _polys(geom):\n    if geom.is_empty:\n        return []\n    if isinstance(geom, Polygon):\n        return [geom]\n    if isinstance(geom, MultiPolygon):\n        return list(geom.geoms)\n    if isinstance(geom, GeometryCollection):\n        out = []\n        for g in geom.geoms:\n            out.extend(_polys(g))\n        return out\n    return []\n\n\n# ---------------------------------------------------------------------------------\n# Wavefront propagation\n# ---------------------------------------------------------------------------------\n\n\n@dataclass\nclass WaveTrack:\n    distance: float               # mm from the supported edge (front index * spacing)\n    points: list                  # [(x, y), ...] centreline polyline\n\n\ndef wave_tracks(support: Polygon, overhang: Polygon, cfg: WaveConfig):\n    \"\"\"Grow wavefronts from the supported edge across the overhang.\n\n    Returns a list of WaveTrack ordered near->far from support. Each track is the\n    portion of an offset of the supported boundary that lies inside the overhang.\n    \"\"\"\n    tracks: list[WaveTrack] = []\n    if overhang is None or overhang.is_empty or support is None or support.is_empty:\n        return tracks\n\n    # Let the first front sit half a spacing into the overhang, then step outward.\n    # perimeter_overlap nudges the whole field back toward the kept perimeter/support\n    # so the last front hugs the supported edge on the far side.\n    base = 0.5 * cfg.line_spacing - cfg.perimeter_overlap\n    target = overhang.buffer(1e-6)\n    mode = str(getattr(cfg, \"propagation_mode\", \"auto\") or \"auto\").lower()\n    if mode not in (\"auto\", \"obstacle\", \"legacy\"):\n        mode = \"auto\"\n    has_internal_void = any(poly.interiors for poly in _polys(overhang))\n    obstacle_aware = mode == \"obstacle\" or (mode == \"auto\" and has_internal_void)\n    domain = support.union(target) if obstacle_aware else None\n    reachable = support\n    for i in range(cfg.max_iterations):\n        d = base + i * cfg.line_spacing\n        if d <= 0:\n            continue\n        if not obstacle_aware:\n            # Preserve the established fast path for ordinary overhangs.\n            grown = support.buffer(d)\n            front = grown.boundary.intersection(target)\n            made_any = False\n            for ln in _iter_lines(front):\n                if ln.length <= 1e-6:\n                    continue\n                tracks.append(WaveTrack(distance=d, points=list(ln.coords)))\n                made_any = True\n            if grown.contains(target):\n                break\n            if not made_any and d > 1e-6 and grown.covers(target):\n                break\n            continue\n\n        # An internal hole is an obstacle, not merely a clipped part of the\n        # target. Grow the already-reachable region through the real domain so\n        # the front stops at the hole and advances around both sides.\n        previous = reachable\n        if i == 0:\n            reachable = support.buffer(d).intersection(domain)\n        else:\n            reachable = reachable.buffer(cfg.line_spacing).intersection(domain)\n        front = reachable.boundary.intersection(target)\n        if i > 0:\n            # Do not emit a domain or hole boundary again after it has\n            # already been reached. Only the newly advanced edge is a front.\n            front = front.difference(previous.buffer(1e-5))\n        # Join pieces that meet at a wall or hole boundary before cleanup.\n        # This removes artificial saw-tooth gaps between adjacent front pieces.\n        try:\n            front = linemerge(front)\n        except (TypeError, ValueError):\n            pass\n        made_any = False\n        for ln in _iter_lines(front):\n            if ln.length <= max(1e-6, cfg.line_spacing * 0.2):\n                continue\n            tracks.append(WaveTrack(distance=d, points=list(ln.coords)))\n            made_any = True\n        if reachable.covers(target):\n            break\n        if not made_any and reachable.equals(previous):\n            break\n    return tracks\n\n\n# ---------------------------------------------------------------------------------\n# Pattern / ordering\n# ---------------------------------------------------------------------------------\n\n\ndef _endpoints(pts):\n    return pts[0], pts[-1]\n\n\ndef _dist(a, b):\n    return math.hypot(a[0] - b[0], a[1] - b[1])\n\n\ndef order_tracks(tracks, support: Polygon, cfg: WaveConfig):\n    \"\"\"Turn wavefronts into an ordered list of printable polylines.\n\n    monotonic : print near->far, each front as its own line (lots of travels).\n    zigzag    : same order, but flip alternate fronts so the end of one is near\n                the start of the next -> connected back-and-forth motion.\n    smart     : like monotonic, but each front starts from its better-supported\n                (nearer-to-support) end so no line begins in thin air.\n    \"\"\"\n    ordered = sorted(tracks, key=lambda t: t.distance)\n    polylines = []\n    mode = (cfg.pattern or \"smart\").lower()\n\n    if mode == \"zigzag\":\n        flip = False\n        for t in ordered:\n            pts = list(reversed(t.points)) if flip else t.points\n            polylines.append(pts)\n            flip = not flip\n        return polylines\n\n    if mode == \"smart\" and support is not None and not support.is_empty:\n        for t in ordered:\n            a, b = _endpoints(t.points)\n            # Start from whichever end is closer to the supported region.\n            da = support.distance(_pt(a))\n            db = support.distance(_pt(b))\n            polylines.append(t.points if da <= db else list(reversed(t.points)))\n        return polylines\n\n    # monotonic (and fallback)\n    return [t.points for t in ordered]\n\n\ndef _pt(xy):\n    from shapely.geometry import Point\n\n    return Point(xy[0], xy[1])\n\n\n# ---------------------------------------------------------------------------------\n# G-code emission\n# ---------------------------------------------------------------------------------\n\n\ndef emit_layer_gcode(polylines, z, cfg: WaveConfig, restore_fan=None):\n    \"\"\"Emit G-code lines for one layer's wave polylines.\n\n    Coordinates are absolute bed XY; `z` is the layer height. `restore_fan` is an\n    optional 0..255 value to reset the fan to after the wave block (None = leave\n    the forced wave fan in place; the plugin usually passes the layer's fan back).\n    Relative-E is used inside the block and reset with M83/G92 so it composes with\n    Orca's own extrusion accounting.\n    \"\"\"\n    if not polylines:\n        return []\n    e_per_mm = cfg.e_per_mm()\n    print_f = int(round(cfg.print_speed * 60))\n    travel_f = int(round(cfg.travel_speed * 60))\n    out = [\"; ==== WAVE OVERHANG BEGIN ====\",\n           \"M83\",                                   # relative extrusion for our block\n           f\"M106 S{int(round(max(0.0, min(1.0, cfg.fan)) * 255))}\"]\n    for pts in polylines:\n        if len(pts) < 2:\n            continue\n        x0, y0 = pts[0]\n        out.append(f\"G0 F{travel_f} X{x0:.3f} Y{y0:.3f} Z{z:.3f}\")\n        out.append(f\"G1 F{print_f}\")\n        px, py = x0, y0\n        for (x, y) in pts[1:]:\n            seg = math.hypot(x - px, y - py)\n            if seg <= 1e-9:\n                continue\n            out.append(f\"G1 X{x:.3f} Y{y:.3f} E{seg * e_per_mm:.5f}\")\n            px, py = x, y\n    if restore_fan is not None:\n        out.append(f\"M106 S{int(restore_fan)}\")\n    out.append(\"; ==== WAVE OVERHANG END ====\")\n    return out\n\n\n# ---------------------------------------------------------------------------------\n# One-call convenience\n# ---------------------------------------------------------------------------------\n\n\n@dataclass\nclass LayerWaveResult:\n    z: float\n    polylines: list = field(default_factory=list)\n    overhang_area: float = 0.0\n    n_tracks: int = 0\n\n\ndef plan_layer(layer: Polygon, support: Polygon, z: float, cfg: WaveConfig):\n    \"\"\"Full per-layer plan: detect overhang, propagate waves, order them.\"\"\"\n    ov = overhang_region(layer, support, cfg)\n    if ov.is_empty:\n        return LayerWaveResult(z=z)\n    tracks = wave_tracks(support, ov, cfg)\n    polylines = order_tracks(tracks, support, cfg)\n    return LayerWaveResult(z=z, polylines=polylines,\n                           overhang_area=float(ov.area), n_tracks=len(tracks))\n\n\n# ---------------------------------------------------------------------------------\n# G-code layer parsing, self-calibration and splicing (pure text; unit tested)\n# ---------------------------------------------------------------------------------\n\nZ_KEYS = (\";Z:\", \";HEIGHT:\", \";LAYER_Z:\")\n\n\ndef parse_layer_z(line: str):\n    \"\"\"The layer height a G-code line announces, or None.\n\n    Handles Orca/Prusa comment markers (;Z: / ;HEIGHT: / ;LAYER_Z:) and a bare\n    layer-change move (`G1 Z.. F..` with no X/Y).\n    \"\"\"\n    s = line.strip()\n    for k in Z_KEYS:\n        if s.startswith(k):\n            try:\n                return float(s[len(k):].strip().split()[0])\n            except Exception:\n                return None\n    if s[:2] in (\"G0\", \"G1\") and \"Z\" in s and \" X\" not in (\" \" + s) and \" Y\" not in (\" \" + s):\n        for tok in s.split():\n            if tok.startswith(\"Z\"):\n                try:\n                    return float(tok[1:])\n                except Exception:\n                    return None\n    return None\n\n\ndef _extruding_xy(line: str):\n    \"\"\"(x, y) for an extruding G1 move (has X, Y and an E token), else None.\"\"\"\n    s = line.strip()\n    if not s.startswith(\"G1\"):\n        return None\n    x = y = None\n    has_e = False\n    for tok in s.split():\n        if tok.startswith(\"X\"):\n            try:\n                x = float(tok[1:])\n            except Exception:\n                return None\n        elif tok.startswith(\"Y\"):\n            try:\n                y = float(tok[1:])\n            except Exception:\n                return None\n        elif tok.startswith(\"E\"):\n            has_e = True\n    if x is not None and y is not None and has_e:\n        return (x, y)\n    return None\n\n\ndef layer_extrusion_min(lines, target_z, tol=1e-3):\n    \"\"\"Min (x, y) corner of extruding moves on the layer nearest `target_z`.\"\"\"\n    minx = miny = None\n    cur = None\n    for line in lines:\n        z = parse_layer_z(line)\n        if z is not None:\n            cur = z\n            continue\n        if cur is not None and abs(cur - target_z) <= tol:\n            xy = _extruding_xy(line)\n            if xy is not None:\n                minx = xy[0] if minx is None else min(minx, xy[0])\n                miny = xy[1] if miny is None else min(miny, xy[1])\n    return (minx, miny)\n\n\ndef _match_z(z, plans, tol=1e-3):\n    for pz in plans:\n        if abs(pz - z) <= tol:\n            return pz\n    return None\n\n\ndef splice_gcode(text, layer_plans, cfg: WaveConfig, calibration):\n    \"\"\"Insert wave moves into exported G-code. Pure text in / out.\n\n    layer_plans : {round(z,3): [polyline_in_object_frame, ...]}\n    calibration : (\"manual\", dx, dy)                     -> use this XY offset, or\n                  (\"auto\", calib_z, obj_min_x, obj_min_y) -> derive the offset by\n                    aligning Orca's own printed outline on layer `calib_z` to the\n                    object-frame outline min corner (a pure translation).\n\n    Wave moves for a layer are inserted just before the NEXT layer marker, i.e.\n    after Orca has printed that layer's own perimeters/infill.\n    Returns (new_text, inserted_layer_count, (dx, dy)).\n    \"\"\"\n    lines = text.splitlines(keepends=True)\n\n    if calibration and calibration[0] == \"manual\":\n        dx, dy = float(calibration[1]), float(calibration[2])\n    elif calibration and calibration[0] == \"auto\":\n        _, cz, omx, omy = calibration\n        gmin = layer_extrusion_min(lines, cz)\n        if gmin[0] is None or omx is None:\n            dx, dy = 0.0, 0.0\n        else:\n            dx, dy = gmin[0] - omx, gmin[1] - omy\n    else:\n        dx, dy = 0.0, 0.0\n\n    out = []\n    inserted = 0\n    pending = None  # (z, polylines) waiting to be flushed at the next layer marker\n\n    def flush():\n        nonlocal inserted\n        if pending is None:\n            return\n        z, polys = pending\n        shifted = [[(x + dx, y + dy) for (x, y) in pts] for pts in polys]\n        for ln in emit_layer_gcode(shifted, z, cfg):\n            out.append(ln + \"\\n\")\n        inserted += 1\n\n    for line in lines:\n        z = parse_layer_z(line)\n        if z is not None:\n            flush()\n            pending = None\n            key = _match_z(z, layer_plans)\n            if key is not None:\n                pending = (z, layer_plans[key])\n        out.append(line)\n    flush()\n\n    return \"\".join(out), inserted, (dx, dy)\n\n"
+_WAVE_CORE_SRC = "\"\"\"Wave-overhang toolpath core -- pure geometry, no OrcaSlicer bindings.\n\nThis is the algorithm behind dennisklappe/OrcaSlicer-WaveOverhangs (itself a port\nof stmcculloch/PrusaSlicer-WaveOverhangs), reimplemented as a slicer-independent\nPython module so it can run inside an Orca slicing-pipeline plugin AND be unit\ntested offline with shapely.\n\nThe idea (see waveoverhangs.com \"How it works\"):\n\n  * For each layer, the *overhang region* is the part of the layer that sticks out\n    past the layer below -- it has nothing underneath it.\n  * A *seed* is taken at the supported edge (the boundary between the overhang and\n    the material below).\n  * Wavefronts are grown outward from the seed into the overhang: each front is\n    the set of points a fixed distance further from the supported edge than the\n    last. Because we grow by buffering the supported region, the fronts naturally\n    diffract around corners and holes, exactly like ripples on a pond.\n  * Each front becomes an extrusion polyline. A pattern mode decides how the\n    fronts are connected into a print order.\n\nEverything here is in millimetres, in the object's own XY frame. Mapping into the\nprinter's absolute G-code coordinates is the plugin's job (see the plugin module).\n\"\"\"\nfrom __future__ import annotations\n\nimport math\nfrom dataclasses import dataclass, field\n\nfrom shapely.geometry import (\n    GeometryCollection,\n    LineString,\n    MultiLineString,\n    MultiPolygon,\n    Polygon,\n)\nfrom shapely.ops import linemerge, unary_union\n\n# ---------------------------------------------------------------------------------\n# Configuration\n# ---------------------------------------------------------------------------------\n\n\n@dataclass\nclass WaveConfig:\n    \"\"\"Mirrors the fork's tunables (waveoverhangs.com \"~20 expert tunables\").\"\"\"\n\n    # Detection\n    overhang_tol: float = 0.05        # mm the layer below is grown before subtracting\n    min_overhang_area: float = 0.5    # mm^2, ignore slivers\n\n    # Wave field\n    line_spacing: float = 0.35        # mm, centreline spacing between wave tracks\n    line_width: float = 0.40          # mm, extrusion width of a wave line\n    max_iterations: int = 400         # safety cap on wavefronts per region\n    perimeter_overlap: float = 0.10   # mm, push the field toward the kept perimeter\n\n    # Pattern: \"monotonic\" | \"zigzag\" | \"smart\"\n    pattern: str = \"smart\"\n\n    # Motion / cooling / flow (used by the G-code emitter)\n    layer_height: float = 0.20\n    flow_ratio: float = 1.0\n    filament_diameter: float = 1.75\n    print_speed: float = 2.0          # mm/s\n    travel_speed: float = 120.0       # mm/s\n    fan: float = 1.0                  # 0..1, forced during wave extrusion\n\n    def mm3_per_mm(self) -> float:\n        return self.line_width * self.layer_height * self.flow_ratio\n\n    def e_per_mm(self) -> float:\n        area = math.pi * (self.filament_diameter / 2.0) ** 2\n        return self.mm3_per_mm() / area\n\n\n# ---------------------------------------------------------------------------------\n# Geometry helpers\n# ---------------------------------------------------------------------------------\n\n\ndef _iter_lines(geom):\n    \"\"\"Yield LineStrings from any shapely geometry (skip empties/points).\"\"\"\n    if geom is None or geom.is_empty:\n        return\n    if isinstance(geom, LineString):\n        yield geom\n    elif isinstance(geom, (MultiLineString, GeometryCollection)):\n        for g in geom.geoms:\n            yield from _iter_lines(g)\n    elif hasattr(geom, \"boundary\"):\n        yield from _iter_lines(geom.boundary)\n\n\ndef overhang_region(layer: Polygon, support: Polygon, cfg: WaveConfig):\n    \"\"\"The part of `layer` that overhangs open air (not over `support`).\n\n    `layer`   : this layer's sliced area.\n    `support` : the layer-below area (what this layer can rest on). Empty for the\n                first layer -> the whole layer is \"supported\" by the bed, so no\n                overhang.\n    \"\"\"\n    if support is None or support.is_empty:\n        # First layer / nothing below: treat as fully supported by the bed.\n        return Polygon()\n    grown = support.buffer(cfg.overhang_tol) if cfg.overhang_tol else support\n    ov = layer.difference(grown)\n    if ov.is_empty:\n        return ov\n    # Drop slivers below the area threshold.\n    keep = [p for p in _polys(ov) if p.area >= cfg.min_overhang_area]\n    return unary_union(keep) if keep else Polygon()\n\n\ndef _polys(geom):\n    if geom.is_empty:\n        return []\n    if isinstance(geom, Polygon):\n        return [geom]\n    if isinstance(geom, MultiPolygon):\n        return list(geom.geoms)\n    if isinstance(geom, GeometryCollection):\n        out = []\n        for g in geom.geoms:\n            out.extend(_polys(g))\n        return out\n    return []\n\n\n# ---------------------------------------------------------------------------------\n# Wavefront propagation\n# ---------------------------------------------------------------------------------\n\n\n@dataclass\nclass WaveTrack:\n    distance: float               # mm from the supported edge (front index * spacing)\n    points: list                  # [(x, y), ...] centreline polyline\n\n\ndef _heal_wake(reachable, domain, blend):\n    \"\"\"Round off the crease left where a split wavefront rejoins.\n\n    When the field flows around a hole, the two arriving sides meet behind it\n    in a sharp V, and every later front inherits that same kink -- a hard\n    seam running downstream of the hole. Real ripples do not keep it: the\n    crease heals as they travel on.\n\n    A morphological closing fills concave notches narrower than ``blend``\n    while never removing area that has already been reached, so the V gets\n    rounded a little more on each successive front. Re-clipping to the domain\n    keeps the result out of the hole and inside the part. Any GEOS failure\n    leaves the region exactly as it was.\n    \"\"\"\n    if blend <= 0.0 or reachable.is_empty:\n        return reachable\n    # The crease only exists once the field has flowed around an obstacle and\n    # closed up behind it, which is exactly when the reached region gains an\n    # interior ring (the obstacle itself). Before that there is nothing to\n    # heal, and skipping the two buffer calls keeps the common case cheap.\n    if not any(poly.interiors for poly in _polys(reachable)):\n        return reachable\n    try:\n        healed = reachable.buffer(blend, join_style=1).buffer(\n            -blend, join_style=1)\n        if healed.is_empty or not healed.is_valid:\n            return reachable\n        healed = healed.intersection(domain)\n        if healed.is_empty or not healed.is_valid:\n            return reachable\n        # Closing is extensive, so the clipped result can only match or\n        # exceed what was already reached. If it does not, something went\n        # wrong and the untouched region is the safe answer.\n        if healed.area + 1e-9 < reachable.area:\n            return reachable\n        return healed\n    except Exception:\n        return reachable\n\n\ndef wave_tracks(support: Polygon, overhang: Polygon, cfg: WaveConfig):\n    \"\"\"Grow wavefronts from the supported edge across the overhang.\n\n    Returns a list of WaveTrack ordered near->far from support. Each track is the\n    portion of an offset of the supported boundary that lies inside the overhang.\n    \"\"\"\n    tracks: list[WaveTrack] = []\n    if overhang is None or overhang.is_empty or support is None or support.is_empty:\n        return tracks\n\n    # Let the first front sit half a spacing into the overhang, then step outward.\n    # perimeter_overlap nudges the whole field back toward the kept perimeter/support\n    # so the last front hugs the supported edge on the far side.\n    base = 0.5 * cfg.line_spacing - cfg.perimeter_overlap\n    target = overhang.buffer(1e-6)\n    mode = str(getattr(cfg, \"propagation_mode\", \"auto\") or \"auto\").lower()\n    if mode not in (\"auto\", \"obstacle\", \"legacy\"):\n        mode = \"auto\"\n    has_internal_void = any(poly.interiors for poly in _polys(overhang))\n    obstacle_aware = mode == \"obstacle\" or (mode == \"auto\" and has_internal_void)\n    domain = support.union(target) if obstacle_aware else None\n    # How far a rejoining wavefront is allowed to heal its own crease, as a\n    # multiple of the line spacing. 0 reproduces the hard seam exactly.\n    blend = max(0.0, float(getattr(cfg, \"wake_blend\", 1.0))) * cfg.line_spacing\n    reachable = support\n    shown = support\n    for i in range(cfg.max_iterations):\n        d = base + i * cfg.line_spacing\n        if d <= 0:\n            continue\n        if not obstacle_aware:\n            # Preserve the established fast path for ordinary overhangs.\n            grown = support.buffer(d)\n            front = grown.boundary.intersection(target)\n            made_any = False\n            for ln in _iter_lines(front):\n                if ln.length <= 1e-6:\n                    continue\n                tracks.append(WaveTrack(distance=d, points=list(ln.coords)))\n                made_any = True\n            if grown.contains(target):\n                break\n            if not made_any and d > 1e-6 and grown.covers(target):\n                break\n            continue\n\n        # An internal hole is an obstacle, not merely a clipped part of the\n        # target. Grow the already-reachable region through the real domain so\n        # the front stops at the hole and advances around both sides.\n        previous = reachable\n        if i == 0:\n            reachable = support.buffer(d).intersection(domain)\n        else:\n            reachable = reachable.buffer(cfg.line_spacing).intersection(domain)\n        # Heal the front we are about to draw, but keep propagating -- and\n        # keep measuring \"already reached\" against -- the raw region. Two\n        # reasons: feeding the healed region back in compounds the growth,\n        # and healing snaps the notch to the same place on consecutive\n        # steps, so consecutive healed boundaries partly coincide. Measuring\n        # the subtraction below against the healed region would then delete\n        # those coincident stretches and cut the fronts into dashes.\n        shown = _heal_wake(reachable, domain, blend)\n        front = shown.boundary.intersection(target)\n        if i > 0:\n            # Do not emit a domain or hole boundary again after it has\n            # already been reached. Only the newly advanced edge is a front.\n            front = front.difference(previous.buffer(1e-5))\n        # Join pieces that meet at a wall or hole boundary before cleanup.\n        # This removes artificial saw-tooth gaps between adjacent front pieces.\n        # Clipping a boundary against another region can leave single-point\n        # and zero-length crumbs, and linemerge raises GEOSException on those\n        # (\"point array must contain 0 or >1 elements\"), which would lose the\n        # whole layer. Drop the crumbs before merging.\n        try:\n            front = linemerge(front)\n        except Exception:\n            # Clipping a boundary against another region can leave\n            # single-point and zero-length crumbs, and linemerge raises\n            # GEOSException on those (\"point array must contain 0 or >1\n            # elements\"), which would otherwise lose the whole layer. Retry\n            # without the crumbs; this path only runs when the normal merge\n            # has already failed, so ordinary fronts are untouched.\n            pieces = [ln for ln in _iter_lines(front)\n                      if len(ln.coords) > 1 and ln.length > 1e-9]\n            if not pieces:\n                front = GeometryCollection()\n            elif len(pieces) == 1:\n                front = pieces[0]\n            else:\n                try:\n                    front = linemerge(pieces)\n                except Exception:\n                    front = MultiLineString(pieces)\n        made_any = False\n        for ln in _iter_lines(front):\n            if ln.length <= max(1e-6, cfg.line_spacing * 0.2):\n                continue\n            tracks.append(WaveTrack(distance=d, points=list(ln.coords)))\n            made_any = True\n        if reachable.covers(target) or shown.covers(target):\n            break\n        if not made_any and reachable.equals(previous):\n            break\n    return tracks\n\n\n# ---------------------------------------------------------------------------------\n# Pattern / ordering\n# ---------------------------------------------------------------------------------\n\n\ndef _endpoints(pts):\n    return pts[0], pts[-1]\n\n\ndef _dist(a, b):\n    return math.hypot(a[0] - b[0], a[1] - b[1])\n\n\ndef order_tracks(tracks, support: Polygon, cfg: WaveConfig):\n    \"\"\"Turn wavefronts into an ordered list of printable polylines.\n\n    monotonic : print near->far, each front as its own line (lots of travels).\n    zigzag    : same order, but flip alternate fronts so the end of one is near\n                the start of the next -> connected back-and-forth motion.\n    smart     : like monotonic, but each front starts from its better-supported\n                (nearer-to-support) end so no line begins in thin air.\n    \"\"\"\n    ordered = sorted(tracks, key=lambda t: t.distance)\n    polylines = []\n    mode = (cfg.pattern or \"smart\").lower()\n\n    if mode == \"zigzag\":\n        flip = False\n        for t in ordered:\n            pts = list(reversed(t.points)) if flip else t.points\n            polylines.append(pts)\n            flip = not flip\n        return polylines\n\n    if mode == \"smart\" and support is not None and not support.is_empty:\n        for t in ordered:\n            a, b = _endpoints(t.points)\n            # Start from whichever end is closer to the supported region.\n            da = support.distance(_pt(a))\n            db = support.distance(_pt(b))\n            polylines.append(t.points if da <= db else list(reversed(t.points)))\n        return polylines\n\n    # monotonic (and fallback)\n    return [t.points for t in ordered]\n\n\ndef _pt(xy):\n    from shapely.geometry import Point\n\n    return Point(xy[0], xy[1])\n\n\n# ---------------------------------------------------------------------------------\n# G-code emission\n# ---------------------------------------------------------------------------------\n\n\ndef emit_layer_gcode(polylines, z, cfg: WaveConfig, restore_fan=None):\n    \"\"\"Emit G-code lines for one layer's wave polylines.\n\n    Coordinates are absolute bed XY; `z` is the layer height. `restore_fan` is an\n    optional 0..255 value to reset the fan to after the wave block (None = leave\n    the forced wave fan in place; the plugin usually passes the layer's fan back).\n    Relative-E is used inside the block and reset with M83/G92 so it composes with\n    Orca's own extrusion accounting.\n    \"\"\"\n    if not polylines:\n        return []\n    e_per_mm = cfg.e_per_mm()\n    print_f = int(round(cfg.print_speed * 60))\n    travel_f = int(round(cfg.travel_speed * 60))\n    out = [\"; ==== WAVE OVERHANG BEGIN ====\",\n           \"M83\",                                   # relative extrusion for our block\n           f\"M106 S{int(round(max(0.0, min(1.0, cfg.fan)) * 255))}\"]\n    for pts in polylines:\n        if len(pts) < 2:\n            continue\n        x0, y0 = pts[0]\n        out.append(f\"G0 F{travel_f} X{x0:.3f} Y{y0:.3f} Z{z:.3f}\")\n        out.append(f\"G1 F{print_f}\")\n        px, py = x0, y0\n        for (x, y) in pts[1:]:\n            seg = math.hypot(x - px, y - py)\n            if seg <= 1e-9:\n                continue\n            out.append(f\"G1 X{x:.3f} Y{y:.3f} E{seg * e_per_mm:.5f}\")\n            px, py = x, y\n    if restore_fan is not None:\n        out.append(f\"M106 S{int(restore_fan)}\")\n    out.append(\"; ==== WAVE OVERHANG END ====\")\n    return out\n\n\n# ---------------------------------------------------------------------------------\n# One-call convenience\n# ---------------------------------------------------------------------------------\n\n\n@dataclass\nclass LayerWaveResult:\n    z: float\n    polylines: list = field(default_factory=list)\n    overhang_area: float = 0.0\n    n_tracks: int = 0\n\n\ndef plan_layer(layer: Polygon, support: Polygon, z: float, cfg: WaveConfig):\n    \"\"\"Full per-layer plan: detect overhang, propagate waves, order them.\"\"\"\n    ov = overhang_region(layer, support, cfg)\n    if ov.is_empty:\n        return LayerWaveResult(z=z)\n    tracks = wave_tracks(support, ov, cfg)\n    polylines = order_tracks(tracks, support, cfg)\n    return LayerWaveResult(z=z, polylines=polylines,\n                           overhang_area=float(ov.area), n_tracks=len(tracks))\n\n\n# ---------------------------------------------------------------------------------\n# G-code layer parsing, self-calibration and splicing (pure text; unit tested)\n# ---------------------------------------------------------------------------------\n\nZ_KEYS = (\";Z:\", \";HEIGHT:\", \";LAYER_Z:\")\n\n\ndef parse_layer_z(line: str):\n    \"\"\"The layer height a G-code line announces, or None.\n\n    Handles Orca/Prusa comment markers (;Z: / ;HEIGHT: / ;LAYER_Z:) and a bare\n    layer-change move (`G1 Z.. F..` with no X/Y).\n    \"\"\"\n    s = line.strip()\n    for k in Z_KEYS:\n        if s.startswith(k):\n            try:\n                return float(s[len(k):].strip().split()[0])\n            except Exception:\n                return None\n    if s[:2] in (\"G0\", \"G1\") and \"Z\" in s and \" X\" not in (\" \" + s) and \" Y\" not in (\" \" + s):\n        for tok in s.split():\n            if tok.startswith(\"Z\"):\n                try:\n                    return float(tok[1:])\n                except Exception:\n                    return None\n    return None\n\n\ndef _extruding_xy(line: str):\n    \"\"\"(x, y) for an extruding G1 move (has X, Y and an E token), else None.\"\"\"\n    s = line.strip()\n    if not s.startswith(\"G1\"):\n        return None\n    x = y = None\n    has_e = False\n    for tok in s.split():\n        if tok.startswith(\"X\"):\n            try:\n                x = float(tok[1:])\n            except Exception:\n                return None\n        elif tok.startswith(\"Y\"):\n            try:\n                y = float(tok[1:])\n            except Exception:\n                return None\n        elif tok.startswith(\"E\"):\n            has_e = True\n    if x is not None and y is not None and has_e:\n        return (x, y)\n    return None\n\n\ndef layer_extrusion_min(lines, target_z, tol=1e-3):\n    \"\"\"Min (x, y) corner of extruding moves on the layer nearest `target_z`.\"\"\"\n    minx = miny = None\n    cur = None\n    for line in lines:\n        z = parse_layer_z(line)\n        if z is not None:\n            cur = z\n            continue\n        if cur is not None and abs(cur - target_z) <= tol:\n            xy = _extruding_xy(line)\n            if xy is not None:\n                minx = xy[0] if minx is None else min(minx, xy[0])\n                miny = xy[1] if miny is None else min(miny, xy[1])\n    return (minx, miny)\n\n\ndef _match_z(z, plans, tol=1e-3):\n    for pz in plans:\n        if abs(pz - z) <= tol:\n            return pz\n    return None\n\n\ndef splice_gcode(text, layer_plans, cfg: WaveConfig, calibration):\n    \"\"\"Insert wave moves into exported G-code. Pure text in / out.\n\n    layer_plans : {round(z,3): [polyline_in_object_frame, ...]}\n    calibration : (\"manual\", dx, dy)                     -> use this XY offset, or\n                  (\"auto\", calib_z, obj_min_x, obj_min_y) -> derive the offset by\n                    aligning Orca's own printed outline on layer `calib_z` to the\n                    object-frame outline min corner (a pure translation).\n\n    Wave moves for a layer are inserted just before the NEXT layer marker, i.e.\n    after Orca has printed that layer's own perimeters/infill.\n    Returns (new_text, inserted_layer_count, (dx, dy)).\n    \"\"\"\n    lines = text.splitlines(keepends=True)\n\n    if calibration and calibration[0] == \"manual\":\n        dx, dy = float(calibration[1]), float(calibration[2])\n    elif calibration and calibration[0] == \"auto\":\n        _, cz, omx, omy = calibration\n        gmin = layer_extrusion_min(lines, cz)\n        if gmin[0] is None or omx is None:\n            dx, dy = 0.0, 0.0\n        else:\n            dx, dy = gmin[0] - omx, gmin[1] - omy\n    else:\n        dx, dy = 0.0, 0.0\n\n    out = []\n    inserted = 0\n    pending = None  # (z, polylines) waiting to be flushed at the next layer marker\n\n    def flush():\n        nonlocal inserted\n        if pending is None:\n            return\n        z, polys = pending\n        shifted = [[(x + dx, y + dy) for (x, y) in pts] for pts in polys]\n        for ln in emit_layer_gcode(shifted, z, cfg):\n            out.append(ln + \"\\n\")\n        inserted += 1\n\n    for line in lines:\n        z = parse_layer_z(line)\n        if z is not None:\n            flush()\n            pending = None\n            key = _match_z(z, layer_plans)\n            if key is not None:\n                pending = (z, layer_plans[key])\n        out.append(line)\n    flush()\n\n    return \"\".join(out), inserted, (dx, dy)\n\n"
 wc = _types.ModuleType("wave_core")
 _sys.modules["wave_core"] = wc
 try:
@@ -84,6 +84,13 @@ except Exception:  # pragma: no cover - surfaced via the setup check / execute()
 _DEFAULTS = {
     # Master switch. False leaves exported G-code unchanged.
     "enabled": True,
+
+    # Hard wall-clock ceiling for the whole G-code pass, in seconds. If the
+    # pass is still running when the budget runs out it gives up and hands
+    # back the file exactly as Orca wrote it. A slow Wave is a nuisance; an
+    # export that never finishes is a broken printer, so this trades the
+    # feature away rather than ever hanging a slice. 0 disables the ceiling.
+    "time_budget": 30.0,         # seconds; 0 = no limit
 
     # Detection: support is taken from the previous layer's exported moves.
     # overhang_tol grows support by this many millimetres before deciding that
@@ -103,6 +110,18 @@ _DEFAULTS = {
     # overhang geometry contains a hole. obstacle forces that method; legacy
     # is useful for comparison but can miss holes inside an overhang plane.
     "propagation_mode": "auto",  # "auto" | "obstacle" | "legacy"
+    # EXPERIMENTAL, off by default. When the field splits around a hole and
+    # rejoins behind it, the two arriving sides meet in a sharp V and every
+    # later front keeps that kink, leaving a hard seam downstream of the
+    # hole. This rounds the crease off, in multiples of line_spacing.
+    #
+    # It genuinely fixes the V on a simple round hole, but on the owner's
+    # real part it also loses about 4% of wave coverage (1911 -> 1833 mm of
+    # path) and turns 8 tiny fragments into 40, because healing makes
+    # consecutive fronts partly coincide and the "already reached"
+    # subtraction then cuts them up. Until that is solved it must not be the
+    # default. Values above 1.5 are clamped; see docs/ROADMAP.md.
+    "wake_blend": 0.0,           # x line_spacing; 0 = off (default)
     "pattern": "smart",          # "smart" | "monotonic" | "zigzag"
     "start_policy": "supported", # supported/consistent/min/max-x/min/max-y
     "component_order": "support",  # "support" | "nearest" same-distance fronts
@@ -114,11 +133,37 @@ _DEFAULTS = {
     "simplify_tolerance": 0.05,  # mm; remove harmless boundary point noise
     "min_bridge_fragment": 0.5,  # line-width multiplier for retained fragments
 
+    # Perimeter conformance. Orca exports bridge infill as separate lines, so
+    # the area those lines cover has a castellated edge that stops short of
+    # the wall. wall_snap rebuilds the overhang area out to the real wall the
+    # layer printed, so fronts run from the supported perimeter all the way to
+    # the overhang perimeter and holes instead of ending on a jagged edge.
+    # wall_reach limits how far that stretch may go; wall_overlap is how far a
+    # Wave end sits inside the wall bead, as a fraction of the Wave width.
+    "wall_snap": True,           # False restores 0.0.19 bridge-footprint edges
+    "wall_reach": "auto",        # mm or auto (1.5 line widths)
+    "wall_overlap": 0.25,        # fraction of line width overlapped into wall
+    # Wave fronts step outward by a fixed spacing, so the last one can stop
+    # short of a boundary that runs at an angle to the march -- the tip of a
+    # corner is the usual case, and it is left as a small unfilled sliver.
+    "gap_fill": True,            # fill those slivers with a short anchored path
+    "gap_fill_min_area": 0.05,   # mm^2; leave anything smaller alone
+
     # Arachne-like endpoint cleanup. Endpoints are snapped back onto the
     # visible wall/hole boundary when cleanup leaves them slightly short, then
     # emitted with lower E near that boundary. By default taper changes flow on
     # existing straight moves instead of adding tiny grid-like endpoint moves.
     # Centerline clearance is off by default because it can create gaps.
+    # Arc moves. Wave runs after Orca has written the file, so Orca's own arc
+    # fitter never sees these moves; Wave fits its own arcs instead. This is
+    # OFF by default: G2/G3 in the finished file is the one genuinely new
+    # kind of output Wave started producing in 0.0.21, and Orca re-parses the
+    # file for its preview and time estimate. Until that is confirmed happy
+    # on real hardware, arcs are opt-in. "auto" follows the export's own
+    # enable_arc_fitting setting; true forces them on.
+    "arc_fitting": False,        # false | "auto" | true
+    "arc_tolerance": "auto",     # mm the arc may stray; auto = profile resolution
+
     "edge_snap_distance": "auto",  # mm or auto; endpoint snap-to-boundary reach
     "edge_clearance": 0.0,       # mm or auto; optional inset from walls/holes
     "edge_taper_distance": 0.60,  # mm; 0 disables variable endpoint flow
@@ -134,50 +179,374 @@ _DEFAULTS = {
     "max_iterations": 400,       # safety limit on fronts per region
 }
 
+# --- the settings panel Orca shows you -------------------------------------
+#
+# Orca hands the capability config to the user as JSON, and JSON has no
+# comment syntax -- so every explanatory comment above is invisible in the
+# app. That left the panel a wall of forty bare keys with no way to tell what
+# any of them did, or even which ones were worth touching.
+#
+# So the notes travel *in* the config. Keys beginning with "_" are notes, not
+# settings: _cfg() only copies keys that exist in _DEFAULTS, so a note can
+# never become a setting, can never be misspelled into one, and can be
+# deleted by the user with no effect. Each note sits immediately above the
+# setting it describes; dicts keep insertion order and json.dumps preserves
+# it, so the panel reads top to bottom.
+#
+# Rules for writing these: plain English, no jargon, say what happens if you
+# change it, and give the units. They are the only documentation most people
+# will ever see.
+
+_NOTES = {
+    "_READ_ME": (
+        "Keys starting with _ are notes, not settings -- the plugin ignores "
+        "them, so you can safely leave or delete them. Each note describes "
+        "the setting directly below it. Defaults are good for most prints; "
+        "the ones people usually touch are print_speed, fan and line_spacing."
+    ),
+
+    "_enabled": (
+        "Master switch. Set false and the plugin leaves your G-code exactly "
+        "as Orca wrote it (useful for an A/B test without uninstalling)."
+    ),
+    "_time_budget": (
+        "Seconds. If the wave pass is still working when this runs out it "
+        "gives up and hands back Orca's original file untouched. Protects "
+        "you from an export that never finishes. 0 means no limit."
+    ),
+
+    "_overhang_tol": (
+        "Millimetres of slack when deciding what counts as unsupported. "
+        "Bigger = the plugin is more forgiving and treats slightly "
+        "overhanging material as supported, so it makes fewer waves."
+    ),
+    "_min_overhang_area": (
+        "Square millimetres. Unsupported patches smaller than this are left "
+        "alone. Raise it if tiny specks are getting wave treatment."
+    ),
+
+    "_line_spacing": (
+        "Millimetres between neighbouring wave lines, centre to centre. "
+        "Smaller = denser, stronger, slower, and hotter (less cooling time "
+        "between passes). This is the main quality/time dial."
+    ),
+    "_line_width": (
+        "Millimetres. Only a fallback -- if Orca's export states a bridge "
+        "width, that wins. Change this only if waves look too fat or thin "
+        "and your export has no width information."
+    ),
+    "_perimeter_overlap": (
+        "Millimetres the first wave line starts back inside solid material, "
+        "so it is anchored instead of beginning in mid-air."
+    ),
+
+    "_propagation_mode": (
+        "How the wave flows. \"auto\" (recommended) routes around holes only "
+        "when the overhang actually has one. \"obstacle\" always does. "
+        "\"legacy\" is the old behaviour and can print across holes."
+    ),
+    "_wake_blend": (
+        "EXPERIMENTAL, leave at 0. Where the wave splits around a hole and "
+        "meets again behind it, the two sides form a sharp V that every "
+        "later line copies. This rounds that crease off, measured in "
+        "multiples of line_spacing (1.0 = one line spacing, max 1.5). It "
+        "works on simple round holes, but on complex parts it currently "
+        "loses about 4% of the wave coverage and breaks lines into dashes, "
+        "which is why it ships off."
+    ),
+    "_pattern": (
+        "Print order. \"smart\" starts each line at its better-supported end. "
+        "\"monotonic\" prints strictly nearest-to-furthest. \"zigzag\" "
+        "alternates direction for fewer travel moves but more stringing."
+    ),
+    "_start_policy": (
+        "Which end of a wave line to start from: \"supported\", "
+        "\"consistent\", \"min-x\", \"max-x\", \"min-y\" or \"max-y\". "
+        "\"supported\" is safest; the others help if you see a seam."
+    ),
+    "_component_order": (
+        "When two separate wave areas are the same distance along, print the "
+        "one nearest the supported edge (\"support\") or nearest the nozzle "
+        "(\"nearest\", fewer travels)."
+    ),
+
+    "_min_wave_length": (
+        "Millimetres. Whole wave lines shorter than this are dropped as "
+        "blob-prone. Lower it to keep more small detail."
+    ),
+    "_min_wave_segment": (
+        "Millimetres. Very short stubs at the ends of a line get merged "
+        "away rather than printed as separate dots."
+    ),
+    "_simplify_tolerance": (
+        "Millimetres of allowed smoothing. Removes jitter inherited from the "
+        "sliced outline. Raise it for smoother, faster lines; too high and "
+        "waves stop hugging the real shape."
+    ),
+    "_min_bridge_fragment": (
+        "Multiple of line width. Any original bridge the waves did not cover "
+        "is printed as before if it is at least this long."
+    ),
+
+    "_wall_snap": (
+        "Stretch waves out to the real wall of the part instead of stopping "
+        "at the ragged edge of Orca's bridge lines. This is the fix for the "
+        "castellated edges; set false only to compare against the old look."
+    ),
+    "_wall_reach": (
+        "How far that stretch may reach, in millimetres, or \"auto\" for one "
+        "and a half line widths. Raise only if waves still stop short."
+    ),
+    "_wall_overlap": (
+        "How far a wave end buries itself into the wall, as a fraction of "
+        "line width. 0.25 = a quarter. Higher bonds better but can bulge."
+    ),
+    "_gap_fill": (
+        "Fill the small slivers left where a wave runs out at an angled "
+        "boundary, typically the tip of a corner."
+    ),
+    "_gap_fill_min_area": (
+        "Square millimetres. Slivers smaller than this are left alone "
+        "instead of being filled with a tiny blob."
+    ),
+
+    "_arc_fitting": (
+        "Whether WAVE's OWN lines are written as G2/G3 arcs. Keep this "
+        "false. This is NOT OrcaSlicer's arc fitting -- that one lives in "
+        "Print Settings > Quality > Precision > Arc fitting and is "
+        "unaffected by this plugin. Leaving Wave's arcs off is what avoids "
+        "OrcaSlicer bug #7433 (post-processed arcs corrupting the preview "
+        "or hanging the export), and it costs you almost nothing: Wave's "
+        "arcs save under 1% of file size. \"auto\" follows your Orca "
+        "setting, true forces arcs on."
+    ),
+    "_arc_tolerance": (
+        "Millimetres an arc may stray from the true path, or \"auto\" to "
+        "follow your profile's resolution. Only used if arc_fitting is on."
+    ),
+
+    "_edge_snap_distance": (
+        "Millimetres, or \"auto\". How far an endpoint may be nudged to land "
+        "exactly on the wall or hole edge."
+    ),
+    "_edge_clearance": (
+        "Millimetres to hold back from walls. Normally 0 -- raising it "
+        "leaves visible gaps at the edges."
+    ),
+    "_edge_taper_distance": (
+        "Millimetres over which flow eases off as a line approaches the "
+        "wall, so ends do not blob. 0 turns tapering off."
+    ),
+    "_edge_taper_min_flow": (
+        "The reduced flow right at the wall, as a fraction of normal. "
+        "0.55 = 55%. Lower if ends still look over-extruded."
+    ),
+    "_edge_taper_segment": (
+        "Millimetres. 0 (recommended) tapers by varying flow on the moves "
+        "that already exist. Above 0 adds extra tiny moves to taper more "
+        "finely, at the cost of a bigger file."
+    ),
+
+    "_flow_ratio": (
+        "Extrusion multiplier for wave lines only. 1.0 is the calculated "
+        "amount. Below 1 for thinner, cooler lines that sag less."
+    ),
+    "_print_speed": (
+        "Millimetres per second for wave lines. Deliberately very slow -- "
+        "slow printing is what lets each line cool and hold its shape in "
+        "mid-air. Raising this is the most likely cause of droop."
+    ),
+    "_travel_speed": (
+        "Millimetres per second for non-printing moves between waves."
+    ),
+    "_fan": (
+        "Cooling fan during wave printing, 0 to 1 (1 = 100%). Full cooling "
+        "is strongly recommended; the fan is restored to your normal "
+        "setting afterwards. Lower it only for materials that warp, "
+        "like ABS."
+    ),
+    "_max_iterations": (
+        "Safety limit on how many wave lines one region may produce. Raise "
+        "only if a large overhang comes out unfinished."
+    ),
+}
+
+
+def settings_guide_lines(cfg=None, width=72):
+    """The notes as readable text, for printing inside OrcaSlicer.
+
+    The config panel already carries these, but a JSON editor is an awkward
+    place to read prose, and the owner should not have to open a README on
+    GitHub to find out what a setting does. `cfg` is the live config, so the
+    guide shows the value actually in force rather than the default.
+    """
+    live = cfg or _DEFAULTS
+    out = ["--- what every setting means ---",
+           "Your current value is shown first; (default X) follows when you",
+           "have changed it. The same notes are in the config panel as the",
+           "entries beginning with an underscore.",
+           ""]
+    for key, default in _DEFAULTS.items():
+        note = _NOTES.get("_" + key)
+        if not note:
+            continue
+        value = live.get(key, default)
+        head = f"{key} = {json.dumps(value)}"
+        if value != default:
+            head += f"   (default {json.dumps(default)})"
+        out.append(head)
+        # Wrap by hand: Orca shows this in a plain message box, so long
+        # lines would be clipped rather than reflowed.
+        line = "   "
+        for word in note.split():
+            if len(line) + len(word) + 1 > width:
+                out.append(line)
+                line = "   "
+            line += (" " if line.strip() else "") + word
+        if line.strip():
+            out.append(line)
+        out.append("")
+    return out
+
+
+def annotated_defaults():
+    """`_DEFAULTS` with each setting preceded by its plain-English note.
+
+    This is what the user actually sees and edits in OrcaSlicer, so it is
+    built fresh every time (never hand out `_DEFAULTS` itself to be mutated)
+    and ordered note-then-setting.
+    """
+    out = {"_READ_ME": _NOTES["_READ_ME"]}
+    for key, value in _DEFAULTS.items():
+        note = _NOTES.get("_" + key)
+        if note:
+            out["_" + key] = note
+        out[key] = value
+    return out
+
+
 # The version this file was built as. Kept in lockstep with the PEP 723 header
 # at the top (tests/test_installer.py fails if they drift), so everything that
 # reports a version at runtime reports the one actually running.
-PLUGIN_VERSION = "0.0.19"
+PLUGIN_VERSION = "0.0.27"
 
 # --- BEGIN changelog (generated by tools/sync_changelog.py) ---
 CHANGELOG_RECENT = """\
-v0.0.19  (2026-10-01)
-   * Stopped creating default tiny endpoint subdivision moves. Endpoint
-     taper now changes E on the existing straight Wave moves unless
-     edge_taper_segment is explicitly set above zero, avoiding the
-     rectangular/grid texture seen near some walls.
-   * Changed endpoint snapping to extend along the Wave's own endpoint
-     direction until it reaches the wall or hole boundary, rather than
-     jumping sideways to the nearest boundary point.
-   * Kept snap-to-boundary and endpoint taper as the default clean-edge
-     behavior, with optional edge_clearance still off by default.
+v0.0.27  (2026-10-01)
+   * There is now one file: Orca-Plugins.bat. Previously there were two
+     and the difference between them was never clear -- a "chooser" and
+     an "updater". Now you download and double-click one thing. It shows
+     which build and which OrcaSlicer folder it remembers, and pressing
+     Enter installs with those. The menu also offers choosing a
+     different version, and forgetting your remembered choices to start
+     fresh. It updates itself, the same careful way the installer
+     already did: it fetches the newest copy, checks it really is the
+     launcher and not a 404 page or a wifi login portal, and runs that
+     for this run. It never overwrites itself while running, because
+     Windows reads a .bat by byte position as it executes and a file
+     that rewrites itself mid-run can jump into garbage. So a bad
+     download can never leave you without a working launcher.
+   * Your old files keep working. Choose-Orca-Plugin-Version.bat is now
+     a short forwarder that hands over to Orca-Plugins.bat, so existing
+     shortcuts do not break. Update-Orca-Plugins.bat deliberately keeps
+     its name and its download URL, because every copy already on
+     someone's disk checks that exact address for its own updates --
+     renaming it would have stranded those copies on an old version with
+     no warning. It is now the install engine underneath, and still
+     works on its own.
+   * The plugin explains its settings inside Orca. The menu item is now
+     Wave Overhangs - Settings guide & check. It still reports whether
+     the plugin is working, and then lists every setting with a
+     plain-English explanation, showing the value you actually have in
+     force and marking anything you have changed away from the default.
+     No more opening a README on GitHub to find out what
+     perimeter_overlap does. Set settings_guide to false in that item's
+     own settings once you know them and you get just the short status
+     report. Note: renaming that menu item changes its identity in
+     OrcaSlicer. If you had it selected in a process preset you may need
+     to pick it again from the list once.
 
-v0.0.18  (2026-10-01)
-   * Changed the default edge cleanup from clearance/inset to
-     snap-to-boundary. Wave endpoints are projected back onto nearby
-     outer walls, holes, and concave detail boundaries so they conform
-     to the perimeter instead of leaving gaps.
-   * Set edge_clearance off by default. It remains available as an
-     explicit comparison/debug option, but the normal output now keeps
-     Wave endpoints on the visible perimeter and uses taper to reduce
-     endpoint blobs.
-   * Added edge_snap_distance (auto by default) and regressions proving
-     that wall and hole endpoints snap to their perimeter while
-     support-side anchors are not moved away from support.
+v0.0.26  (2026-10-01)
+   * The chooser and the updater now remember what you picked. The
+     branch chooser already stored your last branch but still made you
+     pick it from the menu; pressing Enter on its own now just reuses
+     it. The updater now remembers the OrcaSlicer data folder it
+     installed into and offers it the same way, so a repeat update is
+     Enter, Enter. Both still show the full menu, so switching is
+     exactly as easy as it was. The remembered values live in
+     %LOCALAPPDATA%\\OrcaPluginUpdater\\ (branch.txt and datadir.txt);
+     delete them to be asked from scratch.
+   * The settings panel now explains itself. OrcaSlicer shows the plugin
+     config as JSON, and JSON cannot hold comments, so every explanation
+     written in the source was invisible to you -- the panel was 33 bare
+     names with no hint what any of them did. Each setting now has a
+     plain-English note directly above it saying what it does, what the
+     units are, and what happens if you change it. Notes are the keys
+     beginning with _; the plugin ignores them, so you can edit or
+     delete them freely and nothing breaks. The note on arc_fitting in
+     particular now spells out that it controls *Wave's own* arcs and
+     that OrcaSlicer's arc fitting is a separate setting in Print
+     Settings > Quality > Precision > Arc fitting, which this plugin
+     does not touch.
+   * A real crash in the wave propagation, fixed. Clipping one boundary
+     against another can leave a single-point line behind, and shapely's
+     linemerge raises GEOSException on those. GEOSException is not a
+     ValueError, so the handler that was there could not catch it, and
+     the whole layer was lost — the plugin failed closed and produced no
+     waves at all. This is the same fault that killed an earlier
+     optimisation attempt. wave_tracks now retries without the crumbs,
+     and only when the normal merge has already failed, so ordinary
+     fronts are untouched.
+   * wake_blend: new, experimental, and off by default. When the field
+     flows around a hole and rejoins behind it, the two arriving sides
+     meet in a sharp V and every later front inherits the kink, leaving
+     a hard seam downstream. wake_blend rounds that crease off, in
+     multiples of line_spacing. It works on a simple round hole — the V
+     is replaced by smooth curves. It is off by default because it is
+     not good enough yet: on the owner's real part it also loses about
+     4% of the wave coverage (1911 mm of path down to 1833 mm) and turns
+     8 tiny fragments into 40. Healing makes consecutive fronts partly
+     coincide, and the "already reached" subtraction then cuts them into
+     dashes. Two different fixes for that were tried and neither worked;
+     the remaining idea is written up in docs/ROADMAP.md. Set wake_blend
+     to 1.0 to try it; values over 1.5 are clamped because beyond that
+     the closing swallows whole fronts. With wake_blend at its default
+     of 0 the output is byte-for-byte identical to 0.0.25 on all five
+     test shapes, including the owner's own export.
 
-v0.0.17  (2026-10-01)
-   * Added edge_clearance for cleaner Wave terminations near overhang
-     walls, holes, and concave detail boundaries. The emitted Wave
-     centerline is clipped back from those non-support boundaries so the
-     bead should not bleed into the overhang perimeter.
-   * Kept bridge replacement coverage based on the untrimmed cleaned
-     Wave paths, so old straight Bridge fragments are still removed at
-     the boundary instead of reappearing where the visible Wave bead was
-     inset.
-   * edge_clearance="auto" follows the exported bridge width; set
-     edge_clearance=0 to compare against the previous full-length
-     endpoint behavior. Endpoint flow taper remains active after the
-     inset unless disabled separately.
+v0.0.25  (2026-10-01)
+   * This is OrcaSlicer issue #7433, "Post processing script results in
+     corrupted gcode / crash when previewing model", opened in November
+     2024 against Orca 2.2.0 and still reproducing in 2.3.2 nightly as
+     of January 2026. The reporter triggered it with ArcWelder, a
+     post-processor that does the same thing Wave was doing: replacing
+     straight moves with arcs. Orca crashes or shows corrupt G-code when
+     it re-reads post-processed output containing arcs. Nothing in the
+     plugin can fix that, so the plugin stops provoking it: arc_fitting
+     shipped as false from 0.0.24 and stays that way. Check setup now
+     prints the arc setting and warns, with the issue number, if arcs
+     have been switched back on.
+   * The arcs themselves were audited and are not malformed. Across all
+     test fixtures and the owner's own export: 118 arcs, radii 0.78–12.1
+     mm, sweeps 11–149 degrees, no major arcs, no near-full circles, no
+     impossible chords, no reversed directions, every one carrying
+     positive extrusion. The problem is on Orca's side of the handover,
+     not in the geometry. Separately, a real defect found while auditing
+     that output:
+   * 542 dead moves removed from the owner's export. Coordinates are
+     written to three decimals, but the emitter decided whether to write
+     a move using the unrounded step length. Steps shorter than a micron
+     were therefore written out as moves whose X/Y rounded to the same
+     values as the line before — literal no-ops, most of them E0.00000
+     as well. Their export carried 542 of them. The emitter now tracks
+     the position it has actually written and rolls any skipped step's
+     extrusion into the next real move, so the dead lines disappear
+     without losing material. Wave moves in that export drop from 2,006
+     to 1,910 (1,464 plus 74 arcs with arcs on).
+   * Arc I/J offsets are now measured from the last coordinate actually
+     written rather than from the unrounded geometric point, which could
+     sit half a micron away. Worst-case arc radius inconsistency in the
+     owner's export improves to 0.0013 mm.
 """
 # --- END changelog ---
 
@@ -271,6 +640,12 @@ def _wave_config(cfg, layer_height):
 
 _GWORD = re.compile(r"([A-Z])(-?(?:\d+(?:\.\d*)?|\.\d+))")
 _BRIDGE_TYPES = ("bridge", "internal bridge")
+# Wall/perimeter sections. These are the real visible boundary of the part on
+# this layer: the edge a Wave line should finish on. Orca exports the first
+# three names; the PrusaSlicer-style names are accepted so a differently
+# labelled export still finds its walls instead of silently finding none.
+_WALL_TYPES = ("outer wall", "inner wall", "overhang wall",
+               "external perimeter", "perimeter", "overhang perimeter")
 
 
 def _gwords(line):
@@ -290,11 +665,90 @@ def _line_parts(geom):
     return []
 
 
-def _parse_gcode_geometry(lines):
-    """Return layers and bridge sections using actual exported toolpaths."""
+_MOVE_CODE = re.compile(r"^G([0123])(?![0-9])")
+
+
+def _arc_move_points(start, end, words, clockwise, step=0.2):
+    """Expand one G2/G3 arc into points, in I/J or R form.
+
+    Falls back to the straight chord if the command is malformed, which is
+    the safe reading: a missing curve can only make Wave see less overhang,
+    never more.
+    """
+    sx, sy = start
+    ex, ey = end
+    cx = cy = None
+    if "I" in words or "J" in words:
+        cx, cy = sx + words.get("I", 0.0), sy + words.get("J", 0.0)
+    elif "R" in words:
+        radius = words["R"]
+        mx, my = (sx + ex) * 0.5, (sy + ey) * 0.5
+        dx, dy = ex - sx, ey - sy
+        chord = math.hypot(dx, dy)
+        if chord < 1e-9 or abs(radius) < chord * 0.5:
+            return [start, end]
+        offset = math.sqrt(max(0.0, radius * radius - chord * chord * 0.25))
+        # A positive R is the short way round, a negative R the long way.
+        sign = 1.0 if ((not clockwise) == (radius > 0)) else -1.0
+        cx = mx + sign * offset * (-dy / chord)
+        cy = my + sign * offset * (dx / chord)
+    if cx is None:
+        return [start, end]
+    radius = math.hypot(sx - cx, sy - cy)
+    if radius < 1e-9:
+        return [start, end]
+    a0 = math.atan2(sy - cy, sx - cx)
+    a1 = math.atan2(ey - cy, ex - cx)
+    sweep = (a1 - a0) % (2.0 * math.pi)
+    if clockwise:
+        sweep -= 2.0 * math.pi
+    if abs(sweep) < 1e-9:
+        sweep = -2.0 * math.pi if clockwise else 2.0 * math.pi
+    count = max(2, min(720, int(abs(sweep) * radius / max(0.02, step))))
+    points = [(cx + radius * math.cos(a0 + sweep * k / count),
+               cy + radius * math.sin(a0 + sweep * k / count))
+              for k in range(count + 1)]
+    points[0], points[-1] = start, end
+    return points
+
+
+def _bridge_layer_indices(lines):
+    """Layer numbers that have an exported Bridge section, plus the one below.
+
+    A plain text scan, no geometry. Only these layers need their toolpaths
+    turned into shapely objects: a 134-layer export typically has three or
+    four, so building geometry for all of them is about twenty times the work
+    for nothing.
+    """
+    wanted = set()
+    index = -1
+    for line in lines:
+        s = line.strip()
+        if s.startswith(";Z:"):
+            try:
+                float(s[3:])
+            except ValueError:
+                continue
+            index += 1
+        elif s.startswith(";TYPE:") and index >= 0:
+            if s[6:].strip().lower() in _BRIDGE_TYPES:
+                wanted.add(index)
+                if index > 0:
+                    wanted.add(index - 1)   # the layer that holds it up
+    return wanted
+
+
+def _parse_gcode_geometry(lines, geometry_for=None):
+    """Return layers and bridge sections using actual exported toolpaths.
+
+    `geometry_for` limits which layer numbers get their moves turned into
+    geometry. Extrusion bookkeeping is tracked for every line regardless, so
+    the layers that are built come out exactly as they would have otherwise.
+    """
     layers = []
     layer = None
     section = None
+    wanted = True
     x = y = z = None
     width = 0.4
     relative_e = True
@@ -304,9 +758,12 @@ def _parse_gcode_geometry(lines):
         s = line.strip()
         if s.startswith(";Z:"):
             try:
-                layer = {"z": float(s[3:]), "all": [], "sections": []}
+                layer = {"z": float(s[3:]), "all": [], "sections": [],
+                         "walls": []}
                 layers.append(layer)
                 section = None
+                wanted = (geometry_for is None
+                          or (len(layers) - 1) in geometry_for)
             except ValueError:
                 layer = None
             continue
@@ -337,8 +794,10 @@ def _parse_gcode_geometry(lines):
             if reset is not None:
                 e_position = reset
             continue
-        if not s.startswith(("G0", "G1")):
+        move = _MOVE_CODE.match(s)
+        if move is None:
             continue
+        code = int(move.group(1))
         words = _gwords(s)
         nx, ny = words.get("X", x), words.get("Y", y)
         nz = words.get("Z", z)
@@ -353,32 +812,266 @@ def _parse_gcode_geometry(lines):
             e_delta = e - e_position
             e_position = e
         extruding = e_delta > 0.0
-        if (layer is not None and extruding and None not in (x, y, nx, ny)
-                and (x, y) != (nx, ny)):
+        if (layer is not None and wanted and extruding
+                and None not in (x, y, nx, ny) and (x, y) != (nx, ny)):
+            path = [(x, y), (nx, ny)]
+            if code in (2, 3):
+                # An arc move. With arc fitting switched on in the print
+                # profile a curved wall arrives as G2/G3, and reading it as a
+                # straight chord would hide the hole it goes around.
+                path = _arc_move_points((x, y), (nx, ny), words, code == 2)
             seg = {"line": i, "a": (x, y), "b": (nx, ny), "z": nz,
                    "e": e_delta, "e_start": e_start, "e_end": e_position,
                    "relative_e": relative_e, "width": width,
-                   "geom": shapely.geometry.LineString([(x, y), (nx, ny)])}
+                   "geom": shapely.geometry.LineString(path)}
             layer["all"].append(seg)
             if section is not None and section["type"] in _BRIDGE_TYPES:
                 section["segments"].append(seg)
+            if section is not None and section["type"] in _WALL_TYPES:
+                layer["walls"].append(seg)
         x, y, z = nx, ny, nz
     return layers
 
 
 def _footprint(segments):
-    polys = [s["geom"].buffer(s["width"] * 0.5, cap_style=2,
-                               join_style=2) for s in segments]
+    """The plastic a set of moves lays down.
+
+    Moves of the same width are buffered in one call rather than one call
+    each: on a layer with twenty thousand moves that is the difference
+    between one GEOS operation and twenty thousand of them.
+    """
+    if not segments:
+        return shapely.geometry.Polygon()
+    by_width = {}
+    for seg in segments:
+        by_width.setdefault(round(float(seg["width"]), 4), []).append(seg["geom"])
+    polys = []
+    for width, geoms in by_width.items():
+        shape = (geoms[0] if len(geoms) == 1
+                 else shapely.geometry.MultiLineString(geoms))
+        polys.append(shape.buffer(max(0.0, width) * 0.5, cap_style=2,
+                                  join_style=2))
+    return polys[0] if len(polys) == 1 else shapely.ops.unary_union(polys)
+
+
+def _polygon_parts(geom):
+    """Every Polygon inside any shapely geometry (empty list if none)."""
+    if geom is None or geom.is_empty:
+        return []
+    gt = getattr(geom, "geom_type", "")
+    if gt == "Polygon":
+        return [geom]
+    if gt in ("MultiPolygon", "GeometryCollection"):
+        out = []
+        for part in geom.geoms:
+            out.extend(_polygon_parts(part))
+        return out
+    return []
+
+
+def _wall_material(layer):
+    """The plastic this layer's wall/perimeter moves actually lay down.
+
+    The moves are joined into loops before being given their width. Buffering
+    each move on its own leaves a hairline slit at every vertex of a curved
+    wall -- a circular hole is exported as dozens of short straight moves --
+    and a Wave end can slip through one of those slits and finish on the
+    visible surface of the hole.
+    """
+    segments = layer.get("walls") or []
+    if not segments:
+        return shapely.geometry.Polygon()
+    by_width = {}
+    for seg in segments:
+        by_width.setdefault(round(float(seg["width"]), 3), []).append(seg["geom"])
+    polys = []
+    for width, lines in by_width.items():
+        try:
+            merged = shapely.ops.linemerge(lines) if len(lines) > 1 else lines[0]
+        except (TypeError, ValueError):  # pragma: no cover - defensive
+            merged = shapely.ops.unary_union(lines)
+        polys.append(merged.buffer(max(0.01, width) * 0.5,
+                                   cap_style=2, join_style=1))
     return shapely.ops.unary_union(polys) if polys else shapely.geometry.Polygon()
 
 
+def _layer_outline(layer):
+    """Outer silhouette of everything this layer prints.
+
+    Used only as a hard safety net: nothing Wave generates may end up outside
+    the part, whatever the wall geometry looks like.
+    """
+    material = _footprint(layer.get("all") or [])
+    filled = [shapely.geometry.Polygon(p.exterior)
+              for p in _polygon_parts(material)]
+    return shapely.ops.unary_union(filled) if filled else material
+
+
+def _wall_reach(cfg, swcfg):
+    """How far the overhang region may be stretched to meet a wall."""
+    raw = cfg.get("wall_reach", "auto")
+    if isinstance(raw, str) and raw.strip().lower() == "auto":
+        return max(swcfg.line_width * 1.5, swcfg.line_spacing * 2.0)
+    return max(0.0, _float_cfg(cfg, "wall_reach", 0.0))
+
+
+def _wall_overlap(cfg, swcfg):
+    """How far a Wave end may reach into the wall bead, in millimetres."""
+    fraction = max(0.0, min(0.9, _float_cfg(cfg, "wall_overlap", 0.25)))
+    return fraction * swcfg.line_width
+
+
+def _wall_limit(outline, wall_width, overlap):
+    """Hard cap: no Wave may sit deeper than `overlap` inside the outer wall.
+
+    A wall loop is not always a sealed band -- seams, wipes and short corner
+    moves leave gaps -- so without this a corridor can leak around a wall end
+    and put a Wave end on the visible outside skin of the part.
+    """
+    if outline is None or outline.is_empty or wall_width <= 0.0:
+        return None
+    inset = max(0.0, float(wall_width) - max(0.0, float(overlap)))
+    if inset <= 1e-9:
+        return None
+    limit = outline.buffer(-inset)
+    return None if limit.is_empty else limit
+
+
+def _wall_bounded_region(bridge, walls, outline, wall_width, swcfg, cfg):
+    """Replace a bridge footprint's battlement edge with the real wall edge.
+
+    Orca exports bridge infill as individual lines, so the union of those
+    line footprints has a castellated edge: alternating in and out by about
+    half a line width, and usually stopping short of the perimeter. Clipping
+    wavefronts to that edge is what makes Wave ends look frayed.
+
+    This grows the footprint only inside the narrow corridor beside real wall
+    material, so the wall-side boundary becomes the wall's own smooth edge
+    (plus an optional overlap into the bead for bonding), while every boundary
+    that is not next to a wall -- the supported side, and the sparse-infill
+    side of an internal bridge -- is left exactly as it was.
+
+    Returns (region, changed).
+    """
+    if not bool(cfg.get("wall_snap", True)):
+        return bridge, False
+    if bridge is None or bridge.is_empty or walls is None or walls.is_empty:
+        return bridge, False
+    reach = _wall_reach(cfg, swcfg)
+    if reach <= 1e-9:
+        return bridge, False
+    overlap = _wall_overlap(cfg, swcfg)
+    try:
+        limit = _wall_limit(outline, wall_width, overlap)
+        composite = shapely.ops.unary_union([bridge, walls])
+        # Close the bridge footprint against the wall bead. A closing fills a
+        # narrow channel and the notches between line ends -- exactly the gap
+        # Orca leaves between its last bridge line and the wall -- while a
+        # wide open space, such as the inside of a hole or an unbridged part
+        # of the layer, is far too big to be closed and is left alone.
+        closed = composite.buffer(reach).buffer(-reach)
+        gap = closed.difference(composite).intersection(walls.buffer(reach))
+        # Only a gap the bridge itself borders is this section's to fill.
+        near = [p for p in _polygon_parts(gap) if p.intersects(bridge)]
+        # Cut the footprint back to the wall's inner edge first: the tips of
+        # the battlements can already poke into the bead, and leaving them
+        # there would keep a jagged edge even after the gaps are filled.
+        base = bridge.difference(walls)
+        if near:
+            base = shapely.ops.unary_union([base] + near)
+        if limit is not None:
+            base = base.intersection(limit)
+        base = base.difference(walls).buffer(0)
+        keep = [p for p in _polygon_parts(base)
+                if p.intersection(bridge).area > 1e-9]
+        if not keep:
+            return bridge, False
+        region = shapely.ops.unary_union(keep)
+        if overlap > 1e-9:
+            bonded = region.buffer(overlap, join_style=2).intersection(walls)
+            if limit is not None:
+                bonded = bonded.intersection(limit)
+            if not bonded.is_empty:
+                region = shapely.ops.unary_union([region, bonded])
+        region = region.buffer(0)
+    except Exception:
+        # Geometry trouble must never cost the owner the whole Wave pass.
+        return bridge, False
+    if region.is_empty or region.area < bridge.area * 0.5:
+        # A pathological wall reading should not shrink the field away.
+        return bridge, False
+    return region, True
+
+
+def _backed_parts(region, core, share=0.2):
+    """Keep only the parts of a region that the original Wave area sits in.
+
+    Reaching for a wall can also reach past the end of one, and the support
+    footprint is made of separate infill lines, so the gap between two of them
+    can look unsupported. Neither is a place to print a Wave. Stretching the
+    field to the perimeter is allowed to improve the shape of an overhang area
+    Orca really exported; it is never allowed to invent a new one.
+    """
+    if region is None or region.is_empty or core is None or core.is_empty:
+        return region
+    keep = [p for p in _polygon_parts(region)
+            if p.intersection(core).area >= max(1e-9, share * p.area)]
+    if not keep:
+        return shapely.geometry.Polygon()
+    return shapely.ops.unary_union(keep)
+
+
+def _clean_guards(allowed, tolerance):
+    """Guard shapes for cleanup, built once and reused for every front.
+
+    `allowed.buffer(...)` is expensive on a real overhang region, and the
+    result only depends on the region and the tolerance -- not on which
+    front is being cleaned -- so building it per front was doing the same
+    heavy operation a hundred times over.
+    """
+    margin = max(0.002, min(0.02, tolerance * 0.4))
+    guard = allowed.buffer(margin)
+    voids = _interior_voids(allowed)
+    body = voids.buffer(-margin) if not voids.is_empty else voids
+    return guard, body
+
+
 def _clean_wave_polyline(points, line_width, tolerance=0.05,
-                         min_segment=0.30, allowed=None):
+                         min_segment=0.30, allowed=None, guards=None):
     """Remove point noise without shortcutting across a hole or concavity."""
     if len(points) < 2:
         return []
     tolerance = max(0.01, min(0.12, float(tolerance)))
     original = shapely.geometry.LineString(points)
+    for attempt in _simplify_attempts(original, tolerance, allowed, guards):
+        return attempt
+    return list(original.coords)
+
+
+def _simplify_attempts(original, tolerance, allowed, guards=None):
+    """Yield the first safe simplification of a front, tightening if needed.
+
+    A front that hugs a hole can lose its curve to a chord that cuts the
+    corner. Rather than give up and keep every raster point -- a 10 mm front
+    can arrive with 980 of them -- try again with a tighter tolerance first.
+    """
+    if guards is None:
+        guards = {}
+    for factor in (1.0, 0.4, 0.15):
+        step = tolerance * factor
+        key = round(step, 6)
+        if allowed is not None and key not in guards:
+            guards[key] = _clean_guards(allowed, step)
+        result = _simplify_once(original, step, allowed,
+                               guards=guards.get(key))
+        if result is not None:
+            yield result
+            return
+
+
+def _simplify_once(original, tolerance, allowed, min_segment=0.30,
+                   guards=None):
+    """One simplification pass, or None when it would shortcut the geometry."""
     geom = original.simplify(tolerance, preserve_topology=False)
     coords = list(geom.coords)
     if len(coords) < 2:
@@ -398,16 +1091,100 @@ def _clean_wave_polyline(points, line_width, tolerance=0.05,
         return []
 
     # Simplifying a curved front can replace an arc with a straight chord.
-    # With a hole, that chord can cross empty space. The original front came
-    # from a Shapely boundary intersection and is the safe fallback.
+    # With a hole, that chord can cross empty space.
     if allowed is not None:
         candidate = shapely.geometry.LineString(clean)
-        guard = allowed.buffer(max(0.002, min(0.06, tolerance * 1.25)))
-        voids = _interior_voids(allowed)
-        if (not guard.covers(candidate)
-                or (not voids.is_empty and candidate.intersects(voids))):
-            return list(original.coords)
+        # How far the cleaned path may stray outside the region it was grown
+        # in. Deliberately much tighter than the simplification tolerance:
+        # straying is what puts plastic in a hole.
+        guard, body = guards if guards is not None else _clean_guards(
+            allowed, tolerance)
+        if not guard.covers(candidate):
+            return None
+        # Touching a hole is not the same as cutting across one. A Wave end is
+        # supposed to finish on a hole's wall, so it sits on the void boundary,
+        # and a chord along a curved wall clips the void by a hair. What must
+        # never happen is a shortcut that reaches into the body of the void,
+        # so the void is shrunk by the same margin before testing.
+        if body is not None and not body.is_empty and candidate.intersects(body):
+            return None
     return clean
+
+
+def _line_parts(geom):
+    """Every LineString inside any shapely geometry (empty list if none)."""
+    if geom is None or geom.is_empty:
+        return []
+    kind = getattr(geom, "geom_type", "")
+    if kind == "LineString":
+        return [geom]
+    if kind in ("MultiLineString", "GeometryCollection"):
+        out = []
+        for part in geom.geoms:
+            out.extend(_line_parts(part))
+        return out
+    return []
+
+
+def _sliver_path(sliver, line_width):
+    """A single path down the middle of a small leftover sliver."""
+    try:
+        box = sliver.minimum_rotated_rectangle
+        corners = list(box.exterior.coords)[:4]
+        if len(corners) < 4:
+            return None
+        edges = [(corners[i], corners[(i + 1) % 4]) for i in range(4)]
+        edges.sort(key=lambda e: math.hypot(e[1][0] - e[0][0], e[1][1] - e[0][1]))
+        short_a, short_b = edges[0], edges[1]
+        mid_a = ((short_a[0][0] + short_a[1][0]) * 0.5,
+                 (short_a[0][1] + short_a[1][1]) * 0.5)
+        mid_b = ((short_b[0][0] + short_b[1][0]) * 0.5,
+                 (short_b[0][1] + short_b[1][1]) * 0.5)
+        spine = shapely.geometry.LineString([mid_a, mid_b]).intersection(sliver)
+        parts = sorted(_line_parts(spine), key=lambda p: -p.length)
+        if not parts or parts[0].length < line_width * 0.5:
+            return None
+        return [(float(x), float(y)) for x, y in parts[0].coords]
+    except Exception:  # pragma: no cover - geometry is never allowed to throw
+        return None
+
+
+def _gap_fill_fronts(region, polylines, swcfg, cfg):
+    """Short paths that fill slivers the wavefronts could not reach.
+
+    A Wave front is a contour of equal distance from the supported edge, and
+    the contours step outward one line spacing at a time. Where the far
+    boundary runs at an angle to that march -- the tip of a corner is the
+    usual case -- the last contour stops short and leaves a sliver with
+    nothing in it. This fills such a sliver with one short path down its
+    middle, and only ever adds material where there is currently none.
+    """
+    if not polylines or str(cfg.get("gap_fill", True)).strip().lower() in (
+            "0", "false", "no", "off"):
+        return []
+    line_width = max(0.05, swcfg.line_width)
+    minimum_area = max(0.005, _float_cfg(cfg, "gap_fill_min_area", 0.05))
+    try:
+        covered = shapely.ops.unary_union([
+            shapely.geometry.LineString(p).buffer(
+                line_width * 0.5, cap_style=2, join_style=2)
+            for p in polylines if len(p) >= 2])
+        if covered.is_empty:
+            return []
+        out = []
+        for sliver in _polygon_parts(region.difference(covered)):
+            if sliver.area < minimum_area:
+                continue
+            # It has to touch plastic that is already down, or it would be
+            # printed into thin air.
+            if sliver.distance(covered) > line_width * 0.1:
+                continue
+            path = _sliver_path(sliver, line_width)
+            if path is not None:
+                out.append(path)
+        return out
+    except Exception:  # pragma: no cover - geometry is never allowed to throw
+        return []
 
 
 def _polyline_length(points):
@@ -719,8 +1496,189 @@ def _inset_wave_polylines(polylines, unsupported, support, swcfg, cfg):
     return out if out else polylines
 
 
+def _slicer_setting(text, key):
+    """Read one '; key = value' line Orca writes into the exported file."""
+    match = re.search(r"^;\s*" + re.escape(key) + r"\s*=\s*(.+?)\s*$",
+                      text, re.MULTILINE)
+    return match.group(1).strip() if match else None
+
+
+def _arc_limits(text, cfg, swcfg):
+    """Whether to emit G2/G3 arcs, and how far they may stray if we do.
+
+    Wave runs after Orca has written the file, so Orca's own arc fitter never
+    sees these moves. "auto" follows the export's own `enable_arc_fitting`
+    setting: if arc fitting is on in the print profile the firmware
+    understands G2/G3, and if it is off nothing here starts emitting commands
+    the printer might reject. Returns None when arcs are off.
+    """
+    raw = cfg.get("arc_fitting", "auto")
+    if isinstance(raw, str):
+        choice = raw.strip().lower()
+        if choice in ("", "auto"):
+            flag = _slicer_setting(text or "", "enable_arc_fitting")
+            enabled = str(flag).lower() in ("1", "true", "yes", "on")
+        else:
+            enabled = choice in ("1", "true", "yes", "on")
+    else:
+        enabled = bool(raw)
+    if not enabled:
+        return None
+    raw_tolerance = cfg.get("arc_tolerance", "auto")
+    if isinstance(raw_tolerance, str) and \
+            raw_tolerance.strip().lower() in ("", "auto"):
+        try:
+            tolerance = float(_slicer_setting(text or "", "resolution"))
+        except (TypeError, ValueError):
+            tolerance = 0.05
+        # Never looser than the print profile's own curve tolerance, and
+        # never loose enough to matter next to a wall or a hole.
+        tolerance = min(max(tolerance, 0.005), 0.05)
+    else:
+        tolerance = max(0.0, _float_cfg(cfg, "arc_tolerance", 0.05))
+    if tolerance <= 1e-9:
+        return None
+    return {"tolerance": tolerance,
+            "min_length": max(1.0, swcfg.line_width * 2.0),
+            "min_radius": max(0.4, swcfg.line_width),
+            "max_radius": 200.0,
+            "max_sweep": math.radians(150.0),
+            # How far an arc may bow away from the straight moves it replaces.
+            # Kept to a quarter of the rung spacing: each Wave rung has to
+            # stay close enough to the previous one to fuse to it.
+            "max_bulge": max(tolerance, swcfg.line_spacing * 0.25),
+            "max_points": 120}
+
+
+def _circle_through(p0, p1, p2):
+    """Centre and radius of the circle through three points, or None."""
+    (x0, y0), (x1, y1), (x2, y2) = p0, p1, p2
+    d = 2.0 * (x0 * (y1 - y2) + x1 * (y2 - y0) + x2 * (y0 - y1))
+    if abs(d) < 1e-12:
+        return None                      # collinear: a straight move
+    s0, s1, s2 = x0 * x0 + y0 * y0, x1 * x1 + y1 * y1, x2 * x2 + y2 * y2
+    cx = (s0 * (y1 - y2) + s1 * (y2 - y0) + s2 * (y0 - y1)) / d
+    cy = (s0 * (x2 - x1) + s1 * (x0 - x2) + s2 * (x1 - x0)) / d
+    return cx, cy, math.hypot(x0 - cx, y0 - cy)
+
+
+def _arc_for_span(points, circle, limits):
+    """Describe the arc that can stand in for this run of points, or None.
+
+    Two different errors have to stay inside the tolerance together: how far
+    the kept points sit off the circle, and how far the circle bulges away
+    from the straight chords it replaces. Both are measured, because a Wave
+    end now sits inside the wall bead and an arc that bulged could push it
+    through the wall or into a hole.
+    """
+    if circle is None:
+        return None
+    cx, cy, radius = circle
+    if not (limits["min_radius"] <= radius <= limits["max_radius"]):
+        return None
+    tolerance = limits["tolerance"]
+    angles = []
+    worst_radial = 0.0
+    for x, y in points:
+        worst_radial = max(worst_radial, abs(math.hypot(x - cx, y - cy) - radius))
+        if worst_radial > tolerance:
+            return None
+        angles.append(math.atan2(y - cy, x - cx))
+    sweep = 0.0
+    direction = 0
+    worst_bulge = 0.0
+    for a, b in zip(angles, angles[1:]):
+        step = (b - a + math.pi) % (2.0 * math.pi) - math.pi
+        if abs(step) < 1e-12:
+            continue
+        sign = 1 if step > 0 else -1
+        if direction == 0:
+            direction = sign
+        elif sign != direction:
+            return None                  # the run doubles back on itself
+        sweep += step
+        # How far the arc bows away from the straight chord it replaces. The
+        # chords are themselves a simplification of a smooth front, so this is
+        # a sanity cap rather than an accuracy test; whether the arc is
+        # actually safe is decided against the real region below.
+        worst_bulge = max(worst_bulge, radius * (1.0 - math.cos(abs(step) / 2.0)))
+        if worst_bulge > limits["max_bulge"]:
+            return None
+    if direction == 0 or abs(sweep) > limits["max_sweep"]:
+        return None
+    return {"cx": cx, "cy": cy, "radius": radius, "ccw": direction > 0,
+            "length": radius * abs(sweep)}
+
+
+def _arc_polyline(start, end, arc, step=0.2):
+    """The arc, as points, so it can be tested against real geometry."""
+    cx, cy, radius = arc["cx"], arc["cy"], arc["radius"]
+    a0 = math.atan2(start[1] - cy, start[0] - cx)
+    a1 = math.atan2(end[1] - cy, end[0] - cx)
+    sweep = (a1 - a0) % (2.0 * math.pi)
+    if not arc["ccw"]:
+        sweep -= 2.0 * math.pi
+    count = max(2, int(abs(sweep) * radius / max(0.02, step)))
+    return [(cx + radius * math.cos(a0 + sweep * i / count),
+             cy + radius * math.sin(a0 + sweep * i / count))
+            for i in range(count + 1)]
+
+
+def _arc_is_safe(start, end, arc, limits):
+    """An arc may only replace moves if it stays where the Wave is allowed.
+
+    The straight moves were already checked against the region. An arc bows
+    away from them, so it is re-checked here: a Wave end sits inside the wall
+    bead and this is what stops a bowed arc pushing through the wall or into
+    a hole.
+    """
+    guard = limits.get("guard")
+    if guard is None:
+        return True
+    line = shapely.geometry.LineString(_arc_polyline(start, end, arc))
+    if not guard.covers(line):
+        return False
+    body = limits.get("void_body")
+    return not (body is not None and not body.is_empty and line.intersects(body))
+
+
+def _fit_arc_moves(points, limits):
+    """Rewrite one Wave front as straight moves and circular arcs.
+
+    Returns [("line", (x, y), length), ("arc", (x, y), arc), ...] starting
+    from points[0], which is not emitted itself.
+    """
+    moves = []
+    index = 0
+    count = len(points)
+    while index < count - 1:
+        best = None
+        end = index + 3                  # an arc needs at least four points
+        while end < count and (end - index) <= limits["max_points"]:
+            span = points[index:end + 1]
+            arc = _arc_for_span(
+                span, _circle_through(span[0], span[len(span) // 2], span[-1]),
+                limits)
+            if arc is None:
+                break
+            if arc["length"] >= limits["min_length"] and \
+                    _arc_is_safe(span[0], span[-1], arc, limits):
+                best = (end, arc)
+            end += 1
+        if best is None:
+            nxt = points[index + 1]
+            moves.append(("line", nxt, math.hypot(nxt[0] - points[index][0],
+                                                  nxt[1] - points[index][1])))
+            index += 1
+        else:
+            end, arc = best
+            moves.append(("arc", points[end], arc))
+            index = end
+    return moves
+
+
 def _emit_wave_gcode(polylines, z, swcfg, cfg, unsupported=None,
-                     support=None, restore_fan=None):
+                     support=None, restore_fan=None, arcs=None):
     """Emit Wave G-code, tapering endpoint flow near walls/holes.
 
     The path geometry is unchanged. Only E per millimetre is reduced over a
@@ -732,6 +1690,12 @@ def _emit_wave_gcode(polylines, z, swcfg, cfg, unsupported=None,
     print_f = int(round(swcfg.print_speed * 60))
     travel_f = int(round(swcfg.travel_speed * 60))
     taper = _wave_taper_settings(cfg, unsupported, support, swcfg)
+    if arcs is not None and unsupported is not None and not unsupported.is_empty:
+        arcs = dict(arcs)
+        arcs["guard"] = unsupported.buffer(arcs["tolerance"])
+        voids = _interior_voids(unsupported)
+        arcs["void_body"] = (voids.buffer(-arcs["tolerance"])
+                             if not voids.is_empty else voids)
     _domain, clearance = _clearance_domain(unsupported, support, swcfg, cfg)
     out = ["; ==== WAVE OVERHANG BEGIN ====",
            "M83",
@@ -750,6 +1714,22 @@ def _emit_wave_gcode(polylines, z, swcfg, cfg, unsupported=None,
         x0, y0 = points[0]
         out.append(f"G0 F{travel_f} X{x0:.3f} Y{y0:.3f} Z{z:.3f}")
         out.append(f"G1 F{print_f}")
+        # Coordinates are written to three decimals, so a step shorter than a
+        # micron rounds to the same X/Y as the move before it and becomes a
+        # literal no-op line -- usually "E0.00000" too. Remember what was
+        # actually written and roll the skipped extrusion into the next real
+        # move, so the file loses the junk without losing any material.
+        emitted = [(round(x0, 3), round(y0, 3))]
+        pending = [0.0]
+
+        def put(x, y, e):
+            pending[0] += e
+            key = (round(x, 3), round(y, 3))
+            if key == emitted[0]:
+                return
+            out.append("G1 X%.3f Y%.3f E%.5f" % (x, y, pending[0]))
+            pending[0] = 0.0
+            emitted[0] = key
         if taper is None:
             samples = [(x, y, s) for (x, y), s in zip(
                 points, _cumulative_lengths(points))]
@@ -768,17 +1748,54 @@ def _emit_wave_gcode(polylines, z, swcfg, cfg, unsupported=None,
         if len(samples) < 2:
             continue
         total = samples[-1][2]
-        px, py, ps = samples[0]
-        for x, y, arclength in samples[1:]:
-            seg = math.hypot(x - px, y - py)
-            if seg <= 1e-9:
+        # Arcs are only used where the front prints at full flow. A tapered
+        # end ramps E along its own moves and a single arc cannot express
+        # that, so those zones stay as straight moves.
+        first, last = 0, len(samples) - 1
+        if arcs is not None:
+            head = distance if start_taper else 0.0
+            tail = total - distance if end_taper else total
+            while first < last and samples[first][2] < head - 1e-9:
+                first += 1
+            while last > first and samples[last][2] > tail + 1e-9:
+                last -= 1
+        else:
+            first = last = 0
+
+        def straight(index_from, index_to):
+            px, py, ps = samples[index_from]
+            for x, y, arclength in samples[index_from + 1:index_to + 1]:
+                seg = math.hypot(x - px, y - py)
+                if seg <= 1e-9:
+                    px, py, ps = x, y, arclength
+                    continue
+                scale = _edge_flow_average(
+                    ps, arclength, total, start_taper, end_taper,
+                    distance, min_flow)
+                put(x, y, seg * e_per_mm * scale)
                 px, py, ps = x, y, arclength
-                continue
-            scale = _edge_flow_average(
-                ps, arclength, total, start_taper, end_taper,
-                distance, min_flow)
-            out.append(f"G1 X{x:.3f} Y{y:.3f} E{seg * e_per_mm * scale:.5f}")
-            px, py, ps = x, y, arclength
+
+        if arcs is None or last - first < 3:
+            straight(0, len(samples) - 1)
+            continue
+        straight(0, first)
+        for kind, (x, y), extra in _fit_arc_moves(
+                [(s[0], s[1]) for s in samples[first:last + 1]], arcs):
+            if kind == "line":
+                put(x, y, extra * e_per_mm)
+            else:
+                # I and J are offsets from where the machine actually is,
+                # which is the last coordinate written -- not the unrounded
+                # geometric point, which can sit half a micron away from it.
+                ax, ay = emitted[0]
+                out.append(
+                    "%s X%.3f Y%.3f I%.3f J%.3f E%.5f"
+                    % ("G3" if extra["ccw"] else "G2", x, y,
+                       extra["cx"] - ax, extra["cy"] - ay,
+                       extra["length"] * e_per_mm + pending[0]))
+                pending[0] = 0.0
+                emitted[0] = (round(x, 3), round(y, 3))
+        straight(last, len(samples) - 1)
     if restore_fan is not None:
         out.append(f"M106 S{int(restore_fan)}")
     out.append("; ==== WAVE OVERHANG END ====")
@@ -906,6 +1923,21 @@ def _order_wave_tracks(tracks, support, pattern="smart", start_policy="supported
     return out
 
 
+class _WaveBudgetExceeded(Exception):
+    """The G-code pass ran past its wall-clock ceiling and gave up."""
+
+
+def _budget_deadline(cfg, started):
+    """Absolute time after which the G-code pass must stop, or None."""
+    try:
+        budget = float(cfg.get("time_budget", 30.0))
+    except (TypeError, ValueError):
+        budget = 30.0
+    if budget <= 0.0:
+        return None
+    return started + budget
+
+
 def _gcode_wave_rewrite(text, cfg):
     """Replace covered bridge extrusion and retain every uncovered fragment.
 
@@ -916,18 +1948,56 @@ def _gcode_wave_rewrite(text, cfg):
         return text, {"replaced_sections": 0, "wave_layers": 0,
                       "already_processed": True}
     lines = text.splitlines(keepends=True)
+    started = time.time()
+    deadline = _budget_deadline(cfg, started)
+    timings = {}
     try:
-        layers = _parse_gcode_geometry(lines)
+        interesting = _bridge_layer_indices(lines)
+        if not interesting:
+            # No Bridge section anywhere: nothing to do, and no reason to
+            # build a single piece of geometry. This is the cheap path for
+            # the great majority of exports.
+            return text, {"replaced_sections": 0, "wave_layers": 0,
+                          "removed_moves": 0, "kept_fragments": 0,
+                          "tiny_fragments_dropped": 0,
+                          "short_wave_paths_dropped": 0,
+                          "wall_bounded_sections": 0, "arc_moves": 0,
+                          "gap_fills": 0,
+                          "seconds": round(time.time() - started, 2),
+                          "already_processed": False}
+        layers = _parse_gcode_geometry(lines, interesting)
+        timings["parse_seconds"] = round(time.time() - started, 2)
+        planning = time.time()
         replacements = {}
         sections_done = wave_layers = removed = kept = dropped = paths_dropped = 0
+        wall_sections = 0
+        arc_moves = 0
+        gap_fills = 0
+        # Decided once per file: the export's own arc-fitting setting applies
+        # to the whole print, and the Wave width is the same everywhere.
+        arc_limits = None
+        arc_decided = False
         for li, layer in enumerate(layers):
+            if deadline is not None and time.time() > deadline:
+                raise _WaveBudgetExceeded(
+                    "gave up after %.0fs on layer %d of %d"
+                    % (time.time() - started, li + 1, len(layers)))
             if li == 0 or not layer["sections"]:
                 continue
             support = _footprint(layers[li - 1]["all"])
             if support.is_empty:
                 continue
+            walls = _wall_material(layer)
+            outline = _layer_outline(layer)
+            wall_widths = sorted(s["width"] for s in (layer.get("walls") or []))
+            wall_width = (wall_widths[len(wall_widths) // 2]
+                          if wall_widths else 0.0)
             layer_changed = False
             for sec in layer["sections"]:
+                if deadline is not None and time.time() > deadline:
+                    raise _WaveBudgetExceeded(
+                        "gave up after %.0fs on layer %d of %d"
+                        % (time.time() - started, li + 1, len(layers)))
                 if not sec["segments"]:
                     continue
                 bridge = _footprint(sec["segments"])
@@ -936,7 +2006,34 @@ def _gcode_wave_rewrite(text, cfg):
                 swcfg.line_width = widths[len(widths) // 2]
                 swcfg.propagation_mode = str(
                     cfg.get("propagation_mode", "auto"))
-                unsupported = bridge.difference(support.buffer(swcfg.overhang_tol))
+                try:
+                    # Clamped: past about 1.5 spacings the closing stops
+                    # rounding the crease and starts swallowing whole fronts,
+                    # which breaks them into stubs.
+                    swcfg.wake_blend = min(
+                        1.5, max(0.0, float(cfg.get("wake_blend", 1.0))))
+                except (TypeError, ValueError):
+                    swcfg.wake_blend = 1.0
+                if not arc_decided:
+                    arc_limits = _arc_limits(text, cfg, swcfg)
+                    arc_decided = True
+                # Where a Wave belongs at all: the bridge Orca exported, minus
+                # what the layer below holds up. This decision is unchanged.
+                core = bridge.difference(support.buffer(swcfg.overhang_tol))
+                if core.is_empty or core.area < swcfg.min_overhang_area:
+                    continue
+                # Now fix that area's *shape*. Clipping fronts to the outline
+                # of Orca's bridge lines is what frays the ends, so stretch
+                # the area out to the wall the layer actually printed.
+                region, wall_bounded = _wall_bounded_region(
+                    bridge, walls, outline, wall_width, swcfg, cfg)
+                if wall_bounded:
+                    wall_sections += 1
+                    unsupported = _backed_parts(
+                        region.difference(support.buffer(swcfg.overhang_tol)),
+                        core)
+                else:
+                    unsupported = core
                 if unsupported.is_empty or unsupported.area < swcfg.min_overhang_area:
                     continue
                 tracks = wc.wave_tracks(support, unsupported, swcfg)
@@ -944,17 +2041,43 @@ def _gcode_wave_rewrite(text, cfg):
                     tracks, support, cfg.get("pattern"), cfg.get("start_policy"),
                     cfg.get("component_order", "support"),
                     start_xy=sec["segments"][0]["a"])
+                guards = {}
                 polylines = [
                     _clean_wave_polyline(
                         p, swcfg.line_width,
                         cfg.get("simplify_tolerance", 0.05),
                         cfg.get("min_wave_segment", 0.30),
-                        allowed=unsupported)
+                        allowed=unsupported, guards=guards)
                     for p in polylines]
                 minimum_wave = max(0.0, float(cfg.get("min_wave_length", 1.0)))
+                # A short front is only a problem when it is on its own in mid
+                # air. One that touches a rung already printed is anchored, and
+                # dropping it is what leaves a sliver unfilled in a corner.
+                full_length = [p for p in polylines
+                               if len(p) >= 2
+                               and _polyline_length(p) >= minimum_wave]
+                anchor = None
+                if full_length and minimum_wave > 0.0:
+                    anchor = shapely.ops.unary_union([
+                        shapely.geometry.LineString(p).buffer(
+                            swcfg.line_width * 0.5, cap_style=2, join_style=2)
+                        for p in full_length])
                 kept_polylines = []
                 for polyline in polylines:
-                    if len(polyline) >= 2 and _polyline_length(polyline) >= minimum_wave:
+                    if len(polyline) < 2:
+                        paths_dropped += 1
+                        continue
+                    length = _polyline_length(polyline)
+                    keep = length >= minimum_wave
+                    if not keep and length >= swcfg.line_width * 0.5 and \
+                            anchor is not None:
+                        # Anchored to a full-length rung, so it is not a speck
+                        # printed into thin air. Measured against every rung,
+                        # not the ones kept so far, so print order cannot
+                        # change which fronts survive.
+                        keep = shapely.geometry.LineString(polyline).distance(
+                            anchor) <= swcfg.line_spacing * 1.3
+                    if keep:
                         kept_polylines.append(polyline)
                     else:
                         paths_dropped += 1
@@ -965,6 +2088,10 @@ def _gcode_wave_rewrite(text, cfg):
                     polylines, unsupported, support, swcfg, cfg)
                 if not polylines:
                     continue
+                filled = _gap_fill_fronts(unsupported, polylines, swcfg, cfg)
+                if filled:
+                    polylines = polylines + filled
+                    gap_fills += len(filled)
                 emit_polylines = _inset_wave_polylines(
                     polylines, unsupported, support, swcfg, cfg)
                 if not emit_polylines:
@@ -1050,7 +2177,9 @@ def _gcode_wave_rewrite(text, cfg):
                 block = _emit_wave_gcode(
                     emit_polylines, actual_z, swcfg, cfg,
                     unsupported=unsupported, support=support,
-                    restore_fan=sec.get("fan"))
+                    restore_fan=sec.get("fan"), arcs=arc_limits)
+                arc_moves += sum(1 for line in block
+                                 if line.startswith(("G2 ", "G3 ")))
                 if absolute_e:
                     # The emitter uses relative E internally. Return to the
                     # source's absolute mode and command value before the
@@ -1072,22 +2201,48 @@ def _gcode_wave_rewrite(text, cfg):
             return text, {"replaced_sections": 0, "wave_layers": 0,
                           "removed_moves": 0, "kept_fragments": 0,
                           "tiny_fragments_dropped": 0,
-                          "short_wave_paths_dropped": paths_dropped}
+                          "short_wave_paths_dropped": paths_dropped,
+                          "wall_bounded_sections": wall_sections,
+                          "arc_moves": 0, "gap_fills": 0,
+                          "seconds": round(time.time() - started, 2)}
         out = []
         for i, line in enumerate(lines):
             if i in replacements:
                 out.extend(replacements[i])
             else:
                 out.append(line)
-        return WAVE_STAMP + "".join(out), {
+        timings["plan_seconds"] = round(time.time() - planning, 2)
+        timings["seconds"] = round(time.time() - started, 2)
+        timings["geometry_layers"] = len(interesting)
+        timings["layers_scanned"] = len(layers)
+        return WAVE_STAMP + "".join(out), dict(timings, **{
             "replaced_sections": sections_done, "wave_layers": wave_layers,
             "removed_moves": removed, "kept_fragments": kept,
             "tiny_fragments_dropped": dropped,
             "short_wave_paths_dropped": paths_dropped,
-            "already_processed": False}
+            "wall_bounded_sections": wall_sections,
+            "arc_moves": arc_moves,
+            "gap_fills": gap_fills,
+            "already_processed": False})
+    except _WaveBudgetExceeded as e:
+        # Hand back exactly what Orca gave us. A partial pass would make the
+        # output depend on how fast the machine is, and the same file would
+        # slice differently twice; an untouched file is at least honest.
+        return text, {"replaced_sections": 0, "wave_layers": 0,
+                      "short_wave_paths_dropped": 0,
+                      "wall_bounded_sections": 0,
+                      "arc_moves": 0,
+                      "gap_fills": 0,
+                      "seconds": round(time.time() - started, 2),
+                      "timed_out": True,
+                      "error": f"time budget exceeded: {e}"}
     except Exception as e:
         return text, {"replaced_sections": 0, "wave_layers": 0,
                       "short_wave_paths_dropped": 0,
+                      "wall_bounded_sections": 0,
+                      "arc_moves": 0,
+                      "gap_fills": 0,
+                      "seconds": round(time.time() - started, 2),
                       "error": f"{type(e).__name__}: {e}"}
 
 
@@ -1119,7 +2274,9 @@ class WaveOverhangsSlicing(orca.slicing.SlicingPipelineCapabilityBase):
         return "Wave Overhangs"
 
     def get_default_config(self):
-        return _DEFAULTS
+        # Annotated, so the JSON panel in Orca explains itself. The notes are
+        # ignored on the way back in (see _cfg).
+        return annotated_defaults()
 
     def execute(self, ctx):
         _log_loaded_once()
@@ -1163,6 +2320,14 @@ class WaveOverhangsSlicing(orca.slicing.SlicingPipelineCapabilityBase):
 
             log["seconds"] = round(time.time() - log["started"], 3)
             _write_log(log)
+            if log.get("timed_out"):
+                # Say so plainly. Silently doing nothing after a long wait is
+                # exactly the behaviour that looks like a broken export.
+                return orca.ExecutionResult.success(
+                    f"Wave Overhangs: gave up after "
+                    f"{log.get('seconds', 0):.0f}s (time_budget) and left the "
+                    f"G-code unchanged; raise time_budget or set "
+                    f"enabled=false")
             if n:
                 return orca.ExecutionResult.success(
                     f"Wave Overhangs: replaced covered bridge extrusion on "
@@ -1173,9 +2338,37 @@ class WaveOverhangsSlicing(orca.slicing.SlicingPipelineCapabilityBase):
         return orca.ExecutionResult.success()
 
 
+_CHECK_DEFAULTS = {
+    "_READ_ME": (
+        "Keys starting with _ are notes, not settings -- the plugin ignores "
+        "them. This item reports whether Wave Overhangs is working and then "
+        "explains every setting of the main Wave Overhangs capability."
+    ),
+    "_settings_guide": (
+        "Show the full explanation of every Wave Overhangs setting after the "
+        "diagnostics. Set false once you know them and you will get just the "
+        "short status report."
+    ),
+    "settings_guide": True,
+}
+
+
 class WaveOverhangsCheck(orca.script.ScriptPluginCapabilityBase):
     def get_name(self):
-        return "Wave Overhangs - Check setup"
+        return "Wave Overhangs - Settings guide & check"
+
+    def get_default_config(self):
+        return dict(_CHECK_DEFAULTS)
+
+    def _want_guide(self):
+        try:
+            raw = json.loads(self.get_config() or "{}")
+        except (AttributeError, TypeError, ValueError):
+            return True
+        value = raw.get("settings_guide", True)
+        if isinstance(value, str):
+            return value.strip().lower() not in ("false", "0", "no", "off")
+        return bool(value)
 
     def execute(self):
         _log_loaded_once()
@@ -1211,6 +2404,22 @@ class WaveOverhangsCheck(orca.script.ScriptPluginCapabilityBase):
         lines.append("mode: one transactional G-code pass")
         lines.append("source: exported Bridge/Internal Bridge paths")
 
+        cfg = _cfg(self)
+        budget = cfg.get("time_budget", 30.0)
+        lines.append(f"time budget: {budget}s"
+                     if budget else "time budget: off")
+        arc_setting = cfg.get("arc_fitting", False)
+        if arc_setting is False or str(arc_setting).lower() in ("0", "false"):
+            lines.append("arc moves: off (default)")
+        else:
+            lines.append(f"arc moves: {arc_setting} -- WARNING")
+            lines.append("  OrcaSlicer has an open bug where G-code produced")
+            lines.append("  by a post-processing script that contains G2/G3")
+            lines.append("  arcs can corrupt or crash the preview/export")
+            lines.append("  (OrcaSlicer issue #7433, still open). If your")
+            lines.append("  export hangs on 'exporting' or crashes, set")
+            lines.append("  arc_fitting back to false.")
+
         st = _load_state()
         lines.append("")
         lines.append("--- what the last export actually did ---")
@@ -1231,6 +2440,11 @@ class WaveOverhangsCheck(orca.script.ScriptPluginCapabilityBase):
         lines.extend(CHANGELOG_RECENT.splitlines())
         lines.append("")
         lines.append("Full history: plugins/wave-overhangs/CHANGELOG.md in the repo.")
+        if self._want_guide():
+            lines.append("")
+            lines.extend(settings_guide_lines(cfg))
+            lines.append("To hide this guide, set settings_guide to false in")
+            lines.append("this item's own settings.")
         return orca.ExecutionResult.success("\n".join(lines))
 
 

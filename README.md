@@ -7,7 +7,7 @@ that's a bug; open an issue.
 
 | Plugin | Version | What it does |
 | --- | --- | --- |
-| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.19 | replaces covered Bridge extrusion with support-anchored wave toolpaths, straight snap-to-boundary endpoints, and tapered endpoint flow |
+| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.26 | replaces covered Bridge extrusion with support-anchored wave toolpaths whose ends land on the real wall and hole perimeters, optionally as G2/G3 arcs |
 | [Wave Overhangs Geometry](plugins/wave-overhangs-geometry/) | 0.1.4 | experimental `posPrepareInfill` Wave fill-surface geometry intended to appear as bridge fill in Orca's preview |
 | [Unlayered Infill](plugins/unlayered-infill/) | 0.3.4 | rewrites sparse infill onto a sine wave in Z so layers interlock instead of stacking as clean planes |
 
@@ -30,18 +30,23 @@ handoff file: where the work stands, what's already decided, what's next).
 Starting a new chat? Those two files are how it picks up where the last one
 left off.
 
-## Download the updater
+## Download one file
 
-**[`Update-Orca-Plugins.bat`](Update-Orca-Plugins.bat)** — this is the
-installer/updater. It is the file with that exact name at the **top level of
-this repository**, in the file list above. Click it, then press the **Raw**
-(or **Download**) button.
+**[`Orca-Plugins.bat`](Orca-Plugins.bat)** — this is the only file you need.
+It is at the **top level of this repository**, in the file list above. Click
+it, then press the **Raw** (or **Download**) button.
 
 Or save this link directly (right-click → *Save link as…*):
 
-<https://raw.githubusercontent.com/ajani190819-ops/Tests/main/Update-Orca-Plugins.bat>
+<https://raw.githubusercontent.com/ajani190819-ops/Tests/main/Orca-Plugins.bat>
+
+Double-click it and press **Enter**. That installs or updates every plugin.
 
 You only need to download it once — it updates itself from then on.
+
+It remembers the two things you'd otherwise retype each time: which build you
+want and which OrcaSlicer folder to install into. Both are shown at the top of
+its menu, and the menu can change either, or forget them and start fresh.
 
 ## What changed recently
 
@@ -50,22 +55,37 @@ You only need to download it once — it updates itself from then on.
 * [`plugins/wave-overhangs/CHANGELOG.md`](plugins/wave-overhangs/CHANGELOG.md)
 * [`plugins/wave-overhangs-geometry/CHANGELOG.md`](plugins/wave-overhangs-geometry/CHANGELOG.md)
 
-Inside OrcaSlicer, run the plugin's **Check setup** capability — it prints the
-running version and what changed in the last three releases.
+Inside OrcaSlicer, run the plugin's **Settings guide & check** capability — it
+prints the running version, what changed in the last three releases, and a
+plain-English explanation of every setting with your current value for each.
 
 ## Updating your installed plugins (Windows)
 
-**The updater is the file `Update-Orca-Plugins.bat` at the top level of this
-repository.** It has not moved and it has not been renamed. Direct download
+**Download `Orca-Plugins.bat` from the top level of this repository.** Direct
 link (right-click → *Save link as…*):
 
-<https://raw.githubusercontent.com/ajani190819-ops/Tests/main/Update-Orca-Plugins.bat>
+<https://raw.githubusercontent.com/ajani190819-ops/Tests/main/Orca-Plugins.bat>
 
 1. Save it once and keep it anywhere — `Downloads` is fine.
-2. Double-click it whenever you want to install or update.
+2. Double-click it and press **Enter**.
 
-It keeps itself up to date: on each run it checks whether a newer updater
-exists and hands over to it, so you only ever download it by hand once.
+It keeps itself up to date: on each run it checks whether a newer launcher
+exists and hands over to it, so you only ever download it by hand once. It
+never overwrites itself while running, so a failed download can't leave you
+without a working launcher.
+
+### The other two .bat files — you don't need them
+
+They are kept so nothing already on your disk breaks:
+
+* **`Update-Orca-Plugins.bat`** — the install engine `Orca-Plugins.bat` runs.
+  It keeps its old name and download URL on purpose: copies people already
+  downloaded check that exact address for their own updates, and renaming it
+  would strand them on an old version with no warning. It still works on its
+  own if you prefer it.
+* **`Choose-Orca-Plugin-Version.bat`** — the old version picker, now a short
+  forwarder to `Orca-Plugins.bat` so existing shortcuts keep working. Picking
+  a version is item 2 on the new menu.
 
 It fetches `plugins.json` and the plugin files from this repo's `main`
 branch and copies them into Orca's data folder
@@ -141,9 +161,9 @@ number into them can orphan a saved preset.
 | Where | What you see |
 | --- | --- |
 | File → Plugins, **Name** column | `Wave Overhangs` |
-| File → Plugins, **Version** column | `0.0.19` (Orca reads the PEP 723 header) |
-| The updater's output | `Wave Overhangs v0.0.19` |
-| **Check setup**, first line | `Wave Overhangs v0.0.19 -- setup check` |
+| File → Plugins, **Version** column | `0.0.26` (Orca reads the PEP 723 header) |
+| The updater's output | `Wave Overhangs v0.0.26` |
+| **Settings guide & check**, first line | `Wave Overhangs v0.0.27 -- setup check` |
 | Geometry plugin Version | `0.1.4` |
 | Geometry Check setup | `Wave Overhangs Geometry v0.1.4` |
 
@@ -161,7 +181,7 @@ applies to `Unlayered Infill`; its current test-build version is `0.3.4`.
 4. Unlayered Infill needs **"Use relative E distances"** enabled (Printer
    Settings → Advanced).
 5. Select one plugin per process preset under **Others → Slicing Pipeline
-   Plugin**, slice something small, and run its "... - Check setup"
+   Plugin**, slice something small, and run its "... - Settings guide & check"
    capability. The Geometry variant is intended to appear in the normal slice
    preview; the original Wave variant appears only in reopened exported G-code.
 6. **Export G-code file** — then drag that exported `.gcode` back into
@@ -195,7 +215,7 @@ stages, so the selected capability matters:
    solid skins and peaks at *half* the amplitude. On a 0.2 mm layer that is
    about 0.09 mm — real, but easy to miss by eye. Use the standalone tool's
    **Full strength** option, or a bigger amplitude, to see it clearly.
-5. **Wave Overhangs needs exported Bridge sections.** Version 0.0.19 performs
+5. **Wave Overhangs needs exported Bridge sections.** Version 0.0.26 performs
    planning and replacement in one G-code transaction, snaps Wave endpoints to
    walls/holes, and tapers endpoint flow for cleaner terminations. It removes only bridge
    extrusion covered by generated waves and retains every uncovered fragment.
@@ -211,7 +231,7 @@ quietly. Here is where to look, in order:
    answer in almost every case: Orca prints the actual load error there. If
    the plugin is not in the list at all, go to step 3.
 2. **`Plugin Info` tab** — check the *installed version*. The current test
-   build reads **0.3.4** for Unlayered Infill and **0.0.19** for Wave
+   build reads **0.3.4** for Unlayered Infill and **0.0.26** for Wave
    Overhangs. Their permanent names are simply `Unlayered Infill` and `Wave
    Overhangs`; version numbers appear only in the separate Version column.
 3. **Is the folder right?** Each plugin needs its own folder holding exactly
@@ -238,7 +258,7 @@ quietly. Here is where to look, in order:
 ## Installing a test build from a branch
 
 The updater downloads from **`main`** by default, which is where released
-versions live. The current Wave 0.0.19 / Unlayered 0.3.4 work is on the test
+versions live. The current Wave 0.0.26 / Unlayered 0.3.4 work is on the test
 branch, so put these two files together
 in Downloads and double-click the chooser:
 
@@ -263,14 +283,14 @@ the plugin versions so it is clear what was installed.
 After installing this final naming migration, reselect `Wave Overhangs` or
 `Unlayered Infill` once in **Process → Others → Slicing Pipeline Plugin**.
 Those exact version-free package/capability names will not change again. Use
-the Plugins dialog's separate Version column to confirm 0.0.19 / 0.3.4.
+the Plugins dialog's separate Version column to confirm 0.0.26 / 0.3.4.
 
 ## The log file — start here when something seems wrong
 
 Plugins append a plain-text record of every run to their own Orca plugin
 storage folder by default. That location is deliberate: Orca allows plugins to
 write there without asking you to approve a log or state-file write during
-slicing. Run the plugin's **Check setup** action to print the exact path, or use
+slicing. Run the plugin's **Settings guide & check** action to print the exact path, or use
 Plugins → select the plugin → **Show in folder** and open `orca-plugins.log`.
 
 The log answers, in order: did the plugin load, was it selected, did the export

@@ -34,6 +34,7 @@ REPO = HERE.parent
 MANIFEST = REPO / "plugins.json"
 BAT = REPO / "Update-Orca-Plugins.bat"
 CHOOSER = REPO / "Choose-Orca-Plugin-Version.bat"
+FRONTDOOR = REPO / "Orca-Plugins.bat"
 GATTR = REPO / ".gitattributes"
 
 failures: list[str] = []
@@ -492,55 +493,113 @@ if tool_dl:
           f"plugin staging folder. Use %TOOLDIR%.")
 
 # ---------------------------------------------------------------------------
-# 3e. test-branch chooser and strict branch isolation
+# 3e. the front door, branch isolation, and the old names still working
 # ---------------------------------------------------------------------------
-# A normal double-click must remain released-main. The chooser is deliberately
-# separate so its remembered test branch cannot surprise a normal updater run.
-check(CHOOSER.exists(), "the double-click branch chooser is missing")
-chooser_raw = CHOOSER.read_bytes() if CHOOSER.exists() else b""
-chooser = chooser_raw.decode("utf-8", "replace")
-check(chooser_raw.count(b"\r\n") == chooser_raw.count(b"\n") > 0,
-      "the chooser .bat must use CRLF throughout")
-check(chooser_raw.endswith(b"\r\n"), "the chooser .bat does not end with CRLF")
+# Orca-Plugins.bat is the single file a user downloads. It owns the menu, the
+# version picker and the remembered choices; Update-Orca-Plugins.bat remains
+# the install engine underneath, reachable on its own URL so copies already on
+# disk keep self-updating.
+check(FRONTDOOR.exists(), "Orca-Plugins.bat, the single front door, is missing")
+front_raw = FRONTDOOR.read_bytes() if FRONTDOOR.exists() else b""
+front = front_raw.decode("utf-8", "replace")
+check(front_raw.count(b"\r\n") == front_raw.count(b"\n") > 0,
+      "Orca-Plugins.bat must use CRLF throughout")
+check(front_raw.endswith(b"\r\n"), "Orca-Plugins.bat does not end with CRLF")
+
+# A normal double-click must stay on released main, and only an explicit
+# choice may move off it.
 check('set "REF_1=main"' in bat and
       'if defined PLUGIN_BRANCH set "REF_1=%PLUGIN_BRANCH%"' in bat,
       "plain updater runs must default to main; only an explicit environment "
       "override may select a test branch")
-check('set "STATE_FILE=%STATE_DIR%\\branch.txt"' in chooser,
-      "the chooser no longer remembers its selection between runs")
-check('set "PLUGIN_BRANCH=%CHOSEN%"' in chooser and
-      'call "%UPDATER%"' in chooser,
-      "the chooser does not pass its selected branch to the updater")
-check('set "UPDATER=%TEMP%\\orca_selected_updater_%RANDOM%.bat"' in chooser and
-      '/%CHOSEN%/Update-Orca-Plugins.bat' in chooser and
-      'findstr /b /c:"set UPDATER_VERSION=" "%UPDATER%"' in chooser,
-      "the chooser must download and validate the updater from the selected branch")
-check("will not borrow another branch's updater" in chooser and
-      'if errorlevel 1 goto :updater_failed' in chooser,
-      "a missing selected-branch updater must stop instead of borrowing main")
-check('del "%UPDATER%" 2>nul' in chooser and
-      'copy /Y "%UPDATER%"' not in chooser,
-      "the chooser must run a temporary updater without replacing either .bat")
-check('if /i "%PICK%"=="R" (set "CHOSEN=main"&goto :chosen)' in chooser,
-      "the chooser has no obvious Return to released main choice")
-check("api.github.com/repos/ajani190819-ops/Tests/branches?per_page=100" in chooser,
-      "the chooser no longer fetches the public live GitHub branch list")
-check("$b.commit.url" in chooser and "Sort-Object Date -Descending" in chooser,
-      "the chooser does not fetch commit dates and sort test branches newest first")
-check("$bs=Invoke-RestMethod" in chooser and "$bs=@(Invoke-RestMethod" not in chooser,
+check('set "REMEMBERED=main"' in front and
+      'if exist "%BRANCH_STATE%" set /p REMEMBERED=<"%BRANCH_STATE%"' in front,
+      "the front door no longer remembers the chosen build between runs")
+check('set "DATADIR_STATE=%STATE_DIR%\\datadir.txt"' in front,
+      "the front door no longer knows about the remembered OrcaSlicer folder")
+check('set "PLUGIN_BRANCH=%CHOSEN%"' in front and 'call "%ENGINE%"' in front,
+      "the front door does not pass the chosen build to the install engine")
+
+# Strict branch isolation: the engine is fetched from the chosen build and
+# validated before it is ever executed, and a missing one stops the run.
+check('/%CHOSEN%/%ENGINE_NAME%' in front and
+      'findstr /b /c:"set UPDATER_VERSION=" "%ENGINE%"' in front and
+      'if %%~zA LSS 2000 exit /b 1' in front,
+      "the front door must download and validate the engine for the chosen build")
+check("were used instead." in front and
+      'if errorlevel 1 goto :engine_failed' in front,
+      "a missing engine must stop instead of borrowing another build's files")
+check('del "%ENGINE%" 2>nul' in front and 'copy /Y "%ENGINE%"' not in front,
+      "the front door must run a temporary engine without replacing any .bat")
+# The remembered build is only written after the download succeeded, so a
+# dead branch name cannot be persisted and strand the next run.
+write_at = front.index('>"%BRANCH_STATE%" echo %CHOSEN%')
+check(front.index("call :get_engine") < write_at,
+      "the chosen build must not be remembered before its engine downloads")
+
+check('set "REPO=ajani190819-ops/Tests"' in front,
+      "the front door points at the wrong repository")
+check("api.github.com/repos/%REPO%/branches?per_page=100" in front or
+      "api.github.com/repos/ajani190819-ops/Tests/branches?per_page=100" in front,
+      "the front door no longer fetches the public live GitHub branch list")
+check("$b.commit.url" in front and "Sort-Object Date -Descending" in front,
+      "the front door does not fetch commit dates and sort test builds newest first")
+check("$bs=Invoke-RestMethod" in front and "$bs=@(Invoke-RestMethod" not in front,
       "Windows PowerShell 5.1 would preserve GitHub's branch array as one nested "
       "System.Object[] and fail to convert the commit URL to System.Uri")
-check("$commitUri=[string]$b.commit.url" in chooser and
-      "-Uri $commitUri" in chooser,
-      "the chooser does not force each GitHub commit URL to one string URI")
-check("if !COUNT! LSS 6" in chooser and "Show all branches" in chooser,
-      "the chooser must show main plus five recent branches and offer the full list")
-check("Nothing will silently switch to another branch" in chooser and
-      'if /i "%PICK%"=="R" goto :refresh' in chooser,
-      "a GitHub API failure must offer retry/manual/cancel, never silently use main")
-check('findstr /r /x "[A-Za-z0-9][A-Za-z0-9._/-]*"' in chooser and
-      'findstr /c:".."' in chooser,
-      "manually typed branch names are not validated before becoming a URL")
+check("$commitUri=[string]$b.commit.url" in front or "([string]$b.commit.url)" in front,
+      "the front door does not force each GitHub commit URL to one string URI")
+
+# Self-update, same shape as the engine's: fetch, verify, hand over, never
+# rewrite the running file.
+check("rem FRONTDOOR_VERSION 1.0.0 end" in front and
+      'set "FRONTDOOR_VERSION=1.0.0"' in front,
+      "the front door's two version markers must agree")
+check('call :download "https://raw.githubusercontent.com/%REPO%/%REMEMBERED%/Orca-Plugins.bat"'
+      in front,
+      "the front door must self-update from the build the user actually chose")
+check('findstr /b /c:"rem FRONTDOOR_VERSION " "%NEWBAT%"' in front and
+      'if defined ORCA_FRONTDOOR_CHILD exit /b 0' in front,
+      "the front door's self-update must verify the download and not recurse")
+# Compare lowercase against lowercase: the variable names are uppercase in
+# the source, so an uppercase needle against a lowered haystack never matches
+# and the check would silently pass.
+_front_lower = front.lower()
+for marker in ('copy /y "%newbat%"', 'move /y "%newbat%"', '"%~f0"'):
+    check(marker not in _front_lower,
+          f"the front door must never overwrite itself while running ({marker})")
+
+# Every goto/call target must exist. cmd.exe cannot be run here, so a dead
+# label would otherwise only surface on the user's machine.
+for _bat_path in (FRONTDOOR, CHOOSER, BAT):
+    if not _bat_path.exists():
+        continue
+    _t = _bat_path.read_bytes().decode("ascii", "replace")
+    _labels = {m.group(1).lower()
+               for m in re.finditer(r"^\s*:([A-Za-z_]\w*)", _t, re.M)}
+    _jumps = {m.group(1).lower()
+              for m in re.finditer(r"\b(?:goto|call)\s+:([A-Za-z_]\w*)", _t, re.I)}
+    check(not (_jumps - _labels),
+          f"{_bat_path.name}: jumps to labels that do not exist: "
+          f"{sorted(_jumps - _labels)}")
+
+# The old filename must keep working as a pure forwarder.
+check(CHOOSER.exists(), "the old Choose-Orca-Plugin-Version.bat must stay as a forwarder")
+chooser_raw = CHOOSER.read_bytes() if CHOOSER.exists() else b""
+chooser = chooser_raw.decode("utf-8", "replace")
+check(chooser_raw.count(b"\r\n") == chooser_raw.count(b"\n") > 0,
+      "the forwarder .bat must use CRLF throughout")
+check(chooser_raw.endswith(b"\r\n"), "the forwarder .bat does not end with CRLF")
+check('call "%FRONTDOOR%" %*' in chooser,
+      "the forwarder must hand the whole run, arguments and all, to the front door")
+check("/main/Orca-Plugins.bat" in chooser and
+      'findstr /b /c:"rem FRONTDOOR_VERSION " "%FRONTDOOR%"' in chooser,
+      "the forwarder must fetch and verify the front door when it is not alongside")
+# It must not have kept a second copy of the install logic.
+check("plugins.json" not in chooser and ":install_one" not in chooser and
+      len(chooser_raw) < 4000,
+      "the forwarder must not carry its own installer logic")
+
 
 # The old bug was REF_1 -> REF_2(main) fallback for both manifests and plugin
 # files. A test build must now be one ref only, and a bad catalogue must stop.

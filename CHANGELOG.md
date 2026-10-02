@@ -19,6 +19,321 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — One launcher, and settings that explain themselves
+
+**Wave Overhangs:** 0.0.27. **New:** `Orca-Plugins.bat`, the single entry point.
+
+*One file instead of two.* The repo shipped a "chooser" and an "updater" and
+the split was never explicable -- which one do you double-click, and why are
+there two? There is now one file, `Orca-Plugins.bat`. It shows the remembered
+build and OrcaSlicer folder, installs on Enter, and offers changing the
+version or forgetting the remembered choices. It self-updates using the same
+pattern the installer already used: fetch to temp, verify the download is
+really the launcher, hand the run over, never rewrite the running file.
+
+Both old filenames keep working, for different reasons.
+`Choose-Orca-Plugin-Version.bat` becomes a thin forwarder so shortcuts
+survive. `Update-Orca-Plugins.bat` keeps its exact name and URL because
+copies already on disk poll that address for their own self-update; renaming
+it would have silently stranded every one of them. It is the install engine
+now, still usable standalone.
+
+*Settings you can read where you use them.* The script capability is now
+**Wave Overhangs - Settings guide & check**. After the usual diagnostics it
+prints every setting with its explanation, the value actually in force, and a
+marker on anything changed from the default -- wrapped to 72 columns because
+Orca shows it in a plain message box that clips rather than reflows. A
+`settings_guide` toggle silences it. This closes the gap behind the owner's
+complaint that the only documentation was a README they had to go and find.
+
+Renaming a capability changes its identity in Orca and can detach it from a
+process preset that already selected it, so the test that pins those names
+was updated deliberately rather than loosened, and the changelog says to
+re-pick it.
+
+Because cmd.exe cannot run in this environment, the .bat files also gained a
+static check that every `goto` and `call` target actually exists -- a dead
+label would otherwise only ever show up on the user's machine.
+
+---
+
+## 2026-10-01 — Updater remembers your choices; a GEOS crash fixed
+
+**Wave Overhangs:** 0.0.26. **Chooser and updater:** remember last selection.
+
+Three things the owner asked for, with one honest non-result.
+
+*Arc moves for file size.* Measured rather than assumed, and the answer is to
+do the opposite. Wave's own arcs now save **9.8 KB, 0.55% of the file**,
+because 0.0.21-0.0.23 already shrank the wave blocks from 33.5% of the export
+to 3.4%. Meanwhile OrcaSlicer's own arc fitting encodes **37% of the printed
+path length** in that same file -- 12,546 arcs covering 30.3 m of 82.7 m.
+Turning Orca's arc fitting off to avoid the crash would add roughly 86,000 G1
+moves, about 2.6 MB, more than doubling the file. The right setting is
+therefore Orca's arc fitting ON and Wave's `arc_fitting` off, which is exactly
+the pair that avoids issue #7433.
+
+*Remembering updater choices.* The chooser stored the last branch but still
+made you select it; Enter on its own now reuses it. The updater now remembers
+the OrcaSlicer data folder too, under
+`%LOCALAPPDATA%\OrcaPluginUpdater\datadir.txt`, and offers it on Enter. Both
+keep the full menu so switching is unchanged. Both .bat files stay CRLF
+throughout.
+
+*Blending the wave back together behind a hole.* Implemented as `wake_blend`,
+and shipped **off by default because it is not good enough**. A morphological
+closing of the reached region rounds the crease, and on a simple round hole it
+replaces the sharp V with smooth curves. On the owner's real part it also
+loses about 4% of wave coverage (1911 mm of path down to 1833 mm) and turns 8
+tiny fragments into 40: healing makes consecutive fronts partly coincide, and
+the "already reached" subtraction then cuts them into dashes. Two fixes were
+tried -- propagating the raw region instead of the healed one, and measuring
+the subtraction against the raw region -- and neither removed the dashes. The
+remaining idea is in `docs/ROADMAP.md`. With `wake_blend` at 0 the output is
+byte-identical to 0.0.25 on all five test shapes including the owner's export.
+
+*Making the settings readable.* Orca presents a plugin's config as JSON, and
+JSON has no comments, so the careful explanations in the plugin source never
+reached the person actually editing the values -- they saw 33 bare keys. Every
+setting now carries a plain-English note immediately above it, shipped as
+`_`-prefixed keys. `_cfg()` already ignored unknown keys, so notes cannot
+become settings, cannot be typo'd into one, and can be deleted with no effect;
+a test asserts the panel round-trips to exactly `_DEFAULTS` both with and
+without them, and that no setting is left unexplained.
+
+This also fixes a documentation failure from the arc-size work: the owner went
+looking for "arc fitting" in the plugin and could not find it, because Wave's
+own `arc_fitting` was already false and the setting that actually mattered was
+OrcaSlicer's, in Print Settings > Quality > Precision. The note says so.
+
+Chasing that did find a real latent crash, now fixed: clipping one boundary
+against another can leave a single-point line, and shapely's `linemerge`
+raises `GEOSException` on it. `GEOSException` is not a `ValueError`, so the
+existing handler could not catch it and the whole layer was lost. This is the
+same fault that killed an earlier optimisation attempt. `wave_tracks` now
+retries without the crumbs, only after the normal merge has already failed.
+Covered by a test that injects the exception and is verified to fail when the
+narrow handler is put back.
+
+Not verified in real OrcaSlicer.
+
+---
+
+## 2026-10-01 — The export hang is an OrcaSlicer bug (#7433)
+
+**Wave Overhangs:** 0.0.25.
+
+The owner narrowed it down: the failed export only happens when **Arc fitting**
+is on in OrcaSlicer. With the `auto` default that 0.0.21-0.0.23 shipped, that
+is precisely when Wave wrote G2/G3 into the finished file.
+
+That matches a known, unfixed OrcaSlicer bug:
+[issue #7433](https://github.com/OrcaSlicer/OrcaSlicer/issues/7433), "Post
+processing script results in corrupted gcode / crash when previewing model".
+Opened November 2024 against Orca 2.2.0, reproduced by the reporter in nightly
+in July 2025, and confirmed still present in 2.3.2 in January 2026. The
+reporter's trigger was ArcWelder, a post-processor that does exactly what Wave
+was doing: replacing straight moves with arcs. Orca crashes or renders corrupt
+G-code when it re-reads post-processed output containing arcs.
+
+So the 0.0.24 default (arcs off) is the fix, and it stays. **Check setup** now
+prints the arc setting and, when arcs are on, warns with the issue number. The
+plugin README carries the same warning.
+
+The arcs Wave emits were audited and are not the problem: 118 arcs across every
+fixture and the owner's export, radii 0.78-12.1 mm, sweeps 11-149 degrees, no
+major arcs, no near-full circles, no chord longer than the diameter, no
+reversed directions, all with positive extrusion.
+
+Auditing that output did turn up a real defect, fixed here: the emitter decided
+whether to write a move from the *unrounded* step length but wrote coordinates
+to three decimals, so sub-micron steps became moves whose X/Y matched the
+previous line exactly -- dead lines, usually `E0.00000` too. The owner's export
+contained 542. The emitter now tracks the position it has actually written and
+rolls any skipped extrusion into the next real move; Wave moves in that export
+fall from 2,006 to 1,910 with no material lost. Arc I/J offsets are now
+measured from the last written coordinate rather than the unrounded point,
+improving worst-case arc radius consistency to 0.0013 mm.
+
+Tests: a direct emitter test drives a front built from sub-micron steps and
+asserts no written move repeats the previous coordinate, with the skipped
+material accounted for. It was verified to fail when the fix is removed -- the
+whole-file fixtures do not contain sub-micron steps, so a file-level assertion
+alone would have been vacuous.
+
+Not verified in real OrcaSlicer.
+
+---
+
+## 2026-10-01 — Wave can no longer hang an export
+
+**Wave Overhangs:** 0.0.24.
+
+The owner reported that OrcaSlicer would no longer export at all: it sat on
+"exporting" and crashed about a minute later. Their last good print came out of
+0.0.20, and 0.0.21, 0.0.22 and 0.0.23 had all shipped since, so the cause was
+somewhere in those three.
+
+**The crash could not be reproduced here, and this entry does not claim to have
+found it.** What was measured: the arc fitter is linear and costs under 0.1 s
+for an 800-point front; a synthetic part that overhangs on every layer costs
+0.08-0.18 s per bridge layer with peak memory of 49 MB and no error; the
+owner's own export reconstructed runs in 1.65 s. None of that explains a crash.
+Every arc the plugin emits was also re-validated across all four test fixtures
+and the owner's export -- 215 arcs, zero zero-radius, zero full-circle, zero
+mismatched endpoints, every one carrying positive extrusion.
+
+So rather than guess, two changes make the failure mode impossible:
+
+A wall-clock ceiling, `time_budget`, defaulting to 30 seconds, now wraps the
+whole G-code pass. It is checked before every layer and every bridge section.
+When it fires the pass gives up and returns the file byte-for-byte as
+OrcaSlicer wrote it, without the Wave stamp, so nothing is half-done and a
+later run can try again; the stats record `timed_out` and how far it got, and
+the message shown in Orca says what happened instead of reporting that nothing
+was found. `0` disables the ceiling and a nonsense value falls back to 30.
+Whatever the real cause turns out to be, the plugin can no longer be the reason
+an export does not finish.
+
+`arc_fitting` now defaults to `false` rather than `auto`. G2/G3 is the one
+genuinely new kind of output introduced since the owner's last good print, and
+OrcaSlicer re-parses the finished file for its preview and time estimate, which
+makes it the best suspect available. The arcs are opt-in until a real export
+confirms they are safe; `"auto"` restores the previous behaviour.
+
+Tests: `tests/test_wave_gcode.py` gains a section covering the budget (fires,
+changes nothing, does not stamp, `0`/junk handled) and now asserts the shipped
+arc default is off even when the profile has arc fitting switched on.
+
+Not verified in real OrcaSlicer.
+
+---
+
+## 2026-10-01 — Less work per export, and timings in the log
+
+**Wave Overhangs:** 0.0.23.
+
+The owner reported that exporting after a slice was taking far too long.
+Measured on their own 1.75 MB export in the sandbox, the Wave pass takes about
+two seconds, so the pass itself was never going to explain "forever" -- but it
+was doing a great deal of pointless work, and the export it produced in 0.0.20
+was doing a great deal to everything downstream.
+
+Geometry is now built only for layers that have a Bridge section and the layer
+that holds each one up: 7 layers out of 134 on their part, so 95% of the
+shapely objects built were never used. Parsing dropped from 1.65 s to 0.2 s, an
+export with no bridge at all now costs 0.01 s, footprints are buffered once per
+line width instead of once per move, and cleanup builds its guard shapes once
+per section rather than once per front.
+
+The likely real cause of the slow export is upstream of all that: 0.0.20 wrote
+**29,374 Wave moves, 0.89 MB, a third of the entire file**, because of the
+simplification fault fixed in 0.0.21. The same input now yields 2,006 moves and
+74 arcs in 0.07 MB, and the file drops from 2.66 MB to 1.82 MB. Orca re-reads
+and re-estimates every move after post-processing, so that is where the waiting
+was going.
+
+The log now carries `seconds`, `parse_seconds`, `plan_seconds`,
+`geometry_layers` and `layers_scanned` so the next slow export can be measured
+rather than guessed at.
+
+Also tried and rejected: simplifying the reachable region on each propagation
+step to cap its vertex growth. It made GEOS throw on degenerate rings, the
+plugin failed closed, and no waves were produced at all. Reverted.
+
+---
+
+## 2026-10-01 — The corner sliver, measured in the owner's own print
+
+**Wave Overhangs:** 0.0.22.
+
+The owner printed the part, photographed the first layer from below and
+circled two things: a corner that was not filled, and a rounded wall whose
+Wave edge was not smooth. They also uploaded the export, so both could be
+measured rather than guessed at.
+
+**The corner is real and is now fixed.** A wavefront is a contour of equal
+distance from the supported edge, and those contours step outward one line
+spacing at a time. Where the far boundary runs at an angle to that march --
+the tip of a corner -- the last contour stops short. In their export that left
+a 0.22 mm^2 void, 0.53 x 0.75 mm, in the corner of the plate. Wave now fills a
+sliver like that with one short path down its middle, and only ever adds
+material where there is none. Short fronts that touch a rung already on the
+plate are also kept now rather than discarded as specks.
+
+**The rounded wall is not what it looks like.** Every Wave end along that
+curve sits 0.456 to 0.457 mm from the wall -- a spread of 0.001 mm across 21
+ends -- so the ends are already landing on the wall exactly as intended. The
+staircase in the preview is the flat end of each rung meeting a curve at
+0.35 mm intervals. Smoothing it needs a rung laid along the wall with the
+others trimmed back to make room. That was built, measured, found to make the
+edge worse, and left out. It is written up in the roadmap instead of shipped.
+
+Not verified on hardware beyond the owner's own photograph of the 0.0.20
+print, which is what prompted this release.
+
+---
+
+## 2026-10-01 — Wave speaks arcs, and stops bloating files around holes
+
+**Wave Overhangs:** 0.0.21.
+
+The owner asked whether the waves could be arc moves, since they can turn Arc
+fitting on in their print profile. They can now, and the request uncovered two
+problems worth more than the arcs themselves.
+
+Wave runs after Orca has written the G-code, so Orca's arc fitter never sees
+Wave's moves — and, in the other direction, Wave could not *read* the arcs
+Orca writes. With arc fitting on, a round hole's wall is exported as G2/G3, so
+Wave would have gone blind to that wall and quietly lost the 0.0.20 perimeter
+fix on the very parts that need it. Wave now reads both the `I J` and `R`
+forms, and emits its own arcs when the export says the profile wants them.
+
+The second problem was file size. Cleanup refused to simplify any wavefront
+that touched a hole, and 0.0.20 had just made the ends finish *on* hole walls,
+so nearly every front fell back to its raw rasterised form — a 9.9 mm front
+written as 980 moves instead of 9. On the synthetic part with a hole, the Wave
+G-code dropped from 316 KB to 9 KB once touching stopped being treated as
+crossing.
+
+Measured in the sandbox on the captured Cube^2 export: with arcs on, 44 arcs
+replace 180 straight moves (28% fewer commands, 20% fewer bytes), extrusion is
+conserved to 0.07%, and against the original dense wavefront the arcs are more
+accurate than the straight moves they replace (mean error 0.034 mm versus
+0.119 mm). Not verified on real hardware: no OrcaSlicer and no printer here.
+
+---
+
+## 2026-10-01 — Wave ends snap to the real wall and hole perimeters
+
+**Wave Overhangs:** 0.0.20.
+
+The owner reported that Wave ends would not snap to the overhang perimeter:
+instead of marching from the supported perimeter all the way out to the
+overhang perimeter and around holes, the fronts finished on a jagged edge that
+the following outer perimeter then had to print against.
+
+The cause was that Wave measured the overhang from the footprint of Orca's
+exported bridge *lines*. The union of those line footprints has a castellated
+edge — alternating in and out by about half a line width — that also stops
+short of the wall, and fronts were being clipped to it. Wave now also reads the
+layer's wall moves, squares the overhang area up against the real wall bead
+(overlapping into it by 25% of the Wave width by default), and lets the fronts
+reach that smooth boundary. `wall_snap=false` restores the 0.0.19 behaviour for
+comparison.
+
+A second, related bug was fixed: wall material was measured one G-code move at
+a time, which left a hairline slit at every vertex of a curved wall, and a Wave
+end could slip through one and finish on the visible surface of a hole.
+
+Verified in the sandbox against the captured Cube^2 export (ends along each
+wall now lie on one line within 0.02 mm, where 0.0.19 varied by 0.29 mm) and
+against a new synthetic overhang-with-hole export (all ends around the hole on
+one radius within 0.001 mm, nothing inside the hole, nothing outside the part).
+Not verified on real hardware: no OrcaSlicer and no printer in the sandbox.
+
+---
+
 ## 2026-10-01 — Wave endpoint taper no longer adds default micro-moves
 
 **Wave Overhangs:** 0.0.19.

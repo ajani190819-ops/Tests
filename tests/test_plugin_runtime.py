@@ -15,6 +15,7 @@ slice can do that — but it does prove the plugin's own logic is sound and
 that it writes the log the owner asked for.
 """
 import importlib.util
+import json
 import math
 import os
 import pathlib
@@ -332,10 +333,18 @@ with tempfile.TemporaryDirectory() as tmp:
               f"Wave Overhangs needs exactly one @orca.plugin package, got {len(orca.PLUGINS)}")
         orca.PLUGINS[0]().register_capabilities()
         names = [c().get_name() for c in orca.REGISTERED]
-        check(names == ["Wave Overhangs", "Wave Overhangs - Check setup"],
+        # A capability name is its identity in Orca: renaming one detaches it
+        # from any process preset that already selected it, so this is pinned
+        # deliberately and may only change with a user-facing note in the
+        # changelog. The script capability was renamed once, in 0.0.27, when
+        # it took on the settings guide. Versions must never appear here.
+        check(names == ["Wave Overhangs",
+                        "Wave Overhangs - Settings guide & check"],
               f"Wave capability identities changed: {names}")
-        check(wave.PLUGIN_VERSION == "0.0.19",
-              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.19")
+        check(not any(ch.isdigit() for ch in "".join(names)),
+              f"a version leaked into a capability name: {names}")
+        check(wave.PLUGIN_VERSION == "0.0.27",
+              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.27")
 
         # The active Wave implementation is deliberately G-code-only. Its
         # source must not retain the removed slice-object planner, host Polygon
@@ -352,6 +361,98 @@ with tempfile.TemporaryDirectory() as tmp:
               "one transactional G-code pass" in wave_source,
               "Wave source no longer documents its transactional architecture")
 
+        # --- the settings panel must explain itself (0.0.27) ---
+        # Orca shows the config as JSON, which cannot carry comments, so the
+        # notes are shipped as "_"-prefixed keys. Two things must hold: every
+        # setting is explained, and no note can ever be mistaken for a
+        # setting on the way back in.
+        panel = orca.REGISTERED[0]().get_default_config()
+        settings = {k: v for k, v in panel.items() if not k.startswith("_")}
+        notes = {k for k in panel if k.startswith("_")}
+        check(settings == wave._DEFAULTS,
+              "the settings in the panel drifted from _DEFAULTS")
+        unexplained = sorted(k for k in wave._DEFAULTS if "_" + k not in notes)
+        check(not unexplained,
+              f"settings with no explanation in the panel: {unexplained}")
+        orphans = sorted(n for n in notes
+                         if n != "_READ_ME" and n[1:] not in wave._DEFAULTS)
+        check(not orphans, f"notes describing settings that do not exist: {orphans}")
+        # Order matters: a note is only useful if it sits above its setting.
+        keys = list(panel)
+        misplaced = [k for k in wave._DEFAULTS
+                     if "_" + k in notes
+                     and keys.index("_" + k) != keys.index(k) - 1]
+        check(not misplaced, f"notes not directly above their setting: {misplaced}")
+
+        # Feeding the panel straight back must yield exactly the defaults --
+        # notes dropped, nothing renamed, nothing lost.
+        class _Panel:
+            def get_config(self):
+                return json.dumps(panel)
+
+        check(wave._cfg(_Panel()) == wave._DEFAULTS,
+              "notes leaked into the live config or a setting was lost")
+        # And a user who deletes every note must still get a working config.
+        class _Stripped:
+            def get_config(self):
+                return json.dumps(settings)
+
+        check(wave._cfg(_Stripped()) == wave._DEFAULTS,
+              "deleting the notes must not change behaviour")
+        # The arc note is the one people go looking for; it must point at
+        # Orca's own setting rather than leaving them hunting in the plugin.
+        arc_note = panel["_arc_fitting"]
+        check("Print Settings" in arc_note and "Precision" in arc_note
+              and "7433" in arc_note,
+              "the arc_fitting note must say where Orca's own arc fitting lives")
+
+        # --- the settings guide is readable inside Orca (0.0.27) ---
+        # The whole point is not having to open a README on GitHub, so the
+        # menu item must print the explanations itself, show the value
+        # actually in force, and be switchable off once you know them.
+        guide_cap = wave.WaveOverhangsCheck()
+        check(guide_cap.get_name() == "Wave Overhangs - Settings guide & check",
+              f"menu item is named {guide_cap.get_name()!r}")
+        import json as _json
+        catalogue = _json.loads((REPO / "plugins.json").read_text(encoding="utf-8"))
+        wave_entry = [e for e in catalogue["plugins"] if e["id"] == "wave-overhangs"][0]
+        check(guide_cap.get_name() in wave_entry["capabilities"],
+              "the capability rename did not reach plugins.json")
+        check(guide_cap.get_name() in
+              (REPO / "Update-Orca-Plugins.bat").read_bytes().decode("ascii", "replace"),
+              "the capability rename did not reach the .bat fallback row")
+        check(not any(ch.isdigit() for ch in guide_cap.get_name().split("-")[-1]),
+              "a capability name must never carry a version")
+
+        guide = wave.settings_guide_lines(dict(wave._DEFAULTS, print_speed=5.0))
+        guide_text = "\n".join(guide)
+        unexplained = [k for k in wave._DEFAULTS if f"\n{k} = " not in "\n" + guide_text]
+        check(not unexplained, f"settings missing from the printed guide: {unexplained}")
+        check("print_speed = 5.0   (default 2.0)" in guide_text,
+              "the guide must show the value in force and flag a changed one")
+        longest = max(len(line) for line in guide)
+        check(longest <= 72,
+              f"guide lines must stay readable in Orca's message box, got {longest}")
+
+        # The toggle itself is pure config reading, so it can be checked here
+        # where numpy/shapely are deliberately absent. The full execute()
+        # path needs the deps and is covered in tests/test_wave_gcode.py.
+        check(guide_cap._want_guide(), "the guide must be on by default")
+        for off_value in (False, "false", "off", "no", 0):
+            guide_cap.set_config({"settings_guide": off_value})
+            check(not guide_cap._want_guide(),
+                  f"settings_guide={off_value!r} did not turn the guide off")
+        for on_value in (True, "true", 1):
+            guide_cap.set_config({"settings_guide": on_value})
+            check(guide_cap._want_guide(),
+                  f"settings_guide={on_value!r} did not turn the guide on")
+        guide_cap.set_config({})
+        check(guide_cap._want_guide(), "an empty config must still show the guide")
+        # Its own config must be self-explaining too.
+        own = wave.WaveOverhangsCheck().get_default_config()
+        check("_settings_guide" in own and own["settings_guide"] is True,
+              "the guide toggle is missing its note or its default")
+
         result = orca.REGISTERED[1]().execute()
         check(not result.ok and result.kind == fake_orca.PluginResult.RecoverableError,
               "Check setup must return a recoverable failure when dependencies are absent")
@@ -360,7 +461,7 @@ with tempfile.TemporaryDirectory() as tmp:
               "Diagnostics" in result.message,
               f"dependency failure does not give a complete beginner-safe fix: {result.message!r}")
         log = read_log(logs)
-        check("Wave Overhangs v0.0.19 loaded" in log and "MISSING" in log,
+        check("Wave Overhangs v0.0.27 loaded" in log and "MISSING" in log,
               f"Wave dependency state was not logged clearly:\n{log}")
         pipeline = orca.REGISTERED[0]()
         result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))

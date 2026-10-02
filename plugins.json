@@ -17,14 +17,14 @@
     {
       "id": "wave-overhangs",
       "name": "Wave Overhangs",
-      "version": "0.0.19",
+      "version": "0.0.27",
       "status": "ready",
       "file": "wave_overhangs_orca.py",
       "path": "plugins/wave-overhangs/wave_overhangs_orca.py",
       "orca_dir": "WaveOverhangs",
       "capabilities": [
         "Wave Overhangs",
-        "Wave Overhangs - Check setup"
+        "Wave Overhangs - Settings guide & check"
       ]
     },
     {
