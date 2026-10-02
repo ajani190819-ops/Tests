@@ -4,8 +4,16 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02 — **Wave Overhangs 0.0.39 / Unlayered Infill
-  0.4.7**: fixes "The preset stores invalid plugin capability configuration
+* **Last updated:** 2026-10-02 — **Wave Overhangs 0.0.40**: curves no longer
+  cost hundreds of moves. `_clean_wave_polyline` used to fall back to keeping
+  every raster point when the whole-front simplification ladder failed; it
+  now calls `_locally_refined()` -> `_simplify_locally()`, a Douglas-Peucker
+  variant that validates EACH chord against the hole/boundary guard and
+  splits only the failures. Worst front on the rounded-corner case: 132 moves
+  over 28 mm -> 3. **Do NOT move this into `_simplify_once`** — tried and
+  measured: with a castellated footprint (`wall_snap: false`) nearly every
+  chord leaves the region and the Cube export went 455 -> 2350 moves.
+* **Previously:** **Wave Overhangs 0.0.39 / Unlayered Infill 0.4.7**: fixes "The preset stores invalid plugin capability configuration
   JSON", reported against BOTH plugins. A preset override is a flat
   key=value record whose reference separator is `;`; the facts doc knew a
   capability NAME could not contain one but not that the stored VALUE is
@@ -107,7 +115,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.39, Unlayered Infill 0.4.7,
+* **Current versions:** Wave Overhangs 0.0.40, Unlayered Infill 0.4.7,
   updater **2.1.0** — one file, `Orca-Plugins.bat`, the only .bat in the
   repository; the launcher (1.0.1) and engine (1.4.0) version histories
   ended by merging into it. PR #7 carries it; test it from the branch before

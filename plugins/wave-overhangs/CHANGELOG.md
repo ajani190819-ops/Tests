@@ -22,6 +22,40 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.40 — 2026-10-02
+
+* Fixes curves being drawn with far more moves than they need. A front that
+  ran 28 mm along a gentle curve and then squeezed past a hole used to come
+  out as 132 moves; it is now 3, over the same path. The rounded-corner test
+  case drops from 1048 wave moves to 606 with its path length unchanged to
+  0.02%.
+
+**Why it happened.** Simplification was accepted or rejected for a WHOLE
+front at a time. If the one coarse chord near a hole would have cut the
+corner, the entire front was re-simplified at a tighter tolerance -- and if
+even the tightest rung failed, every raster point the buffer produced was
+kept. So one difficult centimetre made the other twenty-seven expensive. The
+owner described it exactly: "hundreds of lines when a couple dozen should
+have sufficed."
+
+**The fix.** When the whole-front ladder fails, the front is now refined
+per-chord instead: each straight move is checked on its own against the same
+hole/boundary guard, and only the chords that fail are split, at their worst
+point. The result is valid by construction rather than valid-or-discarded,
+so points are spent where the geometry is actually difficult and nowhere
+else.
+
+**Where it is deliberately NOT used.** Inside the normal simplification pass.
+That was tried first and was worse: against a castellated bridge footprint
+(`wall_snap: false`) almost every chord leaves the region, the recursion
+splits down to the raster, and the Cube export went from 455 wave moves to
+2350. Per-chord refinement is the right tool only once the ordinary pass has
+given up.
+
+Measured on the Cube export: 439 -> 432 wave moves with the path length
+unchanged at 513.4 mm, 455 -> 425 with `wall_snap: false`, and 260 -> 256
+with arc fitting on.
+
 ## 0.0.39 — 2026-10-02
 
 * Fixes "The preset stores invalid plugin capability configuration JSON."

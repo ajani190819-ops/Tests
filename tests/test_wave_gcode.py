@@ -227,7 +227,7 @@ clearance_only_move_count = sum(
 assert old_style_stats["removed_moves"] == stats["removed_moves"]
 # 0.0.31 thinned redundant vertices out of fronts that wrap a hole: this was
 # 508 before, for exactly the same geometry (wave_path_length is unchanged).
-assert old_style_move_count == 439, (
+assert old_style_move_count == 432, (
     "old no-clearance/no-taper cleanup changed unexpectedly")
 assert clearance_only_stats["removed_moves"] == stats["removed_moves"]
 assert wave_path_length(clearance_only_blocks) < wave_path_length(
@@ -447,8 +447,9 @@ legacy_blocks = re.findall(
     r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
     r"; ==== WAVE OVERHANG END ====", legacy_out, re.DOTALL)
 assert legacy_stats["wall_bounded_sections"] == 0, legacy_stats
-# 739 before 0.0.31's vertex thinning; same geometry, fewer redundant points.
-assert sum(block.count("\nG1 X") for block in legacy_blocks) == 455, (
+# 739 before 0.0.31's vertex thinning, 455 before 0.0.40's local refinement;
+# same geometry each time, fewer redundant points.
+assert sum(block.count("\nG1 X") for block in legacy_blocks) == 425, (
     "wall_snap=False must still produce the 0.0.19 bridge-footprint edges")
 
 
@@ -657,10 +658,11 @@ arc_out, arc_stats = wave._gcode_wave_rewrite(
 arc_blocks = wave_blocks_of(arc_out)
 emitted_arcs = sum(block.count("\nG2 ") + block.count("\nG3 ")
                    for block in arc_blocks)
-assert arc_stats["arc_moves"] == emitted_arcs == 44, (arc_stats, emitted_arcs)
+# 44 before 0.0.40 refined the point density; one fewer arc, same path.
+assert arc_stats["arc_moves"] == emitted_arcs == 43, (arc_stats, emitted_arcs)
 arc_move_count = sum(block.count("\nG1 X") for block in arc_blocks)
-# 329 before 0.0.31's vertex thinning.
-assert arc_move_count == 260, arc_move_count
+# 329 before 0.0.31's vertex thinning, 260 before 0.0.40's local refinement.
+assert arc_move_count == 256, arc_move_count
 assert arc_move_count + emitted_arcs < wave_move_count, (
     "arcs must reduce the number of commands, not add to them")
 assert arc_stats["removed_moves"] == stats["removed_moves"], (
@@ -1165,7 +1167,8 @@ assert tiny_share < 0.08, (
     f"({100 * tiny_share:.1f}%) -- the vertex thinning has regressed")
 
 # The whole justification for thinning is that it changes nothing you can see,
-# so the printed length must survive it. 513.5 mm both before and after.
+# so the printed length must survive it. 513.5 mm before local refinement
+# (0.0.40) and 513.3 mm after, for 20 fewer moves.
 total_path = sum(all_lengths)
 assert abs(total_path - 513.5) < 1.0, (
     f"wave path length moved to {total_path:.1f} mm; thinning must remove "
@@ -1491,3 +1494,88 @@ print(f"ok -- adaptive flow: opt-in, widens {flow_stats['adaptive_flow_sections'
       f"{100 * (total_e(flow_out) / total_e(ordered_out) - 1):.2f}% extrusion "
       f"({100 * (no_gap_flow / no_gap - 1):.2f}% with gap_fill off), moves no "
       f"path, and honours its cap (max {max(ratios):.2f}x nominal)")
+
+
+# ---------------------------------------------------------------------------
+#  point density: no front may be drawn with far more moves than it needs
+# ---------------------------------------------------------------------------
+# The owner: "there's certain points where a curve will have way more lines
+# than it needs to... sometimes there will be like hundreds of lines when a
+# couple dozen should have sufficed."
+#
+# Cause: simplification was accepted or rejected for a WHOLE front. A front
+# running 28 mm along a gentle curve and then squeezing past a hole had to
+# keep its raster points everywhere, because one chord near the hole would
+# have cut the corner. Since 0.0.40 each chord is checked on its own and only
+# the failing ones are split, so points are spent where the geometry is
+# actually difficult.
+def front_density(text):
+    """[(moves, millimetres)] for each separately-travelled wave front."""
+    fronts, current, inside = [], None, False
+    px = py = None
+    for line in text.splitlines():
+        if "WAVE OVERHANG BEGIN" in line:
+            inside, px, py = True, None, None
+            continue
+        if "WAVE OVERHANG END" in line:
+            inside, current = False, None
+            continue
+        if not inside or not line.startswith(("G0", "G1")):
+            continue
+        if line.startswith("G0"):
+            current = None
+        words = {}
+        for token in line.split()[1:]:
+            try:
+                words[token[0]] = float(token[1:])
+            except ValueError:
+                pass
+        x, y = words.get("X", px), words.get("Y", py)
+        if "E" in words and None not in (px, py, x, y):
+            if current is None:
+                current = [0, 0.0]
+                fronts.append(current)
+            current[0] += 1
+            current[1] += math.hypot(x - px, y - py)
+        px, py = x, y
+    return fronts
+
+
+corner_source = wave_cases.synthetic_rounded_corner()
+if isinstance(corner_source, tuple):
+    corner_source = corner_source[0]
+corner_out, _corner_stats = wave_cases and wave._gcode_wave_rewrite(
+    corner_source, {**wave._DEFAULTS, "_lh": 0.3})
+corner_fronts = front_density(corner_out)
+assert corner_fronts, "the rounded-corner case produced no waves"
+
+corner_moves = sum(n for n, _mm in corner_fronts)
+corner_mm = sum(mm for _n, mm in corner_fronts)
+# Before the fix this case emitted 1048 moves, with single fronts running to
+# 132 moves over 28 mm. The curve itself is unchanged, so the path length is
+# the thing that must NOT move.
+assert corner_moves < 750, (
+    f"the rounded corner is back to {corner_moves} wave moves; local "
+    f"refinement has regressed")
+assert 1540 < corner_mm < 1610, (
+    f"wave path length moved to {corner_mm:.1f} mm -- simplification must "
+    f"remove redundant points, never reshape the path")
+
+# No single front may be drawn at an absurd density. A wave line is one bead
+# wide; more than ~3 moves per millimetre is describing noise, not geometry.
+worst = max(corner_fronts, key=lambda f: f[0] / max(f[1], 1e-9))
+assert worst[0] / max(worst[1], 1e-9) < 3.5, (
+    f"a front uses {worst[0]} moves over {worst[1]:.2f} mm "
+    f"({worst[0] / max(worst[1], 1e-9):.1f} moves/mm)")
+# And long fronts specifically: these are the ones the owner saw.
+for moves, millimetres in corner_fronts:
+    if millimetres > 10.0:
+        assert moves / millimetres < 2.0, (
+            f"a {millimetres:.1f} mm front still needs {moves} moves "
+            f"({moves / millimetres:.1f}/mm) -- that is the 'hundreds of "
+            f"lines where a couple dozen would do' case")
+
+print(f"ok -- point density: the rounded-corner case now draws its waves in "
+      f"{corner_moves} moves over {corner_mm:.0f} mm (was 1048 for the same "
+      f"path, with single fronts of 132 moves over 28 mm); no front exceeds "
+      f"{worst[0] / max(worst[1], 1e-9):.1f} moves/mm")

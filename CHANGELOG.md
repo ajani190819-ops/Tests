@@ -1,3 +1,28 @@
+## 2026-10-02 — curves no longer cost hundreds of moves (Wave Overhangs 0.0.40)
+
+> "There's certain points where a curve will have way more lines than it
+> needs to... when the lines approach the hole in the test print sometimes
+> there will be like hundreds of lines when a couple dozen should have
+> sufficed."
+
+Confirmed and fixed. Simplification was all-or-nothing per front: if the one
+chord near a hole would have cut the corner, the whole front kept its raster
+points. A 28 mm front came out as 132 moves; it is now 3.
+
+When the ordinary simplification gives up, the front is now refined
+chord-by-chord against the same boundary guard, splitting only the moves
+that actually fail. Rounded-corner test case: 1048 wave moves to 606, path
+length unchanged to 0.02%. Cube export: 439 to 432, 455 to 425 with
+`wall_snap: false`.
+
+Worth recording that the obvious version of this fix -- doing the per-chord
+refinement in the main simplification pass -- was measured and **rejected**:
+against a castellated bridge footprint nearly every chord leaves the region,
+so the recursion splits down to the raster and the Cube export went from 455
+moves to 2350. It is used only as the fallback.
+
+---
+
 ## 2026-10-02 — fix "The preset stores invalid plugin capability configuration JSON"
 
 Wave Overhangs **0.0.39**, Unlayered Infill **0.4.7**. Reported by the owner
