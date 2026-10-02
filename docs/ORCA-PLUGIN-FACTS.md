@@ -105,6 +105,28 @@ is a bug in the plugin:
   `numpy/_core/_ufunc_config.py` — both contain "conf" — so a lazy numpy
   import inside a capability dies with `PermissionError` (OrcaSlicer issue
   #15944).
+* **No import may happen for the first time inside a capability call** --
+  and that includes the standard library. Unlayered Infill 0.4.2 called
+  `from statistics import multimode` inside `detect_layer_height()`, which
+  runs in the export step, so the very first export imported `statistics`
+  from inside the audit scope. Same for a `import traceback` sitting on an
+  error path. This is the same shape as the numpy case above; it is now
+  enforced statically by `tests/test_plugin_audit.py`, over the plugin
+  module **and** over the engine sources the plugins inline as string
+  literals. The only exception is a function called from module scope to
+  probe for an optional dependency (`_import_deps`).
+* **Pressing `Refresh` in the Plugins dialog re-imports the plugin module in
+  the same interpreter.** Module-level code therefore runs more than once per
+  session and must be re-entrant. In particular, an inlined engine's
+  registration must not be able to leave the plugin worse off than before:
+  publish the replacement module only on success and restore the previous one
+  on failure, never pop. (Unlayered Infill 0.4.3 / Wave Overhangs 0.0.34.)
+* **An inlined engine must be in `sys.modules` BEFORE it is exec'd.**
+  `wave_core` combines `@dataclass` with `from __future__ import
+  annotations`, and `dataclasses` resolves those string annotations via
+  `sys.modules[cls.__module__].__dict__`. Exec'ing into a module that has not
+  been published yet fails with `AttributeError: 'NoneType' object has no
+  attribute '__dict__'`. Measured 2026-10-02.
 * Writes inside `data_dir()` need no prompt, and plugins live at
   `data_dir()/orca_plugins/<plugin>/`. So the state and log files these
   plugins write through `orca.host.plugin.storage()` are fine. Do not default

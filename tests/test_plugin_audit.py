@@ -170,6 +170,88 @@ with tempfile.TemporaryDirectory() as tmp:
           f"({why if not denied_ok else ''}). A denied log write must never be "
           f"able to fail a slice.")
 
+    # ----------------------------------------------------------------------
+    # 5. NOTHING may be imported for the first time inside a capability call
+    #
+    # The audit hook is OFF while the plugin module is imported and ON during
+    # a capability call, where every file open is audited. A first-use import
+    # inside a capability is therefore an audited read of a file the plugin
+    # never declared -- OrcaSlicer issue #15944, and the shape of the
+    # Unlayered Infill 0.4.3 Refresh failure (`from statistics import
+    # multimode`, deep inside the export step).
+    #
+    # Checked statically, over the plugin module AND over the engine source it
+    # inlines as a string, because that is where the offender lived.
+    # ----------------------------------------------------------------------
+    ENGINE_LITERALS = ("_NONPLANAR_CORE_SRC", "_WAVE_CORE_SRC")
+
+    def sources_of(path):
+        """The plugin's own source, plus any engine it inlines as a literal."""
+        text = path.read_text(encoding="utf-8")
+        yield path.name, text
+        tree = ast.parse(text)
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Assign)
+                    and isinstance(node.value, ast.Constant)
+                    and isinstance(node.value.value, str)
+                    and any(isinstance(t, ast.Name) and t.id in ENGINE_LITERALS
+                            for t in node.targets)):
+                name = next(t.id for t in node.targets
+                            if isinstance(t, ast.Name) and t.id in ENGINE_LITERALS)
+                yield f"{path.name}:{name}", node.value.value
+
+    # The only import allowed below module level is the one that probes for an
+    # optional dependency at LOAD time -- it is called from module scope.
+    IMPORT_OK_IN = {"_import_deps"}
+
+    for path, _modname in PLUGINS:
+        for label, text in sources_of(path):
+            tree = ast.parse(text)
+            for func in ast.walk(tree):
+                if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                if func.name in IMPORT_OK_IN:
+                    continue
+                for node in ast.walk(func):
+                    if isinstance(node, (ast.Import, ast.ImportFrom)):
+                        what = getattr(node, "module", None) or ", ".join(
+                            a.name for a in node.names)
+                        check(False,
+                              f"{label}: {func.name}() imports {what!r} at line "
+                              f"{node.lineno}. Imports must happen at module "
+                              f"load, where Orca's audit hook is off -- a "
+                              f"first-use import inside a capability call is "
+                              f"audited and can be denied (issue #15944).")
+
+    # ----------------------------------------------------------------------
+    # 6. Importing a plugin TWICE -- what Refresh in the Plugins dialog does
+    #    -- must leave its inlined engine working
+    # ----------------------------------------------------------------------
+    for path, modname in PLUGINS:
+        engine_attr = ("npc", "process") if "unlayered" in modname else ("wc", "plan_layer")
+        attr, func_name = engine_attr
+        mod = None
+        for pass_no in (1, 2, 3):
+            fake_orca.install()
+            sys.modules.pop(modname, None)
+            spec = importlib.util.spec_from_file_location(modname, path)
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[modname] = mod
+            try:
+                spec.loader.exec_module(mod)
+            except BaseException as e:                   # noqa: BLE001
+                check(False, f"{path.name}: re-import pass {pass_no} (Refresh) "
+                             f"failed: {type(e).__name__}: {e}")
+                break
+            engine = getattr(mod, attr, None)
+            check(engine is not None and hasattr(engine, func_name),
+                  f"{path.name}: after re-import pass {pass_no} (what Refresh "
+                  f"does) the inlined engine is gone -- the plugin would report "
+                  f"'engine MISSING' and every capability would fail.")
+            check(sys.modules.get(engine.__name__ if engine else "") is engine,
+                  f"{path.name}: re-import pass {pass_no} left sys.modules "
+                  f"pointing at a different {attr} than the plugin uses.")
+
 if failures:
     print(f"FAILED ({len(failures)})")
     for f in failures:
@@ -177,4 +259,6 @@ if failures:
     sys.exit(1)
 
 print("ok -- all shipped plugins import cleanly under an audit hook that denies "
-      "every filesystem write, and a denied log write cannot break a capability")
+      "every filesystem write, a denied log write cannot break a capability, no "
+      "capability imports anything for the first time inside the audit scope, "
+      "and re-importing a plugin (Refresh) leaves its inlined engine working")

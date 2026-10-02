@@ -6,6 +6,38 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.4.3 — 2026-10-02
+
+**Fixes the failure you get after pressing Refresh in the Plugins dialog**,
+where Wave Overhangs comes back fine and Unlayered Infill does not. Two
+causes, both in this plugin only, which is why only this one broke.
+
+1. **An import that happened inside OrcaSlicer's audit scope.** The engine
+   worked out your layer height with `statistics.multimode`, and it imported
+   `statistics` *the first time that line ran* — i.e. inside a capability
+   call. Orca's audit hook is off while a plugin is being imported and ON
+   during a capability call, where every file open is audited. A first-use
+   import inside that scope is an audited read of a file the plugin never
+   declared; it is the same shape as the numpy failure in OrcaSlicer issue
+   #15944. `statistics` is now imported at module load with everything else,
+   where the hook is not watching. See docs/ORCA-PLUGIN-FACTS.md, "The audit
+   hook".
+
+2. **Re-importing the plugin could destroy its own engine.** Refresh re-runs
+   discovery and imports the plugin module again in the same interpreter.
+   The old code published an empty `nonplanar_core` into `sys.modules`
+   *before* executing the engine into it, and removed it on failure — so a
+   second pass could replace a working engine with nothing and leave the
+   plugin reporting "engine MISSING". The new module is now built off to one
+   side and published only once it has executed cleanly; if it cannot, the
+   engine that already worked is kept.
+
+Also: when the engine genuinely cannot load, the reason is now printed in
+Check setup and in the failure message, instead of a bare "MISSING".
+
+No change to the G-code this plugin produces. The stamp version moves to
+v0.4.3 with the release, as always.
+
 ## 0.4.2 — 2026-10-02
 
 **The missing settings now repair themselves.** If `pattern`, `shape`,

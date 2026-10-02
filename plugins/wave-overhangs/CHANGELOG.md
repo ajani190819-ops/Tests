@@ -22,6 +22,21 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.34 — 2026-10-02
+
+**Preventive, no change to the waves.** Unlayered Infill 0.4.3 fixed two
+import-time hazards; both patterns existed here too, and are now closed
+before they can bite.
+
+* `wave_core` registered an empty module in `sys.modules` before the engine
+  was executed into it, and removed it on failure. Pressing Refresh in the
+  Plugins dialog re-imports the plugin in the same interpreter, so a second
+  pass could have replaced a working engine with nothing. The replacement is
+  now built aside and published only after a clean exec.
+* `_pt()` did `from shapely.geometry import Point` on first use — inside a
+  capability call, where Orca's audit hook watches every file open. `Point`
+  now comes from the module-level shapely import that was already there.
+
 ## 0.0.33 — 2026-10-02
 
 **A settings panel left over from an older build now repairs itself.**

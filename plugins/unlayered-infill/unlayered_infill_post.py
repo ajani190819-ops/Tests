@@ -38,7 +38,7 @@ import argparse
 import os
 import sys
 
-TOOL_VERSION = "0.4.2"
+TOOL_VERSION = "0.4.3"
 
 # =============================================================================
 # ENGINE -- verbatim copy of the `nonplanar_core` source inlined in
@@ -96,6 +96,14 @@ PrusaSlicer writes `;TYPE:Internal infill`, Orca `;TYPE:Sparse infill`.
 import bisect
 import math
 import re
+# Imported HERE, at module load, and never lazily inside a capability call.
+# OrcaSlicer's audit hook is off while a plugin module is being imported and
+# ON during a capability call, where every file open is audited. A first-use
+# `import statistics` inside the export step would therefore be an audited
+# read of the stdlib from inside the audit scope -- the same shape as the
+# numpy failure in OrcaSlicer issue #15944. See docs/ORCA-PLUGIN-FACTS.md,
+# "The audit hook".
+from statistics import multimode
 
 TYPE_PREFIX = ";type:"
 INFILL_MARKERS = ("internal infill", "sparse infill")
@@ -167,7 +175,7 @@ DEFAULT_MAX_LIFT_MM = 0.0    # 0 = no clamp
 # upload are separate calls), and waving an already-waved file would double
 # every displacement.
 MARKER_PREFIX = "; unlayered-infill"
-MARKER_VERSION = "0.4.2"
+MARKER_VERSION = "0.4.3"
 MARKER = f"{MARKER_PREFIX} v{MARKER_VERSION} (non-planar sparse infill)\n"
 
 _WORD = re.compile(r"([A-Za-z])\s*([-+]?\d*\.?\d+)")
@@ -236,7 +244,6 @@ def detect_layer_height(lines):
             if m and "first_layer" not in line:
                 config_lh = float(m.group(1))
     if heights:
-        from statistics import multimode
         return max(multimode(heights))
     return config_lh
 

@@ -4,14 +4,32 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02, updater **2.1.0** — `Orca-Plugins.bat` is
+* **Last updated:** 2026-10-02 — **Unlayered Infill 0.4.3 / Wave Overhangs
+  0.0.34**, the "press Refresh and Unlayered Infill fails" report. Two
+  defects, both found in Unlayered Infill and both pre-emptively closed in
+  Wave Overhangs: (1) a lazy `from statistics import multimode` inside the
+  export capability, i.e. a first-use import inside Orca's per-call audit
+  scope (issue #15944 shape); `traceback` was the same mistake on the error
+  path. (2) the inlined-engine registration popped its module from
+  `sys.modules` on failure, so a second import — which is exactly what
+  Refresh does — could replace a working engine with nothing and leave
+  "engine MISSING". Both are now guarded by `tests/test_plugin_audit.py`,
+  which statically forbids any import below module level (including inside
+  the inlined engine sources) and re-imports each plugin three times.
+  **Related fact learned the hard way:** an inlined engine MUST be published
+  in `sys.modules` BEFORE it is exec'd — `wave_core` uses `@dataclass` with
+  `from __future__ import annotations`, and dataclasses resolves those
+  strings through `sys.modules[cls.__module__].__dict__`. Exec'ing into an
+  unpublished module raises `AttributeError: 'NoneType' object has no
+  attribute '__dict__'`.
+* **Previously:** 2026-10-02, updater **2.1.0** — `Orca-Plugins.bat` is
   the ONE updater file and the only .bat in the repository: menu, build
   picker, OrcaSlicer folder picker, remembered choices, install engine,
   self-update. At 2.1.0 the two old filenames (`Update-Orca-Plugins.bat`,
   `Choose-Orca-Plugin-Version.bat`) were removed at the owner's request so
   the repository shows exactly one updater file; copies on disk keep working
   (an old launcher self-updates into the unified file). Plugin versions
-  unchanged: Wave 0.0.33, Unlayered Infill 0.4.2.
+  at that point: Wave 0.0.33, Unlayered Infill 0.4.2.
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0fd3b-tests`. Never switch branches or push to
   `main`. (The branch is different every session — use the one you were
@@ -28,7 +46,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.33, Unlayered Infill 0.4.2,
+* **Current versions:** Wave Overhangs 0.0.34, Unlayered Infill 0.4.3,
   updater **2.1.0** — one file, `Orca-Plugins.bat`, the only .bat in the
   repository; the launcher (1.0.1) and engine (1.4.0) version histories
   ended by merging into it. PR #7 carries it; test it from the branch before

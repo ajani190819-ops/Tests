@@ -22,6 +22,46 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-02 — Unlayered Infill 0.4.3 / Wave Overhangs 0.0.34: the Refresh failure
+
+> "If I click refresh on the plugins page in Orca Slicer the Wave Overhangs
+> is fine but then the Unlayered Infill will fail."
+
+Two defects, both specific to Unlayered Infill, which is why Wave Overhangs
+survived the same Refresh.
+
+* **A lazy stdlib import inside a capability call.** The engine's
+  `detect_layer_height()` did `from statistics import multimode` on first
+  use, which is inside `psGCodePostProcess` — inside Orca's per-call audit
+  scope, where every file open is audited. `docs/ORCA-PLUGIN-FACTS.md` has
+  said since the numpy/#15944 investigation that every import must happen at
+  module load time, and this one had slipped through because `statistics` is
+  stdlib and looked harmless. It is now a top-level import in the engine.
+* **Re-import could destroy the engine.** Refresh imports the plugin module
+  again in the same interpreter. The module published an empty
+  `nonplanar_core` into `sys.modules` before exec'ing the engine into it and
+  popped it on failure, so a second pass could leave a previously working
+  engine replaced by nothing — "engine MISSING", every capability failing.
+  The replacement module is now built aside and published only after a clean
+  exec; otherwise the working engine is kept. When the engine really cannot
+  load, Check setup now prints the exception instead of a bare "MISSING".
+
+Wave Overhangs 0.0.34 is the same two patterns closed preventively: its
+`wave_core` registration got the same aside-then-publish treatment, and
+`_pt()`'s lazy `from shapely.geometry import Point` now comes from the
+module-level import. Its output is unchanged.
+
+Guarded by a new case in `tests/test_plugin_audit.py`: a capability call must
+not import any module that was not already imported at plugin load, and the
+plugin must survive being imported repeatedly. Not verified in a real
+OrcaSlicer — the reproduction is the audit/refresh model in the tests.
+
+**Not** a fix for the stale Config panel; that is a separate thing and the
+mechanism is written up in `plugins/unlayered-infill/CHANGELOG.md` 0.4.2 and
+in `docs/ORCA-PLUGIN-FACTS.md`, "Capability configuration".
+
+---
+
 ## 2026-10-02 — updater 2.1.0: only one .bat left in the repository
 
 > "All three iterations of the updater are still visible from the main
