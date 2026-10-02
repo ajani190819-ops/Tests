@@ -1,3 +1,31 @@
+## 2026-10-02 — nozzle clearance, the post-wave "scanning", and a home for test prints
+
+Wave Overhangs **0.0.41**, Unlayered Infill **0.4.8**.
+
+**The nozzle "scanning across the print" after the waves is fixed.** It was
+not gap filling. Each covered bridge move was replaced by a comment and a
+travel to where it used to start, so the nozzle re-traced the original
+bridge raster in mid-air -- 63 travels for 11 extrusions. Consecutive
+travels now collapse to the one that matters: 206 to 151 on the Cube export,
+with extrusion identical to the digit.
+
+**Unlayered Infill now checks the nozzle cannot drag through what it has
+already printed.** The finished file is walked in print order, remembering
+the highest material in each XY cell; anything passing below it is reported
+with the place and the depth. Threshold "auto" is 1.25 layer heights, which
+is quiet at the shipped amplitude (0.23 mm of deliberate keying) and
+reports 400% (0.46 mm) and above. `collision_check: warn | refuse | off`.
+
+**`test-prints/` exists now**, with a README on what to put in it and a
+`notes.md` per model saying what to look at. Cube^2 has been copied in.
+
+**Still open, waiting on files**: the jagged wall snapping on curved
+perimeters. Drop that export into `test-prints/` and I will work from it --
+the synthetic rounded-corner case in the suite does not reproduce what the
+photo shows.
+
+---
+
 ## 2026-10-02 — curves no longer cost hundreds of moves (Wave Overhangs 0.0.40)
 
 > "There's certain points where a curve will have way more lines than it

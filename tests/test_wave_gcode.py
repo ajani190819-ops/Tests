@@ -1579,3 +1579,51 @@ print(f"ok -- point density: the rounded-corner case now draws its waves in "
       f"{corner_moves} moves over {corner_mm:.0f} mm (was 1048 for the same "
       f"path, with single fronts of 132 moves over 28 mm); no front exceeds "
       f"{worst[0] / max(worst[1], 1e-9):.1f} moves/mm")
+
+
+# ---------------------------------------------------------------------------
+#  no pointless travels after the waves (0.0.41)
+# ---------------------------------------------------------------------------
+# The owner: "when the waves are done printing the nozzle kind of seems to
+# scan its way across the print... in the G-code it said something about
+# replacing bridges when that shouldn't be there because all the waves have
+# already been printed."
+#
+# It was not gap filling. Every original bridge move the waves covered was
+# replaced by a comment AND a travel to where that move started, so after the
+# wave block the nozzle traced the whole original bridge raster in mid-air:
+# 63 travels for 11 extrusions on this export. G0 states absolute X and Y, so
+# only the last travel in a run does anything.
+def after_first_wave_block(text):
+    lines = text.splitlines()
+    start = next(i for i, l in enumerate(lines) if "WAVE OVERHANG END" in l)
+    tail = []
+    for line in lines[start + 1:]:
+        if line.startswith(";Z:") or "WAVE OVERHANG BEGIN" in line:
+            break
+        tail.append(line)
+    return tail
+
+
+tail = after_first_wave_block(ordered_out)
+travels = sum(1 for l in tail if l.startswith("G0"))
+extrusions = sum(1 for l in tail if l.startswith("G1 X") and " E" in l)
+assert travels <= extrusions + 6, (
+    f"{travels} travels for {extrusions} extrusions after the wave block -- "
+    f"the nozzle is scanning across the print again")
+# No two travels in a row anywhere in the regions this plugin rewrote.
+previous_travel = False
+for line in ordered_out.splitlines():
+    stripped = line.strip()
+    if stripped.startswith("G0") and " E" not in stripped:
+        assert not previous_travel or "MOVED WALL" in stripped, (
+            f"two travels in a row: {stripped}")
+        previous_travel = True
+    elif stripped and not stripped.startswith(";"):
+        previous_travel = False
+
+# Collapsing travels must not touch a single unit of extrusion.
+assert abs(total_e(ordered_out) - total_e(unordered_out)) < 1e-6
+print(f"ok -- travel collapsing: {travels} travel(s) for {extrusions} "
+      f"extrusion(s) after the first wave block (was 63 for 11), no two "
+      f"travels in a row, extrusion untouched")

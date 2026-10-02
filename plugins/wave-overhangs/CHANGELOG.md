@@ -22,6 +22,27 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.41 — 2026-10-02
+
+* Fixes the nozzle appearing to "scan its way across the print" after the
+  waves are finished. Every original bridge move the waves covered was being
+  replaced by a comment AND a travel to where that move used to start, so
+  after the wave block the nozzle re-traced the entire original bridge
+  raster in mid-air: 63 travels for 11 extrusions on the Cube export.
+  Consecutive travels are now collapsed to the one that matters.
+
+G0 states absolute X and Y, so only the last travel in a run has any effect;
+the rest were pure wasted motion, wasted time, and an alarming preview. The
+collapse is deliberately narrow -- a run of travels is only touched when it
+contains one of this plugin's own comments, so G-code OrcaSlicer wrote
+(wipes, retract sequences, anything with its own meaning) is never
+rewritten. Measured on the Cube export: 206 travels to 151, extrusion
+identical to the digit at 320.55580 mm, same 2270 extruding moves.
+
+The "replacing bridges" comments you saw are correct and stay: they mark
+where an original move was removed because a wave now covers that ground.
+What was wrong was the travel next to each one.
+
 ## 0.0.40 — 2026-10-02
 
 * Fixes curves being drawn with far more moves than they need. A front that

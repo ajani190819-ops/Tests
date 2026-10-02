@@ -7,6 +7,8 @@
   "shape": "sine",
   "layer_phase": 0.0,
   "max_lift_mm": "auto",
+  "collision_check": "warn",
+  "nozzle_clearance": "auto",
   "require_relative_e": true,
   "segment_mm": "auto",
   "cell_mm": "auto",

@@ -6,6 +6,36 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.4.8 — 2026-10-02
+
+* New: a nozzle-clearance check. This plugin prints one layer at several Z
+  heights, so a later move can pass underneath material already laid down.
+  The finished file is now walked in print order, remembering the highest
+  material in each small XY cell, and anything that passes below it is
+  reported with the exact place and depth.
+* collision_check: warn (default) | refuse | off, and nozzle_clearance:
+  "auto" or millimetres.
+
+**Why it is measured rather than reasoned about.** Within one wave the
+displacement is a function of position, so two moves crossing at the same XY
+always agree on Z and cannot collide. The hazard is between the waved region
+and everything flat around and above it -- perimeters, solid skin, and above
+all the next layer running into a crest. Walking the output catches all of
+those regardless of which feature caused them.
+
+**The threshold is calibrated, not zero.** This plugin exists to make layers
+key into each other, so the nozzle grazing a crest it laid down earlier is
+the feature working. "auto" is 1.25 layer heights: the shipped 200%
+amplitude measures 0.23 mm of interference and stays quiet, 400% measures
+0.46 mm and is reported, 800% measures 0.92 mm. A check that fires on every
+print would be ignored, which is the same as not having one.
+
+**warn is the default.** The author of a part is better placed than this
+plugin to decide whether a few hundredths of interference matters on their
+machine -- but they cannot decide it if nobody tells them. Set
+collision_check to refuse to have the export stop instead, leaving the
+G-code untouched.
+
 ## 0.4.7 — 2026-10-02
 
 * Fixes "The preset stores invalid plugin capability configuration JSON."

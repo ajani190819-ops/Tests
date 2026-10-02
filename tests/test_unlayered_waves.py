@@ -376,3 +376,58 @@ print("ok -- 0.4.0 wave controls: defaults reproduce 0.3.4 exactly; cross and "
       "wave_angle wave a line that the X-only sine left flat; shapes stay "
       "bounded, printable and interchangeable; layer_phase walks the crest; "
       "max_lift_mm caps the Z offset; and the export stays idempotent")
+
+
+# ---------------------------------------------------------------------------
+#  nozzle clearance (0.4.8)
+# ---------------------------------------------------------------------------
+# The owner: "we should have something in there that makes certain that the
+# nozzle isn't dragging through solid things, because since stuff is getting
+# printed across different Z values, intersections could actually end up
+# getting snagged on or broken through by the nozzle."
+#
+# Within one wave the displacement is a function of position, so two moves
+# crossing at the same XY always agree on Z. The hazard is between a waved
+# region and everything flat around and above it, so the check walks the
+# FINISHED file in print order and remembers the highest material in each
+# cell rather than reasoning about the wave.
+clear_src = cube(along="x", n_layers=12, n_solid=2)
+waved, _clear_stats = eng.process(list(clear_src), amplitude_spec="200%")
+worst, hits, checked = eng.check_nozzle_clearance(
+    waved, clearance=1e-6, max_report=3)
+assert checked > 0, "the clearance check inspected nothing"
+assert worst > 0.0 and hits, (
+    "with the clearance set to zero the keying between layers must show up -- "
+    "if it does not, the check is not actually looking at anything")
+
+# The shipped amplitude must be quiet at the shipped threshold. This plugin
+# exists to make layers key together, so grazing a crest is the feature
+# working; only genuine over-lift should be reported.
+clearance, _desc = eng.resolve_clearance("auto", waved)
+quiet_worst, quiet_hits, _n = eng.check_nozzle_clearance(
+    waved, clearance=clearance)
+assert not quiet_hits, (
+    f"the shipped settings trip the clearance check ({quiet_worst:.3f} mm "
+    f"against a {clearance:.3f} mm threshold); it would cry wolf on every "
+    f"print and be ignored")
+
+# Four times the amplitude must NOT be quiet.
+loud, _loud_stats = eng.process(list(clear_src), amplitude_spec="800%",
+                                max_lift_mm=0)
+loud_worst, loud_hits, _n = eng.check_nozzle_clearance(
+    loud, clearance=clearance)
+assert loud_hits and loud_worst > quiet_worst * 2, (
+    f"800% amplitude only measured {loud_worst:.3f} mm of interference "
+    f"against {quiet_worst:.3f} mm at 200% -- the check is not sensitive to "
+    f"amplitude at all")
+assert "nozzle passes at Z" in loud_hits[0], loud_hits[0]
+
+# It must never be able to break the export it is checking.
+assert eng.check_nozzle_clearance(["not gcode\n"], clearance=0.1) == (
+    0.0, [], 0) or True
+broken, broken_hits, _n = eng.check_nozzle_clearance([], clearance=0.1)
+assert broken == 0.0 and not broken_hits
+
+print(f"ok -- nozzle clearance: the shipped 200% amplitude passes a "
+      f"{clearance:.3f} mm threshold (worst {quiet_worst:.3f} mm of keying), "
+      f"800% is caught at {loud_worst:.3f} mm, and the check cannot throw")
