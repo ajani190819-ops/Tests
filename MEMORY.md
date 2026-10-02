@@ -21,7 +21,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.29, Unlayered Infill 0.4.0,
+* **Current versions:** Wave Overhangs 0.0.30, Unlayered Infill 0.4.0,
   updater 1.4.0, launcher (`Orca-Plugins.bat`) 1.0.1.
 * **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
   numbers must remain out of package and capability names.
@@ -209,7 +209,7 @@ or a printer.
 ## What remains to do
 
 1. Install this branch with the launcher and confirm both plugin versions in
-   Orca's separate Version column: Wave Overhangs 0.0.29, Unlayered Infill
+   Orca's separate Version column: Wave Overhangs 0.0.30, Unlayered Infill
    0.4.0.
 2. **Try the new Unlayered Infill wave controls on a real slice.** The most
    valuable single test: print the same part twice, once with
@@ -218,7 +218,7 @@ or a printer.
    `shape = "square"` does not cause audible Z chatter at the ramps on the
    owner's machine — it is the shape most likely to.
 3. Re-print the same part with 0.0.22 and photograph the same corner: the
-   0.22 mm^2 void should be gone. `Cube_39m10s.gcode` in the repo root is the
+   0.22 mm^2 void should be gone. `archive/test-prints/Cube_39m10s.gcode` is the
    0.0.20 print it is being compared against.
 3a. Turn **Arc fitting** on in the print profile for that export, so the
    arc paths get exercised in real Orca and real firmware. Check the printer
@@ -234,6 +234,48 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-02 — Wave 0.0.30: bridge speed by default, and a repo tidy-up
+
+Two owner instructions: "make the speed whatever i set the bridge speed (10)
+to in orca, same as any other bridge", and "organize the repo, archiving old
+files and info or test prints an gcode. i need everything cleaned up".
+
+**`print_speed` now defaults to `"orca"`.** 0.0.29 made following the
+profile's bridge speed possible; 0.0.30 makes it the default. A number still
+overrides, and `_print_speed_fallback()` still returns 2.0 when a section has
+no readable feedrate. The owner's bridge speed is now **10 mm/s** (it read
+20 mm/s in the export they uploaded). Predicted totals for their part:
+0.0.27 as printed 103.9 min; at 2 mm/s 71.5; at 5 36.2; **at 10 24.5**; at
+20 18.6. Arithmetic only — still nothing verified on hardware.
+
+The `_print_speed` note in the config panel was rewritten: it now frames the
+setting as the thing to turn *down* if an overhang droops, and explains that a
+wave may need to be slower than a bridge at the same number because a bridge
+is anchored at both ends and held by tension while a wave line is
+cantilevered into open air.
+
+Two test updates were needed, both legitimate rather than papering over:
+`test_wave_gcode.py` now asserts the stock config matches an explicit
+`"orca"` and that an explicit `2.0` still overrides; `test_plugin_runtime.py`
+expected `(default 2.0)` in the settings guide and now expects
+`(default "orca")`, plus a new check that an unchanged default is not tagged
+as user-modified.
+
+**Repo tidy-up.** The root had 3.6 MB of loose exports. Moved with `git mv`
+(history preserved) to **`archive/test-prints/`**: `Cube.stl`,
+`Cube_39m10s.gcode`, `test print.stl`, `test print.3mf`,
+`test print_19m50s.gcode` and the OrcaSlicer debug log. Nothing deleted.
+`archive/test-prints/README.md` records what each file is and what was
+measured from it, so the evidence behind the 0.0.28/0.0.29 numbers stays
+re-checkable. `archive/README.md` gained an index; `README.md` gained a
+"Where everything lives" table; the two "in the repo root" references in this
+file now point at the new path.
+
+**No code reads any of those files** — the only fixture the tests use is
+`tests/fixtures/Cube^2_3m53s.gcode`, which did not move — so the suite was
+unaffected by the move. Root is now just the three `.bat` files,
+`plugins.json`, four Markdown documents and the six folders.
 
 ### 2026-10-02 — Wave 0.0.29: print_speed can follow Orca's bridge speed
 
@@ -533,7 +575,7 @@ output was punishing everything downstream.
 
 The owner printed the part with 0.0.20, photographed the first layer from
 below, circled two areas and uploaded the export (`Cube_39m10s.gcode`, now in
-the repo root along with `Cube.stl`). Having the real file meant both could be
+`archive/test-prints/` along with `Cube.stl`). Having the real file meant both could be
 measured instead of guessed at.
 
 **The corner was real.** Reconstructing that layer (index 45, z 13.8) and

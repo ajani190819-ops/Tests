@@ -388,8 +388,8 @@ with tempfile.TemporaryDirectory() as tmp:
               f"Wave capability identities changed: {names}")
         check(not any(ch.isdigit() for ch in "".join(names)),
               f"a version leaked into a capability name: {names}")
-        check(wave.PLUGIN_VERSION == "0.0.29",
-              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.29")
+        check(wave.PLUGIN_VERSION == "0.0.30",
+              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.30")
 
         # The active Wave implementation is deliberately G-code-only. Its
         # source must not retain the removed slice-object planner, host Polygon
@@ -473,8 +473,14 @@ with tempfile.TemporaryDirectory() as tmp:
         guide_text = "\n".join(guide)
         unexplained = [k for k in wave._DEFAULTS if f"\n{k} = " not in "\n" + guide_text]
         check(not unexplained, f"settings missing from the printed guide: {unexplained}")
-        check("print_speed = 5.0   (default 2.0)" in guide_text,
+        check('print_speed = 5.0   (default "orca")' in guide_text,
               "the guide must show the value in force and flag a changed one")
+        # The stock config follows Orca's bridge speed, and the guide must not
+        # label the default as if it were a change the user made.
+        stock_guide = "\n".join(wave.settings_guide_lines(dict(wave._DEFAULTS)))
+        check('print_speed = "orca"' in stock_guide
+              and "print_speed = \"orca\"   (default" not in stock_guide,
+              "the guide should show the unchanged default without a (default ...) tag")
         longest = max(len(line) for line in guide)
         check(longest <= 72,
               f"guide lines must stay readable in Orca's message box, got {longest}")
@@ -506,7 +512,7 @@ with tempfile.TemporaryDirectory() as tmp:
               "Diagnostics" in result.message,
               f"dependency failure does not give a complete beginner-safe fix: {result.message!r}")
         log = read_log(logs)
-        check("Wave Overhangs v0.0.29 loaded" in log and "MISSING" in log,
+        check("Wave Overhangs v0.0.30 loaded" in log and "MISSING" in log,
               f"Wave dependency state was not logged clearly:\n{log}")
         pipeline = orca.REGISTERED[0]()
         result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))

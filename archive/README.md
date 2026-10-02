@@ -10,6 +10,14 @@ work is not lost and can be read or revived later.
 * `plugins/wave-overhangs/` — Wave Overhangs
 * `plugins/unlayered-infill/` — Unlayered Infill
 
+## What is in here
+
+| Folder | What it is |
+| --- | --- |
+| [`wave-overhangs-geometry/`](wave-overhangs-geometry) | the retired third plugin, last at 0.1.4 |
+| [`tests/`](tests) | that plugin's regression test |
+| [`test-prints/`](test-prints) | real exports, models and logs from the owner's printer, kept as evidence |
+
 ---
 
 ## `wave-overhangs-geometry/` — Wave Overhangs Geometry (archived 2026-10-02)
@@ -59,3 +67,23 @@ normal verification run in `AGENTS.md`; nothing in `plugins/` depends on it.
 3. Add it back to the `PLUGINS` lists in `tools/sync_changelog.py` and
    `tests/test_plugin_audit.py`.
 4. Move the test back to `tests/` and fix the two paths at the top of it.
+
+---
+
+## `test-prints/` — real exports kept as evidence (archived 2026-10-02)
+
+Actual files from the owner's printer and OrcaSlicer: two sliced parts, their
+models, and a debug log. They are **not** test fixtures — nothing in `tests/`
+reads them and no code depends on them. They are kept because changelog and
+`MEMORY.md` entries cite measurements taken from them, and those numbers
+cannot be re-checked without the files.
+
+The most important one is `test print_19m50s.gcode`, the export behind the
+0.0.28 and 0.0.29 work: it is where the 32.9 wasted minutes, the 342
+feedrate-less moves and the 7.62 g total were all measured.
+
+See [`test-prints/README.md`](test-prints/README.md) for what each file is and
+what was learned from it.
+
+The fixture the automated tests *do* use is `tests/fixtures/Cube^2_3m53s.gcode`
+and it has not moved.

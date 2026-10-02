@@ -22,6 +22,54 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-02 — Wave 0.0.30, and a tidy-up of the whole repository
+
+Two owner requests in one pass: *"make the speed whatever i set the bridge
+speed (10) to in orca, same as any other bridge"*, and *"organize the repo,
+archiving old files and info or test prints and gcode"*.
+
+### Wave Overhangs 0.0.29 → 0.0.30
+
+`print_speed` now **defaults** to `"orca"`. In 0.0.29 following the profile's
+bridge speed was opt-in; now it is simply the behaviour, so waves print at the
+same speed as any other bridge on the part. A number in `print_speed` still
+overrides it, and a section with no readable feedrate still falls back to
+2 mm/s.
+
+With the owner's bridge speed of 10 mm/s their part is predicted to drop from
+**103.9 min to 24.5 min**. (2 mm/s → 71.5, 5 → 36.2, 10 → 24.5, 20 → 18.6.)
+Arithmetic on the G-code; not verified on hardware.
+
+The in-Orca note for the setting was rewritten accordingly: it now explains
+that this is the dial to turn *down* if an overhang droops, and why a wave can
+need to be slower than a bridge at the same setting — a bridge is anchored at
+both ends and held up by tension, a wave line is cantilevered into open air at
+one end.
+
+### Repository tidy-up
+
+The repo root had accumulated 3.6 MB of loose `.gcode`, `.stl`, `.3mf` and log
+files. They are now in **`archive/test-prints/`**, moved with `git mv` so the
+history follows them, with a README explaining what each file is and what was
+measured from it. Nothing was deleted.
+
+The root is now only: the three `.bat` files, `plugins.json`, the four
+Markdown documents, and the `plugins/ tools/ tests/ docs/ archive/
+keyboard-lighting/` folders.
+
+* `archive/README.md` gained an index of what is in the archive and a section
+  on `test-prints/`.
+* `README.md` gained a **"Where everything lives"** table covering every
+  top-level path.
+* The two places in `MEMORY.md` that said these files were "in the repo root"
+  now point at `archive/test-prints/`.
+
+No code moved and no test reads any of these files, so the suite is unaffected.
+The fixture the tests *do* use, `tests/fixtures/Cube^2_3m53s.gcode`, has not
+moved.
+
+---
+
 ## 2026-10-02 — Wave Overhangs 0.0.29: follow Orca's own bridge speed
 
 **`plugins/wave-overhangs/`:** 0.0.28 → 0.0.29. Owner request, straight after

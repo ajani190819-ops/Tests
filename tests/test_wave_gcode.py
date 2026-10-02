@@ -1042,7 +1042,10 @@ assert expected_f in orca_block_feeds, (
     f"the fixture's dominant bridge feedrate F{expected_f:.0f} was not used "
     f"by any wave block; got {sorted(orca_block_feeds)}")
 
-# ...and the default must be untouched by the new option.
+# ...and from 0.0.30 "orca" IS the default, so a stock config must already be
+# following the export's bridge speed rather than the old 2 mm/s.
+assert wave._DEFAULTS["print_speed"] == "orca", (
+    "print_speed should default to following Orca's bridge speed")
 default_block_feeds = set()
 inside = False
 for raw in out.splitlines():
@@ -1055,8 +1058,28 @@ for raw in out.splitlines():
         continue
     if inside and s.startswith("G1 F"):
         default_block_feeds.add(float(s.split()[1][1:]))
-assert default_block_feeds == {120.0}, (
-    f"default print_speed must stay 2 mm/s (F120), got {sorted(default_block_feeds)}")
+assert default_block_feeds == orca_block_feeds, (
+    f"the stock config should match an explicit print_speed='orca': "
+    f"{sorted(default_block_feeds)} vs {sorted(orca_block_feeds)}")
+assert 120.0 not in default_block_feeds, (
+    "the stock config is still falling back to the old 2 mm/s default")
+
+# An explicit number must still win over the profile's bridge speed.
+fixed_out, _fixed_stats = wave._gcode_wave_rewrite(source, dict(cfg, print_speed=2.0))
+fixed_feeds = set()
+inside = False
+for raw in fixed_out.splitlines():
+    s = raw.strip()
+    if s == "; ==== WAVE OVERHANG BEGIN ====":
+        inside = True
+        continue
+    if s == "; ==== WAVE OVERHANG END ====":
+        inside = False
+        continue
+    if inside and s.startswith("G1 F"):
+        fixed_feeds.add(float(s.split()[1][1:]))
+assert fixed_feeds == {120.0}, (
+    f"an explicit print_speed=2.0 must override the profile, got {sorted(fixed_feeds)}")
 
 # A junk value must fall back to the safe default rather than crash or run fast.
 junk_out, _junk_stats = wave._gcode_wave_rewrite(
@@ -1076,5 +1099,6 @@ for raw in junk_out.splitlines():
 assert junk_feeds == {120.0}, (
     f"an unparseable print_speed must fall back to the 2 mm/s default, got {sorted(junk_feeds)}")
 
-print(f"ok -- print_speed='orca' follows the export's own bridge feedrate "
-      f"(F{expected_f:.0f}), the default stays F120, and junk falls back to F120")
+print(f"ok -- print_speed defaults to 'orca' and follows the export's own "
+      f"bridge feedrate (F{expected_f:.0f}); an explicit number still overrides it, "
+      f"and junk falls back to F120")

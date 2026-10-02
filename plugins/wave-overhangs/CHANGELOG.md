@@ -22,6 +22,42 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.30 — 2026-10-02
+
+Waves now print at your bridge speed by default, like any other bridge.
+
+* **`print_speed` now defaults to `"orca"`.** In 0.0.29 this was something you
+  had to opt into; the owner asked for it to simply be the behaviour. Set your
+  bridge speed in OrcaSlicer (Print Settings > Speed) and the waves use it,
+  the same as every other bridge on the part. Change it later and the waves
+  follow — the plugin reads it out of the exported G-code each time, section
+  by section, so nothing is baked in and nothing needs copying across.
+
+  Put a number in `print_speed` to override it, in mm/s. If a section has no
+  readable feedrate the plugin still falls back to 2 mm/s rather than guessing.
+
+  With the owner's bridge speed of 10 mm/s, their part is predicted to go from
+  **1h44m to about 24 minutes**:
+
+  | bridge speed | predicted total |
+  |---|---|
+  | 0.0.27, as actually printed | 103.9 min |
+  | 2 mm/s (the old default) | 71.5 min |
+  | 5 mm/s | 36.2 min |
+  | **10 mm/s (the owner's setting)** | **24.5 min** |
+  | 20 mm/s | 18.6 min |
+
+* **If your overhang droops, slow the bridge speed down.** Now that waves
+  follow your profile, this is the dial, and it is worth knowing why a wave
+  may need to be slower than a normal bridge: a bridge is anchored at *both*
+  ends, so tension holds the strand up while it cools, but a wave line is
+  cantilevered into open air and held at one end only. Nothing stops it
+  sagging except cooling fast enough to hold its own shape. If you see droop
+  or stringing, put a number in `print_speed` — try 5, or 2 for a bad
+  overhang — rather than slowing your whole profile down.
+
+  These timings are arithmetic on the G-code. No physical print has been run.
+
 ## 0.0.29 — 2026-10-02
 
 `print_speed` can now follow the bridge speed in your own Orca profile.
