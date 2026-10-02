@@ -73,17 +73,20 @@ These are the owner's explicit expectations for how AI assistance goes:
 ## 3. Repo map
 
 ```
-Orca-Plugins.bat            THE ONE FILE A USER DOWNLOADS. The launcher: a menu
-                            over the updater, remembers the chosen build and
-                            Orca folder, and hands over to a newer copy of
-                            itself rather than overwriting itself mid-run.
-Update-Orca-Plugins.bat     the install engine the launcher runs. Keeps its old
-                            name and URL on purpose: copies already on disk
-                            check that exact address for their own updates.
-                            Still works standalone.
-Choose-Orca-Plugin-Version.bat
-                            the old version picker, now a short forwarder to
-                            Orca-Plugins.bat so existing shortcuts keep working.
+Orca-Plugins.bat            THE ONE FILE A USER DOWNLOADS, the whole updater
+                            since 2.0.0, and the ONLY .bat in the repository
+                            since 2.1.0: the menu, the build picker (main or
+                            the five newest test branches), the OrcaSlicer
+                            folder picker, the remembered choices, the
+                            install engine and self-update all live in it.
+                            It hands over to a newer copy of itself rather
+                            than overwriting itself mid-run. The old
+                            Update-Orca-Plugins.bat and
+                            Choose-Orca-Plugin-Version.bat filenames were
+                            removed at 2.1.0 at the owner's request; copies
+                            on disk keep working (an old launcher
+                            self-updates into this file), so do not
+                            reintroduce them without the owner asking.
 plugins.json                the catalogue the updater reads (what + where + version)
 AGENTS.md                   this rulebook
 MEMORY.md                   handoff: state of the work + session log. Read at the
@@ -130,10 +133,12 @@ you forget, and it is the safety net for exactly this.
 
 1. **The repo must stay public.** The updater makes unauthenticated
    raw.githubusercontent.com downloads; a private repo 404s every file.
-2. **`Update-Orca-Plugins.bat` must stay CRLF.** All lines, byte-exact.
+2. **`Orca-Plugins.bat` must stay CRLF.** All lines, byte-exact.
    `*.bat -text` in `.gitattributes` keeps git from re-normalizing it. Never
    edit it with tools that convert line endings (Python `Path.write_text`
-   does — use binary mode). After editing, assert the CRLF count.
+   does — use binary mode). After editing, assert the CRLF count. It is the
+   only .bat in the repository; `tests/test_installer.py` fails if a second
+   top-level .bat appears.
 3. **Version bumps take edits in lockstep.** Update the plugin's PEP 723
    `# version = "..."` header, its module-level `PLUGIN_VERSION`, the catalogue
    entry, and the .bat fallback row. For Unlayered Infill also update
@@ -225,7 +230,7 @@ python3 tests/test_wave_gcode.py       # captured export; needs numpy + shapely
                                       # a pass; install them before claiming it.
 python3 tools/sync_engine.py --check   # the two engine copies are identical
 python3 tools/sync_changelog.py --check  # changelogs match the plugins
-git ls-files --eol Update-Orca-Plugins.bat   # must say i/crlf
+git ls-files --eol Orca-Plugins.bat   # must say i/crlf; it is the only .bat
 ```
 
 The .bat itself is Windows-only and cannot be executed in this sandbox. When
@@ -241,7 +246,10 @@ test; `data_dir()/log/python_*.log` holds the traceback if it fails.
 ## 6. Glossary (extend as needed)
 
 * **catalogue** — `plugins.json`: the list of plugins the updater can install.
-* **updater** — `Update-Orca-Plugins.bat`. Double-clickable Windows script.
+* **updater** — `Orca-Plugins.bat`. Double-clickable Windows script; menu,
+  build picker, folder picker and install engine in one file since 2.0.0,
+  and the only .bat in the repository since 2.1.0 (the old chooser/updater
+  filenames were removed then; copies already on disk keep working).
 * **PEP 723 header** — the `# /// script` comment block at the top of a
   plugin file; carries the plugin's name/version/dependencies.
 * **sidecar** — Orca's `.install_state.json` next to a plugin; says it is

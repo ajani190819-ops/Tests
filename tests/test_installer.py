@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
-"""Guard the contract between plugins.json and Update-Orca-Plugins.bat.
+"""Guard the contract between plugins.json and the unified updater.
 
     python3 test_installer.py
+
+Orca-Plugins.bat is the ONE updater file in the repository: menu, build
+picker, OrcaSlicer folder picker, remembered choices, and install engine all
+live in it. The old two-file split (chooser + updater engine) ended at
+2.0.0, and at 2.1.0 the old filenames were removed from the repository
+entirely -- this test asserts Orca-Plugins.bat is the only top-level .bat
+left, so the repository shows exactly one updater file.
 
 The .bat is Windows-only, so this cannot run it. What it CAN do is check the
 things that actually break in practice, none of which need Windows:
@@ -15,6 +22,8 @@ things that actually break in practice, none of which need Windows:
   * the .bat's built-in fallback list still matches the catalogue
   * the .bat keeps its CRLF line endings and .gitattributes keeps git from
     re-normalising them away (users download it from raw.githubusercontent.com)
+  * the menu, the build picker (main + the five newest branches), the folder
+    picker and the remembered choices are all present and wired together
   * a faithful replay of the install loop does the right thing: first run
     installs, second run overwrites, a copy parked under a different folder
     name gets updated too, a `_subscribed` cloud copy is left alone, and
@@ -32,9 +41,8 @@ import tempfile
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent
 MANIFEST = REPO / "plugins.json"
-BAT = REPO / "Update-Orca-Plugins.bat"
-CHOOSER = REPO / "Choose-Orca-Plugin-Version.bat"
-FRONTDOOR = REPO / "Orca-Plugins.bat"
+# The one file: menu + build picker + folder picker + install engine.
+BAT = REPO / "Orca-Plugins.bat"
 GATTR = REPO / ".gitattributes"
 
 failures: list[str] = []
@@ -314,53 +322,72 @@ check(re.search(r"(?m)^\*\.bat\s+-text\s*$", ga),
 # --------------------------------------------------------------------------
 bat_lines = raw.decode("utf-8", "replace").split("\r\n")
 
-bat_labels = {}
-for _i, _l in enumerate(bat_lines, 1):
-    _s = _l.strip()
-    if _s.startswith(":") and not _s.startswith("::") and re.match(r":\w+\s*$", _s):
-        bat_labels[_s[1:].strip().lower()] = _i
 
-bat_refs: dict[str, list[int]] = {}
-for _i, _l in enumerate(bat_lines, 1):
-    if _l.strip().lower().startswith("rem "):
-        continue
-    for _m in re.finditer(r"\b(?:goto|call)\s+:(\w+)", _l, re.I):
-        bat_refs.setdefault(_m.group(1).lower(), []).append(_i)
+def _static_bat_checks(path: pathlib.Path) -> None:
+    """Label and parenthesis analysis for one .bat. cmd.exe cannot be run
+    here, so a dead label or an unbalanced paren would otherwise only surface
+    on the user's machine."""
+    _lines = path.read_bytes().decode("utf-8", "replace").split("\r\n")
 
-_dangling = {k: v for k, v in bat_refs.items() if k not in bat_labels}
-check(not _dangling,
-      f"the .bat jumps to labels that do not exist: {_dangling}. On Windows "
-      f"that aborts the script mid-run.")
-check(not (set(bat_labels) - set(bat_refs)),
-      f"the .bat defines labels nothing jumps to: "
-      f"{sorted(set(bat_labels) - set(bat_refs))}")
+    _labels = {}
+    for _i, _l in enumerate(_lines, 1):
+        _s = _l.strip()
+        if _s.startswith(":") and not _s.startswith("::") and re.match(r":\w+\s*$", _s):
+            _labels[_s[1:].strip().lower()] = _i
 
-_bal = 0
-_neg = []
-for _i, _l in enumerate(bat_lines, 1):
-    _s = _l.strip().lower()
-    if _s.startswith("rem") or _s.startswith("::") or _s.startswith("echo"):
-        continue
-    _bal += re.sub(r'"[^"]*"', "", _l).count("(") - re.sub(r'"[^"]*"', "", _l).count(")")
-    if _bal < 0:
-        _neg.append(_i)
-check(_bal == 0 and not _neg,
-      f"unbalanced parentheses in the .bat (net {_bal}, negative at {_neg})")
+    _refs: dict[str, list[int]] = {}
+    for _i, _l in enumerate(_lines, 1):
+        if _l.strip().lower().startswith("rem "):
+            continue
+        for _m in re.finditer(r"\b(?:goto|call)\s+:(\w+)", _l, re.I):
+            _refs.setdefault(_m.group(1).lower(), []).append(_i)
+
+    _dangling = {k: v for k, v in _refs.items() if k not in _labels}
+    check(not _dangling,
+          f"{path.name}: jumps to labels that do not exist: {_dangling}. On "
+          f"Windows that aborts the script mid-run.")
+    check(not (set(_labels) - set(_refs)),
+          f"{path.name}: defines labels nothing jumps to: "
+          f"{sorted(set(_labels) - set(_refs))}")
+
+    _bal = 0
+    _neg = []
+    for _i, _l in enumerate(_lines, 1):
+        _s = _l.strip().lower()
+        if _s.startswith("rem") or _s.startswith("::") or _s.startswith("echo"):
+            continue
+        _bal += re.sub(r'"[^"]*"', "", _l).count("(") - re.sub(r'"[^"]*"', "", _l).count(")")
+        if _bal < 0:
+            _neg.append(_i)
+    check(_bal == 0 and not _neg,
+          f"{path.name}: unbalanced parentheses (net {_bal}, negative at {_neg})")
+
+    # Every version surface in the file must agree with itself. A `rem ... end`
+    # marker is what copies already on disk compare against, so a pair that
+    # disagrees makes a file hand over to itself forever.
+    _set_uv = re.findall(r"(?m)^set UPDATER_VERSION=(\S+)$", "\n".join(_lines))
+    _rem_uv = re.findall(r"(?m)^rem UPDATER_VERSION (\S+) end$", "\n".join(_lines))
+    check(len(_set_uv) <= 1 and len(_rem_uv) <= 1 and len(_set_uv) == len(_rem_uv),
+          f"{path.name}: expected at most one `set UPDATER_VERSION=` and one "
+          f"`rem UPDATER_VERSION <v> end` line; got {_set_uv} and {_rem_uv}")
+    if _set_uv and _rem_uv:
+        check(_set_uv[0] == _rem_uv[0],
+              f"{path.name}: the UPDATER_VERSION lines disagree: set={_set_uv[0]} "
+              f"rem={_rem_uv[0]}. :self_update compares the rem line, so a "
+              f"mismatch makes it hand over to itself forever.")
+        check(re.fullmatch(r"\d+\.\d+\.\d+", _set_uv[0]),
+              f"{path.name}: UPDATER_VERSION {_set_uv[0]!r} is not x.y.z")
+    _set_fv = re.findall(r'(?m)^set "FRONTDOOR_VERSION=([^"]+)"$', "\n".join(_lines))
+    _rem_fv = re.findall(r"(?m)^rem FRONTDOOR_VERSION (\S+) end$", "\n".join(_lines))
+    if _set_fv or _rem_fv:
+        check(len(_set_fv) == 1 and len(_rem_fv) == 1 and _set_fv[0] == _rem_fv[0],
+              f"{path.name}: the FRONTDOOR_VERSION markers must appear exactly "
+              f"once each and agree: set={_set_fv} rem={_rem_fv}")
+
+
+_static_bat_checks(BAT)
 
 # --- the self-updater ------------------------------------------------------
-_set_uv = re.findall(r"(?m)^set UPDATER_VERSION=(\S+)$", "\n".join(bat_lines))
-_rem_uv = re.findall(r"(?m)^rem UPDATER_VERSION (\S+) end$", "\n".join(bat_lines))
-check(len(_set_uv) == 1 and len(_rem_uv) == 1,
-      f"expected exactly one `set UPDATER_VERSION=` and one "
-      f"`rem UPDATER_VERSION <v> end` line; got {_set_uv} and {_rem_uv}")
-if len(_set_uv) == 1 and len(_rem_uv) == 1:
-    check(_set_uv[0] == _rem_uv[0],
-          f"the updater's two version lines disagree: set={_set_uv[0]} "
-          f"rem={_rem_uv[0]}. :self_update compares the rem line, so a "
-          f"mismatch makes it hand over to itself forever.")
-    check(re.fullmatch(r"\d+\.\d+\.\d+", _set_uv[0]),
-          f"UPDATER_VERSION {_set_uv[0]!r} is not x.y.z")
-
 _bat_text = "\n".join(bat_lines)
 _m_start = re.search(r"(?m)^:self_update$", _bat_text)
 _m_end = re.search(r"(?m)^:stage_tools$", _bat_text)
@@ -368,9 +395,11 @@ check(_m_start is not None, "the .bat has no :self_update routine")
 check(_m_end is not None, "the .bat has no :stage_tools routine")
 _su = _bat_text[_m_start.end():_m_end.start()] if (_m_start and _m_end) else ""
 for _guard, _why in (
-        ("ORCA_UPDATER_CHILD", "the new copy would self-update again, forever"),
+        ("ORCA_FRONTDOOR_CHILD", "a handover from an old launcher would self-update again, forever"),
+        ("ORCA_UPDATER_CHILD", "a handover from an old updater would self-update again, forever"),
         ("NO_SELF_UPDATE", "--no-self-update would be ignored"),
-        ("LOCAL_MODE", "--local would still hit the network")):
+        ("LOCAL_MODE", "--local would still hit the network"),
+        ("BRANCH_MODE", "test mode self-update could replace the strict updater with an older copy")):
     check(re.search(rf"(?m)^if defined {_guard} exit /b 0$", _su),
           f":self_update lost its `if defined {_guard} exit /b 0` line -- {_why}")
 
@@ -388,6 +417,18 @@ if _call_at != -1:
     check(_su[:_call_at].count("goto :su_skip") >= 3,
           "the verification bail-outs must all come BEFORE the handover, "
           "otherwise an unverified file gets executed first")
+# The unified updater must never hand a run back to the old two-file layout.
+# Before 2.0.0, main's Orca-Plugins.bat was the launcher alone and carries no
+# UPDATER_VERSION marker -- so while a unified build lives on a test branch
+# and main still holds the old layout, "a different version" can mean "an
+# older file". The handover must require the UPDATER_VERSION marker too:
+# proof the download is itself the one-file updater.
+_layout_guard = _su.find('findstr /b /c:"rem UPDATER_VERSION " "%NEWBAT%"')
+check(_layout_guard != -1 and _call_at != -1 and _layout_guard < _call_at,
+      ":self_update may hand over to a download without the UPDATER_VERSION "
+      "marker -- a unified copy running from a test branch would hand the "
+      "run back to main's old two-file launcher and quietly undo the "
+      "unification for that run")
 # A running .bat must never be overwritten in place: cmd.exe reads it by byte
 # offset and will execute garbage. The design deliberately delegates instead.
 check(not re.search(r"(?mi)^\s*(copy|move|xcopy)\b[^\r\n]*%~f0", "\n".join(bat_lines)),
@@ -493,18 +534,20 @@ if tool_dl:
           f"plugin staging folder. Use %TOOLDIR%.")
 
 # ---------------------------------------------------------------------------
-# 3e. the front door, branch isolation, and the old names still working
+# 3e. the one file -- and ONLY the one file
 # ---------------------------------------------------------------------------
-# Orca-Plugins.bat is the single file a user downloads. It owns the menu, the
-# version picker and the remembered choices; Update-Orca-Plugins.bat remains
-# the install engine underneath, reachable on its own URL so copies already on
-# disk keep self-updating.
-check(FRONTDOOR.exists(), "Orca-Plugins.bat, the single front door, is missing")
-front_raw = FRONTDOOR.read_bytes() if FRONTDOOR.exists() else b""
-front = front_raw.decode("utf-8", "replace")
-check(front_raw.count(b"\r\n") == front_raw.count(b"\n") > 0,
-      "Orca-Plugins.bat must use CRLF throughout")
-check(front_raw.endswith(b"\r\n"), "Orca-Plugins.bat does not end with CRLF")
+# Orca-Plugins.bat is the single file a user downloads: the menu, the build
+# picker, the OrcaSlicer folder picker, the remembered choices and the whole
+# install engine live in it. At 2.1.0 the two old filenames were removed
+# from the repository (the owner asked for the repo to show exactly one
+# updater file), so pin that: no second top-level .bat may appear.
+_top_bats = sorted(q.name for q in REPO.glob("*.bat"))
+check(_top_bats == ["Orca-Plugins.bat"],
+      f"the repository should ship exactly one top-level .bat -- "
+      f"Orca-Plugins.bat -- but found {_top_bats}. The old chooser/updater "
+      f"filenames were retired at 2.1.0; copies already on disk keep working "
+      f"(an old launcher self-updates into Orca-Plugins.bat), so nothing "
+      f"needs them back.")
 
 # A normal double-click must stay on released main, and only an explicit
 # choice may move off it.
@@ -512,74 +555,82 @@ check('set "REF_1=main"' in bat and
       'if defined PLUGIN_BRANCH set "REF_1=%PLUGIN_BRANCH%"' in bat,
       "plain updater runs must default to main; only an explicit environment "
       "override may select a test branch")
-check('set "REMEMBERED=main"' in front and
-      'if exist "%BRANCH_STATE%" set /p REMEMBERED=<"%BRANCH_STATE%"' in front,
-      "the front door no longer remembers the chosen build between runs")
-check('set "DATADIR_STATE=%STATE_DIR%\\datadir.txt"' in front,
-      "the front door no longer knows about the remembered OrcaSlicer folder")
-check('set "PLUGIN_BRANCH=%CHOSEN%"' in front and 'call "%ENGINE%"' in front,
-      "the front door does not pass the chosen build to the install engine")
+check('set "REMEMBERED=main"' in bat and
+      'if exist "%BRANCH_STATE%" set /p REMEMBERED=<"%BRANCH_STATE%"' in bat,
+      "the updater no longer remembers the chosen build between runs")
+check('set "DATADIR_STATE=%STATE_DIR%\\datadir.txt"' in bat,
+      "the updater no longer knows about the remembered OrcaSlicer folder")
+check('if defined REMEMBERED_DIR if exist "%REMEMBERED_DIR%"' in bat,
+      "a remembered OrcaSlicer folder that still exists must be used without "
+      "asking -- that is the whole point of remembering it")
 
-# Strict branch isolation: the engine is fetched from the chosen build and
-# validated before it is ever executed, and a missing one stops the run.
-check('/%CHOSEN%/%ENGINE_NAME%' in front and
-      'findstr /b /c:"set UPDATER_VERSION=" "%ENGINE%"' in front and
-      'if %%~zA LSS 2000 exit /b 1' in front,
-      "the front door must download and validate the engine for the chosen build")
-check("were used instead." in front and
-      'if errorlevel 1 goto :engine_failed' in front,
-      "a missing engine must stop instead of borrowing another build's files")
-check('del "%ENGINE%" 2>nul' in front and 'copy /Y "%ENGINE%"' not in front,
-      "the front door must run a temporary engine without replacing any .bat")
-# The remembered build is only written after the download succeeded, so a
-# dead branch name cannot be persisted and strand the next run.
-write_at = front.index('>"%BRANCH_STATE%" echo %CHOSEN%')
-check(front.index("call :get_engine") < write_at,
-      "the chosen build must not be remembered before its engine downloads")
+# The menu must offer both pickers, and the folder picker must be reachable
+# on its own, not only as part of an install.
+check('echo   [2] Choose the build' in bat and
+      'echo   [3] Choose which OrcaSlicer folder' in bat,
+      "the menu no longer offers the build picker and the OrcaSlicer folder picker")
+check('call :select_data_dir "" ask' in bat,
+      "menu item 3 must force the interactive folder picker instead of "
+      "silently reusing the remembered folder")
+check('if defined PLUGIN_BRANCH ( set "CHOSEN=%REF_1%" & goto :install )' in bat,
+      "PLUGIN_BRANCH must skip the menu and install from that ref directly -- "
+      "that is how the old two-file copies on disk still drive this one")
+check('set "REF_1=%CHOSEN%"' in bat,
+      "the build chosen in the menu must drive the install ref")
 
-check('set "REPO=ajani190819-ops/Tests"' in front,
-      "the front door points at the wrong repository")
-check("api.github.com/repos/%REPO%/branches?per_page=100" in front or
-      "api.github.com/repos/ajani190819-ops/Tests/branches?per_page=100" in front,
-      "the front door no longer fetches the public live GitHub branch list")
-check("$b.commit.url" in front and "Sort-Object Date -Descending" in front,
-      "the front door does not fetch commit dates and sort test builds newest first")
-check("$bs=Invoke-RestMethod" in front and "$bs=@(Invoke-RestMethod" not in front,
+# The build picker: live GitHub branch list, main pinned first, the five
+# newest test branches, and never a silent fallback to another build.
+check('set "REPO=ajani190819-ops/Tests"' in bat,
+      "the updater points at the wrong repository")
+check("api.github.com/repos/%REPO%/branches?per_page=100" in bat or
+      "api.github.com/repos/ajani190819-ops/Tests/branches?per_page=100" in bat,
+      "the build picker no longer fetches the public live GitHub branch list")
+check("$b.commit.url" in bat and "Sort-Object Date -Descending" in bat,
+      "the build picker does not fetch commit dates and sort test builds newest first")
+check("$bs=Invoke-RestMethod" in bat and "$bs=@(Invoke-RestMethod" not in bat,
       "Windows PowerShell 5.1 would preserve GitHub's branch array as one nested "
       "System.Object[] and fail to convert the commit URL to System.Uri")
-check("$commitUri=[string]$b.commit.url" in front or "([string]$b.commit.url)" in front,
-      "the front door does not force each GitHub commit URL to one string URI")
+check("([string]$b.commit.url)" in bat,
+      "the build picker does not force each GitHub commit URL to one string URI")
+check("if !COUNT! LSS 6" in bat,
+      "the build picker must show main plus the five newest test branches")
 
-# Self-update, same shape as the engine's: fetch, verify, hand over, never
-# rewrite the running file.
-# `front` keeps its CRLF line endings, so allow the \r before $.
-_fv_rem = re.search(r"(?m)^rem FRONTDOOR_VERSION (\S+) end\r?$", front)
-_fv_set = re.search(r'(?m)^set "FRONTDOOR_VERSION=([^"]+)"\r?$', front)
+# Self-update: fetch, verify, hand over, never rewrite the running file.
+# `bat` is LF-normalised by read_text, so anchor without \r.
+_fv_rem = re.search(r"(?m)^rem FRONTDOOR_VERSION (\S+) end$", bat)
+_fv_set = re.search(r'(?m)^set "FRONTDOOR_VERSION=([^"]+)"$', bat)
 check(_fv_rem and _fv_set and _fv_rem.group(1) == _fv_set.group(1),
-      "the front door's two version markers must agree: "
+      "the updater's two FRONTDOOR_VERSION markers must agree: "
       f"rem says {_fv_rem.group(1) if _fv_rem else 'MISSING'}, "
       f"set says {_fv_set.group(1) if _fv_set else 'MISSING'}. A copy already "
       "on disk compares the rem marker to decide whether to hand over, so "
       "both must move together or a fix never reaches anyone.")
-check('call :download "https://raw.githubusercontent.com/%REPO%/%REMEMBERED%/Orca-Plugins.bat"'
-      in front,
-      "the front door must self-update from the build the user actually chose")
-check('findstr /b /c:"rem FRONTDOOR_VERSION " "%NEWBAT%"' in front and
-      'if defined ORCA_FRONTDOOR_CHILD exit /b 0' in front,
-      "the front door's self-update must verify the download and not recurse")
+_uv_rem = re.search(r"(?m)^rem UPDATER_VERSION (\S+) end$", bat)
+check(_fv_rem and _uv_rem and _fv_rem.group(1) == _uv_rem.group(1),
+      "the FRONTDOOR_VERSION and UPDATER_VERSION markers must stay equal: "
+      "the launcher and the engine became one file at 2.0.0, so one file "
+      "means one version number.")
+check('set "SELF_REF=%REMEMBERED%"' in bat and
+      'if defined PLUGIN_BRANCH set "SELF_REF=%REF_1%"' in bat and
+      'call :download "https://raw.githubusercontent.com/%REPO%/%SELF_REF%/Orca-Plugins.bat"'
+      in bat,
+      "the updater must self-update from the build the user actually chose")
+check('findstr /b /c:"rem FRONTDOOR_VERSION " "%NEWBAT%"' in bat and
+      'if defined ORCA_FRONTDOOR_CHILD exit /b 0' in bat,
+      "the updater's self-update must verify the download and not recurse")
 # Compare lowercase against lowercase: the variable names are uppercase in
 # the source, so an uppercase needle against a lowered haystack never matches
 # and the check would silently pass.
-_front_lower = front.lower()
+_bat_lower = bat.lower()
 for marker in ('copy /y "%newbat%"', 'move /y "%newbat%"', '"%~f0"'):
-    check(marker not in _front_lower,
-          f"the front door must never overwrite itself while running ({marker})")
+    check(marker not in _bat_lower,
+          f"the updater must never overwrite itself while running ({marker})")
 
 # A redirection must not be swallowed by an unclosed quote.
 #
 # cmd.exe decides what is a redirection and what is plain text by toggling a
 # quoting flag on EVERY `"` it meets. It does not understand `\"` as an
-# escape. So `findstr /c:"set \"NAME=" "%F%" >nul 2>nul` holds five quotes,
+# escape. So `findstr /c:\"set \\\"NAME=\" \"%F%\" >nul 2>nul` holds five quotes,
 # leaves cmd inside a quoted string at the end of the line, and hands `>nul`
 # and `2>nul` to findstr as filenames. The user sees:
 #
@@ -590,7 +641,7 @@ for marker in ('copy /y "%newbat%"', 'move /y "%newbat%"', '"%~f0"'):
 # never redirected. That shipped in front door 1.0.0 and was reported from a
 # real Windows run; nothing here could catch it, because cmd.exe cannot be
 # run in this sandbox. This walks each line the way cmd.exe does instead.
-for _bat_path in (FRONTDOOR, CHOOSER, BAT):
+for _bat_path in (BAT,):
     if not _bat_path.exists():
         continue
     for _n, _raw in enumerate(
@@ -619,7 +670,7 @@ for _bat_path in (FRONTDOOR, CHOOSER, BAT):
 
 # Every goto/call target must exist. cmd.exe cannot be run here, so a dead
 # label would otherwise only surface on the user's machine.
-for _bat_path in (FRONTDOOR, CHOOSER, BAT):
+for _bat_path in (BAT,):
     if not _bat_path.exists():
         continue
     _t = _bat_path.read_bytes().decode("ascii", "replace")
@@ -631,22 +682,6 @@ for _bat_path in (FRONTDOOR, CHOOSER, BAT):
           f"{_bat_path.name}: jumps to labels that do not exist: "
           f"{sorted(_jumps - _labels)}")
 
-# The old filename must keep working as a pure forwarder.
-check(CHOOSER.exists(), "the old Choose-Orca-Plugin-Version.bat must stay as a forwarder")
-chooser_raw = CHOOSER.read_bytes() if CHOOSER.exists() else b""
-chooser = chooser_raw.decode("utf-8", "replace")
-check(chooser_raw.count(b"\r\n") == chooser_raw.count(b"\n") > 0,
-      "the forwarder .bat must use CRLF throughout")
-check(chooser_raw.endswith(b"\r\n"), "the forwarder .bat does not end with CRLF")
-check('call "%FRONTDOOR%" %*' in chooser,
-      "the forwarder must hand the whole run, arguments and all, to the front door")
-check("/main/Orca-Plugins.bat" in chooser and
-      'findstr /b /c:"rem FRONTDOOR_VERSION " "%FRONTDOOR%"' in chooser,
-      "the forwarder must fetch and verify the front door when it is not alongside")
-# It must not have kept a second copy of the install logic.
-check("plugins.json" not in chooser and ":install_one" not in chooser and
-      len(chooser_raw) < 4000,
-      "the forwarder must not carry its own installer logic")
 
 
 # The old bug was REF_1 -> REF_2(main) fallback for both manifests and plugin
@@ -691,8 +726,17 @@ check('if defined BRANCH_MODE if exist "%PREFLIGHT_DIR%\\%PL_FILE%"' in bat,
       "branch installs do not use the files that passed all-or-nothing preflight")
 check("This updater will NOT use main" in bat,
       "the strict branch failure does not plainly tell the user that main was not used")
-check("if defined BRANCH_MODE exit /b 0" in _su,
-      "test mode self-update could replace the strict updater with an older copy from the branch")
+
+# The chosen build is only written to the remembered-build file after that
+# build's catalogue downloaded and parsed, so a dead branch name can never be
+# persisted and strand the next run on a build that 404s.
+write_at = bat.index('>"%BRANCH_STATE%" echo %CHOSEN%')
+check(0 <= bat.index("call :fetch_manifest") < write_at and
+      bat.index("if not defined PLAN_MADE if defined BRANCH_MODE goto :branch_manifest_failed")
+      < write_at,
+      "the chosen build must not be remembered before its catalogue downloads; "
+      "there is no engine download to gate on any more, so the catalogue is "
+      "the proof the branch is real")
 
 # The branch and versions must be hard to miss at both ends. The end summary is
 # populated only after a plugin is successfully copied, using the downloaded

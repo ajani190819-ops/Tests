@@ -17,7 +17,7 @@ needs a fresh Orca export and physical-print validation.
 
 ## Install
 
-Run `Update-Orca-Plugins.bat` (repo root). It lands here:
+Run `Orca-Plugins.bat` (repo root). It lands here:
 
 ```
 <Orca data dir>\orca_plugins\WaveOverhangs\wave_overhangs_orca.py
