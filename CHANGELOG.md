@@ -1,3 +1,40 @@
+## 2026-10-02 — fix "The preset stores invalid plugin capability configuration JSON"
+
+Wave Overhangs **0.0.39**, Unlayered Infill **0.4.7**. Reported by the owner
+against both plugins.
+
+**Cause.** A preset override is a flat key=value record whose reference
+separator is `;`. `docs/ORCA-PLUGIN-FACTS.md` already said a capability NAME
+may not contain one; the same restriction applies to the configuration value
+and that had been missed. When the notes were rewritten into short one-liners
+for the readable panel (0.0.35 / 0.4.4), nine Wave notes and six Unlayered
+notes picked up a semicolon -- "master switch; false leaves your G-code
+untouched" -- and the config was written pretty-printed, 86 lines for Wave.
+A preset cannot store that intact, and Orca reports exactly what it reads
+back.
+
+**Fix.** Every string the plugins write now passes through `preset_safe()`
+(semicolons become commas, double quotes become single, newlines and tabs
+become spaces, control characters are dropped), and `dump_config()` writes
+the JSON on one line. A test fails if any key or value in either panel
+contains a character a preset cannot carry.
+
+**Clearing the error on your machine.** The bad value is stored in the
+PRESET, so installing the new build does not remove it:
+
+1. Update both plugins and restart OrcaSlicer fully.
+2. Open the process preset's plugin configuration dialog, clear the stored
+   override for the capability (or press Restore defaults there), and save
+   the preset.
+3. If the message persists, set Others -> Slicing Pipeline Plugin to None,
+   save the preset, set it back to the plugin, save again. That rewrites the
+   preset's plugin section from scratch.
+4. The global settings in `data_dir()/orca_plugins/config.json` are a real
+   JSON file and were never affected -- and if anything did get lost,
+   `restore_backup: true` puts your values back.
+
+---
+
 ## 2026-10-02 — everything that benefits from auto is now on auto
 
 > "Put anything that would benefit largely from being on auto, like max

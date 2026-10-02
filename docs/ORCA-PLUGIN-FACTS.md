@@ -254,7 +254,14 @@ replaces an earlier **guess** in `MEMORY.md` that said Orca copies
 
 * Never call `orca.host.ui.*` from a slicing capability — wrong thread.
 * A capability name may not contain `;` (it is the preset reference
-  separator).
+  separator). **The same applies to the configuration a preset override
+  stores**: a preset is a flat key=value record, so a config value holding
+  `;`, a double quote, a newline or a tab can come back mangled and Orca
+  reports "The preset stores invalid plugin capability configuration JSON."
+  Write the config as ONE line and filter those characters out of every
+  string. Measured 2026-10-02, against both shipped plugins. The global
+  store (`data_dir()/orca_plugins/config.json`) is a real JSON file and has
+  no such limitation -- this bites only when a preset override exists.
 * Pipeline steps: `posSlice`, `posPerimeters`, `posPrepareInfill`, `posInfill`,
   `posIroning`, `posContouring`, `posSupportMaterial`, `posSimplifyPath`,
   `psWipeTower`, `psSkirtBrim`, `psGCodePostProcess`.

@@ -154,6 +154,31 @@ with tempfile.TemporaryDirectory() as tmp:
                      if n != "_READ_ME" and n not in headings
                      and n[1:] not in d)
     check(not orphans, f"notes describing settings that do not exist: {orphans}")
+    # Nothing the plugin writes may be able to corrupt a PRESET that stores
+    # it. A preset is a flat key=value record whose reference separator is
+    # ";" -- which is why a capability name may not contain one -- so a note
+    # holding a semicolon, a double quote or a newline can come back mangled
+    # and OrcaSlicer reports "The preset stores invalid plugin capability
+    # configuration JSON." Reported by the owner on 2026-10-02 against both
+    # plugins.
+    import json as _json
+    for plugin_mod, panel_cfg, label in (
+            (plugin, panel, "Unlayered Infill"),):
+        written = plugin_mod.dump_config(panel_cfg)
+        check("\n" not in written and "\r" not in written,
+              f"{label}: the config is written over multiple lines; a preset "
+              f"stores it as one value")
+        check(_json.loads(written) is not None, f"{label}: unparseable config")
+        for key, value in panel_cfg.items():
+            check(";" not in str(key) and ";" not in str(value),
+                  f"{label}: {key} contains ';', the preset reference "
+                  f"separator")
+            if isinstance(value, str):
+                check('"' not in value,
+                      f"{label}: the note for {key} contains a double quote")
+                check("\n" not in value and "\t" not in value,
+                      f"{label}: the note for {key} contains a newline or tab")
+
     # One line each, or the JSON editor becomes unreadable again.
     for key in d:
         note = panel.get("_" + key, "")
@@ -676,6 +701,16 @@ with tempfile.TemporaryDirectory() as tmp:
         check(sectioned == set(wave._DEFAULTS),
               f"settings missing from a section (they would appear in a "
               f"nameless OTHER group): {sorted(set(wave._DEFAULTS) - sectioned)}")
+        written = wave.dump_config(panel)
+        check("\n" not in written and "\r" not in written,
+              "Wave writes its config over multiple lines; a preset stores "
+              "it as a single value and it comes back mangled")
+        for key, value in panel.items():
+            check(";" not in str(key) and ";" not in str(value),
+                  f"Wave: {key} contains ';', the preset reference separator")
+            if isinstance(value, str):
+                check('"' not in value,
+                      f"Wave: the note for {key} contains a double quote")
         for key in wave._DEFAULTS:
             note = panel.get("_" + key, "")
             check("\n" not in note,

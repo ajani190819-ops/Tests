@@ -4,8 +4,19 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02 — **Wave Overhangs 0.0.38 / Unlayered Infill
-  0.4.6**: the last three derivable settings are on auto by default — Wave
+* **Last updated:** 2026-10-02 — **Wave Overhangs 0.0.39 / Unlayered Infill
+  0.4.7**: fixes "The preset stores invalid plugin capability configuration
+  JSON", reported against BOTH plugins. A preset override is a flat
+  key=value record whose reference separator is `;`; the facts doc knew a
+  capability NAME could not contain one but not that the stored VALUE is
+  equally constrained. The one-line notes written in 0.0.35/0.4.4 introduced
+  semicolons (9 in Wave, 6 in Unlayered) and the config was saved
+  pretty-printed (86 lines). Now every written string goes through
+  `preset_safe()` (`;`->`,`, `"`->`'`, newline/tab->space, control chars
+  dropped) and `dump_config()` emits ONE line; a test fails on any unsafe
+  character in either panel. NOTE: the bad value lives in the preset, so
+  updating does not clear it — the user must clear the preset override.
+* **Previously:** **Wave Overhangs 0.0.38 / Unlayered Infill 0.4.6**: the last three derivable settings are on auto by default — Wave
   `fan` (profile Bridges fan speed, 100% if unstated; reads
   `bridge_fan_speed` ONLY, never `overhang_fan_speed`, which is lower on real
   profiles and would under-cool open-air extrusion), Unlayered `wave_angle`
@@ -96,7 +107,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.38, Unlayered Infill 0.4.6,
+* **Current versions:** Wave Overhangs 0.0.39, Unlayered Infill 0.4.7,
   updater **2.1.0** — one file, `Orca-Plugins.bat`, the only .bat in the
   repository; the launcher (1.0.1) and engine (1.4.0) version histories
   ended by merging into it. PR #7 carries it; test it from the branch before

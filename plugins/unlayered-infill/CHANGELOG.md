@@ -6,6 +6,33 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.4.7 — 2026-10-02
+
+* Fixes "The preset stores invalid plugin capability configuration JSON."
+  Nothing this plugin writes can corrupt a preset any more: every note is
+  stripped of semicolons, double quotes, newlines and tabs, and the config
+  is written on a single line instead of pretty-printed over 37.
+
+**What went wrong.** The settings can live in two places. The global store
+(`data_dir()/orca_plugins/config.json`) is a real JSON file and tolerates
+anything. A **preset override** is not -- a preset is a flat key=value
+record, and `;` is its reference separator. That is already documented here
+as the reason a capability name may not contain one; what was missed is that
+it applies to the configuration VALUE as well. Several notes rewritten for
+the readable panel contained a semicolon ("master switch; false leaves your
+G-code untouched"), and the whole blob was written pretty-printed with
+newlines. Stored in a preset, that comes back mangled, and OrcaSlicer
+reports what it then sees.
+
+**Three things now guarantee it cannot recur**: a `preset_safe()` filter
+every written string passes through, single-line output from
+`dump_config()`, and a test that fails if any key or value in either panel
+contains `;`, `"`, a newline or a tab.
+
+**If you are already seeing the error**, the broken value is in the preset,
+so updating the plugin does not clear it by itself -- see the release notes
+in CHANGELOG.md for how to clear the preset override.
+
 ## 0.4.6 — 2026-10-02
 
 * wave_angle now defaults to "auto": the ripples run square across your
