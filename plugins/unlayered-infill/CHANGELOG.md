@@ -6,6 +6,27 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.4.6 — 2026-10-02
+
+* wave_angle now defaults to "auto": the ripples run square across your
+  profile's infill angle, read from the export. A wave only does interlocking
+  work where an infill line CROSSES it, so this is where the feature earns
+  its keep -- with the common 45 degree infill the ripples now run at 135
+  instead of straight along X.
+* max_lift_mm now defaults to "auto", a ceiling of 1.5 layer heights on the Z
+  offset. At the shipped amplitude nothing is clamped by it (the wave peaks
+  at one layer height), so this is a safety net against a big amplitude
+  driving the nozzle into material that is already printed, not a change to
+  how the part looks.
+
+With these two, every setting that can be derived from the print now is:
+frequency, segment_mm, blend_mm and cell_mm from the nozzle, wave_angle from
+fill_angle, max_lift_mm from the layer height.
+
+**What stays a fixed number.** amplitude, pattern, shape, layer_phase and the
+switches. Nothing in the G-code implies how strongly you want the layers
+keyed together or what the ripple should look like.
+
 ## 0.4.5 — 2026-10-02
 
 * Your settings are now backed up by the plugin itself, so they survive the

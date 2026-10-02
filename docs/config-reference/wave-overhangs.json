@@ -75,7 +75,7 @@
   "_travel_speed": "\"auto\" or mm/s -- auto follows your profile's travel speed. Only affects non-printing moves between waves.",
   "travel_speed": "auto",
   "_fan": "0 to 1, or \"auto\" -- cooling during wave printing; auto follows your profile's bridge fan. Full cooling is strongly recommended.",
-  "fan": 1.0,
+  "fan": "auto",
   "_9_ARCS": "===== 9. ARC MOVES =====",
   "_arc_fitting": "false | \"auto\" | true -- whether WAVE's own lines are written as G2/G3. Keep false (OrcaSlicer bug #7433). This is NOT Orca's own arc fitting, which lives in Print Settings > Quality > Precision and is unaffected either way.",
   "arc_fitting": false,

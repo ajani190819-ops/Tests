@@ -4,8 +4,18 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02 — **Wave Overhangs 0.0.37 / Unlayered Infill
-  0.4.5**: settings insurance + a faster release path. Both plugins keep a
+* **Last updated:** 2026-10-02 — **Wave Overhangs 0.0.38 / Unlayered Infill
+  0.4.6**: the last three derivable settings are on auto by default — Wave
+  `fan` (profile Bridges fan speed, 100% if unstated; reads
+  `bridge_fan_speed` ONLY, never `overhang_fan_speed`, which is lower on real
+  profiles and would under-cool open-air extrusion), Unlayered `wave_angle`
+  (square across `fill_angle` — a VISIBLE change: 135 instead of 0 on a 45
+  degree infill) and `max_lift_mm` (1.5 layer heights; does not bite at the
+  shipped amplitude). Deliberately still fixed numbers: amplitude, pattern,
+  shape, layer_phase, flow_ratio, wall_overlap, edge_taper_min_flow,
+  overhang_tol, min_bridge_fragment, gap_fill_min_area, time_budget, all
+  switches — no Orca equivalent and nothing in the G-code implies them.
+* **Previously:** **Wave Overhangs 0.0.37 / Unlayered Infill 0.4.5**: settings insurance + a faster release path. Both plugins keep a
   rolling backup (`settings_backups`, newest first, max 5) of the config in
   force, written on every `_cfg()` read. It is a HISTORY because the wipe you
   are insuring against is followed by a run that would overwrite a single
@@ -86,7 +96,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.37, Unlayered Infill 0.4.5,
+* **Current versions:** Wave Overhangs 0.0.38, Unlayered Infill 0.4.6,
   updater **2.1.0** — one file, `Orca-Plugins.bat`, the only .bat in the
   repository; the launcher (1.0.1) and engine (1.4.0) version histories
   ended by merging into it. PR #7 carries it; test it from the branch before

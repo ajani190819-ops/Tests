@@ -1,3 +1,37 @@
+## 2026-10-02 — everything that benefits from auto is now on auto
+
+> "Put anything that would benefit largely from being on auto, like max
+> iterations, on auto."
+
+Wave Overhangs **0.0.38**, Unlayered Infill **0.4.6**. The three remaining
+derivable settings are now on by default:
+
+| plugin | setting | auto means |
+| --- | --- | --- |
+| Wave | `fan` | your profile's Bridges fan speed (100% if it states none) |
+| Unlayered | `wave_angle` | square across your profile's infill angle |
+| Unlayered | `max_lift_mm` | a Z ceiling of 1.5 layer heights |
+
+`max_iterations` has been auto since 0.0.35, along with everything
+width-derived; this finishes the job.
+
+Two notes worth reading. **Wave's `fan` auto now reads `bridge_fan_speed`
+only** -- it used to fall back to `overhang_fan_speed`, a different setting
+about sloped walls that is often much lower (50% on the captured test
+profile), and quietly under-cooling unsupported extrusion is the wrong way to
+fail. **Unlayered's `wave_angle` is a visible change**: with 45 degree infill
+the ripples now run at 135 degrees instead of along X. That is the point of
+the setting -- a line parallel to the ripples never crosses one and gets
+lifted rather than waved -- but it will look different from 0.4.5.
+
+What deliberately stays a fixed number in both: amplitude, pattern, shape,
+flow ratio, print order, the taper fractions, the on/off switches. These have
+no Orca equivalent and nothing in the G-code implies them. Automating a
+judgement about how you want the part to look is not automation, it is just a
+different arbitrary number.
+
+---
+
 ## 2026-10-02 — settings that survive the config being wiped, and a faster release path
 
 > "When a config is updated it kind of erases whatever my settings were. Is

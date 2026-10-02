@@ -22,6 +22,32 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.38 — 2026-10-02
+
+* fan now defaults to "auto" and follows your profile's Bridges fan speed,
+  so cooling matches the rest of your print instead of being forced to 100%
+  by the plugin. If your profile does not state a bridge fan it stays at
+  100%; set a number to override.
+
+Everything else that can be derived was already on auto as of 0.0.35
+(line_spacing, perimeter_overlap, min_overhang_area, min_wave_length,
+min_wave_segment, simplify_tolerance, edge_taper_distance, travel_speed,
+max_iterations, wall_reach, edge_snap_distance, arc_tolerance, print_speed).
+
+**One deliberate narrowing while doing this.** "auto" reads
+`bridge_fan_speed` and nothing else. It used to fall back to
+`overhang_fan_speed`, which is a different setting about sloped walls and is
+commonly set much lower -- on the captured test profile it is 50%, so the
+fallback would have quietly halved the cooling on unsupported extrusion
+hanging in open air. No bridge fan stated now means 100%, not a substitute.
+
+**What stays a fixed number, and why.** `flow_ratio`, `wall_overlap`,
+`edge_taper_min_flow`, `overhang_tol`, `min_bridge_fragment`,
+`gap_fill_min_area`, `time_budget`, and every on/off switch. These have no
+Orca equivalent to inherit and nothing in the G-code implies them -- they are
+judgements about how you want the part to come out, and a plugin guessing at
+those is not automation, it is just a different arbitrary number.
+
 ## 0.0.37 — 2026-10-02
 
 * Your settings are now backed up by the plugin itself, so they survive the
