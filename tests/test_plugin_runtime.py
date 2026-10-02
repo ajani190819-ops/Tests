@@ -212,6 +212,38 @@ with tempfile.TemporaryDirectory() as tmp:
           "restore_backup must reset itself, or every later slice re-restores "
           "and the owner can never change a setting again")
 
+    # Edited in the Config panel and NEVER sliced. This is the realistic
+    # case the owner asked about: open Orca, change a setting, close it. A
+    # backup taken only when a capability runs would miss it entirely, so
+    # the config lifecycle hook snapshots too -- and keeps doing so after
+    # the once-per-session migration has already happened.
+    panel_cap = fresh_cap()
+    edited = plugin.annotated_defaults()
+    edited["amplitude"] = "325%"
+    edited["pattern"] = "cross"
+    panel_cap.set_config(edited)
+    panel_cap.migrate_config_if_needed()
+    typed = plugin._settings_backup()
+    check(typed["values"]["amplitude"] == "325%"
+          and typed["values"]["pattern"] == "cross",
+          f"a value typed into the Config panel was not backed up without a "
+          f"slice: {typed['values'].get('amplitude')}")
+    again = dict(edited)
+    again["amplitude"] = "400%"
+    panel_cap.set_config(again)
+    panel_cap.migrate_config_if_needed()
+    check(plugin._settings_backup()["values"]["amplitude"] == "400%",
+          "a SECOND edit in the same session was not backed up -- the "
+          "once-per-session migration guard must not rate-limit the backup")
+    panel_cap.set_config({})
+    plugin._cfg(panel_cap)
+    panel_cap.set_config({**plugin.annotated_defaults(),
+                          "restore_backup": True})
+    panel_cap.migrate_config_if_needed()
+    recovered = plugin._cfg(panel_cap)
+    check(recovered["amplitude"] == "400%" and recovered["pattern"] == "cross",
+          f"panel edits did not come back after a wipe: {recovered}")
+
     # A setting this build no longer has is dropped rather than resurrected.
     state = plugin._load_state()
     state["settings_backups"][0]["values"]["a_setting_we_deleted"] = 7

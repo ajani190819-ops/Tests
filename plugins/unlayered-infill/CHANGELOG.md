@@ -15,6 +15,10 @@ Dates are the day the change was made, not a release date.
 * The backup is a short history, not one slot, because the wipe is followed
   by a run that would otherwise overwrite the only copy with the defaults
   that just replaced your settings.
+* A value typed into the Config panel is captured even if you never slice
+  afterwards: the snapshot is taken by the config lifecycle hook as well as
+  by every run, and it is not rate-limited by the once-per-session migration,
+  so a second and third edit in the same session are captured too.
 
 **Why this was needed.** OrcaSlicer owns the settings file and keeps it in
 one global place, so a plugin cannot stop it being reset -- "Restore

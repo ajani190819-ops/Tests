@@ -17,7 +17,9 @@ keep their own rolling backup of the values in force -- a short history
 rather than one slot, because the wipe is followed by a run that would
 otherwise overwrite the only copy with the defaults that just replaced your
 settings. Restoration is a one-shot `restore_backup: true`, never automatic,
-so "Restore defaults" still means what it says. Settings this build no longer
+so "Restore defaults" still means what it says. The snapshot is taken both by
+every run and by the config lifecycle hook, so a value typed into the Config
+panel is remembered even if you close Orca without slicing. Settings this build no longer
 has are dropped rather than resurrected.
 
 **Faster releases.** Two new tools and a playbook in `AGENTS.md` section 5a:

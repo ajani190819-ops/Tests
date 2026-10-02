@@ -76,22 +76,26 @@ v0.4.5  (2026-10-02)
      flag turns itself off.
    * The backup is a short history, not one slot, because the wipe is
      followed by a run that would otherwise overwrite the only copy with
-     the defaults that just replaced your settings. Why this was needed.
-     OrcaSlicer owns the settings file and keeps it in one global place,
-     so a plugin cannot stop it being reset -- "Restore defaults", a
-     reinstall, a data-directory or profile change, an Orca upgrade.
-     Ordinary version-to-version migration already preserved everything
-     (it merges this build's new keys into your saved copy and never
-     touches a value you set), but there was no protection against the
-     file simply going away. Nothing is restored automatically,
-     deliberately. Silently putting old settings back would make
-     "Restore defaults" impossible, and a plugin that overrules an
-     explicit action is worse than one that loses a value. So the backup
-     sits there, Check setup prints exactly what it holds, and
-     restore_backup is a one-shot undo you ask for. The one case where a
-     value genuinely cannot carry over is a setting this build no longer
-     has. Those are dropped on the way back in rather than resurrected
-     as dead keys.
+     the defaults that just replaced your settings.
+   * A value typed into the Config panel is captured even if you never
+     slice afterwards: the snapshot is taken by the config lifecycle
+     hook as well as by every run, and it is not rate-limited by the
+     once-per-session migration, so a second and third edit in the same
+     session are captured too. Why this was needed. OrcaSlicer owns the
+     settings file and keeps it in one global place, so a plugin cannot
+     stop it being reset -- "Restore defaults", a reinstall, a
+     data-directory or profile change, an Orca upgrade. Ordinary
+     version-to-version migration already preserved everything (it
+     merges this build's new keys into your saved copy and never touches
+     a value you set), but there was no protection against the file
+     simply going away. Nothing is restored automatically, deliberately.
+     Silently putting old settings back would make "Restore defaults"
+     impossible, and a plugin that overrules an explicit action is worse
+     than one that loses a value. So the backup sits there, Check setup
+     prints exactly what it holds, and restore_backup is a one-shot undo
+     you ask for. The one case where a value genuinely cannot carry over
+     is a setting this build no longer has. Those are dropped on the way
+     back in rather than resurrected as dead keys.
 
 v0.4.4  (2026-10-02)
    * wave_angle: "auto" reads fill_angle from the export and runs the
@@ -411,6 +415,12 @@ def _migrate_config(cap, template, name):
     if not isinstance(saved, dict) or not saved:
         return None
     merged = merge_for_panel(saved, template)
+    # Back up here as well as on every run. This hook is the config
+    # lifecycle: it sees a value the owner typed into the Config panel even
+    # if they never slice afterwards, which a run-time-only backup would
+    # miss entirely. (_backup_settings keeps only keys this build has, so
+    # the Check capability's own tiny config snapshots to nothing.)
+    _backup_settings(merged, name)
     # An explicit, one-shot "put my settings back". Deliberately not
     # automatic -- see the comment on _backup_settings.
     restored = []
@@ -437,8 +447,19 @@ def _migrate_config(cap, template, name):
 
 
 def _migrate_once(cap, template, name):
-    """Migrate at most once per session, so a per-step call stays cheap."""
+    """Migrate at most once per session, so a per-step call stays cheap.
+
+    The BACKUP is not rate-limited with it: migration only has to happen
+    once, but a value the owner typed five minutes later still has to be
+    remembered, so the snapshot is taken on every call.
+    """
     if name in _MIGRATED:
+        try:
+            saved = json.loads(cap.get_config() or "{}")
+            if isinstance(saved, dict) and saved:
+                _backup_settings(saved, name)
+        except BaseException:
+            pass
         return
     _MIGRATED.add(name)
     _migrate_config(cap, template, name)
