@@ -43,9 +43,15 @@ foreach ($plugin in @($catalog.plugins | Where-Object status -eq 'ready')) {
   $dir = Join-Path $target $plugin.orca_dir
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
   $destination = Join-Path $dir $plugin.file
+  $temporary = "$destination.download"
+  Remove-Item $temporary -Force -ErrorAction SilentlyContinue
   $url = "https://raw.githubusercontent.com/$repo/$branch/$($plugin.path)"
-  Invoke-WebRequest -UseBasicParsing -Headers @{ 'User-Agent' = 'Orca-Plugins-Updater' } $url -OutFile $destination
-  if (-not (Test-Path $destination) -or (Get-Item $destination).Length -lt 2000) { throw "Downloaded $($plugin.name) is missing or incomplete." }
+  Invoke-WebRequest -UseBasicParsing -Headers @{ 'User-Agent' = 'Orca-Plugins-Updater' } $url -OutFile $temporary
+  if (-not (Test-Path $temporary) -or (Get-Item $temporary).Length -lt 2000) {
+    Remove-Item $temporary -Force -ErrorAction SilentlyContinue
+    throw "Downloaded $($plugin.name) is missing or incomplete."
+  }
+  Move-Item $temporary $destination -Force
   $state = [ordered]@{
     id = $plugin.id; name = $plugin.name; version = $plugin.version
     branch = $branch; file = $plugin.file; capabilities = @($plugin.capabilities)
