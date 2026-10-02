@@ -19,6 +19,44 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — One launcher, and settings that explain themselves
+
+**Wave Overhangs:** 0.0.27. **New:** `Orca-Plugins.bat`, the single entry point.
+
+*One file instead of two.* The repo shipped a "chooser" and an "updater" and
+the split was never explicable -- which one do you double-click, and why are
+there two? There is now one file, `Orca-Plugins.bat`. It shows the remembered
+build and OrcaSlicer folder, installs on Enter, and offers changing the
+version or forgetting the remembered choices. It self-updates using the same
+pattern the installer already used: fetch to temp, verify the download is
+really the launcher, hand the run over, never rewrite the running file.
+
+Both old filenames keep working, for different reasons.
+`Choose-Orca-Plugin-Version.bat` becomes a thin forwarder so shortcuts
+survive. `Update-Orca-Plugins.bat` keeps its exact name and URL because
+copies already on disk poll that address for their own self-update; renaming
+it would have silently stranded every one of them. It is the install engine
+now, still usable standalone.
+
+*Settings you can read where you use them.* The script capability is now
+**Wave Overhangs - Settings guide & check**. After the usual diagnostics it
+prints every setting with its explanation, the value actually in force, and a
+marker on anything changed from the default -- wrapped to 72 columns because
+Orca shows it in a plain message box that clips rather than reflows. A
+`settings_guide` toggle silences it. This closes the gap behind the owner's
+complaint that the only documentation was a README they had to go and find.
+
+Renaming a capability changes its identity in Orca and can detach it from a
+process preset that already selected it, so the test that pins those names
+was updated deliberately rather than loosened, and the changelog says to
+re-pick it.
+
+Because cmd.exe cannot run in this environment, the .bat files also gained a
+static check that every `goto` and `call` target actually exists -- a dead
+label would otherwise only ever show up on the user's machine.
+
+---
+
 ## 2026-10-01 — Updater remembers your choices; a GEOS crash fixed
 
 **Wave Overhangs:** 0.0.26. **Chooser and updater:** remember last selection.

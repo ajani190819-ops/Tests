@@ -6,10 +6,50 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.26 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.27 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.27 — 2026-10-01
+
+One file to run, and the settings explain themselves inside OrcaSlicer.
+
+* **There is now one file: `Orca-Plugins.bat`.** Previously there were two
+  and the difference between them was never clear -- a "chooser" and an
+  "updater". Now you download and double-click one thing. It shows which
+  build and which OrcaSlicer folder it remembers, and pressing Enter installs
+  with those. The menu also offers choosing a different version, and
+  forgetting your remembered choices to start fresh.
+
+  It updates itself, the same careful way the installer already did: it
+  fetches the newest copy, checks it really is the launcher and not a 404
+  page or a wifi login portal, and runs that for this run. It never
+  overwrites itself while running, because Windows reads a .bat by byte
+  position as it executes and a file that rewrites itself mid-run can jump
+  into garbage. So a bad download can never leave you without a working
+  launcher.
+
+* **Your old files keep working.** `Choose-Orca-Plugin-Version.bat` is now a
+  short forwarder that hands over to `Orca-Plugins.bat`, so existing
+  shortcuts do not break. `Update-Orca-Plugins.bat` deliberately keeps its
+  name and its download URL, because every copy already on someone's disk
+  checks that exact address for its own updates -- renaming it would have
+  stranded those copies on an old version with no warning. It is now the
+  install engine underneath, and still works on its own.
+
+* **The plugin explains its settings inside Orca.** The menu item is now
+  **Wave Overhangs - Settings guide & check**. It still reports whether the
+  plugin is working, and then lists every setting with a plain-English
+  explanation, showing the value you actually have in force and marking
+  anything you have changed away from the default. No more opening a README
+  on GitHub to find out what `perimeter_overlap` does. Set `settings_guide`
+  to false in that item's own settings once you know them and you get just
+  the short status report.
+
+  **Note:** renaming that menu item changes its identity in OrcaSlicer. If
+  you had it selected in a process preset you may need to pick it again from
+  the list once.
 
 ## 0.0.26 — 2026-10-01
 

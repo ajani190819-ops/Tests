@@ -571,6 +571,37 @@ Z, derives coverage width from the exported bridge, simplifies wavefronts, and
 drops sub-nozzle retained fragments. The captured fixture passes with three
 layers and 436 cleaned Wave extrusion moves.
 
+### 2026-10-01 — Wave 0.0.27: one launcher, and self-documenting settings
+
+**Two .bat files became one front door.** The owner could not explain the
+difference between the "chooser" and the "updater", which was a naming
+problem hiding a structure problem. `Orca-Plugins.bat` is now the single file
+to download: it shows the remembered build and data dir, installs on Enter,
+and offers version switching and forgetting. It self-updates with the same
+fetch-verify-handover pattern as the engine, never rewriting the running file.
+
+Both old names are kept, for *different* reasons, and this distinction
+matters. `Choose-Orca-Plugin-Version.bat` is a convenience forwarder for
+shortcuts. `Update-Orca-Plugins.bat` **must** keep its name and URL: every
+copy already on a user's disk polls that exact address for its own
+self-update, so renaming it would silently strand them forever. Never rename
+a file that older copies of itself fetch by hardcoded URL.
+
+**The settings now explain themselves in Orca.** Following the 0.0.26 finding
+that JSON cannot carry comments, the script capability -- renamed to
+`Wave Overhangs - Settings guide & check` -- prints every setting with its
+note, the live value, and a marker on anything changed from default, wrapped
+to 72 columns because Orca's message box clips rather than reflows. A
+`settings_guide` toggle silences it. Renaming a capability changes its
+identity in Orca and can detach it from a process preset, so the
+identity-pinning test was updated deliberately, with a user-facing note.
+
+**New safety net:** cmd.exe cannot run in this sandbox, so the .bat files now
+get a static check that every `goto`/`call` target exists. It immediately
+caught a self-test bug of my own: a case-sensitivity mistake where I compared
+an uppercase needle against a lowercased haystack, so a "never overwrite
+yourself" assertion was silently passing. Always prove a new assertion fails.
+
 ### 2026-10-01 — Wave 0.0.26: updater memory, a GEOS crash, and an honest no
 
 Three owner requests handled together.

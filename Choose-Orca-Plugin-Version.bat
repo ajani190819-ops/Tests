@@ -1,139 +1,67 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
-title Choose OrcaSlicer plugin version
+setlocal EnableExtensions
+title OrcaSlicer Plugins
+
+rem ===========================================================================
+rem  This file was renamed to Orca-Plugins.bat.
+rem
+rem  It is kept as a forwarder so shortcuts, and copies already sitting in
+rem  people's Downloads folders, keep working instead of silently doing
+rem  nothing. It does no installing of its own: it finds or fetches
+rem  Orca-Plugins.bat and hands the whole run over, arguments and all.
+rem
+rem  There is nothing to maintain here. Everything -- the menu, the version
+rem  picker, the remembered folder, self-update -- lives in Orca-Plugins.bat.
+rem ===========================================================================
 
 set "REPO=ajani190819-ops/Tests"
-set "UPDATER=%TEMP%\orca_selected_updater_%RANDOM%.bat"
-set "STATE_DIR=%LOCALAPPDATA%\OrcaPluginUpdater"
-set "STATE_FILE=%STATE_DIR%\branch.txt"
-set "BRANCH_FILE=%TEMP%\orca_branches_%RANDOM%.txt"
-set "REMEMBERED=main"
-if exist "%STATE_FILE%" set /p REMEMBERED=<"%STATE_FILE%"
+set "TEMPCOPY="
 
-:refresh
-del "%BRANCH_FILE%" 2>nul
-echo Fetching the live branch list from public GitHub...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; try { $h=@{'User-Agent'='OrcaPluginChooser'}; $bs=Invoke-RestMethod -Headers $h -Uri 'https://api.github.com/repos/ajani190819-ops/Tests/branches?per_page=100'; $now=[DateTimeOffset]::UtcNow; $rows=@(); foreach($b in $bs){ if($b.name -notmatch '^[A-Za-z0-9][A-Za-z0-9._/-]*$' -or $b.name.Contains('..')){continue}; $commitUri=[string]$b.commit.url; $c=Invoke-RestMethod -Headers $h -Uri $commitUri; $d=[DateTimeOffset]::Parse($c.commit.committer.date); $age=$now-$d; if($age.TotalMinutes -lt 2){$a='updated just now'}elseif($age.TotalHours -lt 1){$a=('updated {0} minutes ago' -f [math]::Floor($age.TotalMinutes))}elseif($age.TotalDays -lt 1){$a=('updated {0} hours ago' -f [math]::Floor($age.TotalHours))}else{$a=('updated {0} days ago' -f [math]::Floor($age.TotalDays))}; $rows += [pscustomobject]@{Name=$b.name; Date=$d; Age=$a} }; $ordered=@($rows|Where-Object Name -eq 'main')+@($rows|Where-Object Name -ne 'main'|Sort-Object Date -Descending); [IO.File]::WriteAllLines('%BRANCH_FILE%', @($ordered|ForEach-Object{$_.Name+'|'+$_.Age}), [Text.Encoding]::ASCII) } catch { Write-Host ('GitHub branch list failed: '+$_.Exception.Message); exit 1 }"
-if errorlevel 1 goto :offline
-if not exist "%BRANCH_FILE%" goto :offline
+echo.
+echo  ---------------------------------------------------------------
+echo   This is now called Orca-Plugins.bat
+echo  ---------------------------------------------------------------
+echo   Same job, and now one file does all of it: install, pick a
+echo   version, and set the OrcaSlicer folder. Handing over now.
+echo.
 
-:menu
-echo.
-echo ===============================================================
-echo  Choose which plugin build to install
-echo  Remembered choice: %REMEMBERED%
-echo ===============================================================
-set /a COUNT=0
-for /f "usebackq tokens=1,* delims=|" %%A in ("%BRANCH_FILE%") do if !COUNT! LSS 6 (
-  set /a COUNT+=1
-  set "MENU_!COUNT!=%%A"
-  if /i "%%A"=="main" (echo   [!COUNT!] main - RELEASED - %%B) else echo   [!COUNT!] %%A - TEST BUILD - %%B
-)
-echo.
-echo   [A] Show all branches
-echo   [T] Type a branch name myself
-echo   [R] Return to released main
-echo   [Q] Cancel
-echo.
-echo   Press Enter on its own to reuse your last choice: %REMEMBERED%
-echo.
-set "PICK="
-set /p PICK=Choice, or just Enter for %REMEMBERED%: 
-if not defined PICK (set "CHOSEN=%REMEMBERED%"&goto :chosen)
-if /i "%PICK%"=="A" goto :all
-if /i "%PICK%"=="T" goto :type
-if /i "%PICK%"=="R" (set "CHOSEN=main"&goto :chosen)
-if /i "%PICK%"=="Q" goto :cancel
-for /L %%I in (1,1,%COUNT%) do if "%PICK%"=="%%I" set "CHOSEN=!MENU_%%I!"
-if not defined CHOSEN (echo That is not a menu choice.&goto :menu)
-goto :chosen
+set "FRONTDOOR=%~dp0Orca-Plugins.bat"
+if exist "%FRONTDOOR%" goto :run
 
-:all
-echo.
-echo All live branches:
-set /a COUNT=0
-for /f "usebackq tokens=1,* delims=|" %%A in ("%BRANCH_FILE%") do (
-  set /a COUNT+=1
-  set "MENU_!COUNT!=%%A"
-  if /i "%%A"=="main" (echo   [!COUNT!] main - RELEASED - %%B) else echo   [!COUNT!] %%A - TEST BUILD - %%B
-)
-echo.
-set "PICK="
-set /p PICK=Enter a number, or M for the short menu: 
-if /i "%PICK%"=="M" goto :menu
-set "CHOSEN="
-for /L %%I in (1,1,%COUNT%) do if "%PICK%"=="%%I" set "CHOSEN=!MENU_%%I!"
-if not defined CHOSEN (echo That is not a menu choice.&goto :all)
-goto :chosen
+set "FRONTDOOR=%TEMP%\Orca-Plugins_%RANDOM%.bat"
+echo  Fetching Orca-Plugins.bat...
+call :download "https://raw.githubusercontent.com/%REPO%/main/Orca-Plugins.bat" "%FRONTDOOR%"
+if errorlevel 1 goto :failed
+rem Never run an unverified download: a 404 page or a wifi portal must fail.
+findstr /b /c:"rem FRONTDOOR_VERSION " "%FRONTDOOR%" >nul 2>nul
+if errorlevel 1 goto :failed
+set "TEMPCOPY=1"
 
-:offline
-echo.
-echo GitHub's live branch list could not be loaded.
-echo Nothing will silently switch to another branch.
-echo   [T] Type a branch name you already know
-echo   [R] Retry the live list
-echo   [Q] Cancel
-set "PICK="
-set /p PICK=Enter T, R, or Q: 
-if /i "%PICK%"=="T" goto :type
-if /i "%PICK%"=="R" goto :refresh
-if /i "%PICK%"=="Q" goto :cancel
-echo That is not a menu choice.
-goto :offline
-
-:type
-set "CHOSEN="
-set /p CHOSEN=Type the exact branch name: 
-if not defined CHOSEN goto :menu
-echo(!CHOSEN!| findstr /r /x "[A-Za-z0-9][A-Za-z0-9._/-]*" >nul
-if errorlevel 1 (echo Invalid branch name. Use letters, numbers, dot, dash, underscore, or slash.&goto :type)
-echo(!CHOSEN!| findstr /c:".." >nul
-if not errorlevel 1 (echo Invalid branch name: two dots are not allowed.&goto :type)
-
-:chosen
-call :download_selected_updater
-if errorlevel 1 goto :updater_failed
-if not exist "%STATE_DIR%" mkdir "%STATE_DIR%" 2>nul
->"%STATE_FILE%" echo %CHOSEN%
-set "PLUGIN_BRANCH=%CHOSEN%"
-echo.
-echo ===============================================================
-echo  SELECTED BRANCH: %CHOSEN%
-if /i "%CHOSEN%"=="main" (echo  This is the RELEASED build.) else echo  This is a TEST BUILD. It will never borrow files from main.
-echo ===============================================================
-echo.
-call "%UPDATER%"
+:run
+call "%FRONTDOOR%" %*
 set "RC=%ERRORLEVEL%"
-del "%UPDATER%" 2>nul
-del "%BRANCH_FILE%" 2>nul
+if defined TEMPCOPY del "%FRONTDOOR%" 2>nul
 echo.
-echo Chooser remembered: %CHOSEN%
+echo  Tip: next time, double-click Orca-Plugins.bat directly.
 exit /b %RC%
 
-:download_selected_updater
-del "%UPDATER%" 2>nul
-echo Downloading the updater from selected branch %CHOSEN%...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; try { Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/ajani190819-ops/Tests/%CHOSEN%/Update-Orca-Plugins.bat' -OutFile '%UPDATER%' } catch { Write-Host ('Selected-branch updater download failed: '+$_.Exception.Message); exit 1 }"
+:download
+del "%~2" 2>nul
+where curl.exe >nul 2>nul
+if not errorlevel 1 (
+    curl.exe -fLsS --retry 2 -o "%~2" "%~1"
+    if not errorlevel 1 exit /b 0
+)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; try { [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing -Uri '%~1' -OutFile '%~2' } catch { Write-Host ('  ' + $_.Exception.Message); exit 1 }"
 if errorlevel 1 exit /b 1
-if not exist "%UPDATER%" exit /b 1
-for %%A in ("%UPDATER%") do if %%~zA LSS 2000 exit /b 1
-findstr /b /c:"set UPDATER_VERSION=" "%UPDATER%" >nul 2>nul
-if errorlevel 1 exit /b 1
-findstr /c:"if defined PLUGIN_BRANCH set" "%UPDATER%" >nul 2>nul
-if errorlevel 1 exit /b 1
+if not exist "%~2" exit /b 1
 exit /b 0
 
-:updater_failed
-del "%UPDATER%" 2>nul
+:failed
+if exist "%FRONTDOOR%" del "%FRONTDOOR%" 2>nul
 echo.
-echo SELECTED BUILD NOT INSTALLED.
-echo The updater is missing or invalid on branch %CHOSEN%.
-echo Nothing was installed, and the chooser will not borrow another branch's updater.
-del "%BRANCH_FILE%" 2>nul
+echo  Could not fetch Orca-Plugins.bat, so nothing was installed.
+echo  Download it yourself from:
+echo    https://raw.githubusercontent.com/%REPO%/main/Orca-Plugins.bat
 pause
 exit /b 1
-
-:cancel
-del "%UPDATER%" 2>nul
-del "%BRANCH_FILE%" 2>nul
-exit /b 0
