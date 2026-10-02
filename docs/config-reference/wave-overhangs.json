@@ -80,5 +80,8 @@
   "_arc_fitting": "false | \"auto\" | true -- whether WAVE's own lines are written as G2/G3. Keep false (OrcaSlicer bug #7433). This is NOT Orca's own arc fitting, which lives in Print Settings > Quality > Precision and is unaffected either way.",
   "arc_fitting": false,
   "_arc_tolerance": "\"auto\" or mm -- how far an arc may stray from the true path. auto follows your profile's resolution. Only used if arc_fitting is on.",
-  "arc_tolerance": "auto"
+  "arc_tolerance": "auto",
+  "_10_RECOVERY": "===== 10. SETTINGS RECOVERY =====",
+  "_restore_backup": "true | false -- a one-shot undo. Set true and slice once: every setting this plugin remembers from before is put back, and this returns to false. Check setup prints what is remembered.",
+  "restore_backup": false
 }

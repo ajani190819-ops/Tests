@@ -4,7 +4,21 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02 — **Wave Overhangs 0.0.36**: print order and
+* **Last updated:** 2026-10-02 — **Wave Overhangs 0.0.37 / Unlayered Infill
+  0.4.5**: settings insurance + a faster release path. Both plugins keep a
+  rolling backup (`settings_backups`, newest first, max 5) of the config in
+  force, written on every `_cfg()` read. It is a HISTORY because the wipe you
+  are insuring against is followed by a run that would overwrite a single
+  slot with the defaults that just replaced the owner's settings;
+  `_settings_backup()` returns the newest snapshot holding a non-default
+  value. Restoration is never automatic — `restore_backup: true` + one slice,
+  then the flag resets — so "Restore defaults" still works. Keys absent from
+  `_DEFAULTS` are dropped on the way back in. New tooling:
+  `tools/bump_version.py` (all six version locations at once, .bat in bytes)
+  and `tools/check_all.py` (every test in both dependency states + the three
+  consistency checks; a SKIP counts as a failure). `AGENTS.md` §5a is the
+  release playbook.
+* **Previously:** **Wave Overhangs 0.0.36**: print order and
   adaptive flow. (a) On a waved layer the OVERHANGING part of the wall is
   lifted out of Orca's walls-first order and re-emitted directly after the
   wave block (`wall_last`, default true). Relative-E files only; a travel is
@@ -72,7 +86,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.36, Unlayered Infill 0.4.4,
+* **Current versions:** Wave Overhangs 0.0.37, Unlayered Infill 0.4.5,
   updater **2.1.0** — one file, `Orca-Plugins.bat`, the only .bat in the
   repository; the launcher (1.0.1) and engine (1.4.0) version histories
   ended by merging into it. PR #7 carries it; test it from the branch before

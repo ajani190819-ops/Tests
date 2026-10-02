@@ -22,6 +22,33 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.37 — 2026-10-02
+
+* Your settings are now backed up by the plugin itself, so they survive the
+  Config panel being wiped. Every run saves a copy of the values in force;
+  if the panel ever comes back reset, set restore_backup to true and slice
+  once to put them back, and the flag turns itself off.
+* The backup is a short history, not one slot, because the wipe is followed
+  by a run that would otherwise overwrite the only copy with the defaults
+  that just replaced your settings.
+
+**Why this was needed.** OrcaSlicer owns the settings file and keeps it in
+one global place, so a plugin cannot stop it being reset -- "Restore
+defaults", a reinstall, a data-directory or profile change, an Orca upgrade.
+Ordinary version-to-version migration already preserved everything (it merges
+this build's new keys into your saved copy and never touches a value you
+set), but there was no protection against the file simply going away.
+
+**Nothing is restored automatically**, deliberately. Silently putting old
+settings back would make "Restore defaults" impossible, and a plugin that
+overrules an explicit action is worse than one that loses a value. So the
+backup sits there, Check setup prints exactly what it holds, and
+`restore_backup` is a one-shot undo you ask for.
+
+**The one case where a value genuinely cannot carry over** is a setting this
+build no longer has. Those are dropped on the way back in rather than
+resurrected as dead keys.
+
 ## 0.0.36 — 2026-10-02
 
 * The overhanging part of the wall is now printed AFTER the waves instead

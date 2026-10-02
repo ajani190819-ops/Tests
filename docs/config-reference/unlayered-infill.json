@@ -30,7 +30,9 @@
   "blend_mm": "auto",
   "_full_strength": "true | false -- off, the wave peaks at half amplitude mid-span; on, it reaches full amplitude and still fades to nothing at the skins.",
   "full_strength": false,
-  "_5_DIAGNOSTICS": "===== 5. DIAGNOSTICS =====",
+  "_5_DIAGNOSTICS": "===== 5. DIAGNOSTICS AND RECOVERY =====",
   "_log": "true | false -- append a record of every export to the log file named by Check setup.",
-  "log": true
+  "log": true,
+  "_restore_backup": "true | false -- a one-shot undo. Set true and slice once: every setting this plugin remembers from before is put back, and this returns to false. Check setup prints what is remembered.",
+  "restore_backup": false
 }

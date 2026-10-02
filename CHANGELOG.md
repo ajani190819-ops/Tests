@@ -1,3 +1,43 @@
+## 2026-10-02 — settings that survive the config being wiped, and a faster release path
+
+> "When a config is updated it kind of erases whatever my settings were. Is
+> there a way we could make it so that when it's updated it preserves my
+> settings... I'd only imagine ones would be overridden or have to be erased
+> if something extremely major happened, like the variable was entirely
+> removed. I'd also want you to make these improvements faster... and add
+> some stuff into the agents page so there is a more streamlined method."
+
+Wave Overhangs **0.0.37**, Unlayered Infill **0.4.5**.
+
+**Settings insurance.** Version-to-version migration already preserved every
+value you had set; what it could not survive was the config file itself going
+away, which OrcaSlicer can do for reasons outside the plugin's control
+("Restore defaults", a reinstall, a data-directory change). Both plugins now
+keep their own rolling backup of the values in force -- a short history
+rather than one slot, because the wipe is followed by a run that would
+otherwise overwrite the only copy with the defaults that just replaced your
+settings. Restoration is a one-shot `restore_backup: true`, never automatic,
+so "Restore defaults" still means what it says. Settings this build no longer
+has are dropped rather than resurrected.
+
+**Faster releases.** Two new tools and a playbook in `AGENTS.md` section 5a:
+
+* `tools/bump_version.py <plugin> <version>` writes the version to all six
+  places at once -- PEP 723 header, `PLUGIN_VERSION`, `TOOL_VERSION`,
+  `MARKER_VERSION`, `plugins.json`, and the `.bat` fallback line in BYTES so
+  the CRLF survives -- and tells you what is still missing.
+* `tools/check_all.py` runs every test in both dependency states plus the
+  three consistency checks, one line each, and treats a SKIP as a failure so
+  a missing shapely can never be mistaken for a pass.
+
+The playbook also writes down the traps that have actually cost time here:
+never write the `.bat` in text mode, lead changelog entries with bullets
+because the description generator reads the first one, pinned geometry counts
+measure geometry and not defaults, and ask clarifying questions before
+writing code rather than after.
+
+---
+
 ## 2026-10-02 — waves first, wall last (Wave Overhangs 0.0.36)
 
 > "All of the waves should be printed first, 'cause then they can actually

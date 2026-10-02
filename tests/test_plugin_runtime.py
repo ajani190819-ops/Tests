@@ -164,6 +164,76 @@ with tempfile.TemporaryDirectory() as tmp:
               f"the note for {key} is {len(note)} characters; keep it to a "
               f"short sentence and put the detail in the README")
 
+    # ----------------------------------------------------------------------
+    #  settings survive the config being wiped
+    # ----------------------------------------------------------------------
+    # The owner: "when a config is updated it kind of erases whatever my
+    # settings were... I'd only imagine ones would be overridden if something
+    # extremely major happened, like the variable was entirely removed."
+    #
+    # Orca owns the config file, so the plugin cannot stop it being reset by
+    # "Restore defaults", a reinstall or a data-directory change. What it can
+    # do is keep its own copy and offer a one-shot undo.
+    def fresh_cap():
+        cap = plugin.UnlayeredInfill()
+        return cap
+
+    cap = fresh_cap()
+    tuned = plugin.annotated_defaults()
+    tuned["amplitude"] = "300%"
+    tuned["shape"] = "triangle"
+    cap.set_config(tuned)
+    plugin._cfg(cap)                       # a run: the backup is taken
+
+    backup = plugin._settings_backup()
+    check(backup is not None, "no settings backup was taken")
+    check(backup["values"]["amplitude"] == "300%",
+          f"the backup did not capture the tuned value: {backup}")
+    check("restore_backup" not in backup["values"],
+          "the one-shot restore flag must never be backed up; it would make "
+          "the restore repeat on every slice")
+
+    # The wipe, followed by a run -- which is the dangerous bit: that run
+    # must not overwrite the only copy with the defaults that just replaced
+    # the owner's settings.
+    cap.set_config({})
+    plugin._cfg(cap)
+    survived = plugin._settings_backup()
+    check(survived is not None and survived["values"]["amplitude"] == "300%",
+          f"a wipe destroyed the backup that exists to undo it: {survived}")
+
+    # One-shot restore.
+    cap.set_config({**plugin.annotated_defaults(), "restore_backup": True})
+    cap.migrate_config_if_needed()
+    back = plugin._cfg(cap)
+    check(back["amplitude"] == "300%" and back["shape"] == "triangle",
+          f"restore_backup did not put the settings back: {back}")
+    check(back["restore_backup"] is False,
+          "restore_backup must reset itself, or every later slice re-restores "
+          "and the owner can never change a setting again")
+
+    # A setting this build no longer has is dropped rather than resurrected.
+    state = plugin._load_state()
+    state["settings_backups"][0]["values"]["a_setting_we_deleted"] = 7
+    plugin._save_state(state)
+    merged = dict(plugin.annotated_defaults())
+    plugin._apply_backup(merged)
+    check("a_setting_we_deleted" not in merged,
+          "a removed setting came back from the backup")
+
+    # Normal migration still never overwrites a value the user set.
+    cap2 = fresh_cap()
+    older = {k: v for k, v in plugin.annotated_defaults().items()
+             if k not in ("shape", "_shape")}
+    older["amplitude"] = "250%"
+    cap2.set_config(older)
+    cap2.migrate_config_if_needed()
+    after = plugin._cfg(cap2)
+    check(after["amplitude"] == "250%",
+          f"migration overwrote a value the user had set: {after['amplitude']}")
+    check(after["shape"] == plugin._DEFAULTS["shape"],
+          "migration did not add this build's new setting")
+
     nozzle_04 = ["; nozzle_diameter = 0.4\n"]
     freq, _desc = plugin.npc.resolve_frequency(d["frequency"], nozzle_04)
     check(abs(freq - 1.5) < 0.01,

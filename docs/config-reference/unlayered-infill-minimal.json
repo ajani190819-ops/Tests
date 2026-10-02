@@ -12,5 +12,6 @@
   "cell_mm": "auto",
   "blend_mm": "auto",
   "full_strength": false,
-  "log": true
+  "log": true,
+  "restore_backup": false
 }
