@@ -4,13 +4,15 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02, Wave 0.0.32 + Unlayered Infill 0.4.1
-  (stale-preset settings explanation + Linguist fix).
+* **Last updated:** 2026-10-02, Wave 0.0.33 + Unlayered Infill 0.4.2
+  (capability-config migration: a settings panel saved by an older build now
+  gains the newer build's settings) plus a documentation contradiction sweep.
 * **Repository:** `ajani190819-ops/Tests`, public.
-* **Session branch:** `arena/01a0fb0f-tests`. Never switch branches or push to
+* **Session branch:** `arena/01a0fd1f-tests`. Never switch branches or push to
   `main`. (The branch is different every session — use the one you were
   handed, not this one.)
-* **Latest code state:** Wave Overhangs 0.0.25 measures the overhang against
+* **Latest code state:** Wave Overhangs 0.0.33. The geometry below has been
+  stable since 0.0.25, which measures the overhang against
   the layer's real wall moves, so Wave ends land on the wall and hole
   perimeters instead of the castellated bridge-line edge. It can read and
   write G2/G3 arc moves but **no longer does so by default**, and the whole
@@ -21,8 +23,14 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.32, Unlayered Infill 0.4.1,
+* **Current versions:** Wave Overhangs 0.0.33, Unlayered Infill 0.4.2,
   updater 1.4.0, launcher (`Orca-Plugins.bat`) 1.0.1.
+* **Capability settings are stored GLOBALLY** in
+  `data_dir()/orca_plugins/config.json`, not in the process preset. An earlier
+  session guessed the opposite and shipped that guess in both plugins' Check
+  setup text; it is corrected in code, in the changelogs, and in
+  `docs/ORCA-PLUGIN-FACTS.md` ("Capability configuration"). Both plugins now
+  migrate an older saved config instead of telling the owner it is impossible.
 * **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
   numbers must remain out of package and capability names.
 
@@ -59,7 +67,7 @@ Important locations:
 
 ## Current implementation
 
-### Wave Overhangs 0.0.25
+### Wave Overhangs (geometry unchanged since 0.0.25)
 
 The active implementation is one transactional G-code pass at
 `psGCodePostProcess`:
@@ -123,9 +131,14 @@ There is no standalone Wave post-processing script in this repository. The
 plugin waits for exported Bridge G-code; do not claim a Wave standalone tool
 is installed or tested.
 
-### Wave Overhangs Geometry 0.1.4
+### Wave Overhangs Geometry 0.1.4 — ARCHIVED, NOT SHIPPED
 
-A separate experimental geometry-stage plugin now runs at `posPrepareInfill`.
+**This plugin was archived on 2026-10-02 and is not installed, not in the
+catalogue and not in the launcher.** The description below is kept as the
+record of what it did, for whoever revives it; see `archive/README.md`. Read
+every "now" in it as "did, when it was live".
+
+A separate experimental geometry-stage plugin ran at `posPrepareInfill`.
 It reads live `LayerRegion.fill_surfaces` and the previous layer's `lslices`,
 generates obstacle-aware fixed-spacing Wave fronts, converts them to narrow
 preview ribbons, removes tiny clipped dot islands, and replaces only reachable
@@ -145,7 +158,7 @@ geometry, installer, runtime, audit, G-code, sync, compilation, whitespace, and
 CRLF checks passed for 0.1.4 in the sandbox; a real Orca preview and physical
 print remain unverified.
 
-### Unlayered Infill 0.3.4
+### Unlayered Infill (control set unchanged since 0.3.4)
 
 Unlayered retains the complete working control set from 0.3.0: amplitude as a
 percentage of layer height, frequency, segment length, automatic nozzle-width
@@ -153,7 +166,9 @@ column grid, blending, full-strength mode, relative-E safety, and logging.
 The standalone script and pipeline plugin share one engine. Edit the readable
 standalone engine, run `tools/sync_engine.py`, and verify the copies match.
 Preserved Orca settings can be cleared with the plugin UI's **Restore defaults**
-control.
+control — this line was right all along, and is the manual fix for a settings
+panel left over from an older build. From 0.4.2 the plugin migrates such a
+config itself, so pressing it should rarely be necessary.
 
 ## Verified evidence
 
@@ -209,8 +224,8 @@ or a printer.
 ## What remains to do
 
 1. Install this branch with the launcher and confirm both plugin versions in
-   Orca's separate Version column: Wave Overhangs 0.0.32, Unlayered Infill
-   0.4.1.
+   Orca's separate Version column: Wave Overhangs 0.0.33, Unlayered Infill
+   0.4.2.
 2. **Try the new Unlayered Infill wave controls on a real slice.** The most
    valuable single test: print the same part twice, once with
    `pattern = "linear"` (the old behaviour) and once with `pattern = "cross"`,
@@ -235,7 +250,79 @@ or a printer.
 
 ## Session log
 
+### 2026-10-02 — Wave 0.0.33 / Unlayered 0.4.2: the config panel repairs itself
+
+The owner, again: *"I know there's features — especially for Unlayered Infill,
+where I should have the ability to change the shape and pattern — but that
+doesn't show up in the config in Orca."* Plus: find and resolve the
+contradictions in the repository.
+
+**This time the mechanism was looked up instead of reasoned about, and the
+OrcaSlicer wiki answered it outright.** `docs/ORCA-PLUGIN-FACTS.md` now has a
+"Capability configuration" section with the facts:
+
+* capability settings live in `data_dir()/orca_plugins/config.json`, keyed by
+  capability identity — **global, not in the process preset** (a preset may
+  hold an override on top);
+* `get_default_config()` is consulted when nothing is saved and on **Restore
+  defaults**; otherwise Orca shows the saved copy, which is why settings added
+  by a later release stay invisible;
+* `get_config_version()`, `save_config()` and `migrate_config_if_needed()`
+  exist precisely so a plugin can migrate an older schema.
+
+**So two sessions' worth of belief was wrong twice over.** The stale-panel
+theory was right about the symptom and wrong about the storage, and the
+conclusion "it cannot be fixed in code" was wrong outright — the hook for
+fixing it is documented. Both plugins now implement `_migrate_config()`:
+merge the running build's settings into an older saved config, keep every
+value the owner set, add new settings at their defaults, refresh the notes,
+keep unrecognised keys, and `save_config()` the result. Wired to
+`migrate_config_if_needed()` **and** to the first capability call of a session,
+because *when* the host calls that hook is documented only by example. All of
+it is swallowed on failure: a refused save, junk JSON or a raising host can
+cost the panel refresh and nothing else.
+
+Check setup in both plugins was rewritten: it no longer blames the process
+preset, and the manual fallback is Orca's documented one — Plugins dialog →
+*Config* → **Restore defaults**.
+
+**Contradictions found and resolved in the same pass:**
+
+| Contradiction | Resolution |
+| --- | --- |
+| Both plugins shipped the disproven "Orca saved a copy into your process preset / set it to None and back" text | rewritten to the documented behaviour and fix |
+| `MEMORY.md` kept the theory *and* a note saying the theory was an unverified guess | replaced with the verified facts; the old entry is marked corrected |
+| `README.md`: "Home of **three** experimental plugins" vs two shipped | now "two" |
+| `AGENTS.md` §3 map: `Update-Orca-Plugins.bat` described as the file to download, while `README.md` says `Orca-Plugins.bat` | map rewritten; the launcher, engine and forwarder are each described |
+| `docs/ROADMAP.md` status table: Wave **0.0.23** under a header saying 0.0.32 | table follows the real version |
+| `MEMORY.md`: "Latest code state: Wave **0.0.25**", section headings frozen at 0.0.25 / 0.3.4 | headings say "unchanged since", versions are current |
+| `MEMORY.md` described archived Wave Overhangs Geometry in the present tense ("now runs at posPrepareInfill") under "Current implementation" | marked ARCHIVED, NOT SHIPPED, past tense |
+| Unlayered Infill source pointed at `plugins/orca/README.md`, `plugins/orca-infill/tests/`, `my-plugins/.../nonplanar_infill_tool.py`, `tests/test_nonplanar_core.py` — none exist | all four point at real paths |
+| `MEMORY.md` already said "Preserved Orca settings can be cleared with **Restore defaults**" while the changelog said nothing could be done | the line was right; it is now the documented fallback |
+| `AGENTS.md` §3 map omitted `tools/sync_*.py` and `tests/wave_cases.py` | added |
+
+**Verified here:** the whole suite, with numpy + shapely installed so
+`test_wave_gcode.py` really ran rather than skipping (that skip is now
+flagged in `AGENTS.md` §5). New assertions: a simulated 0.3.4 config gains
+`pattern`, `wave_angle`, `shape`, `layer_phase` and `max_lift_mm` with the
+owner's `amplitude = "150%"` intact; an already-current config is not
+rewritten; an unknown key is not deleted; a refused save still exports; junk
+JSON does not raise. `fake_orca` grew `get_config_version()` / `save_config()`
+with real Orca's signature, so a plugin that hands Orca a dict instead of a
+JSON string fails here.
+
+**NOT verified:** anything on real OrcaSlicer. In particular, whether
+`migrate_config_if_needed()` is called by the host at all, and at what point.
+The per-session fallback exists for exactly that reason, and the owner's first
+real check is simply whether `shape` and `pattern` are in the Config tab after
+installing 0.4.2 and slicing once.
+
 ### 2026-10-02 — Wave 0.0.32 / Unlayered 0.4.1: settings the owner could not see
+
+**Corrected by the 0.0.33 / 0.4.2 entry above. The storage model described
+below is wrong (config is global, not per-preset) and "it cannot be fixed in
+code" is wrong (`migrate_config_if_needed()` is the documented fix).** Kept
+for the record of how the wrong conclusion was reached.
 
 The owner said *"I'm not seeing all of those new config options for unlayered
 infill."* **Investigated before changing anything, and the plugin turned out

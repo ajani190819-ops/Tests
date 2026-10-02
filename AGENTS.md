@@ -73,8 +73,17 @@ These are the owner's explicit expectations for how AI assistance goes:
 ## 3. Repo map
 
 ```
-Update-Orca-Plugins.bat     ONE-CLICK UPDATER. Download once into Downloads,
-                            double-click to install/update every plugin below.
+Orca-Plugins.bat            THE ONE FILE A USER DOWNLOADS. The launcher: a menu
+                            over the updater, remembers the chosen build and
+                            Orca folder, and hands over to a newer copy of
+                            itself rather than overwriting itself mid-run.
+Update-Orca-Plugins.bat     the install engine the launcher runs. Keeps its old
+                            name and URL on purpose: copies already on disk
+                            check that exact address for their own updates.
+                            Still works standalone.
+Choose-Orca-Plugin-Version.bat
+                            the old version picker, now a short forwarder to
+                            Orca-Plugins.bat so existing shortcuts keep working.
 plugins.json                the catalogue the updater reads (what + where + version)
 AGENTS.md                   this rulebook
 MEMORY.md                   handoff: state of the work + session log. Read at the
@@ -93,6 +102,8 @@ archive/                    NOT shipped: work kept for reference, with its own
 tools/
   nonplanar-infill-tool/    standalone double-click tool (the predecessor of the
                             unlayered-infill plugin; kept as reference, GPL-3.0)
+  sync_engine.py            copy the shared engine between its two homes (--check)
+  sync_changelog.py         push the newest release notes into the plugin files
 keyboard-lighting/          unrelated personal project; DO NOT reorganize or "fix" it
 tests/
   fake_orca.py              minimal stand-in for Orca's `orca` module
@@ -105,6 +116,7 @@ tests/
   test_unlayered_waves.py   Unlayered Infill wave shaping: pattern, angle,
                             shape, layer phase, Z ceiling, and that the
                             defaults still reproduce the previous release
+  wave_cases.py             the synthetic Wave exports the Wave tests slice
 ```
 
 The `plugins.json` entry `path` is a URL path into this repo (forward slashes,
@@ -209,6 +221,8 @@ python3 tests/test_plugin_runtime.py   # the plugin loads, runs, and logs
 python3 tests/test_plugin_audit.py     # it imports under Orca's audit hook
 python3 tests/test_unlayered_waves.py  # Unlayered Infill wave shaping
 python3 tests/test_wave_gcode.py       # captured export; needs numpy + shapely
+                                      # -- it SKIPS without them. A skip is not
+                                      # a pass; install them before claiming it.
 python3 tools/sync_engine.py --check   # the two engine copies are identical
 python3 tools/sync_changelog.py --check  # changelogs match the plugins
 git ls-files --eol Update-Orca-Plugins.bat   # must say i/crlf

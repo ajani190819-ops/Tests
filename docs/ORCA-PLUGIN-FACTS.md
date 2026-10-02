@@ -112,6 +112,54 @@ is a bug in the plugin:
   approval prompts during normal slicing. `ORCA_PLUGIN_LOG_DIR` is allowed only
   as an explicit debug override.
 
+## Capability configuration — where the settings panel's values come from
+
+Established 2026-10-02 from the OrcaSlicer wiki, *Plugin Development →
+Capability configuration* and *Plugin Types → Plugin Configuration*. This
+replaces an earlier **guess** in `MEMORY.md` that said Orca copies
+`get_default_config()` into the process preset once and that a stale panel
+"cannot be fixed in code". Both halves of that guess were wrong.
+
+* **Every capability has its own JSON configuration**, whatever its type. The
+  *Config* tab of the Plugins dialog is a JSON editor over it, unless the
+  capability supplies a custom HTML UI.
+* **It is stored globally, not in the preset:**
+  `data_dir()/orca_plugins/config.json`, keyed by the full capability identity
+  (plugin key, capability type, capability name). A **preset override** is a
+  separate, optional thing, edited from a preset's plugin configuration dialog
+  and stored inside the preset. When an override exists `get_config()` returns
+  it; otherwise it returns the global configuration.
+* **The methods on `orca.PythonPluginBase`:**
+
+  | Method | What it does |
+  | --- | --- |
+  | `get_default_config()` | override returning a `dict`; used **when the user restores global defaults**. Default `{}`. |
+  | `get_config()` | the effective stored configuration as a JSON string; `{}` when nothing has been saved |
+  | `get_config_version()` | the plugin version that last saved the configuration — "use this to detect and migrate an older schema" |
+  | `save_config(json_string)` | persist this capability's configuration; returns a bool. Identity and current version are supplied automatically. A plugin cannot write another capability's config. |
+  | `has_config_ui()` / `get_config_ui()` | opt into a self-contained HTML page instead of the JSON editor |
+
+* **`migrate_config_if_needed(self)` is the documented schema-migration
+  hook.** The wiki's own example reads `get_config_version()`, loads
+  `get_config()`, migrates, writes back with `save_config()`, and returns
+  `(version, config)`.
+* **Therefore a stale settings panel IS fixable in code**, and this is how:
+  when a config saved by an older release lacks keys the running release has,
+  merge the new keys in (keeping every value the user set) and `save_config()`
+  the result. Plugins here do that in `_migrate_config()`, called both from
+  `migrate_config_if_needed()` and defensively at the top of each capability
+  call, because *when* the host invokes the hook is documented only by example
+  — **not verified on a real build.**
+* **The user-facing fix, when the panel is stale and the plugin has not
+  migrated it yet, is "Restore defaults" in the Config tab** — the wiki says
+  it "removes the saved configuration for that capability and uses the
+  plugin's default configuration". The old advice ("set the preset's Slicing
+  Pipeline Plugin to None and back, then save the preset") was based on the
+  wrong storage model. It is harmless but it is not the fix.
+* `get_default_config()` may legitimately contain keys that are not settings.
+  Both plugins here interleave `_`-prefixed note strings so the JSON editor
+  explains itself; `_cfg()` ignores any key it does not know.
+
 ## Where a version number is visible to the user
 
 * The Plugins dialog lists each plugin as a row of **Activate · Name · Version
