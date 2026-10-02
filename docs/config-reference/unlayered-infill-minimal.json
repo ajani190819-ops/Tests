@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "amplitude": "200%",
+  "frequency": 1.5,
+  "segment_mm": 1.0,
+  "cell_mm": "auto",
+  "blend_mm": 2.0,
+  "full_strength": false,
+  "pattern": "linear",
+  "wave_angle": 0.0,
+  "shape": "sine",
+  "layer_phase": 0.0,
+  "max_lift_mm": 0.0,
+  "require_relative_e": true,
+  "log": true
+}

@@ -1,0 +1,5 @@
+{
+  "_READ_ME": "Keys starting with _ are notes, not settings -- the plugin ignores them. This item reports whether Unlayered Infill is working and then explains every setting of the main Unlayered Infill capability.",
+  "_settings_guide": "Show the full explanation of every Unlayered Infill setting after the diagnostics. Set false once you know them and you will get just the short status report.",
+  "settings_guide": true
+}

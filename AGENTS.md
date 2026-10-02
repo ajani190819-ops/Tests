@@ -230,6 +230,7 @@ python3 tests/test_wave_gcode.py       # captured export; needs numpy + shapely
                                       # a pass; install them before claiming it.
 python3 tools/sync_engine.py --check   # the two engine copies are identical
 python3 tools/sync_changelog.py --check  # changelogs match the plugins
+python3 tools/dump_default_config.py --check  # docs/config-reference is current
 git ls-files --eol Orca-Plugins.bat   # must say i/crlf; it is the only .bat
 ```
 
