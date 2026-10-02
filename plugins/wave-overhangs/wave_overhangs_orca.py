@@ -179,6 +179,215 @@ _DEFAULTS = {
     "max_iterations": 400,       # safety limit on fronts per region
 }
 
+# --- the settings panel Orca shows you -------------------------------------
+#
+# Orca hands the capability config to the user as JSON, and JSON has no
+# comment syntax -- so every explanatory comment above is invisible in the
+# app. That left the panel a wall of forty bare keys with no way to tell what
+# any of them did, or even which ones were worth touching.
+#
+# So the notes travel *in* the config. Keys beginning with "_" are notes, not
+# settings: _cfg() only copies keys that exist in _DEFAULTS, so a note can
+# never become a setting, can never be misspelled into one, and can be
+# deleted by the user with no effect. Each note sits immediately above the
+# setting it describes; dicts keep insertion order and json.dumps preserves
+# it, so the panel reads top to bottom.
+#
+# Rules for writing these: plain English, no jargon, say what happens if you
+# change it, and give the units. They are the only documentation most people
+# will ever see.
+
+_NOTES = {
+    "_READ_ME": (
+        "Keys starting with _ are notes, not settings -- the plugin ignores "
+        "them, so you can safely leave or delete them. Each note describes "
+        "the setting directly below it. Defaults are good for most prints; "
+        "the ones people usually touch are print_speed, fan and line_spacing."
+    ),
+
+    "_enabled": (
+        "Master switch. Set false and the plugin leaves your G-code exactly "
+        "as Orca wrote it (useful for an A/B test without uninstalling)."
+    ),
+    "_time_budget": (
+        "Seconds. If the wave pass is still working when this runs out it "
+        "gives up and hands back Orca's original file untouched. Protects "
+        "you from an export that never finishes. 0 means no limit."
+    ),
+
+    "_overhang_tol": (
+        "Millimetres of slack when deciding what counts as unsupported. "
+        "Bigger = the plugin is more forgiving and treats slightly "
+        "overhanging material as supported, so it makes fewer waves."
+    ),
+    "_min_overhang_area": (
+        "Square millimetres. Unsupported patches smaller than this are left "
+        "alone. Raise it if tiny specks are getting wave treatment."
+    ),
+
+    "_line_spacing": (
+        "Millimetres between neighbouring wave lines, centre to centre. "
+        "Smaller = denser, stronger, slower, and hotter (less cooling time "
+        "between passes). This is the main quality/time dial."
+    ),
+    "_line_width": (
+        "Millimetres. Only a fallback -- if Orca's export states a bridge "
+        "width, that wins. Change this only if waves look too fat or thin "
+        "and your export has no width information."
+    ),
+    "_perimeter_overlap": (
+        "Millimetres the first wave line starts back inside solid material, "
+        "so it is anchored instead of beginning in mid-air."
+    ),
+
+    "_propagation_mode": (
+        "How the wave flows. \"auto\" (recommended) routes around holes only "
+        "when the overhang actually has one. \"obstacle\" always does. "
+        "\"legacy\" is the old behaviour and can print across holes."
+    ),
+    "_wake_blend": (
+        "EXPERIMENTAL, leave at 0. Where the wave splits around a hole and "
+        "meets again behind it, the two sides form a sharp V that every "
+        "later line copies. This rounds that crease off, measured in "
+        "multiples of line_spacing (1.0 = one line spacing, max 1.5). It "
+        "works on simple round holes, but on complex parts it currently "
+        "loses about 4% of the wave coverage and breaks lines into dashes, "
+        "which is why it ships off."
+    ),
+    "_pattern": (
+        "Print order. \"smart\" starts each line at its better-supported end. "
+        "\"monotonic\" prints strictly nearest-to-furthest. \"zigzag\" "
+        "alternates direction for fewer travel moves but more stringing."
+    ),
+    "_start_policy": (
+        "Which end of a wave line to start from: \"supported\", "
+        "\"consistent\", \"min-x\", \"max-x\", \"min-y\" or \"max-y\". "
+        "\"supported\" is safest; the others help if you see a seam."
+    ),
+    "_component_order": (
+        "When two separate wave areas are the same distance along, print the "
+        "one nearest the supported edge (\"support\") or nearest the nozzle "
+        "(\"nearest\", fewer travels)."
+    ),
+
+    "_min_wave_length": (
+        "Millimetres. Whole wave lines shorter than this are dropped as "
+        "blob-prone. Lower it to keep more small detail."
+    ),
+    "_min_wave_segment": (
+        "Millimetres. Very short stubs at the ends of a line get merged "
+        "away rather than printed as separate dots."
+    ),
+    "_simplify_tolerance": (
+        "Millimetres of allowed smoothing. Removes jitter inherited from the "
+        "sliced outline. Raise it for smoother, faster lines; too high and "
+        "waves stop hugging the real shape."
+    ),
+    "_min_bridge_fragment": (
+        "Multiple of line width. Any original bridge the waves did not cover "
+        "is printed as before if it is at least this long."
+    ),
+
+    "_wall_snap": (
+        "Stretch waves out to the real wall of the part instead of stopping "
+        "at the ragged edge of Orca's bridge lines. This is the fix for the "
+        "castellated edges; set false only to compare against the old look."
+    ),
+    "_wall_reach": (
+        "How far that stretch may reach, in millimetres, or \"auto\" for one "
+        "and a half line widths. Raise only if waves still stop short."
+    ),
+    "_wall_overlap": (
+        "How far a wave end buries itself into the wall, as a fraction of "
+        "line width. 0.25 = a quarter. Higher bonds better but can bulge."
+    ),
+    "_gap_fill": (
+        "Fill the small slivers left where a wave runs out at an angled "
+        "boundary, typically the tip of a corner."
+    ),
+    "_gap_fill_min_area": (
+        "Square millimetres. Slivers smaller than this are left alone "
+        "instead of being filled with a tiny blob."
+    ),
+
+    "_arc_fitting": (
+        "Whether WAVE's OWN lines are written as G2/G3 arcs. Keep this "
+        "false. This is NOT OrcaSlicer's arc fitting -- that one lives in "
+        "Print Settings > Quality > Precision > Arc fitting and is "
+        "unaffected by this plugin. Leaving Wave's arcs off is what avoids "
+        "OrcaSlicer bug #7433 (post-processed arcs corrupting the preview "
+        "or hanging the export), and it costs you almost nothing: Wave's "
+        "arcs save under 1% of file size. \"auto\" follows your Orca "
+        "setting, true forces arcs on."
+    ),
+    "_arc_tolerance": (
+        "Millimetres an arc may stray from the true path, or \"auto\" to "
+        "follow your profile's resolution. Only used if arc_fitting is on."
+    ),
+
+    "_edge_snap_distance": (
+        "Millimetres, or \"auto\". How far an endpoint may be nudged to land "
+        "exactly on the wall or hole edge."
+    ),
+    "_edge_clearance": (
+        "Millimetres to hold back from walls. Normally 0 -- raising it "
+        "leaves visible gaps at the edges."
+    ),
+    "_edge_taper_distance": (
+        "Millimetres over which flow eases off as a line approaches the "
+        "wall, so ends do not blob. 0 turns tapering off."
+    ),
+    "_edge_taper_min_flow": (
+        "The reduced flow right at the wall, as a fraction of normal. "
+        "0.55 = 55%. Lower if ends still look over-extruded."
+    ),
+    "_edge_taper_segment": (
+        "Millimetres. 0 (recommended) tapers by varying flow on the moves "
+        "that already exist. Above 0 adds extra tiny moves to taper more "
+        "finely, at the cost of a bigger file."
+    ),
+
+    "_flow_ratio": (
+        "Extrusion multiplier for wave lines only. 1.0 is the calculated "
+        "amount. Below 1 for thinner, cooler lines that sag less."
+    ),
+    "_print_speed": (
+        "Millimetres per second for wave lines. Deliberately very slow -- "
+        "slow printing is what lets each line cool and hold its shape in "
+        "mid-air. Raising this is the most likely cause of droop."
+    ),
+    "_travel_speed": (
+        "Millimetres per second for non-printing moves between waves."
+    ),
+    "_fan": (
+        "Cooling fan during wave printing, 0 to 1 (1 = 100%). Full cooling "
+        "is strongly recommended; the fan is restored to your normal "
+        "setting afterwards. Lower it only for materials that warp, "
+        "like ABS."
+    ),
+    "_max_iterations": (
+        "Safety limit on how many wave lines one region may produce. Raise "
+        "only if a large overhang comes out unfinished."
+    ),
+}
+
+
+def annotated_defaults():
+    """`_DEFAULTS` with each setting preceded by its plain-English note.
+
+    This is what the user actually sees and edits in OrcaSlicer, so it is
+    built fresh every time (never hand out `_DEFAULTS` itself to be mutated)
+    and ordered note-then-setting.
+    """
+    out = {"_READ_ME": _NOTES["_READ_ME"]}
+    for key, value in _DEFAULTS.items():
+        note = _NOTES.get("_" + key)
+        if note:
+            out["_" + key] = note
+        out[key] = value
+    return out
+
+
 # The version this file was built as. Kept in lockstep with the PEP 723 header
 # at the top (tests/test_installer.py fails if they drift), so everything that
 # reports a version at runtime reports the one actually running.
@@ -196,6 +405,18 @@ v0.0.26  (2026-10-01)
      exactly as easy as it was. The remembered values live in
      %LOCALAPPDATA%\\OrcaPluginUpdater\\ (branch.txt and datadir.txt);
      delete them to be asked from scratch.
+   * The settings panel now explains itself. OrcaSlicer shows the plugin
+     config as JSON, and JSON cannot hold comments, so every explanation
+     written in the source was invisible to you -- the panel was 33 bare
+     names with no hint what any of them did. Each setting now has a
+     plain-English note directly above it saying what it does, what the
+     units are, and what happens if you change it. Notes are the keys
+     beginning with _; the plugin ignores them, so you can edit or
+     delete them freely and nothing breaks. The note on arc_fitting in
+     particular now spells out that it controls *Wave's own* arcs and
+     that OrcaSlicer's arc fitting is a separate setting in Print
+     Settings > Quality > Precision > Arc fitting, which this plugin
+     does not touch.
    * A real crash in the wave propagation, fixed. Clipping one boundary
      against another can leave a single-point line behind, and shapely's
      linemerge raises GEOSException on those. GEOSException is not a
@@ -2015,7 +2236,9 @@ class WaveOverhangsSlicing(orca.slicing.SlicingPipelineCapabilityBase):
         return "Wave Overhangs"
 
     def get_default_config(self):
-        return _DEFAULTS
+        # Annotated, so the JSON panel in Orca explains itself. The notes are
+        # ignored on the way back in (see _cfg).
+        return annotated_defaults()
 
     def execute(self, ctx):
         _log_loaded_once()

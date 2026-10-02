@@ -161,6 +161,17 @@ would not see that wall at all. Both the `I J` and the `R` forms are read.
 
 ### Detection and geometry
 
+Every setting below also appears, with the same explanation, in the plugin's
+settings panel inside OrcaSlicer. The notes there are the entries whose names
+begin with `_`; the plugin ignores them, so you can delete them if you prefer
+a compact panel.
+
+**OrcaSlicer's own arc fitting is not one of these settings.** It lives in
+Print Settings > Quality > Precision > Arc fitting, and this plugin neither
+reads nor changes it. `arc_fitting` below controls only whether *Wave's* lines
+are written as arcs, and should stay `false`.
+
+
 * `enabled`: `true`/`false`. Disable the rewrite without removing the plugin.
 * `time_budget`: seconds, `30` by default (new in 0.0.26). A hard ceiling on
   the whole G-code pass, checked before every layer and every bridge section.

@@ -24,6 +24,19 @@ blending.
   so switching is exactly as easy as it was. The remembered values live in
   `%LOCALAPPDATA%\OrcaPluginUpdater\` (`branch.txt` and `datadir.txt`);
   delete them to be asked from scratch.
+* **The settings panel now explains itself.** OrcaSlicer shows the plugin
+  config as JSON, and JSON cannot hold comments, so every explanation written
+  in the source was invisible to you -- the panel was 33 bare names with no
+  hint what any of them did. Each setting now has a plain-English note
+  directly above it saying what it does, what the units are, and what happens
+  if you change it. Notes are the keys beginning with `_`; the plugin ignores
+  them, so you can edit or delete them freely and nothing breaks.
+
+  The note on `arc_fitting` in particular now spells out that it controls
+  *Wave's own* arcs and that OrcaSlicer's arc fitting is a separate setting in
+  **Print Settings > Quality > Precision > Arc fitting**, which this plugin
+  does not touch.
+
 * **A real crash in the wave propagation, fixed.** Clipping one boundary
   against another can leave a single-point line behind, and shapely's
   `linemerge` raises `GEOSException` on those. `GEOSException` is not a

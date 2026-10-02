@@ -583,6 +583,19 @@ the printed path length (12,546 arcs, 30.3 m of 82.7 m). So the lever is
 Orca's setting, not ours, and since 0.0.24 stopped emitting G2/G3 the owner
 can safely turn Orca's arc fitting back on. Nothing was built for this.
 
+**The settings panel had no explanations, and that was invisible from here.**
+The owner went looking for "arc fitting" in the plugin, could not find it, and
+asked for comments in the config. Both complaints have the same root cause:
+Orca renders the capability config as JSON, JSON has no comment syntax, and so
+the thorough comments in `_DEFAULTS` never left the source file. The panel was
+33 bare keys. Notes now ship *in* the config as `_`-prefixed keys, built by
+`annotated_defaults()`; `_cfg()` already copied only keys present in
+`_DEFAULTS`, so a note can never become a setting. Tests assert every setting
+is explained, each note sits directly above its setting, and the panel
+round-trips to exactly `_DEFAULTS` with the notes present and with them all
+deleted. Lesson: a setting the user cannot interpret is not a feature, and
+source comments are not user documentation.
+
 **Updater memory.** The chooser stored the last branch but still required a
 menu pick; empty Enter now reuses it. The updater now also remembers its data
 directory in `%LOCALAPPDATA%\OrcaPluginUpdater\datadir.txt`, written on every

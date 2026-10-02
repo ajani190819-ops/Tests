@@ -54,6 +54,20 @@ the subtraction against the raw region -- and neither removed the dashes. The
 remaining idea is in `docs/ROADMAP.md`. With `wake_blend` at 0 the output is
 byte-identical to 0.0.25 on all five test shapes including the owner's export.
 
+*Making the settings readable.* Orca presents a plugin's config as JSON, and
+JSON has no comments, so the careful explanations in the plugin source never
+reached the person actually editing the values -- they saw 33 bare keys. Every
+setting now carries a plain-English note immediately above it, shipped as
+`_`-prefixed keys. `_cfg()` already ignored unknown keys, so notes cannot
+become settings, cannot be typo'd into one, and can be deleted with no effect;
+a test asserts the panel round-trips to exactly `_DEFAULTS` both with and
+without them, and that no setting is left unexplained.
+
+This also fixes a documentation failure from the arc-size work: the owner went
+looking for "arc fitting" in the plugin and could not find it, because Wave's
+own `arc_fitting` was already false and the setting that actually mattered was
+OrcaSlicer's, in Print Settings > Quality > Precision. The note says so.
+
 Chasing that did find a real latent crash, now fixed: clipping one boundary
 against another can leave a single-point line, and shapely's `linemerge`
 raises `GEOSException` on it. `GEOSException` is not a `ValueError`, so the

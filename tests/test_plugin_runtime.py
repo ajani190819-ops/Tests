@@ -15,6 +15,7 @@ slice can do that — but it does prove the plugin's own logic is sound and
 that it writes the log the owner asked for.
 """
 import importlib.util
+import json
 import math
 import os
 import pathlib
@@ -351,6 +352,51 @@ with tempfile.TemporaryDirectory() as tmp:
         check("no cross-callback geometry" in wave_source and
               "one transactional G-code pass" in wave_source,
               "Wave source no longer documents its transactional architecture")
+
+        # --- the settings panel must explain itself (0.0.26) ---
+        # Orca shows the config as JSON, which cannot carry comments, so the
+        # notes are shipped as "_"-prefixed keys. Two things must hold: every
+        # setting is explained, and no note can ever be mistaken for a
+        # setting on the way back in.
+        panel = orca.REGISTERED[0]().get_default_config()
+        settings = {k: v for k, v in panel.items() if not k.startswith("_")}
+        notes = {k for k in panel if k.startswith("_")}
+        check(settings == wave._DEFAULTS,
+              "the settings in the panel drifted from _DEFAULTS")
+        unexplained = sorted(k for k in wave._DEFAULTS if "_" + k not in notes)
+        check(not unexplained,
+              f"settings with no explanation in the panel: {unexplained}")
+        orphans = sorted(n for n in notes
+                         if n != "_READ_ME" and n[1:] not in wave._DEFAULTS)
+        check(not orphans, f"notes describing settings that do not exist: {orphans}")
+        # Order matters: a note is only useful if it sits above its setting.
+        keys = list(panel)
+        misplaced = [k for k in wave._DEFAULTS
+                     if "_" + k in notes
+                     and keys.index("_" + k) != keys.index(k) - 1]
+        check(not misplaced, f"notes not directly above their setting: {misplaced}")
+
+        # Feeding the panel straight back must yield exactly the defaults --
+        # notes dropped, nothing renamed, nothing lost.
+        class _Panel:
+            def get_config(self):
+                return json.dumps(panel)
+
+        check(wave._cfg(_Panel()) == wave._DEFAULTS,
+              "notes leaked into the live config or a setting was lost")
+        # And a user who deletes every note must still get a working config.
+        class _Stripped:
+            def get_config(self):
+                return json.dumps(settings)
+
+        check(wave._cfg(_Stripped()) == wave._DEFAULTS,
+              "deleting the notes must not change behaviour")
+        # The arc note is the one people go looking for; it must point at
+        # Orca's own setting rather than leaving them hunting in the plugin.
+        arc_note = panel["_arc_fitting"]
+        check("Print Settings" in arc_note and "Precision" in arc_note
+              and "7433" in arc_note,
+              "the arc_fitting note must say where Orca's own arc fitting lives")
 
         result = orca.REGISTERED[1]().execute()
         check(not result.ok and result.kind == fake_orca.PluginResult.RecoverableError,
