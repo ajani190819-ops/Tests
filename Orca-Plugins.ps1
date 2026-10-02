@@ -38,11 +38,19 @@ $root = if ($args.Count -gt 0 -and $args[0] -notmatch '^-' -and $args[0]) {
 }
 $target = Join-Path $root 'orca_plugins'
 $catalog = Invoke-RestMethod "https://raw.githubusercontent.com/$repo/$branch/plugins.json"
+New-Item -ItemType Directory -Force -Path $target | Out-Null
 foreach ($plugin in @($catalog.plugins | Where-Object status -eq 'ready')) {
   $dir = Join-Path $target $plugin.orca_dir
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
+  $destination = Join-Path $dir $plugin.file
   $url = "https://raw.githubusercontent.com/$repo/$branch/$($plugin.path)"
-  Invoke-WebRequest -UseBasicParsing $url -OutFile (Join-Path $dir $plugin.file)
+  Invoke-WebRequest -UseBasicParsing -Headers @{ 'User-Agent' = 'Orca-Plugins-Updater' } $url -OutFile $destination
+  if (-not (Test-Path $destination) -or (Get-Item $destination).Length -lt 2000) { throw "Downloaded $($plugin.name) is missing or incomplete." }
+  $state = [ordered]@{
+    id = $plugin.id; name = $plugin.name; version = $plugin.version
+    branch = $branch; file = $plugin.file; capabilities = @($plugin.capabilities)
+  }
+  $state | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 (Join-Path $dir '.install_state.json')
   Write-Host "Installed $($plugin.name) $($plugin.version)"
 }
 Write-Host "Done. Plugins installed in $target" -ForegroundColor Green
