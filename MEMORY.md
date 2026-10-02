@@ -21,7 +21,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.28, Unlayered Infill 0.4.0,
+* **Current versions:** Wave Overhangs 0.0.29, Unlayered Infill 0.4.0,
   updater 1.4.0, launcher (`Orca-Plugins.bat`) 1.0.1.
 * **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
   numbers must remain out of package and capability names.
@@ -209,7 +209,7 @@ or a printer.
 ## What remains to do
 
 1. Install this branch with the launcher and confirm both plugin versions in
-   Orca's separate Version column: Wave Overhangs 0.0.28, Unlayered Infill
+   Orca's separate Version column: Wave Overhangs 0.0.29, Unlayered Infill
    0.4.0.
 2. **Try the new Unlayered Infill wave controls on a real slice.** The most
    valuable single test: print the same part twice, once with
@@ -234,6 +234,39 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-02 — Wave 0.0.29: print_speed can follow Orca's bridge speed
+
+Direct owner request, immediately after 0.0.28: "Can we not make it take the
+speed used for bridges that I already have in Orca". Yes -- and 0.0.28 had
+just added the modal-feedrate tracking that makes it possible.
+
+`print_speed` now accepts the strings `"orca"` / `"bridge"` / `"auto"` as well
+as a number. `_section_print_speed()` takes the most common feedrate across
+the bridge section's own segments (ties go to the faster), ignoring any move
+already sitting at the Wave speed -- a pre-0.0.28 file can carry the leaked
+F120 on untouched bridge moves, and reading that back would pin the speed at
+2 mm/s permanently. Resolution is **per bridge section**, not per file: the
+test fixture legitimately has sections at `F1200` and `F420`, and each wave
+block follows the one it replaced. A number, junk, or a missing feedrate all
+fall back to 2.0 via `_print_speed_fallback()`.
+
+The owner's measured bridge speed is **F1200 = 20 mm/s**, against the 2 mm/s
+default. Predicted totals for their part (arithmetic on the G-code, not a
+print): 0.0.27 103.9 min -> 0.0.28 71.5 -> `print_speed` 5 36.2 -> 8 27.4 ->
+`"orca"` 18.6. Orca's own pre-plugin estimate was 19.8 min.
+
+**The default stays 2.0 and should stay 2.0.** Orca's bridge speed is tuned
+for a strand anchored at *both* ends, where tension holds it up; a wave line
+is cantilevered into open air at one end only. A 10x jump is a real droop
+risk, and the owner was told to walk up through 5 and 8 rather than trust
+`"orca"` straight away. Nothing here is verified on hardware.
+
+Note for future work: there is a second, **inlined** copy of the wave core in
+`_WAVE_CORE_SRC` with its own `emit_layer_gcode`, which also lacks a feedrate
+restore and does not honour `"orca"`. It is not the active path
+(`_emit_wave_gcode` is), and `"orca"` degrades to the 2.0 fallback there, so
+it is safe -- but if that path is ever activated, both fixes need porting.
 
 ### 2026-10-02 — Wave 0.0.28: the modal feedrate leak (owner's own export)
 

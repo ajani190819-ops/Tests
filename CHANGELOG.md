@@ -22,6 +22,43 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-02 — Wave Overhangs 0.0.29: follow Orca's own bridge speed
+
+**`plugins/wave-overhangs/`:** 0.0.28 → 0.0.29. Owner request, straight after
+0.0.28: *"Can we not make it take the speed used for bridges that I already
+have in Orca"*.
+
+`print_speed` now accepts `"orca"` (also `"bridge"` / `"auto"`) as well as a
+number. The plugin reads the feedrate off the bridge moves it is replacing,
+**per section**, so it follows whatever the user's profile says without
+needing to know anything about their printer. This only became possible
+because 0.0.28 added modal-feedrate tracking to the parser. Junk values and
+sections with no feedrate fall back to the safe 2.0 default.
+
+Measured on the owner's export, whose bridge speed is F1200 = 20 mm/s:
+
+| setting | predicted total |
+|---|---|
+| 0.0.27 (with the feedrate bug) | 103.9 min |
+| 0.0.28 (bug fixed, `print_speed` 2.0) | 71.5 min |
+| `print_speed = 5` | 36.2 min |
+| `print_speed = 8` | 27.4 min |
+| `print_speed = "orca"` (20 mm/s) | 18.6 min |
+
+**The default stays 2.0.** Orca's bridge speed is tuned for a strand anchored
+at both ends, where tension holds it up while it cools; a wave line is
+cantilevered into open air at one end only. A ten-times jump is a genuine
+droop risk, so the setting's in-Orca note and the changelog both tell the user
+to walk up through 5 and 8 first. These are predictions from move-by-move
+arithmetic, not from a physical print.
+
+`tests/test_wave_gcode.py` gains coverage that `"orca"` uses only feedrates
+the export actually contains (the fixture has two: F1200 and F420), never
+falls back to F120, that the default is still F120, and that an unparseable
+value falls back rather than crashing.
+
+---
+
 ## 2026-10-02 — Wave Overhangs 0.0.28: a third of the print time, recovered
 
 **`plugins/wave-overhangs/`:** 0.0.27 → 0.0.28. Diagnosed from the owner's own

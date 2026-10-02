@@ -388,8 +388,8 @@ with tempfile.TemporaryDirectory() as tmp:
               f"Wave capability identities changed: {names}")
         check(not any(ch.isdigit() for ch in "".join(names)),
               f"a version leaked into a capability name: {names}")
-        check(wave.PLUGIN_VERSION == "0.0.28",
-              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.28")
+        check(wave.PLUGIN_VERSION == "0.0.29",
+              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.29")
 
         # The active Wave implementation is deliberately G-code-only. Its
         # source must not retain the removed slice-object planner, host Polygon
@@ -506,7 +506,7 @@ with tempfile.TemporaryDirectory() as tmp:
               "Diagnostics" in result.message,
               f"dependency failure does not give a complete beginner-safe fix: {result.message!r}")
         log = read_log(logs)
-        check("Wave Overhangs v0.0.28 loaded" in log and "MISSING" in log,
+        check("Wave Overhangs v0.0.29 loaded" in log and "MISSING" in log,
               f"Wave dependency state was not logged clearly:\n{log}")
         pipeline = orca.REGISTERED[0]()
         result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))

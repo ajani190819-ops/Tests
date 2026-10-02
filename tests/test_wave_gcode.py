@@ -971,3 +971,110 @@ print("ok -- real Cube^2 export: 3 cleaned wave layers use actual offset Z, "
       "perimeter in the synthetic overhang-with-hole export) instead of the "
       "0.0.19 castellated edge, and G2/G3 arcs are both read from the export "
       "and emitted when the profile asks for them")
+
+# ---------------------------------------------------------------------------
+# print_speed = "orca": follow the bridge speed already in the user's profile
+# ---------------------------------------------------------------------------
+# The owner asked for this directly: 2 mm/s is the single biggest cost in a
+# Wave print, and their Orca profile already states a bridge speed. Rather
+# than make them copy a number across, "orca" reads the feedrate off the very
+# bridge moves the plugin is replacing.
+
+def _bridge_feedrates(text):
+    """Every feedrate Orca used on an extruding move in a bridge section."""
+    found = []
+    feed = None
+    section = None
+    for raw in text.splitlines():
+        s = raw.strip()
+        if s.startswith(";TYPE:"):
+            section = s[6:].strip().lower()
+            continue
+        if not s.startswith(("G0", "G1")):
+            continue
+        words = {t[0]: t[1:] for t in s.split()[1:] if t[:1] in "XYEF"}
+        if "F" in words:
+            try:
+                feed = float(words["F"])
+            except ValueError:
+                pass
+        if section in ("bridge", "internal bridge") and "E" in words and feed:
+            try:
+                if float(words["E"]) > 0:
+                    found.append(feed)
+            except ValueError:
+                pass
+    return found
+
+
+source_bridge_feeds = _bridge_feedrates(source)
+assert source_bridge_feeds, "fixture has no bridge extrusions to read a speed from"
+# Resolution is per bridge section, not one value for the whole file: this
+# fixture genuinely contains sections at different speeds, and each wave block
+# must follow the section it replaces.
+source_feed_set = set(source_bridge_feeds)
+expected_f = max(source_feed_set, key=source_bridge_feeds.count)
+
+orca_out, orca_stats = wave._gcode_wave_rewrite(
+    source, dict(cfg, print_speed="orca"))
+assert orca_stats.get("wave_layers"), "print_speed='orca' produced no wave layers"
+
+orca_block_feeds = set()
+inside = False
+for raw in orca_out.splitlines():
+    s = raw.strip()
+    if s == "; ==== WAVE OVERHANG BEGIN ====":
+        inside = True
+        continue
+    if s == "; ==== WAVE OVERHANG END ====":
+        inside = False
+        continue
+    if inside and s.startswith("G1 F"):
+        orca_block_feeds.add(float(s.split()[1][1:]))
+
+assert orca_block_feeds, "print_speed='orca' emitted no wave feedrates at all"
+assert orca_block_feeds <= source_feed_set, (
+    f"print_speed='orca' invented a feedrate the export never used: "
+    f"{sorted(orca_block_feeds - source_feed_set)} not in {sorted(source_feed_set)}")
+assert 120.0 not in orca_block_feeds, (
+    "print_speed='orca' still fell back to the 2 mm/s default somewhere")
+assert expected_f in orca_block_feeds, (
+    f"the fixture's dominant bridge feedrate F{expected_f:.0f} was not used "
+    f"by any wave block; got {sorted(orca_block_feeds)}")
+
+# ...and the default must be untouched by the new option.
+default_block_feeds = set()
+inside = False
+for raw in out.splitlines():
+    s = raw.strip()
+    if s == "; ==== WAVE OVERHANG BEGIN ====":
+        inside = True
+        continue
+    if s == "; ==== WAVE OVERHANG END ====":
+        inside = False
+        continue
+    if inside and s.startswith("G1 F"):
+        default_block_feeds.add(float(s.split()[1][1:]))
+assert default_block_feeds == {120.0}, (
+    f"default print_speed must stay 2 mm/s (F120), got {sorted(default_block_feeds)}")
+
+# A junk value must fall back to the safe default rather than crash or run fast.
+junk_out, _junk_stats = wave._gcode_wave_rewrite(
+    source, dict(cfg, print_speed="definitely not a number"))
+junk_feeds = set()
+inside = False
+for raw in junk_out.splitlines():
+    s = raw.strip()
+    if s == "; ==== WAVE OVERHANG BEGIN ====":
+        inside = True
+        continue
+    if s == "; ==== WAVE OVERHANG END ====":
+        inside = False
+        continue
+    if inside and s.startswith("G1 F"):
+        junk_feeds.add(float(s.split()[1][1:]))
+assert junk_feeds == {120.0}, (
+    f"an unparseable print_speed must fall back to the 2 mm/s default, got {sorted(junk_feeds)}")
+
+print(f"ok -- print_speed='orca' follows the export's own bridge feedrate "
+      f"(F{expected_f:.0f}), the default stays F120, and junk falls back to F120")

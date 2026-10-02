@@ -22,6 +22,48 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.29 — 2026-10-02
+
+`print_speed` can now follow the bridge speed in your own Orca profile.
+
+* **Set `print_speed` to `"orca"` and wave lines use your bridge speed.**
+  Requested by the owner: 2 mm/s is the single biggest cost in a wave print,
+  and your Orca profile already states a bridge speed, so having to copy the
+  number across by hand was silly. With `"orca"` the plugin reads the feedrate
+  off the very bridge moves it is replacing, section by section, straight out
+  of the exported G-code. It therefore follows whatever your profile says
+  without the plugin needing to know anything about your printer. `"bridge"`
+  and `"auto"` do the same thing. Anything that is not a number and not one of
+  those words falls back to the safe 2 mm/s default rather than failing.
+
+  Resolution is **per bridge section**, not one value for the file. A part can
+  genuinely have Bridge and Internal Bridge at different speeds, and the test
+  fixture does: its sections come out at `F1200` and `F420` and each wave
+  block follows the section it replaced.
+
+* **Read this before using it — it is a big jump, and it can ruin a print.**
+  On the owner's part the measured effect is:
+
+  | setting | predicted total |
+  |---|---|
+  | 0.0.27 (with the feedrate bug) | 103.9 min |
+  | 0.0.28 (bug fixed, `print_speed` 2.0) | 71.5 min |
+  | `print_speed = 5` | 36.2 min |
+  | `print_speed = 8` | 27.4 min |
+  | `print_speed = "orca"` (their bridge speed, 20 mm/s) | 18.6 min |
+
+  That is a **ten times** speed increase over the default. The catch is that
+  Orca's bridge speed is tuned for a *bridge*, which is anchored at both ends
+  so tension holds the strand up while it cools. A wave line is **cantilevered
+  into open air, held at one end only** — nothing stops it drooping except
+  cooling fast enough to hold its own shape. The two are not the same job, so
+  your bridge speed is not automatically a safe wave speed.
+
+  The default is unchanged at 2.0 and will stay that way. If you want the time
+  back, the honest advice is to walk up: try 5, look at the overhang, then 8,
+  then try `"orca"`. Those numbers are predictions from move-by-move
+  arithmetic on the G-code, not from a physical print.
+
 ## 0.0.28 — 2026-10-02
 
 A third of the print time was being wasted. This fixes it, and costs nothing
