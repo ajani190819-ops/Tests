@@ -4,8 +4,23 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02 — **Unlayered Infill 0.4.3 / Wave Overhangs
-  0.0.34**, the "press Refresh and Unlayered Infill fails" report. Two
+* **Last updated:** 2026-10-02 — **Wave Overhangs 0.0.35 / Unlayered Infill
+  0.4.4**: readable grouped config panels, and settings that inherit from the
+  user's own Orca profile. Both plugins now build their Config panel AND their
+  Check-setup guide from one `_SECTIONS` list (9 groups for Wave's 33
+  settings, 5 for Unlayered's 14), with one-line notes — a JSON editor renders
+  `\n` literally, so paragraph notes were unreadable. Twelve settings default
+  to `"auto"` and resolve from the export: everything width-derived
+  (line_spacing, perimeter_overlap, min_wave_length, min_wave_segment,
+  edge_taper_distance, min_overhang_area, simplify_tolerance), travel_speed
+  and max_iterations in Wave; segment_mm, blend_mm, frequency in Unlayered.
+  **Every factor is chosen so auto on a stock 0.4 mm profile reproduces the
+  old constant exactly** — pinned by tests, because changing someone's
+  defaults silently is not acceptable. `wave_angle`, `max_lift_mm` (Unlayered)
+  and `fan` (Wave) accept auto but stay off by default. The iteration cap now
+  sizes itself to the region (64..20000) instead of a flat 400. Check setup
+  prints what each auto resolved to.
+* **Previously:** **Unlayered Infill 0.4.3 / Wave Overhangs 0.0.34**, the "press Refresh and Unlayered Infill fails" report. Two
   defects, both found in Unlayered Infill and both pre-emptively closed in
   Wave Overhangs: (1) a lazy `from statistics import multimode` inside the
   export capability, i.e. a first-use import inside Orca's per-call audit
@@ -46,7 +61,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.34, Unlayered Infill 0.4.3,
+* **Current versions:** Wave Overhangs 0.0.35, Unlayered Infill 0.4.4,
   updater **2.1.0** — one file, `Orca-Plugins.bat`, the only .bat in the
   repository; the launcher (1.0.1) and engine (1.4.0) version histories
   ended by merging into it. PR #7 carries it; test it from the branch before

@@ -4,9 +4,9 @@
 #
 # [tool.orcaslicer.plugin]
 # name = "Wave Overhangs"
-# description = "Experimental: print steep overhangs support-free by replacing the overhang region with wave-propagated toolpaths (port of the WaveOverhangs fork's algorithm as a slicing-pipeline plugin). | What's new in v0.0.34: wave_core registered an empty module in sys.modules before the engine was executed into it, and removed it on failure."
+# description = "Experimental: print steep overhangs support-free by replacing the overhang region with wave-propagated toolpaths (port of the WaveOverhangs fork's algorithm as a slicing-pipeline plugin). | What's new in v0.0.35: see CHANGELOG.md."
 # author = "Wave Overhangs plugin lane"
-# version = "0.0.34"
+# version = "0.0.35"
 # ///
 """Wave Overhangs for OrcaSlicer -- experimental slicing-pipeline plugin.
 
@@ -102,369 +102,304 @@ except BaseException as _e:  # pragma: no cover - surfaced via Check setup
         wc = None
 
 
+# ---------------------------------------------------------------------------
+#  The settings
+#
+#  Same three rules as Unlayered Infill, and for the same reason -- with 33
+#  settings an unordered wall of keys is unusable:
+#
+#  1. ORGANISED. `_SECTIONS` is the running order and the grouping, and both
+#     the Config panel and the "Check setup" guide are built from it.
+#  2. ONE LINE each. A JSON editor renders "\n" as two literal characters, so
+#     notes are short sentences shaped `values -- what it does`. The full
+#     discussion lives in plugins/wave-overhangs/README.md.
+#  3. "auto" wherever the export can answer the question -- see the AUTO_*
+#     tables above. The factors reproduce the old constants exactly on a
+#     stock 0.4 mm profile.
+# ---------------------------------------------------------------------------
 _DEFAULTS = {
-    # Master switch. False leaves exported G-code unchanged.
     "enabled": True,
+    "time_budget": 30.0,            # seconds; 0 = no limit
 
-    # Hard wall-clock ceiling for the whole G-code pass, in seconds. If the
-    # pass is still running when the budget runs out it gives up and hands
-    # back the file exactly as Orca wrote it. A slow Wave is a nuisance; an
-    # export that never finishes is a broken printer, so this trades the
-    # feature away rather than ever hanging a slice. 0 disables the ceiling.
-    "time_budget": 30.0,         # seconds; 0 = no limit
+    "overhang_tol": 0.05,           # mm of support forgiveness
+    "min_overhang_area": "auto",    # auto: ~3 line widths squared
+    "propagation_mode": "auto",     # "auto" | "obstacle" | "legacy"
+    "wake_blend": 0.0,              # x line_spacing; EXPERIMENTAL, 0 = off
 
-    # Detection: support is taken from the previous layer's exported moves.
-    # overhang_tol grows support by this many millimetres before deciding that
-    # a Bridge area is unsupported. min_overhang_area ignores tiny regions.
-    "overhang_tol": 0.05,        # mm of support forgiveness
-    "min_overhang_area": 0.5,    # mm²; ignore smaller unsupported regions
+    "line_spacing": "auto",         # auto: 0.875 x the Wave line width
+    "line_width": 0.40,             # mm fallback; the export's Bridge width wins
+    "perimeter_overlap": "auto",    # auto: 0.25 x the Wave line width
+    "max_iterations": "auto",       # auto: enough fronts to cross the region
 
-    # Wave shape: line_spacing is centre-to-centre distance between fronts.
-    # line_width is only a fallback; an exported Bridge WIDTH is preferred.
-    # perimeter_overlap keeps the first anchor slightly inside supported
-    # material so the Wave does not begin in thin air.
-    "line_spacing": 0.35,       # mm; smaller = denser and warmer
-    "line_width": 0.40,          # mm fallback; exported Bridge width wins
-    "perimeter_overlap": 0.10,  # mm; supported anchor-band overlap
+    "pattern": "smart",             # "smart" | "monotonic" | "zigzag"
+    "start_policy": "supported",    # supported/consistent/min|max-x/min|max-y
+    "component_order": "support",   # "support" | "nearest"
 
-    # Propagation and order. auto adds internal-hole obstacles only when the
-    # overhang geometry contains a hole. obstacle forces that method; legacy
-    # is useful for comparison but can miss holes inside an overhang plane.
-    "propagation_mode": "auto",  # "auto" | "obstacle" | "legacy"
-    # EXPERIMENTAL, off by default. When the field splits around a hole and
-    # rejoins behind it, the two arriving sides meet in a sharp V and every
-    # later front keeps that kink, leaving a hard seam downstream of the
-    # hole. This rounds the crease off, in multiples of line_spacing.
-    #
-    # It genuinely fixes the V on a simple round hole, but on the owner's
-    # real part it also loses about 4% of wave coverage (1911 -> 1833 mm of
-    # path) and turns 8 tiny fragments into 40, because healing makes
-    # consecutive fronts partly coincide and the "already reached"
-    # subtraction then cuts them up. Until that is solved it must not be the
-    # default. Values above 1.5 are clamped; see docs/ROADMAP.md.
-    "wake_blend": 0.0,           # x line_spacing; 0 = off (default)
-    "pattern": "smart",          # "smart" | "monotonic" | "zigzag"
-    "start_policy": "supported", # supported/consistent/min/max-x/min/max-y
-    "component_order": "support",  # "support" | "nearest" same-distance fronts
+    "min_wave_length": "auto",      # auto: 2.5 x the Wave line width
+    "min_wave_segment": "auto",     # auto: 0.75 x the Wave line width
+    "simplify_tolerance": "auto",   # auto: 4 x your profile's resolution
+    "min_bridge_fragment": 0.5,     # x line width
 
-    # Cleanup: these remove isolated dots without removing ordinary bridge
-    # material. Lower values preserve more small geometry but may print blobs.
-    "min_wave_length": 1.0,      # mm; discard complete fronts shorter than this
-    "min_wave_segment": 0.30,    # mm; merge short endpoint/stub segments
-    "simplify_tolerance": 0.05,  # mm; remove harmless boundary point noise
-    "min_bridge_fragment": 0.5,  # line-width multiplier for retained fragments
+    "wall_snap": True,
+    "wall_reach": "auto",           # auto: 1.5 line widths
+    "wall_overlap": 0.25,           # fraction of line width
+    "gap_fill": True,
+    "gap_fill_min_area": 0.05,      # mm^2
+    "edge_snap_distance": "auto",
+    "edge_clearance": 0.0,          # mm
 
-    # Perimeter conformance. Orca exports bridge infill as separate lines, so
-    # the area those lines cover has a castellated edge that stops short of
-    # the wall. wall_snap rebuilds the overhang area out to the real wall the
-    # layer printed, so fronts run from the supported perimeter all the way to
-    # the overhang perimeter and holes instead of ending on a jagged edge.
-    # wall_reach limits how far that stretch may go; wall_overlap is how far a
-    # Wave end sits inside the wall bead, as a fraction of the Wave width.
-    "wall_snap": True,           # False restores 0.0.19 bridge-footprint edges
-    "wall_reach": "auto",        # mm or auto (1.5 line widths)
-    "wall_overlap": 0.25,        # fraction of line width overlapped into wall
-    # Wave fronts step outward by a fixed spacing, so the last one can stop
-    # short of a boundary that runs at an angle to the march -- the tip of a
-    # corner is the usual case, and it is left as a small unfilled sliver.
-    "gap_fill": True,            # fill those slivers with a short anchored path
-    "gap_fill_min_area": 0.05,   # mm^2; leave anything smaller alone
+    "edge_taper_distance": "auto",  # auto: 1.5 x the Wave line width
+    "edge_taper_min_flow": 0.55,    # fraction of normal flow at the wall
+    "edge_taper_segment": 0.0,      # mm; 0 = no extra micro-moves
+    "flow_ratio": 1.0,
 
-    # Arachne-like endpoint cleanup. Endpoints are snapped back onto the
-    # visible wall/hole boundary when cleanup leaves them slightly short, then
-    # emitted with lower E near that boundary. By default taper changes flow on
-    # existing straight moves instead of adding tiny grid-like endpoint moves.
-    # Centerline clearance is off by default because it can create gaps.
-    # Arc moves. Wave runs after Orca has written the file, so Orca's own arc
-    # fitter never sees these moves; Wave fits its own arcs instead. This is
-    # OFF by default: G2/G3 in the finished file is the one genuinely new
-    # kind of output Wave started producing in 0.0.21, and Orca re-parses the
-    # file for its preview and time estimate. Until that is confirmed happy
-    # on real hardware, arcs are opt-in. "auto" follows the export's own
-    # enable_arc_fitting setting; true forces them on.
-    "arc_fitting": False,        # false | "auto" | true
-    "arc_tolerance": "auto",     # mm the arc may stray; auto = profile resolution
+    "print_speed": "orca",          # follow the profile's bridge speed
+    "travel_speed": "auto",         # auto: your profile's travel speed
+    "fan": 1.0,                     # 1.0 = 100%; "auto" follows bridge fan
 
-    "edge_snap_distance": "auto",  # mm or auto; endpoint snap-to-boundary reach
-    "edge_clearance": 0.0,       # mm or auto; optional inset from walls/holes
-    "edge_taper_distance": 0.60,  # mm; 0 disables variable endpoint flow
-    "edge_taper_min_flow": 0.55,  # fraction of normal Wave flow at boundary
-    "edge_taper_segment": 0.0,    # mm; 0 = no extra endpoint micro-moves
-
-    # Extrusion and cooling. print_speed is in mm/s; travel_speed is in mm/s;
-    # fan is 0..1 and is converted to the printer's 0..255 fan value.
-    "flow_ratio": 1.0,           # 1.0 = calculated line volume
-    "print_speed": "orca",       # follow Orca's own bridge speed; or a number in mm/s
-    "travel_speed": 120.0,       # mm/s for non-extruding repositioning
-    "fan": 1.0,                  # 1.0 = 100% fan during Wave extrusion
-    "max_iterations": 400,       # safety limit on fronts per region
+    "arc_fitting": False,           # false | "auto" | true
+    "arc_tolerance": "auto",        # auto: your profile's resolution
 }
 
-# --- the settings panel Orca shows you -------------------------------------
-#
-# Orca hands the capability config to the user as JSON, and JSON has no
-# comment syntax -- so every explanatory comment above is invisible in the
-# app. That left the panel a wall of forty bare keys with no way to tell what
-# any of them did, or even which ones were worth touching.
-#
-# So the notes travel *in* the config. Keys beginning with "_" are notes, not
-# settings: _cfg() only copies keys that exist in _DEFAULTS, so a note can
-# never become a setting, can never be misspelled into one, and can be
-# deleted by the user with no effect. Each note sits immediately above the
-# setting it describes; dicts keep insertion order and json.dumps preserves
-# it, so the panel reads top to bottom.
-#
-# Rules for writing these: plain English, no jargon, say what happens if you
-# change it, and give the units. They are the only documentation most people
-# will ever see.
 
+# One line each. Shape: `accepted values -- what it does`.
 _NOTES = {
     "_READ_ME": (
-        "Keys starting with _ are notes, not settings -- the plugin ignores "
-        "them, so you can safely leave or delete them. Each note describes "
-        "the setting directly below it. Defaults are good for most prints; "
-        "the ones people usually touch are print_speed, fan and line_spacing."
-    ),
+        "Keys starting with _ are notes and section headings; the plugin "
+        "ignores them. \"auto\" means the value is taken from your own Orca "
+        "profile or measured from the export -- run \"Wave Overhangs - "
+        "Settings guide & check\" to see what each one resolved to."),
 
     "_enabled": (
-        "Master switch. Set false and the plugin leaves your G-code exactly "
-        "as Orca wrote it (useful for an A/B test without uninstalling)."
-    ),
+        "true | false -- master switch; false leaves your G-code exactly as "
+        "Orca wrote it."),
     "_time_budget": (
-        "Seconds. If the wave pass is still working when this runs out it "
-        "gives up and hands back Orca's original file untouched. Protects "
-        "you from an export that never finishes. 0 means no limit."
-    ),
+        "seconds, 0 = no limit -- if the Wave pass is still running when this "
+        "runs out it gives up and returns Orca's original file untouched."),
 
     "_overhang_tol": (
-        "Millimetres of slack when deciding what counts as unsupported. "
-        "Bigger = the plugin is more forgiving and treats slightly "
-        "overhanging material as supported, so it makes fewer waves."
-    ),
+        "mm -- slack when deciding what is unsupported. Bigger is more "
+        "forgiving, so fewer waves."),
     "_min_overhang_area": (
-        "Square millimetres. Unsupported patches smaller than this are left "
-        "alone. Raise it if tiny specks are getting wave treatment."
-    ),
+        "\"auto\" or mm2 -- ignore unsupported patches smaller than this. "
+        "auto is about three line widths squared."),
+    "_propagation_mode": (
+        "auto | obstacle | legacy -- auto routes around holes only when the "
+        "overhang has one. legacy is the old behaviour and can print across "
+        "holes."),
+    "_wake_blend": (
+        "x line_spacing, 0 = off -- EXPERIMENTAL. Rounds the sharp V where "
+        "the wave rejoins behind a hole; currently costs ~4% coverage."),
 
     "_line_spacing": (
-        "Millimetres between neighbouring wave lines, centre to centre. "
-        "Smaller = denser, stronger, slower, and hotter (less cooling time "
-        "between passes). This is the main quality/time dial."
-    ),
+        "\"auto\" or mm -- centre-to-centre gap between wave lines, the main "
+        "quality/time dial. auto is 0.875 x the Wave line width."),
     "_line_width": (
-        "Millimetres. Only a fallback -- if Orca's export states a bridge "
-        "width, that wins. Change this only if waves look too fat or thin "
-        "and your export has no width information."
-    ),
+        "mm -- only a fallback. If the export states a bridge width, that "
+        "wins. Change this only if your export has no width information."),
     "_perimeter_overlap": (
-        "Millimetres the first wave line starts back inside solid material, "
-        "so it is anchored instead of beginning in mid-air."
-    ),
+        "\"auto\" or mm -- how far the first wave line starts back inside "
+        "solid material so it is anchored. auto is a quarter line width."),
+    "_max_iterations": (
+        "\"auto\" or a count -- runaway guard on fronts per region. auto works "
+        "out how many it takes to cross the region and adds headroom, so a "
+        "big overhang is not cut off and a small one wastes nothing."),
 
-    "_propagation_mode": (
-        "How the wave flows. \"auto\" (recommended) routes around holes only "
-        "when the overhang actually has one. \"obstacle\" always does. "
-        "\"legacy\" is the old behaviour and can print across holes."
-    ),
-    "_wake_blend": (
-        "EXPERIMENTAL, leave at 0. Where the wave splits around a hole and "
-        "meets again behind it, the two sides form a sharp V that every "
-        "later line copies. This rounds that crease off, measured in "
-        "multiples of line_spacing (1.0 = one line spacing, max 1.5). It "
-        "works on simple round holes, but on complex parts it currently "
-        "loses about 4% of the wave coverage and breaks lines into dashes, "
-        "which is why it ships off."
-    ),
     "_pattern": (
-        "Print order. \"smart\" starts each line at its better-supported end. "
-        "\"monotonic\" prints strictly nearest-to-furthest. \"zigzag\" "
-        "alternates direction for fewer travel moves but more stringing."
-    ),
+        "smart | monotonic | zigzag -- smart starts each line at its "
+        "better-supported end; zigzag has fewer travels but more stringing."),
     "_start_policy": (
-        "Which end of a wave line to start from: \"supported\", "
-        "\"consistent\", \"min-x\", \"max-x\", \"min-y\" or \"max-y\". "
-        "\"supported\" is safest; the others help if you see a seam."
-    ),
+        "supported | consistent | min-x | max-x | min-y | max-y -- which end "
+        "of a wave line to start from. supported is safest."),
     "_component_order": (
-        "When two separate wave areas are the same distance along, print the "
-        "one nearest the supported edge (\"support\") or nearest the nozzle "
-        "(\"nearest\", fewer travels)."
-    ),
+        "support | nearest -- when two wave areas are equally far along, "
+        "print the one nearest the supported edge, or nearest the nozzle."),
 
     "_min_wave_length": (
-        "Millimetres. Whole wave lines shorter than this are dropped as "
-        "blob-prone. Lower it to keep more small detail."
-    ),
+        "\"auto\" or mm -- drop whole wave lines shorter than this as "
+        "blob-prone. auto is 2.5 line widths."),
     "_min_wave_segment": (
-        "Millimetres. Very short stubs at the ends of a line get merged "
-        "away rather than printed as separate dots."
-    ),
+        "\"auto\" or mm -- merge away stubs shorter than this at the ends of "
+        "a line. auto is 0.75 of a line width."),
     "_simplify_tolerance": (
-        "Millimetres of allowed smoothing. Removes jitter inherited from the "
-        "sliced outline. Raise it for smoother, faster lines; too high and "
-        "waves stop hugging the real shape."
-    ),
+        "\"auto\" or mm -- how much jitter may be smoothed out of a wave "
+        "line. auto scales with the line width, with your profile's "
+        "Resolution as a floor."),
     "_min_bridge_fragment": (
-        "Multiple of line width. Any original bridge the waves did not cover "
-        "is printed as before if it is at least this long."
-    ),
+        "x line width -- original bridge the waves did not cover is still "
+        "printed if it is at least this long."),
 
     "_wall_snap": (
-        "Stretch waves out to the real wall of the part instead of stopping "
-        "at the ragged edge of Orca's bridge lines. This is the fix for the "
-        "castellated edges; set false only to compare against the old look."
-    ),
+        "true | false -- stretch waves out to the real wall instead of "
+        "stopping at the ragged edge of Orca's bridge lines. Leave on."),
     "_wall_reach": (
-        "How far that stretch may reach, in millimetres, or \"auto\" for one "
-        "and a half line widths. Raise only if waves still stop short."
-    ),
+        "\"auto\" or mm -- how far that stretch may reach. auto is one and a "
+        "half line widths."),
     "_wall_overlap": (
-        "How far a wave end buries itself into the wall, as a fraction of "
-        "line width. 0.25 = a quarter. Higher bonds better but can bulge."
-    ),
+        "fraction of line width -- how far a wave end buries itself in the "
+        "wall. Higher bonds better but can bulge."),
     "_gap_fill": (
-        "Fill the small slivers left where a wave runs out at an angled "
-        "boundary, typically the tip of a corner."
-    ),
+        "true | false -- fill the slivers left where a wave runs out against "
+        "an angled boundary, typically a corner tip."),
     "_gap_fill_min_area": (
-        "Square millimetres. Slivers smaller than this are left alone "
-        "instead of being filled with a tiny blob."
-    ),
+        "mm2 -- leave slivers smaller than this alone rather than putting a "
+        "tiny blob in them."),
+    "_edge_snap_distance": (
+        "\"auto\" or mm -- how far an endpoint may be nudged to land exactly "
+        "on a wall or hole edge."),
+    "_edge_clearance": (
+        "mm -- hold back from walls. Normally 0; raising it leaves visible "
+        "gaps at the edges."),
+
+    "_edge_taper_distance": (
+        "\"auto\" or mm, 0 = off -- distance over which flow eases off "
+        "approaching a wall so ends do not blob. auto is 1.5 line widths."),
+    "_edge_taper_min_flow": (
+        "fraction -- the reduced flow right at the wall. 0.55 = 55%. Lower "
+        "it if ends still look over-extruded."),
+    "_edge_taper_segment": (
+        "mm, 0 recommended -- 0 tapers using the moves that already exist; "
+        "above 0 adds extra tiny moves and a bigger file."),
+    "_flow_ratio": (
+        "multiplier -- extrusion for wave lines only. Below 1 gives thinner, "
+        "cooler lines that sag less."),
+
+    "_print_speed": (
+        "\"orca\" or mm/s -- orca follows your profile's bridge speed, read "
+        "from the export section by section. The biggest factor in wave print "
+        "time; drop to ~5 or ~2 if overhangs droop."),
+    "_travel_speed": (
+        "\"auto\" or mm/s -- auto follows your profile's travel speed. Only "
+        "affects non-printing moves between waves."),
+    "_fan": (
+        "0 to 1, or \"auto\" -- cooling during wave printing; auto follows "
+        "your profile's bridge fan. Full cooling is strongly recommended."),
 
     "_arc_fitting": (
-        "Whether WAVE's OWN lines are written as G2/G3 arcs. Keep this "
-        "false. This is NOT OrcaSlicer's arc fitting -- that one lives in "
-        "Print Settings > Quality > Precision > Arc fitting and is "
-        "unaffected by this plugin. Leaving Wave's arcs off is what avoids "
-        "OrcaSlicer bug #7433 (post-processed arcs corrupting the preview "
-        "or hanging the export), and it costs you almost nothing: Wave's "
-        "arcs save under 1% of file size. \"auto\" follows your Orca "
-        "setting, true forces arcs on."
-    ),
+        "false | \"auto\" | true -- whether WAVE's own lines are written as "
+        "G2/G3. Keep false (OrcaSlicer bug #7433). This is NOT Orca's own arc "
+        "fitting, which lives in Print Settings > Quality > Precision and is "
+        "unaffected either way."),
     "_arc_tolerance": (
-        "Millimetres an arc may stray from the true path, or \"auto\" to "
-        "follow your profile's resolution. Only used if arc_fitting is on."
-    ),
-
-    "_edge_snap_distance": (
-        "Millimetres, or \"auto\". How far an endpoint may be nudged to land "
-        "exactly on the wall or hole edge."
-    ),
-    "_edge_clearance": (
-        "Millimetres to hold back from walls. Normally 0 -- raising it "
-        "leaves visible gaps at the edges."
-    ),
-    "_edge_taper_distance": (
-        "Millimetres over which flow eases off as a line approaches the "
-        "wall, so ends do not blob. 0 turns tapering off."
-    ),
-    "_edge_taper_min_flow": (
-        "The reduced flow right at the wall, as a fraction of normal. "
-        "0.55 = 55%. Lower if ends still look over-extruded."
-    ),
-    "_edge_taper_segment": (
-        "Millimetres. 0 (recommended) tapers by varying flow on the moves "
-        "that already exist. Above 0 adds extra tiny moves to taper more "
-        "finely, at the cost of a bigger file."
-    ),
-
-    "_flow_ratio": (
-        "Extrusion multiplier for wave lines only. 1.0 is the calculated "
-        "amount. Below 1 for thinner, cooler lines that sag less."
-    ),
-    "_print_speed": (
-        "How fast wave lines print. The default \"orca\" means: use the "
-        "bridge speed from your own Orca profile, so waves print at the same "
-        "speed as any other bridge on the part. It is read from the exported "
-        "G-code section by section, so it follows your profile automatically "
-        "and you never have to copy the number across. Change your bridge "
-        "speed in Print Settings > Speed and the waves follow it. "
-        "Alternatively put a number here in millimetres per second to "
-        "override it. This is the single biggest factor in how long a wave "
-        "print takes. If your overhang comes out drooping or stringy, this "
-        "is the first thing to slow down: try a number like 5, or 2 for a "
-        "difficult overhang. Worth knowing why that happens -- your bridge "
-        "speed is tuned for a bridge anchored at BOTH ends, where tension "
-        "holds the strand up while it cools, but a wave line is cantilevered "
-        "into open air and held at one end only, so it can need to be slower "
-        "than a bridge on the same printer."
-    ),
-    "_travel_speed": (
-        "Millimetres per second for non-printing moves between waves."
-    ),
-    "_fan": (
-        "Cooling fan during wave printing, 0 to 1 (1 = 100%). Full cooling "
-        "is strongly recommended; the fan is restored to your normal "
-        "setting afterwards. Lower it only for materials that warp, "
-        "like ABS."
-    ),
-    "_max_iterations": (
-        "Safety limit on how many wave lines one region may produce. Raise "
-        "only if a large overhang comes out unfinished."
-    ),
+        "\"auto\" or mm -- how far an arc may stray from the true path. auto "
+        "follows your profile's resolution. Only used if arc_fitting is on."),
 }
+
+
+# Running order AND grouping for both the Config panel and the guide.
+_SECTIONS = [
+    ("_1_BASICS", "===== 1. BASICS =====",
+     ["enabled", "time_budget"]),
+    ("_2_DETECTION", "===== 2. WHAT COUNTS AS AN OVERHANG =====",
+     ["overhang_tol", "min_overhang_area", "propagation_mode", "wake_blend"]),
+    ("_3_WAVE", "===== 3. THE WAVE ITSELF (mostly auto) =====",
+     ["line_spacing", "line_width", "perimeter_overlap", "max_iterations"]),
+    ("_4_ORDER", "===== 4. PRINT ORDER =====",
+     ["pattern", "start_policy", "component_order"]),
+    ("_5_CLEANUP", "===== 5. CLEANUP (mostly auto) =====",
+     ["min_wave_length", "min_wave_segment", "simplify_tolerance",
+      "min_bridge_fragment"]),
+    ("_6_WALLS", "===== 6. MEETING THE WALL =====",
+     ["wall_snap", "wall_reach", "wall_overlap", "gap_fill",
+      "gap_fill_min_area", "edge_snap_distance", "edge_clearance"]),
+    ("_7_ENDS", "===== 7. LINE ENDS AND FLOW =====",
+     ["edge_taper_distance", "edge_taper_min_flow", "edge_taper_segment",
+      "flow_ratio"]),
+    ("_8_SPEED", "===== 8. SPEED AND COOLING (from your profile) =====",
+     ["print_speed", "travel_speed", "fan"]),
+    ("_9_ARCS", "===== 9. ARC MOVES =====",
+     ["arc_fitting", "arc_tolerance"]),
+]
 
 
 def settings_guide_lines(cfg=None, width=72):
     """The notes as readable text, for printing inside OrcaSlicer.
 
-    The config panel already carries these, but a JSON editor is an awkward
-    place to read prose, and the owner should not have to open a README on
-    GitHub to find out what a setting does. `cfg` is the live config, so the
-    guide shows the value actually in force rather than the default.
+    Same order and same groups as the Config panel, because both are built
+    from `_SECTIONS`. A JSON editor is an awkward place to read prose, and
+    the owner should not have to open a README on GitHub to find out what a
+    setting does. `cfg` is the live config, so the guide shows the value
+    actually in force rather than the default.
     """
     live = cfg or _DEFAULTS
     out = ["--- what every setting means ---",
            "Your current value is shown first; (default X) follows when you",
-           "have changed it. The same notes are in the config panel as the",
-           "entries beginning with an underscore.",
+           'have changed it. "auto" means Wave takes the number from your own',
+           "Orca profile or measures it from the export; the report above",
+           "says what each one resolved to on your last slice.",
            ""]
-    for key, default in _DEFAULTS.items():
-        note = _NOTES.get("_" + key)
-        if not note:
-            continue
-        value = live.get(key, default)
-        head = f"{key} = {json.dumps(value)}"
-        if value != default:
-            head += f"   (default {json.dumps(default)})"
-        out.append(head)
+
+    def wrapped(note):
         # Wrap by hand: Orca shows this in a plain message box, so long
         # lines would be clipped rather than reflowed.
         line = "   "
         for word in note.split():
             if len(line) + len(word) + 1 > width:
-                out.append(line)
+                yield line
                 line = "   "
             line += (" " if line.strip() else "") + word
         if line.strip():
-            out.append(line)
+            yield line
+
+    for heading, title, keys in _SECTIONS:
+        out.append(title)
         out.append("")
+        for key in keys:
+            note = _NOTES.get("_" + key)
+            if not note:
+                continue
+            default = _DEFAULTS.get(key)
+            value = live.get(key, default)
+            head = f"{key} = {json.dumps(value)}"
+            if value != default:
+                head += f"   (default {json.dumps(default)})"
+            out.append(head)
+            out.extend(wrapped(note))
+            out.append("")
     return out
 
 
 def annotated_defaults():
-    """`_DEFAULTS` with each setting preceded by its plain-English note.
+    """`_DEFAULTS` as the user sees it in OrcaSlicer: grouped, note then key.
 
-    This is what the user actually sees and edits in OrcaSlicer, so it is
-    built fresh every time (never hand out `_DEFAULTS` itself to be mutated)
-    and ordered note-then-setting.
+    Built fresh every time -- never hand out `_DEFAULTS` itself to be
+    mutated -- and ordered by `_SECTIONS`, because 33 settings in dictionary
+    order is not something a person can navigate.
     """
     out = {"_READ_ME": _NOTES["_READ_ME"]}
-    for key, value in _DEFAULTS.items():
-        note = _NOTES.get("_" + key)
-        if note:
-            out["_" + key] = note
-        out[key] = value
+    placed = set()
+    for heading, title, keys in _SECTIONS:
+        out[heading] = title
+        for key in keys:
+            if key not in _DEFAULTS:
+                continue
+            note = _NOTES.get("_" + key)
+            if note:
+                out["_" + key] = note
+            out[key] = _DEFAULTS[key]
+            placed.add(key)
+    leftover = [k for k in _DEFAULTS if k not in placed]
+    if leftover:
+        # Defensive: a setting added to _DEFAULTS and forgotten in _SECTIONS
+        # must still be editable, not silently invisible.
+        out["_99_OTHER"] = "===== OTHER ====="
+        for key in leftover:
+            note = _NOTES.get("_" + key)
+            if note:
+                out["_" + key] = note
+            out[key] = _DEFAULTS[key]
     return out
 
 
 # The version this file was built as. Kept in lockstep with the PEP 723 header
 # at the top (tests/test_installer.py fails if they drift), so everything that
 # reports a version at runtime reports the one actually running.
-PLUGIN_VERSION = "0.0.34"
+PLUGIN_VERSION = "0.0.35"
 
 # --- BEGIN changelog (generated by tools/sync_changelog.py) ---
 CHANGELOG_RECENT = """\
+v0.0.35  (2026-10-02)
+
 v0.0.34  (2026-10-02)
    * wave_core registered an empty module in sys.modules before the
      engine was executed into it, and removed it on failure. Pressing
@@ -478,8 +413,6 @@ v0.0.34  (2026-10-02)
      already there.
 
 v0.0.33  (2026-10-02)
-
-v0.0.32  (2026-10-02)
 """
 # --- END changelog ---
 
@@ -617,19 +550,27 @@ def _cfg(self):
 
 
 def _wave_config(cfg, layer_height):
+    """A WaveConfig from the raw config.
+
+    Every length here may legitimately be the string "auto": the factors it
+    stands for are multiples of the WAVE LINE WIDTH, which is measured from
+    the export per section and is not known yet. So this builds a config with
+    safe placeholders and `_resolve_autos()` overwrites them a moment later,
+    once the real width is in hand. Nothing downstream ever sees "auto".
+    """
     return wc.WaveConfig(
-        overhang_tol=float(cfg["overhang_tol"]),
-        min_overhang_area=float(cfg["min_overhang_area"]),
-        line_spacing=float(cfg["line_spacing"]),
-        line_width=float(cfg["line_width"]),
-        perimeter_overlap=float(cfg["perimeter_overlap"]),
+        overhang_tol=_float_cfg(cfg, "overhang_tol", 0.05),
+        min_overhang_area=_float_cfg(cfg, "min_overhang_area", 0.5),
+        line_spacing=_float_cfg(cfg, "line_spacing", 0.35),
+        line_width=_float_cfg(cfg, "line_width", 0.40),
+        perimeter_overlap=_float_cfg(cfg, "perimeter_overlap", 0.10),
         pattern=str(cfg["pattern"]),
         layer_height=float(layer_height),
-        flow_ratio=float(cfg["flow_ratio"]),
+        flow_ratio=_float_cfg(cfg, "flow_ratio", 1.0),
         print_speed=_print_speed_fallback(cfg["print_speed"]),
-        travel_speed=float(cfg["travel_speed"]),
-        fan=float(cfg["fan"]),
-        max_iterations=int(cfg["max_iterations"]),
+        travel_speed=_float_cfg(cfg, "travel_speed", AUTO_TRAVEL_FALLBACK),
+        fan=_float_cfg(cfg, "fan", 1.0),
+        max_iterations=int(_float_cfg(cfg, "max_iterations", 400)),
     )
 
 
@@ -1664,6 +1605,175 @@ def _slicer_setting(text, key):
     return match.group(1).strip() if match else None
 
 
+# ---------------------------------------------------------------------------
+#  "auto": take the value from the print instead of a constant
+#
+#  Most of the numbers in this plugin are not really numbers, they are
+#  multiples of something the export already states. line_spacing 0.35 is
+#  "seven eighths of a 0.4 line"; min_wave_length 1.0 is "two and a half
+#  lines"; simplify_tolerance 0.05 is "four times a stock Orca resolution".
+#  Written as constants they are correct for one profile and quietly wrong
+#  for every other.
+#
+#  Every factor below is chosen so that "auto" on a stock 0.4 mm / 0.0125 mm
+#  resolution profile reproduces the constant this plugin shipped with, to
+#  the digit. So "auto" is not a new behaviour for the common case -- it is
+#  the same behaviour, finally expressed in terms of the thing it depends on.
+#
+#  Note which settings are NOT in here: amplitude-like choices with no
+#  equivalent in the slicer (pattern, start_policy, flow_ratio, fan) stay
+#  constants, because no amount of reading the G-code tells you what the
+#  user wants a part to look like.
+# ---------------------------------------------------------------------------
+AUTO_WORDS = ("", "auto", "orca")
+
+#   setting               x line width   value at 0.40 mm
+AUTO_WIDTH_FACTORS = {
+    "line_spacing":        0.875,       # 0.350 mm
+    "perimeter_overlap":   0.25,        # 0.100 mm
+    "min_wave_length":     2.5,         # 1.000 mm
+    "min_wave_segment":    0.75,        # 0.300 mm
+    "edge_taper_distance": 1.5,         # 0.600 mm
+}
+AUTO_MIN_OVERHANG_AREA = 3.125          # x line_width^2 -> 0.50 mm^2 at 0.40
+# Smoothing is a geometric operation on a path one bead wide, so it scales
+# with the bead -- 0.125 x width is the old 0.05 mm at a 0.40 line. Your
+# profile's Resolution acts as a FLOOR instead of a multiplier: there is no
+# point smoothing by less than the jitter the slicer itself can produce, but
+# a deliberately coarse Resolution should not start eating wave detail.
+AUTO_SIMPLIFY_X_WIDTH = 0.125           # x line width -> 0.050 mm at 0.40
+AUTO_SIMPLIFY_RANGE = (0.02, 0.12)      # mm, clamp either way
+AUTO_TRAVEL_FALLBACK = 120.0            # mm/s
+AUTO_FAN_FALLBACK = 1.0
+# Iteration cap: fronts needed to cross the region, plus headroom. A cap is
+# only a runaway guard, so it may be generous -- but a FIXED 400 is both too
+# small for a big overhang (it stops half way) and pointless for a small one.
+AUTO_ITERATION_HEADROOM = 16
+AUTO_ITERATION_RANGE = (64, 20000)
+
+
+def _is_auto(value):
+    return value is None or (isinstance(value, str)
+                             and value.strip().lower() in AUTO_WORDS)
+
+
+def _profile_float(profile, key):
+    """One numeric setting from the export's config block, or None."""
+    raw = profile.get(key)
+    if raw is None:
+        return None
+    try:
+        return float(str(raw).split(",")[0])
+    except ValueError:
+        return None
+
+
+def _orca_profile(text):
+    """The settings Orca wrote into the exported file that Wave can follow.
+
+    Read once per export. Everything here is a real Orca setting the user
+    already tuned in their own profile -- the point is that they should not
+    have to type it a second time into a plugin panel.
+    """
+    keys = (
+        "resolution",            # Quality > Precision > Resolution
+        "travel_speed",          # Speed > Travel
+        "bridge_fan_speed",      # Cooling > Bridges fan speed
+        "overhang_fan_speed",
+        "enable_arc_fitting",
+        "nozzle_diameter",
+        "bridge_speed",
+    )
+    found = {}
+    for key in keys:
+        value = _slicer_setting(text, key)
+        if value is not None:
+            found[key] = value
+    return found
+
+
+def _auto_iterations(region, spacing):
+    """Enough fronts to cross `region` once, plus headroom."""
+    try:
+        minx, miny, maxx, maxy = region.bounds
+        span = math.hypot(maxx - minx, maxy - miny)
+    except Exception:
+        return AUTO_ITERATION_RANGE[0]
+    if spacing <= 0.0:
+        return AUTO_ITERATION_RANGE[0]
+    need = int(span / spacing) + AUTO_ITERATION_HEADROOM
+    return max(AUTO_ITERATION_RANGE[0], min(AUTO_ITERATION_RANGE[1], need))
+
+
+def _resolve_autos(cfg, line_width, profile):
+    """`cfg` with every "auto" replaced by what it means for THIS print.
+
+    Returns a new dict -- the user's config is never modified -- plus the
+    numbers are recorded under `_auto_notes` so the log can say what was
+    decided instead of echoing the word "auto" back at them.
+    """
+    out = dict(cfg)
+    notes = {}
+    width = max(0.05, float(line_width or 0.4))
+
+    for key, factor in AUTO_WIDTH_FACTORS.items():
+        if _is_auto(cfg.get(key)):
+            out[key] = factor * width
+            notes[key] = (f"{out[key]:.3f} mm (auto: {factor:g} x the "
+                          f"{width:.2f} mm Wave line)")
+        else:
+            out[key] = _float_cfg(cfg, key, AUTO_WIDTH_FACTORS[key] * width)
+
+    if _is_auto(cfg.get("min_overhang_area")):
+        out["min_overhang_area"] = AUTO_MIN_OVERHANG_AREA * width * width
+        notes["min_overhang_area"] = (
+            f"{out['min_overhang_area']:.3f} mm2 (auto: about three "
+            f"{width:.2f} mm lines squared)")
+    else:
+        out["min_overhang_area"] = _float_cfg(cfg, "min_overhang_area", 0.5)
+
+    if _is_auto(cfg.get("simplify_tolerance")):
+        res = _profile_float(profile, "resolution") or 0.0
+        scaled = AUTO_SIMPLIFY_X_WIDTH * width
+        value = max(AUTO_SIMPLIFY_RANGE[0],
+                    min(AUTO_SIMPLIFY_RANGE[1], max(scaled, res)))
+        how = (f"auto: {AUTO_SIMPLIFY_X_WIDTH:g} x the {width:.2f} mm Wave "
+               f"line")
+        if res and res > scaled:
+            how = (f"auto: raised to your profile's {res:g} mm resolution, "
+                   f"which is coarser than the line would ask for")
+        notes["simplify_tolerance"] = f"{value:.3f} mm ({how})"
+        out["simplify_tolerance"] = value
+    else:
+        out["simplify_tolerance"] = _float_cfg(cfg, "simplify_tolerance", 0.05)
+
+    if _is_auto(cfg.get("travel_speed")):
+        speed = _profile_float(profile, "travel_speed") or AUTO_TRAVEL_FALLBACK
+        out["travel_speed"] = speed
+        notes["travel_speed"] = (
+            f"{speed:.0f} mm/s (auto: your profile's travel speed)"
+            if _profile_float(profile, "travel_speed")
+            else f"{speed:.0f} mm/s (auto, but the export states no travel "
+                 f"speed)")
+    else:
+        out["travel_speed"] = _float_cfg(cfg, "travel_speed", AUTO_TRAVEL_FALLBACK)
+
+    if _is_auto(cfg.get("fan")):
+        raw = _profile_float(profile, "bridge_fan_speed")
+        if raw is None:
+            raw = _profile_float(profile, "overhang_fan_speed")
+        value = max(0.0, min(1.0, raw / 100.0)) if raw is not None else AUTO_FAN_FALLBACK
+        out["fan"] = value
+        notes["fan"] = (f"{value * 100:.0f}% (auto: your profile's bridge fan)"
+                        if raw is not None else
+                        "100% (auto, but the export states no bridge fan)")
+    else:
+        out["fan"] = _float_cfg(cfg, "fan", AUTO_FAN_FALLBACK)
+
+    out["_auto_notes"] = notes
+    return out
+
+
 def _arc_limits(text, cfg, swcfg):
     """Whether to emit G2/G3 arcs, and how far they may stray if we do.
 
@@ -2116,6 +2226,9 @@ def _gcode_wave_rewrite(text, cfg):
     started = time.time()
     deadline = _budget_deadline(cfg, started)
     timings = {}
+    # Everything Wave can inherit from the user's own Orca profile, read once.
+    profile = _orca_profile(text)
+    auto_notes = {}
     try:
         interesting = _bridge_layer_indices(lines)
         if not interesting:
@@ -2169,6 +2282,16 @@ def _gcode_wave_rewrite(text, cfg):
                 swcfg = _wave_config(cfg, cfg.get("_lh", 0.2))
                 widths = sorted(s["width"] for s in sec["segments"])
                 swcfg.line_width = widths[len(widths) // 2]
+                # The Wave line width is now known, so every "auto" can be
+                # turned into the number it stands for. `rcfg` is the config
+                # with no "auto" left in it; use it from here down.
+                rcfg = _resolve_autos(cfg, swcfg.line_width, profile)
+                auto_notes.update(rcfg.pop("_auto_notes", {}))
+                swcfg.line_spacing = rcfg["line_spacing"]
+                swcfg.perimeter_overlap = rcfg["perimeter_overlap"]
+                swcfg.min_overhang_area = rcfg["min_overhang_area"]
+                swcfg.travel_speed = rcfg["travel_speed"]
+                swcfg.fan = rcfg["fan"]
                 swcfg.propagation_mode = str(
                     cfg.get("propagation_mode", "auto"))
                 try:
@@ -2191,7 +2314,7 @@ def _gcode_wave_rewrite(text, cfg):
                 # of Orca's bridge lines is what frays the ends, so stretch
                 # the area out to the wall the layer actually printed.
                 region, wall_bounded = _wall_bounded_region(
-                    bridge, walls, outline, wall_width, swcfg, cfg)
+                    bridge, walls, outline, wall_width, swcfg, rcfg)
                 if wall_bounded:
                     wall_sections += 1
                     unsupported = _backed_parts(
@@ -2201,6 +2324,21 @@ def _gcode_wave_rewrite(text, cfg):
                     unsupported = core
                 if unsupported.is_empty or unsupported.area < swcfg.min_overhang_area:
                     continue
+                # Iteration cap. "auto" asks how many fronts it actually
+                # takes to cross THIS region and adds headroom, so a big
+                # overhang is no longer cut off half way and a small one does
+                # not carry a cap meant for something else. It is a runaway
+                # guard, not a quality dial: it never adds a front that the
+                # geometry did not ask for, so it cannot bloat the file.
+                if _is_auto(cfg.get("max_iterations")):
+                    swcfg.max_iterations = _auto_iterations(
+                        support.union(unsupported), swcfg.line_spacing)
+                    auto_notes["max_iterations"] = (
+                        f"{swcfg.max_iterations} fronts (auto: enough to cross "
+                        f"the largest region seen, plus headroom)")
+                else:
+                    swcfg.max_iterations = int(
+                        _float_cfg(cfg, "max_iterations", 400))
                 tracks = wc.wave_tracks(support, unsupported, swcfg)
                 polylines = _order_wave_tracks(
                     tracks, support, cfg.get("pattern"), cfg.get("start_policy"),
@@ -2210,11 +2348,11 @@ def _gcode_wave_rewrite(text, cfg):
                 polylines = [
                     _clean_wave_polyline(
                         p, swcfg.line_width,
-                        cfg.get("simplify_tolerance", 0.05),
-                        cfg.get("min_wave_segment", 0.30),
+                        rcfg["simplify_tolerance"],
+                        rcfg["min_wave_segment"],
                         allowed=unsupported, guards=guards)
                     for p in polylines]
-                minimum_wave = max(0.0, float(cfg.get("min_wave_length", 1.0)))
+                minimum_wave = max(0.0, float(rcfg["min_wave_length"]))
                 # A short front is only a problem when it is on its own in mid
                 # air. One that touches a rung already printed is anchored, and
                 # dropping it is what leaves a sliver unfilled in a corner.
@@ -2250,15 +2388,15 @@ def _gcode_wave_rewrite(text, cfg):
                 if not polylines:
                     continue
                 polylines = _snap_wave_polylines(
-                    polylines, unsupported, support, swcfg, cfg)
+                    polylines, unsupported, support, swcfg, rcfg)
                 if not polylines:
                     continue
-                filled = _gap_fill_fronts(unsupported, polylines, swcfg, cfg)
+                filled = _gap_fill_fronts(unsupported, polylines, swcfg, rcfg)
                 if filled:
                     polylines = polylines + filled
                     gap_fills += len(filled)
                 emit_polylines = _inset_wave_polylines(
-                    polylines, unsupported, support, swcfg, cfg)
+                    polylines, unsupported, support, swcfg, rcfg)
                 if not emit_polylines:
                     continue
                 wave_lines = [shapely.geometry.LineString(p) for p in polylines
@@ -2364,7 +2502,7 @@ def _gcode_wave_rewrite(text, cfg):
                 if _wants_orca_print_speed(cfg.get("print_speed")):
                     wave_speed = _section_print_speed(sec, swcfg.print_speed)
                 block = _emit_wave_gcode(
-                    emit_polylines, actual_z, swcfg, cfg,
+                    emit_polylines, actual_z, swcfg, rcfg,
                     unsupported=unsupported, support=support,
                     restore_fan=sec.get("fan"), arcs=arc_limits,
                     print_speed=wave_speed)
@@ -2413,6 +2551,10 @@ def _gcode_wave_rewrite(text, cfg):
             "wall_bounded_sections": wall_sections,
             "arc_moves": arc_moves,
             "gap_fills": gap_fills,
+            # What every "auto" resolved to on this print. Echoing the word
+            # "auto" back at the user tells them nothing; the number does.
+            "auto": "; ".join(f"{k}={v}" for k, v in sorted(auto_notes.items()))
+                    or "none (every setting has an explicit value)",
             "already_processed": False})
     except _WaveBudgetExceeded as e:
         # Hand back exactly what Orca gave us. A partial pass would make the
@@ -2526,6 +2668,10 @@ class WaveOverhangsSlicing(orca.slicing.SlicingPipelineCapabilityBase):
             st["splice_ever"] = True
             st["last_splice_at"] = time.time()
             st["last_splice_layers"] = n
+            # What every "auto" resolved to on this export, so Check setup can
+            # show real numbers instead of the word "auto".
+            if log.get("auto"):
+                st["last_auto"] = log["auto"]
             _save_state(st)
 
             log["seconds"] = round(time.time() - log["started"], 3)
@@ -2648,6 +2794,11 @@ class WaveOverhangsCheck(orca.script.ScriptPluginCapabilityBase):
                          "layer(s) replaced")
             lines.append("Covered bridge extrusion was removed; uncovered")
             lines.append("fragments were retained.")
+            if st.get("last_auto"):
+                lines.append("")
+                lines.append("What each \"auto\" setting worked out to:")
+                for item in str(st["last_auto"]).split("; "):
+                    lines.append(f"  {item}")
         else:
             lines.append("No export recorded yet. Select Wave Overhangs under")
             lines.append("Others -> Slicing Pipeline Plugin and use Export G-code file.")

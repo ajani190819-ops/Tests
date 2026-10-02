@@ -122,10 +122,57 @@ with tempfile.TemporaryDirectory() as tmp:
     check(d["amplitude"] == "200%", f"amplitude default is {d['amplitude']!r}, want '200%'")
     check(d["cell_mm"] == "auto",
           f"cell_mm default is {d['cell_mm']!r}; it must follow the nozzle diameter")
-    check(d["frequency"] == 1.5 and d["segment_mm"] == 1.0,
-          f"0.3.0 frequency/segment controls drifted: {d}")
-    check(d["blend_mm"] == 2.0 and d["full_strength"] is False,
-          f"0.3.0 blending/full-strength controls drifted: {d}")
+    # Since 0.4.4 these ship as "auto" and are derived from the nozzle. The
+    # contract is not the literal value any more, it is that auto on a stock
+    # 0.4 mm nozzle still resolves to the 0.3.0 numbers -- nobody's print may
+    # change just because a default became a word.
+    check(d["frequency"] == "auto" and d["segment_mm"] == "auto"
+          and d["blend_mm"] == "auto",
+          f"0.3.0 frequency/segment/blend controls drifted: {d}")
+    check(d["full_strength"] is False,
+          f"0.3.0 full-strength control drifted: {d}")
+    # The panel must be organised and complete: every setting in exactly one
+    # section, every section heading present, no note for a setting that does
+    # not exist. Without this a new setting can be added to _DEFAULTS and
+    # never appear in a group, or a note can outlive the setting it explains.
+    panel = plugin.UnlayeredInfill().get_default_config()
+    panel_settings = {k: v for k, v in panel.items() if not k.startswith("_")}
+    panel_notes = {k for k in panel if k.startswith("_")}
+    headings = {h for h, _title, _keys in plugin._SECTIONS}
+    sectioned = [k for _h, _t, keys in plugin._SECTIONS for k in keys]
+    check(panel_settings == d, "the panel drifted from _DEFAULTS")
+    check(sorted(sectioned) == sorted(set(sectioned)),
+          f"a setting is listed in two sections: {sectioned}")
+    check(set(sectioned) == set(d),
+          f"settings missing from a section: {sorted(set(d) - set(sectioned))}")
+    check(headings <= panel_notes,
+          f"section headings missing from the panel: "
+          f"{sorted(headings - panel_notes)}")
+    unexplained = sorted(k for k in d if "_" + k not in panel_notes)
+    check(not unexplained, f"settings with no note: {unexplained}")
+    orphans = sorted(n for n in panel_notes
+                     if n != "_READ_ME" and n not in headings
+                     and n[1:] not in d)
+    check(not orphans, f"notes describing settings that do not exist: {orphans}")
+    # One line each, or the JSON editor becomes unreadable again.
+    for key in d:
+        note = panel.get("_" + key, "")
+        check("\n" not in note,
+              f"the note for {key} contains a newline; a JSON editor shows "
+              f"that as a literal backslash-n")
+        check(len(note) <= 200,
+              f"the note for {key} is {len(note)} characters; keep it to a "
+              f"short sentence and put the detail in the README")
+
+    nozzle_04 = ["; nozzle_diameter = 0.4\n"]
+    freq, _desc = plugin.npc.resolve_frequency(d["frequency"], nozzle_04)
+    check(abs(freq - 1.5) < 0.01,
+          f"auto frequency resolves to {freq:.3f} on a 0.4 nozzle, want ~1.5")
+    for key, want in (("segment_mm", 1.0), ("blend_mm", 2.0)):
+        value, _desc = plugin.npc.resolve_auto_length(
+            d[key], key, nozzle_04, key)
+        check(abs(value - want) < 1e-9,
+              f"auto {key} resolves to {value} on a 0.4 nozzle, want {want}")
     check(d["log"] is True, "logging must be on by default")
 
     # 200% of a 0.3 mm layer is 0.6 mm — the owner's own worked example
@@ -516,8 +563,28 @@ with tempfile.TemporaryDirectory() as tmp:
         unexplained = sorted(k for k in wave._DEFAULTS if "_" + k not in notes)
         check(not unexplained,
               f"settings with no explanation in the panel: {unexplained}")
+        # Section headings are "_"-prefixed too, and are legitimately not
+        # settings: they are what makes 33 keys navigable. They are declared
+        # in _SECTIONS, so they are checked against that rather than ignored.
+        headings = {h for h, _title, _keys in wave._SECTIONS}
+        check(headings <= notes,
+              f"section headings missing from the panel: "
+              f"{sorted(headings - notes)}")
+        sectioned = {k for _h, _t, keys in wave._SECTIONS for k in keys}
+        check(sectioned == set(wave._DEFAULTS),
+              f"settings missing from a section (they would appear in a "
+              f"nameless OTHER group): {sorted(set(wave._DEFAULTS) - sectioned)}")
+        for key in wave._DEFAULTS:
+            note = panel.get("_" + key, "")
+            check("\n" not in note,
+                  f"the Wave note for {key} contains a newline; a JSON editor "
+                  f"shows that as a literal backslash-n")
+            check(len(note) <= 240,
+                  f"the Wave note for {key} is {len(note)} characters; keep it "
+                  f"to a short sentence and put the detail in the README")
         orphans = sorted(n for n in notes
-                         if n != "_READ_ME" and n[1:] not in wave._DEFAULTS)
+                         if n != "_READ_ME" and n not in headings
+                         and n[1:] not in wave._DEFAULTS)
         check(not orphans, f"notes describing settings that do not exist: {orphans}")
         # Order matters: a note is only useful if it sits above its setting.
         keys = list(panel)

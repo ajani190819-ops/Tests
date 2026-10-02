@@ -6,6 +6,52 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.4.4 — 2026-10-02
+
+**A settings panel you can actually read, and settings that follow your
+printer.** Nothing about the wave itself changed; on a 0.4 mm nozzle this
+produces the same G-code as 0.4.3, to the digit.
+
+**The panel is grouped now.** Five numbered sections — BASICS, THE SHAPE OF
+THE WAVE, LIMITS AND SAFETY, RESOLUTION AND SMOOTHING, DIAGNOSTICS — instead
+of fourteen keys in no particular order. Every note is one short sentence
+shaped `accepted values -- what it does`, because a JSON editor renders a
+newline as the two characters `\n` and a paragraph-long note is a smear. The
+long explanations moved to the README, where there is room for them. The
+panel order and the "Check setup" guide order are now generated from the same
+list, so they cannot disagree.
+
+**Your values survive the upgrade.** The migration that landed in 0.4.2 is
+unchanged: on the first slice after updating, your saved config is merged
+with this build's, keeping every value you set. Amplitude at 300% stays at
+300%. Only missing keys are added, and the notes are refreshed.
+
+**`segment_mm`, `blend_mm` and `frequency` now default to `"auto"`.** These
+were never really constants, they were multiples of the nozzle that happened
+to be written down for a 0.4:
+
+| setting | auto means | 0.4 nozzle | 0.6 nozzle |
+| --- | --- | --- | --- |
+| `segment_mm` | 2.5 x nozzle | 1.00 mm | 1.50 mm |
+| `blend_mm` | 5 x nozzle | 2.00 mm | 3.00 mm |
+| `frequency` | one ripple per 10.5 nozzle widths | 1.50 /mm | 1.00 /mm |
+
+So a 0.4 nozzle gets exactly what it got before, and a 0.6 finally gets
+settings that suit a 0.6 instead of settings that suit somebody else's
+printer. Pinned by `tests/test_plugin_runtime.py`.
+
+**Two more settings accept `"auto"`, but are still off by default** because
+turning them on changes how a part prints and that should be your decision:
+
+* `wave_angle: "auto"` reads `fill_angle` from the export and runs the
+  ripples square across your infill — which is where they do the most work,
+  since a line parallel to the ripples never crosses one.
+* `max_lift_mm: "auto"` caps the Z offset at 1.5 layer heights.
+
+**Check setup and the log now print what each auto resolved to**, with the
+reasoning — `frequency : 0.997 ripples/mm (auto: one ripple every 10.5 x
+0.60 mm nozzle widths)` — rather than echoing the word "auto" back at you.
+
 ## 0.4.3 — 2026-10-02
 
 **Fixes the failure you get after pressing Refresh in the Plugins dialog**,

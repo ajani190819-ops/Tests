@@ -22,6 +22,65 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-02 — readable config panels, and settings that inherit from Orca
+
+> "These guides are very hard to read in this format... I'd also like for
+> these configs to inherit as many of Orca's settings as possible so that the
+> resolutions match up... for the iteration cap it should have an auto
+> function so that it can adjust as needed without bloating the file... and
+> for the things that don't have Orca equivalents, have them automatically
+> defined where applicable — look at the G-code and determine what the value
+> should be."
+
+Wave Overhangs **0.0.35**, Unlayered Infill **0.4.4**. Three things, in both
+plugins.
+
+**1. The panels are grouped and the notes are one line.** 33 settings and 14
+settings respectively, now in numbered sections, generated from a single
+`_SECTIONS` list that also drives the "Check setup" guide — so the panel and
+the guide can never fall out of step. The reason notes had grown into
+paragraphs is that they were the only documentation; the reason they must not
+be is that a JSON editor renders `\n` as two literal characters. The long
+form moved to the READMEs.
+
+**2. Twelve settings now default to "auto" and are derived from the print.**
+The principle: most of these numbers were never constants, they were
+multiples of something the export already states, written down once for a
+0.4 mm nozzle. Every factor was chosen so that auto on a stock 0.4 mm
+profile reproduces the shipped constant exactly — enforced by a test, because
+"we improved your defaults" is not an acceptable surprise on someone's
+printer. On the 0.6 mm captured fixture the waves are now spaced for a 0.6
+and the file is *smaller*: 2,931 wave moves against 3,087.
+
+Inherited straight from the user's Orca profile: Resolution (as the floor for
+wave smoothing), travel speed, bridge speed (since 0.0.26), bridge fan
+(opt-in), arc fitting and arc tolerance, nozzle diameter, bridge line width.
+Derived from the G-code where Orca has no equivalent: everything width-
+derived above, plus Unlayered's segment length, blend radius and ripple
+frequency from the nozzle, and its wave angle from `fill_angle` (opt-in).
+
+**3. The iteration cap sizes itself.** It was a flat 400 — too small for a
+large overhang, pointless for a small one. Auto measures the region, asks for
+enough fronts to cross it plus headroom, and clamps to 64..20000. It cannot
+bloat the file because it never adds a front the geometry did not ask for.
+
+**What deliberately stayed constant**: amplitude, pattern, print order,
+flow ratio, the on/off switches. Reading the G-code cannot tell you what
+someone wants their part to look like.
+
+**Your settings survive.** The 0.4.2/0.0.33 migration is unchanged and was
+re-checked for this: on the first slice after updating, the saved config is
+merged with the new one, keeping every value you set.
+
+Tests: `tests/test_wave_gcode.py` gains an "auto defaults" block (auto
+reproduces the 0.4 mm constants, scales on the 0.6 mm fixture, follows the
+profile, caps adaptively, still idempotent); the fixture's pinned geometry
+counts now run against an explicit legacy config so they keep measuring
+geometry rather than defaults. `tests/test_plugin_runtime.py` checks both
+panels are complete, grouped, free of orphan notes, and one line per note.
+
+---
+
 ## 2026-10-02 — Unlayered Infill 0.4.3 / Wave Overhangs 0.0.34: the Refresh failure
 
 > "If I click refresh on the plugins page in Orca Slicer the Wave Overhangs

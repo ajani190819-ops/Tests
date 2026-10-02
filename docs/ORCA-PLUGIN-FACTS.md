@@ -178,6 +178,19 @@ replaces an earlier **guess** in `MEMORY.md` that said Orca copies
   plugin's default configuration". The old advice ("set the preset's Slicing
   Pipeline Plugin to None and back, then save the preset") was based on the
   wrong storage model. It is harmless but it is not the fix.
+* **The config editor is a plain JSON editor, so a note containing `\n` is
+  shown as the two literal characters.** Notes must therefore be one short
+  sentence each. Grouping is done with `_`-prefixed heading keys, which the
+  editor shows in insertion order; both plugins generate the panel and the
+  Check-setup guide from one `_SECTIONS` list so the two cannot disagree.
+* **What a plugin can inherit from the user's profile is whatever Orca wrote
+  into the exported G-code's config block** — `resolution`, `travel_speed`,
+  `bridge_speed`, `bridge_fan_speed`, `overhang_fan_speed`, `fill_angle`,
+  `nozzle_diameter`, `enable_arc_fitting`, `layer_height`. Read them with a
+  `^;\s*key\s*=\s*(.+)$` match (values can be comma-separated per extruder;
+  take the first). Do **not** use `ctx.config_value()` for this — see the
+  rule above. A post-processor sees the finished file, so this is the one
+  place where the user's real settings are reliably available.
 * `get_default_config()` may legitimately contain keys that are not settings.
   Both plugins here interleave `_`-prefixed note strings so the JSON editor
   explains itself; `_cfg()` ignores any key it does not know.

@@ -22,6 +22,61 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.35 — 2026-10-02
+
+**A settings panel you can read, and settings that follow your own Orca
+profile.** On a stock 0.4 mm profile the output is unchanged, to the digit —
+that is enforced by a test.
+
+**Thirty-three settings are now nine numbered groups.** BASICS, WHAT COUNTS
+AS AN OVERHANG, THE WAVE ITSELF, PRINT ORDER, CLEANUP, MEETING THE WALL, LINE
+ENDS AND FLOW, SPEED AND COOLING, ARC MOVES. Each note is one short sentence;
+the detail moved to the README. Panel order and guide order come from the
+same list.
+
+**Nine settings now default to `"auto"` and are derived from the print.** The
+point: almost none of these were really numbers. `line_spacing: 0.35` always
+meant "seven eighths of a 0.4 mm line" — written as a constant it is correct
+for one profile and quietly wrong for every other, which is exactly what
+happened on the 0.6 mm test fixture, where waves were being spaced for a
+printer nobody was using.
+
+| setting | auto means | at a 0.40 line | at a 0.57 line |
+| --- | --- | --- | --- |
+| `line_spacing` | 0.875 x Wave line width | 0.350 mm | 0.502 mm |
+| `perimeter_overlap` | 0.25 x line width | 0.100 mm | 0.143 mm |
+| `min_wave_length` | 2.5 x line width | 1.000 mm | 1.433 mm |
+| `min_wave_segment` | 0.75 x line width | 0.300 mm | 0.430 mm |
+| `edge_taper_distance` | 1.5 x line width | 0.600 mm | 0.860 mm |
+| `min_overhang_area` | ~3 line widths squared | 0.500 mm2 | 1.027 mm2 |
+| `simplify_tolerance` | 0.125 x line width, floored at your Resolution | 0.050 mm | 0.072 mm |
+| `travel_speed` | your profile's travel speed | — | — |
+| `max_iterations` | enough fronts to cross the region, plus headroom | — | — |
+
+Every factor is chosen so that auto on a stock 0.4 mm / 0.0125 mm-resolution
+profile reproduces the constant this plugin shipped with, exactly. Upgrading
+does not change a 0.4 mm print.
+
+**The iteration cap adapts.** It was a flat 400, which is both too small for
+a large overhang — it stopped half way — and meaningless for a small one.
+`"auto"` measures the region and asks for as many fronts as it takes to cross
+it, plus headroom, clamped to 64..20000. It is a runaway guard, not a quality
+dial: it never adds a front the geometry did not ask for, so it cannot bloat
+the file. On the test fixture it settles at the 64 floor; the file got
+*smaller*, 2,931 wave moves against 3,087 for the old 0.4-tuned config.
+
+**`fan` also accepts `"auto"`** (your profile's bridge fan), but stays at 1.0
+by default: full cooling on an overhang is a recommendation worth keeping,
+not something to inherit silently.
+
+**What stays constant, deliberately.** `pattern`, `start_policy`,
+`component_order`, `flow_ratio`, `wall_overlap`, `edge_taper_min_flow` and
+the on/off switches. No amount of reading the G-code tells you what someone
+wants a part to look like.
+
+**Check setup and the log now print what each auto resolved to**, with the
+reasoning, instead of echoing "auto" back at you.
+
 ## 0.0.34 — 2026-10-02
 
 **Preventive, no change to the waves.** Unlayered Infill 0.4.3 fixed two

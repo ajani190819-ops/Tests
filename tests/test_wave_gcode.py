@@ -35,7 +35,27 @@ spec.loader.exec_module(wave)
 
 source = (ROOT / "tests/fixtures/Cube^2_3m53s.gcode").read_text(
     encoding="utf-8")
+# The pinned counts further down are a GEOMETRY regression: they describe
+# what the wave algorithm does to this captured export, and they only mean
+# something if the inputs are held still. Since 0.0.35 several defaults are
+# the string "auto" and resolve against the print -- this fixture is a 0.6
+# nozzle, so auto spacing is wider than the old 0.35 constant and every count
+# moves. So the fixture run pins the explicit numbers the counts were
+# measured with, and the auto behaviour gets its own assertions below
+# (search for "auto defaults").
+LEGACY = {
+    "min_overhang_area": 0.5,
+    "line_spacing": 0.35,
+    "perimeter_overlap": 0.10,
+    "min_wave_length": 1.0,
+    "min_wave_segment": 0.30,
+    "simplify_tolerance": 0.05,
+    "edge_taper_distance": 0.60,
+    "travel_speed": 120.0,
+    "max_iterations": 400,
+}
 cfg = dict(wave._DEFAULTS)
+cfg.update(LEGACY)
 cfg["_lh"] = 0.3
 out, stats = wave._gcode_wave_rewrite(source, cfg)
 
@@ -910,8 +930,9 @@ for step in (0.4, 0.4, 0.4):                        # then real movement
 for step in (0.0002, 0.0002):                       # and a dead tail
     hairline.append((hairline[-1][0] + step, 100.0))
 
-swcfg = wave._wave_config(dict(wave._DEFAULTS), 0.3)
-emitted = wave._emit_wave_gcode([hairline], 1.5, swcfg, dict(wave._DEFAULTS))
+swcfg = wave._wave_config({**wave._DEFAULTS, **LEGACY}, 0.3)
+emitted = wave._emit_wave_gcode([hairline], 1.5, swcfg,
+                                {**wave._DEFAULTS, **LEGACY})
 body = [l for l in emitted if l.startswith("G1 X")]
 assert body, emitted
 seen = (100.0, 100.0)
@@ -1157,3 +1178,93 @@ assert "; wave-overhangs edge taper" in out
 print(f"ok -- vertex thinning: {len(all_lengths)} wave moves, only "
       f"{len(tiny_lengths)} under 0.1 mm ({100 * tiny_share:.1f}%), "
       f"path still {total_path:.1f} mm")
+
+
+# ---------------------------------------------------------------------------
+#  auto defaults: the settings that follow the user's own Orca profile
+# ---------------------------------------------------------------------------
+# The owner's request: "I'd like for these configs to inherit as many of
+# Orca's settings as possible so that the resolutions match up... and for the
+# things that don't have Orca equivalents to be automatically defined where
+# applicable, so it can look at the G-code and determine what the value
+# should be."
+#
+# Two properties matter and both are checked here:
+#   1. auto is not a new behaviour for a stock 0.4 mm profile -- it resolves
+#      to the exact constants this plugin shipped with, so nobody's print
+#      changes just because a default became a word.
+#   2. auto actually MOVES when the print is different. This fixture is a
+#      0.6 nozzle; everything width-derived has to scale with it, or "auto"
+#      is decoration.
+profile = wave._orca_profile(source)
+assert profile.get("nozzle_diameter") == "0.6", profile
+assert profile.get("resolution") == "0.06", profile
+assert profile.get("travel_speed") == "120", profile
+
+at_040 = wave._resolve_autos(dict(wave._DEFAULTS), 0.40,
+                             {"resolution": "0.0125", "travel_speed": "120"})
+for key, shipped in (("line_spacing", 0.35), ("perimeter_overlap", 0.10),
+                     ("min_wave_length", 1.0), ("min_wave_segment", 0.30),
+                     ("simplify_tolerance", 0.05), ("edge_taper_distance", 0.60),
+                     ("min_overhang_area", 0.5), ("travel_speed", 120.0)):
+    assert abs(at_040[key] - shipped) < 1e-9, (
+        f"auto {key} resolved to {at_040[key]} on a stock 0.4 mm profile; it "
+        f"must reproduce the shipped constant {shipped} exactly, or upgrading "
+        f"silently changes how everybody's parts print")
+
+at_060 = wave._resolve_autos(dict(wave._DEFAULTS), 0.60,
+                             {"resolution": "0.06", "travel_speed": "300"})
+assert at_060["line_spacing"] > at_040["line_spacing"] * 1.4, (
+    "auto line_spacing did not scale with a wider bead -- a 0.6 nozzle would "
+    "still be printing waves spaced for a 0.4")
+assert at_060["travel_speed"] == 300.0, (
+    "auto travel_speed must come from the profile, not a constant")
+assert 0.02 <= at_060["simplify_tolerance"] <= 0.12
+
+# A deliberately absurd Resolution must not be able to smooth the waves away:
+# it is a floor on the tolerance, and the clamp is the backstop.
+coarse = wave._resolve_autos(dict(wave._DEFAULTS), 0.40, {"resolution": "5"})
+assert coarse["simplify_tolerance"] <= 0.12, coarse["simplify_tolerance"]
+
+# Explicit numbers always win over auto, and a junk value falls back rather
+# than raising -- a bad config entry must never fail an export.
+explicit = wave._resolve_autos(
+    {**wave._DEFAULTS, "line_spacing": 0.5, "travel_speed": "nonsense"},
+    0.40, {"travel_speed": "300"})
+assert explicit["line_spacing"] == 0.5
+assert explicit["travel_speed"] == 120.0, explicit["travel_speed"]
+
+# The iteration cap: auto has to be enough to cross the region, and it must
+# not be a fixed number pretending to be adaptive.
+small = wave._auto_iterations(Polygon([(0, 0), (4, 0), (4, 4), (0, 4)]), 0.35)
+big = wave._auto_iterations(Polygon([(0, 0), (200, 0), (200, 200), (0, 200)]),
+                            0.35)
+assert big > small, "auto max_iterations is not adapting to region size"
+assert small >= 64 and big <= 20000, (small, big)
+assert big >= math.hypot(200, 200) / 0.35, (
+    "auto max_iterations must be able to cross the whole region, or a large "
+    "overhang is cut off half way")
+
+# And the whole thing still has to run, end to end, on the real export with
+# nothing but auto defaults -- the configuration a new user actually gets.
+auto_cfg = dict(wave._DEFAULTS)
+auto_cfg["_lh"] = 0.3
+auto_out, auto_stats = wave._gcode_wave_rewrite(source, auto_cfg)
+assert auto_stats["wave_layers"] == 3, auto_stats
+assert auto_stats["replaced_sections"] == 3, auto_stats
+assert auto_out.startswith("; wave-overhangs v"), "missing build stamp"
+# Wider spacing on a 0.6 nozzle means fewer wave moves than the 0.4-tuned
+# legacy config, not more. This is the anti-bloat half of the request.
+auto_moves = sum(line.startswith("G1 X") for line in auto_out.splitlines())
+legacy_moves = sum(line.startswith("G1 X") for line in out.splitlines())
+assert auto_moves < legacy_moves, (
+    f"auto defaults emitted {auto_moves} moves against the 0.4-tuned "
+    f"{legacy_moves}; on a 0.6 nozzle auto should be sparser, not denser")
+# Still idempotent, still fail-closed.
+again, again_stats = wave._gcode_wave_rewrite(auto_out, auto_cfg)
+assert again_stats["already_processed"] and again == auto_out
+
+print(f"ok -- auto defaults: reproduce the shipped 0.4 mm constants exactly, "
+      f"scale to this 0.6 mm fixture ({auto_moves} moves against "
+      f"{legacy_moves} for the 0.4-tuned config), follow the profile's travel "
+      f"speed and resolution, and the iteration cap sizes itself to the region")
