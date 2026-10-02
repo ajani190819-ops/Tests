@@ -12,7 +12,7 @@ predecessor tool is kept at `tools/nonplanar-infill-tool/`.
 
 ## Install
 
-Run `Update-Orca-Plugins.bat` (repo root). It lands here:
+Run `Orca-Plugins.bat` (repo root). It lands here:
 
 ```
 <Orca data dir>\orca_plugins\UnlayeredInfill\unlayered_infill_orca.py

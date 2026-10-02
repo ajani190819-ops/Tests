@@ -162,7 +162,7 @@ to make an old preset look clean.
 
 ## Updater and chooser maintenance
 
-- Keep `Update-Orca-Plugins.bat` CRLF on every line and never let it overwrite
+- Keep `Orca-Plugins.bat` CRLF on every line and never let it overwrite
   itself while running.
 - Keep the catalogue and fallback plan synchronized. The updater reads fresh
   plugin files from its selected ref and stamps the installed version from the
