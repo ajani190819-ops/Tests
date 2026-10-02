@@ -22,6 +22,46 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-02 — Wave Overhangs 0.0.31: the micro-move pile-up around holes
+
+Owner report: *"around the whole there an absurd number of extremely tiny
+moves ... randomly you have an absurd number of lines just to do a tiny chunk
+of curve next to the hole"*.
+
+Measured on their export: **60.7% of all wave moves were under 0.1 mm, and
+together they carried 0.9% of the distance printed.** Median wave move
+0.015 mm.
+
+Two causes, both in the path cleanup:
+
+1. `_clean_guards` computed its stray margin as `tolerance * 0.4`.
+   `_simplify_attempts` walks a ladder of ever-smaller tolerances looking for
+   a simplification that does not cut into a hole — but the shrinking
+   tolerance shrank the margin with it, so the guard tightened at every rung
+   instead of relaxing. Fronts wrapping a hole failed all three rungs and
+   `_clean_wave_polyline` fell back to `list(original.coords)`: every point
+   shapely's buffer produced. The margin is now the fixed constant
+   `_MAX_STRAY_MM = 0.02`.
+2. Nothing collapsed coincident points. Douglas-Peucker keeps a vertex
+   whenever it lies far from the chord, so at a cusp it retains two vertices
+   microns apart. New `_thin_points()` merges anything closer than
+   `_MIN_POINT_GAP_MM = 0.02`, and new `_thinned_fallback()` applies it to
+   fronts that still cannot be simplified at all, re-checking against the
+   same hole guard before accepting.
+
+Geometry is unchanged — that is the whole point. On the fixture the wave path
+is **513.5 mm before and after**, while moves drop 508 → 439 and sub-0.1 mm
+moves drop 91 → 22. With `wall_snap=False`, 739 → 455. With arcs on, 329 →
+260. Those four golden counts in `tests/test_wave_gcode.py` were updated, and
+a new assertion fails if sub-0.1 mm moves exceed 8% of the total or if the
+path length moves by more than 1 mm.
+
+The owner's part should improve considerably more than the fixture, since it
+has holes and the fixture barely does — but that is a projection, not a
+measurement.
+
+---
+
 ## 2026-10-02 — Wave 0.0.30, and a tidy-up of the whole repository
 
 Two owner requests in one pass: *"make the speed whatever i set the bridge

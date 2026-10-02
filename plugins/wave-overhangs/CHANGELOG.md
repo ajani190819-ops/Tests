@@ -22,6 +22,56 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.31 — 2026-10-02
+
+The thousands of pointless micro-moves around holes are gone.
+
+* **Fronts that wrap a hole no longer keep every raster point.** The owner
+  spotted this: *"randomly you have an absurd number of lines just to do a
+  tiny chunk of curve next to the hole"*. They were right, and it was bad —
+  on their part **60.7% of every wave move was under 0.1 mm long, and all of
+  those together carried 0.9% of the distance printed.** The median wave move
+  was 0.015 mm. Fifteen microns. Thousands of G-code lines doing nothing.
+
+  Two separate causes, both fixed:
+
+  1. **A self-defeating safety guard.** Before simplifying a wave path the
+     plugin checks it has not cut a corner into a hole, allowing it to stray
+     by a small margin. That margin was computed as `tolerance * 0.4`. When
+     the first simplification attempt was rejected the code retried with a
+     *smaller* tolerance to be gentler — but that shrank the margin by the
+     same factor, so the guard got stricter at exactly the moment it needed
+     to relax. A front hugging a hole failed all three attempts and fell back
+     to keeping every single point. The margin is now a fixed allowance of
+     0.02 mm — a twentieth of a line width — and no longer moves with the
+     tolerance.
+  2. **Nothing removed points piled on top of each other.** The simplifier
+     keeps a point whenever it sits far from the straight line between its
+     neighbours, which at a sharp cusp — precisely what a wavefront forms
+     where it wraps a hole — means keeping two points microns apart. Points
+     closer together than 0.02 mm are now merged, and a front that still
+     cannot be simplified at all is thinned this way instead of being left
+     raw.
+
+* **Nothing about the shape changed.** This only removes points that were
+  not describing anything. On the test export the wave path is **513.5 mm
+  before and 513.5 mm after**, while the move count drops from 508 to 439 and
+  sub-0.1 mm moves fall from 91 to 22. With `wall_snap` off the drop is
+  larger: 739 moves to 455. Every existing check that waves stay out of holes
+  still passes, and the thinning is re-tested against that same hole guard
+  before it is accepted.
+
+* **What you should notice.** A much smaller G-code file, and less chance of
+  your printer stuttering. Thousands of micro-moves can arrive faster than a
+  printer's motion planner can process them, which makes it pause and jerk
+  through a curve regardless of the speed you set. The distance printed is
+  identical, so this does not change the time estimate by itself.
+
+  The owner's part had 60.7% tiny moves against the test fixture's 17.9%,
+  because it has holes and the fixture barely does, so the improvement there
+  should be considerably bigger than the fixture numbers above. That part is
+  a projection — the measured figures are the fixture ones.
+
 ## 0.0.30 — 2026-10-02
 
 Waves now print at your bridge speed by default, like any other bridge.

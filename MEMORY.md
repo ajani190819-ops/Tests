@@ -21,7 +21,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.30, Unlayered Infill 0.4.0,
+* **Current versions:** Wave Overhangs 0.0.31, Unlayered Infill 0.4.0,
   updater 1.4.0, launcher (`Orca-Plugins.bat`) 1.0.1.
 * **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
   numbers must remain out of package and capability names.
@@ -209,7 +209,7 @@ or a printer.
 ## What remains to do
 
 1. Install this branch with the launcher and confirm both plugin versions in
-   Orca's separate Version column: Wave Overhangs 0.0.30, Unlayered Infill
+   Orca's separate Version column: Wave Overhangs 0.0.31, Unlayered Infill
    0.4.0.
 2. **Try the new Unlayered Infill wave controls on a real slice.** The most
    valuable single test: print the same part twice, once with
@@ -234,6 +234,49 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-02 — Wave 0.0.31: micro-moves around holes
+
+Owner: "around the Whole when there an absurd number of extremely tiny moves
+... randomly you have has an absurd number of lines just to do a tiny chunk of
+curve next to the hole". Correct, and measurable: on
+`archive/test-prints/test print_19m50s.gcode`, **7,356 of 12,114 wave moves
+(60.7%) are under 0.1 mm and carry 0.9% of the distance**; median move
+0.015 mm.
+
+**Root cause 1 — the guard fought the ladder.** `_clean_guards(allowed,
+tolerance)` used `margin = max(0.002, min(0.02, tolerance * 0.4))`.
+`_simplify_attempts` retries at factors (1.0, 0.4, 0.15) to find a gentler
+simplification, but the margin scaled with the tolerance, so every rung
+tightened the guard by the same factor it loosened the simplification. A
+front wrapping a hole could never pass, and `_clean_wave_polyline` returned
+`list(original.coords)` — the raw buffer raster. Margin is now the fixed
+`_MAX_STRAY_MM = 0.02` and `_clean_guards` ignores its `tolerance` argument
+(kept for signature compatibility); the guard is cached once under the key
+`"guard"` rather than per tolerance.
+
+**Root cause 2 — coincident points were never merged.** DP keeps a vertex
+that is far from the chord, which at a cusp means two vertices microns apart.
+`_thin_points(points, gap)` merges them; `_thinned_fallback()` applies it to
+fronts that fail every rung, trying `gap = tolerance` then
+`_MIN_POINT_GAP_MM`, re-checking `guard.covers` and the shrunk-void `body`
+test each time, falling back to raw only if both are rejected.
+
+**Fixing cause 1 alone changed nothing** — worth remembering. All the tiny
+moves on the fixture were inside the 4-of-83 fronts that gave up, so only the
+fallback thinning moved the numbers. Measure which stage produces the
+geometry before attributing it.
+
+Fixture results, geometry identical (path 513.5 mm before and after): moves
+508 → 439, sub-0.1 mm 91 → 22 (17.9% → 5.0%); `wall_snap=False` 739 → 455;
+arcs-on 329 → 260. Four golden counts in `tests/test_wave_gcode.py` updated
+with a comment giving the old value, plus a new regression asserting
+sub-0.1 mm stays under 8% and the path length stays within 1 mm of 513.5.
+Verified to fail with the fix reverted.
+
+Not verified on hardware. The owner's part has holes and the fixture barely
+does, so their improvement should be larger than 13% — but that is a
+projection.
 
 ### 2026-10-02 — Wave 0.0.30: bridge speed by default, and a repo tidy-up
 

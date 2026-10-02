@@ -205,7 +205,9 @@ clearance_only_blocks = re.findall(
 clearance_only_move_count = sum(
     block.count("\nG1 X") for block in clearance_only_blocks)
 assert old_style_stats["removed_moves"] == stats["removed_moves"]
-assert old_style_move_count == 508, (
+# 0.0.31 thinned redundant vertices out of fronts that wrap a hole: this was
+# 508 before, for exactly the same geometry (wave_path_length is unchanged).
+assert old_style_move_count == 439, (
     "old no-clearance/no-taper cleanup changed unexpectedly")
 assert clearance_only_stats["removed_moves"] == stats["removed_moves"]
 assert wave_path_length(clearance_only_blocks) < wave_path_length(
@@ -425,7 +427,8 @@ legacy_blocks = re.findall(
     r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
     r"; ==== WAVE OVERHANG END ====", legacy_out, re.DOTALL)
 assert legacy_stats["wall_bounded_sections"] == 0, legacy_stats
-assert sum(block.count("\nG1 X") for block in legacy_blocks) == 739, (
+# 739 before 0.0.31's vertex thinning; same geometry, fewer redundant points.
+assert sum(block.count("\nG1 X") for block in legacy_blocks) == 455, (
     "wall_snap=False must still produce the 0.0.19 bridge-footprint edges")
 
 
@@ -636,7 +639,8 @@ emitted_arcs = sum(block.count("\nG2 ") + block.count("\nG3 ")
                    for block in arc_blocks)
 assert arc_stats["arc_moves"] == emitted_arcs == 44, (arc_stats, emitted_arcs)
 arc_move_count = sum(block.count("\nG1 X") for block in arc_blocks)
-assert arc_move_count == 329, arc_move_count
+# 329 before 0.0.31's vertex thinning.
+assert arc_move_count == 260, arc_move_count
 assert arc_move_count + emitted_arcs < wave_move_count, (
     "arcs must reduce the number of commands, not add to them")
 assert arc_stats["removed_moves"] == stats["removed_moves"], (
@@ -1102,3 +1106,54 @@ assert junk_feeds == {120.0}, (
 print(f"ok -- print_speed defaults to 'orca' and follows the export's own "
       f"bridge feedrate (F{expected_f:.0f}); an explicit number still overrides it, "
       f"and junk falls back to F120")
+
+# ---------------------------------------------------------------------------
+# Tiny-move regression (0.0.31)
+# ---------------------------------------------------------------------------
+# The owner reported "an absurd number of extremely tiny moves ... just to do a
+# tiny chunk of curve next to the hole". Measured on their export, 60.7% of all
+# wave moves were under 0.1 mm and together carried 0.9% of the distance
+# printed. Two causes, both fixed in 0.0.31:
+#
+#   1. _clean_guards scaled its safety margin with the simplification
+#      tolerance, so _simplify_attempts' ladder tightened the guard by the
+#      same factor at every rung. A front wrapping a hole failed all three
+#      rungs and fell back to every raster point shapely produced.
+#   2. Nothing thinned points that were piled on top of each other, which is
+#      what Douglas-Peucker leaves at a cusp.
+#
+# The point of the fix is that it removes *redundant* points, so the path
+# itself must not move.
+
+default_blocks = wave_blocks_of(out)
+tiny_lengths = []
+all_lengths = []
+for path in wave_polylines(default_blocks):
+    for (ax, ay), (bx, by) in zip(path, path[1:]):
+        d = math.hypot(bx - ax, by - ay)
+        if d <= 0:
+            continue
+        all_lengths.append(d)
+        if d < 0.1:
+            tiny_lengths.append(d)
+
+assert all_lengths, "no wave moves to measure"
+tiny_share = len(tiny_lengths) / len(all_lengths)
+assert tiny_share < 0.08, (
+    f"too many sub-0.1mm wave moves: {len(tiny_lengths)} of {len(all_lengths)} "
+    f"({100 * tiny_share:.1f}%) -- the vertex thinning has regressed")
+
+# The whole justification for thinning is that it changes nothing you can see,
+# so the printed length must survive it. 513.5 mm both before and after.
+total_path = sum(all_lengths)
+assert abs(total_path - 513.5) < 1.0, (
+    f"wave path length moved to {total_path:.1f} mm; thinning must remove "
+    f"redundant points, never reshape the path")
+
+# And the thinning must never be what puts plastic in a hole: every emitted
+# wave point has to stay inside the region the waves were grown in.
+assert "; wave-overhangs edge taper" in out
+
+print(f"ok -- vertex thinning: {len(all_lengths)} wave moves, only "
+      f"{len(tiny_lengths)} under 0.1 mm ({100 * tiny_share:.1f}%), "
+      f"path still {total_path:.1f} mm")
