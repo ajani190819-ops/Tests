@@ -10,7 +10,7 @@ This is a port of the algorithm behind
 (a C++ fork of OrcaSlicer, algorithm by Janis A. Andersons) as a Python
 slicing-pipeline plugin. Earlier builds ran in real Orca but inserted no waves.
 The owner confirmed that 0.0.11 produced visible, perimeter-conforming waves
-in real Orca. Version 0.0.25 is regression-tested against the captured export
+in real Orca. Version 0.0.26 is regression-tested against the captured export
 with corrected Z alignment, edge cleanup, wall-bounded Wave areas whose ends
 land on the real wall and hole perimeters, and tapered endpoint flow; it still
 needs a fresh Orca export and physical-print validation.
@@ -27,7 +27,7 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 
 1. Restart OrcaSlicer (needs newer than 2.4.2, or a nightly).
 2. File → Plugins → confirm *Wave Overhangs* is enabled and its separate
-   Version column reads **0.0.25**. The package name is permanently
+   Version column reads **0.0.26**. The package name is permanently
    version-free.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Wave Overhangs*.
 4. Slice a part with a small overhang, then run the
@@ -162,7 +162,7 @@ would not see that wall at all. Both the `I J` and the `R` forms are read.
 ### Detection and geometry
 
 * `enabled`: `true`/`false`. Disable the rewrite without removing the plugin.
-* `time_budget`: seconds, `30` by default (new in 0.0.25). A hard ceiling on
+* `time_budget`: seconds, `30` by default (new in 0.0.26). A hard ceiling on
   the whole G-code pass, checked before every layer and every bridge section.
   If the pass is still running when the clock runs out it gives up and hands
   back the file exactly as Orca wrote it — nothing changed, no Wave stamp, so
@@ -182,6 +182,17 @@ would not see that wall at all. Both the `I J` and the `R` forms are read.
   `auto` uses obstacle-aware propagation only when an internal hole exists.
   `obstacle` forces it for every region. `legacy` uses the older support-only
   expansion and is mainly useful for comparison; it can miss internal holes.
+* `wake_blend`: `0` by default (off). **Experimental.** When the wave flows
+  around a hole and rejoins behind it, the two sides meet in a sharp V and
+  every later front keeps that kink, leaving a hard seam running downstream
+  of the hole. This rounds the crease off, in multiples of `line_spacing`
+  (so `1.0` means one spacing). Values above `1.5` are clamped.
+
+  It is off by default because it is not finished: it does smooth the V on a
+  simple round hole, but on a real part it also loses roughly 4% of the wave
+  coverage and breaks fronts into more tiny fragments, because healing makes
+  consecutive fronts partly overlap and they then get cut up. Try `1.0` if
+  you want to see it; leave it at `0` for printing.
 
 ### Order and direction
 

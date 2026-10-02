@@ -6,6 +6,55 @@ Overhangs **0.0.23**, Wave Overhangs Geometry **0.1.4**, Unlayered Infill
 session test branch. Package and capability names remain permanently:
 `Wave Overhangs`, `Wave Overhangs Geometry`, and `Unlayered Infill`.
 
+## Finish `wake_blend` (wave rejoining behind a hole)
+
+**Status: shipped in 0.0.26 but off by default, because it regresses real
+geometry.**
+
+The problem it addresses is real: where the field flows around a hole and
+closes up behind it, the two arriving sides meet in a sharp V, and because
+every later front is an offset of the same region, they all inherit the kink.
+The print shows a hard seam running downstream of the hole.
+
+The implementation is a morphological closing of the reached region
+(`_heal_wake` in the embedded `wave_core`), gated on the region having gained
+an interior ring, which is exactly when the two sides have met. On
+`synthetic_overhang_with_hole` it works: the V becomes a smooth curve.
+
+**Why it is off.** On `Cube_39m10s.gcode` at `wake_blend=1.0`:
+
+| metric | blend 0 | blend 1.0 |
+| --- | --- | --- |
+| total wave path | 1911 mm | 1833 mm (-4%) |
+| tiny fragments dropped | 8 | 40 |
+| paths under 2 mm | 24 | 37 |
+| runtime | 1.5 s | 3.7 s |
+
+The fronts come out dashed. The cause is that healing snaps the notch to
+nearly the same place on consecutive steps, so consecutive fronts partly
+coincide, and `front.difference(previous.buffer(1e-5))` -- which exists to
+stop a hole or wall boundary being emitted twice -- deletes the coincident
+stretches.
+
+**Tried and rejected:**
+
+* Propagating the raw region and healing only the front being drawn
+  (non-cumulative). Did not remove the dashes.
+* Measuring the subtraction against the raw region rather than the healed
+  one. Also did not remove the dashes.
+
+**The idea not yet tried:** stop treating this as a region problem. Keep the
+propagation exactly as it is now, and smooth the *polyline* instead -- detect
+the crease vertex on each front (the point nearest the obstacle's downstream
+medial axis), and replace a short span around it with a fillet whose radius
+grows with distance past the obstacle, clipped to `unsupported`. That leaves
+the region, the spacing and the subtraction untouched, so it cannot create
+dashes or lose coverage; the only risk is the fillet leaving the legal area,
+which the existing `_clean_wave_polyline` guards already check.
+
+Values above 1.5 are clamped: beyond that the closing swallows whole fronts
+and breaks them into stubs.
+
 ## Status at a glance
 
 | Work | Status |

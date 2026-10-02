@@ -571,6 +571,45 @@ Z, derives coverage width from the exported bridge, simplifies wavefronts, and
 drops sub-nozzle retained fragments. The captured fixture passes with three
 layers and 436 cleaned Wave extrusion moves.
 
+### 2026-10-01 — Wave 0.0.26: updater memory, a GEOS crash, and an honest no
+
+Three owner requests handled together.
+
+**Arc moves to shrink the file: measure before building.** The answer turned
+out to be the opposite of the request. Wave's own arcs are worth 9.8 KB, 0.55%
+of the export, because 0.0.21-0.0.23 had already cut the wave blocks from
+33.5% of the file to 3.4%. Orca's own arc fitting, by contrast, encodes 37% of
+the printed path length (12,546 arcs, 30.3 m of 82.7 m). So the lever is
+Orca's setting, not ours, and since 0.0.24 stopped emitting G2/G3 the owner
+can safely turn Orca's arc fitting back on. Nothing was built for this.
+
+**Updater memory.** The chooser stored the last branch but still required a
+menu pick; empty Enter now reuses it. The updater now also remembers its data
+directory in `%LOCALAPPDATA%\OrcaPluginUpdater\datadir.txt`, written on every
+successful run including `%1` and `%ORCA_DATA_DIR%` overrides. Both .bat files
+stay CRLF; note `Update-Orca-Plugins.bat` is now 705 lines, and the tests
+assert byte-exact CRLF but not a line count.
+
+**`wake_blend`: built, measured, shipped off.** Morphological closing of the
+reached region smooths the sharp V where the wave rejoins behind a hole, and
+it works on the synthetic round hole. On the owner's real part it loses 4% of
+wave coverage (1911 -> 1833 mm) and takes tiny fragments from 8 to 40, because
+healing makes consecutive fronts partly coincide and the "already reached"
+subtraction then cuts them into dashes. Two fixes failed. It ships at default
+0, where output is byte-identical to 0.0.25 on all five shapes, and the
+untried polyline-fillet approach is written up in `docs/ROADMAP.md`. The
+lesson worth keeping: path and move counts are blind to wave *shape* -- four
+`wake_blend` values all gave 56 paths on geometry that rendered very
+differently. Judge shape by rendering it, and quantify with total path length
+and fragment counts.
+
+Chasing that exposed a genuine latent crash. `linemerge` raises
+`GEOSException` on a single-point crumb left by clipping, and `GEOSException`
+is not a `ValueError`, so the existing `except (TypeError, ValueError)` could
+not catch it and the entire layer failed closed. Same fault that had killed an
+earlier `simplify` optimisation, so that is worth revisiting now. The retry
+lives only inside the `except`, keeping the success path bit-identical.
+
 ### 2026-10-01 — Wave 0.0.11
 
 Replaced the ineffective slice-object/cross-callback architecture with one

@@ -751,6 +751,60 @@ assert stats["geometry_layers"] == len(interesting)
 again, second = wave._gcode_wave_rewrite(out, cfg)
 assert again == out and second["already_processed"], "second pass must be a no-op"
 
+# --- wake_blend: rounding the crease behind a hole (0.0.26, experimental) ---
+# Off by default, and off must mean *exactly* the old behaviour: this knob
+# reaches into the propagation loop, so the no-op case has to be provably
+# free. It is off because on real geometry it still loses coverage.
+assert wave._DEFAULTS["wake_blend"] == 0.0, wave._DEFAULTS["wake_blend"]
+zero_out, zero_stats = wave._gcode_wave_rewrite(source, dict(cfg, wake_blend=0.0))
+assert zero_out == out, "wake_blend=0 must reproduce the default output exactly"
+
+# Switched on it must still run clean on every shape we have -- the earlier
+# attempt at this crashed GEOS on degenerate rings and silently produced no
+# waves at all, which is the failure mode that matters most here.
+for label, case_source in (("cube", source),
+                           ("hole", hole_source),
+                           ("wedge", wedge_source)):
+    blended, blend_stats = wave._gcode_wave_rewrite(
+        case_source, dict(cfg, wake_blend=1.0))
+    assert "error" not in blend_stats, (label, blend_stats)
+    assert blend_stats["wave_layers"] >= 1, (label, blend_stats)
+
+# Out-of-range values are clamped rather than rejected, and junk falls back
+# to the default instead of throwing.
+for value in (99.0, -5.0, "nonsense", None):
+    guarded, guarded_stats = wave._gcode_wave_rewrite(
+        source, dict(cfg, wake_blend=value))
+    assert "error" not in guarded_stats, (value, guarded_stats)
+    assert guarded_stats["wave_layers"] >= 1, (value, guarded_stats)
+
+# The underlying robustness fix: linemerge raises GEOSException (which is
+# NOT a ValueError, so the old handler could not catch it) when a clipped
+# boundary leaves a single-point crumb. wave_tracks must survive that.
+import shapely.errors
+assert not issubclass(shapely.errors.GEOSException, (TypeError, ValueError)), (
+    "if this ever becomes a ValueError the narrow handler would be enough")
+real_linemerge = wave.wc.linemerge
+try:
+    calls = {"n": 0}
+
+    def exploding(arg):
+        calls["n"] += 1
+        if calls["n"] == 2:        # fail once, mid-propagation
+            raise shapely.errors.GEOSException(
+                "IllegalArgumentException: point array must contain 0 or >1 elements")
+        return real_linemerge(arg)
+
+    wave.wc.linemerge = exploding
+    survived, survived_stats = wave._gcode_wave_rewrite(
+        hole_source, dict(cfg, wake_blend=1.0))
+finally:
+    wave.wc.linemerge = real_linemerge
+assert calls["n"] > 1, calls
+assert "error" not in survived_stats, survived_stats
+assert survived_stats["wave_layers"] >= 1, (
+    "a GEOSException from linemerge must not lose the whole layer")
+
 # --- no move may be written that does nothing (0.0.25) ---
 # Coordinates go out with three decimals. Guarding on the unrounded step
 # length meant sub-micron samples were written as moves whose X/Y rounded to

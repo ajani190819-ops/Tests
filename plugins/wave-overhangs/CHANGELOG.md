@@ -6,10 +6,50 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.25 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.26 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.26 — 2026-10-01
+
+Updater convenience, a latent crash fixed, and an honest non-result on wave
+blending.
+
+* **The chooser and the updater now remember what you picked.** The branch
+  chooser already stored your last branch but still made you pick it from the
+  menu; pressing Enter on its own now just reuses it. The updater now
+  remembers the OrcaSlicer data folder it installed into and offers it the
+  same way, so a repeat update is Enter, Enter. Both still show the full menu,
+  so switching is exactly as easy as it was. The remembered values live in
+  `%LOCALAPPDATA%\OrcaPluginUpdater\` (`branch.txt` and `datadir.txt`);
+  delete them to be asked from scratch.
+* **A real crash in the wave propagation, fixed.** Clipping one boundary
+  against another can leave a single-point line behind, and shapely's
+  `linemerge` raises `GEOSException` on those. `GEOSException` is not a
+  `ValueError`, so the handler that was there could not catch it, and the
+  whole layer was lost — the plugin failed closed and produced no waves at
+  all. This is the same fault that killed an earlier optimisation attempt.
+  `wave_tracks` now retries without the crumbs, and only when the normal
+  merge has already failed, so ordinary fronts are untouched.
+* **`wake_blend`: new, experimental, and off by default.** When the field
+  flows around a hole and rejoins behind it, the two arriving sides meet in a
+  sharp V and every later front inherits the kink, leaving a hard seam
+  downstream. `wake_blend` rounds that crease off, in multiples of
+  `line_spacing`.
+
+  It works on a simple round hole — the V is replaced by smooth curves. It is
+  **off by default because it is not good enough yet**: on the owner's real
+  part it also loses about 4% of the wave coverage (1911 mm of path down to
+  1833 mm) and turns 8 tiny fragments into 40. Healing makes consecutive
+  fronts partly coincide, and the "already reached" subtraction then cuts
+  them into dashes. Two different fixes for that were tried and neither
+  worked; the remaining idea is written up in `docs/ROADMAP.md`. Set
+  `wake_blend` to 1.0 to try it; values over 1.5 are clamped because beyond
+  that the closing swallows whole fronts.
+
+  With `wake_blend` at its default of 0 the output is byte-for-byte identical
+  to 0.0.25 on all five test shapes, including the owner's own export.
 
 ## 0.0.25 — 2026-10-01
 

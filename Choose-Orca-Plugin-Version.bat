@@ -35,8 +35,11 @@ echo   [T] Type a branch name myself
 echo   [R] Return to released main
 echo   [Q] Cancel
 echo.
+echo   Press Enter on its own to reuse your last choice: %REMEMBERED%
+echo.
 set "PICK="
-set /p PICK=Enter a number or letter: 
+set /p PICK=Choice, or just Enter for %REMEMBERED%: 
+if not defined PICK (set "CHOSEN=%REMEMBERED%"&goto :chosen)
 if /i "%PICK%"=="A" goto :all
 if /i "%PICK%"=="T" goto :type
 if /i "%PICK%"=="R" (set "CHOSEN=main"&goto :chosen)

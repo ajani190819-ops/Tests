@@ -19,6 +19,54 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — Updater remembers your choices; a GEOS crash fixed
+
+**Wave Overhangs:** 0.0.26. **Chooser and updater:** remember last selection.
+
+Three things the owner asked for, with one honest non-result.
+
+*Arc moves for file size.* Measured rather than assumed, and the answer is to
+do the opposite. Wave's own arcs now save **9.8 KB, 0.55% of the file**,
+because 0.0.21-0.0.23 already shrank the wave blocks from 33.5% of the export
+to 3.4%. Meanwhile OrcaSlicer's own arc fitting encodes **37% of the printed
+path length** in that same file -- 12,546 arcs covering 30.3 m of 82.7 m.
+Turning Orca's arc fitting off to avoid the crash would add roughly 86,000 G1
+moves, about 2.6 MB, more than doubling the file. The right setting is
+therefore Orca's arc fitting ON and Wave's `arc_fitting` off, which is exactly
+the pair that avoids issue #7433.
+
+*Remembering updater choices.* The chooser stored the last branch but still
+made you select it; Enter on its own now reuses it. The updater now remembers
+the OrcaSlicer data folder too, under
+`%LOCALAPPDATA%\OrcaPluginUpdater\datadir.txt`, and offers it on Enter. Both
+keep the full menu so switching is unchanged. Both .bat files stay CRLF
+throughout.
+
+*Blending the wave back together behind a hole.* Implemented as `wake_blend`,
+and shipped **off by default because it is not good enough**. A morphological
+closing of the reached region rounds the crease, and on a simple round hole it
+replaces the sharp V with smooth curves. On the owner's real part it also
+loses about 4% of wave coverage (1911 mm of path down to 1833 mm) and turns 8
+tiny fragments into 40: healing makes consecutive fronts partly coincide, and
+the "already reached" subtraction then cuts them into dashes. Two fixes were
+tried -- propagating the raw region instead of the healed one, and measuring
+the subtraction against the raw region -- and neither removed the dashes. The
+remaining idea is in `docs/ROADMAP.md`. With `wake_blend` at 0 the output is
+byte-identical to 0.0.25 on all five test shapes including the owner's export.
+
+Chasing that did find a real latent crash, now fixed: clipping one boundary
+against another can leave a single-point line, and shapely's `linemerge`
+raises `GEOSException` on it. `GEOSException` is not a `ValueError`, so the
+existing handler could not catch it and the whole layer was lost. This is the
+same fault that killed an earlier optimisation attempt. `wave_tracks` now
+retries without the crumbs, only after the normal merge has already failed.
+Covered by a test that injects the exception and is verified to fail when the
+narrow handler is put back.
+
+Not verified in real OrcaSlicer.
+
+---
+
 ## 2026-10-01 — The export hang is an OrcaSlicer bug (#7433)
 
 **Wave Overhangs:** 0.0.25.
