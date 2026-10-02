@@ -22,6 +22,36 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-02 — updater 2.0.1: testing from a branch, without merging
+
+> "Can we do this without merging since the updater is able to pull from
+> branches?"
+
+Yes. Every file is served at `.../<branch>/...` on raw.githubusercontent
+(verified for the slashed session-branch name), the branch picker lists the
+branch live from the GitHub API, and self-update follows the remembered
+build — so the unified updater can be pulled from `arena/01a0fd3b-tests` and
+used for real before PR #7 is merged.
+
+That flow exposed one bug, fixed here: self-update treated **any** different
+version as newer. With the unified file on a test branch and `main` still
+holding the old two-file launcher, a run whose remembered build was `main`
+would fetch main's 1.0.1 launcher, see "1.0.1 != 2.0.0", and hand the run
+*back* to the old launcher — a downgrade that made the new file look like it
+never took. `:self_update` now only hands over to a download that itself
+carries the `rem UPDATER_VERSION` marker, i.e. another one-file updater;
+anything else keeps this copy in charge and says so on screen. A numeric
+"only if strictly newer" comparison was deliberately not attempted — batch
+arithmetic on dotted versions is riskier than the marker check, and the
+marker covers the real case. `tests/test_installer.py` pins the guard.
+
+Worth knowing while testing: `main` and the branch currently ship the
+**same** plugin versions (Wave 0.0.33, Unlayered 0.4.2, merged in PR #6).
+Testing the branch tests the updater itself; the plugins it installs are
+identical to main's until new plugin work lands on a branch.
+
+---
+
 ## 2026-10-02 — updater 2.0.0: one file instead of three
 
 > "I'd like these things to be more unified and concrete."

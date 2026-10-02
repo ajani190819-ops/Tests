@@ -64,10 +64,10 @@ rem with two version numbers; they are one file now, so there is one version.
 rem The four lines below are the machine-readable copies :self_update and the
 rem old two-file updaters compare against; tests/test_installer.py keeps all
 rem four equal. Never bump one without the others.
-rem FRONTDOOR_VERSION 2.0.0 end
-set "FRONTDOOR_VERSION=2.0.0"
-rem UPDATER_VERSION 2.0.0 end
-set UPDATER_VERSION=2.0.0
+rem FRONTDOOR_VERSION 2.0.1 end
+set "FRONTDOOR_VERSION=2.0.1"
+rem UPDATER_VERSION 2.0.1 end
+set UPDATER_VERSION=2.0.1
 
 set "REPO=ajani190819-ops/Tests"
 set "MANIFEST_PATH=plugins.json"
@@ -812,6 +812,17 @@ if errorlevel 1 goto :su_skip
 rem Same version as ours? Nothing to do.
 findstr /b /c:"rem FRONTDOOR_VERSION %FRONTDOOR_VERSION% end" "%NEWBAT%" >nul 2>nul
 if not errorlevel 1 goto :su_skip
+rem Never hand this run back to the old two-file layout. While this build
+rem lives on a test branch, main's Orca-Plugins.bat is still the old
+rem launcher, which carries no UPDATER_VERSION marker -- so a "different"
+rem version there is an OLDER file, not a newer one. Only a download that is
+rem itself the one-file updater may take over the run.
+findstr /b /c:"rem UPDATER_VERSION " "%NEWBAT%" >nul 2>nul
+if errorlevel 1 (
+    echo  The %SELF_REF% build still has the old two-file updater, so this
+    echo  unified copy stays in charge for this run.
+    goto :su_skip
+)
 set "NEW_FV=?"
 rem "rem FRONTDOOR_VERSION 2.0.0 end" -- token 3 is the version, and the
 rem trailing "end" absorbs the CR so it never lands in the variable.

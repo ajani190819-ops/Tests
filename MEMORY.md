@@ -4,10 +4,11 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02, updater **2.0.0** — the chooser, updater
+* **Last updated:** 2026-10-02, updater **2.0.1** — the chooser, updater
   engine and launcher are now ONE file, `Orca-Plugins.bat` (menu, build
   picker, OrcaSlicer folder picker, remembered choices, install engine,
-  self-update). The two old filenames are short forwarders kept so copies
+  self-update), and it can be tested straight from the session branch
+  without merging. The two old filenames are short forwarders kept so copies
   already on disk keep working. Plugin versions unchanged: Wave 0.0.33,
   Unlayered Infill 0.4.2.
 * **Repository:** `ajani190819-ops/Tests`, public.
@@ -254,14 +255,24 @@ or a printer.
 4. Save the fresh export and the plugin-storage log path reported by Check
    setup if behavior differs from the fixtures.
 5. Perform a small physical print; no physical Wave result is claimed yet.
-6. **Rerun the Windows batch flow for updater 2.0.0** — the unified
-   `Orca-Plugins.bat` was verified here only by re-reading and by the static
-   analysis in `tests/test_installer.py` (labels, parens, quote toggling,
-   handover chain, CRLF). Double-click it on real Windows: menu item 1, then
-   2 (pick the test branch), then 3 (folder picker), then [4] forget, and
-   once through each old forwarder. Also run an old `Update-Orca-Plugins.bat`
-   (≤ 1.4.0) copy once to confirm it hands over to the forwarder and then to
-   the unified file.
+6. **Test updater 2.0.1 from the branch, without merging PR #7.** Two ways,
+   both verified to be reachable from here (raw URLs at the slashed branch
+   name serve the files; the branch appears in the picker's live list):
+   - *No new download:* double-click the launcher already on disk → [2] →
+     pick `arena/01a0fd3b-tests` (newest, right under main). The install
+     runs through the branch's forwarder → unified updater. The NEXT run of
+     that same old file hands over to the branch's `Orca-Plugins.bat`, so
+     the new [1]–[4] menu appears.
+   - *Direct:* save
+     `https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/01a0fd3b-tests/Orca-Plugins.bat`
+     and double-click. From 2.0.1 self-update never hands back to the old
+     two-file launcher, so the new menu shows even while the remembered
+     build is main.
+   Then click through: 1 (install), 2 (pick the branch), 3 (folder picker),
+   4 (forget), and once through each old forwarder. Note main and the branch
+   ship the SAME plugin versions right now (0.0.33 / 0.4.2) — this tests the
+   updater, not new plugin code. Still not verified on real Windows; static
+   analysis only.
 
 ## Session log
 
@@ -318,6 +329,25 @@ of `:download` (three methods + size floor) and merged `:self_update` from
 the launcher with the engine's guards. The `:self_update` slice between the
 `:self_update` and `:stage_tools` labels is what the test reads — keep those
 two labels adjacent.
+
+**2.0.1 addendum — the owner asked to test this without merging, and that
+found a bug.** The branch-pull flow was verified from here: raw URLs at
+`arena/01a0fd3b-tests/...` (slashed name) serve the files, and the branch
+shows in the picker's live GitHub list. But tracing "download the branch's
+unified file while your remembered build is main" exposed that
+`:self_update` treated *any* different version as newer — it would fetch
+main's old 1.0.1 launcher (still the two-file layout until PR #7 merges),
+see 1.0.1 != 2.0.0, and hand the run BACK to the old launcher, making the
+new file look like it never took. Fix: the handover now also requires the
+download to carry the `rem UPDATER_VERSION` marker (proof it is itself a
+one-file updater); otherwise this copy stays in charge and says why. A
+numeric only-if-newer compare was considered and rejected — dotted-version
+arithmetic in batch is riskier than the marker check and the marker covers
+the real case. Version bumped to 2.0.1 everywhere (six marker lines across
+the two files) so any 2.0.0 copy already pulled from the branch picks the
+fix up. Lesson: "different version means newer" is only true in a
+single-track world; the moment two layouts coexist (branch vs main), a
+handover needs a layout check, not just a version check.
 
 ### 2026-10-02 — Wave 0.0.33 / Unlayered 0.4.2: the config panel repairs itself
 

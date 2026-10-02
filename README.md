@@ -296,6 +296,18 @@ The updater remembers its last build and folder. **[R] Go back to the
 released build** is always on the build picker, and **[4] Forget my
 remembered choices** on the main menu resets both.
 
+**Testing a new version of the updater itself, before it is merged:** the
+branch picker is how you do that too. Pick the branch that carries it (it
+will be near the top — newest first) and the install runs through that
+branch's updater; from the next run on, your launcher fetches that branch's
+`Orca-Plugins.bat` as well, so the new menu appears without downloading
+anything by hand. Or save the branch copy directly:
+`https://raw.githubusercontent.com/ajani190819-ops/Tests/<branch>/Orca-Plugins.bat`.
+From 2.0.1 the unified updater never hands a run back to the old two-file
+layout, so a branch copy stays in charge even while your remembered build is
+`main`. Merge when you are happy — that is what makes it the default for
+plain Enter-runs and fresh downloads.
+
 A test build is all-or-nothing. Before changing Orca's folders, the updater
 downloads and checks every plugin from the selected branch. If even one is
 missing or invalid, it stops and names the file. It never fills the gap with a

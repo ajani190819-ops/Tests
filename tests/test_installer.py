@@ -420,6 +420,18 @@ if _call_at != -1:
     check(_su[:_call_at].count("goto :su_skip") >= 3,
           "the verification bail-outs must all come BEFORE the handover, "
           "otherwise an unverified file gets executed first")
+# The unified updater must never hand a run back to the old two-file layout.
+# Before 2.0.0, main's Orca-Plugins.bat was the launcher alone and carries no
+# UPDATER_VERSION marker -- so while a unified build lives on a test branch
+# and main still holds the old layout, "a different version" can mean "an
+# older file". The handover must require the UPDATER_VERSION marker too:
+# proof the download is itself the one-file updater.
+_layout_guard = _su.find('findstr /b /c:"rem UPDATER_VERSION " "%NEWBAT%"')
+check(_layout_guard != -1 and _call_at != -1 and _layout_guard < _call_at,
+      ":self_update may hand over to a download without the UPDATER_VERSION "
+      "marker -- a unified copy running from a test branch would hand the "
+      "run back to main's old two-file launcher and quietly undo the "
+      "unification for that run")
 # A running .bat must never be overwritten in place: cmd.exe reads it by byte
 # offset and will execute garbage. The design deliberately delegates instead.
 check(not re.search(r"(?mi)^\s*(copy|move|xcopy)\b[^\r\n]*%~f0", "\n".join(bat_lines)),

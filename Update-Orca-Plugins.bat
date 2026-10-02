@@ -24,8 +24,8 @@ rem      tells this file which build it wanted. Keep both, or those copies
 rem      stop with "NOTHING WAS INSTALLED".
 rem ===========================================================================
 
-rem UPDATER_VERSION 2.0.0 end
-set UPDATER_VERSION=2.0.0
+rem UPDATER_VERSION 2.0.1 end
+set UPDATER_VERSION=2.0.1
 if defined PLUGIN_BRANCH set "FWD_REF=%PLUGIN_BRANCH%"
 if not defined FWD_REF set "FWD_REF=main"
 
