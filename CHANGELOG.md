@@ -26,6 +26,16 @@ real OrcaSlicer was involved.
 
 > "I'm not seeing all of those new config options for unlayered infill."
 
+**Correction, same day:** the explanation in this entry — that OrcaSlicer
+caches the settings in your process preset — was a **guess, and it was wrong**.
+The real cause was that `Update-Orca-Plugins.bat` downloads from `main` by
+default, and `main` was still on Unlayered Infill 0.3.4, which genuinely has
+only 9 settings and no `pattern`, `shape` or `wave_angle` at all. The updater
+reported success, so it looked like an update had happened. PR #5 merges the
+new versions into `main`. The Check setup text added below is still useful —
+it now reports the installed version and setting count, which is what makes
+this diagnosable — but it was not the fix.
+
 **Not a bug in the plugin, and not a missing feature.** All 14 Unlayered
 Infill settings exist in the shipped file, including the four added in 0.4.0
 (`pattern`, `wave_angle`, `shape`, `layer_phase`), and `get_default_config()`

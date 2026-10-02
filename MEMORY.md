@@ -245,7 +245,24 @@ to be correct**: `_DEFAULTS` holds all 14 settings, the four added in 0.4.0
 in `tests/test_plugin_runtime.py` has asserted exactly that since 0.4.0, and
 it was passing.
 
-**The cause is OrcaSlicer, and it is a permanent constraint worth remembering:
+**CORRECTED 2026-10-02 (same day): the explanation below was a GUESS and is
+not supported by evidence. Do not repeat it as fact.** `docs/ORCA-PLUGIN-FACTS.md`
+says a preset stores the capability *name*; nothing is documented about the
+config panel caching a saved copy of the settings. The claim that "Orca calls
+`get_default_config()` only once" was never verified.
+
+**The real, evidence-backed cause: the owner was installing the released
+build.** `Update-Orca-Plugins.bat` downloads from `main` by default, and
+`main` was still on Unlayered Infill **0.3.4** (9 settings, no `pattern`,
+`shape`, `wave_angle`, `layer_phase`, `max_lift_mm`) and Wave **0.0.27**. All
+session work lived on `arena/01a0fb0f-tests`. The updater reported success, so
+it looked like an update had happened. **Lesson: when a shipped feature is
+"missing" for the owner, check what `origin/main` actually contains before
+theorising about the UI** — `git show origin/main:<file>` settles it instantly.
+Opened PR #5 to merge the branch into `main`. `Orca-Plugins.bat` also has a
+built-in version picker (menu item [2]) that lists live branches.
+
+The original (unverified) theory, kept only so it is not re-derived: **The cause is OrcaSlicer, and it is a permanent constraint worth remembering:
 Orca calls `get_default_config()` only once.** The result is copied into the
 process preset when the plugin is first selected, and the Settings panel shows
 that saved copy forever after. A preset saved under 0.3.4 keeps 0.3.4's
