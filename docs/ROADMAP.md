@@ -1,7 +1,7 @@
 # Roadmap — OrcaSlicer plugin lane
 
 This document is the plan, not a release promise. There are **two** shipped
-plugins: Wave Overhangs **0.0.27** and Unlayered Infill **0.4.0**, with
+plugins: Wave Overhangs **0.0.28** and Unlayered Infill **0.4.0**, with
 updater **1.4.0**, on the session test branch. Package and capability names
 remain permanently `Wave Overhangs` and `Unlayered Infill`.
 

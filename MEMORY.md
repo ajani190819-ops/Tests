@@ -21,7 +21,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.27, Unlayered Infill 0.4.0,
+* **Current versions:** Wave Overhangs 0.0.28, Unlayered Infill 0.4.0,
   updater 1.4.0, launcher (`Orca-Plugins.bat`) 1.0.1.
 * **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
   numbers must remain out of package and capability names.
@@ -209,7 +209,7 @@ or a printer.
 ## What remains to do
 
 1. Install this branch with the launcher and confirm both plugin versions in
-   Orca's separate Version column: Wave Overhangs 0.0.27, Unlayered Infill
+   Orca's separate Version column: Wave Overhangs 0.0.28, Unlayered Infill
    0.4.0.
 2. **Try the new Unlayered Infill wave controls on a real slice.** The most
    valuable single test: print the same part twice, once with
@@ -234,6 +234,74 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-02 — Wave 0.0.28: the modal feedrate leak (owner's own export)
+
+The owner posted an OrcaSlicer preview legend screenshot of a Wave print and
+asked three things: the Travel line looks wrong, why is the gram usage so
+high, and why does it take so long. They said they had attached the log, the
+G-code and the part.
+
+**Process note worth remembering: they had uploaded the files to GitHub, not
+to the chat.** They arrived as two `Add files via upload` commits on
+`arena/01a0fb0f-tests` (`fc863c9`, `f662e6a`) containing
+`test print_19m50s.gcode`, `test print.3mf`, `test print.stl` and an
+OrcaSlicer debug log. Two separate filesystem sweeps for `/home/user/uploads`
+found nothing and the owner was twice told the files had not arrived, which
+was wrong and wasted their time. **Check `git fetch` and the remote branch
+before concluding an upload is missing.**
+
+Also observed twice this session: the sandbox's **git history rolled back to
+the base commit `2d084d5` while the working tree kept all its changes**, and
+a stale index then made `git diff` show phantom reversions (the archived
+Geometry plugin appearing to come back). The recovery is `git fetch origin`,
+`git reset --soft origin/<branch>`, then a plain `git reset` to refresh the
+index. Verify with `git write-tree` against the last known commit's tree
+before trusting any `--hard` operation.
+
+**The defect.** G-code feedrates are modal. `_emit_wave_gcode` ends a block
+with `M106 S<restore_fan>` and the END marker but never restores the
+feedrate, leaving `print_speed` (2 mm/s, `F120`) in force; and the
+replacement moves written for covered bridge extrusions carried no `F` of
+their own. Those moves therefore ran at 2 mm/s.
+
+Measured by walking every move in the owner's export:
+
+| | moves | distance | time | speed |
+|---|---|---|---|---|
+| Wave fill printing | 12,114 | 7.06 m | 58.8 min | 2.0 mm/s |
+| **Stranded on the wave speed** | **373** | **3.95 m** | **32.9 min** | **2.0 mm/s** |
+| Normal Orca moves | 7,588 | 22.91 m | 11.6 min | 33.1 mm/s |
+| Travel inside wave blocks | 277 | 4.66 m | 0.6 min | 120 mm/s |
+
+104.0 min total, matching the 1h46m in the legend. All 342 replacement moves
+in that file had no feedrate. The filename (`19m50s`) is Orca's own pre-plugin
+estimate, so the plugin was turning a 20-minute print into a 106-minute one.
+
+**Fix.** `_parse_layers` now tracks the modal feedrate and records it on each
+section and segment; every move the emitter writes states its feedrate, and
+the segment's original feedrate is handed back with a bare `G1 F…` before
+untouched moves resume. A bare `G1 F…` sets a speed and moves nothing, so
+`test_wave_gcode.py`'s "retained extrusion must follow a travel" checks were
+given an `_is_motion()` predicate that requires an X or Y word.
+
+**Do not "fix" these — they were investigated and are correct:** in-block
+travels already carry `F7200` (all 186 in `Cube_39m10s.gcode`); the `put()`
+taper helper does not emit zero-E moves; acceleration cannot explain the
+numbers (1300 moves × 9.9 mm needs a *commanded* 5–6 mm/s, not a ramp).
+
+**The grams question was a false alarm.** Total extrusion in that file is
+7.62 g, of which wave blocks are 1.50 g (20%). The wave fill is labelled
+Bridge/Internal Bridge, so those rows dominate the *time* column and look
+like they dominate material. In the legend, "Usage" is filament length and
+the unlabelled fourth column is grams for extruding types but a plain **count**
+for Travel/Wipe/Retract/Unretract/Seams — `1.3K` on the Travel row is 1300
+moves, not grams.
+
+**Still open for the owner:** `print_speed` 2 mm/s is the remaining 58.8 min
+and is deliberate (droop); `pattern = "zigzag"` would cut the ~486
+retract/travel cycles. Neither was changed. No physical print has been run
+with 0.0.28.
 
 ### 2026-10-02 — Launcher 1.0.1: FINDSTR noise on every start
 

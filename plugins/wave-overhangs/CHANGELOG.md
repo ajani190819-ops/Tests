@@ -6,7 +6,7 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.27 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.28 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
@@ -17,9 +17,42 @@ installed, offered by the launcher, or listed in the catalogue. It was a
 separate prototype that tried to change Orca's geometry mid-slice so waves
 would show in the normal preview; it never completed a verified real slice or
 print. **This plugin — Wave Overhangs — is unchanged and is still the one to
-use**, and it is still at 0.0.27. If the launcher previously installed
+use**, and that archival did not change it (it was 0.0.27 at the time).
+If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
+
+## 0.0.28 — 2026-10-02
+
+A third of the print time was being wasted. This fixes it, and costs nothing
+in print quality.
+
+* **Moves after a wave block were crawling at the wave speed.** This is the
+  big one. In G-code a speed is "modal": once you set one it stays in force
+  until something changes it. The plugin printed its waves at `print_speed`,
+  which is deliberately very slow (2 mm/s by default, so `F120`), and then
+  handed control back **without putting the speed back**. It also wrote the
+  moves that replace covered bridge extrusions with no speed of their own.
+  So those moves inherited 2 mm/s and took minutes instead of seconds.
+
+  Measured on the owner's own export (`test print_19m50s.gcode`): **373
+  moves covering 3.95 m that should have taken 30 seconds took 32.9
+  minutes.** That is **32 minutes of a 106 minute print — 31% of it** — on
+  travel moves. OrcaSlicer reported it in the preview legend as 36m49s of
+  "Travel" at an average of 5.8 mm/s, which is what first looked wrong.
+
+  Every move the plugin writes now states its own feedrate, and the original
+  speed is handed back before your untouched moves resume. Nothing about the
+  wave toolpaths themselves changed — the plastic that comes out is
+  identical, it just stops wasting time getting there. For the same reason
+  this is a pure win: there is no quality trade-off to weigh up.
+
+* **A note on what this does *not* fix.** The wave lines themselves are still
+  printed at `print_speed`, and on the owner's part that is 58.8 minutes, the
+  majority of the remaining time. That slowness is deliberate — it is what
+  lets each line cool and hold its shape in mid-air, and raising it is the
+  most likely cause of droop. If you want to spend that time, raise
+  `print_speed` gradually and test; the plugin will not do it for you.
 
 ## 0.0.27 — 2026-10-01
 

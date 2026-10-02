@@ -319,11 +319,24 @@ assert LineString(hole_trim[0]).distance(clear_detail) >= 0.28, (
 
 assert "; wave-overhangs replaced covered bridge move" in out
 lines = out.splitlines()
+
+
+def _is_motion(line):
+    """True for a line that actually moves the nozzle.
+
+    A bare "G1 F1800" sets the modal feedrate and moves nothing, so it must
+    not count as motion when checking that an extrusion is preceded by a
+    travel.
+    """
+    return (line.startswith(("G0", "G1"))
+            and (" X" in line or " Y" in line))
+
+
 for marker in [i for i, line in enumerate(lines)
                if line.startswith("; wave-overhangs replaced covered bridge move")]:
     first_motion = next(
         (lines[j] for j in range(marker + 1, len(lines))
-         if lines[j].startswith(("G0", "G1"))), None)
+         if _is_motion(lines[j])), None)
     assert first_motion is not None and first_motion.startswith("G0"), (
         "every replaced bridge segment must return with non-extruding travel")
 
@@ -338,10 +351,43 @@ for end in [i for i, line in enumerate(lines)
         if lines[i].startswith("G1") and " E" in lines[i]:
             previous_motion = next(
                 (lines[j] for j in range(i - 1, end, -1)
-                 if lines[j].startswith(("G0", "G1"))), None)
+                 if _is_motion(lines[j])), None)
             assert previous_motion is not None and previous_motion.startswith("G0"), (
                 "first retained extrusion after a Wave block needs a non-extruding travel")
             break
+
+# Regression guard for the feedrate leak fixed in 0.0.28.
+#
+# A Wave block ends with the deliberately very slow Wave print speed in force
+# (print_speed defaults to 2 mm/s, so F120). G-code feedrates are modal: the
+# last F stays in force until something changes it. The moves the plugin
+# writes after a Wave block used to carry no F at all, so they inherited
+# 2 mm/s. On the owner's own export that stranded 373 moves covering 3.95 m
+# which should have taken 30 seconds and instead took 32.9 minutes -- a third
+# of the whole print, reported by the slicer as a nonsensical "Travel" figure.
+#
+# So: no move outside a Wave block may run on a feedrate that was set inside
+# one.
+modal_f = None
+f_came_from_wave = False
+inside_block = False
+for line in lines:
+    if line == "; ==== WAVE OVERHANG BEGIN ====":
+        inside_block = True
+        continue
+    if line == "; ==== WAVE OVERHANG END ====":
+        inside_block = False
+        continue
+    if not line.startswith(("G0", "G1")):
+        continue
+    for word in line.split()[1:]:
+        if word.startswith("F"):
+            modal_f = word
+            f_came_from_wave = inside_block
+    if _is_motion(line) and not inside_block:
+        assert not f_came_from_wave, (
+            "move after a Wave block inherited the Wave print speed "
+            f"({modal_f}): {line!r}")
 
 assert ";Z:5.4" in out and "Z5.650" in out, (
     "Wave must use the bridge move's real Z, including Orca's 0.25 mm Z offset")

@@ -22,6 +22,58 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-02 — Wave Overhangs 0.0.28: a third of the print time, recovered
+
+**`plugins/wave-overhangs/`:** 0.0.27 → 0.0.28. Diagnosed from the owner's own
+export, which they uploaded to this branch along with the part and the
+OrcaSlicer debug log.
+
+The owner reported that a print looked wrong in the OrcaSlicer preview legend:
+1h46m total, of which **36m49s was "Travel"** — 34.6% of the print, at an
+average travel speed of 5.8 mm/s when travel should run at 120 mm/s. They also
+asked why the gram usage looked high.
+
+**The travel figure was real, and it was our bug.** G-code feedrates are
+modal: the last `F` stays in force until something changes it. The plugin
+printed its waves at `print_speed` (2 mm/s by default, `F120`) and then ended
+the block restoring the fan but **not the feedrate**, and the moves it writes
+to replace covered bridge extrusions carried no `F` of their own. Those moves
+therefore inherited 2 mm/s.
+
+Measured by walking every move in the owner's `test print_19m50s.gcode`:
+
+| | moves | distance | time | speed |
+|---|---|---|---|---|
+| Wave fill printing | 12,114 | 7.06 m | 58.8 min | 2.0 mm/s |
+| **Stranded on the wave speed** | **373** | **3.95 m** | **32.9 min** | **2.0 mm/s** |
+| Normal Orca moves | 7,588 | 22.91 m | 11.6 min | 33.1 mm/s |
+| Travel inside wave blocks | 277 | 4.66 m | 0.6 min | 120 mm/s |
+
+That totals 104.0 minutes, which matches the 1h46m the legend reported. The
+stranded row is the defect: 3.95 m that should take 30 seconds took 32.9
+minutes. All 342 replacement moves in that file carried no feedrate.
+
+Every move the plugin writes now states its feedrate, and the original speed
+is handed back before untouched moves resume. The toolpaths and the extrusion
+are unchanged, so there is no quality trade-off.
+
+**The grams were a false alarm**, and worth recording so it is not chased
+again. Total extrusion in that file is 7.62 g, of which the wave blocks are
+1.50 g — 20%. The wave fill is categorised as Bridge/Internal Bridge in the
+legend, so those rows dominate the *time* column and read as if they dominate
+material. They do not.
+
+**`tests/test_wave_gcode.py`:** new regression guard that walks the modal
+feedrate through a generated export and fails if any move outside a wave block
+is running on a feedrate set inside one. Verified to fail on the old code
+(`move after a Wave block inherited the Wave print speed (F120)`) and pass on
+the new. Its existing "retained extrusion must be preceded by a travel" checks
+now ignore feedrate-only `G1 F…` commands, which set a speed but move nothing.
+
+Not verified on hardware: no physical print has been run with 0.0.28.
+
+---
+
 ## 2026-10-02 — Launcher 1.0.1: the FINDSTR error on startup
 
 **`Orca-Plugins.bat`:** 1.0.0 → 1.0.1. Reported from a real Windows run.
