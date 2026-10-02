@@ -1,3 +1,32 @@
+## 2026-10-02 — waves first, wall last (Wave Overhangs 0.0.36)
+
+> "All of the waves should be printed first, 'cause then they can actually
+> support one another as it bridges its way out, but those overhanging walls,
+> if printed first, won't be able to do anything -- they'll just fall straight
+> down... is there a way to match the way Arachne walls are done, where you
+> vary the line width or flow rate, to optimize spacing?"
+
+**Print order.** Orca emits a layer walls-first, which on an overhanging
+layer puts the wall into open air before anything exists to hold it up. Wave
+now lifts the overhanging part of the wall out of its original position and
+re-emits it directly after the wave block, verbatim — same coordinates, same
+E, same acceleration and jerk, total extrusion identical to the digit. Only
+relative-E exports are touched, a travel is left where the run was cut out,
+and the block hands the nozzle back where the waves left it. `wall_last:
+false` restores Orca's order.
+
+**Adaptive flow (experimental, off by default).** The Arachne idea is that a
+fixed bead width cannot tile an arbitrary shape, so the width should vary.
+Wave hits that in one dimension: the strip between the last front and the far
+boundary is rarely a whole spacing wide. `adaptive_flow` assigns each
+uncovered patch to the front beside it and widens that front's flow to absorb
+it, capped at `adaptive_flow_max`. Paths never move — only extrusion — which
+is the part of Arachne that can be done safely after slicing. On the Cube
+export it is +0.03% extrusion, or +0.12% with `gap_fill` off; it is a
+refinement, and it stays opt-in until someone has printed it.
+
+---
+
 # Changelog — the whole project
 
 Everything that changed in this repository, newest first. Each plugin also has

@@ -22,6 +22,69 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.36 — 2026-10-02
+
+* The overhanging part of the wall is now printed AFTER the waves instead
+  of before. Orca emits a layer walls-first, which lays that wall into open
+  air with nothing underneath it, so it droops before the waves that were
+  supposed to carry it even exist. Set wall_last: false for the old order.
+* New, experimental and off by default: adaptive_flow, the Arachne idea
+  applied to wave spacing. Fronts step out a fixed spacing, so the strip
+  left against the far boundary is rarely a whole bead wide; this widens
+  the neighbouring front's flow to absorb it. Paths never move.
+
+**The overhanging wall is now printed after the waves, not before.** Orca
+emits a layer walls-first. On an overhanging layer that is exactly backwards:
+the wall is laid into open air with nothing underneath it, so it droops
+before the waves that were supposed to carry it even exist. The waves bridge
+their way outward from supported material and support each other as they go,
+so they have to come first; the wall then lands on something.
+
+On any layer where Wave did something, the overhanging part of the wall is
+lifted out and re-emitted immediately after the wave block. On the captured
+Cube export that is 11 moves on one layer; on the synthetic overhang-with-a-
+hole case, 73.
+
+Three rules keep it safe, all covered by tests:
+
+* **Relative E only.** In absolute E the numbers are positions, so moving a
+  run of moves would make the extruder jump. Absolute-E exports are left
+  alone entirely.
+* **Position continuity.** Where a run is cut out, a travel to its end point
+  is left behind, so every move that followed still starts where it expected
+  to; and the relocated block ends by travelling back to where the wave
+  output left the nozzle, so wipes and retracts downstream are unaffected.
+* **The wall is re-emitted verbatim** — same coordinates, same E, same width,
+  and its `;TYPE:` markers and `M204`/`M205` acceleration and jerk settings
+  travel with it. Its original feedrate is restored first, because the wave
+  block leaves a different F in force. Total extrusion is identical to the
+  digit; only the order changed.
+
+Set `wall_last: false` to go back to Orca's order.
+
+**New, experimental: `adaptive_flow` (off by default), the Arachne idea
+applied to wave spacing.** Arachne varies bead *width* so a shape is filled
+exactly rather than tiled with fixed-width lines and left with slivers. Wave
+has the same problem in one dimension: fronts step outward a fixed
+`line_spacing`, so the strip left against the far boundary is rarely a whole
+bead wide. With `adaptive_flow` on, each uncovered patch is assigned to the
+front it sits against, and that front is asked to extrude the material the
+patch needs, spread along its own length:
+
+    extra width = uncovered area assigned to this front / its length
+    scale       = (line width + extra width) / line width
+
+capped by `adaptive_flow_max` (1.5 by default). **Paths do not move — only
+flow changes**, which is the half of Arachne that can be done safely to an
+already-sliced file.
+
+Honest numbers from the Cube export: +0.03% extrusion, because `gap_fill`
+already puts a path down each sliver. With `gap_fill: false` it is +0.12%.
+So on a part like this it is a refinement, not a transformation — it matters
+most on parts whose overhang boundary runs at a shallow angle to the march of
+the fronts, where the leftover strip is long. It is off by default until it
+has been printed.
+
 ## 0.0.35 — 2026-10-02
 
 **A settings panel you can read, and settings that follow your own Orca

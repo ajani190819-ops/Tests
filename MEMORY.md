@@ -4,8 +4,19 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02 — **Wave Overhangs 0.0.35 / Unlayered Infill
-  0.4.4**: readable grouped config panels, and settings that inherit from the
+* **Last updated:** 2026-10-02 — **Wave Overhangs 0.0.36**: print order and
+  adaptive flow. (a) On a waved layer the OVERHANGING part of the wall is
+  lifted out of Orca's walls-first order and re-emitted directly after the
+  wave block (`wall_last`, default true). Relative-E files only; a travel is
+  left where the run was cut out and the block travels back to where the wave
+  output left the nozzle; `;TYPE:`/M204/M205 travel with the run; total
+  extrusion identical. (b) `adaptive_flow` (default FALSE, experimental): the
+  Arachne idea in one dimension — each uncovered patch is assigned to the
+  front beside it and that front's FLOW is widened to absorb it, capped by
+  `adaptive_flow_max`. Paths never move. Measured +0.03% extrusion on the Cube
+  export, +0.12% with gap_fill off, so it is a refinement; neither has been
+  printed on hardware.
+* **Previously:** **Wave Overhangs 0.0.35 / Unlayered Infill 0.4.4**: readable grouped config panels, and settings that inherit from the
   user's own Orca profile. Both plugins now build their Config panel AND their
   Check-setup guide from one `_SECTIONS` list (9 groups for Wave's 33
   settings, 5 for Unlayered's 14), with one-line notes — a JSON editor renders
@@ -61,7 +72,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.35, Unlayered Infill 0.4.4,
+* **Current versions:** Wave Overhangs 0.0.36, Unlayered Infill 0.4.4,
   updater **2.1.0** — one file, `Orca-Plugins.bat`, the only .bat in the
   repository; the launcher (1.0.1) and engine (1.4.0) version histories
   ended by merging into it. PR #7 carries it; test it from the branch before

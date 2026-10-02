@@ -1268,3 +1268,226 @@ print(f"ok -- auto defaults: reproduce the shipped 0.4 mm constants exactly, "
       f"scale to this 0.6 mm fixture ({auto_moves} moves against "
       f"{legacy_moves} for the 0.4-tuned config), follow the profile's travel "
       f"speed and resolution, and the iteration cap sizes itself to the region")
+
+
+# ---------------------------------------------------------------------------
+#  print order: waves first, overhanging wall last
+# ---------------------------------------------------------------------------
+# The owner's request: "all of the waves should be printed first, 'cause then
+# they can actually support one another as it bridges its way out, but those
+# overhanging walls, if printed first, won't be able to do anything -- they'll
+# just fall straight down. So the overhanging wall should be printed last."
+#
+# Orca emits a layer walls-first, so on an overhanging layer the wall is laid
+# into open air before the waves that are supposed to carry it exist. Wave now
+# lifts the overhanging part of the wall out and re-emits it after the wave
+# block. What must be true: the wall moves move, nothing else changes, and the
+# file is still a valid continuous toolpath.
+
+
+def wall_order(text):
+    """Per layer, the line of the first wave block and of the moved wall."""
+    waves, moved, layer = {}, {}, -1
+    for i, line in enumerate(text.splitlines()):
+        if line.startswith(";Z:"):
+            layer += 1
+        elif "WAVE OVERHANG BEGIN" in line:
+            waves.setdefault(layer, i)
+        elif wave.WALL_LAST_BEGIN in line:
+            moved.setdefault(layer, i)
+    return waves, moved
+
+
+def total_e(text):
+    total = 0.0
+    for line in text.splitlines():
+        if line.startswith(("G1", "G2", "G3")):
+            match = re.search(r"\bE(-?[\d.]+)", line)
+            if match:
+                total += float(match.group(1))
+    return total
+
+
+ordered_cfg = dict(wave._DEFAULTS)
+ordered_cfg["_lh"] = 0.3
+ordered_out, ordered_stats = wave._gcode_wave_rewrite(source, ordered_cfg)
+unordered_cfg = dict(ordered_cfg)
+unordered_cfg["wall_last"] = False
+unordered_out, unordered_stats = wave._gcode_wave_rewrite(source, unordered_cfg)
+
+assert wave._DEFAULTS["wall_last"] is True, (
+    "wall_last must be on by default -- an overhanging wall printed before "
+    "the waves has nothing to sit on")
+assert ordered_stats["walls_moved"] > 0, (
+    f"no overhanging wall was relocated on the Cube export, which has one: "
+    f"{ordered_stats}")
+assert ordered_stats["wall_layers_reordered"] >= 1, ordered_stats
+
+waves_at, moved_at = wall_order(ordered_out)
+assert moved_at, "nothing was marked as a moved wall"
+for layer, at in moved_at.items():
+    assert layer in waves_at and at > waves_at[layer], (
+        f"on layer {layer} the moved wall is at line {at} but the waves start "
+        f"at {waves_at.get(layer)} -- the whole point is that the wall comes "
+        f"after")
+
+# Nothing but the order changed: identical extrusion, identical wave planning.
+assert abs(total_e(ordered_out) - total_e(unordered_out)) < 1e-6, (
+    f"relocating the wall changed total extrusion by "
+    f"{total_e(ordered_out) - total_e(unordered_out):.6f} mm")
+for key in ("removed_moves", "kept_fragments", "wave_layers",
+            "replaced_sections", "gap_fills"):
+    assert ordered_stats[key] == unordered_stats[key], (
+        f"{key} changed when the wall was relocated: "
+        f"{ordered_stats[key]} vs {unordered_stats[key]}")
+assert wave.WALL_LAST_BEGIN not in unordered_out, (
+    "wall_last=false still relocated a wall")
+
+# Every relocated move must still be in the file exactly once -- relocation,
+# not duplication and not deletion.
+moved_moves = []
+inside = False
+for line in ordered_out.splitlines():
+    if wave.WALL_LAST_BEGIN in line:
+        inside = True
+        continue
+    if wave.WALL_LAST_END in line:
+        inside = False
+        continue
+    if inside and line.startswith("G1") and " E" in line:
+        moved_moves.append(line.strip())
+assert moved_moves, "the moved block contains no extrusion"
+# (The same coordinates recur on other layers, so count against the source
+# rather than expecting a single occurrence.)
+for move in moved_moves:
+    assert move in source, (
+        f"relocated move is not verbatim from the original export: {move}")
+    assert ordered_out.count(move) == source.count(move), (
+        f"relocated move appears {ordered_out.count(move)} times, the source "
+        f"has {source.count(move)}: {move}")
+
+# The toolhead must be handed back where the rest of the file expects it: the
+# block ends with a travel to wherever the wave output finished.
+block_end = ordered_out.index(wave.WALL_LAST_END)
+after = ordered_out[block_end:].splitlines()[1:4]
+assert any(line.startswith("G0 ") and " X" in line and " Y" in line
+           for line in after), (
+    f"the moved wall block does not travel back to the resume point: {after}")
+
+# And it is still idempotent and still fail-closed.
+twice, twice_stats = wave._gcode_wave_rewrite(ordered_out, ordered_cfg)
+assert twice_stats["already_processed"] and twice == ordered_out
+
+# Absolute-E files are refused outright: in absolute E the numbers are
+# positions, so moving a run of moves would make the extruder jump.
+abs_out, abs_stats = wave._gcode_wave_rewrite(as_absolute_e(source),
+                                              ordered_cfg)
+assert abs_stats["walls_moved"] == 0, (
+    "an absolute-E export must never have its moves relocated")
+
+# The synthetic overhang-with-hole case prints its outer wall before the
+# bridge too, and has far more of it hanging in the air.
+hole_source, _hole = wave_cases.synthetic_overhang_with_hole()
+hole_out, hole_stats = wave._gcode_wave_rewrite(hole_source, dict(ordered_cfg))
+assert hole_stats["walls_moved"] > 20, hole_stats
+hole_waves, hole_moved = wall_order(hole_out)
+for layer, at in hole_moved.items():
+    assert at > hole_waves[layer], (layer, at, hole_waves)
+assert abs(total_e(hole_out)
+           - total_e(wave._gcode_wave_rewrite(
+               hole_source, {**ordered_cfg, "wall_last": False})[0])) < 1e-6
+
+print(f"ok -- print order: {ordered_stats['walls_moved']} overhanging wall "
+      f"move(s) on {ordered_stats['wall_layers_reordered']} layer(s) of the "
+      f"Cube export (and {hole_stats['walls_moved']} on the synthetic hole "
+      f"case) are now emitted AFTER the waves, verbatim, with extrusion and "
+      f"wave planning unchanged, the toolhead handed back, absolute-E refused "
+      f"and the pass still idempotent")
+
+
+# ---------------------------------------------------------------------------
+#  adaptive flow: the Arachne idea, applied to wave spacing
+# ---------------------------------------------------------------------------
+# Arachne varies bead WIDTH so a shape is filled exactly instead of being
+# tiled with fixed-width lines and left with slivers. Wave has the same
+# problem in one dimension: fronts step out a fixed spacing, so the strip
+# against the far boundary is rarely a whole bead wide. This does the half of
+# Arachne that is safe to do after slicing -- it varies flow, not geometry.
+assert wave._DEFAULTS["adaptive_flow"] is False, (
+    "adaptive_flow is experimental and changes how much plastic goes down; "
+    "it must be opt-in")
+
+flow_cfg = {**ordered_cfg, "adaptive_flow": True}
+flow_out, flow_stats = wave._gcode_wave_rewrite(source, flow_cfg)
+assert flow_stats["adaptive_flow_sections"] > 0, (
+    "adaptive flow found nothing to widen on an export that demonstrably has "
+    "uncovered slivers")
+
+# Geometry is untouched: same moves, same coordinates, only E differs.
+def xy_moves(text):
+    return [line.split(" E")[0] for line in text.splitlines()
+            if line.startswith("G1 X")]
+
+
+assert xy_moves(flow_out) == xy_moves(ordered_out), (
+    "adaptive flow moved a path; it may only change extrusion")
+assert total_e(flow_out) > total_e(ordered_out), (
+    "adaptive flow did not add any material")
+
+# It must stay within its cap. Compare each wave move's E per mm against the
+# nominal, and allow the configured ceiling plus rounding.
+def wave_e_ratios(text, nominal):
+    ratios = []
+    inside = False
+    px = py = None
+    for line in text.splitlines():
+        if "WAVE OVERHANG BEGIN" in line:
+            inside = True
+            px = py = None
+            continue
+        if "WAVE OVERHANG END" in line:
+            inside = False
+            continue
+        if not inside or not line.startswith(("G0", "G1")):
+            continue
+        words = dict((tok[0], float(tok[1:])) for tok in line.split()[1:]
+                     if len(tok) > 1 and tok[0] in "XYE"
+                     and tok[1:].replace(".", "").replace("-", "").isdigit())
+        x, y = words.get("X", px), words.get("Y", py)
+        if "E" in words and None not in (px, py, x, y):
+            length = math.hypot(x - px, y - py)
+            if length > 0.2:
+                ratios.append(words["E"] / length / nominal)
+        px, py = x, y
+    return ratios
+
+
+swcfg_nominal = wave._wave_config({**wave._DEFAULTS, **LEGACY}, 0.3)
+swcfg_nominal.line_width = 0.57
+ratios = wave_e_ratios(flow_out, swcfg_nominal.e_per_mm())
+assert ratios, "no wave extrusion measured"
+assert max(ratios) <= wave._DEFAULTS["adaptive_flow_max"] + 0.02, (
+    f"adaptive flow exceeded its cap: {max(ratios):.3f} x nominal")
+
+# A lower cap must actually bind.
+capped_out, _capped = wave._gcode_wave_rewrite(
+    source, {**flow_cfg, "adaptive_flow_max": 1.05})
+capped = wave_e_ratios(capped_out, swcfg_nominal.e_per_mm())
+assert max(capped) <= max(ratios) + 1e-9, "adaptive_flow_max did not bind"
+assert total_e(capped_out) <= total_e(flow_out) + 1e-9
+
+# With gap_fill off there is more left uncovered, so there must be more to
+# absorb -- the two mechanisms are solving the same problem different ways.
+no_gap = total_e(wave._gcode_wave_rewrite(
+    source, {**ordered_cfg, "gap_fill": False})[0])
+no_gap_flow = total_e(wave._gcode_wave_rewrite(
+    source, {**flow_cfg, "gap_fill": False})[0])
+assert no_gap_flow - no_gap > total_e(flow_out) - total_e(ordered_out), (
+    "adaptive flow should have more to do when gap_fill is not already "
+    "filling the slivers")
+
+print(f"ok -- adaptive flow: opt-in, widens {flow_stats['adaptive_flow_sections']} "
+      f"section(s) by "
+      f"{100 * (total_e(flow_out) / total_e(ordered_out) - 1):.2f}% extrusion "
+      f"({100 * (no_gap_flow / no_gap - 1):.2f}% with gap_fill off), moves no "
+      f"path, and honours its cap (max {max(ratios):.2f}x nominal)")
