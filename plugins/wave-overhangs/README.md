@@ -10,7 +10,7 @@ This is a port of the algorithm behind
 (a C++ fork of OrcaSlicer, algorithm by Janis A. Andersons) as a Python
 slicing-pipeline plugin. Earlier builds ran in real Orca but inserted no waves.
 The owner confirmed that 0.0.11 produced visible, perimeter-conforming waves
-in real Orca. Version 0.0.23 is regression-tested against the captured export
+in real Orca. Version 0.0.24 is regression-tested against the captured export
 with corrected Z alignment, edge cleanup, wall-bounded Wave areas whose ends
 land on the real wall and hole perimeters, and tapered endpoint flow; it still
 needs a fresh Orca export and physical-print validation.
@@ -27,7 +27,7 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
 
 1. Restart OrcaSlicer (needs newer than 2.4.2, or a nightly).
 2. File → Plugins → confirm *Wave Overhangs* is enabled and its separate
-   Version column reads **0.0.23**. The package name is permanently
+   Version column reads **0.0.24**. The package name is permanently
    version-free.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Wave Overhangs*.
 4. Slice a part with a small overhang, then run the
@@ -130,10 +130,14 @@ the wall with the others trimmed back; that is not implemented.
 Wave runs after Orca has written the G-code file, so Orca's own arc fitter
 never sees Wave's toolpaths. Wave fits its own arcs instead.
 
-* `arc_fitting`: `auto` (default), `true` or `false`. `auto` reads the
-  export's own `enable_arc_fitting` line, so switching **Arc fitting** on in
-  Quality → Precision switches it on for Waves too, and leaving it off means
-  no `G2`/`G3` is ever sent to a printer that may not understand it.
+* `arc_fitting`: `false` (default since 0.0.24), `auto` or `true`. **Arcs
+  are off by default.** `G2`/`G3` is the one genuinely new kind of output
+  Wave started writing in 0.0.21, and Orca re-parses the finished file for
+  its preview and time estimate, so until a real export confirms arcs are
+  safe they are opt-in. Set it to `auto` to read the export's own
+  `enable_arc_fitting` line, so switching **Arc fitting** on in
+  Quality → Precision switches it on for Waves too; `true` forces them on
+  regardless of the profile.
 * `arc_tolerance`: how far an arc may stray, in millimetres. `auto` follows
   the profile's own `resolution`, capped at 0.05 mm.
 
@@ -149,6 +153,13 @@ would not see that wall at all. Both the `I J` and the `R` forms are read.
 ### Detection and geometry
 
 * `enabled`: `true`/`false`. Disable the rewrite without removing the plugin.
+* `time_budget`: seconds, `30` by default (new in 0.0.24). A hard ceiling on
+  the whole G-code pass, checked before every layer and every bridge section.
+  If the pass is still running when the clock runs out it gives up and hands
+  back the file exactly as Orca wrote it — nothing changed, no Wave stamp, so
+  a later run will try again. Raise it for a big model you are willing to
+  wait for, or set `0` to remove the ceiling. This exists so that a slow or
+  pathological part can never leave Orca stuck on "exporting".
 * `overhang_tol`: support forgiveness in millimetres. A larger value treats
   nearby material as support and creates fewer Wave areas.
 * `min_overhang_area`: ignore unsupported regions smaller than this area in mm².

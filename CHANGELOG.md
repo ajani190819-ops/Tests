@@ -19,6 +19,50 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — Wave can no longer hang an export
+
+**Wave Overhangs:** 0.0.24.
+
+The owner reported that OrcaSlicer would no longer export at all: it sat on
+"exporting" and crashed about a minute later. Their last good print came out of
+0.0.20, and 0.0.21, 0.0.22 and 0.0.23 had all shipped since, so the cause was
+somewhere in those three.
+
+**The crash could not be reproduced here, and this entry does not claim to have
+found it.** What was measured: the arc fitter is linear and costs under 0.1 s
+for an 800-point front; a synthetic part that overhangs on every layer costs
+0.08-0.18 s per bridge layer with peak memory of 49 MB and no error; the
+owner's own export reconstructed runs in 1.65 s. None of that explains a crash.
+Every arc the plugin emits was also re-validated across all four test fixtures
+and the owner's export -- 215 arcs, zero zero-radius, zero full-circle, zero
+mismatched endpoints, every one carrying positive extrusion.
+
+So rather than guess, two changes make the failure mode impossible:
+
+A wall-clock ceiling, `time_budget`, defaulting to 30 seconds, now wraps the
+whole G-code pass. It is checked before every layer and every bridge section.
+When it fires the pass gives up and returns the file byte-for-byte as
+OrcaSlicer wrote it, without the Wave stamp, so nothing is half-done and a
+later run can try again; the stats record `timed_out` and how far it got, and
+the message shown in Orca says what happened instead of reporting that nothing
+was found. `0` disables the ceiling and a nonsense value falls back to 30.
+Whatever the real cause turns out to be, the plugin can no longer be the reason
+an export does not finish.
+
+`arc_fitting` now defaults to `false` rather than `auto`. G2/G3 is the one
+genuinely new kind of output introduced since the owner's last good print, and
+OrcaSlicer re-parses the finished file for its preview and time estimate, which
+makes it the best suspect available. The arcs are opt-in until a real export
+confirms they are safe; `"auto"` restores the previous behaviour.
+
+Tests: `tests/test_wave_gcode.py` gains a section covering the budget (fires,
+changes nothing, does not stamp, `0`/junk handled) and now asserts the shipped
+arc default is off even when the profile has arc fitting switched on.
+
+Not verified in real OrcaSlicer.
+
+---
+
 ## 2026-10-01 — Less work per export, and timings in the log
 
 **Wave Overhangs:** 0.0.23.

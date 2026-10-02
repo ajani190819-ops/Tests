@@ -6,10 +6,49 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.23 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.24 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.24 — 2026-10-01
+
+Fixes an export that never finishes. The owner reported that after updating
+past 0.0.20 OrcaSlicer sat on "exporting" and then crashed about a minute
+later. Two changes, both aimed at making that impossible rather than at any
+one suspected cause.
+
+* **Wave can no longer hang an export.** The whole G-code pass now runs
+  against a wall-clock ceiling, `time_budget`, set to 30 seconds. If the
+  pass is still going when the clock runs out it stops and hands back the
+  file exactly as OrcaSlicer wrote it — not a byte changed and no Wave
+  stamp, so a later run will happily try again. The result message says so
+  plainly instead of quietly reporting that it found nothing. Set
+  `time_budget` higher if you have a big model and the time to wait, or to
+  `0` to remove the ceiling. A slow Wave is a nuisance; an export that
+  never finishes is a broken printer, so this gives the feature up rather
+  than ever blocking a slice.
+* **Arc moves are off by default again.** `arc_fitting` now ships as
+  `false` instead of `auto`. G2/G3 is the one genuinely new *kind* of
+  output Wave started writing in 0.0.21, and OrcaSlicer re-parses the
+  finished file for its preview and time estimate, which makes it the most
+  likely suspect for an export that stalls after the plugin has run. The
+  arcs themselves were re-checked and are well formed — across every test
+  fixture and the owner's own export there is not a single zero-radius,
+  full-circle or mismatched-endpoint arc, and they track the real wavefront
+  about 3.5x more accurately than the straight moves they replace — but
+  "off until proven on real hardware" is the right default for something
+  that could stop a print being made at all. Set `arc_fitting` to `"auto"`
+  to get the old behaviour back, where arcs follow the Arc fitting setting
+  in your print profile.
+
+Honest note: the crash could not be reproduced here. The arc fitter was
+measured and is linear (under 0.1 s for an 800-point front), and a part
+that overhangs on every single layer costs 0.08–0.18 s per bridge layer
+with no memory growth, so neither explains a crash. The time budget is a
+backstop that works whatever the real cause turns out to be. If it fires,
+the log file — its path is printed by **Wave Overhangs - Check setup** —
+will record `timed_out`, how far the pass got and how long it took.
 
 ## 0.0.23 — 2026-10-01
 

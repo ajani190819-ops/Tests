@@ -562,8 +562,11 @@ def wave_blocks_of(text):
         r"; ==== WAVE OVERHANG END ====", text, re.DOTALL)
 
 
-# 1. The captured export has `enable_arc_fitting = 0`, so "auto" must leave it
-#    completely alone -- byte for byte.
+# 1. Arcs are OFF by default (0.0.24). G2/G3 is the one genuinely new kind of
+#    output Wave can produce, and Orca re-parses the finished file for its
+#    preview, so the default must not change the command vocabulary at all.
+assert wave._DEFAULTS["arc_fitting"] is False, (
+    "arc_fitting must ship off until arcs are confirmed safe in real Orca")
 assert "; enable_arc_fitting = 0" in source, "fixture precondition"
 assert stats["arc_moves"] == 0, stats
 assert not re.search(r"^G[23] ", out, re.MULTILINE), (
@@ -571,10 +574,17 @@ assert not re.search(r"^G[23] ", out, re.MULTILINE), (
 forced_off, _ = wave._gcode_wave_rewrite(source, dict(cfg, arc_fitting=False))
 assert forced_off == out, "arc_fitting=auto must match arc_fitting=false here"
 
-# 2. Flip that one profile line and the same export gains arcs.
+# 2. Flip that one profile line and the same export gains arcs -- but only
+#    once the user opts in with arc_fitting="auto".
 arc_source = source.replace("; enable_arc_fitting = 0",
                             "; enable_arc_fitting = 1")
-arc_out, arc_stats = wave._gcode_wave_rewrite(arc_source, dict(cfg))
+still_off, still_stats = wave._gcode_wave_rewrite(arc_source, dict(cfg))
+assert still_stats["arc_moves"] == 0, (
+    "the shipped default must stay arc-free even when the profile has arc "
+    "fitting switched on")
+assert not re.search(r"^G[23] ", still_off, re.MULTILINE), still_stats
+arc_out, arc_stats = wave._gcode_wave_rewrite(
+    arc_source, dict(cfg, arc_fitting="auto"))
 arc_blocks = wave_blocks_of(arc_out)
 emitted_arcs = sum(block.count("\nG2 ") + block.count("\nG3 ")
                    for block in arc_blocks)
@@ -740,6 +750,28 @@ assert stats["geometry_layers"] == len(interesting)
 
 again, second = wave._gcode_wave_rewrite(out, cfg)
 assert again == out and second["already_processed"], "second pass must be a no-op"
+
+# --- the time budget: Wave must never be able to hang an export (0.0.24) ---
+# A wall-clock ceiling is the backstop for every slow path we have not
+# measured, including any we introduce later. When it fires the file must
+# come back exactly as Orca wrote it: unchanged, unstamped, and flagged.
+assert wave._DEFAULTS["time_budget"] == 30.0, wave._DEFAULTS["time_budget"]
+timed, timed_stats = wave._gcode_wave_rewrite(
+    source, dict(cfg, time_budget=0.0001))
+assert timed == source, "a timed-out pass must not alter a single byte"
+assert wave.WAVE_STAMP_PREFIX not in timed, "it must not stamp what it skipped"
+assert timed_stats["timed_out"] is True, timed_stats
+assert timed_stats["wave_layers"] == 0, timed_stats
+assert "time budget exceeded" in timed_stats["error"], timed_stats
+# Nothing else may be flagged as a timeout...
+assert not stats.get("timed_out"), stats
+# ...0 switches the ceiling off entirely, and junk falls back to the default
+# rather than throwing or disabling the plugin.
+for budget in (0, "nonsense", None):
+    ok_out, ok_stats = wave._gcode_wave_rewrite(
+        source, dict(cfg, time_budget=budget))
+    assert ok_out == out, budget
+    assert not ok_stats.get("timed_out"), (budget, ok_stats)
 
 old = wave.wc.wave_tracks
 try:

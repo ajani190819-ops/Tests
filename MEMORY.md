@@ -4,16 +4,18 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-01, Wave processing-cost session (0.0.23).
+* **Last updated:** 2026-10-01, Wave export-hang session (0.0.24).
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0f908-tests`. Never switch branches or push to
   `main`.
-* **Latest code state:** Wave Overhangs 0.0.22 measures the overhang against
+* **Latest code state:** Wave Overhangs 0.0.24 measures the overhang against
   the layer's real wall moves, so Wave ends land on the wall and hole
-  perimeters instead of the castellated bridge-line edge, and it both reads
-  and writes G2/G3 arc moves; Geometry 0.1.4 remains an experimental
-  alternate.
-* **Current versions:** Wave Overhangs 0.0.23, Wave Overhangs Geometry 0.1.4,
+  perimeters instead of the castellated bridge-line edge. It can read and
+  write G2/G3 arc moves but **no longer does so by default**, and the whole
+  G-code pass now runs under a 30-second `time_budget` that returns the file
+  untouched rather than ever stalling an export; Geometry 0.1.4 remains an
+  experimental alternate.
+* **Current versions:** Wave Overhangs 0.0.24, Wave Overhangs Geometry 0.1.4,
   Unlayered Infill 0.3.4, updater 1.4.0.
 * **Permanent identities:** `Wave Overhangs`, `Wave Overhangs Geometry`, and
   `Unlayered Infill`. Release numbers must remain out of package and capability
@@ -51,7 +53,7 @@ Important locations:
 
 ## Current implementation
 
-### Wave Overhangs 0.0.23
+### Wave Overhangs 0.0.24
 
 The active implementation is one transactional G-code pass at
 `psGCodePostProcess`:
@@ -222,6 +224,45 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-01 — Export hang (0.0.24)
+
+The owner reported that Orca would no longer export: it sat on "exporting" and
+crashed roughly a minute later. Their last good print came from 0.0.20, and
+0.0.21/0.0.22/0.0.23 had all shipped since, so the cause was in those three.
+
+**Not reproduced.** Everything measurable was measured and came back clean:
+
+* Arc fitter cost is linear -- 800-point smooth arc 0.097 s, 400-point wiggly
+  front 0.035 s. Not a hang source.
+* A synthetic part that overhangs 3 mm further on every single layer costs
+  0.08-0.18 s per bridge layer (2/4/8/16 layers = 0.16/0.47/1.28/2.86 s), peak
+  RSS 49 MB, no error. Linear; ~100 bridge layers would be ~20 s, slow but not
+  a crash.
+* The owner's own export reconstructed: 1.65 s (parse 0.20, plan 1.44).
+* Every emitted arc re-validated across all four fixtures plus the owner's
+  export (215 arcs): zero zero-radius, zero full-circle, zero endpoint/radius
+  mismatch after 3-decimal rounding, every one with positive E.
+
+So the fix is a backstop rather than a diagnosis. `time_budget` (30 s default)
+is checked before every layer and every bridge section; when it fires the pass
+returns the input byte-for-byte with no Wave stamp and sets `timed_out` in the
+stats, and the Orca result message says so instead of reporting that nothing
+was found. `0` disables it; a junk value falls back to 30. The plugin can no
+longer be the reason an export does not finish, whatever the cause was.
+
+`arc_fitting` also went back to `false` by default (was `auto`). G2/G3 is the
+only genuinely new *kind* of output since the owner's last good print, and
+Orca re-parses the finished file for its preview and time estimate, so it is
+the best remaining suspect; arcs are opt-in via `"auto"` until a real export
+clears them.
+
+**Still open:** the actual cause. The next evidence needed is the log file
+(path printed by **Check setup**), which records `seconds`, `parse_seconds`,
+`plan_seconds`, `geometry_layers`, `layers_scanned`, `timed_out` and `error`.
+If a 0.0.24 export succeeds with arcs off, that points at the arcs; if it times
+out, the log says how far it got; if it still crashes with the plugin
+`enabled=false`, the problem is not this plugin at all.
 
 ### 2026-10-01 — Processing cost (0.0.23)
 
