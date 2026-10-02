@@ -6,6 +6,38 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.4.1 — 2026-10-02
+
+Explains why new settings can be missing from the Settings panel.
+
+> "I'm not seeing all of those new config options for unlayered infill."
+
+Nothing was wrong with the plugin: all 14 settings are there, and 0.4.0's four
+new ones (`pattern`, `wave_angle`, `shape`, `layer_phase`) are handed to
+OrcaSlicer every time it asks. The catch is that **Orca only asks once**. When
+you first pick a plugin, Orca copies its settings into your process preset and
+from then on shows you that saved copy. Settings added by a later version are
+simply not in it, so they never appear — and there is nothing the plugin can
+do about it from its side.
+
+The prints themselves were never affected: anything missing from the saved
+copy is filled in from the plugin's own defaults before a single line of
+G-code is touched. You just could not see or change those settings.
+
+So **Check setup** now tells you this directly. It prints how many settings
+the installed build has, and a "not seeing all the settings?" section with the
+fix:
+
+1. Process preset → Others → Slicing Pipeline Plugin
+2. Set it to None, then back to Unlayered Infill
+3. Save the process preset
+
+If they are still missing after that, the installed *file* is an old one — run
+`Orca-Plugins.bat` again and fully quit and reopen OrcaSlicer.
+
+This section prints even when you have turned the long settings guide off,
+because it is exactly what you need when the panel looks wrong.
+
 ## 0.4.0 — 2026-10-02
 
 Five new controls that decide the SHAPE of the wave, not just its size.

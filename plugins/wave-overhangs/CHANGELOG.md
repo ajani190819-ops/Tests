@@ -22,6 +22,21 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.32 — 2026-10-02
+
+Same stale-settings explanation as Unlayered Infill 0.4.1.
+
+Wave Overhangs has gained a lot of settings since 0.0.11, so it is wide open
+to the same trap: OrcaSlicer saves a copy of a plugin's settings into your
+process preset the first time you select it, and keeps showing that saved copy
+afterwards. Settings added by later versions are missing from it, which looks
+like the update did not install.
+
+**Check setup** now prints how many settings the installed build has, plus the
+three steps that refresh the saved copy (set the Slicing Pipeline Plugin to
+None, back to Wave Overhangs, save the preset). No behaviour change: not one
+line of exported G-code differs from 0.0.31.
+
 ## 0.0.31 — 2026-10-02
 
 The thousands of pointless micro-moves around holes are gone.

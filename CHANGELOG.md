@@ -22,6 +22,50 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-02 — wave-overhangs 0.0.32, unlayered-infill 0.4.1: the settings you could not see
+
+> "I'm not seeing all of those new config options for unlayered infill."
+
+**Not a bug in the plugin, and not a missing feature.** All 14 Unlayered
+Infill settings exist in the shipped file, including the four added in 0.4.0
+(`pattern`, `wave_angle`, `shape`, `layer_phase`), and `get_default_config()`
+hands every one of them to OrcaSlicer with its plain-English note attached.
+`tests/test_plugin_runtime.py` has asserted that since 0.4.0.
+
+The cause is on Orca's side: **it only asks once.** When you first select a
+plugin, Orca copies its settings into your process preset, and from then on
+the Settings panel shows you that saved copy rather than asking the plugin
+again. A preset saved under 0.3.4 therefore keeps 0.3.4's ten settings
+forever. A plugin cannot push new keys into an already-saved preset.
+
+Exports were never affected — `_cfg()` starts from the plugin's own
+`_DEFAULTS` and overlays whatever the preset stored, so a missing key just
+uses its default. The settings were working; they were only invisible.
+
+Since the plugin cannot fix this, it now explains it. Both plugins' **Check
+setup** capabilities print a "not seeing all the settings?" section stating
+how many settings the installed build has and the three steps that refresh
+the saved copy (Slicing Pipeline Plugin → None → back → save the preset),
+followed by what to do if they are *still* missing (stale installed file: run
+`Orca-Plugins.bat`, then fully quit and reopen Orca). It prints even with the
+long settings guide switched off, since that is precisely when it is needed.
+Guarded by new assertions in `tests/test_plugin_runtime.py`.
+
+No change to exported G-code from either plugin.
+
+### GitHub reported this as a G-code project
+
+The repository's language bar read **G-code 77.1%**, Python 12.1%, PowerShell
+9.4%, Batchfile 1.4%, because GitHub Linguist counted the archived test-print
+exports and the test fixture as hand-written source. They are machine output
+from OrcaSlicer, kept as evidence so past measurements can be re-checked.
+
+`.gitattributes` now marks them `linguist-generated` / `linguist-vendored`, so
+the bar reflects the code actually written here (Python, then PowerShell for
+`keyboard-lighting/`, then Batchfile). Nothing was deleted and nothing moved —
+the archive is unchanged, and `linguist-generated` has the welcome side effect
+of collapsing a 91,000-line file in diffs.
+
 ## 2026-10-02 — Wave Overhangs 0.0.31: the micro-move pile-up around holes
 
 **Also fixed, caught while committing:** `* text=auto` in `.gitattributes`

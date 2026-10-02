@@ -4,8 +4,8 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02, archive + Unlayered Infill 0.4.0 +
-  launcher 1.0.1 session.
+* **Last updated:** 2026-10-02, Wave 0.0.32 + Unlayered Infill 0.4.1
+  (stale-preset settings explanation + Linguist fix).
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0fb0f-tests`. Never switch branches or push to
   `main`. (The branch is different every session — use the one you were
@@ -21,7 +21,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.31, Unlayered Infill 0.4.0,
+* **Current versions:** Wave Overhangs 0.0.32, Unlayered Infill 0.4.1,
   updater 1.4.0, launcher (`Orca-Plugins.bat`) 1.0.1.
 * **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
   numbers must remain out of package and capability names.
@@ -209,8 +209,8 @@ or a printer.
 ## What remains to do
 
 1. Install this branch with the launcher and confirm both plugin versions in
-   Orca's separate Version column: Wave Overhangs 0.0.31, Unlayered Infill
-   0.4.0.
+   Orca's separate Version column: Wave Overhangs 0.0.32, Unlayered Infill
+   0.4.1.
 2. **Try the new Unlayered Infill wave controls on a real slice.** The most
    valuable single test: print the same part twice, once with
    `pattern = "linear"` (the old behaviour) and once with `pattern = "cross"`,
@@ -234,6 +234,46 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-02 — Wave 0.0.32 / Unlayered 0.4.1: settings the owner could not see
+
+The owner said *"I'm not seeing all of those new config options for unlayered
+infill."* **Investigated before changing anything, and the plugin turned out
+to be correct**: `_DEFAULTS` holds all 14 settings, the four added in 0.4.0
+(`pattern`, `wave_angle`, `shape`, `layer_phase`) included, and
+`annotated_defaults()` hands every one of them to Orca with its note. A test
+in `tests/test_plugin_runtime.py` has asserted exactly that since 0.4.0, and
+it was passing.
+
+**The cause is OrcaSlicer, and it is a permanent constraint worth remembering:
+Orca calls `get_default_config()` only once.** The result is copied into the
+process preset when the plugin is first selected, and the Settings panel shows
+that saved copy forever after. A preset saved under 0.3.4 keeps 0.3.4's
+settings; nothing the plugin does can push new keys into it. (Add this to
+`docs/ORCA-PLUGIN-FACTS.md` thinking when touching config.) Runtime is
+unaffected because `_cfg()` starts from `_DEFAULTS` and overlays the stored
+dict, so a missing key silently takes its default — which is why the owner's
+exports were fine while the UI looked broken.
+
+Since it cannot be fixed in code, it is now *explained* in code: both plugins'
+**Check setup** print a "not seeing all the settings?" section giving the
+installed build's setting count (14 / 33) and the None → re-select → save
+preset recipe, then the stale-file fallback. It prints even when
+`settings_guide` is false, since that is when it is needed. New assertions
+pin all three parts.
+
+**Lesson: check whether the feature is actually missing before fixing it.**
+The source was right; only the delivery path was broken. A grep of `_DEFAULTS`
+settled it in one command.
+
+**Also: GitHub called this a G-code project.** The language bar read G-code
+77.1% / Python 12.1% / PowerShell 9.4% / Batchfile 1.4%, because Linguist
+counted the archived exports and the test fixture as source. `.gitattributes`
+now marks `*.gcode` `linguist-generated` and the archive and fixture
+directories `linguist-vendored`. Nothing deleted, nothing moved — the owner's
+rule is archive, not delete. Side benefit: `linguist-generated` collapses the
+91,000-line export in diffs, which is the same file `* text=auto` corrupted
+earlier this session.
 
 ### 2026-10-02 — Wave 0.0.31: micro-moves around holes
 

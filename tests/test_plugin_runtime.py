@@ -287,6 +287,17 @@ with tempfile.TemporaryDirectory() as tmp:
           "settings_guide=false does not hide the guide")
     check(plugin.PLUGIN_VERSION in quiet.message,
           "hiding the guide also hid the diagnostics")
+    # The owner hit this: Orca saves a copy of the settings into the process
+    # preset, so settings added by a later version never appear in the panel.
+    # The diagnostics must explain that, and must survive settings_guide=false
+    # -- it is the part you need precisely when the guide looks wrong.
+    check("--- not seeing all the settings? ---" in quiet.message,
+          "the check must explain a stale saved config in the process preset")
+    check(str(len(plugin._DEFAULTS)) in quiet.message,
+          "the check must state how many settings this build has, so the "
+          "user can compare it against what the panel shows")
+    check("Slicing Pipeline Plugin" in quiet.message,
+          "the stale-config explanation must say where to refresh it")
 
     # The config panel must carry the same notes, so the JSON the owner edits
     # explains itself without opening a README.
@@ -388,8 +399,8 @@ with tempfile.TemporaryDirectory() as tmp:
               f"Wave capability identities changed: {names}")
         check(not any(ch.isdigit() for ch in "".join(names)),
               f"a version leaked into a capability name: {names}")
-        check(wave.PLUGIN_VERSION == "0.0.31",
-              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.31")
+        check(wave.PLUGIN_VERSION == "0.0.32",
+              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.32")
 
         # The active Wave implementation is deliberately G-code-only. Its
         # source must not retain the removed slice-object planner, host Polygon
@@ -512,7 +523,7 @@ with tempfile.TemporaryDirectory() as tmp:
               "Diagnostics" in result.message,
               f"dependency failure does not give a complete beginner-safe fix: {result.message!r}")
         log = read_log(logs)
-        check("Wave Overhangs v0.0.31 loaded" in log and "MISSING" in log,
+        check("Wave Overhangs v0.0.32 loaded" in log and "MISSING" in log,
               f"Wave dependency state was not logged clearly:\n{log}")
         pipeline = orca.REGISTERED[0]()
         result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))

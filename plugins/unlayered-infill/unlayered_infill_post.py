@@ -38,7 +38,7 @@ import argparse
 import os
 import sys
 
-TOOL_VERSION = "0.4.0"
+TOOL_VERSION = "0.4.1"
 
 # =============================================================================
 # ENGINE -- verbatim copy of the `nonplanar_core` source inlined in
@@ -167,7 +167,7 @@ DEFAULT_MAX_LIFT_MM = 0.0    # 0 = no clamp
 # upload are separate calls), and waving an already-waved file would double
 # every displacement.
 MARKER_PREFIX = "; unlayered-infill"
-MARKER_VERSION = "0.4.0"
+MARKER_VERSION = "0.4.1"
 MARKER = f"{MARKER_PREFIX} v{MARKER_VERSION} (non-planar sparse infill)\n"
 
 _WORD = re.compile(r"([A-Za-z])\s*([-+]?\d*\.?\d+)")
