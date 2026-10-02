@@ -4,11 +4,14 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02, Wave 0.0.33 + Unlayered Infill 0.4.2
-  (capability-config migration: a settings panel saved by an older build now
-  gains the newer build's settings) plus a documentation contradiction sweep.
+* **Last updated:** 2026-10-02, updater **2.0.0** — the chooser, updater
+  engine and launcher are now ONE file, `Orca-Plugins.bat` (menu, build
+  picker, OrcaSlicer folder picker, remembered choices, install engine,
+  self-update). The two old filenames are short forwarders kept so copies
+  already on disk keep working. Plugin versions unchanged: Wave 0.0.33,
+  Unlayered Infill 0.4.2.
 * **Repository:** `ajani190819-ops/Tests`, public.
-* **Session branch:** `arena/01a0fd1f-tests`. Never switch branches or push to
+* **Session branch:** `arena/01a0fd3b-tests`. Never switch branches or push to
   `main`. (The branch is different every session — use the one you were
   handed, not this one.)
 * **Latest code state:** Wave Overhangs 0.0.33. The geometry below has been
@@ -24,7 +27,8 @@ binding record of OrcaSlicer behavior.
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
 * **Current versions:** Wave Overhangs 0.0.33, Unlayered Infill 0.4.2,
-  updater 1.4.0, launcher (`Orca-Plugins.bat`) 1.0.1.
+  updater **2.0.0** — one file, `Orca-Plugins.bat`; the launcher (1.0.1) and
+  engine (1.4.0) version histories ended by merging into it.
 * **Capability settings are stored GLOBALLY** in
   `data_dir()/orca_plugins/config.json`, not in the process preset. An earlier
   session guessed the opposite and shipped that guess in both plugins' Check
@@ -42,11 +46,15 @@ reference documentation, and tests.
 
 Important locations:
 
-- `Update-Orca-Plugins.bat` — released-`main` default updater. It keeps CRLF,
-  never overwrites itself while running, and installs from the selected ref.
-- `Choose-Orca-Plugin-Version.bat` — branch chooser. It validates and runs the
-  updater downloaded from exactly the selected branch; it never fills a test
-  branch from `main`.
+- `Orca-Plugins.bat` — **the whole updater since 2.0.0**: menu, build picker
+  (main + five newest test branches), OrcaSlicer folder picker, remembered
+  choices, install engine, self-update. Keeps CRLF, never overwrites itself
+  while running, installs from the selected ref only.
+- `Update-Orca-Plugins.bat` — forwarder to `Orca-Plugins.bat`. Keeps the old
+  name and the marker strings (`rem UPDATER_VERSION`, `set UPDATER_VERSION=`,
+  `if defined PLUGIN_BRANCH set`, 2000+ bytes) that copies of the old
+  two-file updater and launcher verify before handing a run over.
+- `Choose-Orca-Plugin-Version.bat` — the older picker name, also a forwarder.
 - `plugins.json` — catalogue and version source used by the updater.
 - `plugins/wave-overhangs/` — exported-G-code Wave plugin and its release notes.
 - `archive/` — not shipped. Holds the archived Wave Overhangs Geometry
@@ -246,9 +254,70 @@ or a printer.
 4. Save the fresh export and the plugin-storage log path reported by Check
    setup if behavior differs from the fixtures.
 5. Perform a small physical print; no physical Wave result is claimed yet.
-6. Run the Windows batch flow again whenever either batch file changes.
+6. **Rerun the Windows batch flow for updater 2.0.0** — the unified
+   `Orca-Plugins.bat` was verified here only by re-reading and by the static
+   analysis in `tests/test_installer.py` (labels, parens, quote toggling,
+   handover chain, CRLF). Double-click it on real Windows: menu item 1, then
+   2 (pick the test branch), then 3 (folder picker), then [4] forget, and
+   once through each old forwarder. Also run an old `Update-Orca-Plugins.bat`
+   (≤ 1.4.0) copy once to confirm it hands over to the forwarder and then to
+   the unified file.
 
 ## Session log
+
+### 2026-10-02 — Updater 2.0.0: the chooser, engine and launcher became one file
+
+The owner: *"unify the Chooser, Updater and Orca plugins into one global
+updater that lets me pick out of the five most recent branches or main, and
+then pick between versions of OrcaSlicer the way it does now, where you pick
+a number — more unified and concrete."*
+
+**What was built.** `Orca-Plugins.bat` is now the entire updater: the menu,
+the build picker (live GitHub branch list, released `main` pinned first plus
+the five newest test branches, A=all, T=type, R=back to main), the OrcaSlicer
+**folder** picker (menu item 3 — the old engine's numbered nightly/other data
+dir chooser, now reachable on its own), the remembered build **and** folder
+(both shown at the menu top; a remembered folder that still exists is used
+without re-asking; [4] forgets both), the full install engine, and
+self-update. `PLUGIN_BRANCH` set still skips the menu and installs directly —
+that is how the forwarders and old copies drive it.
+
+**Why the old names stay.** Hard rule: never strand copies already on disk.
+`Update-Orca-Plugins.bat` became a forwarder that deliberately keeps the
+markers old copies verify (`rem UPDATER_VERSION 2.0.0 end`,
+`set UPDATER_VERSION=2.0.0` at line start, `if defined PLUGIN_BRANCH set`,
+≥ 2000 bytes) so an old updater ≤ 1.4.0 self-updates into it and an old
+launcher ≤ 1.0.1 accepts it as its engine; both then hand the run to
+`Orca-Plugins.bat` (the launcher passes `PLUGIN_BRANCH`, so the unified file
+installs exactly the build that was picked). The forwarder fetches
+`Orca-Plugins.bat` from the ref `PLUGIN_BRANCH` names, main by default —
+never silently main. All four handover verifications were simulated in this
+sandbox (see `tests/test_installer.py` §3e) and pass.
+
+**Ordering guarantees kept / added:** test-branch preflight still runs before
+any Orca folder is chosen or touched; the chosen build is now remembered only
+after its `plugins.json` downloads and parses (there is no engine download to
+gate on any more — the catalogue is the proof a branch is real), enforced by
+a new order check; both `ORCA_FRONTDOOR_CHILD` and `ORCA_UPDATER_CHILD` guard
+`:self_update` so no handover chain recurses.
+
+**One version number.** FRONTDOOR_VERSION and UPDATER_VERSION are both 2.0.0
+and the test asserts they stay equal in every file.
+
+**Not verified on Windows** — no Windows here. Verified by re-reading the
+whole .bat, by the installer test's static analysis (labels in both
+directions, paren balance, the cmd.exe quote-toggle walk, CRLF byte counts,
+fallback plan, install replay), and by simulating the old copies' findstr
+verifications. The first real double-click is the real test; see "What
+remains to do" item 6.
+
+**Lesson worth keeping:** merging two batch files is mostly a label-collision
+and guard-variable exercise — `:download`, `:self_update`, `:child_done` and
+`:help` existed in both parents. The unified file kept the engine's versions
+of `:download` (three methods + size floor) and merged `:self_update` from
+the launcher with the engine's guards. The `:self_update` slice between the
+`:self_update` and `:stage_tools` labels is what the test reads — keep those
+two labels adjacent.
 
 ### 2026-10-02 — Wave 0.0.33 / Unlayered 0.4.2: the config panel repairs itself
 

@@ -22,6 +22,48 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-02 — updater 2.0.0: one file instead of three
+
+> "I'd like these things to be more unified and concrete."
+
+The chooser, the updater engine and the launcher are now **one file**.
+`Orca-Plugins.bat` contains the menu, the build picker, the OrcaSlicer folder
+picker, the remembered choices, the whole install engine and self-update.
+Nothing else is needed, and nothing about what gets installed changed — same
+catalogue, same all-or-nothing test-branch preflight, same sidecars.
+
+**What the owner will notice:**
+
+* The menu now has an item for each thing you used to need a different file
+  for: **[2] Choose the build** (released `main` plus the five newest test
+  branches, live from GitHub) and **[3] Choose which OrcaSlicer folder to
+  install into** (the numbered OrcaSlicer version picker: nightly folders
+  first, then the others).
+* The remembered build **and** the remembered folder are both shown at the
+  top of the menu, and a remembered folder that still exists is now used
+  without re-asking — that was the point of remembering it.
+* **[4] Forget my remembered choices** clears both at once.
+
+**Why the old two filenames are still in the repository:** copies already
+sitting in Downloads folders keep checking those exact URLs. Both are now
+short forwarders that hand the run to `Orca-Plugins.bat`. The
+`Update-Orca-Plugins.bat` forwarder deliberately keeps the version marker
+lines and size the old two-file copies verified, so an old updater (≤ 1.4.0)
+hands its run over cleanly and an old launcher (≤ 1.0.1) still accepts it as
+its engine — nobody is stranded on a version that silently stops updating.
+
+**One version number.** The launcher (1.0.1) and the engine (1.4.0) became
+one file, so there is one version: 2.0.0. `tests/test_installer.py` enforces
+that every marker in every file agrees, and re-verifies the whole handover
+chain the old copies perform.
+
+Not verified on Windows (no Windows in the sandbox): the batch flow was
+re-checked by re-reading and by the static analysis in the installer test —
+labels, parentheses, quote toggling, download verification, CRLF — but the
+first real double-click is the real test, as always.
+
+---
+
 ## 2026-10-02 — wave-overhangs 0.0.33, unlayered-infill 0.4.2: the settings repair themselves
 
 > "I know there's features — especially for Unlayered Infill, where I should

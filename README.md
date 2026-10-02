@@ -10,8 +10,8 @@ that's a bug; open an issue.
 | [Wave Overhangs](plugins/wave-overhangs/) | 0.0.33 | replaces covered Bridge extrusion with support-anchored wave toolpaths whose ends land on the real wall and hole perimeters, optionally as G2/G3 arcs |
 | [Unlayered Infill](plugins/unlayered-infill/) | 0.4.2 | rewrites sparse infill onto a wave in Z so layers interlock instead of stacking as clean planes — now in both directions at once, with a choice of wave shape |
 
-These are the versions in the current test branch. Direct updater runs use
-released `main`; use the chooser section below to install these branch files.
+These are the versions in the current test branch. A plain `Orca-Plugins.bat`
+run installs released `main`; use menu item 2 to pick a test branch instead.
 
 Also here:
 
@@ -74,19 +74,23 @@ without a working launcher.
 
 ### The other two .bat files — you don't need them
 
-They are kept so nothing already on your disk breaks:
+They are kept so nothing already on your disk breaks. Both are now short
+**forwarders**: they find or fetch `Orca-Plugins.bat` and hand the whole run
+over to it, arguments and all. There is nothing to maintain in either one.
 
-* **`Update-Orca-Plugins.bat`** — the install engine `Orca-Plugins.bat` runs.
-  It keeps its old name and download URL on purpose: copies people already
-  downloaded check that exact address for their own updates, and renaming it
-  would strand them on an old version with no warning. It still works on its
-  own if you prefer it.
-* **`Choose-Orca-Plugin-Version.bat`** — the old version picker, now a short
-  forwarder to `Orca-Plugins.bat` so existing shortcuts keep working. Picking
-  a version is item 2 on the new menu.
+* **`Update-Orca-Plugins.bat`** — used to be the install engine; from
+  updater 2.0.0 the engine lives inside `Orca-Plugins.bat`. The old name
+  keeps working on purpose: copies people already downloaded check that
+  exact URL for their own updates, and renaming it would strand them on an
+  old version with no warning. It also still carries the marker strings the
+  old two-file copies verify before running a download, so an old updater
+  (≤ 1.4.0) hands its run over cleanly, and an old launcher (≤ 1.0.1) still
+  accepts it as its engine.
+* **`Choose-Orca-Plugin-Version.bat`** — the old version picker, already a
+  forwarder. Picking a version is item 2 on the unified menu.
 
-It fetches `plugins.json` and the plugin files from this repo's `main`
-branch and copies them into Orca's data folder
+`Orca-Plugins.bat` fetches `plugins.json` and the plugin files from the
+chosen ref of this repo and copies them into Orca's data folder
 (`%APPDATA%\OrcaSlicer*\orca_plugins`, preferring a nightly folder), writing
 the `.install_state.json` sidecar so the plugins show up already enabled.
 Any other copies under `orca_plugins` are refreshed too (never `_subscribed`
@@ -97,25 +101,27 @@ folder: Orca requires exactly one `.py` per plugin folder and a stray second
 file stops the plugin loading. No Python, Node or Git needed — just Windows.
 
 ```
-Update-Orca-Plugins.bat [data_dir] [--local] [--no-self-update] [--help]
+Orca-Plugins.bat [data_dir] [--local] [--no-self-update] [--help]
 ```
 
 * `[data_dir]` — Orca's data directory; found under `%APPDATA%` if omitted
 * `--local` — install plugin files found next to this .bat, no downloads
-* `--no-self-update` — don't hand over to a newer copy of the updater
-* Environment: `ORCA_DATA_DIR`, `PLUGIN_BRANCH` (default `main`),
-  `PLUGIN_ONLY` (comma-separated plugin ids), `ORCA_NO_SELF_UPDATE`
+* `--no-self-update` — don't hand over to a newer copy of this updater
+* Environment: `ORCA_DATA_DIR`, `PLUGIN_BRANCH` (default `main`; setting it
+  skips the menu and installs from that ref), `PLUGIN_ONLY`
+  (comma-separated plugin ids), `ORCA_NO_SELF_UPDATE`
 
 ### Do I need to re-download the .bat when something changes?
 
 **Almost never.** Download it once and keep double-clicking the same file.
 
 * **New plugin versions** — no re-download, ever. The .bat fetches the
-  catalogue and every plugin file fresh from `main` on each run, so it always
-  installs the latest.
-* **Changes to the updater itself** — it now handles that too. On each run it
+  catalogue and every plugin file fresh from the chosen build on each run, so
+  it always installs the latest.
+* **Changes to the updater itself** — it handles that too. On each run it
   checks whether a newer updater exists and, if so, runs the newer copy for
-  that run.
+  that run. It checks the build you last chose, so testing a branch tests
+  that branch's updater as well.
 
   It deliberately does **not** overwrite itself. `cmd.exe` reads a `.bat`
   from disk as it executes it, so a file that rewrites itself mid-run can
@@ -141,11 +147,11 @@ particular; Windows shows it for every downloaded .bat on earth.
 
 To make it never appear again:
 
-1. Right-click `Update-Orca-Plugins.bat` → **Properties**.
+1. Right-click `Orca-Plugins.bat` → **Properties**.
 2. On the General tab, tick **Unblock** at the bottom → **OK**.
 
 (Or in PowerShell:
-`Unblock-File "$env:USERPROFILE\Downloads\Update-Orca-Plugins.bat"`.)
+`Unblock-File "$env:USERPROFILE\Downloads\Orca-Plugins.bat"`.)
 
 You only download the .bat once — plugin updates flow through it, so the
 prompt does not come back on every update.
@@ -270,27 +276,25 @@ quietly. Here is where to look, in order:
 
 > **If the version looks old:** check whether your copy of the updater is an
 > early one. Updaters before v1.1.0 cannot upgrade themselves — download
-> `Update-Orca-Plugins.bat` again (link at the top of this page) and run it
+> `Orca-Plugins.bat` again (link at the top of this page) and run it
 > once. From v1.1.0 on it keeps itself current automatically.
 
 ## Installing a test build from a branch
 
-The updater downloads from **`main`** by default, which is where released
-versions live. The current Wave 0.0.33 / Unlayered 0.4.2 work is on the test
-branch, so put these two files together
-in Downloads and double-click the chooser:
+The updater installs from **`main`** by default, which is where released
+versions live. To try a test branch instead, double-click
+`Orca-Plugins.bat` and pick **[2] Choose the build**.
 
-* `Choose-Orca-Plugin-Version.bat`
-* `Update-Orca-Plugins.bat`
-
-The chooser fetches the repository's real branches from public GitHub. It
+The picker fetches the repository's real branches from public GitHub. It
 shows released `main`, the five newest test branches, an option to show every
 branch, and an option to type a branch yourself. Pick a number; no Command
-Prompt and no GitHub login or token are needed.
+Prompt and no GitHub login or token are needed. After the build, the same
+numbered style of picker appears for the OrcaSlicer version (data folder) to
+install into — press Enter to keep the remembered one.
 
-The chooser remembers its last choice. **Return to released main** is always
-on the menu. This memory applies only when using the chooser: directly
-double-clicking `Update-Orca-Plugins.bat` still installs released `main`.
+The updater remembers its last build and folder. **[R] Go back to the
+released build** is always on the build picker, and **[4] Forget my
+remembered choices** on the main menu resets both.
 
 A test build is all-or-nothing. Before changing Orca's folders, the updater
 downloads and checks every plugin from the selected branch. If even one is
@@ -361,8 +365,8 @@ above applies rather than claiming success.
 
 | Path | What it is |
 | --- | --- |
-| `Orca-Plugins.bat` | **the one file you download.** Installs and updates the plugins |
-| `Update-Orca-Plugins.bat` | the install engine underneath it. Keeps its name on purpose — copies already on disk check that exact URL for updates |
+| `Orca-Plugins.bat` | **the one file you download.** The menu, the build picker, the OrcaSlicer folder picker, the remembered choices and the whole install engine — one file since updater 2.0.0 |
+| `Update-Orca-Plugins.bat` | a short forwarder to `Orca-Plugins.bat`. Keeps its name on purpose — copies already on disk check that exact URL for updates, and the forwarder carries the markers they verify |
 | `Choose-Orca-Plugin-Version.bat` | a short forwarder, so old shortcuts keep working |
 | `plugins/` | **the two plugins that ship.** One entry `.py` per folder, each with its own README and changelog |
 | `plugins.json` | the catalogue the launcher reads |

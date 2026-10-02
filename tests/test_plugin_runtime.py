@@ -576,8 +576,8 @@ with tempfile.TemporaryDirectory() as tmp:
         check(guide_cap.get_name() in wave_entry["capabilities"],
               "the capability rename did not reach plugins.json")
         check(guide_cap.get_name() in
-              (REPO / "Update-Orca-Plugins.bat").read_bytes().decode("ascii", "replace"),
-              "the capability rename did not reach the .bat fallback row")
+              (REPO / "Orca-Plugins.bat").read_bytes().decode("ascii", "replace"),
+              "the capability rename did not reach the unified updater's fallback row")
         check(not any(ch.isdigit() for ch in guide_cap.get_name().split("-")[-1]),
               "a capability name must never carry a version")
 
