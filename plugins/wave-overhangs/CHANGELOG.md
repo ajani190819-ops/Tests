@@ -22,7 +22,37 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.33 — 2026-10-02
+
+**A settings panel left over from an older build now repairs itself.**
+
+OrcaSlicer keeps each capability's settings in one global file,
+`orca_plugins/config.json`, and the Config tab shows you that saved copy. A
+copy written by an older Wave build does not contain the settings added since,
+so they never appear in the panel — and Wave Overhangs has gained a great many
+settings since 0.0.11.
+
+Orca documents a migration hook for exactly this, and the plugin now uses it.
+When it finds a configuration written by an older build it merges this build's
+settings into it and saves it back: every value you set is kept, new settings
+arrive at their defaults, the notes are refreshed, and unrecognised keys are
+left alone rather than deleted. This runs when the plugin loads, and again on
+the first slice or **Settings guide & check** run of a session.
+
+Check setup's "not seeing all the settings?" section was rewritten to match:
+the manual fallback is **Restore defaults** in the Config tab, not the
+preset-reselect recipe from 0.0.32, which was based on a wrong idea of where
+the settings live.
+
+No slicing behaviour changed; exports are identical to 0.0.32's.
+
 ## 0.0.32 — 2026-10-02
+
+> **Superseded by 0.0.33.** The explanation below — that Orca copies the
+> settings into your *process preset* — was wrong, and so was the
+> None-and-back recipe. The settings live in `orca_plugins/config.json`, and a
+> stale copy *can* be repaired in code, which is what 0.0.33 does.
+
 
 Same stale-settings explanation as Unlayered Infill 0.4.1.
 

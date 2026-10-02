@@ -75,6 +75,9 @@ class _CapabilityBase:
 
     def __init__(self):
         self._config = None
+        self._config_version = ""
+        self.saved_configs = []     # every save_config() call, for assertions
+        self.save_ok = True         # flip to False to simulate Orca refusing
 
     def get_config(self):
         """Orca hands back the capability's config as a JSON string."""
@@ -85,8 +88,37 @@ class _CapabilityBase:
             return self._config
         return json.dumps(self._config)
 
-    def set_config(self, cfg):
+    def set_config(self, cfg, version=""):
         self._config = cfg
+        self._config_version = version
+
+    def get_config_version(self):
+        """The plugin version that last saved this config.
+
+        Wiki, Plugin Development / Capability configuration: "Return the
+        plugin version that last saved the configuration. Use this to detect
+        and migrate an older schema."
+        """
+        return self._config_version
+
+    def save_config(self, config):
+        """Persist a JSON string for this capability; returns a bool.
+
+        Real Orca supplies the plugin identity and current version itself and
+        will not let a capability write another one's config. Here we just
+        record it so a test can see exactly what the plugin wrote.
+        """
+        import json
+        if not isinstance(config, str):
+            raise TypeError(
+                "save_config() takes a JSON STRING -- use json.dumps(cfg). "
+                "Real Orca's binding is save_config(config: str) -> bool.")
+        json.loads(config)          # a plugin must never hand Orca junk
+        self.saved_configs.append(config)
+        if not self.save_ok:
+            return False
+        self._config = config
+        return True
 
 
 class SlicingPipelineCapabilityBase(_CapabilityBase):

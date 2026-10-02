@@ -38,7 +38,7 @@ import argparse
 import os
 import sys
 
-TOOL_VERSION = "0.4.1"
+TOOL_VERSION = "0.4.2"
 
 # =============================================================================
 # ENGINE -- verbatim copy of the `nonplanar_core` source inlined in
@@ -52,7 +52,7 @@ TOOL_VERSION = "0.4.1"
 Adapted from `nonPlanarInfill.py`, Copyright (c) 2025 Roman Tenger (TenTech),
 GPL-3.0 — https://github.com/TengerTechnologies/NonPlanarInfill — by way of the
 "Non-Planar Infill Tool" kept verbatim at
-`my-plugins/unlayered-infill/reference/nonplanar_infill_tool.py`.
+`tools/nonplanar-infill-tool/nonplanar_infill_tool.py`.
 
 The idea is unchanged: inside sparse-infill sections, split each extrusion into
 short segments and ride a sine wave in Z, `dz = amplitude * scale * sin(f * x)`,
@@ -60,7 +60,7 @@ with `scale` tapering to zero as the infill approaches the solid skin above or
 below it. Successive layers then interlock instead of stacking as clean planes.
 
 Five behaviours differ from the reference, each pinned by a test in
-`tests/test_nonplanar_core.py`:
+`tests/test_post_script.py`:
 
 1. **Extrusion is attached to the right move.** In G-code the `E` on a line
    describes the move that *ends* at that line's coordinates. The reference
@@ -167,7 +167,7 @@ DEFAULT_MAX_LIFT_MM = 0.0    # 0 = no clamp
 # upload are separate calls), and waving an already-waved file would double
 # every displacement.
 MARKER_PREFIX = "; unlayered-infill"
-MARKER_VERSION = "0.4.1"
+MARKER_VERSION = "0.4.2"
 MARKER = f"{MARKER_PREFIX} v{MARKER_VERSION} (non-planar sparse infill)\n"
 
 _WORD = re.compile(r"([A-Za-z])\s*([-+]?\d*\.?\d+)")

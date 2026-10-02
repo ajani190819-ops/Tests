@@ -1,14 +1,14 @@
 # OrcaSlicer plugin lane (and friends)
 
-Home of three experimental **OrcaSlicer slicing-pipeline plugins**, the
+Home of two experimental **OrcaSlicer slicing-pipeline plugins**, the
 **one-click Windows updater** that installs them, and a couple of standalone
 tools. Written to be readable by a beginner — if something here is unclear,
 that's a bug; open an issue.
 
 | Plugin | Version | What it does |
 | --- | --- | --- |
-| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.32 | replaces covered Bridge extrusion with support-anchored wave toolpaths whose ends land on the real wall and hole perimeters, optionally as G2/G3 arcs |
-| [Unlayered Infill](plugins/unlayered-infill/) | 0.4.1 | rewrites sparse infill onto a wave in Z so layers interlock instead of stacking as clean planes — now in both directions at once, with a choice of wave shape |
+| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.33 | replaces covered Bridge extrusion with support-anchored wave toolpaths whose ends land on the real wall and hole perimeters, optionally as G2/G3 arcs |
+| [Unlayered Infill](plugins/unlayered-infill/) | 0.4.2 | rewrites sparse infill onto a wave in Z so layers interlock instead of stacking as clean planes — now in both directions at once, with a choice of wave shape |
 
 These are the versions in the current test branch. Direct updater runs use
 released `main`; use the chooser section below to install these branch files.
@@ -159,13 +159,13 @@ number into them can orphan a saved preset.
 | Where | What you see |
 | --- | --- |
 | File → Plugins, **Name** column | `Wave Overhangs` |
-| File → Plugins, **Version** column | `0.0.32` (Orca reads the PEP 723 header) |
-| The updater's output | `Wave Overhangs v0.0.32` |
-| **Settings guide & check**, first line | `Wave Overhangs v0.0.32 -- setup check` |
+| File → Plugins, **Version** column | `0.0.33` (Orca reads the PEP 723 header) |
+| The updater's output | `Wave Overhangs v0.0.33` |
+| **Settings guide & check**, first line | `Wave Overhangs v0.0.33 -- setup check` |
 
 The exported G-code is stamped too — search it for `; wave-overhangs v` or
 `; unlayered-infill v` to see which build produced the file. The same rule
-applies to `Unlayered Infill`; its current test-build version is `0.4.1`.
+applies to `Unlayered Infill`; its current test-build version is `0.4.2`.
 
 ## After installing
 
@@ -181,6 +181,30 @@ applies to `Unlayered Infill`; its current test-build version is `0.4.1`.
 5. **Export G-code file** — then drag that exported `.gcode` back into
    OrcaSlicer to see the result. Neither plugin's work shows in the normal
    slice preview: both run after slicing, on the exported file.
+
+## "Some of the settings aren't in the Config panel"
+
+Open **File → Plugins**, pick the plugin, open the **Config** tab, and pick
+the capability. If you can see fewer settings than the plugin's README lists —
+no `shape`, no `pattern` — nothing is broken, and your prints were never
+affected: a setting missing from the saved copy is used at its default.
+
+Here is why. OrcaSlicer keeps each capability's settings in one file,
+`orca_plugins/config.json`, and the Config tab shows you **that saved copy**.
+A copy written while you were on an older build has that build's settings in
+it, and nothing new is added to it just because the plugin was updated.
+
+From **Unlayered Infill 0.4.2** and **Wave Overhangs 0.0.33** the plugins fix
+this themselves: when they find a configuration written by an older build they
+merge the current settings into it, keeping every value you had set. Slice
+once (or run the plugin's check capability), then reopen the Config tab.
+
+If anything is still missing, press **Restore defaults** in that Config tab.
+That deletes the saved copy, so the panel falls back to the installed build's
+full defaults — the only thing you lose is your plugin settings. And if it is
+*still* short, the installed file itself is an old one: check the version on
+the first line of the check capability's report, then run `Orca-Plugins.bat`
+again and fully quit and reopen OrcaSlicer.
 
 ## "It doesn't seem to do anything"
 
@@ -209,7 +233,7 @@ Work through these in order:
    height for its whole length instead of waving. In 0.4.0 set `pattern` to
    `cross` (ripples in both directions at once), or aim the ripples across
    your infill with `wave_angle`.
-6. **Wave Overhangs needs exported Bridge sections.** Version 0.0.32 performs
+6. **Wave Overhangs needs exported Bridge sections.** Version 0.0.33 performs
    planning and replacement in one G-code transaction, snaps Wave endpoints to
    walls/holes, and tapers endpoint flow for cleaner terminations. It removes only bridge
    extrusion covered by generated waves and retains every uncovered fragment.
@@ -225,7 +249,7 @@ quietly. Here is where to look, in order:
    answer in almost every case: Orca prints the actual load error there. If
    the plugin is not in the list at all, go to step 3.
 2. **`Plugin Info` tab** — check the *installed version*. The current test
-   build reads **0.4.1** for Unlayered Infill and **0.0.32** for Wave
+   build reads **0.4.2** for Unlayered Infill and **0.0.33** for Wave
    Overhangs. Their permanent names are simply `Unlayered Infill` and `Wave
    Overhangs`; version numbers appear only in the separate Version column.
 3. **Is the folder right?** Each plugin needs its own folder holding exactly
@@ -252,7 +276,7 @@ quietly. Here is where to look, in order:
 ## Installing a test build from a branch
 
 The updater downloads from **`main`** by default, which is where released
-versions live. The current Wave 0.0.32 / Unlayered 0.4.1 work is on the test
+versions live. The current Wave 0.0.33 / Unlayered 0.4.2 work is on the test
 branch, so put these two files together
 in Downloads and double-click the chooser:
 
@@ -277,7 +301,7 @@ the plugin versions so it is clear what was installed.
 After installing this final naming migration, reselect `Wave Overhangs` or
 `Unlayered Infill` once in **Process → Others → Slicing Pipeline Plugin**.
 Those exact version-free package/capability names will not change again. Use
-the Plugins dialog's separate Version column to confirm 0.0.32 / 0.4.1.
+the Plugins dialog's separate Version column to confirm 0.0.33 / 0.4.2.
 
 ## The log file — start here when something seems wrong
 

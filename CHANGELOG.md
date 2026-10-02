@@ -22,6 +22,59 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-02 — wave-overhangs 0.0.33, unlayered-infill 0.4.2: the settings repair themselves
+
+> "I know there's features — especially for Unlayered Infill, where I should
+> have the ability to change the shape and pattern — but that doesn't show up
+> in the config in Orca."
+
+The same report as the entry below, after the fix below had shipped. This
+time it was investigated against OrcaSlicer's own documentation instead of
+being reasoned about, and the answer was in the wiki all along.
+
+**The facts, now recorded in `docs/ORCA-PLUGIN-FACTS.md` under "Capability
+configuration":**
+
+* A capability's settings are stored **globally**, in
+  `data_dir()/orca_plugins/config.json`, keyed by capability identity — *not*
+  in the process preset. A preset may additionally hold an override, which
+  wins while it is present.
+* `get_default_config()` is consulted when there is nothing saved and when the
+  user presses **Restore defaults**. A saved copy is shown as-is otherwise,
+  which is why settings added by a later release stay invisible.
+* `get_config_version()` reports which plugin version last saved the config,
+  `save_config()` writes a new one, and `migrate_config_if_needed()` is the
+  documented hook for migrating an older schema.
+
+**So the previous claim that this "cannot be fixed in code" was wrong**, and
+both plugins now fix it. `_migrate_config()` merges the running build's
+settings into an older saved configuration — keeping every value the user set,
+adding new settings at their defaults, refreshing the notes, and preserving
+keys it does not recognise — then writes it back. It is wired to
+`migrate_config_if_needed()` and, because *when* the host calls that hook is
+documented only by example, also to the first capability call of a session.
+It can never break a slice: a refused save, a junk config or a raising host
+are all swallowed.
+
+The Check setup text in both plugins was rewritten. The manual fallback is now
+Orca's documented one — Plugins dialog → *Config* → **Restore defaults** — and
+the preset-reselect recipe is gone.
+
+Also in this pass, a documentation reconciliation: the README called this a
+home of "three" plugins when two ship, `AGENTS.md`'s repo map still described
+`Update-Orca-Plugins.bat` as the file to download, `MEMORY.md` and
+`docs/ROADMAP.md` carried Wave version numbers from 0.0.23/0.0.25 days, and
+the Unlayered Infill source pointed at four paths that do not exist in this
+repository. All corrected.
+
+Verified here: the full test suite, including new assertions that a simulated
+0.3.4 config gains `pattern`/`shape`/`wave_angle`/`layer_phase`/`max_lift_mm`
+while keeping the user's own amplitude, that an already-current config is not
+rewritten, and that a refused save still exports. **Not verified:** anything
+on a real OrcaSlicer — in particular whether the host calls
+`migrate_config_if_needed()`, and when. The per-session fallback exists
+because of that uncertainty.
+
 ## 2026-10-02 — wave-overhangs 0.0.32, unlayered-infill 0.4.1: the settings you could not see
 
 > "I'm not seeing all of those new config options for unlayered infill."

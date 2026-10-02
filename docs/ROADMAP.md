@@ -1,7 +1,7 @@
 # Roadmap — OrcaSlicer plugin lane
 
 This document is the plan, not a release promise. There are **two** shipped
-plugins: Wave Overhangs **0.0.32** and Unlayered Infill **0.4.1**, with
+plugins: Wave Overhangs **0.0.33** and Unlayered Infill **0.4.2**, with
 updater **1.4.0**, on the session test branch. Package and capability names
 remain permanently `Wave Overhangs` and `Unlayered Infill`.
 
@@ -65,11 +65,12 @@ and breaks them into stubs.
 | --- | --- |
 | One-click updater and catalogue | Built; contract-tested. Direct updater defaults to released `main`. |
 | Branch chooser | Built; selects, downloads, validates, and runs the updater from exactly the selected branch. Missing branch files fail closed. Windows behavior was previously verified for the chooser flow; rerun after future batch changes. |
-| Unlayered Infill | 0.4.1. Full control set preserved, plus the 0.4.0 wave-shaping controls (`pattern`, `wave_angle`, `shape`, `layer_phase`, `max_lift_mm`) and an in-Orca settings guide. Defaults reproduce 0.3.4 output exactly, pinned by `tests/test_unlayered_waves.py`. Not yet printed. |
-| Wave Overhangs | 0.0.23. Visible conforming waves were confirmed in the owner's real Orca export with 0.0.11. Z correction, endpoint cleanup, taper, and the new wall-bounded Wave area pass the captured real-export regression: ends along each wall lie on one line within 0.02 mm, and a synthetic overhang-with-hole export puts every hole end on one radius. |
+| Unlayered Infill | 0.4.2. Full control set preserved, plus the 0.4.0 wave-shaping controls (`pattern`, `wave_angle`, `shape`, `layer_phase`, `max_lift_mm`) and an in-Orca settings guide. Defaults reproduce 0.3.4 output exactly, pinned by `tests/test_unlayered_waves.py`. Not yet printed. |
+| Wave Overhangs | 0.0.33. Visible conforming waves were confirmed in the owner's real Orca export with 0.0.11. Z correction, endpoint cleanup, taper, and the new wall-bounded Wave area pass the captured real-export regression: ends along each wall lie on one line within 0.02 mm, and a synthetic overhang-with-hole export puts every hole end on one radius. |
 | Wave Overhangs Geometry | **Archived 2026-10-02** to `archive/`. Never completed a verified real-Orca slice or print. `archive/README.md` has the revival steps. |
 | Repository organization | This pass groups reference PDFs and real fixtures, removes the runtime log from source control, and reconciles the documentation. |
-| Physical print | The owner printed a part with 0.0.20 and photographed the first layer. That photograph is what drove 0.0.22. A print with 0.0.22 itself is still required. |
+| Physical print | The owner printed a part with 0.0.20 and photographed the first layer. That photograph is what drove 0.0.22. **No release since 0.0.20 has been printed.** |
+| Capability config | Settings are stored globally in `orca_plugins/config.json`; a config saved by an older build is migrated in place from 0.0.33 / 0.4.2. Whether the host calls `migrate_config_if_needed()`, and when, is **not verified on a real build** — hence the per-session fallback. |
 
 ## Wave Overhangs — current implementation
 
@@ -193,8 +194,9 @@ State clearly which evidence exists:
   captured real-export Wave transformation, idempotence, and fail-closed output.
 - **Confirmed by the owner:** visible Wave output in a real Orca export from the
   previous release; Unlayered real-Orca operation from earlier testing.
-- **Still open:** fresh 0.0.23 export, physical print quality, and any future
-  changes to the Windows batch files.
+- **Still open:** a fresh export from the current release, physical print
+  quality, any future changes to the Windows batch files, and confirmation
+  that config migration actually fires inside OrcaSlicer.
 
 ## Known open item: a Wave edge against a curved wall
 

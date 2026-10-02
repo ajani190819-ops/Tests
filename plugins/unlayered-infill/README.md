@@ -32,8 +32,8 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
    step actually fired.
 
 The plugin appears as *Unlayered Infill* in the Plugins dialog. Its separate
-Version column currently reads **0.4.1**, and exported G-code is stamped with
-`; unlayered-infill v0.4.1`. The package and capability names stay version-free
+Version column currently reads **0.4.2**, and exported G-code is stamped with
+`; unlayered-infill v0.4.2`. The package and capability names stay version-free
 so an update never orphans your process preset.
 
 ## Configuration
@@ -145,8 +145,8 @@ pointing it outside plugin storage can reintroduce approval prompts. Set
 `"log": false` to turn it off. A run looks like this:
 
 ```
-2026-10-02 21:14:02  Unlayered Infill v0.4.1 loaded (engine ok)
-2026-10-02 21:14:19  Unlayered Infill v0.4.1: EXPORT STEP RUNNING
+2026-10-02 21:14:02  Unlayered Infill v0.4.2 loaded (engine ok)
+2026-10-02 21:14:19  Unlayered Infill v0.4.2: EXPORT STEP RUNNING
                        file         : C:\Users\you\AppData\Local\Temp\x.gcode
                        settings     : amplitude='200%' frequency=1.5 cell_mm='auto'
 2026-09-30 21:14:20  Unlayered Infill: DONE -- the G-code was rewritten

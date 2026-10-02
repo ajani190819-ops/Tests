@@ -287,17 +287,97 @@ with tempfile.TemporaryDirectory() as tmp:
           "settings_guide=false does not hide the guide")
     check(plugin.PLUGIN_VERSION in quiet.message,
           "hiding the guide also hid the diagnostics")
-    # The owner hit this: Orca saves a copy of the settings into the process
-    # preset, so settings added by a later version never appear in the panel.
-    # The diagnostics must explain that, and must survive settings_guide=false
+    # The owner hit this twice: a config saved by an older release keeps that
+    # release's settings, so `pattern`/`shape` never appeared in the panel.
+    # The diagnostics must explain it, and must survive settings_guide=false
     # -- it is the part you need precisely when the guide looks wrong.
     check("--- not seeing all the settings? ---" in quiet.message,
-          "the check must explain a stale saved config in the process preset")
+          "the check must explain a stale saved config")
     check(str(len(plugin._DEFAULTS)) in quiet.message,
           "the check must state how many settings this build has, so the "
           "user can compare it against what the panel shows")
-    check("Slicing Pipeline Plugin" in quiet.message,
-          "the stale-config explanation must say where to refresh it")
+    check("Restore defaults" in quiet.message,
+          "the stale-config explanation must give Orca's documented manual "
+          "fix (Config tab -> Restore defaults), not the preset recipe that "
+          "was based on the wrong storage model")
+    check("process preset" not in quiet.message.lower(),
+          "the check still blames the process preset; Orca stores capability "
+          "config globally in orca_plugins/config.json "
+          "(docs/ORCA-PLUGIN-FACTS.md, Capability configuration)")
+
+    # ----------------------------------------------------------------------
+    # 10b. a config saved by an older build gains this build's new settings
+    #      ("I can't see shape and pattern in Orca", 2026-10-02)
+    # ----------------------------------------------------------------------
+    # Exactly what 0.3.4 would have left behind: nine settings, no notes, and
+    # two of them changed by the user.
+    old_saved = {"enabled": True, "amplitude": "150%", "frequency": 2.5,
+                 "segment_mm": 1.0, "cell_mm": "auto", "blend_mm": 2.0,
+                 "full_strength": False, "require_relative_e": True,
+                 "log": True}
+    for cap_cls, label in ((orca.REGISTERED[0], "Unlayered Infill"),
+                           (orca.REGISTERED[1], "Unlayered Infill - Check setup")):
+        stale = cap_cls()
+        stale.set_config(dict(old_saved), version="0.3.4")
+        version, migrated = stale.migrate_config_if_needed()
+        check(version == "0.3.4",
+              "migrate_config_if_needed must report the version that saved it")
+        check(stale.saved_configs,
+              f"{label}: migration never called save_config, so the panel "
+              f"stays stale")
+        written = json.loads(stale.saved_configs[-1])
+        check(written["amplitude"] == "150%" and written["frequency"] == 2.5,
+              f"{label}: migration overwrote values the user had set")
+        check(migrated == written, "the returned config is not what was saved")
+    # The main capability is the one that must gain the 0.4.0 wave controls.
+    main = orca.REGISTERED[0]()
+    main.set_config(dict(old_saved), version="0.3.4")
+    main.migrate_config_if_needed()
+    panel_after = json.loads(main.get_config())
+    for key in ("pattern", "wave_angle", "shape", "layer_phase", "max_lift_mm"):
+        check(key in panel_after,
+              f"{key!r} is still missing from a migrated 0.3.4 config -- this "
+              f"is the exact bug the owner reported")
+        check("_" + key in panel_after,
+              f"the migrated config has no note explaining {key!r}")
+    check(plugin._cfg(main)["amplitude"] == "150%",
+          "the user's amplitude did not survive migration")
+
+    # Nothing saved yet: Orca already shows get_default_config(), so writing
+    # would be noise. A config that is already current must not be rewritten
+    # either -- save_config() on every slice would churn Orca's config file.
+    fresh = orca.REGISTERED[0]()
+    fresh.migrate_config_if_needed()
+    check(not fresh.saved_configs,
+          "migration wrote a config even though nothing was saved")
+    current = orca.REGISTERED[0]()
+    current.set_config(plugin.annotated_defaults(), version=plugin.PLUGIN_VERSION)
+    current.migrate_config_if_needed()
+    check(not current.saved_configs,
+          "migration rewrote an already-current config")
+
+    # A key we no longer recognise is kept, not silently deleted.
+    kept = orca.REGISTERED[0]()
+    kept.set_config(dict(old_saved, some_old_key=7), version="0.3.4")
+    kept.migrate_config_if_needed()
+    check(json.loads(kept.get_config()).get("some_old_key") == 7,
+          "migration threw away a setting the owner had typed")
+
+    # And it can never break a slice: Orca refusing the write, or the host
+    # handing back junk, must both be survivable.
+    refused = orca.REGISTERED[0]()
+    refused.set_config(dict(old_saved), version="0.3.4")
+    refused.save_ok = False
+    refused.migrate_config_if_needed()
+    g_mig = tmp / "cube_migrate.gcode"
+    g_mig.write_text(src, encoding="utf-8")
+    r = refused.execute(fake_orca.Context(fake_orca.Step.psGCodePostProcess,
+                                          str(g_mig)))
+    check(r.ok, "a refused config save must not fail the export")
+    broken = orca.REGISTERED[0]()
+    broken.set_config("{not json at all", version="0.3.4")
+    broken.migrate_config_if_needed()
+    check(True, "unreachable")  # reaching here at all is the assertion
 
     # The config panel must carry the same notes, so the JSON the owner edits
     # explains itself without opening a README.
@@ -399,8 +479,8 @@ with tempfile.TemporaryDirectory() as tmp:
               f"Wave capability identities changed: {names}")
         check(not any(ch.isdigit() for ch in "".join(names)),
               f"a version leaked into a capability name: {names}")
-        check(wave.PLUGIN_VERSION == "0.0.32",
-              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.32")
+        check(wave.PLUGIN_VERSION == "0.0.33",
+              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.33")
 
         # The active Wave implementation is deliberately G-code-only. Its
         # source must not retain the removed slice-object planner, host Polygon
@@ -455,6 +535,27 @@ with tempfile.TemporaryDirectory() as tmp:
 
         check(wave._cfg(_Stripped()) == wave._DEFAULTS,
               "deleting the notes must not change behaviour")
+
+        # --- a config saved by an older build gains this build's settings ---
+        # Same bug as Unlayered Infill: the Config panel shows the saved copy,
+        # so settings added later are invisible until they are merged in.
+        stale = orca.REGISTERED[0]()
+        stale.set_config({"enabled": True, "wall_snap": False}, version="0.0.19")
+        version, merged = stale.migrate_config_if_needed()
+        check(version == "0.0.19",
+              "Wave migration must report the version that saved the config")
+        check(stale.saved_configs, "Wave migration never called save_config")
+        after = json.loads(stale.get_config())
+        missing = sorted(k for k in wave._DEFAULTS if k not in after)
+        check(not missing, f"settings still missing after migration: {missing}")
+        check(after["wall_snap"] is False,
+              "Wave migration overwrote a value the user had set")
+        check(merged == after, "the returned config is not what was saved")
+        unchanged = orca.REGISTERED[0]()
+        unchanged.set_config(wave.annotated_defaults(), version=wave.PLUGIN_VERSION)
+        unchanged.migrate_config_if_needed()
+        check(not unchanged.saved_configs,
+              "Wave migration rewrote an already-current config")
         # The arc note is the one people go looking for; it must point at
         # Orca's own setting rather than leaving them hunting in the plugin.
         arc_note = panel["_arc_fitting"]
@@ -523,7 +624,7 @@ with tempfile.TemporaryDirectory() as tmp:
               "Diagnostics" in result.message,
               f"dependency failure does not give a complete beginner-safe fix: {result.message!r}")
         log = read_log(logs)
-        check("Wave Overhangs v0.0.32 loaded" in log and "MISSING" in log,
+        check("Wave Overhangs v0.0.33 loaded" in log and "MISSING" in log,
               f"Wave dependency state was not logged clearly:\n{log}")
         pipeline = orca.REGISTERED[0]()
         result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))

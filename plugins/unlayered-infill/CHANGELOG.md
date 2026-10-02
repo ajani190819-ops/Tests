@@ -6,7 +6,51 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.4.2 — 2026-10-02
+
+**The missing settings now repair themselves.** If `pattern`, `shape`,
+`wave_angle`, `layer_phase` or `max_lift_mm` are not in your Config panel,
+this release puts them there.
+
+0.4.1 told you the settings were missing and gave you a recipe that was based
+on a wrong idea of where OrcaSlicer keeps them. Both have been fixed.
+
+**What was actually going on.** OrcaSlicer stores each capability's settings
+in one global file, `orca_plugins/config.json`, and the Config tab shows you
+that saved copy. A copy written while you were on 0.3.4 has 0.3.4's nine
+settings in it, so the five added since never appear — even though the plugin
+is running them. (A preset can also hold its own override, which wins while it
+is there; the old advice about setting the preset to None and back was aimed
+at a storage model that does not exist.)
+
+**What this release does about it.** OrcaSlicer documents a migration hook for
+exactly this, and the plugin now implements it. When it finds a configuration
+written by an older build it merges this build's settings into it and saves it
+back:
+
+* every value you had set is kept, untouched;
+* settings this build added appear at their default;
+* the plain-English notes are refreshed to describe the code you are running;
+* anything it does not recognise is left in place rather than deleted.
+
+It happens when OrcaSlicer loads the plugin, and again on the first slice or
+the first **Check setup** run of a session, whichever comes first — so one
+slice is always enough. Reopen the Config tab afterwards.
+
+If it still looks short, **Check setup** now gives the correct manual fix:
+Plugins dialog → *Config* tab → **Restore defaults**, which deletes the saved
+copy so the panel falls back to this build's full defaults. The only thing you
+lose is your plugin settings.
+
+Nothing about slicing changed. Exports from 0.4.2 are identical to 0.4.1's.
+
 ## 0.4.1 — 2026-10-02
+
+> **Superseded by 0.4.2.** The explanation below — that Orca copies the
+> settings into your *process preset* — was wrong, and so was the None-and-back
+> recipe. The settings are stored globally in `orca_plugins/config.json`, and
+> a stale copy *can* be repaired in code, which is what 0.4.2 does.
+
 
 Explains why new settings can be missing from the Settings panel.
 
