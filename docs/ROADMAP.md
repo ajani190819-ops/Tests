@@ -2,8 +2,8 @@
 
 This document is the plan, not a release promise. There are **two** shipped
 plugins: Wave Overhangs **0.0.33** and Unlayered Infill **0.4.2**, with the
-unified updater **2.0.0** (`Orca-Plugins.bat`, one file), on the session test
-branch. Package and capability names remain permanently `Wave Overhangs` and
+unified updater **2.1.0** (`Orca-Plugins.bat`, the only .bat in the
+repository), on the session test branch. Package and capability names remain permanently `Wave Overhangs` and
 `Unlayered Infill`.
 
 Wave Overhangs Geometry was **archived on 2026-10-02** — see
@@ -64,7 +64,7 @@ and breaks them into stubs.
 
 | Work | Status |
 | --- | --- |
-| One-click updater and catalogue | **Unified 2.0.0**: `Orca-Plugins.bat` is now the whole updater — menu, build picker (main + five newest branches), OrcaSlicer folder picker, remembered choices, and the install engine in one file. Contract-tested. A plain run defaults to released `main`. Old filenames kept as forwarders, with markers that let every old on-disk copy hand over cleanly. |
+| One-click updater and catalogue | **Unified 2.1.0**: `Orca-Plugins.bat` is the whole updater — menu, build picker (main + five newest branches), OrcaSlicer folder picker, remembered choices, and the install engine in one file, and the only .bat in the repository. Contract-tested. A plain run defaults to released `main`. The old two filenames were removed at 2.1.0; old copies on disk keep working (an old launcher self-updates into the unified file). |
 | Branch chooser | Part of the unified menu (item 2). Selects, preflights all-or-nothing, and never borrows another build's files; a missing branch file fails closed. Windows behavior was previously verified for the chooser flow; rerun after future batch changes. |
 | Unlayered Infill | 0.4.2. Full control set preserved, plus the 0.4.0 wave-shaping controls (`pattern`, `wave_angle`, `shape`, `layer_phase`, `max_lift_mm`) and an in-Orca settings guide. Defaults reproduce 0.3.4 output exactly, pinned by `tests/test_unlayered_waves.py`. Not yet printed. |
 | Wave Overhangs | 0.0.33. Visible conforming waves were confirmed in the owner's real Orca export with 0.0.11. Z correction, endpoint cleanup, taper, and the new wall-bounded Wave area pass the captured real-export regression: ends along each wall lie on one line within 0.02 mm, and a synthetic overhang-with-hole export puts every hole end on one radius. |
@@ -164,19 +164,19 @@ to make an old preset look clean.
 
 ## Updater maintenance
 
-- Keep all three .bat files CRLF on every line and never let the updater
+- Keep `Orca-Plugins.bat` CRLF on every line and never let the updater
   overwrite itself while running.
 - Keep the catalogue and fallback plan synchronized. The updater reads fresh
   plugin files from its selected ref and stamps the installed version from the
   plugin header.
 - Directly running the updater with no branch configuration must remain the
   released-`main` behavior.
-- `Update-Orca-Plugins.bat` and `Choose-Orca-Plugin-Version.bat` are pure
-  forwarders. The updater-forwarder must keep its `rem UPDATER_VERSION`,
-  `set UPDATER_VERSION=` and `if defined PLUGIN_BRANCH set` marker lines and
-  its 2000+ byte size: copies of the old two-file updater and launcher verify
-  exactly those before handing a run over. `tests/test_installer.py` guards
-  this.
+- The repository ships exactly one top-level .bat: `Orca-Plugins.bat`. The
+  old `Update-Orca-Plugins.bat` and `Choose-Orca-Plugin-Version.bat`
+  filenames were removed at 2.1.0 at the owner's request; copies already on
+  disk keep working (an old launcher self-updates into the unified file).
+  Do not reintroduce them without the owner asking;
+  `tests/test_installer.py` guards this.
 - The chosen build is remembered only after its `plugins.json` downloads, so
   a dead branch name can never be persisted; the OrcaSlicer folder is chosen
   only after a test branch passes all-or-nothing preflight. Keep that order.

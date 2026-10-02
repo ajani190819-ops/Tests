@@ -3,10 +3,12 @@
 
     python3 test_installer.py
 
-Orca-Plugins.bat is the ONE file a user downloads: menu, build picker,
-OrcaSlicer folder picker, remembered choices, and install engine all live in
-it (the old chooser + updater + launcher split ended at 2.0.0). The other two
-.bat files are short forwarders kept so copies already on disk keep working.
+Orca-Plugins.bat is the ONE updater file in the repository: menu, build
+picker, OrcaSlicer folder picker, remembered choices, and install engine all
+live in it. The old two-file split (chooser + updater engine) ended at
+2.0.0, and at 2.1.0 the old filenames were removed from the repository
+entirely -- this test asserts Orca-Plugins.bat is the only top-level .bat
+left, so the repository shows exactly one updater file.
 
 The .bat is Windows-only, so this cannot run it. What it CAN do is check the
 things that actually break in practice, none of which need Windows:
@@ -41,9 +43,6 @@ REPO = HERE.parent
 MANIFEST = REPO / "plugins.json"
 # The one file: menu + build picker + folder picker + install engine.
 BAT = REPO / "Orca-Plugins.bat"
-# The old names, kept as forwarders so copies already on disk keep working.
-FORWARDER = REPO / "Update-Orca-Plugins.bat"
-CHOOSER = REPO / "Choose-Orca-Plugin-Version.bat"
 GATTR = REPO / ".gitattributes"
 
 failures: list[str] = []
@@ -386,9 +385,7 @@ def _static_bat_checks(path: pathlib.Path) -> None:
               f"once each and agree: set={_set_fv} rem={_rem_fv}")
 
 
-for _bat_path in (BAT, FORWARDER, CHOOSER):
-    if _bat_path.exists():
-        _static_bat_checks(_bat_path)
+_static_bat_checks(BAT)
 
 # --- the self-updater ------------------------------------------------------
 _bat_text = "\n".join(bat_lines)
@@ -537,12 +534,20 @@ if tool_dl:
           f"plugin staging folder. Use %TOOLDIR%.")
 
 # ---------------------------------------------------------------------------
-# 3e. the one file, and the two old names still working
+# 3e. the one file -- and ONLY the one file
 # ---------------------------------------------------------------------------
 # Orca-Plugins.bat is the single file a user downloads: the menu, the build
 # picker, the OrcaSlicer folder picker, the remembered choices and the whole
-# install engine live in it. The old engine filename stays reachable as a
-# forwarder so copies already on disk keep self-updating.
+# install engine live in it. At 2.1.0 the two old filenames were removed
+# from the repository (the owner asked for the repo to show exactly one
+# updater file), so pin that: no second top-level .bat may appear.
+_top_bats = sorted(q.name for q in REPO.glob("*.bat"))
+check(_top_bats == ["Orca-Plugins.bat"],
+      f"the repository should ship exactly one top-level .bat -- "
+      f"Orca-Plugins.bat -- but found {_top_bats}. The old chooser/updater "
+      f"filenames were retired at 2.1.0; copies already on disk keep working "
+      f"(an old launcher self-updates into Orca-Plugins.bat), so nothing "
+      f"needs them back.")
 
 # A normal double-click must stay on released main, and only an explicit
 # choice may move off it.
@@ -569,7 +574,7 @@ check('call :select_data_dir "" ask' in bat,
       "silently reusing the remembered folder")
 check('if defined PLUGIN_BRANCH ( set "CHOSEN=%REF_1%" & goto :install )' in bat,
       "PLUGIN_BRANCH must skip the menu and install from that ref directly -- "
-      "that is how the forwarders and the old two-file copies drive this one")
+      "that is how the old two-file copies on disk still drive this one")
 check('set "REF_1=%CHOSEN%"' in bat,
       "the build chosen in the menu must drive the install ref")
 
@@ -636,7 +641,7 @@ for marker in ('copy /y "%newbat%"', 'move /y "%newbat%"', '"%~f0"'):
 # never redirected. That shipped in front door 1.0.0 and was reported from a
 # real Windows run; nothing here could catch it, because cmd.exe cannot be
 # run in this sandbox. This walks each line the way cmd.exe does instead.
-for _bat_path in (BAT, FORWARDER, CHOOSER):
+for _bat_path in (BAT,):
     if not _bat_path.exists():
         continue
     for _n, _raw in enumerate(
@@ -665,7 +670,7 @@ for _bat_path in (BAT, FORWARDER, CHOOSER):
 
 # Every goto/call target must exist. cmd.exe cannot be run here, so a dead
 # label would otherwise only surface on the user's machine.
-for _bat_path in (BAT, FORWARDER, CHOOSER):
+for _bat_path in (BAT,):
     if not _bat_path.exists():
         continue
     _t = _bat_path.read_bytes().decode("ascii", "replace")
@@ -677,58 +682,6 @@ for _bat_path in (BAT, FORWARDER, CHOOSER):
           f"{_bat_path.name}: jumps to labels that do not exist: "
           f"{sorted(_jumps - _labels)}")
 
-# The old chooser filename must keep working as a pure forwarder.
-check(CHOOSER.exists(), "the old Choose-Orca-Plugin-Version.bat must stay as a forwarder")
-chooser_raw = CHOOSER.read_bytes() if CHOOSER.exists() else b""
-chooser = chooser_raw.decode("utf-8", "replace")
-check(chooser_raw.count(b"\r\n") == chooser_raw.count(b"\n") > 0,
-      "the forwarder .bat must use CRLF throughout")
-check(chooser_raw.endswith(b"\r\n"), "the forwarder .bat does not end with CRLF")
-check('call "%FRONTDOOR%" %*' in chooser,
-      "the chooser forwarder must hand the whole run, arguments and all, to the one file")
-check("/main/Orca-Plugins.bat" in chooser and
-      'findstr /b /c:"rem FRONTDOOR_VERSION " "%FRONTDOOR%"' in chooser,
-      "the chooser forwarder must fetch and verify Orca-Plugins.bat when it is not alongside")
-# It must not have kept a second copy of the install logic.
-check("plugins.json" not in chooser and ":install_one" not in chooser and
-      len(chooser_raw) < 4000,
-      "the chooser forwarder must not carry its own installer logic")
-
-# The old updater filename must keep working as a forwarder too, and it must
-# still satisfy the verification that copies of the OLD two-file updater and
-# launcher perform on this exact URL:
-#   * an old Update-Orca-Plugins.bat (<= 1.4.0) hands its run over to whatever
-#     newer version it finds at this URL, gated on `rem UPDATER_VERSION <v>
-#     end` and `set UPDATER_VERSION=` lines;
-#   * an old Orca-Plugins.bat launcher (<= 1.0.1) downloads this URL as its
-#     "engine" and refuses to run it unless it is >= 2000 bytes and contains
-#     `set UPDATER_VERSION=` and `if defined PLUGIN_BRANCH set`.
-# Strip any of those markers and every copy already on disk either strands on
-# an old version forever or stops with "NOTHING WAS INSTALLED".
-check(FORWARDER.exists(), "the old Update-Orca-Plugins.bat must stay as a forwarder")
-fwd_raw = FORWARDER.read_bytes() if FORWARDER.exists() else b""
-fwd = fwd_raw.decode("utf-8", "replace")
-check(fwd_raw.count(b"\r\n") == fwd_raw.count(b"\n") > 0,
-      "the Update-Orca-Plugins.bat forwarder must use CRLF throughout")
-check(fwd_raw.endswith(b"\r\n"), "the forwarder does not end with CRLF")
-check('call "%FRONTDOOR%" %*' in fwd,
-      "the forwarder must hand the whole run, arguments and all, to the one file")
-check("raw.githubusercontent.com/%REPO%/%FWD_REF%/Orca-Plugins.bat" in fwd and
-      'findstr /b /c:"rem FRONTDOOR_VERSION " "%FRONTDOOR%"' in fwd,
-      "the forwarder must fetch and verify Orca-Plugins.bat when it is not alongside")
-check('if defined PLUGIN_BRANCH set "FWD_REF=%PLUGIN_BRANCH%"' in fwd,
-      "the forwarder must fetch the build an old launcher asked for via "
-      "PLUGIN_BRANCH, never silently main")
-check(len(fwd_raw) >= 2000,
-      "the forwarder is smaller than the 2000-byte floor old launchers check")
-_f_uv = re.search(r"(?m)^rem UPDATER_VERSION (\S+) end\r?$", fwd)
-check(_f_uv is not None and _fv_rem is not None and _f_uv.group(1) == _fv_rem.group(1),
-      "the forwarder's UPDATER_VERSION must equal Orca-Plugins.bat's version: "
-      "an old updater hands its run to this file, so it must describe the "
-      "same release it forwards to")
-check("plugins.json" not in fwd and ":install_one" not in fwd and
-      len(fwd_raw) < 4000,
-      "the forwarder must not carry its own installer logic")
 
 
 # The old bug was REF_1 -> REF_2(main) fallback for both manifests and plugin

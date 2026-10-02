@@ -22,6 +22,35 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-02 — updater 2.1.0: only one .bat left in the repository
+
+> "All three iterations of the updater are still visible from the main
+> page... can we just actually only show the one that we're using now that
+> they're unified and then we can get rid of the old ones?"
+
+Done. `Update-Orca-Plugins.bat` and `Choose-Orca-Plugin-Version.bat` —
+forwarders since 2.0.0 — are **deleted**. The repository now shows exactly
+one updater file: `Orca-Plugins.bat`, which contains the menu, the build
+picker, the OrcaSlicer folder picker, the remembered choices, the install
+engine and self-update. `tests/test_installer.py` now **fails if a second
+top-level .bat ever appears**, so the one-file state is a pinned contract.
+
+**What happens to old copies already on disk** — checked before deleting:
+
+* an old `Orca-Plugins.bat` launcher (≤ 1.0.1) self-updates straight into
+  the unified file on its next run; that URL is unchanged;
+* an old `Update-Orca-Plugins.bat` still installs the latest plugins from
+  `main` exactly as before — its self-update check 404s and skips
+  harmlessly. It is frozen, not broken; swap it for `Orca-Plugins.bat`
+  when convenient;
+* an old `Choose-Orca-Plugin-Version.bat` forwarder fetches
+  `Orca-Plugins.bat` from `main`, which exists — it keeps working.
+
+Older test branches still carry their own copies of the old files; that is
+expected and harmless (branch isolation means nothing borrows from them).
+
+---
+
 ## 2026-10-02 — updater 2.0.1: testing from a branch, without merging
 
 > "Can we do this without merging since the updater is able to pull from

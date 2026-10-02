@@ -72,22 +72,27 @@ exists and hands over to it, so you only ever download it by hand once. It
 never overwrites itself while running, so a failed download can't leave you
 without a working launcher.
 
-### The other two .bat files — you don't need them
+### What happened to the old .bat files?
 
-They are kept so nothing already on your disk breaks. Both are now short
-**forwarders**: they find or fetch `Orca-Plugins.bat` and hand the whole run
-over to it, arguments and all. There is nothing to maintain in either one.
+Up to updater 2.0.x the repository also carried `Update-Orca-Plugins.bat`
+(the old install engine) and `Choose-Orca-Plugin-Version.bat` (the old
+version picker) as forwarders. From **updater 2.1.0 they are gone**: the
+repository shows exactly one updater file, `Orca-Plugins.bat`, which does
+all of it.
 
-* **`Update-Orca-Plugins.bat`** — used to be the install engine; from
-  updater 2.0.0 the engine lives inside `Orca-Plugins.bat`. The old name
-  keeps working on purpose: copies people already downloaded check that
-  exact URL for their own updates, and renaming it would strand them on an
-  old version with no warning. It also still carries the marker strings the
-  old two-file copies verify before running a download, so an old updater
-  (≤ 1.4.0) hands its run over cleanly, and an old launcher (≤ 1.0.1) still
-  accepts it as its engine.
-* **`Choose-Orca-Plugin-Version.bat`** — the old version picker, already a
-  forwarder. Picking a version is item 2 on the unified menu.
+A copy of an old file still sitting in your Downloads folder is not
+stranded:
+
+* an old **`Orca-Plugins.bat` launcher** (≤ 1.0.1) self-updates straight
+  into the unified file on its next run — that URL is unchanged;
+* an old **`Update-Orca-Plugins.bat`** still installs the latest plugins
+  from `main` exactly as it always did — it just never updates itself
+  again, so swap it for `Orca-Plugins.bat` when convenient;
+* an old **`Choose-Orca-Plugin-Version.bat`** forwarder fetches
+  `Orca-Plugins.bat` from `main`, which exists — it keeps working too.
+
+You never need any of them: downloading `Orca-Plugins.bat` once is the
+whole setup.
 
 `Orca-Plugins.bat` fetches `plugins.json` and the plugin files from the
 chosen ref of this repo and copies them into Orca's data folder
@@ -377,9 +382,7 @@ above applies rather than claiming success.
 
 | Path | What it is |
 | --- | --- |
-| `Orca-Plugins.bat` | **the one file you download.** The menu, the build picker, the OrcaSlicer folder picker, the remembered choices and the whole install engine — one file since updater 2.0.0 |
-| `Update-Orca-Plugins.bat` | a short forwarder to `Orca-Plugins.bat`. Keeps its name on purpose — copies already on disk check that exact URL for updates, and the forwarder carries the markers they verify |
-| `Choose-Orca-Plugin-Version.bat` | a short forwarder, so old shortcuts keep working |
+| `Orca-Plugins.bat` | **the one file you download, and the only updater .bat in the repository.** The menu, the build picker, the OrcaSlicer folder picker, the remembered choices and the whole install engine — one file since updater 2.0.0; the old two filenames were removed at 2.1.0 |
 | `plugins/` | **the two plugins that ship.** One entry `.py` per folder, each with its own README and changelog |
 | `plugins.json` | the catalogue the launcher reads |
 | `tools/` | the standalone post-processing tool, plus the sync/check scripts |

@@ -10,11 +10,16 @@ rem  Double-click it and press Enter. It installs or updates every OrcaSlicer
 rem  plugin in this repo into Orca's own plugin folder.
 rem
 rem  It used to be three files -- a chooser, an updater engine and a launcher.
-rem  From 2.0.0 they are one. This file holds the menu, the build picker
-rem  (released main or one of the five newest test branches), the OrcaSlicer
-rem  folder picker, the remembered choices, and the full install engine
-rem  underneath. The two old filenames still exist in the repository as short
-rem  forwarders so copies already on disk keep working; nothing needs them.
+rem  From 2.0.0 they are one, and from 2.1.0 the old two filenames are gone
+rem  from the repository entirely, so this is the only updater file. It holds
+rem  the menu, the build picker (released main or one of the five newest test
+rem  branches), the OrcaSlicer folder picker, the remembered choices, and the
+rem  full install engine underneath.
+rem
+rem  Copies of the old files already on disk are not stranded: an old
+rem  Orca-Plugins.bat launcher self-updates straight into this file, and an
+rem  old Update-Orca-Plugins.bat keeps installing from main exactly as it
+rem  always did -- it simply never updates itself again.
 rem
 rem  It remembers the two things you would otherwise retype every time: which
 rem  build you want -- released or a test branch -- and which OrcaSlicer data
@@ -62,12 +67,12 @@ rem ===========================================================================
 rem This file's own version. The launcher and the engine used to be two files
 rem with two version numbers; they are one file now, so there is one version.
 rem The four lines below are the machine-readable copies :self_update and the
-rem old two-file updaters compare against; tests/test_installer.py keeps all
-rem four equal. Never bump one without the others.
-rem FRONTDOOR_VERSION 2.0.1 end
-set "FRONTDOOR_VERSION=2.0.1"
-rem UPDATER_VERSION 2.0.1 end
-set UPDATER_VERSION=2.0.1
+rem old two-file launcher compares against; tests/test_installer.py keeps
+rem all four equal. Never bump one without the others.
+rem FRONTDOOR_VERSION 2.1.0 end
+set "FRONTDOOR_VERSION=2.1.0"
+rem UPDATER_VERSION 2.1.0 end
+set UPDATER_VERSION=2.1.0
 
 set "REPO=ajani190819-ops/Tests"
 set "MANIFEST_PATH=plugins.json"
