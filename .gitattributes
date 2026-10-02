@@ -5,3 +5,9 @@
 # download it straight from raw.githubusercontent.com, where `* text=auto`
 # would serve it LF-only. -text stores it verbatim.
 *.bat -text
+
+# Archived evidence: real exports, models and logs straight off the owner's
+# machine. They are kept so measurements can be re-checked, so they must stay
+# byte-for-byte as they arrived -- `* text=auto` silently rewrote one of them
+# from CRLF to LF, which changes every line of the file.
+archive/test-prints/** -text

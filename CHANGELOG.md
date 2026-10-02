@@ -24,6 +24,16 @@ real OrcaSlicer was involved.
 
 ## 2026-10-02 — Wave Overhangs 0.0.31: the micro-move pile-up around holes
 
+**Also fixed, caught while committing:** `* text=auto` in `.gitattributes`
+had silently rewritten `archive/test-prints/Cube_39m10s.gcode` from CRLF to
+LF — all 91,355 lines of it — when the file was re-added during a sandbox
+rollback. These are evidence files kept so measurements can be re-checked, so
+they must stay byte-for-byte as they arrived off the owner's machine. The file
+was restored from the owner's original upload commit and verified
+byte-identical, and `archive/test-prints/** -text` now stops git normalizing
+anything in that folder. `tests/fixtures/` is deliberately left on
+`text=auto`, and the `.bat` rule is unchanged.
+
 Owner report: *"around the whole there an absurd number of extremely tiny
 moves ... randomly you have an absurd number of lines just to do a tiny chunk
 of curve next to the hole"*.
