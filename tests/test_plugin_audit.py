@@ -103,8 +103,6 @@ PLUGINS = [
      "unlayered_infill_orca"),
     (REPO / "plugins" / "wave-overhangs" / "wave_overhangs_orca.py",
      "wave_overhangs_orca"),
-    (REPO / "plugins" / "wave-overhangs-geometry" /
-     "wave_overhangs_geometry_orca.py", "wave_overhangs_geometry_orca"),
 ]
 
 with tempfile.TemporaryDirectory() as tmp:

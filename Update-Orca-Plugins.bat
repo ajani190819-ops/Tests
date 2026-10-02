@@ -176,9 +176,7 @@ echo       -- the worker and "... - Check setup".
 echo    3. To use one, pick it under Others ^> Slicing Pipeline Plugin.
 echo    4. Unlayered Infill needs "Use relative E distances" enabled.
 echo.
-echo  IMPORTANT -- the two Wave plugins use different pipeline stages:
-echo    * Wave Overhangs Geometry edits fill surfaces and is intended to
-echo      appear in the normal preview. It is experimental and fail-closed.
+echo  IMPORTANT -- what you will and will not see in the preview:
 echo    * Wave Overhangs edits exported Bridge G-code after slicing. Its
 echo      changes do NOT appear in the normal preview; export and reopen the file.
 echo    * Post-processing runs on Export G-code file, not Print or Send.
@@ -402,9 +400,8 @@ rem  writes, and this way it lands on a field nothing reads.
 rem ---------------------------------------------------------------------------
 :fallback_plan
 echo   Using the fallback plan built into this file.
->  "%PLAN_FILE%" echo wave-overhangs-geometry^|Wave Overhangs Geometry^|0.1.4^|WaveOverhangsGeometry^|wave_overhangs_geometry_orca.py^|plugins/wave-overhangs-geometry/wave_overhangs_geometry_orca.py^|Wave Overhangs Geometry^|Wave Overhangs Geometry - Check setup^|end
->> "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.27^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Settings guide & check^|end
->> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.3.4^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
+>  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.27^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Settings guide & check^|end
+>> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.4.0^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
 exit /b 0
 
 rem ---------------------------------------------------------------------------

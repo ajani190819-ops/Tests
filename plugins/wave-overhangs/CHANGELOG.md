@@ -11,6 +11,16 @@ physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
 
+**2026-10-02 — there are now two plugins, not three.** The experimental
+`Wave Overhangs Geometry` plugin was archived to `archive/` and is no longer
+installed, offered by the launcher, or listed in the catalogue. It was a
+separate prototype that tried to change Orca's geometry mid-slice so waves
+would show in the normal preview; it never completed a verified real slice or
+print. **This plugin — Wave Overhangs — is unchanged and is still the one to
+use**, and it is still at 0.0.27. If the launcher previously installed
+Geometry for you, it will simply stop offering it; remove it from your process
+preset if you had selected it.
+
 ## 0.0.27 — 2026-10-01
 
 One file to run, and the settings explain themselves inside OrcaSlicer.

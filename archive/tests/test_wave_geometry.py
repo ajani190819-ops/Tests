@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Geometry-stage Wave prototype regression.
 
-Run with the plugin dependencies available:
-  PYTHONPATH=/tmp/wavedeps python3 tests/test_wave_geometry.py
+This plugin is ARCHIVED (see archive/README.md). The test is kept so the
+archived prototype can still be checked if it is ever revived:
+  PYTHONPATH=/tmp/wavedeps python3 archive/tests/test_wave_geometry.py
 
 This is deliberately a host-independent geometry test. It proves the new
 plugin's Wave fronts and preview ribbons are safe around a hole; only a real
@@ -21,12 +22,12 @@ except ImportError:
     print("SKIP -- test_wave_geometry needs shapely")
     raise SystemExit(0)
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tests"))
 import fake_orca  # noqa: E402
 
 fake_orca.install()
-path = ROOT / "plugins/wave-overhangs-geometry/wave_overhangs_geometry_orca.py"
+path = ROOT / "archive/wave-overhangs-geometry/wave_overhangs_geometry_orca.py"
 spec = importlib.util.spec_from_file_location("wave_overhangs_geometry", path)
 wave = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = wave

@@ -4,26 +4,30 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-01, Wave export-hang session (0.0.25).
+* **Last updated:** 2026-10-02, archive + Unlayered Infill 0.4.0 session.
 * **Repository:** `ajani190819-ops/Tests`, public.
-* **Session branch:** `arena/01a0f908-tests`. Never switch branches or push to
-  `main`.
+* **Session branch:** `arena/01a0fb0f-tests`. Never switch branches or push to
+  `main`. (The branch is different every session — use the one you were
+  handed, not this one.)
 * **Latest code state:** Wave Overhangs 0.0.25 measures the overhang against
   the layer's real wall moves, so Wave ends land on the wall and hole
   perimeters instead of the castellated bridge-line edge. It can read and
   write G2/G3 arc moves but **no longer does so by default**, and the whole
   G-code pass now runs under a 30-second `time_budget` that returns the file
-  untouched rather than ever stalling an export; Geometry 0.1.4 remains an
-  experimental alternate.
-* **Current versions:** Wave Overhangs 0.0.25, Wave Overhangs Geometry 0.1.4,
-  Unlayered Infill 0.3.4, updater 1.4.0.
-* **Permanent identities:** `Wave Overhangs`, `Wave Overhangs Geometry`, and
-  `Unlayered Infill`. Release numbers must remain out of package and capability
-  names.
+  untouched rather than ever stalling an export.
+* **There are now TWO shipped plugins, not three.** Wave Overhangs Geometry
+  was archived on 2026-10-02 at the owner's request; see `archive/README.md`.
+  It is out of `plugins.json`, the launcher's fallback plan,
+  `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
+  the owner asks.
+* **Current versions:** Wave Overhangs 0.0.27, Unlayered Infill 0.4.0,
+  updater 1.4.0.
+* **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
+  numbers must remain out of package and capability names.
 
 ## One-minute orientation
 
-This repository contains three experimental OrcaSlicer pipeline plugins, a
+This repository contains two experimental OrcaSlicer pipeline plugins, a
 Windows updater, a strict branch chooser, standalone Unlayered Infill tooling,
 reference documentation, and tests.
 
@@ -36,8 +40,9 @@ Important locations:
   branch from `main`.
 - `plugins.json` — catalogue and version source used by the updater.
 - `plugins/wave-overhangs/` — exported-G-code Wave plugin and its release notes.
-- `plugins/wave-overhangs-geometry/` — separate preview-visible
-  `posPrepareInfill` Wave fill-surface prototype and notes.
+- `archive/` — not shipped. Holds the archived Wave Overhangs Geometry
+  prototype, its tests, and a README saying why it was archived and how to
+  revive it.
 - `plugins/unlayered-infill/` — Unlayered plugin, standalone tool, and notes.
 - `tests/fixtures/` — the supplied `Cube^2.STL` and captured
   `Cube^2_3m53s.gcode` real-export fixture.
@@ -202,11 +207,15 @@ or a printer.
 
 ## What remains to do
 
-1. Install this branch with the chooser and confirm all three plugin versions
-   in Orca's separate Version column.
-2. Run a fresh current-Orca slice with `Wave Overhangs Geometry` selected and
-   confirm the edited ribbons appear as bridge fill in the normal preview while
-   the original overhang perimeter remains intact.
+1. Install this branch with the launcher and confirm both plugin versions in
+   Orca's separate Version column: Wave Overhangs 0.0.27, Unlayered Infill
+   0.4.0.
+2. **Try the new Unlayered Infill wave controls on a real slice.** The most
+   valuable single test: print the same part twice, once with
+   `pattern = "linear"` (the old behaviour) and once with `pattern = "cross"`,
+   and break both. Nothing here has been printed. Also worth checking that
+   `shape = "square"` does not cause audible Z chatter at the ramps on the
+   owner's machine — it is the shape most likely to.
 3. Re-print the same part with 0.0.22 and photograph the same corner: the
    0.22 mm^2 void should be gone. `Cube_39m10s.gcode` in the repo root is the
    0.0.20 print it is being compared against.
@@ -224,6 +233,60 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-02 — Archived the Geometry prototype; Unlayered Infill 0.4.0
+
+**Asked for:** "add changelogs for my plugins". On investigation all three
+plugins already had one, so the ambiguity was put back to the owner, who
+answered: archive Wave Overhangs Geometry, keep Wave Overhangs and Unlayered
+Infill, make the changelogs visible inside Orca, and add features to Unlayered
+Infill.
+
+**Archived Wave Overhangs Geometry** to `archive/wave-overhangs-geometry/`
+with its README, changelog and regression test (moved to
+`archive/tests/test_wave_geometry.py`, paths fixed, still passing). Removed
+from `plugins.json`, the hardcoded fallback plan in `Update-Orca-Plugins.bat`,
+`tools/sync_changelog.py`, `tests/test_plugin_audit.py` and
+`tests/test_plugin_runtime.py`. **Watch out:** the first fallback row in the
+.bat uses `>` and the rest `>>`, so deleting the first row meant promoting the
+next one — otherwise the plan file would have been appended to a stale one.
+The .bat was edited in binary and the CRLF count asserted before and after
+(705 to 702 lines, exactly the three removed).
+
+**Unlayered Infill 0.4.0** added five wave-shaping controls to the engine:
+`pattern` (`linear`/`cross`), `wave_angle`, `shape`
+(`sine`/`triangle`/`square`), `layer_phase` and `max_lift_mm`. The motivating
+defect is real and worth remembering: the old displacement was
+`sin(frequency x)`, varying along X alone, so **an infill line running along Y
+was lifted to a single constant height and keyed into nothing**. On 0/90
+infill that is half the infill doing no work. `cross` averages its two axes
+rather than summing them, deliberately, so the unit wave stays within [-1, 1]
+and `amplitude`/`max_lift_mm` keep meaning millimetres. `square` is a
+saturated sine, never a true square — a vertical Z step is not printable.
+
+**Changelog visibility.** Both plugins print their recent changelog from their
+check capability; Unlayered Infill additionally gained the settings guide that
+Wave Overhangs got in 0.0.27 — notes interleaved into the JSON config panel
+plus the full guide printed by Check setup, with a `settings_guide` toggle.
+One honest difference from Wave's version: Orca only lets a capability read
+its **own** config, so the guide prints the defaults and says so, rather than
+printing a default and labelling it the user's value.
+
+**New test:** `tests/test_unlayered_waves.py`. Its most important assertion is
+that the 0.4.0 defaults produce byte-identical G-code to the pre-change
+engine, proved by diffing real generated output rather than by reading the
+defaults. It also pins the premise (the old wave really is flat along a
+Y-running line), that no pattern or shape exceeds the requested amplitude,
+that `square` never steps hard enough to be unprintable, and idempotence with
+all five controls on. Note for the next session: comparing waves *between
+layers* must be done on the **sign** of the displacement, not its size — the
+taper legitimately scales each layer and column differently, and comparing
+heights produces false failures.
+
+**Verified here:** all repo tests plus the two new ones; engine and changelog
+sync `--check`; CRLF intact; end-to-end standalone run on the real
+`Cube^2_3m53s.gcode` fixture conserving total extrusion to 0.000000 mm and
+idempotent on a second pass. **Not verified:** no real OrcaSlicer, no print.
 
 ### 2026-10-01 — Export hang identified as OrcaSlicer #7433 (0.0.25)
 

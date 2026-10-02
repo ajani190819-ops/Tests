@@ -6,6 +6,63 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.4.0 — 2026-10-02
+
+Five new controls that decide the SHAPE of the wave, not just its size.
+**Nothing changes unless you change a setting**: every new control defaults to
+exactly what 0.3.4 did, and the test suite checks that by comparing real
+G-code, not by reading the defaults.
+
+* **The wave can now run in both directions at once (`pattern`).** Until now
+  the infill rode `sin(frequency x)` — a ripple that varies along X and only
+  along X. That has a hole in it. An infill line running along Y crosses no
+  ripple at all: every point on it has the same X, so the whole line is
+  lifted to one height and set down flat. It keys into nothing. With the
+  usual 45-degree infill you lose a little; with 0/90-degree infill, half
+  your infill was doing no interlocking work. Set `pattern` to `cross` and
+  the wave becomes an egg-crate rippling along both axes, so a line running
+  in ANY direction still rises and falls.
+
+* **`wave_angle` aims the ripples.** Degrees, counter-clockwise, 0 being
+  along X — the old behaviour. Turn them across your infill lines so every
+  line crosses them. If you print 45-degree infill, try 45.
+
+* **`shape` changes the profile: `sine`, `triangle` or `square`.** Triangle
+  has straight flanks and sharp peaks, so layers key together harder for the
+  same height. Square keeps most of the infill at full offset with short
+  ramps between crests. Square is a SATURATED sine, never a vertical step:
+  no printer can move Z instantly, so a true square wave would just be a
+  skipped step and a scar. All three share their zero crossings and peak
+  positions, so swapping between them changes the character of the wave
+  without moving it.
+
+* **`layer_phase` stops every layer being a copy of the one below.** At 0 —
+  the old behaviour — each layer puts its crest at the same place, so the
+  part ends up with a column of crests stacked on top of each other. Give it
+  a small advance per layer and the crests walk sideways as the part grows,
+  which is the thing that actually braids layers together. 180 puts each
+  crest directly over the trough beneath it; 360 is a full turn and does
+  nothing.
+
+* **`max_lift_mm` is a hard ceiling on the Z movement.** In millimetres,
+  whatever amplitude and taper work out to; 0 means no ceiling. This is a
+  safety net. The default amplitude is a SHARE OF LAYER HEIGHT, so raising
+  layer height or amplitude without thinking can drive the nozzle up into
+  material it has already printed. Set this and it cannot, and the run
+  report tells you how many segments it caught.
+
+* **Every setting now explains itself inside OrcaSlicer.** The config panel
+  carries a plain-English note above each setting, and **Unlayered Infill -
+  Check setup** prints the full guide after the usual diagnostics — what each
+  control does, in words, wrapped to fit Orca's message box. Set
+  `settings_guide` to false on that item once you know them. OrcaSlicer only
+  lets an item read its own settings, so the guide shows the defaults and
+  says so, rather than printing a default and calling it your value.
+
+* The standalone tool gained the matching `--pattern`, `--angle`, `--shape`,
+  `--layer-phase` and `--max-lift` options, and its report now names the wave
+  it used.
+
 ## 0.3.4 — 2026-09-30
 
 * **The permanent package name is now simply `Unlayered Infill`.** Release

@@ -32,8 +32,8 @@ Run `Update-Orca-Plugins.bat` (repo root). It lands here:
    step actually fired.
 
 The plugin appears as *Unlayered Infill* in the Plugins dialog. Its separate
-Version column currently reads **0.3.4**, and exported G-code is stamped with
-`; unlayered-infill v0.3.4`. The package and capability names stay version-free
+Version column currently reads **0.4.0**, and exported G-code is stamped with
+`; unlayered-infill v0.4.0`. The package and capability names stay version-free
 so an update never orphans your process preset.
 
 ## Configuration
@@ -41,16 +41,80 @@ so an update never orphans your process preset.
 | Key | Default | Notes |
 | --- | --- | --- |
 | amplitude | `"200%"` | **a share of the layer height**: 200% of a 0.3 mm layer is 0.6 mm. Also accepts `2x` and plain mm (`0.6`). Because it is relative, it keeps meaning when you change layer height. |
-| frequency | 1.5 | ripples per mm along X |
+| frequency | 1.5 | ripples per mm |
 | segment_mm | 1.0 | move subdivision length |
 | cell_mm | `"auto"` | width of the solid-skin grid columns. `auto` = **one column per nozzle diameter**, read from the G-code. A number forces a fixed size. |
 | blend_mm | 2.0 | smooths the taper across neighbouring columns |
 | full_strength | false | classic taper peaks at 0.5; this reaches 1.0 mid-span |
+| pattern | `"linear"` | `linear` ripples along one direction only; `cross` is an egg-crate rippling along **both**, so an infill line running in any direction still rises and falls |
+| wave_angle | 0.0 | degrees to turn the ripples, counter-clockwise, 0 = along X. Aim them across your infill lines |
+| shape | `"sine"` | `sine`, `triangle` (straight flanks, sharper peaks) or `square` (flat crests, short ramps — a saturated sine, never a Z step) |
+| layer_phase | 0.0 | degrees of extra phase per waved layer, so crests walk sideways instead of stacking. 180 puts a crest over the trough below; 360 is a full turn and does nothing |
+| max_lift_mm | 0.0 | hard ceiling on the Z displacement in mm, whatever amplitude and taper work out to. 0 = no ceiling |
 | require_relative_e | true | refuse M82 rather than corrupt it |
 | log | true | append a readable record of every run to the plugin-storage `orca-plugins.log` |
 
 Set these per process preset via the plugin's config in Orca. Defaults are
 used when you set nothing.
+
+### Which direction does the wave run? (new in 0.4.0)
+
+This is the setting most worth understanding. Up to 0.3.4 the displacement was
+always `sin(frequency × X)` — a ripple that varies along X, and **only** along
+X. Picture a washboard whose ridges all run north-south.
+
+Now picture an infill line running north-south too, straight along one ridge.
+Every point on that line has the same X, so it gets the same displacement: the
+whole line is lifted to one height and set down flat. It is not waved at all,
+and it keys into nothing above or below it.
+
+With the usual 45°/135° alternating infill, every line crosses the ridges at an
+angle and the cost is small. With 0°/90° infill, half your infill lines run
+along the ridges and do no interlocking work whatsoever.
+
+Three ways to deal with it:
+
+* **`pattern = "cross"`** — the wave becomes an egg-crate rippling along both
+  axes at once. A line running in any direction crosses bumps. This is the
+  simplest fix and the one to reach for first.
+* **`wave_angle`** — keep the single-direction ripple but turn it so your
+  infill lines cross it. For 45° infill, `wave_angle = 45`.
+* Change the infill angle in Orca so it is not parallel to the ripples.
+
+`cross` averages its two axes rather than adding them, so the displacement
+still never exceeds the amplitude you asked for.
+
+### Which shape, and why there is no true square wave
+
+`sine` is smooth. `triangle` has straight flanks and sharp peaks, so for the
+same peak height the layers key together harder. `square` holds most of the
+infill at full offset with short ramps between crests.
+
+`square` is a **saturated sine**, not a real square wave — the crests are flat
+but the transitions are ramps. A true square wave would ask the nozzle to
+change Z instantly, which no printer can do: you would get a skipped step, a
+layer shift, or a gouge. All three shapes share their zero crossings and peak
+positions, so switching between them changes the character of the wave without
+moving it.
+
+### Why advance the phase each layer
+
+At `layer_phase = 0` every layer puts its crest at the same XY, so the part
+ends up with a column of crests stacked on top of one another. That still
+interlocks — the taper makes each layer's wave a different size — but the
+weakness runs in a line. A small advance per layer walks the crests sideways as
+the part grows, which is what actually braids the layers. 180° puts each crest
+directly over the trough below it. 360° is a full turn and changes nothing.
+
+### Why there is a Z ceiling
+
+`amplitude` defaults to a *share of layer height*, which is what makes it keep
+meaning when you change layer height — but it also means the absolute movement
+grows when you do. `max_lift_mm` is a hard ceiling in millimetres applied after
+the amplitude and taper are worked out, so the nozzle cannot be driven up into
+material it has already printed. 0 means no ceiling. The run report says how
+many segments it caught, so you can tell the difference between "the ceiling is
+protecting me" and "the ceiling is flattening my wave".
 
 ### Why amplitude is a percentage
 
@@ -81,8 +145,8 @@ pointing it outside plugin storage can reintroduce approval prompts. Set
 `"log": false` to turn it off. A run looks like this:
 
 ```
-2026-09-30 21:14:02  Unlayered Infill v0.3.4 loaded (engine ok)
-2026-09-30 21:14:19  Unlayered Infill v0.3.4: EXPORT STEP RUNNING
+2026-10-02 21:14:02  Unlayered Infill v0.4.0 loaded (engine ok)
+2026-10-02 21:14:19  Unlayered Infill v0.4.0: EXPORT STEP RUNNING
                        file         : C:\Users\you\AppData\Local\Temp\x.gcode
                        settings     : amplitude='200%' frequency=1.5 cell_mm='auto'
 2026-09-30 21:14:20  Unlayered Infill: DONE -- the G-code was rewritten

@@ -6,7 +6,10 @@ OrcaSlicer will do differently:
 
 * [`plugins/unlayered-infill/CHANGELOG.md`](plugins/unlayered-infill/CHANGELOG.md)
 * [`plugins/wave-overhangs/CHANGELOG.md`](plugins/wave-overhangs/CHANGELOG.md)
-* [`plugins/wave-overhangs-geometry/CHANGELOG.md`](plugins/wave-overhangs-geometry/CHANGELOG.md)
+
+The archived Wave Overhangs Geometry prototype keeps its own history at
+[`archive/wave-overhangs-geometry/CHANGELOG.md`](archive/wave-overhangs-geometry/CHANGELOG.md);
+it is no longer shipped. See [`archive/README.md`](archive/README.md).
 
 This file covers the repository as a whole: the updater, the tests, the
 documentation and the handoff notes as well as the plugins. It is part of the
@@ -16,6 +19,67 @@ stand.
 
 Dates are the day the work was done. "Not verified" means exactly that: no
 real OrcaSlicer was involved.
+
+---
+
+## 2026-10-02 — Two plugins instead of three, and a wave with a shape
+
+**Unlayered Infill:** 0.4.0. **Archived:** Wave Overhangs Geometry 0.1.4.
+**Wave Overhangs:** unchanged at 0.0.27.
+
+*Three plugins was one too many.* `Wave Overhangs Geometry` was always a
+prototype: a second Wave plugin that edited Orca's geometry mid-slice, at
+`posPrepareInfill`, so the waves would appear in the normal 3D preview rather
+than only in a reopened export. It never completed a verified real-Orca slice,
+never mind a physical print, and Orca's current bindings expose existing
+extrusion paths read-only, so it could only hand Orca bridge-tagged fill
+surfaces and hope. Meanwhile it cost a version bump, a test, a catalogue row, a
+fallback row in the .bat and a paragraph of explanation in every document,
+every single release.
+
+It now lives in `archive/`, with its README, its changelog and its regression
+test, which still passes from its new home. `archive/README.md` says why it was
+archived, what was unfinished, and the exact steps to bring it back. The
+catalogue, the launcher's hardcoded fallback plan, `tools/sync_changelog.py`
+and the two plugin tests no longer mention it. Removing the fallback row meant
+promoting the next row from `>>` to `>`, since the first row is the one that
+creates the plan file — the kind of detail that only bites on a machine with no
+network, which is exactly when the fallback is used.
+
+*The wave got a shape.* Unlayered Infill rode `sin(frequency x)` and nothing
+else, which quietly did half a job: a ripple that varies along X alone leaves
+an infill line running along Y at one constant height for its whole length.
+Lifted, not waved; it keys into nothing. On 0/90-degree infill that is half the
+infill doing no work.
+
+0.4.0 adds five controls. `pattern=cross` makes the wave an egg-crate that
+ripples along both axes, so a line in any direction still rises and falls.
+`wave_angle` aims the ripples across the infill direction. `shape` picks sine,
+triangle (straight flanks, sharper keying) or square — a saturated sine with
+flat crests, never a vertical Z step, because a printer cannot move Z
+instantly. `layer_phase` advances the wave a little each layer so crests walk
+sideways instead of stacking into a column. `max_lift_mm` is a hard ceiling in
+millimetres on the Z movement, which matters because the amplitude default is a
+share of layer height and will happily grow when you change layer height.
+
+Every one of them defaults to the old behaviour, and
+`tests/test_unlayered_waves.py` proves it by diffing real generated G-code
+rather than by reading the defaults — an upgrade must not change anyone's
+output. The same test pins the premise (the old wave really is flat along a
+Y-running line), that every shape stays inside the requested amplitude, that
+the square shape never steps hard enough to be unprintable, and that the export
+is still idempotent with all five controls on at once.
+
+*And the settings explain themselves.* Unlayered Infill now does what Wave
+Overhangs got in 0.0.27: a plain-English note above every setting in the config
+panel, and the full guide printed by **Unlayered Infill - Check setup**, with a
+`settings_guide` toggle to silence it. One honest difference from Wave's
+version — Orca only lets a capability read its own config, so the guide prints
+the defaults and says plainly that it cannot see what you changed on the main
+item, instead of printing a default and calling it your value.
+
+Not verified: no real OrcaSlicer ran here, and no part was printed. The new
+wave shapes are geometry that has been tested as G-code, not as plastic.
 
 ---
 
