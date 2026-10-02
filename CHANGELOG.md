@@ -19,6 +19,52 @@ real OrcaSlicer was involved.
 
 ---
 
+## 2026-10-01 — The export hang is an OrcaSlicer bug (#7433)
+
+**Wave Overhangs:** 0.0.25.
+
+The owner narrowed it down: the failed export only happens when **Arc fitting**
+is on in OrcaSlicer. With the `auto` default that 0.0.21-0.0.23 shipped, that
+is precisely when Wave wrote G2/G3 into the finished file.
+
+That matches a known, unfixed OrcaSlicer bug:
+[issue #7433](https://github.com/OrcaSlicer/OrcaSlicer/issues/7433), "Post
+processing script results in corrupted gcode / crash when previewing model".
+Opened November 2024 against Orca 2.2.0, reproduced by the reporter in nightly
+in July 2025, and confirmed still present in 2.3.2 in January 2026. The
+reporter's trigger was ArcWelder, a post-processor that does exactly what Wave
+was doing: replacing straight moves with arcs. Orca crashes or renders corrupt
+G-code when it re-reads post-processed output containing arcs.
+
+So the 0.0.24 default (arcs off) is the fix, and it stays. **Check setup** now
+prints the arc setting and, when arcs are on, warns with the issue number. The
+plugin README carries the same warning.
+
+The arcs Wave emits were audited and are not the problem: 118 arcs across every
+fixture and the owner's export, radii 0.78-12.1 mm, sweeps 11-149 degrees, no
+major arcs, no near-full circles, no chord longer than the diameter, no
+reversed directions, all with positive extrusion.
+
+Auditing that output did turn up a real defect, fixed here: the emitter decided
+whether to write a move from the *unrounded* step length but wrote coordinates
+to three decimals, so sub-micron steps became moves whose X/Y matched the
+previous line exactly -- dead lines, usually `E0.00000` too. The owner's export
+contained 542. The emitter now tracks the position it has actually written and
+rolls any skipped extrusion into the next real move; Wave moves in that export
+fall from 2,006 to 1,910 with no material lost. Arc I/J offsets are now
+measured from the last written coordinate rather than the unrounded point,
+improving worst-case arc radius consistency to 0.0013 mm.
+
+Tests: a direct emitter test drives a front built from sub-micron steps and
+asserts no written move repeats the previous coordinate, with the skipped
+material accounted for. It was verified to fail when the fix is removed -- the
+whole-file fixtures do not contain sub-micron steps, so a file-level assertion
+alone would have been vacuous.
+
+Not verified in real OrcaSlicer.
+
+---
+
 ## 2026-10-01 — Wave can no longer hang an export
 
 **Wave Overhangs:** 0.0.24.

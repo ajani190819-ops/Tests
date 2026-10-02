@@ -4,18 +4,18 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-01, Wave export-hang session (0.0.24).
+* **Last updated:** 2026-10-01, Wave export-hang session (0.0.25).
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0f908-tests`. Never switch branches or push to
   `main`.
-* **Latest code state:** Wave Overhangs 0.0.24 measures the overhang against
+* **Latest code state:** Wave Overhangs 0.0.25 measures the overhang against
   the layer's real wall moves, so Wave ends land on the wall and hole
   perimeters instead of the castellated bridge-line edge. It can read and
   write G2/G3 arc moves but **no longer does so by default**, and the whole
   G-code pass now runs under a 30-second `time_budget` that returns the file
   untouched rather than ever stalling an export; Geometry 0.1.4 remains an
   experimental alternate.
-* **Current versions:** Wave Overhangs 0.0.24, Wave Overhangs Geometry 0.1.4,
+* **Current versions:** Wave Overhangs 0.0.25, Wave Overhangs Geometry 0.1.4,
   Unlayered Infill 0.3.4, updater 1.4.0.
 * **Permanent identities:** `Wave Overhangs`, `Wave Overhangs Geometry`, and
   `Unlayered Infill`. Release numbers must remain out of package and capability
@@ -53,7 +53,7 @@ Important locations:
 
 ## Current implementation
 
-### Wave Overhangs 0.0.24
+### Wave Overhangs 0.0.25
 
 The active implementation is one transactional G-code pass at
 `psGCodePostProcess`:
@@ -224,6 +224,47 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-01 — Export hang identified as OrcaSlicer #7433 (0.0.25)
+
+**Cause found.** The owner reported the failed export only happens when **Arc
+fitting** is on in OrcaSlicer. With the `auto` default of 0.0.21-0.0.23, that
+is exactly when Wave wrote G2/G3 into the finished file.
+
+This is [OrcaSlicer issue #7433](https://github.com/OrcaSlicer/OrcaSlicer/issues/7433),
+"Post processing script results in corrupted gcode / crash when previewing
+model": opened Nov 2024 against 2.2.0, still reproducing in 2.3.2 nightly as of
+Jan 2026, closed only by the stale bot. The reporter's trigger was ArcWelder,
+which like Wave replaces straight moves with arcs. **Orca cannot reliably
+re-read post-processed G-code containing arcs.** This is not fixable from
+inside the plugin.
+
+Resolution: `arc_fitting` stays `false` by default (set in 0.0.24). Check setup
+prints the setting and warns with the issue number when it is on; both READMEs
+carry the warning.
+
+Wave's arcs were audited and exonerated: 118 arcs across all fixtures plus the
+owner's export, radii 0.78-12.1 mm, sweeps 11-149 degrees, zero major arcs,
+zero near-full circles, zero chords longer than the diameter, zero reversed
+directions, all with positive E.
+
+**Separate real defect found and fixed during that audit:** the emitter decided
+whether to write a move from the unrounded step length while writing
+coordinates to three decimals, so sub-micron steps became moves whose X/Y
+repeated the previous line -- dead lines, mostly `E0.00000`. The owner's export
+had 542. `_emit_wave_gcode` now keeps `emitted`/`pending` cells, skips a move
+whose rounded coordinate is unchanged, and rolls its extrusion into the next
+real move. Arc I/J are now measured from the last written coordinate instead of
+the unrounded point (worst-case radius inconsistency 0.0013 mm). Owner's export:
+2,006 -> 1,910 Wave moves, material conserved.
+
+Test note: a file-level "no no-op moves" assertion is **vacuous** -- the Cube^2
+fixture contains no sub-micron steps and passes with the fix removed. The real
+guard drives `_emit_wave_gcode` directly with a hand-built hairline front and
+was verified to fail when the dedup is reverted.
+
+**Still open:** no fresh real-Orca export or physical print has been done on
+0.0.24/0.0.25. The owner should confirm an export now completes with arcs off.
 
 ### 2026-10-01 — Export hang (0.0.24)
 

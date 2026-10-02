@@ -751,6 +751,86 @@ assert stats["geometry_layers"] == len(interesting)
 again, second = wave._gcode_wave_rewrite(out, cfg)
 assert again == out and second["already_processed"], "second pass must be a no-op"
 
+# --- no move may be written that does nothing (0.0.25) ---
+# Coordinates go out with three decimals. Guarding on the unrounded step
+# length meant sub-micron samples were written as moves whose X/Y rounded to
+# the previous line's, producing literal no-ops -- 542 of them in the owner's
+# real export. Every emitted G1 must change the written position, and the
+# extrusion of any skipped step must survive in the next real move.
+def noop_moves_in(text):
+    noops = 0
+    for block in wave_blocks_of(text):
+        px = py = None
+        for line in block.splitlines():
+            words = wave._gwords(line)
+            if line.startswith("G0") and "X" in words:
+                px, py = round(words["X"], 3), round(words["Y"], 3)
+            elif line.startswith("G1") and "X" in words:
+                here = (round(words["X"], 3), round(words["Y"], 3))
+                if (px, py) == here:
+                    noops += 1
+                px, py = here
+            elif line.startswith(("G2 ", "G3 ")):
+                px, py = round(words["X"], 3), round(words["Y"], 3)
+    return noops
+
+
+def wave_extrusion_in(text):
+    total = 0.0
+    for block in wave_blocks_of(text):
+        for line in block.splitlines():
+            if line.startswith(("G1 X", "G2 ", "G3 ")):
+                total += wave._gwords(line).get("E", 0.0)
+    return total
+
+
+for label, candidate in (("default", out),
+                         ("arcs", arc_out),
+                         ("hole", hole_out),
+                         ("wedge", wedge_filled)):
+    assert noop_moves_in(candidate) == 0, (
+        label, noop_moves_in(candidate), "wrote a move that goes nowhere")
+
+# Dropping those steps must not quietly drop their material either. A
+# taper-segmented export is the case that produced them, so check the total
+# extrusion is still what the geometry asks for.
+# Drive the emitter directly with a front that contains sub-micron steps --
+# the shape that produced 542 dead lines in the owner's real export. The
+# whole-file fixtures happen not to contain any, so without this the check
+# above would pass even with the fix removed.
+hairline = [(100.0, 100.0)]
+for step in (0.0002, 0.0003, 0.0001, 0.0004):      # all round to X100.000
+    hairline.append((hairline[-1][0] + step, 100.0))
+for step in (0.4, 0.4, 0.4):                        # then real movement
+    hairline.append((hairline[-1][0] + step, 100.0))
+for step in (0.0002, 0.0002):                       # and a dead tail
+    hairline.append((hairline[-1][0] + step, 100.0))
+
+swcfg = wave._wave_config(dict(wave._DEFAULTS), 0.3)
+emitted = wave._emit_wave_gcode([hairline], 1.5, swcfg, dict(wave._DEFAULTS))
+body = [l for l in emitted if l.startswith("G1 X")]
+assert body, emitted
+seen = (100.0, 100.0)
+for line in body:
+    words = wave._gwords(line)
+    here = (round(words["X"], 3), round(words["Y"], 3))
+    assert here != seen, f"emitter wrote a move that goes nowhere: {line}"
+    seen = here
+# Nine samples collapse to four written moves: the three real 0.4 mm steps,
+# plus one for the four hairline steps, which together come to exactly
+# 0.001 mm and so do legitimately cross the three-decimal threshold. The
+# 0.0004 mm tail never does, and is correctly never written.
+assert len(body) == 4, (len(body), body)
+assert len(hairline) == 10, len(hairline)
+
+# The material from the skipped hairline steps has to survive, rolled into
+# the next real move rather than silently dropped.
+span = hairline[-1][0] - hairline[0][0]
+written = sum(wave._gwords(l).get("E", 0.0) for l in body)
+# the dead 0.0004 mm tail legitimately extrudes nothing, so allow for it
+expected = (span - 0.0004) * swcfg.e_per_mm()
+assert abs(written - expected) < expected * 0.01, (written, expected)
+
 # --- the time budget: Wave must never be able to hang an export (0.0.24) ---
 # A wall-clock ceiling is the backstop for every slow path we have not
 # measured, including any we introduce later. When it fires the file must

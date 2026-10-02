@@ -6,10 +6,49 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.24 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.25 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+## 0.0.25 — 2026-10-01
+
+The export hang is an OrcaSlicer bug, and this version stops Wave from
+triggering it. The owner confirmed the failure only happens when **Arc
+fitting** is switched on in OrcaSlicer — which, with 0.0.21–0.0.23's `auto`
+default, is exactly when Wave wrote G2/G3 arcs into the finished file.
+
+* **This is OrcaSlicer issue #7433**, "Post processing script results in
+  corrupted gcode / crash when previewing model", opened in November 2024
+  against Orca 2.2.0 and still reproducing in 2.3.2 nightly as of January
+  2026. The reporter triggered it with ArcWelder, a post-processor that does
+  the same thing Wave was doing: replacing straight moves with arcs. Orca
+  crashes or shows corrupt G-code when it re-reads post-processed output
+  containing arcs. Nothing in the plugin can fix that, so the plugin stops
+  provoking it: `arc_fitting` shipped as `false` from 0.0.24 and stays that
+  way. **Check setup** now prints the arc setting and warns, with the issue
+  number, if arcs have been switched back on.
+* The arcs themselves were audited and are not malformed. Across all test
+  fixtures and the owner's own export: 118 arcs, radii 0.78–12.1 mm, sweeps
+  11–149 degrees, no major arcs, no near-full circles, no impossible chords,
+  no reversed directions, every one carrying positive extrusion. The problem
+  is on Orca's side of the handover, not in the geometry.
+
+Separately, a real defect found while auditing that output:
+
+* **542 dead moves removed from the owner's export.** Coordinates are written
+  to three decimals, but the emitter decided whether to write a move using
+  the unrounded step length. Steps shorter than a micron were therefore
+  written out as moves whose X/Y rounded to the same values as the line
+  before — literal no-ops, most of them `E0.00000` as well. Their export
+  carried 542 of them. The emitter now tracks the position it has actually
+  written and rolls any skipped step's extrusion into the next real move, so
+  the dead lines disappear without losing material. Wave moves in that export
+  drop from 2,006 to 1,910 (1,464 plus 74 arcs with arcs on).
+* Arc `I`/`J` offsets are now measured from the last coordinate actually
+  written rather than from the unrounded geometric point, which could sit
+  half a micron away. Worst-case arc radius inconsistency in the owner's
+  export improves to 0.0013 mm.
 
 ## 0.0.24 — 2026-10-01
 
