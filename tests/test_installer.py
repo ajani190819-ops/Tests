@@ -552,9 +552,15 @@ check("$commitUri=[string]$b.commit.url" in front or "([string]$b.commit.url)" i
 
 # Self-update, same shape as the engine's: fetch, verify, hand over, never
 # rewrite the running file.
-check("rem FRONTDOOR_VERSION 1.0.0 end" in front and
-      'set "FRONTDOOR_VERSION=1.0.0"' in front,
-      "the front door's two version markers must agree")
+# `front` keeps its CRLF line endings, so allow the \r before $.
+_fv_rem = re.search(r"(?m)^rem FRONTDOOR_VERSION (\S+) end\r?$", front)
+_fv_set = re.search(r'(?m)^set "FRONTDOOR_VERSION=([^"]+)"\r?$', front)
+check(_fv_rem and _fv_set and _fv_rem.group(1) == _fv_set.group(1),
+      "the front door's two version markers must agree: "
+      f"rem says {_fv_rem.group(1) if _fv_rem else 'MISSING'}, "
+      f"set says {_fv_set.group(1) if _fv_set else 'MISSING'}. A copy already "
+      "on disk compares the rem marker to decide whether to hand over, so "
+      "both must move together or a fix never reaches anyone.")
 check('call :download "https://raw.githubusercontent.com/%REPO%/%REMEMBERED%/Orca-Plugins.bat"'
       in front,
       "the front door must self-update from the build the user actually chose")
@@ -568,6 +574,48 @@ _front_lower = front.lower()
 for marker in ('copy /y "%newbat%"', 'move /y "%newbat%"', '"%~f0"'):
     check(marker not in _front_lower,
           f"the front door must never overwrite itself while running ({marker})")
+
+# A redirection must not be swallowed by an unclosed quote.
+#
+# cmd.exe decides what is a redirection and what is plain text by toggling a
+# quoting flag on EVERY `"` it meets. It does not understand `\"` as an
+# escape. So `findstr /c:"set \"NAME=" "%F%" >nul 2>nul` holds five quotes,
+# leaves cmd inside a quoted string at the end of the line, and hands `>nul`
+# and `2>nul` to findstr as filenames. The user sees:
+#
+#     FINDSTR: Cannot open >nul
+#     FINDSTR: Cannot open 2>nul
+#
+# ...plus the matched line printed to the screen, because the output was
+# never redirected. That shipped in front door 1.0.0 and was reported from a
+# real Windows run; nothing here could catch it, because cmd.exe cannot be
+# run in this sandbox. This walks each line the way cmd.exe does instead.
+for _bat_path in (FRONTDOOR, CHOOSER, BAT):
+    if not _bat_path.exists():
+        continue
+    for _n, _raw in enumerate(
+            _bat_path.read_bytes().split(b"\r\n"), 1):
+        _line = _raw.decode("utf-8", "replace")
+        _stripped = _line.strip()
+        if not _stripped or _stripped.lower().startswith("rem") \
+                or _stripped.startswith("::"):
+            continue
+        _inside = False
+        _bad = False
+        for _k, _ch in enumerate(_line):
+            if _ch == '"':
+                _inside = not _inside
+            elif _inside and _ch in "<>|" and _line[_k - 1:_k] != "^":
+                # A redirection or pipe character inside quotes is only
+                # legitimate when it is genuinely part of a string being
+                # echoed or set; those do not end in `>nul`-style plumbing.
+                if re.search(r"[<>|]\s*(nul|&\d|\d>)", _line[_k:], re.I):
+                    _bad = True
+        check(not _bad,
+              f"{_bat_path.name}:{_n}: a redirection is inside an unclosed "
+              f"quote, so cmd.exe will pass it as an argument instead of "
+              f"redirecting. Count the quotes -- cmd toggles on every one and "
+              f'does not honour \\" as an escape:\n    {_stripped}')
 
 # Every goto/call target must exist. cmd.exe cannot be run here, so a dead
 # label would otherwise only surface on the user's machine.

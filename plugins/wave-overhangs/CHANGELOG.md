@@ -6,10 +6,196 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 **This plugin is still experimental and has not completed a verified physical
 print.** The owner confirmed that 0.0.11 produced visible, perimeter-conforming
-waves in a reopened real Orca export; 0.0.27 still needs a fresh export and
+waves in a reopened real Orca export; 0.0.28 still needs a fresh export and
 physical print. Treat every version here as a work in progress.
 
 Dates are the day the change was made, not a release date.
+
+**2026-10-02 — there are now two plugins, not three.** The experimental
+`Wave Overhangs Geometry` plugin was archived to `archive/` and is no longer
+installed, offered by the launcher, or listed in the catalogue. It was a
+separate prototype that tried to change Orca's geometry mid-slice so waves
+would show in the normal preview; it never completed a verified real slice or
+print. **This plugin — Wave Overhangs — is unchanged and is still the one to
+use**, and that archival did not change it (it was 0.0.27 at the time).
+If the launcher previously installed
+Geometry for you, it will simply stop offering it; remove it from your process
+preset if you had selected it.
+
+## 0.0.32 — 2026-10-02
+
+Same stale-settings explanation as Unlayered Infill 0.4.1.
+
+Wave Overhangs has gained a lot of settings since 0.0.11, so it is wide open
+to the same trap: OrcaSlicer saves a copy of a plugin's settings into your
+process preset the first time you select it, and keeps showing that saved copy
+afterwards. Settings added by later versions are missing from it, which looks
+like the update did not install.
+
+**Check setup** now prints how many settings the installed build has, plus the
+three steps that refresh the saved copy (set the Slicing Pipeline Plugin to
+None, back to Wave Overhangs, save the preset). No behaviour change: not one
+line of exported G-code differs from 0.0.31.
+
+## 0.0.31 — 2026-10-02
+
+The thousands of pointless micro-moves around holes are gone.
+
+* **Fronts that wrap a hole no longer keep every raster point.** The owner
+  spotted this: *"randomly you have an absurd number of lines just to do a
+  tiny chunk of curve next to the hole"*. They were right, and it was bad —
+  on their part **60.7% of every wave move was under 0.1 mm long, and all of
+  those together carried 0.9% of the distance printed.** The median wave move
+  was 0.015 mm. Fifteen microns. Thousands of G-code lines doing nothing.
+
+  Two separate causes, both fixed:
+
+  1. **A self-defeating safety guard.** Before simplifying a wave path the
+     plugin checks it has not cut a corner into a hole, allowing it to stray
+     by a small margin. That margin was computed as `tolerance * 0.4`. When
+     the first simplification attempt was rejected the code retried with a
+     *smaller* tolerance to be gentler — but that shrank the margin by the
+     same factor, so the guard got stricter at exactly the moment it needed
+     to relax. A front hugging a hole failed all three attempts and fell back
+     to keeping every single point. The margin is now a fixed allowance of
+     0.02 mm — a twentieth of a line width — and no longer moves with the
+     tolerance.
+  2. **Nothing removed points piled on top of each other.** The simplifier
+     keeps a point whenever it sits far from the straight line between its
+     neighbours, which at a sharp cusp — precisely what a wavefront forms
+     where it wraps a hole — means keeping two points microns apart. Points
+     closer together than 0.02 mm are now merged, and a front that still
+     cannot be simplified at all is thinned this way instead of being left
+     raw.
+
+* **Nothing about the shape changed.** This only removes points that were
+  not describing anything. On the test export the wave path is **513.5 mm
+  before and 513.5 mm after**, while the move count drops from 508 to 439 and
+  sub-0.1 mm moves fall from 91 to 22. With `wall_snap` off the drop is
+  larger: 739 moves to 455. Every existing check that waves stay out of holes
+  still passes, and the thinning is re-tested against that same hole guard
+  before it is accepted.
+
+* **What you should notice.** A much smaller G-code file, and less chance of
+  your printer stuttering. Thousands of micro-moves can arrive faster than a
+  printer's motion planner can process them, which makes it pause and jerk
+  through a curve regardless of the speed you set. The distance printed is
+  identical, so this does not change the time estimate by itself.
+
+  The owner's part had 60.7% tiny moves against the test fixture's 17.9%,
+  because it has holes and the fixture barely does, so the improvement there
+  should be considerably bigger than the fixture numbers above. That part is
+  a projection — the measured figures are the fixture ones.
+
+## 0.0.30 — 2026-10-02
+
+Waves now print at your bridge speed by default, like any other bridge.
+
+* **`print_speed` now defaults to `"orca"`.** In 0.0.29 this was something you
+  had to opt into; the owner asked for it to simply be the behaviour. Set your
+  bridge speed in OrcaSlicer (Print Settings > Speed) and the waves use it,
+  the same as every other bridge on the part. Change it later and the waves
+  follow — the plugin reads it out of the exported G-code each time, section
+  by section, so nothing is baked in and nothing needs copying across.
+
+  Put a number in `print_speed` to override it, in mm/s. If a section has no
+  readable feedrate the plugin still falls back to 2 mm/s rather than guessing.
+
+  With the owner's bridge speed of 10 mm/s, their part is predicted to go from
+  **1h44m to about 24 minutes**:
+
+  | bridge speed | predicted total |
+  |---|---|
+  | 0.0.27, as actually printed | 103.9 min |
+  | 2 mm/s (the old default) | 71.5 min |
+  | 5 mm/s | 36.2 min |
+  | **10 mm/s (the owner's setting)** | **24.5 min** |
+  | 20 mm/s | 18.6 min |
+
+* **If your overhang droops, slow the bridge speed down.** Now that waves
+  follow your profile, this is the dial, and it is worth knowing why a wave
+  may need to be slower than a normal bridge: a bridge is anchored at *both*
+  ends, so tension holds the strand up while it cools, but a wave line is
+  cantilevered into open air and held at one end only. Nothing stops it
+  sagging except cooling fast enough to hold its own shape. If you see droop
+  or stringing, put a number in `print_speed` — try 5, or 2 for a bad
+  overhang — rather than slowing your whole profile down.
+
+  These timings are arithmetic on the G-code. No physical print has been run.
+
+## 0.0.29 — 2026-10-02
+
+`print_speed` can now follow the bridge speed in your own Orca profile.
+
+* **Set `print_speed` to `"orca"` and wave lines use your bridge speed.**
+  Requested by the owner: 2 mm/s is the single biggest cost in a wave print,
+  and your Orca profile already states a bridge speed, so having to copy the
+  number across by hand was silly. With `"orca"` the plugin reads the feedrate
+  off the very bridge moves it is replacing, section by section, straight out
+  of the exported G-code. It therefore follows whatever your profile says
+  without the plugin needing to know anything about your printer. `"bridge"`
+  and `"auto"` do the same thing. Anything that is not a number and not one of
+  those words falls back to the safe 2 mm/s default rather than failing.
+
+  Resolution is **per bridge section**, not one value for the file. A part can
+  genuinely have Bridge and Internal Bridge at different speeds, and the test
+  fixture does: its sections come out at `F1200` and `F420` and each wave
+  block follows the section it replaced.
+
+* **Read this before using it — it is a big jump, and it can ruin a print.**
+  On the owner's part the measured effect is:
+
+  | setting | predicted total |
+  |---|---|
+  | 0.0.27 (with the feedrate bug) | 103.9 min |
+  | 0.0.28 (bug fixed, `print_speed` 2.0) | 71.5 min |
+  | `print_speed = 5` | 36.2 min |
+  | `print_speed = 8` | 27.4 min |
+  | `print_speed = "orca"` (their bridge speed, 20 mm/s) | 18.6 min |
+
+  That is a **ten times** speed increase over the default. The catch is that
+  Orca's bridge speed is tuned for a *bridge*, which is anchored at both ends
+  so tension holds the strand up while it cools. A wave line is **cantilevered
+  into open air, held at one end only** — nothing stops it drooping except
+  cooling fast enough to hold its own shape. The two are not the same job, so
+  your bridge speed is not automatically a safe wave speed.
+
+  The default is unchanged at 2.0 and will stay that way. If you want the time
+  back, the honest advice is to walk up: try 5, look at the overhang, then 8,
+  then try `"orca"`. Those numbers are predictions from move-by-move
+  arithmetic on the G-code, not from a physical print.
+
+## 0.0.28 — 2026-10-02
+
+A third of the print time was being wasted. This fixes it, and costs nothing
+in print quality.
+
+* **Moves after a wave block were crawling at the wave speed.** This is the
+  big one. In G-code a speed is "modal": once you set one it stays in force
+  until something changes it. The plugin printed its waves at `print_speed`,
+  which is deliberately very slow (2 mm/s by default, so `F120`), and then
+  handed control back **without putting the speed back**. It also wrote the
+  moves that replace covered bridge extrusions with no speed of their own.
+  So those moves inherited 2 mm/s and took minutes instead of seconds.
+
+  Measured on the owner's own export (`test print_19m50s.gcode`): **373
+  moves covering 3.95 m that should have taken 30 seconds took 32.9
+  minutes.** That is **32 minutes of a 106 minute print — 31% of it** — on
+  travel moves. OrcaSlicer reported it in the preview legend as 36m49s of
+  "Travel" at an average of 5.8 mm/s, which is what first looked wrong.
+
+  Every move the plugin writes now states its own feedrate, and the original
+  speed is handed back before your untouched moves resume. Nothing about the
+  wave toolpaths themselves changed — the plastic that comes out is
+  identical, it just stops wasting time getting there. For the same reason
+  this is a pure win: there is no quality trade-off to weigh up.
+
+* **A note on what this does *not* fix.** The wave lines themselves are still
+  printed at `print_speed`, and on the owner's part that is 58.8 minutes, the
+  majority of the remaining time. That slowness is deliberate — it is what
+  lets each line cool and hold its shape in mid-air, and raising it is the
+  most likely cause of droop. If you want to spend that time, raise
+  `print_speed` gradually and test; the plugin will not do it for you.
 
 ## 0.0.27 — 2026-10-01
 

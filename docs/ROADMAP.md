@@ -1,10 +1,14 @@
 # Roadmap — OrcaSlicer plugin lane
 
-This document is the plan, not a release promise. Current versions are Wave
-Overhangs **0.0.23**, Wave Overhangs Geometry **0.1.4**, Unlayered Infill
-**0.3.4**, and updater **1.4.0** on the
-session test branch. Package and capability names remain permanently:
-`Wave Overhangs`, `Wave Overhangs Geometry`, and `Unlayered Infill`.
+This document is the plan, not a release promise. There are **two** shipped
+plugins: Wave Overhangs **0.0.32** and Unlayered Infill **0.4.1**, with
+updater **1.4.0**, on the session test branch. Package and capability names
+remain permanently `Wave Overhangs` and `Unlayered Infill`.
+
+Wave Overhangs Geometry was **archived on 2026-10-02** — see
+[`archive/README.md`](../archive/README.md). It is not installed, not in the
+catalogue, and not in the launcher. Do not add it back to a plan without the
+owner asking for it.
 
 ## Finish `wake_blend` (wave rejoining behind a hole)
 
@@ -61,9 +65,9 @@ and breaks them into stubs.
 | --- | --- |
 | One-click updater and catalogue | Built; contract-tested. Direct updater defaults to released `main`. |
 | Branch chooser | Built; selects, downloads, validates, and runs the updater from exactly the selected branch. Missing branch files fail closed. Windows behavior was previously verified for the chooser flow; rerun after future batch changes. |
-| Unlayered Infill | 0.3.4. Full 0.3.0 control set preserved, including percentage amplitude, frequency, segment length, nozzle-width grid, blending, and full-strength controls. Restore defaults handles stale Orca configuration. |
+| Unlayered Infill | 0.4.1. Full control set preserved, plus the 0.4.0 wave-shaping controls (`pattern`, `wave_angle`, `shape`, `layer_phase`, `max_lift_mm`) and an in-Orca settings guide. Defaults reproduce 0.3.4 output exactly, pinned by `tests/test_unlayered_waves.py`. Not yet printed. |
 | Wave Overhangs | 0.0.23. Visible conforming waves were confirmed in the owner's real Orca export with 0.0.11. Z correction, endpoint cleanup, taper, and the new wall-bounded Wave area pass the captured real-export regression: ends along each wall lie on one line within 0.02 mm, and a synthetic overhang-with-hole export puts every hole end on one radius. |
-| Wave Overhangs Geometry | 0.1.4. Separate experimental `posPrepareInfill` fill-surface prototype. It now leaves Orca's original perimeter in place and replaces unsupported prepared fill with bridge-classified Wave ribbons from support outward, to avoid the dark-blue overhang-wall-island preview problem. Physical output and final ordering remain unverified. |
+| Wave Overhangs Geometry | **Archived 2026-10-02** to `archive/`. Never completed a verified real-Orca slice or print. `archive/README.md` has the revival steps. |
 | Repository organization | This pass groups reference PDFs and real fixtures, removes the runtime log from source control, and reconciles the documentation. |
 | Physical print | The owner printed a part with 0.0.20 and photographed the first layer. That photograph is what drove 0.0.22. A print with 0.0.22 itself is still required. |
 
@@ -123,27 +127,14 @@ No standalone Wave post-processing script is currently shipped. Do not claim
 that it is installed or tested; the standalone form can be considered later
 only if the owner asks for it.
 
-## Wave Overhangs Geometry — experimental prototype
+## Wave Overhangs Geometry — archived
 
-`plugins/wave-overhangs-geometry/` is a separate plugin so the proven
-post-processing Wave path remains available. Version 0.1.4 runs at
-`posPrepareInfill`, reads prepared `LayerRegion.fill_surfaces`, generates
-obstacle-aware Wave fronts, removes tiny clipped preview crumbs, and replaces
-reachable unsupported fill with `stBottomBridge` Wave ribbons. It deliberately
-leaves `LayerRegion.slices` alone so Orca keeps the original overhang perimeter
-instead of generating wall loops around each Wave ribbon.
-
-Current Orca bindings expose existing `ExtrusionPath` objects read-only. The
-prototype therefore creates bridge-tagged fill surfaces rather than injecting
-raw extrusion paths. It orders those bridge surfaces from the supported edge
-outward, but Orca still owns the final bridge/perimeter path order. It must not
-be described as a direct toolpath injector until Orca exposes a writable
-extrusion collection or the exported G-code is post-processed.
-
-A real current-Orca slice is required to verify preview visibility, fill-surface
-lifetime, bridge classification, perimeter preservation, and the resulting
-physical toolpath. The synthetic regression only proves hole-safe Wave geometry
-and fail-closed behavior.
+Moved to `archive/wave-overhangs-geometry/` on 2026-10-02 with its README,
+changelog and still-passing regression test. It was an unverified prototype
+and carrying it taxed every release. `archive/README.md` records what was
+unfinished — chiefly that Orca's bindings expose existing `ExtrusionPath`
+objects read-only, so it could only hand Orca bridge-tagged fill surfaces and
+never controlled the final path order — and the exact steps to bring it back.
 
 ## Unlayered Infill — maintenance plan
 
@@ -156,7 +147,16 @@ Unlayered has two front ends sharing one engine:
 
 Edit the standalone engine, run `python3 tools/sync_engine.py`, and run
 `--check`. Keep relative-E refusal, idempotence, input-preserving defaults,
-no-prompt plugin-storage logging, and the complete control set. The owner's preserved Orca
+no-prompt plugin-storage logging, and the complete control set.
+
+0.4.0 added `pattern`, `wave_angle`, `shape`, `layer_phase` and
+`max_lift_mm`. Two rules for them. **Every one defaults to the pre-0.4.0
+behaviour**, and `tests/test_unlayered_waves.py` enforces that by diffing
+generated G-code rather than by reading the defaults — an update must never
+change output for someone who changed no settings. **The unit wave stays
+inside [-1, 1]** whatever the pattern and shape, so `amplitude` and
+`max_lift_mm` keep meaning millimetres; `cross` averages its two axes for
+exactly this reason rather than adding them. The owner's preserved Orca
 configuration can be cleared with **Restore defaults**; never remove controls
 to make an old preset look clean.
 
@@ -219,7 +219,9 @@ python3 tests/test_installer.py
 python3 tests/test_post_script.py
 python3 tests/test_plugin_runtime.py
 python3 tests/test_plugin_audit.py
+python3 tests/test_unlayered_waves.py
 PYTHONPATH=/tmp/wavedeps python3 tests/test_wave_gcode.py
+PYTHONPATH=/tmp/wavedeps python3 archive/tests/test_wave_geometry.py  # archived
 python3 tools/sync_engine.py --check
 python3 tools/sync_changelog.py --check
 python3 -m py_compile plugins/wave-overhangs/wave_overhangs_orca.py

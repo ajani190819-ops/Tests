@@ -205,7 +205,9 @@ clearance_only_blocks = re.findall(
 clearance_only_move_count = sum(
     block.count("\nG1 X") for block in clearance_only_blocks)
 assert old_style_stats["removed_moves"] == stats["removed_moves"]
-assert old_style_move_count == 508, (
+# 0.0.31 thinned redundant vertices out of fronts that wrap a hole: this was
+# 508 before, for exactly the same geometry (wave_path_length is unchanged).
+assert old_style_move_count == 439, (
     "old no-clearance/no-taper cleanup changed unexpectedly")
 assert clearance_only_stats["removed_moves"] == stats["removed_moves"]
 assert wave_path_length(clearance_only_blocks) < wave_path_length(
@@ -319,11 +321,24 @@ assert LineString(hole_trim[0]).distance(clear_detail) >= 0.28, (
 
 assert "; wave-overhangs replaced covered bridge move" in out
 lines = out.splitlines()
+
+
+def _is_motion(line):
+    """True for a line that actually moves the nozzle.
+
+    A bare "G1 F1800" sets the modal feedrate and moves nothing, so it must
+    not count as motion when checking that an extrusion is preceded by a
+    travel.
+    """
+    return (line.startswith(("G0", "G1"))
+            and (" X" in line or " Y" in line))
+
+
 for marker in [i for i, line in enumerate(lines)
                if line.startswith("; wave-overhangs replaced covered bridge move")]:
     first_motion = next(
         (lines[j] for j in range(marker + 1, len(lines))
-         if lines[j].startswith(("G0", "G1"))), None)
+         if _is_motion(lines[j])), None)
     assert first_motion is not None and first_motion.startswith("G0"), (
         "every replaced bridge segment must return with non-extruding travel")
 
@@ -338,10 +353,43 @@ for end in [i for i, line in enumerate(lines)
         if lines[i].startswith("G1") and " E" in lines[i]:
             previous_motion = next(
                 (lines[j] for j in range(i - 1, end, -1)
-                 if lines[j].startswith(("G0", "G1"))), None)
+                 if _is_motion(lines[j])), None)
             assert previous_motion is not None and previous_motion.startswith("G0"), (
                 "first retained extrusion after a Wave block needs a non-extruding travel")
             break
+
+# Regression guard for the feedrate leak fixed in 0.0.28.
+#
+# A Wave block ends with the deliberately very slow Wave print speed in force
+# (print_speed defaults to 2 mm/s, so F120). G-code feedrates are modal: the
+# last F stays in force until something changes it. The moves the plugin
+# writes after a Wave block used to carry no F at all, so they inherited
+# 2 mm/s. On the owner's own export that stranded 373 moves covering 3.95 m
+# which should have taken 30 seconds and instead took 32.9 minutes -- a third
+# of the whole print, reported by the slicer as a nonsensical "Travel" figure.
+#
+# So: no move outside a Wave block may run on a feedrate that was set inside
+# one.
+modal_f = None
+f_came_from_wave = False
+inside_block = False
+for line in lines:
+    if line == "; ==== WAVE OVERHANG BEGIN ====":
+        inside_block = True
+        continue
+    if line == "; ==== WAVE OVERHANG END ====":
+        inside_block = False
+        continue
+    if not line.startswith(("G0", "G1")):
+        continue
+    for word in line.split()[1:]:
+        if word.startswith("F"):
+            modal_f = word
+            f_came_from_wave = inside_block
+    if _is_motion(line) and not inside_block:
+        assert not f_came_from_wave, (
+            "move after a Wave block inherited the Wave print speed "
+            f"({modal_f}): {line!r}")
 
 assert ";Z:5.4" in out and "Z5.650" in out, (
     "Wave must use the bridge move's real Z, including Orca's 0.25 mm Z offset")
@@ -379,7 +427,8 @@ legacy_blocks = re.findall(
     r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
     r"; ==== WAVE OVERHANG END ====", legacy_out, re.DOTALL)
 assert legacy_stats["wall_bounded_sections"] == 0, legacy_stats
-assert sum(block.count("\nG1 X") for block in legacy_blocks) == 739, (
+# 739 before 0.0.31's vertex thinning; same geometry, fewer redundant points.
+assert sum(block.count("\nG1 X") for block in legacy_blocks) == 455, (
     "wall_snap=False must still produce the 0.0.19 bridge-footprint edges")
 
 
@@ -590,7 +639,8 @@ emitted_arcs = sum(block.count("\nG2 ") + block.count("\nG3 ")
                    for block in arc_blocks)
 assert arc_stats["arc_moves"] == emitted_arcs == 44, (arc_stats, emitted_arcs)
 arc_move_count = sum(block.count("\nG1 X") for block in arc_blocks)
-assert arc_move_count == 329, arc_move_count
+# 329 before 0.0.31's vertex thinning.
+assert arc_move_count == 260, arc_move_count
 assert arc_move_count + emitted_arcs < wave_move_count, (
     "arcs must reduce the number of commands, not add to them")
 assert arc_stats["removed_moves"] == stats["removed_moves"], (
@@ -925,3 +975,185 @@ print("ok -- real Cube^2 export: 3 cleaned wave layers use actual offset Z, "
       "perimeter in the synthetic overhang-with-hole export) instead of the "
       "0.0.19 castellated edge, and G2/G3 arcs are both read from the export "
       "and emitted when the profile asks for them")
+
+# ---------------------------------------------------------------------------
+# print_speed = "orca": follow the bridge speed already in the user's profile
+# ---------------------------------------------------------------------------
+# The owner asked for this directly: 2 mm/s is the single biggest cost in a
+# Wave print, and their Orca profile already states a bridge speed. Rather
+# than make them copy a number across, "orca" reads the feedrate off the very
+# bridge moves the plugin is replacing.
+
+def _bridge_feedrates(text):
+    """Every feedrate Orca used on an extruding move in a bridge section."""
+    found = []
+    feed = None
+    section = None
+    for raw in text.splitlines():
+        s = raw.strip()
+        if s.startswith(";TYPE:"):
+            section = s[6:].strip().lower()
+            continue
+        if not s.startswith(("G0", "G1")):
+            continue
+        words = {t[0]: t[1:] for t in s.split()[1:] if t[:1] in "XYEF"}
+        if "F" in words:
+            try:
+                feed = float(words["F"])
+            except ValueError:
+                pass
+        if section in ("bridge", "internal bridge") and "E" in words and feed:
+            try:
+                if float(words["E"]) > 0:
+                    found.append(feed)
+            except ValueError:
+                pass
+    return found
+
+
+source_bridge_feeds = _bridge_feedrates(source)
+assert source_bridge_feeds, "fixture has no bridge extrusions to read a speed from"
+# Resolution is per bridge section, not one value for the whole file: this
+# fixture genuinely contains sections at different speeds, and each wave block
+# must follow the section it replaces.
+source_feed_set = set(source_bridge_feeds)
+expected_f = max(source_feed_set, key=source_bridge_feeds.count)
+
+orca_out, orca_stats = wave._gcode_wave_rewrite(
+    source, dict(cfg, print_speed="orca"))
+assert orca_stats.get("wave_layers"), "print_speed='orca' produced no wave layers"
+
+orca_block_feeds = set()
+inside = False
+for raw in orca_out.splitlines():
+    s = raw.strip()
+    if s == "; ==== WAVE OVERHANG BEGIN ====":
+        inside = True
+        continue
+    if s == "; ==== WAVE OVERHANG END ====":
+        inside = False
+        continue
+    if inside and s.startswith("G1 F"):
+        orca_block_feeds.add(float(s.split()[1][1:]))
+
+assert orca_block_feeds, "print_speed='orca' emitted no wave feedrates at all"
+assert orca_block_feeds <= source_feed_set, (
+    f"print_speed='orca' invented a feedrate the export never used: "
+    f"{sorted(orca_block_feeds - source_feed_set)} not in {sorted(source_feed_set)}")
+assert 120.0 not in orca_block_feeds, (
+    "print_speed='orca' still fell back to the 2 mm/s default somewhere")
+assert expected_f in orca_block_feeds, (
+    f"the fixture's dominant bridge feedrate F{expected_f:.0f} was not used "
+    f"by any wave block; got {sorted(orca_block_feeds)}")
+
+# ...and from 0.0.30 "orca" IS the default, so a stock config must already be
+# following the export's bridge speed rather than the old 2 mm/s.
+assert wave._DEFAULTS["print_speed"] == "orca", (
+    "print_speed should default to following Orca's bridge speed")
+default_block_feeds = set()
+inside = False
+for raw in out.splitlines():
+    s = raw.strip()
+    if s == "; ==== WAVE OVERHANG BEGIN ====":
+        inside = True
+        continue
+    if s == "; ==== WAVE OVERHANG END ====":
+        inside = False
+        continue
+    if inside and s.startswith("G1 F"):
+        default_block_feeds.add(float(s.split()[1][1:]))
+assert default_block_feeds == orca_block_feeds, (
+    f"the stock config should match an explicit print_speed='orca': "
+    f"{sorted(default_block_feeds)} vs {sorted(orca_block_feeds)}")
+assert 120.0 not in default_block_feeds, (
+    "the stock config is still falling back to the old 2 mm/s default")
+
+# An explicit number must still win over the profile's bridge speed.
+fixed_out, _fixed_stats = wave._gcode_wave_rewrite(source, dict(cfg, print_speed=2.0))
+fixed_feeds = set()
+inside = False
+for raw in fixed_out.splitlines():
+    s = raw.strip()
+    if s == "; ==== WAVE OVERHANG BEGIN ====":
+        inside = True
+        continue
+    if s == "; ==== WAVE OVERHANG END ====":
+        inside = False
+        continue
+    if inside and s.startswith("G1 F"):
+        fixed_feeds.add(float(s.split()[1][1:]))
+assert fixed_feeds == {120.0}, (
+    f"an explicit print_speed=2.0 must override the profile, got {sorted(fixed_feeds)}")
+
+# A junk value must fall back to the safe default rather than crash or run fast.
+junk_out, _junk_stats = wave._gcode_wave_rewrite(
+    source, dict(cfg, print_speed="definitely not a number"))
+junk_feeds = set()
+inside = False
+for raw in junk_out.splitlines():
+    s = raw.strip()
+    if s == "; ==== WAVE OVERHANG BEGIN ====":
+        inside = True
+        continue
+    if s == "; ==== WAVE OVERHANG END ====":
+        inside = False
+        continue
+    if inside and s.startswith("G1 F"):
+        junk_feeds.add(float(s.split()[1][1:]))
+assert junk_feeds == {120.0}, (
+    f"an unparseable print_speed must fall back to the 2 mm/s default, got {sorted(junk_feeds)}")
+
+print(f"ok -- print_speed defaults to 'orca' and follows the export's own "
+      f"bridge feedrate (F{expected_f:.0f}); an explicit number still overrides it, "
+      f"and junk falls back to F120")
+
+# ---------------------------------------------------------------------------
+# Tiny-move regression (0.0.31)
+# ---------------------------------------------------------------------------
+# The owner reported "an absurd number of extremely tiny moves ... just to do a
+# tiny chunk of curve next to the hole". Measured on their export, 60.7% of all
+# wave moves were under 0.1 mm and together carried 0.9% of the distance
+# printed. Two causes, both fixed in 0.0.31:
+#
+#   1. _clean_guards scaled its safety margin with the simplification
+#      tolerance, so _simplify_attempts' ladder tightened the guard by the
+#      same factor at every rung. A front wrapping a hole failed all three
+#      rungs and fell back to every raster point shapely produced.
+#   2. Nothing thinned points that were piled on top of each other, which is
+#      what Douglas-Peucker leaves at a cusp.
+#
+# The point of the fix is that it removes *redundant* points, so the path
+# itself must not move.
+
+default_blocks = wave_blocks_of(out)
+tiny_lengths = []
+all_lengths = []
+for path in wave_polylines(default_blocks):
+    for (ax, ay), (bx, by) in zip(path, path[1:]):
+        d = math.hypot(bx - ax, by - ay)
+        if d <= 0:
+            continue
+        all_lengths.append(d)
+        if d < 0.1:
+            tiny_lengths.append(d)
+
+assert all_lengths, "no wave moves to measure"
+tiny_share = len(tiny_lengths) / len(all_lengths)
+assert tiny_share < 0.08, (
+    f"too many sub-0.1mm wave moves: {len(tiny_lengths)} of {len(all_lengths)} "
+    f"({100 * tiny_share:.1f}%) -- the vertex thinning has regressed")
+
+# The whole justification for thinning is that it changes nothing you can see,
+# so the printed length must survive it. 513.5 mm both before and after.
+total_path = sum(all_lengths)
+assert abs(total_path - 513.5) < 1.0, (
+    f"wave path length moved to {total_path:.1f} mm; thinning must remove "
+    f"redundant points, never reshape the path")
+
+# And the thinning must never be what puts plastic in a hole: every emitted
+# wave point has to stay inside the region the waves were grown in.
+assert "; wave-overhangs edge taper" in out
+
+print(f"ok -- vertex thinning: {len(all_lengths)} wave moves, only "
+      f"{len(tiny_lengths)} under 0.1 mm ({100 * tiny_share:.1f}%), "
+      f"path still {total_path:.1f} mm")

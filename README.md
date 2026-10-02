@@ -7,9 +7,8 @@ that's a bug; open an issue.
 
 | Plugin | Version | What it does |
 | --- | --- | --- |
-| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.26 | replaces covered Bridge extrusion with support-anchored wave toolpaths whose ends land on the real wall and hole perimeters, optionally as G2/G3 arcs |
-| [Wave Overhangs Geometry](plugins/wave-overhangs-geometry/) | 0.1.4 | experimental `posPrepareInfill` Wave fill-surface geometry intended to appear as bridge fill in Orca's preview |
-| [Unlayered Infill](plugins/unlayered-infill/) | 0.3.4 | rewrites sparse infill onto a sine wave in Z so layers interlock instead of stacking as clean planes |
+| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.32 | replaces covered Bridge extrusion with support-anchored wave toolpaths whose ends land on the real wall and hole perimeters, optionally as G2/G3 arcs |
+| [Unlayered Infill](plugins/unlayered-infill/) | 0.4.1 | rewrites sparse infill onto a wave in Z so layers interlock instead of stacking as clean planes — now in both directions at once, with a choice of wave shape |
 
 These are the versions in the current test branch. Direct updater runs use
 released `main`; use the chooser section below to install these branch files.
@@ -53,7 +52,6 @@ its menu, and the menu can change either, or forget them and start fresh.
 * [`CHANGELOG.md`](CHANGELOG.md) — the whole project
 * [`plugins/unlayered-infill/CHANGELOG.md`](plugins/unlayered-infill/CHANGELOG.md)
 * [`plugins/wave-overhangs/CHANGELOG.md`](plugins/wave-overhangs/CHANGELOG.md)
-* [`plugins/wave-overhangs-geometry/CHANGELOG.md`](plugins/wave-overhangs-geometry/CHANGELOG.md)
 
 Inside OrcaSlicer, run the plugin's **Settings guide & check** capability — it
 prints the running version, what changed in the last three releases, and a
@@ -161,49 +159,40 @@ number into them can orphan a saved preset.
 | Where | What you see |
 | --- | --- |
 | File → Plugins, **Name** column | `Wave Overhangs` |
-| File → Plugins, **Version** column | `0.0.26` (Orca reads the PEP 723 header) |
-| The updater's output | `Wave Overhangs v0.0.26` |
-| **Settings guide & check**, first line | `Wave Overhangs v0.0.27 -- setup check` |
-| Geometry plugin Version | `0.1.4` |
-| Geometry Check setup | `Wave Overhangs Geometry v0.1.4` |
+| File → Plugins, **Version** column | `0.0.32` (Orca reads the PEP 723 header) |
+| The updater's output | `Wave Overhangs v0.0.32` |
+| **Settings guide & check**, first line | `Wave Overhangs v0.0.32 -- setup check` |
 
 The exported G-code is stamped too — search it for `; wave-overhangs v` or
 `; unlayered-infill v` to see which build produced the file. The same rule
-applies to `Unlayered Infill`; its current test-build version is `0.3.4`.
+applies to `Unlayered Infill`; its current test-build version is `0.4.1`.
 
 ## After installing
 
 1. Restart OrcaSlicer (needs newer than 2.4.2, or a nightly).
-2. File → Plugins → confirm all three plugins are enabled, with two capabilities each.
-3. Choose either `Wave Overhangs` (exported-G-code fallback) or
-   `Wave Overhangs Geometry` (preview-visible experimental geometry). Do not
-   select both Wave capabilities in the same process preset.
-4. Unlayered Infill needs **"Use relative E distances"** enabled (Printer
+2. File → Plugins → confirm both plugins are enabled, with two capabilities each.
+3. Unlayered Infill needs **"Use relative E distances"** enabled (Printer
    Settings → Advanced).
-5. Select one plugin per process preset under **Others → Slicing Pipeline
-   Plugin**, slice something small, and run its "... - Settings guide & check"
-   capability. The Geometry variant is intended to appear in the normal slice
-   preview; the original Wave variant appears only in reopened exported G-code.
-6. **Export G-code file** — then drag that exported `.gcode` back into
-   OrcaSlicer to inspect the post-processing variant.
+4. Select the plugin you want in the process preset under **Others → Slicing
+   Pipeline Plugin**, slice something small, and run its check capability —
+   "Wave Overhangs - Settings guide & check" or "Unlayered Infill - Check
+   setup". Both print what happened on the last run, what changed in recent
+   versions, and what every setting means.
+5. **Export G-code file** — then drag that exported `.gcode` back into
+   OrcaSlicer to see the result. Neither plugin's work shows in the normal
+   slice preview: both run after slicing, on the exported file.
 
 ## "It doesn't seem to do anything"
 
-Work through these in order. The two Wave plugins use different pipeline
-stages, so the selected capability matters:
+Work through these in order:
 
-1. **Wave Overhangs Geometry is experimental.** It edits prepared
-   `fill_surfaces` at `posPrepareInfill` so Orca can keep the original perimeter
-   while showing Wave ribbons as bridge fill in the normal preview. If the
-   installed Orca build lacks the editable fill-surface bindings, it reports a
-   recoverable error and leaves the slice unchanged.
-2. **The original Wave Overhangs preview will not show its result.** Orca draws
+1. **The preview will not show the result.** Orca draws
    the preview from the slice; that plugin runs afterwards at export. Nothing
    redraws the preview — this is a known open request
    ([OrcaSlicer#7489](https://github.com/OrcaSlicer/OrcaSlicer/issues/7489)),
    and every slicer behaves this way. **Export the file, then drag that file
    back into OrcaSlicer** and look at the result.
-3. **Press "Export G-code file", not "Print" or "Send".** Post-processing
+2. **Press "Export G-code file", not "Print" or "Send".** Post-processing
    only runs on export
    ([#4432](https://github.com/SoftFever/OrcaSlicer/issues/4432)). Nothing in
    the UI tells you this.
@@ -213,13 +202,18 @@ stages, so the selected capability matters:
    refusal shows in the result message, not in the G-code.
 4. **The default wave is deliberately small.** It tapers to nothing at the
    solid skins and peaks at *half* the amplitude. On a 0.2 mm layer that is
-   about 0.09 mm — real, but easy to miss by eye. Use the standalone tool's
-   **Full strength** option, or a bigger amplitude, to see it clearly.
-5. **Wave Overhangs needs exported Bridge sections.** Version 0.0.26 performs
+   about 0.09 mm — real, but easy to miss by eye. Turn on `full_strength`, or
+   use a bigger amplitude, to see it clearly.
+5. **Your infill lines may be running the wrong way.** Up to 0.3.4 the wave
+   varied along X only, so an infill line running along Y was lifted to one
+   height for its whole length instead of waving. In 0.4.0 set `pattern` to
+   `cross` (ripples in both directions at once), or aim the ripples across
+   your infill with `wave_angle`.
+6. **Wave Overhangs needs exported Bridge sections.** Version 0.0.32 performs
    planning and replacement in one G-code transaction, snaps Wave endpoints to
    walls/holes, and tapers endpoint flow for cleaner terminations. It removes only bridge
    extrusion covered by generated waves and retains every uncovered fragment.
-6. **Check the log** if a plugin failed to load: `<data dir>/log/python_*.log`.
+7. **Check the log** if a plugin failed to load: `<data dir>/log/python_*.log`.
    Wave Overhangs needs numpy and shapely.
 
 ## If a plugin will not install, or never appears in the Plugins list
@@ -231,7 +225,7 @@ quietly. Here is where to look, in order:
    answer in almost every case: Orca prints the actual load error there. If
    the plugin is not in the list at all, go to step 3.
 2. **`Plugin Info` tab** — check the *installed version*. The current test
-   build reads **0.3.4** for Unlayered Infill and **0.0.26** for Wave
+   build reads **0.4.1** for Unlayered Infill and **0.0.32** for Wave
    Overhangs. Their permanent names are simply `Unlayered Infill` and `Wave
    Overhangs`; version numbers appear only in the separate Version column.
 3. **Is the folder right?** Each plugin needs its own folder holding exactly
@@ -258,7 +252,7 @@ quietly. Here is where to look, in order:
 ## Installing a test build from a branch
 
 The updater downloads from **`main`** by default, which is where released
-versions live. The current Wave 0.0.26 / Unlayered 0.3.4 work is on the test
+versions live. The current Wave 0.0.32 / Unlayered 0.4.1 work is on the test
 branch, so put these two files together
 in Downloads and double-click the chooser:
 
@@ -283,7 +277,7 @@ the plugin versions so it is clear what was installed.
 After installing this final naming migration, reselect `Wave Overhangs` or
 `Unlayered Infill` once in **Process → Others → Slicing Pipeline Plugin**.
 Those exact version-free package/capability names will not change again. Use
-the Plugins dialog's separate Version column to confirm 0.0.26 / 0.3.4.
+the Plugins dialog's separate Version column to confirm 0.0.32 / 0.4.1.
 
 ## The log file — start here when something seems wrong
 
@@ -293,8 +287,8 @@ write there without asking you to approve a log or state-file write during
 slicing. Run the plugin's **Settings guide & check** action to print the exact path, or use
 Plugins → select the plugin → **Show in folder** and open `orca-plugins.log`.
 
-The log answers, in order: did the plugin load, was it selected, did the export
-or geometry step run, and what did it do? Read it as a ladder:
+The log answers, in order: did the plugin load, was it selected, did the
+export step run, and what did it do? Read it as a ladder:
 
 | What you see | What it means |
 | --- | --- |
@@ -338,6 +332,28 @@ file, so the standalone tool must not sit beside a plugin `.py`.
 It always reports what it did — how many infill moves it waved and the
 largest Z shift — and if it changed nothing it says which of the reasons
 above applies rather than claiming success.
+
+## Where everything lives
+
+| Path | What it is |
+| --- | --- |
+| `Orca-Plugins.bat` | **the one file you download.** Installs and updates the plugins |
+| `Update-Orca-Plugins.bat` | the install engine underneath it. Keeps its name on purpose — copies already on disk check that exact URL for updates |
+| `Choose-Orca-Plugin-Version.bat` | a short forwarder, so old shortcuts keep working |
+| `plugins/` | **the two plugins that ship.** One entry `.py` per folder, each with its own README and changelog |
+| `plugins.json` | the catalogue the launcher reads |
+| `tools/` | the standalone post-processing tool, plus the sync/check scripts |
+| `tests/` | the verification suite. `tests/fixtures/` holds the G-code the tests read |
+| `docs/` | `ROADMAP.md` for plans, `ORCA-PLUGIN-FACTS.md` for what Orca actually does, `reference/` for saved wiki pages |
+| `archive/` | things no longer shipped, kept rather than deleted — the retired Geometry plugin, and real test prints kept as evidence |
+| `keyboard-lighting/` | unrelated to OrcaSlicer; a separate project that shares this repo |
+| `AGENTS.md` | the rulebook for anyone (human or AI) changing this repo |
+| `MEMORY.md` | where the work currently stands, and the full session history |
+| `CHANGELOG.md` | everything that changed in the repository as a whole |
+
+Real `.gcode` and `.3mf` files from the owner's printer live in
+[`archive/test-prints/`](archive/test-prints) with a README explaining what
+each one proved. They are evidence, not fixtures — no code reads them.
 
 ## Changing things
 

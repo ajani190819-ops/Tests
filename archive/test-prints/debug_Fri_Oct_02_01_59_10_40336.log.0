@@ -1,0 +1,2 @@
+[info]	2026-10-02 01:59:10.167563[Thread 0x0000aaac]:gui mode, Current OrcaSlicer Version 2.5.0-dev build 789f8486
+[error]	2026-10-02 01:59:10.171562[Thread 0x0000aaac]:Instance check: Another instance found. This instance will terminate. Lock file of current running instance is located at C:\Users\kamau\AppData\Roaming\OrcaSlicer\cache\16461004265505525230.lock

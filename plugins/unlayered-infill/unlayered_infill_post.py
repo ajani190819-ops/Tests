@@ -38,7 +38,7 @@ import argparse
 import os
 import sys
 
-TOOL_VERSION = "0.3.4"
+TOOL_VERSION = "0.4.1"
 
 # =============================================================================
 # ENGINE -- verbatim copy of the `nonplanar_core` source inlined in
@@ -117,12 +117,57 @@ DEFAULT_CELL_MM = "auto"
 FALLBACK_CELL_MM = 0.6       # used when the G-code does not name the nozzle
 DEFAULT_BLEND_MM = 2.0       # smooth the taper across this radius of columns
 
+# --- the shape of the wave -------------------------------------------------
+#
+# Up to 0.3.4 the displacement was always `sin(frequency * x)`: a ripple that
+# varies along X and along X only. That has one real weakness. An infill line
+# running along Y crosses no ripple at all -- every point on it has the same
+# X, so it gets one constant Z offset over its whole length. It is lifted,
+# not waved, and it keys into nothing. With the usual 45/135-degree infill
+# that costs little, but with 0/90-degree infill, or any line that happens to
+# run across the ripples, half the infill does no interlocking work.
+#
+# `pattern` fixes that, `angle` aims it, `shape` changes the profile, and
+# `layer_phase` stops every layer from being a copy of the one below.
+# Defaults reproduce 0.3.4 output exactly.
+PATTERNS = ("linear", "cross")
+DEFAULT_PATTERN = "linear"
+#   linear  ripples that vary along one axis only -- the 0.3.4 behaviour.
+#   cross   an egg-crate: ripples along BOTH axes at once, so a line running
+#           in any direction still goes up and down. Costs nothing extra and
+#           interlocks in two directions instead of one.
+
+DEFAULT_WAVE_ANGLE = 0.0     # degrees, counter-clockwise, 0 = ripples along X
+
+SHAPES = ("sine", "triangle", "square")
+DEFAULT_SHAPE = "sine"
+#   sine      the smooth classic.
+#   triangle  straight ramps into sharp peaks -- steeper flanks for the same
+#             peak height, so the layers key together harder.
+#   square    flat crests joined by short ramps: most of the infill sits at
+#             full offset instead of passing through it. It is a SATURATED
+#             sine, never a true square -- a vertical Z step is not printable.
+SQUARE_GAIN = 3.0            # how hard the sine is driven before clipping
+
+DEFAULT_LAYER_PHASE = 0.0    # degrees of extra phase per infill layer
+#   0 puts the crest of the wave at the same XY on every layer, so the part
+#   keeps a column of crests. Advancing the phase a little each layer makes
+#   the crests walk sideways, which is what actually braids the layers.
+#   180 puts each layer's crest exactly over the layer below's trough.
+
+DEFAULT_MAX_LIFT_MM = 0.0    # 0 = no clamp
+#   A hard ceiling on the Z displacement, in millimetres, whatever the
+#   amplitude and taper work out to. This is a safety net: "200%" of a
+#   0.3 mm layer is 0.6 mm, and if you then raise layer height or amplitude
+#   without thinking, the nozzle can be driven far enough up to hit the skin
+#   above or plough through already-printed material.
+
 # Stamped into the output so a second pass is a no-op. Orca can invoke
 # psGCodePostProcess more than once for one slice (file export and network
 # upload are separate calls), and waving an already-waved file would double
 # every displacement.
 MARKER_PREFIX = "; unlayered-infill"
-MARKER_VERSION = "0.3.4"
+MARKER_VERSION = "0.4.1"
 MARKER = f"{MARKER_PREFIX} v{MARKER_VERSION} (non-planar sparse infill)\n"
 
 _WORD = re.compile(r"([A-Za-z])\s*([-+]?\d*\.?\d+)")
@@ -230,6 +275,62 @@ def resolve_amplitude(spec, lines):
 def already_processed(lines):
     """Has this file already been waved? Then leave it completely alone."""
     return any(line.startswith(MARKER_PREFIX) for line in lines)
+
+
+def waveform(shape, phase):
+    """One cycle of the chosen profile at `phase` radians, in [-1, 1].
+
+    All three share their zero crossings and their peak positions, so
+    changing `shape` changes the character of the wave without moving it.
+    """
+    if shape == "sine":
+        return math.sin(phase)
+    if shape == "square":
+        # A real square wave would ask the nozzle to step in Z instantly,
+        # which no printer can do and no extrusion can follow. Overdriving a
+        # sine and clipping it gives flat crests with short, printable ramps
+        # between them -- the useful part of a square wave, minus the cliff.
+        return max(-1.0, min(1.0, SQUARE_GAIN * math.sin(phase)))
+    if shape == "triangle":
+        t = (phase / (2.0 * math.pi)) % 1.0
+        return 4.0 * abs(((t - 0.25) % 1.0) - 0.5) - 1.0
+    raise NonPlanarError(
+        f"Unknown wave shape {shape!r}. Use one of: {', '.join(SHAPES)}.")
+
+
+def resolve_shape(spec):
+    s = str(spec or DEFAULT_SHAPE).strip().lower()
+    if s not in SHAPES:
+        raise NonPlanarError(
+            f"Unknown wave shape {spec!r}. Use one of: {', '.join(SHAPES)}.")
+    return s
+
+
+def resolve_pattern(spec):
+    s = str(spec or DEFAULT_PATTERN).strip().lower()
+    if s not in PATTERNS:
+        raise NonPlanarError(
+            f"Unknown wave pattern {spec!r}. Use one of: "
+            f"{', '.join(PATTERNS)}.")
+    return s
+
+
+def displacement(x, y, pattern, shape, frequency, angle_rad, phase_rad):
+    """The unit wave at a point: the bit that gets multiplied by amplitude.
+
+    Always within [-1, 1], so `max_lift_mm` and the amplitude mean what they
+    say no matter which pattern is chosen.
+    """
+    cos_a, sin_a = math.cos(angle_rad), math.sin(angle_rad)
+    u = x * cos_a + y * sin_a
+    if pattern == "linear":
+        return waveform(shape, frequency * u + phase_rad)
+    # cross: the same ripple along the perpendicular axis as well. Averaging
+    # the two keeps the result inside [-1, 1]; adding them would double the
+    # amplitude the user asked for wherever two crests happened to meet.
+    v = -x * sin_a + y * cos_a
+    return 0.5 * (waveform(shape, frequency * u + phase_rad) +
+                  waveform(shape, frequency * v + phase_rad))
 
 
 class SolidGrid:
@@ -426,7 +527,11 @@ def _empty_stats(**over):
             "segments": 0, "max_wiggle": 0.0, "skipped_unbracketed": 0,
             "already_processed": False, "cell_mm": 0.0, "cell_desc": "",
             "nozzle_mm": None, "layer_height_mm": None, "blend_mm": 2.0,
-            "full_strength": False}
+            "full_strength": False, "pattern": DEFAULT_PATTERN,
+            "wave_angle": DEFAULT_WAVE_ANGLE, "shape": DEFAULT_SHAPE,
+            "layer_phase": DEFAULT_LAYER_PHASE,
+            "max_lift_mm": DEFAULT_MAX_LIFT_MM, "clamped": 0,
+            "wave_layers": 0}
     base.update(over)
     return base
 
@@ -434,7 +539,9 @@ def _empty_stats(**over):
 def process(lines, amplitude_spec=DEFAULT_AMPLITUDE, frequency=DEFAULT_FREQUENCY,
             segment_mm=DEFAULT_SEGMENT_MM, require_relative_e=True,
             cell_mm=DEFAULT_CELL_MM, blend_mm=DEFAULT_BLEND_MM,
-            full_strength=False):
+            full_strength=False, pattern=DEFAULT_PATTERN,
+            wave_angle=DEFAULT_WAVE_ANGLE, shape=DEFAULT_SHAPE,
+            layer_phase=DEFAULT_LAYER_PHASE, max_lift_mm=DEFAULT_MAX_LIFT_MM):
     """Rewrite sparse-infill moves as wavy ones. Returns (out_lines, stats)."""
     # Orca may run the export step twice for one slice (file + upload). Waving
     # an already-waved file would double every displacement, so bail out.
@@ -456,6 +563,11 @@ def process(lines, amplitude_spec=DEFAULT_AMPLITUDE, frequency=DEFAULT_FREQUENCY
     segment_mm = max(0.05, float(segment_mm))
     blend_mm = max(0.0, float(blend_mm))
     full_strength = bool(full_strength)
+    pattern = resolve_pattern(pattern)
+    shape = resolve_shape(shape)
+    angle_rad = math.radians(float(wave_angle))
+    layer_phase_rad = math.radians(float(layer_phase))
+    max_lift_mm = max(0.0, float(max_lift_mm))
 
     out = []
     x = y = z = None
@@ -464,6 +576,14 @@ def process(lines, amplitude_spec=DEFAULT_AMPLITUDE, frequency=DEFAULT_FREQUENCY
     sections = moves = segments = 0
     max_wiggle = 0.0
     skipped_unbracketed = 0
+    clamped = 0                 # segments the max_lift ceiling actually caught
+
+    # Which infill layer we are on, for `layer_phase`. Counted only at the
+    # heights where infill is really waved, and in the order they are met, so
+    # a Z-hop or a travel at some other height cannot advance the phase. The
+    # first waved layer is 0, which keeps `layer_phase` from moving anything
+    # when the feature is off.
+    layer_ordinal = {}
 
     def restore_z():
         """Never leave the nozzle on the wave once the infill stroke ends."""
@@ -507,6 +627,10 @@ def process(lines, amplitude_spec=DEFAULT_AMPLITUDE, frequency=DEFAULT_FREQUENCY
                 length = math.hypot(nx - x, ny - y)
                 n = max(1, int(length // segment_mm))
                 feed = words.get("F")
+                zr = round(z, 4)
+                if zr not in layer_ordinal:
+                    layer_ordinal[zr] = len(layer_ordinal)
+                phase_rad = layer_ordinal[zr] * layer_phase_rad
                 # Hand out the extrusion so the printed digits sum to exactly
                 # `e`. Rounding each segment independently drifts, and across
                 # a whole print that drift is systematic under/over-extrusion.
@@ -515,7 +639,11 @@ def process(lines, amplitude_spec=DEFAULT_AMPLITUDE, frequency=DEFAULT_FREQUENCY
                     t = i / n
                     sx = x + t * (nx - x)
                     sy = y + t * (ny - y)
-                    dz = amplitude * scale * math.sin(frequency * sx)
+                    dz = amplitude * scale * displacement(
+                        sx, sy, pattern, shape, frequency, angle_rad, phase_rad)
+                    if max_lift_mm and abs(dz) > max_lift_mm:
+                        dz = math.copysign(max_lift_mm, dz)
+                        clamped += 1
                     if abs(dz) > max_wiggle:
                         max_wiggle = abs(dz)
                     share = round(e * t - spent, 5)
@@ -557,6 +685,13 @@ def process(lines, amplitude_spec=DEFAULT_AMPLITUDE, frequency=DEFAULT_FREQUENCY
         "layer_height_mm": detect_layer_height(lines),
         "blend_mm": blend_mm,
         "full_strength": full_strength,
+        "pattern": pattern,
+        "wave_angle": float(wave_angle),
+        "shape": shape,
+        "layer_phase": float(layer_phase),
+        "max_lift_mm": max_lift_mm,
+        "clamped": clamped,
+        "wave_layers": len(layer_ordinal),
     }
 # --- END nonplanar_core -----------------------------------------------------
 
@@ -599,7 +734,16 @@ def describe(stats):
         f"largest Z shift ...... {stats['max_wiggle']:.3f} mm"
         + ("  (full strength)" if stats["full_strength"] else
            "  (classic taper -- peaks at half the amplitude)"),
+        f"wave ................. {stats.get('shape', 'sine')}, "
+        f"{stats.get('pattern', 'linear')}"
+        + (f" at {stats['wave_angle']:g} deg" if stats.get("wave_angle") else "")
+        + (f", +{stats['layer_phase']:g} deg per layer"
+           if stats.get("layer_phase") else ""),
     ]
+    if stats.get("max_lift_mm"):
+        out.append(f"Z ceiling ............ {stats['max_lift_mm']:.3f} mm"
+                   + (f"  (capped {stats['clamped']} segment(s))"
+                      if stats.get("clamped") else "  (never reached)"))
     if stats["skipped_unbracketed"]:
         out.append(f"left flat ............ {stats['skipped_unbracketed']} move(s) "
                    f"with no solid skin both above and below")
@@ -638,14 +782,20 @@ def describe(stats):
 
 def process_file(path, out_path, amplitude, frequency, inplace=False,
                  dry_run=False, require_relative_e=True, full_strength=False,
-                 cell_mm=DEFAULT_CELL_MM):
+                 cell_mm=DEFAULT_CELL_MM, pattern=DEFAULT_PATTERN,
+                 wave_angle=DEFAULT_WAVE_ANGLE, shape=DEFAULT_SHAPE,
+                 layer_phase=DEFAULT_LAYER_PHASE,
+                 max_lift_mm=DEFAULT_MAX_LIFT_MM):
     """Run the engine over one file. Returns (stats, wrote_path_or_None)."""
     lines = read_lines(path)
     new_lines, stats = process(lines, amplitude_spec=amplitude,
                                frequency=frequency,
                                require_relative_e=require_relative_e,
                                full_strength=full_strength,
-                               cell_mm=cell_mm)
+                               cell_mm=cell_mm, pattern=pattern,
+                               wave_angle=wave_angle, shape=shape,
+                               layer_phase=layer_phase,
+                               max_lift_mm=max_lift_mm)
     if dry_run or stats["already_processed"] or not stats["moves"]:
         return stats, None
     target = path if inplace else out_path
@@ -683,6 +833,29 @@ def run_cli(argv=None):
                    help="let the wave reach the full amplitude mid-span. The "
                         "default classic taper peaks at half of it, which is "
                         "safer but much less visible.")
+    p.add_argument("-p", "--pattern", default=DEFAULT_PATTERN, choices=PATTERNS,
+                   help="'linear' ripples along one direction only; 'cross' "
+                        "is an egg-crate rippling along both, so an infill "
+                        "line running in any direction still rises and falls "
+                        "(default: %(default)s)")
+    p.add_argument("--angle", type=float, default=DEFAULT_WAVE_ANGLE,
+                   help="degrees to turn the ripples, counter-clockwise, 0 "
+                        "being along X. Aim them across your infill lines "
+                        "(default: %(default)s)")
+    p.add_argument("--shape", default=DEFAULT_SHAPE, choices=SHAPES,
+                   help="wave profile: smooth 'sine', sharp-peaked "
+                        "'triangle', or 'square' -- flat crests with short "
+                        "ramps, a saturated sine rather than a Z cliff "
+                        "(default: %(default)s)")
+    p.add_argument("--layer-phase", type=float, default=DEFAULT_LAYER_PHASE,
+                   help="degrees of extra phase per waved layer, so crests "
+                        "walk sideways instead of stacking in a column. 180 "
+                        "puts a crest over the trough below (default: "
+                        "%(default)s)")
+    p.add_argument("--max-lift", type=float, default=DEFAULT_MAX_LIFT_MM,
+                   help="hard ceiling on the Z displacement in mm, whatever "
+                        "amplitude and taper work out to. 0 = no ceiling "
+                        "(default: %(default)s)")
     p.add_argument("--allow-absolute-e", action="store_true",
                    help="do not refuse absolute-E (M82) G-code. Not "
                         "recommended: splitting moves under absolute E "
@@ -707,7 +880,9 @@ def run_cli(argv=None):
             args.input_file, out_path, args.amplitude, args.frequency,
             inplace=args.inplace, dry_run=args.dry_run,
             require_relative_e=not args.allow_absolute_e,
-            full_strength=args.full_strength, cell_mm=args.cell)
+            full_strength=args.full_strength, cell_mm=args.cell,
+            pattern=args.pattern, wave_angle=args.angle, shape=args.shape,
+            layer_phase=args.layer_phase, max_lift_mm=args.max_lift)
     except NonPlanarError as e:
         print(f"ERROR: {e}")
         sys.exit(1)

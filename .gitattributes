@@ -5,3 +5,18 @@
 # download it straight from raw.githubusercontent.com, where `* text=auto`
 # would serve it LF-only. -text stores it verbatim.
 *.bat -text
+
+# Archived evidence: real exports, models and logs straight off the owner's
+# machine. They are kept so measurements can be re-checked, so they must stay
+# byte-for-byte as they arrived -- `* text=auto` silently rewrote one of them
+# from CRLF to LF, which changes every line of the file.
+archive/test-prints/** -text
+
+# GitHub's language bar was reporting this repo as 77.1% "G-code", because it
+# counted the archived exports and the test fixture as source. They are
+# machine-generated printer output kept as evidence and test data -- nobody
+# writes G-code here. linguist-generated also collapses them in diffs, which
+# is welcome for a 91,000-line file.
+*.gcode linguist-generated=true
+archive/test-prints/** linguist-vendored=true
+tests/fixtures/** linguist-vendored=true

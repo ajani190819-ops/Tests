@@ -27,8 +27,6 @@ HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent
 PLUGIN = REPO / "plugins" / "unlayered-infill" / "unlayered_infill_orca.py"
 WAVE_PLUGIN = REPO / "plugins" / "wave-overhangs" / "wave_overhangs_orca.py"
-GEOMETRY_PLUGIN = (REPO / "plugins" / "wave-overhangs-geometry" /
-                   "wave_overhangs_geometry_orca.py")
 sys.path.insert(0, str(HERE))
 
 import fake_orca  # noqa: E402
@@ -262,6 +260,64 @@ with tempfile.TemporaryDirectory() as tmp:
           "Check setup does not mention the export-only gotcha")
     check("preview" in r.message.lower(),
           "Check setup does not mention the preview gotcha")
+    check("--- what changed recently ---" in r.message
+          and "v" + plugin.PLUGIN_VERSION in r.message,
+          "Check setup no longer prints the changelog for the running version "
+          "-- that is the only place in Orca the owner can read it")
+
+    # The settings guide: every control explained, in the one place the owner
+    # is already looking. Added in 0.4.0, matching Wave Overhangs 0.0.27.
+    check("--- what every setting means ---" in r.message,
+          "Check setup does not print the settings guide")
+    for key in plugin._DEFAULTS:
+        check(f"\n{key} = " in r.message,
+              f"the settings guide never explains {key!r}")
+    guide = r.message[r.message.index("--- what every setting means ---"):]
+    check(max(len(ln) for ln in guide.splitlines()) <= 72,
+          "a settings-guide line is over 72 columns; Orca's message box clips "
+          "long lines rather than reflowing them")
+    check("DEFAULTS" in guide,
+          "the guide must say it is showing defaults -- a capability cannot "
+          "read another capability's config, so calling them 'your values' "
+          "would be a lie")
+    # ...and it can be silenced once it has been read
+    chk.set_config({"settings_guide": False})
+    quiet = chk.execute()
+    check(quiet.ok and "--- what every setting means ---" not in quiet.message,
+          "settings_guide=false does not hide the guide")
+    check(plugin.PLUGIN_VERSION in quiet.message,
+          "hiding the guide also hid the diagnostics")
+    # The owner hit this: Orca saves a copy of the settings into the process
+    # preset, so settings added by a later version never appear in the panel.
+    # The diagnostics must explain that, and must survive settings_guide=false
+    # -- it is the part you need precisely when the guide looks wrong.
+    check("--- not seeing all the settings? ---" in quiet.message,
+          "the check must explain a stale saved config in the process preset")
+    check(str(len(plugin._DEFAULTS)) in quiet.message,
+          "the check must state how many settings this build has, so the "
+          "user can compare it against what the panel shows")
+    check("Slicing Pipeline Plugin" in quiet.message,
+          "the stale-config explanation must say where to refresh it")
+
+    # The config panel must carry the same notes, so the JSON the owner edits
+    # explains itself without opening a README.
+    panel = orca.REGISTERED[0]().get_default_config()
+    check(panel is not plugin._DEFAULTS,
+          "get_default_config handed out the live _DEFAULTS dict to be mutated")
+    for key in plugin._DEFAULTS:
+        check(key in panel, f"the config panel lost the {key!r} setting")
+        check("_" + key in panel, f"the config panel has no note for {key!r}")
+    # notes must not come back in as settings
+    cap_cfg = orca.REGISTERED[0]()
+    cap_cfg.set_config(panel)
+    for key, value in plugin._cfg(cap_cfg).items():
+        check(not key.startswith("_"),
+              f"the note {key!r} was read back as a setting")
+
+    # 0.4.0 wave controls must be reachable from Orca, not just the CLI
+    for key in ("pattern", "wave_angle", "shape", "layer_phase", "max_lift_mm"):
+        check(key in plugin._DEFAULTS,
+              f"the {key!r} wave control is missing from the Orca settings")
 
     # ----------------------------------------------------------------------
     # 11. logging can be turned off, and never breaks a print
@@ -343,8 +399,8 @@ with tempfile.TemporaryDirectory() as tmp:
               f"Wave capability identities changed: {names}")
         check(not any(ch.isdigit() for ch in "".join(names)),
               f"a version leaked into a capability name: {names}")
-        check(wave.PLUGIN_VERSION == "0.0.27",
-              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.27")
+        check(wave.PLUGIN_VERSION == "0.0.32",
+              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.32")
 
         # The active Wave implementation is deliberately G-code-only. Its
         # source must not retain the removed slice-object planner, host Polygon
@@ -428,8 +484,14 @@ with tempfile.TemporaryDirectory() as tmp:
         guide_text = "\n".join(guide)
         unexplained = [k for k in wave._DEFAULTS if f"\n{k} = " not in "\n" + guide_text]
         check(not unexplained, f"settings missing from the printed guide: {unexplained}")
-        check("print_speed = 5.0   (default 2.0)" in guide_text,
+        check('print_speed = 5.0   (default "orca")' in guide_text,
               "the guide must show the value in force and flag a changed one")
+        # The stock config follows Orca's bridge speed, and the guide must not
+        # label the default as if it were a change the user made.
+        stock_guide = "\n".join(wave.settings_guide_lines(dict(wave._DEFAULTS)))
+        check('print_speed = "orca"' in stock_guide
+              and "print_speed = \"orca\"   (default" not in stock_guide,
+              "the guide should show the unchanged default without a (default ...) tag")
         longest = max(len(line) for line in guide)
         check(longest <= 72,
               f"guide lines must stay readable in Orca's message box, got {longest}")
@@ -461,49 +523,12 @@ with tempfile.TemporaryDirectory() as tmp:
               "Diagnostics" in result.message,
               f"dependency failure does not give a complete beginner-safe fix: {result.message!r}")
         log = read_log(logs)
-        check("Wave Overhangs v0.0.27 loaded" in log and "MISSING" in log,
+        check("Wave Overhangs v0.0.32 loaded" in log and "MISSING" in log,
               f"Wave dependency state was not logged clearly:\n{log}")
         pipeline = orca.REGISTERED[0]()
         result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))
         check(not result.ok and "dependency" in result.message.lower(),
               "Wave pipeline must refuse clearly rather than silently no-op without deps")
-
-# The geometry alternate has the same recoverable dependency behavior, while
-# its real geometry mutation is covered by tests/test_wave_geometry.py with the
-# dependencies installed.
-with tempfile.TemporaryDirectory() as tmp:
-    logs = pathlib.Path(tmp) / "Downloads"
-    logs.mkdir()
-    os.environ["ORCA_PLUGIN_LOG_DIR"] = str(logs)
-    orca = fake_orca.install()
-    sys.modules.pop("wave_overhangs_geometry_orca", None)
-    spec = importlib.util.spec_from_file_location(
-        "wave_overhangs_geometry_orca", GEOMETRY_PLUGIN)
-    geometry = importlib.util.module_from_spec(spec)
-    sys.modules["wave_overhangs_geometry_orca"] = geometry
-    try:
-        spec.loader.exec_module(geometry)
-    except Exception as e:
-        check(False, f"Wave Overhangs Geometry could not load without optional deps: {e}")
-    else:
-        orca.PLUGINS[0]().register_capabilities()
-        names = [c().get_name() for c in orca.REGISTERED]
-        check(names == ["Wave Overhangs Geometry",
-                        "Wave Overhangs Geometry - Check setup"],
-              f"Geometry capability identities changed: {names}")
-        check(geometry.PLUGIN_VERSION == "0.1.4",
-              f"Geometry runtime version is {geometry.PLUGIN_VERSION}, want 0.1.4")
-        result = orca.REGISTERED[1]().execute()
-        check(result.ok and "posPrepareInfill" in result.message and
-              "fill-surface" in result.message and "original Orca perimeter" in result.message and
-              "bridge" in result.message and "outward" in result.message and
-              "read-only" in result.message,
-              "Geometry Check setup must explain the fill-surface stage, bridge "
-              "classification, original-perimeter preservation, ordering bias, and API limit")
-        result = orca.REGISTERED[0]().execute(
-            fake_orca.Context(fake_orca.Step.posPrepareInfill))
-        check(not result.ok and "numpy" in result.message,
-              "Geometry must report missing dependencies rather than silently no-op")
 
 if failures:
     print(f"FAILED ({len(failures)})")

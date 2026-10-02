@@ -4,26 +4,31 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-01, Wave export-hang session (0.0.25).
+* **Last updated:** 2026-10-02, Wave 0.0.32 + Unlayered Infill 0.4.1
+  (stale-preset settings explanation + Linguist fix).
 * **Repository:** `ajani190819-ops/Tests`, public.
-* **Session branch:** `arena/01a0f908-tests`. Never switch branches or push to
-  `main`.
+* **Session branch:** `arena/01a0fb0f-tests`. Never switch branches or push to
+  `main`. (The branch is different every session — use the one you were
+  handed, not this one.)
 * **Latest code state:** Wave Overhangs 0.0.25 measures the overhang against
   the layer's real wall moves, so Wave ends land on the wall and hole
   perimeters instead of the castellated bridge-line edge. It can read and
   write G2/G3 arc moves but **no longer does so by default**, and the whole
   G-code pass now runs under a 30-second `time_budget` that returns the file
-  untouched rather than ever stalling an export; Geometry 0.1.4 remains an
-  experimental alternate.
-* **Current versions:** Wave Overhangs 0.0.25, Wave Overhangs Geometry 0.1.4,
-  Unlayered Infill 0.3.4, updater 1.4.0.
-* **Permanent identities:** `Wave Overhangs`, `Wave Overhangs Geometry`, and
-  `Unlayered Infill`. Release numbers must remain out of package and capability
-  names.
+  untouched rather than ever stalling an export.
+* **There are now TWO shipped plugins, not three.** Wave Overhangs Geometry
+  was archived on 2026-10-02 at the owner's request; see `archive/README.md`.
+  It is out of `plugins.json`, the launcher's fallback plan,
+  `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
+  the owner asks.
+* **Current versions:** Wave Overhangs 0.0.32, Unlayered Infill 0.4.1,
+  updater 1.4.0, launcher (`Orca-Plugins.bat`) 1.0.1.
+* **Permanent identities:** `Wave Overhangs` and `Unlayered Infill`. Release
+  numbers must remain out of package and capability names.
 
 ## One-minute orientation
 
-This repository contains three experimental OrcaSlicer pipeline plugins, a
+This repository contains two experimental OrcaSlicer pipeline plugins, a
 Windows updater, a strict branch chooser, standalone Unlayered Infill tooling,
 reference documentation, and tests.
 
@@ -36,8 +41,9 @@ Important locations:
   branch from `main`.
 - `plugins.json` — catalogue and version source used by the updater.
 - `plugins/wave-overhangs/` — exported-G-code Wave plugin and its release notes.
-- `plugins/wave-overhangs-geometry/` — separate preview-visible
-  `posPrepareInfill` Wave fill-surface prototype and notes.
+- `archive/` — not shipped. Holds the archived Wave Overhangs Geometry
+  prototype, its tests, and a README saying why it was archived and how to
+  revive it.
 - `plugins/unlayered-infill/` — Unlayered plugin, standalone tool, and notes.
 - `tests/fixtures/` — the supplied `Cube^2.STL` and captured
   `Cube^2_3m53s.gcode` real-export fixture.
@@ -202,13 +208,17 @@ or a printer.
 
 ## What remains to do
 
-1. Install this branch with the chooser and confirm all three plugin versions
-   in Orca's separate Version column.
-2. Run a fresh current-Orca slice with `Wave Overhangs Geometry` selected and
-   confirm the edited ribbons appear as bridge fill in the normal preview while
-   the original overhang perimeter remains intact.
+1. Install this branch with the launcher and confirm both plugin versions in
+   Orca's separate Version column: Wave Overhangs 0.0.32, Unlayered Infill
+   0.4.1.
+2. **Try the new Unlayered Infill wave controls on a real slice.** The most
+   valuable single test: print the same part twice, once with
+   `pattern = "linear"` (the old behaviour) and once with `pattern = "cross"`,
+   and break both. Nothing here has been printed. Also worth checking that
+   `shape = "square"` does not cause audible Z chatter at the ramps on the
+   owner's machine — it is the shape most likely to.
 3. Re-print the same part with 0.0.22 and photograph the same corner: the
-   0.22 mm^2 void should be gone. `Cube_39m10s.gcode` in the repo root is the
+   0.22 mm^2 void should be gone. `archive/test-prints/Cube_39m10s.gcode` is the
    0.0.20 print it is being compared against.
 3a. Turn **Arc fitting** on in the print profile for that export, so the
    arc paths get exercised in real Orca and real firmware. Check the printer
@@ -224,6 +234,338 @@ or a printer.
 6. Run the Windows batch flow again whenever either batch file changes.
 
 ## Session log
+
+### 2026-10-02 — Wave 0.0.32 / Unlayered 0.4.1: settings the owner could not see
+
+The owner said *"I'm not seeing all of those new config options for unlayered
+infill."* **Investigated before changing anything, and the plugin turned out
+to be correct**: `_DEFAULTS` holds all 14 settings, the four added in 0.4.0
+(`pattern`, `wave_angle`, `shape`, `layer_phase`) included, and
+`annotated_defaults()` hands every one of them to Orca with its note. A test
+in `tests/test_plugin_runtime.py` has asserted exactly that since 0.4.0, and
+it was passing.
+
+**CORRECTED 2026-10-02 (same day): the explanation below was a GUESS and is
+not supported by evidence. Do not repeat it as fact.** `docs/ORCA-PLUGIN-FACTS.md`
+says a preset stores the capability *name*; nothing is documented about the
+config panel caching a saved copy of the settings. The claim that "Orca calls
+`get_default_config()` only once" was never verified.
+
+**The real, evidence-backed cause: the owner was installing the released
+build.** `Update-Orca-Plugins.bat` downloads from `main` by default, and
+`main` was still on Unlayered Infill **0.3.4** (9 settings, no `pattern`,
+`shape`, `wave_angle`, `layer_phase`, `max_lift_mm`) and Wave **0.0.27**. All
+session work lived on `arena/01a0fb0f-tests`. The updater reported success, so
+it looked like an update had happened. **Lesson: when a shipped feature is
+"missing" for the owner, check what `origin/main` actually contains before
+theorising about the UI** — `git show origin/main:<file>` settles it instantly.
+Opened PR #5 to merge the branch into `main`. `Orca-Plugins.bat` also has a
+built-in version picker (menu item [2]) that lists live branches.
+
+The original (unverified) theory, kept only so it is not re-derived: **The cause is OrcaSlicer, and it is a permanent constraint worth remembering:
+Orca calls `get_default_config()` only once.** The result is copied into the
+process preset when the plugin is first selected, and the Settings panel shows
+that saved copy forever after. A preset saved under 0.3.4 keeps 0.3.4's
+settings; nothing the plugin does can push new keys into it. (Add this to
+`docs/ORCA-PLUGIN-FACTS.md` thinking when touching config.) Runtime is
+unaffected because `_cfg()` starts from `_DEFAULTS` and overlays the stored
+dict, so a missing key silently takes its default — which is why the owner's
+exports were fine while the UI looked broken.
+
+Since it cannot be fixed in code, it is now *explained* in code: both plugins'
+**Check setup** print a "not seeing all the settings?" section giving the
+installed build's setting count (14 / 33) and the None → re-select → save
+preset recipe, then the stale-file fallback. It prints even when
+`settings_guide` is false, since that is when it is needed. New assertions
+pin all three parts.
+
+**Lesson: check whether the feature is actually missing before fixing it.**
+The source was right; only the delivery path was broken. A grep of `_DEFAULTS`
+settled it in one command.
+
+**Also: GitHub called this a G-code project.** The language bar read G-code
+77.1% / Python 12.1% / PowerShell 9.4% / Batchfile 1.4%, because Linguist
+counted the archived exports and the test fixture as source. `.gitattributes`
+now marks `*.gcode` `linguist-generated` and the archive and fixture
+directories `linguist-vendored`. Nothing deleted, nothing moved — the owner's
+rule is archive, not delete. Side benefit: `linguist-generated` collapses the
+91,000-line export in diffs, which is the same file `* text=auto` corrupted
+earlier this session.
+
+### 2026-10-02 — Wave 0.0.31: micro-moves around holes
+
+Owner: "around the Whole when there an absurd number of extremely tiny moves
+... randomly you have has an absurd number of lines just to do a tiny chunk of
+curve next to the hole". Correct, and measurable: on
+`archive/test-prints/test print_19m50s.gcode`, **7,356 of 12,114 wave moves
+(60.7%) are under 0.1 mm and carry 0.9% of the distance**; median move
+0.015 mm.
+
+**Root cause 1 — the guard fought the ladder.** `_clean_guards(allowed,
+tolerance)` used `margin = max(0.002, min(0.02, tolerance * 0.4))`.
+`_simplify_attempts` retries at factors (1.0, 0.4, 0.15) to find a gentler
+simplification, but the margin scaled with the tolerance, so every rung
+tightened the guard by the same factor it loosened the simplification. A
+front wrapping a hole could never pass, and `_clean_wave_polyline` returned
+`list(original.coords)` — the raw buffer raster. Margin is now the fixed
+`_MAX_STRAY_MM = 0.02` and `_clean_guards` ignores its `tolerance` argument
+(kept for signature compatibility); the guard is cached once under the key
+`"guard"` rather than per tolerance.
+
+**Root cause 2 — coincident points were never merged.** DP keeps a vertex
+that is far from the chord, which at a cusp means two vertices microns apart.
+`_thin_points(points, gap)` merges them; `_thinned_fallback()` applies it to
+fronts that fail every rung, trying `gap = tolerance` then
+`_MIN_POINT_GAP_MM`, re-checking `guard.covers` and the shrunk-void `body`
+test each time, falling back to raw only if both are rejected.
+
+**Fixing cause 1 alone changed nothing** — worth remembering. All the tiny
+moves on the fixture were inside the 4-of-83 fronts that gave up, so only the
+fallback thinning moved the numbers. Measure which stage produces the
+geometry before attributing it.
+
+Fixture results, geometry identical (path 513.5 mm before and after): moves
+508 → 439, sub-0.1 mm 91 → 22 (17.9% → 5.0%); `wall_snap=False` 739 → 455;
+arcs-on 329 → 260. Four golden counts in `tests/test_wave_gcode.py` updated
+with a comment giving the old value, plus a new regression asserting
+sub-0.1 mm stays under 8% and the path length stays within 1 mm of 513.5.
+Verified to fail with the fix reverted.
+
+Not verified on hardware. The owner's part has holes and the fixture barely
+does, so their improvement should be larger than 13% — but that is a
+projection.
+
+### 2026-10-02 — Wave 0.0.30: bridge speed by default, and a repo tidy-up
+
+Two owner instructions: "make the speed whatever i set the bridge speed (10)
+to in orca, same as any other bridge", and "organize the repo, archiving old
+files and info or test prints an gcode. i need everything cleaned up".
+
+**`print_speed` now defaults to `"orca"`.** 0.0.29 made following the
+profile's bridge speed possible; 0.0.30 makes it the default. A number still
+overrides, and `_print_speed_fallback()` still returns 2.0 when a section has
+no readable feedrate. The owner's bridge speed is now **10 mm/s** (it read
+20 mm/s in the export they uploaded). Predicted totals for their part:
+0.0.27 as printed 103.9 min; at 2 mm/s 71.5; at 5 36.2; **at 10 24.5**; at
+20 18.6. Arithmetic only — still nothing verified on hardware.
+
+The `_print_speed` note in the config panel was rewritten: it now frames the
+setting as the thing to turn *down* if an overhang droops, and explains that a
+wave may need to be slower than a bridge at the same number because a bridge
+is anchored at both ends and held by tension while a wave line is
+cantilevered into open air.
+
+Two test updates were needed, both legitimate rather than papering over:
+`test_wave_gcode.py` now asserts the stock config matches an explicit
+`"orca"` and that an explicit `2.0` still overrides; `test_plugin_runtime.py`
+expected `(default 2.0)` in the settings guide and now expects
+`(default "orca")`, plus a new check that an unchanged default is not tagged
+as user-modified.
+
+**Repo tidy-up.** The root had 3.6 MB of loose exports. Moved with `git mv`
+(history preserved) to **`archive/test-prints/`**: `Cube.stl`,
+`Cube_39m10s.gcode`, `test print.stl`, `test print.3mf`,
+`test print_19m50s.gcode` and the OrcaSlicer debug log. Nothing deleted.
+`archive/test-prints/README.md` records what each file is and what was
+measured from it, so the evidence behind the 0.0.28/0.0.29 numbers stays
+re-checkable. `archive/README.md` gained an index; `README.md` gained a
+"Where everything lives" table; the two "in the repo root" references in this
+file now point at the new path.
+
+**No code reads any of those files** — the only fixture the tests use is
+`tests/fixtures/Cube^2_3m53s.gcode`, which did not move — so the suite was
+unaffected by the move. Root is now just the three `.bat` files,
+`plugins.json`, four Markdown documents and the six folders.
+
+### 2026-10-02 — Wave 0.0.29: print_speed can follow Orca's bridge speed
+
+Direct owner request, immediately after 0.0.28: "Can we not make it take the
+speed used for bridges that I already have in Orca". Yes -- and 0.0.28 had
+just added the modal-feedrate tracking that makes it possible.
+
+`print_speed` now accepts the strings `"orca"` / `"bridge"` / `"auto"` as well
+as a number. `_section_print_speed()` takes the most common feedrate across
+the bridge section's own segments (ties go to the faster), ignoring any move
+already sitting at the Wave speed -- a pre-0.0.28 file can carry the leaked
+F120 on untouched bridge moves, and reading that back would pin the speed at
+2 mm/s permanently. Resolution is **per bridge section**, not per file: the
+test fixture legitimately has sections at `F1200` and `F420`, and each wave
+block follows the one it replaced. A number, junk, or a missing feedrate all
+fall back to 2.0 via `_print_speed_fallback()`.
+
+The owner's measured bridge speed is **F1200 = 20 mm/s**, against the 2 mm/s
+default. Predicted totals for their part (arithmetic on the G-code, not a
+print): 0.0.27 103.9 min -> 0.0.28 71.5 -> `print_speed` 5 36.2 -> 8 27.4 ->
+`"orca"` 18.6. Orca's own pre-plugin estimate was 19.8 min.
+
+**The default stays 2.0 and should stay 2.0.** Orca's bridge speed is tuned
+for a strand anchored at *both* ends, where tension holds it up; a wave line
+is cantilevered into open air at one end only. A 10x jump is a real droop
+risk, and the owner was told to walk up through 5 and 8 rather than trust
+`"orca"` straight away. Nothing here is verified on hardware.
+
+Note for future work: there is a second, **inlined** copy of the wave core in
+`_WAVE_CORE_SRC` with its own `emit_layer_gcode`, which also lacks a feedrate
+restore and does not honour `"orca"`. It is not the active path
+(`_emit_wave_gcode` is), and `"orca"` degrades to the 2.0 fallback there, so
+it is safe -- but if that path is ever activated, both fixes need porting.
+
+### 2026-10-02 — Wave 0.0.28: the modal feedrate leak (owner's own export)
+
+The owner posted an OrcaSlicer preview legend screenshot of a Wave print and
+asked three things: the Travel line looks wrong, why is the gram usage so
+high, and why does it take so long. They said they had attached the log, the
+G-code and the part.
+
+**Process note worth remembering: they had uploaded the files to GitHub, not
+to the chat.** They arrived as two `Add files via upload` commits on
+`arena/01a0fb0f-tests` (`fc863c9`, `f662e6a`) containing
+`test print_19m50s.gcode`, `test print.3mf`, `test print.stl` and an
+OrcaSlicer debug log. Two separate filesystem sweeps for `/home/user/uploads`
+found nothing and the owner was twice told the files had not arrived, which
+was wrong and wasted their time. **Check `git fetch` and the remote branch
+before concluding an upload is missing.**
+
+Also observed twice this session: the sandbox's **git history rolled back to
+the base commit `2d084d5` while the working tree kept all its changes**, and
+a stale index then made `git diff` show phantom reversions (the archived
+Geometry plugin appearing to come back). The recovery is `git fetch origin`,
+`git reset --soft origin/<branch>`, then a plain `git reset` to refresh the
+index. Verify with `git write-tree` against the last known commit's tree
+before trusting any `--hard` operation.
+
+**The defect.** G-code feedrates are modal. `_emit_wave_gcode` ends a block
+with `M106 S<restore_fan>` and the END marker but never restores the
+feedrate, leaving `print_speed` (2 mm/s, `F120`) in force; and the
+replacement moves written for covered bridge extrusions carried no `F` of
+their own. Those moves therefore ran at 2 mm/s.
+
+Measured by walking every move in the owner's export:
+
+| | moves | distance | time | speed |
+|---|---|---|---|---|
+| Wave fill printing | 12,114 | 7.06 m | 58.8 min | 2.0 mm/s |
+| **Stranded on the wave speed** | **373** | **3.95 m** | **32.9 min** | **2.0 mm/s** |
+| Normal Orca moves | 7,588 | 22.91 m | 11.6 min | 33.1 mm/s |
+| Travel inside wave blocks | 277 | 4.66 m | 0.6 min | 120 mm/s |
+
+104.0 min total, matching the 1h46m in the legend. All 342 replacement moves
+in that file had no feedrate. The filename (`19m50s`) is Orca's own pre-plugin
+estimate, so the plugin was turning a 20-minute print into a 106-minute one.
+
+**Fix.** `_parse_layers` now tracks the modal feedrate and records it on each
+section and segment; every move the emitter writes states its feedrate, and
+the segment's original feedrate is handed back with a bare `G1 F…` before
+untouched moves resume. A bare `G1 F…` sets a speed and moves nothing, so
+`test_wave_gcode.py`'s "retained extrusion must follow a travel" checks were
+given an `_is_motion()` predicate that requires an X or Y word.
+
+**Do not "fix" these — they were investigated and are correct:** in-block
+travels already carry `F7200` (all 186 in `Cube_39m10s.gcode`); the `put()`
+taper helper does not emit zero-E moves; acceleration cannot explain the
+numbers (1300 moves × 9.9 mm needs a *commanded* 5–6 mm/s, not a ramp).
+
+**The grams question was a false alarm.** Total extrusion in that file is
+7.62 g, of which wave blocks are 1.50 g (20%). The wave fill is labelled
+Bridge/Internal Bridge, so those rows dominate the *time* column and look
+like they dominate material. In the legend, "Usage" is filament length and
+the unlabelled fourth column is grams for extruding types but a plain **count**
+for Travel/Wipe/Retract/Unretract/Seams — `1.3K` on the Travel row is 1300
+moves, not grams.
+
+**Still open for the owner:** `print_speed` 2 mm/s is the remaining 58.8 min
+and is deliberate (droop); `pattern = "zigzag"` would cut the ~486
+retract/travel cycles. Neither was changed. No physical print has been run
+with 0.0.28.
+
+### 2026-10-02 — Launcher 1.0.1: FINDSTR noise on every start
+
+The owner ran `Orca-Plugins.bat` on Windows and pasted the output. Before the
+menu it printed `FINDSTR: Cannot open >nul`, `FINDSTR: Cannot open 2>nul`, and
+one leaked internal line.
+
+**Cause, worth remembering as a general rule:** `cmd.exe` decides what is a
+redirection by toggling a quote flag on EVERY `"`. It does not understand
+`\"` as an escape. `findstr /b /c:"set \"FRONTDOOR_VERSION=" "%NEWBAT%" >nul
+2>nul` has five quotes, so cmd ends the line still inside a quoted string and
+passes `>nul` / `2>nul` to findstr as filenames. Never put `\"` inside a
+batch string. Fixed by searching for `FRONTDOOR_VERSION=`, which needs no
+embedded quote.
+
+The verification was never actually broken — findstr still matched and still
+returned success, and a 404 page would still have failed all three checks.
+Noise, not a hole.
+
+**Bumped the front door to 1.0.1 deliberately:** a copy on disk compares the
+`rem FRONTDOOR_VERSION ... end` marker to decide whether to hand over to a
+download, so a fix that does not move the number reaches nobody.
+`tests/test_installer.py` now parses both markers and fails if they disagree
+instead of hardcoding the number.
+
+**New guard:** the installer test walks every line of all three .bat files the
+way cmd.exe does and fails if a redirection or pipe lands inside an unclosed
+quote. Verified by re-introducing the old line and watching it fail. The only
+other odd-quote line in the repo is the `set "VAR=%VAR:"=%"` quote-stripping
+idiom, which has no redirection and is correctly ignored.
+
+**Also noticed:** the owner's launcher remembered `arena/01a0f908-tests`, a
+branch from an earlier session. Pressing Enter would have installed that old
+build, not this session's work. There is no staleness warning on the
+remembered build — worth considering.
+
+### 2026-10-02 — Archived the Geometry prototype; Unlayered Infill 0.4.0
+
+**Asked for:** "add changelogs for my plugins". On investigation all three
+plugins already had one, so the ambiguity was put back to the owner, who
+answered: archive Wave Overhangs Geometry, keep Wave Overhangs and Unlayered
+Infill, make the changelogs visible inside Orca, and add features to Unlayered
+Infill.
+
+**Archived Wave Overhangs Geometry** to `archive/wave-overhangs-geometry/`
+with its README, changelog and regression test (moved to
+`archive/tests/test_wave_geometry.py`, paths fixed, still passing). Removed
+from `plugins.json`, the hardcoded fallback plan in `Update-Orca-Plugins.bat`,
+`tools/sync_changelog.py`, `tests/test_plugin_audit.py` and
+`tests/test_plugin_runtime.py`. **Watch out:** the first fallback row in the
+.bat uses `>` and the rest `>>`, so deleting the first row meant promoting the
+next one — otherwise the plan file would have been appended to a stale one.
+The .bat was edited in binary and the CRLF count asserted before and after
+(705 to 702 lines, exactly the three removed).
+
+**Unlayered Infill 0.4.0** added five wave-shaping controls to the engine:
+`pattern` (`linear`/`cross`), `wave_angle`, `shape`
+(`sine`/`triangle`/`square`), `layer_phase` and `max_lift_mm`. The motivating
+defect is real and worth remembering: the old displacement was
+`sin(frequency x)`, varying along X alone, so **an infill line running along Y
+was lifted to a single constant height and keyed into nothing**. On 0/90
+infill that is half the infill doing no work. `cross` averages its two axes
+rather than summing them, deliberately, so the unit wave stays within [-1, 1]
+and `amplitude`/`max_lift_mm` keep meaning millimetres. `square` is a
+saturated sine, never a true square — a vertical Z step is not printable.
+
+**Changelog visibility.** Both plugins print their recent changelog from their
+check capability; Unlayered Infill additionally gained the settings guide that
+Wave Overhangs got in 0.0.27 — notes interleaved into the JSON config panel
+plus the full guide printed by Check setup, with a `settings_guide` toggle.
+One honest difference from Wave's version: Orca only lets a capability read
+its **own** config, so the guide prints the defaults and says so, rather than
+printing a default and labelling it the user's value.
+
+**New test:** `tests/test_unlayered_waves.py`. Its most important assertion is
+that the 0.4.0 defaults produce byte-identical G-code to the pre-change
+engine, proved by diffing real generated output rather than by reading the
+defaults. It also pins the premise (the old wave really is flat along a
+Y-running line), that no pattern or shape exceeds the requested amplitude,
+that `square` never steps hard enough to be unprintable, and idempotence with
+all five controls on. Note for the next session: comparing waves *between
+layers* must be done on the **sign** of the displacement, not its size — the
+taper legitimately scales each layer and column differently, and comparing
+heights produces false failures.
+
+**Verified here:** all repo tests plus the two new ones; engine and changelog
+sync `--check`; CRLF intact; end-to-end standalone run on the real
+`Cube^2_3m53s.gcode` fixture conserving total extrusion to 0.000000 mm and
+idempotent on a second pass. **Not verified:** no real OrcaSlicer, no print.
 
 ### 2026-10-01 — Export hang identified as OrcaSlicer #7433 (0.0.25)
 
@@ -333,7 +675,7 @@ output was punishing everything downstream.
 
 The owner printed the part with 0.0.20, photographed the first layer from
 below, circled two areas and uploaded the export (`Cube_39m10s.gcode`, now in
-the repo root along with `Cube.stl`). Having the real file meant both could be
+`archive/test-prints/` along with `Cube.stl`). Having the real file meant both could be
 measured instead of guessed at.
 
 **The corner was real.** Reconstructing that layer (index 45, z 13.8) and

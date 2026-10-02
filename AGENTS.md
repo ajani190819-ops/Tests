@@ -86,7 +86,10 @@ docs/
   reference/                supplied OrcaSlicer wiki/PDF reference snapshots
 plugins/
   wave-overhangs/           OrcaSlicer pipeline plugin: support-free steep overhangs
-  unlayered-infill/         OrcaSlicer pipeline plugin: sine-wave interlocking infill
+  unlayered-infill/         OrcaSlicer pipeline plugin: non-planar interlocking infill
+archive/                    NOT shipped: work kept for reference, with its own
+                            README explaining why and how to revive it.
+                            wave-overhangs-geometry/ lives here (archived 2026-10-02)
 tools/
   nonplanar-infill-tool/    standalone double-click tool (the predecessor of the
                             unlayered-infill plugin; kept as reference, GPL-3.0)
@@ -99,7 +102,9 @@ tests/
   test_plugin_runtime.py    runtime test: the PLUGIN loads, runs and logs
   test_plugin_audit.py      imports all shipped plugins under Orca's audit hook
   test_wave_gcode.py        captured real-export Wave replacement regression
-  test_wave_geometry.py     preview-visible geometry-stage Wave regression
+  test_unlayered_waves.py   Unlayered Infill wave shaping: pattern, angle,
+                            shape, layer phase, Z ceiling, and that the
+                            defaults still reproduce the previous release
 ```
 
 The `plugins.json` entry `path` is a URL path into this repo (forward slashes,
@@ -202,6 +207,7 @@ python3 tests/test_installer.py        # catalogue / .bat / files agree
 python3 tests/test_post_script.py      # the engine really rewrites G-code
 python3 tests/test_plugin_runtime.py   # the plugin loads, runs, and logs
 python3 tests/test_plugin_audit.py     # it imports under Orca's audit hook
+python3 tests/test_unlayered_waves.py  # Unlayered Infill wave shaping
 python3 tests/test_wave_gcode.py       # captured export; needs numpy + shapely
 python3 tools/sync_engine.py --check   # the two engine copies are identical
 python3 tools/sync_changelog.py --check  # changelogs match the plugins
