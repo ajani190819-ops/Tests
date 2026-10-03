@@ -1,3 +1,31 @@
+## 2026-10-02 — the jagged curves were hairpins, not facets (Wave 0.0.45)
+
+> "Those curved perimeters don't do so well with the waves, they still look
+> very jagged... it just looks like the waves on that curved arc aren't
+> smooth at all."
+
+Measured on the newly uploaded export: the **median** turn at a wave vertex
+was 15 degrees -- a smooth curve -- but the 90th percentile was **90** and
+the maximum 179. That is not faceting from too-coarse simplification, which
+is what it looks like and what I went looking for first. Those are hairpins:
+the front folds back on itself where it flows around something and rejoins,
+and every later front inherits the kink. The line of kinks is the chevron
+seam.
+
+Three wrong theories were measured and discarded on the way: simplification
+tolerance (sweeping it changes almost nothing), arc resolution, and a
+scalloped support footprint (morphological closing from 0.3 to 1.5 mm moved
+the median turn by less than a degree).
+
+`smooth_creases` (on by default) chamfers each sharp vertex three times at a
+shrinking setback, checked against the same guard that stops a front
+entering a hole. 90th-percentile turn 90 -> 22 degrees, vertices over 20
+degrees 38% -> 13%, path length within 0.2%. It costs about twice the points
+on a crease-heavy layer, and thinning them back undoes the fix -- the extra
+points are the roundness.
+
+---
+
 ## 2026-10-02 — waves only where a straight bridge cannot do the job (0.0.44)
 
 > "The only parts that should be receiving wave overhangs should be ones on

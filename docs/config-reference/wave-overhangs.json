@@ -18,6 +18,8 @@
   "propagation_mode": "auto",
   "_wake_blend": "x line_spacing, 0 = off -- EXPERIMENTAL. Rounds the sharp V where the wave rejoins behind a hole, currently costs ~4% coverage.",
   "wake_blend": 0.0,
+  "_smooth_creases": "true | false -- rounds off the hard V kinks where a front folds back on itself. Those read as a chevron seam across the waves, worst on curved walls. Costs points: about twice as many on a crease-heavy layer.",
+  "smooth_creases": true,
   "_3_WAVE": "===== 3. THE WAVE ITSELF (mostly auto) =====",
   "_line_spacing": "'auto' or mm -- centre-to-centre gap between wave lines, the main quality/time dial. auto is 0.875 x the Wave line width.",
   "line_spacing": "auto",

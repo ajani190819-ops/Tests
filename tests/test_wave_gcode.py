@@ -54,6 +54,10 @@ LEGACY = {
     # (search for "picky bridging").
     "straight_bridge_span": 0,
     "wave_internal_bridges": True,
+    # 0.0.45 rounds the V kinks off a front, which nudges every count here.
+    # Same reasoning: these pins measure geometry, so they keep the
+    # pre-0.0.45 shape. Rounding has its own section ("crease rounding").
+    "smooth_creases": False,
     "min_overhang_area": 0.5,
     "line_spacing": 0.35,
     "perimeter_overlap": 0.10,
@@ -1276,6 +1280,7 @@ auto_cfg = dict(wave._DEFAULTS)
 # keeps the pre-0.0.44 bridge selection and stays comparable.
 auto_cfg["straight_bridge_span"] = 0
 auto_cfg["wave_internal_bridges"] = True
+auto_cfg["smooth_creases"] = False
 auto_cfg["_lh"] = 0.3
 auto_out, auto_stats = wave._gcode_wave_rewrite(source, auto_cfg)
 assert auto_stats["wave_layers"] == 3, auto_stats
@@ -1570,7 +1575,7 @@ corner_source = wave_cases.synthetic_rounded_corner()
 if isinstance(corner_source, tuple):
     corner_source = corner_source[0]
 corner_out, _corner_stats = wave._gcode_wave_rewrite(
-    corner_source, {**wave._DEFAULTS, "_lh": 0.3,
+    corner_source, {**wave._DEFAULTS, "_lh": 0.3, "smooth_creases": False,
                     "straight_bridge_span": 0, "wave_internal_bridges": True})
 corner_fronts = front_density(corner_out)
 assert corner_fronts, "the rounded-corner case produced no waves"
@@ -1733,6 +1738,7 @@ for hole_count in (1, 16, 36):
     started = time.time()
     holey_out, holey_stats = wave._gcode_wave_rewrite(
         export, {**wave._DEFAULTS, "_lh": 0.3, "time_budget": 0,
+                 "smooth_creases": False,
                  "straight_bridge_span": 0, "wave_internal_bridges": True})
     timings[hole_count] = time.time() - started
     assert holey_stats["wave_layers"] >= 1, (hole_count, holey_stats)
@@ -1750,6 +1756,7 @@ assert ratio < 25, (
 tiny_budget_out, tiny_stats = wave._gcode_wave_rewrite(
     holey_export(36, overhang_layers=3),
     {**wave._DEFAULTS, "_lh": 0.3, "time_budget": 0.001,
+     "smooth_creases": False,
      "straight_bridge_span": 0, "wave_internal_bridges": True})
 assert tiny_stats.get("timed_out"), tiny_stats
 assert tiny_budget_out == holey_export(36, overhang_layers=3), (
@@ -1828,3 +1835,118 @@ print(f"ok -- picky bridging: on the Cube "
       f"{forced_stats['replaced_sections']}); a skirt within one bridge of "
       f"solid material is skipped, a 30 mm tongue is not; and "
       f"straight_bridge_span=0 restores the old behaviour exactly")
+
+
+# ---------------------------------------------------------------------------
+#  crease rounding: the chevron seam on curved walls (0.0.45)
+# ---------------------------------------------------------------------------
+# The owner, on a curved perimeter: "those curved perimeters don't do so well
+# with the waves, they still look very jagged... it just looks like the waves
+# on that curved arc aren't smooth at all."
+#
+# It was not faceting from simplification, which is what it looks like. The
+# fronts fold back on themselves: measured on the owner's t3 export the
+# MEDIAN turn at a vertex was 15 degrees but the 90th percentile was 90 --
+# hairpins, where a front flows around something and rejoins behind it. Every
+# later front inherits the kink, which is the chevron seam.
+def turn_angles(text):
+    fronts, current, inside = [], [], False
+    px = py = None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if "WAVE OVERHANG BEGIN" in stripped:
+            inside, current, px, py = True, [], None, None
+            continue
+        if "WAVE OVERHANG END" in stripped:
+            inside = False
+            if len(current) > 2:
+                fronts.append(current)
+            current = []
+            continue
+        if not inside or not stripped.startswith(("G0", "G1")):
+            continue
+        words = {}
+        for token in stripped.split()[1:]:
+            try:
+                words[token[0]] = float(token[1:])
+            except ValueError:
+                pass
+        x, y = words.get("X", px), words.get("Y", py)
+        if stripped.startswith("G0"):
+            if len(current) > 2:
+                fronts.append(current)
+            current = [(x, y)] if None not in (x, y) else []
+        elif "E" in words and None not in (px, py, x, y):
+            if not current:
+                current = [(px, py)]
+            current.append((x, y))
+        px, py = x, y
+    angles = []
+    for front in fronts:
+        for a, b, c in zip(front, front[1:], front[2:]):
+            v1 = (b[0] - a[0], b[1] - a[1])
+            v2 = (c[0] - b[0], c[1] - b[1])
+            n1, n2 = math.hypot(*v1), math.hypot(*v2)
+            if n1 < 1e-9 or n2 < 1e-9:
+                continue
+            cosang = max(-1.0, min(1.0, (v1[0] * v2[0] + v1[1] * v2[1])
+                                   / (n1 * n2)))
+            angles.append(math.degrees(math.acos(cosang)))
+    return sorted(angles)
+
+
+assert wave._DEFAULTS["smooth_creases"] is True
+
+curvy = wave_cases.synthetic_rounded_corner()
+if isinstance(curvy, tuple):
+    curvy = curvy[0]
+smooth_out, _s1 = wave._gcode_wave_rewrite(
+    curvy, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0})
+rough_out, _s2 = wave._gcode_wave_rewrite(
+    curvy, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0,
+            "smooth_creases": False})
+smooth_angles = turn_angles(smooth_out)
+rough_angles = turn_angles(rough_out)
+assert smooth_angles and rough_angles
+
+def p90(values):
+    return values[int(len(values) * 0.9)]
+
+
+assert p90(smooth_angles) < p90(rough_angles) * 0.75, (
+    f"crease rounding barely helped: p90 turn {p90(smooth_angles):.1f} deg "
+    f"against {p90(rough_angles):.1f} unrounded")
+sharp_before = sum(1 for a in rough_angles if a > 60) / len(rough_angles)
+sharp_after = sum(1 for a in smooth_angles if a > 60) / len(smooth_angles)
+assert sharp_after < sharp_before * 0.6, (
+    f"hairpins survived rounding: {100 * sharp_after:.0f}% of vertices still "
+    f"turn more than 60 degrees, against {100 * sharp_before:.0f}% before")
+
+# The path must not be RESHAPED. Rounding a kink trades a sharp corner for a
+# short arc, so the length moves by a fraction of a percent in either
+# direction -- measured at +0.17% on this case. Anything beyond a couple of
+# percent means the fronts moved, not just their corners.
+path_ratio = (wave_path_length(wave_blocks_of(smooth_out))
+              / wave_path_length(wave_blocks_of(rough_out)))
+assert 0.97 < path_ratio < 1.03, (
+    f"crease rounding changed the path length by {100 * (path_ratio - 1):.1f}%")
+
+# A chamfer must never push a front into a hole. Rounding is checked against
+# the same guard as everything else, so the hole case must still hold.
+hole_src, (hx, hy, hr) = wave_cases.synthetic_overhang_with_hole()
+hole_out, _hs = wave._gcode_wave_rewrite(
+    hole_src, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0})
+void = Point(hx, hy).buffer(hr - 0.1)
+for block in wave_blocks_of(hole_out):
+    for line in block.splitlines():
+        if line.startswith("G1 X") and " E" in line:
+            parts = {t[0]: float(t[1:]) for t in line.split()[1:]
+                     if t[0] in "XY"}
+            assert not void.contains(Point(parts["X"], parts["Y"])), (
+                f"crease rounding put a wave point inside the hole: {line}")
+
+print(f"ok -- crease rounding: 90th-percentile turn "
+      f"{p90(rough_angles):.0f} -> {p90(smooth_angles):.0f} degrees on the "
+      f"curved case, hairpins over 60 degrees {100 * sharp_before:.0f}% -> "
+      f"{100 * sharp_after:.0f}%, path length unchanged, and nothing lands "
+      f"in a hole")

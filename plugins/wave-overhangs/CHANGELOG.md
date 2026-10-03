@@ -22,6 +22,39 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.45 — 2026-10-02
+
+* Rounds off the hard V kinks in a wavefront, which is what made waves on a
+  curved perimeter look jagged. On the owner's t3 export the 90th-percentile
+  turn at a vertex goes from 90 degrees to 22, and vertices turning more than
+  20 degrees from 38% to 13%. New setting `smooth_creases` (true).
+
+**It was not faceting.** That is what it looks like, and the obvious
+suspects -- simplification tolerance, arc resolution, the support footprint
+being scalloped -- were all measured and all wrong. Closing the support
+polygon with radii from 0.3 to 1.5 mm moved the median turn angle by less
+than a degree.
+
+What the numbers actually said: the MEDIAN turn at a vertex was 15 degrees,
+which is a smooth curve, but the 90th percentile was 90 and the maximum 179.
+Those are hairpins. A front flows around an obstacle, rejoins behind it, and
+meets itself in a V; every later front inherits the kink, and the line of
+kinks reads as a chevron seam across the field. Curved walls show it worst
+because the fronts are already turning.
+
+**The fix** replaces each sharp vertex with a three-point chamfer, applied
+three times at a shrinking setback, so a 104-degree hairpin becomes a
+readable curve. Every replacement is checked against the same region guard
+as everything else, so rounding cannot push a front into a hole. Turns
+gentler than 30 degrees are left exactly alone -- real curvature is not
+touched.
+
+**The cost is points**: about twice as many on a crease-heavy layer (1770 to
+3456 on t3). Thinning them back was tried and dropped -- re-simplifying at a
+quarter of the tolerance took the 90th percentile from 22 back to 36 degrees
+and saved only 265 points. The points a chamfer adds ARE the roundness. Set
+`smooth_creases: false` for the old output.
+
 ## 0.0.44 — 2026-10-02
 
 * Waves are now only used where a straight bridge cannot do the job. Two

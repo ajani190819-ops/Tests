@@ -60,3 +60,25 @@ unsupported patch; a straight bridge has to cross twice that.
 
 `3tt_20m37s.gcode` is the processed export that showed the problem: 8 wave
 blocks, one of them inside `;TYPE:Internal Bridge` at Z 9.3.
+
+
+## Why the waves looked jagged on curved walls (drove 0.0.45)
+
+`3t2_20m37s.gcode` + `jagged-curve-waves.png`. Turn angle at each wave
+vertex, measured on that export:
+
+| | before 0.0.45 | after |
+| --- | --- | --- |
+| median turn | 15.1 deg | 13.7 |
+| 90th percentile | **90.3 deg** | 21.7 |
+| vertices over 20 deg | 38% | 13% |
+| points | 1770 | 3456 |
+
+A median of 15 degrees is a smooth curve. A 90th percentile of 90 is
+hairpins -- the front folding back on itself where the field rejoins behind
+an obstacle. It is not simplification faceting, which is what it looks
+like.
+
+Measured and ruled out first: sweeping `simplify_tolerance` (almost no
+effect on turn angle), and morphologically closing the support footprint at
+r = 0.3, 0.6, 1.0, 1.5 mm (moved the median by less than a degree).
