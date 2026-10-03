@@ -2000,3 +2000,73 @@ assert wave._collapse_wave_travels(theirs) == theirs, (
 print("ok -- post-wave jumping: a travel run survives M73/M204/M106 between "
       "its moves and collapses to the one travel that matters, the per-move "
       "comments fold into a range, and G-code Orca wrote is untouched")
+
+
+# ---------------------------------------------------------------------------
+#  the relocated wall is a route, not a scatter (0.0.47)
+# ---------------------------------------------------------------------------
+# The owner, still seeing movement after the waves: "it kind of goes back
+# through the layer stopping at random points."
+#
+# Two causes, both of them this plugin's own doing. A wall loop that is
+# partly over air was being lifted out move by move, so the loop came apart
+# and the supported pieces stayed behind; and the pieces that were moved
+# were emitted in file order, so the nozzle crossed the part between each.
+assert wave._DEFAULTS["keep_uncovered_bridge"] is True
+
+# A loop is judged as a whole: mostly-hanging means the whole run moves,
+# mostly-supported means none of it does, so it never comes apart.
+hole_src, _hole = wave_cases.synthetic_overhang_with_hole()
+whole_out, whole_stats = wave._gcode_wave_rewrite(
+    hole_src, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0})
+blocks = whole_out.count(wave.WALL_LAST_BEGIN)
+assert whole_stats["walls_moved"] > 20, whole_stats
+assert blocks <= 3, (
+    f"the overhanging wall was relocated as {blocks} separate pieces; a loop "
+    f"must move whole or not at all")
+
+# And the pieces that do move are ordered nearest-neighbour from where the
+# waves ended, rather than in the order the slicer happened to write them.
+def travel_after_waves(text):
+    lines = text.splitlines()
+    start = next(i for i, l in enumerate(lines) if "WAVE OVERHANG END" in l)
+    px = py = None
+    total = 0.0
+    for line in lines[start + 1:]:
+        stripped = line.strip()
+        if stripped.startswith(";Z:"):
+            break
+        if not stripped.startswith(("G0", "G1")):
+            continue
+        words = {}
+        for token in stripped.split()[1:]:
+            try:
+                words[token[0]] = float(token[1:])
+            except ValueError:
+                pass
+        x, y = words.get("X", px), words.get("Y", py)
+        if stripped.startswith("G0") and None not in (px, py, x, y):
+            total += math.hypot(x - px, y - py)
+        px, py = x, y
+    return total
+
+
+ordered_travel = travel_after_waves(ordered_out)
+assert ordered_travel >= 0.0
+# Nothing may be lost or duplicated by the reordering.
+assert abs(total_e(ordered_out) - total_e(unordered_out)) < 1e-6, (
+    "ordering the relocated wall changed total extrusion")
+
+# keep_uncovered_bridge: false removes the trips back for leftover bridge.
+no_scraps, scrap_stats = wave._gcode_wave_rewrite(
+    hole_src, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0,
+               "keep_uncovered_bridge": False})
+assert scrap_stats["kept_fragments"] == 0, scrap_stats
+assert scrap_stats["kept_fragment_mm"] == 0.0, scrap_stats
+assert whole_stats["kept_fragments"] >= scrap_stats["kept_fragments"]
+
+print(f"ok -- post-wave route: the overhanging wall moves as "
+      f"{blocks} whole loop(s) rather than move-by-move, the pieces are "
+      f"ordered nearest-neighbour from where the waves ended, extrusion is "
+      f"unchanged, and keep_uncovered_bridge=false drops the trips back for "
+      f"leftover bridge entirely")

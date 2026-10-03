@@ -22,6 +22,37 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.47 — 2026-10-02
+
+* An overhanging wall loop now moves after the waves whole or not at all.
+  It was being lifted out move by move, so a loop that was partly over air
+  came apart: the hanging pieces printed after the waves, the supported
+  pieces stayed where they were, and the nozzle crossed the layer between
+  them. That is the "goes back through the layer stopping at random
+  points" the owner was seeing, and it was this plugin's own doing.
+* The relocated pieces are ordered nearest-neighbour from where the waves
+  ended instead of in the order the slicer wrote them.
+* New `keep_uncovered_bridge` (true). Set it false to skip the trips back
+  for leftover bits of original bridge entirely.
+
+Travel after the waves on the owner's t3 export, same file each time:
+
+| | travels | distance |
+| --- | --- | --- |
+| 0.0.45 | 59 | 729 mm |
+| 0.0.46 | 28 | 279 mm |
+| 0.0.47 | 27 | 240 mm |
+
+What is left is genuine: the part is 40 mm across and the wall pieces are
+on opposite sides of it.
+
+**Worth being straight about what was NOT the cause.** Counting
+travel-then-short-extrusion pairs across the whole file finds 199 of them,
+and only one belongs to this plugin -- the rest are OrcaSlicer's own
+infill ends and wipe sequences, present in the unprocessed export too. If
+movement remains after this, `wall_last: false` turns the relocation off
+and is the quickest way to tell the two apart.
+
 ## 0.0.46 — 2026-10-02
 
 * Fixes the nozzle still jumping around after the waves finish. On the

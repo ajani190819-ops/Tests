@@ -1,3 +1,33 @@
+## 2026-10-02 — the wall loop was coming apart (Wave 0.0.47)
+
+> "Specifically I'm talking about done printing the waves, how it kind of
+> just goes back through the layer stopping at random points."
+
+Found it, and it was mine. The wall relocation added in 0.0.36 judged each
+wall MOVE on its own, so a loop that was partly over air came apart: the
+hanging moves went after the waves, the supported ones stayed where they
+were, and the nozzle crossed the layer to stitch the two together. On t3
+that produced six separate relocated pieces, emitted in the order the
+slicer happened to write them.
+
+A loop is now judged as a whole -- mostly hanging means all of it moves,
+mostly supported means none of it does -- and the pieces that do move are
+ordered nearest-neighbour from where the waves ended. Travel after the
+waves on t3: 59 travels / 729 mm in 0.0.45, 28 / 279 in 0.0.46, now
+**27 / 240**.
+
+Also new: `keep_uncovered_bridge: false` drops the trips back for leftover
+bits of original bridge.
+
+Honest caveat: counting travel-then-short-extrusion pairs across the whole
+file finds 199, of which exactly one is this plugin's. The rest are
+Orca's own infill ends and wipe sequences and are in the unprocessed
+export too. If you still see stop-start motion after this, set
+`wall_last: false` -- that turns the relocation off entirely and tells us
+in one slice whether we are still looking at the same thing.
+
+---
+
 ## 2026-10-02 — the post-wave jumping, properly this time (Wave 0.0.46)
 
 > "It kind of jumps around after completing all of the waves. Once the

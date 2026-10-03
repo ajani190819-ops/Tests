@@ -43,6 +43,8 @@
   "min_wave_segment": "auto",
   "_simplify_tolerance": "'auto' or mm -- how much jitter may be smoothed out of a wave line. auto scales with the line width, with your profile's Resolution as a floor.",
   "simplify_tolerance": "auto",
+  "_keep_uncovered_bridge": "true | false -- go back after the waves and print the bits of original bridge they did not cover. false skips those trips, leaving the bits unprinted.",
+  "keep_uncovered_bridge": true,
   "_min_bridge_fragment": "x line width -- original bridge the waves did not cover is still printed if it is at least this long.",
   "min_bridge_fragment": 0.5,
   "_6_WALLS": "===== 6. MEETING THE WALL =====",
