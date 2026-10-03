@@ -1,3 +1,27 @@
+## 2026-10-02 — the post-wave jumping, properly this time (Wave 0.0.46)
+
+> "It kind of jumps around after completing all of the waves. Once the
+> waves are done it shouldn't need to go back."
+
+0.0.41 was supposed to have fixed this and the synthetic tests agreed. On
+the real export it barely fired: Orca writes `M73` progress lines between
+the moves, and any non-comment line ended a run of travels, so the pattern
+travel/M73/travel/M73 survived intact. 59 travels, 729 mm of motion to
+print 250 mm.
+
+M-codes that change state but do not move the nozzle now sit inside a
+travel run without ending it. **28 travels, 279 mm** on the same file, and
+what remains is genuine repositioning between separate pieces -- the
+longest is a 34 mm hop to the relocated overhang wall. The per-move
+comments also fold into one line naming a range, which took 390 lines down
+to a handful on that layer.
+
+The synthetic fixtures contain no `M73`, which is exactly why they could
+not catch it. That is the second time this week a captured export has
+contradicted a green test suite.
+
+---
+
 ## 2026-10-02 — the jagged curves were hairpins, not facets (Wave 0.0.45)
 
 > "Those curved perimeters don't do so well with the waves, they still look

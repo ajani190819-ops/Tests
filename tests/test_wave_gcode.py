@@ -1950,3 +1950,53 @@ print(f"ok -- crease rounding: 90th-percentile turn "
       f"curved case, hairpins over 60 degrees {100 * sharp_before:.0f}% -> "
       f"{100 * sharp_after:.0f}%, path length unchanged, and nothing lands "
       f"in a hole")
+
+
+# ---------------------------------------------------------------------------
+#  no jumping around once the waves are done (0.0.46)
+# ---------------------------------------------------------------------------
+# The owner: "it kind of jumps around after completing all of the waves,
+# once the waves are done it shouldn't need to go back."
+#
+# 0.0.41 collapsed the redundant travels left where covered bridge moves
+# were cut, and it worked on the synthetic cases -- but barely fired on a
+# real export, because Orca sprinkles M73 progress lines through the file
+# and any non-comment line ended a run. On the owner's t3 export 59 travels
+# survived: 729 mm of jumping to print 250 mm.
+assert "M73" in wave._PASSIVE_MCODES, (
+    "M73 is a progress report, not motion -- it must not break a run of "
+    "travels")
+for code in ("M204", "M205", "M106", "M117"):
+    assert code in wave._PASSIVE_MCODES, code
+
+interrupted = [
+    "; ==== WAVE OVERHANG END ====\n",
+    "; wave-overhangs replaced covered bridge move 1\n",
+    "G0 F7200 X10.000 Y10.000\n",
+    "M73 P7 R19\n",
+    "; wave-overhangs replaced covered bridge move 2\n",
+    "G0 F7200 X20.000 Y20.000\n",
+    "M73 P8 R18\n",
+    "; wave-overhangs replaced covered bridge move 3\n",
+    "G0 F7200 X30.000 Y30.000\n",
+    "G1 X31.000 Y30.000 E0.1\n",
+]
+collapsed = wave._collapse_wave_travels(interrupted)
+travels = [l for l in collapsed if l.startswith("G0")]
+assert len(travels) == 1, (
+    f"M73 between travels still breaks the collapse: {travels}")
+assert "X30.000" in travels[0], "the SURVIVING travel must be the last one"
+assert any(l.startswith("M73") for l in collapsed), "M73 must be preserved"
+assert any("G1 X31.000" in l for l in collapsed), "extrusion must survive"
+# The per-move comments fold into one line naming the range.
+assert any("replaced covered bridge moves 1-3 (3)" in l for l in collapsed), (
+    [l for l in collapsed if "replaced" in l])
+
+# Orca's own travels are never touched: no plugin comment, no collapse.
+theirs = ["G0 X1 Y1\n", "M73 P1 R1\n", "G0 X2 Y2\n", "G0 X3 Y3\n"]
+assert wave._collapse_wave_travels(theirs) == theirs, (
+    "a run with no wave-overhangs comment in it must be left alone")
+
+print("ok -- post-wave jumping: a travel run survives M73/M204/M106 between "
+      "its moves and collapses to the one travel that matters, the per-move "
+      "comments fold into a range, and G-code Orca wrote is untouched")

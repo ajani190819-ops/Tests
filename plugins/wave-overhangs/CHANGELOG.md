@@ -22,6 +22,33 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.46 — 2026-10-02
+
+* Fixes the nozzle still jumping around after the waves finish. On the
+  owner's t3 export that was 59 travels covering 729 mm to print 250 mm;
+  it is now 28 travels and 279 mm, and the ones left are real
+  repositioning between separate pieces of geometry.
+* The per-move "replaced covered bridge move" comments fold into one line
+  naming the range -- 390 lines became a handful on one layer.
+
+**Why 0.0.41 did not already fix this.** That release collapsed runs of
+redundant travels and was verified on the synthetic cases, where it
+worked. On a real export it barely fired: OrcaSlicer sprinkles `M73`
+progress lines through the G-code, and any line that was not a comment
+ended a run. So the pattern on a real file was travel, M73, travel, M73 --
+and every one of them survived.
+
+M-codes that change state without moving the nozzle (`M73`, `M117`,
+`M204`, `M205`, `M106`, `M107`, `M900`) now sit inside a run without
+ending it, and one of this plugin's own comments can open a run as well as
+continue one. The collapse is still deliberately narrow: a run is only
+touched if it contains a `; wave-overhangs` comment, so G-code Orca wrote
+is never rewritten.
+
+**A lesson worth keeping**: the synthetic cases in the test suite had no
+M73 lines, so they could not have caught this. The fix is verified against
+the captured export as well now.
+
 ## 0.0.45 — 2026-10-02
 
 * Rounds off the hard V kinks in a wavefront, which is what made waves on a
