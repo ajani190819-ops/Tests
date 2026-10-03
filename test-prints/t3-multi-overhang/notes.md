@@ -44,3 +44,19 @@ file.
 20 s on a 1.9 MB file is close enough to the old 30 s limit that a slower
 machine or a larger part would have tripped it, so `time_budget: auto`
 (0.0.42) still matters -- it just is not what happened here.
+
+
+## Which sections should be waved (measured 2026-10-02, drove 0.0.44)
+
+"Reach" is the distance from solid material to the furthest point of the
+unsupported patch; a straight bridge has to cross twice that.
+
+| Z | type | area | reach | verdict |
+| --- | --- | --- | --- | --- |
+| 5.4 | Bridge | 1035 mm2 | 37.5 mm | genuine thin air -- wave it |
+| 7.8 | Bridge | 18-54 mm2 | 2.4-3.7 mm | the owner's "divots" |
+| 8.1 | Bridge | 1.3 mm2 | 0.2-0.4 mm | specks |
+| 9.3 | Internal Bridge | 1090 mm2 | 5.5 mm | solid over sparse infill |
+
+`3tt_20m37s.gcode` is the processed export that showed the problem: 8 wave
+blocks, one of them inside `;TYPE:Internal Bridge` at Z 9.3.

@@ -45,6 +45,15 @@ source = (ROOT / "tests/fixtures/Cube^2_3m53s.gcode").read_text(
 # measured with, and the auto behaviour gets its own assertions below
 # (search for "auto defaults").
 LEGACY = {
+    # 0.0.44 stopped waving Internal Bridge (solid over sparse infill) and
+    # anything a plain bridge can cross. Two of this fixture's three waved
+    # sections are internal bridges and the third is a 4.7 mm overhang, so
+    # the shipped defaults now leave all of it alone -- correctly. The pinned
+    # counts below are a GEOMETRY regression, so they keep running against
+    # the old, less picky selection. The new selection has its own section
+    # (search for "picky bridging").
+    "straight_bridge_span": 0,
+    "wave_internal_bridges": True,
     "min_overhang_area": 0.5,
     "line_spacing": 0.35,
     "perimeter_overlap": 0.10,
@@ -1263,6 +1272,10 @@ assert big >= math.hypot(200, 200) / 0.35, (
 # And the whole thing still has to run, end to end, on the real export with
 # nothing but auto defaults -- the configuration a new user actually gets.
 auto_cfg = dict(wave._DEFAULTS)
+# Same reason as LEGACY: this case is about what "auto" resolves to, so it
+# keeps the pre-0.0.44 bridge selection and stays comparable.
+auto_cfg["straight_bridge_span"] = 0
+auto_cfg["wave_internal_bridges"] = True
 auto_cfg["_lh"] = 0.3
 auto_out, auto_stats = wave._gcode_wave_rewrite(source, auto_cfg)
 assert auto_stats["wave_layers"] == 3, auto_stats
@@ -1556,8 +1569,9 @@ def front_density(text):
 corner_source = wave_cases.synthetic_rounded_corner()
 if isinstance(corner_source, tuple):
     corner_source = corner_source[0]
-corner_out, _corner_stats = wave_cases and wave._gcode_wave_rewrite(
-    corner_source, {**wave._DEFAULTS, "_lh": 0.3})
+corner_out, _corner_stats = wave._gcode_wave_rewrite(
+    corner_source, {**wave._DEFAULTS, "_lh": 0.3,
+                    "straight_bridge_span": 0, "wave_internal_bridges": True})
 corner_fronts = front_density(corner_out)
 assert corner_fronts, "the rounded-corner case produced no waves"
 
@@ -1718,7 +1732,8 @@ for hole_count in (1, 16, 36):
     export = holey_export(hole_count, overhang_layers=3)
     started = time.time()
     holey_out, holey_stats = wave._gcode_wave_rewrite(
-        export, {**wave._DEFAULTS, "_lh": 0.3, "time_budget": 0})
+        export, {**wave._DEFAULTS, "_lh": 0.3, "time_budget": 0,
+                 "straight_bridge_span": 0, "wave_internal_bridges": True})
     timings[hole_count] = time.time() - started
     assert holey_stats["wave_layers"] >= 1, (hole_count, holey_stats)
     assert not holey_stats.get("timed_out"), holey_stats
@@ -1734,7 +1749,8 @@ assert ratio < 25, (
 # And a budget that runs out must be loud, not silent.
 tiny_budget_out, tiny_stats = wave._gcode_wave_rewrite(
     holey_export(36, overhang_layers=3),
-    {**wave._DEFAULTS, "_lh": 0.3, "time_budget": 0.001})
+    {**wave._DEFAULTS, "_lh": 0.3, "time_budget": 0.001,
+     "straight_bridge_span": 0, "wave_internal_bridges": True})
 assert tiny_stats.get("timed_out"), tiny_stats
 assert tiny_budget_out == holey_export(36, overhang_layers=3), (
     "a timeout must hand back the original file byte for byte")
@@ -1743,3 +1759,72 @@ print(f"ok -- many holes: 1/16/36 holes over 3 overhang layers cost "
       f"{timings[1]:.1f}/{timings[16]:.1f}/{timings[36]:.1f}s "
       f"({ratio:.0f}x for 36x the holes), none time out, and a budget that "
       f"does run out returns the original file untouched and says so")
+
+
+# ---------------------------------------------------------------------------
+#  waves only where a straight bridge cannot do the job (0.0.44)
+# ---------------------------------------------------------------------------
+# The owner: "the only parts that should be receiving wave overhangs should
+# be ones on the underside where you have horizontal overhangs that don't
+# have any other method of support... bridges at the top are still using the
+# wave overhangs instead of straight bridges... also the little divots on the
+# underside, those are using waves but they don't need to."
+#
+# Orca marks three different things as "bridge" and only one of them is
+# printing into thin air. Measured on the owner's t3 export:
+#
+#   Z 5.4  bridge           1035 mm2   reach 37.5 mm  <- genuine, wave it
+#   Z 7.8  bridge          18-54 mm2   reach 2.4-3.7  <- the "divots"
+#   Z 8.1  bridge            1.3 mm2   reach 0.2-0.4  <- specks
+#   Z 9.3  internal bridge  1090 mm2   reach 5.5 mm   <- solid over infill
+#
+# "reach" is the distance from supported material to the furthest point of
+# the unsupported patch, so a straight bridge has to cross twice that.
+assert wave._DEFAULTS["wave_internal_bridges"] is False, (
+    "Internal Bridge is the solid layer over sparse infill -- anchored every "
+    "few mm by the infill under it, so a straight bridge is the right tool")
+assert wave._DEFAULTS["straight_bridge_span"] == "auto"
+assert wave._straight_bridge_span({"straight_bridge_span": "auto"}) == 10.0
+assert wave._straight_bridge_span({"straight_bridge_span": 4}) == 4.0
+assert wave._straight_bridge_span({"straight_bridge_span": "junk"}) == 10.0
+
+support_square = Polygon([(0, 0), (20, 0), (20, 20), (0, 20)])
+# A 3 mm skirt around the outside. Its furthest point is a corner, 4.24 mm
+# away diagonally, so a 10 mm bridge (5 mm of reach) covers all of it.
+divot = Polygon([(-3, -3), (23, -3), (23, 23), (-3, 23)]).difference(
+    support_square)
+assert wave._straight_bridge_would_do(divot, support_square, 10.0), (
+    "a 4 mm skirt around solid material must be left to a straight bridge")
+# A 30 mm tongue sticking out into nothing.
+tongue = Polygon([(20, 5), (50, 5), (50, 15), (20, 15)])
+assert not wave._straight_bridge_would_do(tongue, support_square, 10.0), (
+    "a 30 mm tongue is exactly what waves are for")
+# span 0 disables the rule; empty geometry never crashes it.
+assert not wave._straight_bridge_would_do(divot, support_square, 0.0)
+assert not wave._straight_bridge_would_do(divot, Polygon(), 10.0)
+
+# End to end on the Cube. Two of its three waved sections were Internal
+# Bridge -- solid skin over sparse infill at the top of the part, which is
+# exactly what the owner did not want waved. Those are now left alone. The
+# third is the real overhang ring: 4.7 mm per side, but its CORNERS are
+# 6.6 mm out diagonally, past the 5 mm of reach a 10 mm bridge has, so it
+# is still waved. Both halves of that are the intended behaviour.
+picky_out, picky_stats = wave._gcode_wave_rewrite(
+    source, {**wave._DEFAULTS, "_lh": 0.3})
+assert picky_stats["internal_bridges_left_alone"] == 2, picky_stats
+assert picky_stats["replaced_sections"] == 1, picky_stats
+# Forcing the old behaviour must bring the waves back, unchanged.
+forced_out, forced_stats = wave._gcode_wave_rewrite(
+    source, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0,
+             "wave_internal_bridges": True})
+assert forced_stats["wave_layers"] == 3, forced_stats
+assert forced_stats["replaced_sections"] == 3, forced_stats
+assert forced_stats["bridgeable_regions_left_alone"] == 0
+
+print(f"ok -- picky bridging: on the Cube "
+      f"{picky_stats['internal_bridges_left_alone']} Internal Bridge "
+      f"section(s) are left to a straight bridge and only the real overhang "
+      f"is waved ({picky_stats['replaced_sections']} of "
+      f"{forced_stats['replaced_sections']}); a skirt within one bridge of "
+      f"solid material is skipped, a 30 mm tongue is not; and "
+      f"straight_bridge_span=0 restores the old behaviour exactly")

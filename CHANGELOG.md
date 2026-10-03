@@ -1,3 +1,33 @@
+## 2026-10-02 — waves only where a straight bridge cannot do the job (0.0.44)
+
+> "The only parts that should be receiving wave overhangs should be ones on
+> the underside where you have horizontal overhangs that don't have any
+> other method of support... bridges at the top are still using the wave
+> overhangs instead of straight bridges... also the little divots on the
+> underside, those are using waves but they don't need to."
+
+Right on both counts, and the owner's t3 export separates the three cases
+cleanly. "Reach" below is the distance from solid material to the furthest
+point of the unsupported patch; a straight bridge has to cross twice that:
+
+| Z | type | area | reach | verdict |
+| --- | --- | --- | --- | --- |
+| 5.4 | Bridge | 1035 mm2 | 37.5 mm | **wave it** |
+| 7.8 | Bridge | 18-54 mm2 | 2.4-3.7 mm | the divots -- straight bridge |
+| 8.1 | Bridge | 1.3 mm2 | 0.2-0.4 mm | specks -- straight bridge |
+| 9.3 | Internal Bridge | 1090 mm2 | 5.5 mm | solid over infill -- straight bridge |
+
+Two filters, both on by default: `Internal Bridge` sections are left alone
+(`wave_internal_bridges: false`), and any unsupported patch a plain bridge
+can cross is left alone (`straight_bridge_span: auto`, 10 mm). t3 goes from
+7 waved sections to 1, and the pass drops from 21.7 s to 13.6 s.
+
+`straight_bridge_span: 0` plus `wave_internal_bridges: true` restores the
+old behaviour exactly, and the existing geometry regressions run that way so
+they keep measuring geometry rather than selection.
+
+---
+
 ## 2026-10-02 — t3 arrives, and the "Wave does nothing" cause is NOT the timeout
 
 The owner's t3 export landed, and running the real capability against it

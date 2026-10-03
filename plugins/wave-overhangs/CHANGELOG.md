@@ -22,6 +22,43 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.44 — 2026-10-02
+
+* Waves are now only used where a straight bridge cannot do the job. Two
+  things Orca labels "bridge" are excluded: `Internal Bridge` (the solid
+  layer over sparse infill, anchored every few mm by the infill under it),
+  and any unsupported patch a plain bridge can cross -- `straight_bridge_span`,
+  10 mm by default.
+* New settings: `wave_internal_bridges` (false) and `straight_bridge_span`
+  ("auto" = 10 mm). Setting the span to 0 and wave_internal_bridges to true
+  restores the old behaviour exactly.
+
+**Why.** Waves are for extrusion with nothing under it and nothing to span
+between. They are slower than a straight bridge and they look different, so
+using them where a bridge would do is a cost with no return. Measured on the
+owner's t3 export, where "reach" is the distance from solid material to the
+furthest point of the unsupported patch -- a straight bridge has to cross
+twice that:
+
+| Z | type | area | reach | now |
+| --- | --- | --- | --- | --- |
+| 5.4 | Bridge | 1035 mm2 | 37.5 mm | **waved** -- genuine thin air |
+| 7.8 | Bridge | 18-54 mm2 | 2.4-3.7 mm | left alone -- the "divots" |
+| 8.1 | Bridge | 1.3 mm2 | 0.2-0.4 mm | left alone -- specks |
+| 9.3 | Internal Bridge | 1090 mm2 | 5.5 mm | left alone -- solid over infill |
+
+That file goes from 7 waved sections to 1, and the pass drops from 21.7 s to
+13.6 s because the work it was doing was work it should not have been doing.
+
+Note the 9.3 case: 1090 mm2 is a large area, so area thresholds never caught
+it. What makes it a straight-bridge job is that the infill below is never
+more than 5.5 mm away, and the type label says so outright.
+
+**On the Cube test export** two of the three waved sections turn out to have
+been Internal Bridge as well. The remaining one -- the real 4.7 mm overhang
+ring -- is still waved, because its corners sit 6.6 mm out diagonally, past
+the 5 mm of reach a 10 mm bridge has.
+
 ## 0.0.43 — 2026-10-02
 
 * Check setup now explains the most likely reason Wave "did nothing": the
