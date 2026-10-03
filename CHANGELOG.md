@@ -1,3 +1,29 @@
+## 2026-10-02 — t3 arrives, and the "Wave does nothing" cause is NOT the timeout
+
+The owner's t3 export landed, and running the real capability against it
+settles it: **the plugin handles that part fine** -- 3 wave layers, 7
+sections, 688 bridge moves replaced, 20.0 s. The hole count and the
+multiple overhang layers are not the problem, and neither is the time
+budget: 0.0.41, with its flat 30 s, also completes the file in 19.9 s.
+
+What the file shows instead: its first line is
+`; unlayered-infill v0.4.8 (non-planar sparse infill)` and there is no
+`; wave-overhangs v...` stamp anywhere. **Unlayered Infill ran on that
+export and Wave Overhangs never did.** `Others -> Slicing Pipeline Plugin`
+is one preset field and both plugins want it.
+
+So 0.0.43 adds the message that would have caught this immediately: when
+Wave has never been handed a file, Check setup now says so and points at
+the selection rather than leaving you to suspect the geometry.
+
+The previous entry's timeout work stands on its own merits -- 20 s against
+a 30 s limit on a 1.9 MB file is uncomfortably close, and a bigger part or
+a slower machine would trip it -- but it was not what happened here, and
+the changelog entry claiming it would be was written before the evidence
+arrived.
+
+---
+
 ## 2026-10-02 — why a complex part came back unprocessed (Wave Overhangs 0.0.42)
 
 > "The G-code did not get overwritten for this one, the whole system just

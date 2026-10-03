@@ -1,31 +1,46 @@
 # t3 — multiple overhang layers, many holes
 
-Uploaded 2026-10-02. **STL only, no G-code yet.** The owner reported that
-this part came back completely unprocessed -- "the whole system just didn't
-work".
+Uploaded 2026-10-02: `t3.stl` and `t3_20m37s.gcode` (1.9 MB, OrcaSlicer
+2.5.0-dev, 0.2 mm layers, 0.57 mm wave line).
 
-Export it with Wave Overhangs **off** and drop the .gcode here. Without it
-the diagnosis below is a reconstruction, not a measurement of this part.
+The owner reported that Wave Overhangs did nothing on this part while
+simpler models worked.
 
-## Diagnosis so far (0.0.42)
+## The plugin handles this file (measured 2026-10-02, v0.0.42)
 
-The most likely cause is the **time budget**, which was a flat 30 s. The
-pass costs what the geometry costs, and when it runs out the file is
-returned exactly as Orca wrote it -- correct behaviour that is impossible to
-tell apart from the plugin not running.
+Running the real capability against this exact export:
 
-Measured on a synthetic 40 mm block with round holes over three overhang
-layers:
+| | |
+| --- | --- |
+| wave layers | 3 |
+| sections replaced | 7 |
+| original bridge moves removed | 688 |
+| fragments retained | 259 |
+| overhanging wall moves reordered | 104 |
+| time | 20.0 s |
 
-| holes | 0.0.41 | 0.0.42 |
-| --- | --- | --- |
-| 1 | 0.6 s | 0.7 s |
-| 16 | 2.1 s | 1.6 s |
-| 36 | 7.4 s | 4.0 s |
+So the geometry, the hole count and the multiple overhang layers are all
+handled. **The earlier timeout theory does not explain this file**: 0.0.41
+with its flat 30 s budget also completes it, in 19.9 s.
 
-0.0.42 makes the budget `auto` (30 s + 45 s per MB, capped at 300 s), caches
-`_interior_voids()` per region instead of recomputing it per endpoint, and
-makes a timeout shout in Check setup.
+## What the file itself says
 
-**To confirm on the real part:** run Check setup after a slice. If it leads
-with `*** THE LAST EXPORT RAN OUT OF TIME ***`, this was it.
+Line 1 is `; unlayered-infill v0.4.8 (non-planar sparse infill)` and there
+is no `; wave-overhangs v...` stamp anywhere. Unlayered Infill ran on this
+export; Wave Overhangs never did.
+
+`Others -> Slicing Pipeline Plugin` is ONE preset field
+(`docs/ORCA-PLUGIN-FACTS.md`, "The preset field"), and both plugins want it.
+Whether it holds a list is documented but **not confirmed on a real build**.
+If it is effectively single-valued, selecting Unlayered Infill means Wave is
+never called -- which is exactly the evidence here.
+
+**To confirm:** the first line of an export tells you which plugins ran.
+Wave's Check setup now says the same thing when it has never been handed a
+file.
+
+## Still open
+
+20 s on a 1.9 MB file is close enough to the old 30 s limit that a slower
+machine or a larger part would have tripped it, so `time_budget: auto`
+(0.0.42) still matters -- it just is not what happened here.

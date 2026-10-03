@@ -22,6 +22,24 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.43 — 2026-10-02
+
+* Check setup now explains the most likely reason Wave "did nothing": the
+  Slicing Pipeline Plugin field is ONE selection and both plugins in this
+  repo want it. If Unlayered Infill is selected there, Wave is never
+  called, and the export carries the Unlayered stamp and no wave blocks.
+
+No behaviour change. This is the message that would have saved a round
+trip: the owner reported Wave doing nothing on a complex part, the earlier
+guess was the time budget, and the part itself disproved it -- 0.0.41
+waves that same file in 19.9 s, inside its old 30 s limit. The file's first
+line says `; unlayered-infill v0.4.8` and no wave stamp appears anywhere,
+which is what "the other plugin had the pipeline slot" looks like.
+
+Measured on the owner's t3 export (1.9 MB, 0.2 mm layers): 3 wave layers, 7
+sections, 688 bridge moves replaced, 259 fragments retained, 104 overhang
+wall moves reordered, 20.0 s. See test-prints/t3-multi-overhang/notes.md.
+
 ## 0.0.42 — 2026-10-02
 
 * The time budget is now "auto" and scales with the size of the export --
