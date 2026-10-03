@@ -122,10 +122,232 @@ with tempfile.TemporaryDirectory() as tmp:
     check(d["amplitude"] == "200%", f"amplitude default is {d['amplitude']!r}, want '200%'")
     check(d["cell_mm"] == "auto",
           f"cell_mm default is {d['cell_mm']!r}; it must follow the nozzle diameter")
-    check(d["frequency"] == 1.5 and d["segment_mm"] == 1.0,
-          f"0.3.0 frequency/segment controls drifted: {d}")
-    check(d["blend_mm"] == 2.0 and d["full_strength"] is False,
-          f"0.3.0 blending/full-strength controls drifted: {d}")
+    # Since 0.4.4 these ship as "auto" and are derived from the nozzle. The
+    # contract is not the literal value any more, it is that auto on a stock
+    # 0.4 mm nozzle still resolves to the 0.3.0 numbers -- nobody's print may
+    # change just because a default became a word.
+    check(d["frequency"] == "auto" and d["segment_mm"] == "auto"
+          and d["blend_mm"] == "auto",
+          f"0.3.0 frequency/segment/blend controls drifted: {d}")
+    check(d["full_strength"] is False,
+          f"0.3.0 full-strength control drifted: {d}")
+    # The panel must be organised and complete: every setting in exactly one
+    # section, every section heading present, no note for a setting that does
+    # not exist. Without this a new setting can be added to _DEFAULTS and
+    # never appear in a group, or a note can outlive the setting it explains.
+    panel = plugin.UnlayeredInfill().get_default_config()
+    panel_settings = {k: v for k, v in panel.items() if not k.startswith("_")}
+    panel_notes = {k for k in panel if k.startswith("_")}
+    headings = {h for h, _title, _keys in plugin._SECTIONS}
+    sectioned = [k for _h, _t, keys in plugin._SECTIONS for k in keys]
+    check(panel_settings == d, "the panel drifted from _DEFAULTS")
+    check(sorted(sectioned) == sorted(set(sectioned)),
+          f"a setting is listed in two sections: {sectioned}")
+    check(set(sectioned) == set(d),
+          f"settings missing from a section: {sorted(set(d) - set(sectioned))}")
+    check(headings <= panel_notes,
+          f"section headings missing from the panel: "
+          f"{sorted(headings - panel_notes)}")
+    unexplained = sorted(k for k in d if "_" + k not in panel_notes)
+    check(not unexplained, f"settings with no note: {unexplained}")
+    orphans = sorted(n for n in panel_notes
+                     if n != "_READ_ME" and n not in headings
+                     and n[1:] not in d)
+    check(not orphans, f"notes describing settings that do not exist: {orphans}")
+    # Nothing the plugin writes may be able to corrupt a PRESET that stores
+    # it. A preset is a flat key=value record whose reference separator is
+    # ";" -- which is why a capability name may not contain one -- so a note
+    # holding a semicolon, a double quote or a newline can come back mangled
+    # and OrcaSlicer reports "The preset stores invalid plugin capability
+    # configuration JSON." Reported by the owner on 2026-10-02 against both
+    # plugins.
+    import json as _json
+    for plugin_mod, panel_cfg, label in (
+            (plugin, panel, "Unlayered Infill"),):
+        written = plugin_mod.dump_config(panel_cfg)
+        check("\n" not in written and "\r" not in written,
+              f"{label}: the config is written over multiple lines; a preset "
+              f"stores it as one value")
+        check(_json.loads(written) is not None, f"{label}: unparseable config")
+        for key, value in panel_cfg.items():
+            check(";" not in str(key) and ";" not in str(value),
+                  f"{label}: {key} contains ';', the preset reference "
+                  f"separator")
+            if isinstance(value, str):
+                check('"' not in value,
+                      f"{label}: the note for {key} contains a double quote")
+                check("\n" not in value and "\t" not in value,
+                      f"{label}: the note for {key} contains a newline or tab")
+
+    # One line each, or the JSON editor becomes unreadable again.
+    for key in d:
+        note = panel.get("_" + key, "")
+        check("\n" not in note,
+              f"the note for {key} contains a newline; a JSON editor shows "
+              f"that as a literal backslash-n")
+        check(len(note) <= 200,
+              f"the note for {key} is {len(note)} characters; keep it to a "
+              f"short sentence and put the detail in the README")
+
+    # ----------------------------------------------------------------------
+    #  settings survive the config being wiped
+    # ----------------------------------------------------------------------
+    # The owner: "when a config is updated it kind of erases whatever my
+    # settings were... I'd only imagine ones would be overridden if something
+    # extremely major happened, like the variable was entirely removed."
+    #
+    # Orca owns the config file, so the plugin cannot stop it being reset by
+    # "Restore defaults", a reinstall or a data-directory change. What it can
+    # do is keep its own copy and offer a one-shot undo.
+    def fresh_cap():
+        cap = plugin.UnlayeredInfill()
+        return cap
+
+    cap = fresh_cap()
+    tuned = plugin.annotated_defaults()
+    tuned["amplitude"] = "300%"
+    tuned["shape"] = "triangle"
+    cap.set_config(tuned)
+    plugin._cfg(cap)                       # a run: the backup is taken
+
+    backup = plugin._settings_backup()
+    check(backup is not None, "no settings backup was taken")
+    check(backup["values"]["amplitude"] == "300%",
+          f"the backup did not capture the tuned value: {backup}")
+    check("restore_backup" not in backup["values"],
+          "the one-shot restore flag must never be backed up; it would make "
+          "the restore repeat on every slice")
+
+    # The wipe, followed by a run -- which is the dangerous bit: that run
+    # must not overwrite the only copy with the defaults that just replaced
+    # the owner's settings.
+    cap.set_config({})
+    plugin._cfg(cap)
+    survived = plugin._settings_backup()
+    check(survived is not None and survived["values"]["amplitude"] == "300%",
+          f"a wipe destroyed the backup that exists to undo it: {survived}")
+
+    # One-shot restore.
+    cap.set_config({**plugin.annotated_defaults(), "restore_backup": True})
+    cap.migrate_config_if_needed()
+    back = plugin._cfg(cap)
+    check(back["amplitude"] == "300%" and back["shape"] == "triangle",
+          f"restore_backup did not put the settings back: {back}")
+    check(back["restore_backup"] is False,
+          "restore_backup must reset itself, or every later slice re-restores "
+          "and the owner can never change a setting again")
+
+    # Edited in the Config panel and NEVER sliced. This is the realistic
+    # case the owner asked about: open Orca, change a setting, close it. A
+    # backup taken only when a capability runs would miss it entirely, so
+    # the config lifecycle hook snapshots too -- and keeps doing so after
+    # the once-per-session migration has already happened.
+    panel_cap = fresh_cap()
+    edited = plugin.annotated_defaults()
+    edited["amplitude"] = "325%"
+    edited["pattern"] = "cross"
+    panel_cap.set_config(edited)
+    panel_cap.migrate_config_if_needed()
+    typed = plugin._settings_backup()
+    check(typed["values"]["amplitude"] == "325%"
+          and typed["values"]["pattern"] == "cross",
+          f"a value typed into the Config panel was not backed up without a "
+          f"slice: {typed['values'].get('amplitude')}")
+    again = dict(edited)
+    again["amplitude"] = "400%"
+    panel_cap.set_config(again)
+    panel_cap.migrate_config_if_needed()
+    check(plugin._settings_backup()["values"]["amplitude"] == "400%",
+          "a SECOND edit in the same session was not backed up -- the "
+          "once-per-session migration guard must not rate-limit the backup")
+    panel_cap.set_config({})
+    plugin._cfg(panel_cap)
+    panel_cap.set_config({**plugin.annotated_defaults(),
+                          "restore_backup": True})
+    panel_cap.migrate_config_if_needed()
+    recovered = plugin._cfg(panel_cap)
+    check(recovered["amplitude"] == "400%" and recovered["pattern"] == "cross",
+          f"panel edits did not come back after a wipe: {recovered}")
+
+    # The owner's actual case: change settings in the Plugins menu, update
+    # the plugin, find the settings gone. A manual switch was not enough --
+    # it only helps someone who knows it is there. Restoration after an
+    # UPDATE is now automatic, and it must not fight "Restore defaults".
+    auto_cap = fresh_cap()
+    tuned_again = plugin.annotated_defaults()
+    tuned_again["amplitude"] = "325%"
+    tuned_again["shape"] = "triangle"
+    auto_cap.set_config(tuned_again)
+    auto_cap.migrate_config_if_needed()
+
+    real_version = plugin.PLUGIN_VERSION
+    try:
+        # (a) an update arrives and the panel comes back at factory defaults
+        plugin.PLUGIN_VERSION = "9.9.9"
+        plugin._MIGRATED.clear()
+        auto_cap.set_config(plugin.annotated_defaults())
+        auto_cap.migrate_config_if_needed()
+        recovered = plugin._cfg(auto_cap)
+        check(recovered["amplitude"] == "325%"
+              and recovered["shape"] == "triangle",
+              f"settings were not restored after a version change: "
+              f"{recovered['amplitude']}")
+
+        # (b) "Restore defaults" WITHOUT a version change must stick, or the
+        #     button becomes impossible to use
+        plugin._MIGRATED.clear()
+        auto_cap.set_config(plugin.annotated_defaults())
+        auto_cap.migrate_config_if_needed()
+        reset = plugin._cfg(auto_cap)
+        check(reset["amplitude"] == plugin._DEFAULTS["amplitude"],
+              f"auto-restore overrode Restore defaults within one version: "
+              f"{reset['amplitude']}")
+
+        # (c) and it can be switched off
+        plugin.PLUGIN_VERSION = "9.9.10"
+        plugin._MIGRATED.clear()
+        opted_out = plugin.annotated_defaults()
+        opted_out["auto_restore_settings"] = False
+        auto_cap.set_config(opted_out)
+        auto_cap.migrate_config_if_needed()
+        check(plugin._cfg(auto_cap)["amplitude"]
+              == plugin._DEFAULTS["amplitude"],
+              "auto_restore_settings=false still restored")
+    finally:
+        plugin.PLUGIN_VERSION = real_version
+        plugin._MIGRATED.clear()
+
+    # A setting this build no longer has is dropped rather than resurrected.
+    state = plugin._load_state()
+    state["settings_backups"][0]["values"]["a_setting_we_deleted"] = 7
+    plugin._save_state(state)
+    merged = dict(plugin.annotated_defaults())
+    plugin._apply_backup(merged)
+    check("a_setting_we_deleted" not in merged,
+          "a removed setting came back from the backup")
+
+    # Normal migration still never overwrites a value the user set.
+    cap2 = fresh_cap()
+    older = {k: v for k, v in plugin.annotated_defaults().items()
+             if k not in ("shape", "_shape")}
+    older["amplitude"] = "250%"
+    cap2.set_config(older)
+    cap2.migrate_config_if_needed()
+    after = plugin._cfg(cap2)
+    check(after["amplitude"] == "250%",
+          f"migration overwrote a value the user had set: {after['amplitude']}")
+    check(after["shape"] == plugin._DEFAULTS["shape"],
+          "migration did not add this build's new setting")
+
+    nozzle_04 = ["; nozzle_diameter = 0.4\n"]
+    freq, _desc = plugin.npc.resolve_frequency(d["frequency"], nozzle_04)
+    check(abs(freq - 1.5) < 0.01,
+          f"auto frequency resolves to {freq:.3f} on a 0.4 nozzle, want ~1.5")
+    for key, want in (("segment_mm", 1.0), ("blend_mm", 2.0)):
+        value, _desc = plugin.npc.resolve_auto_length(
+            d[key], key, nozzle_04, key)
+        check(abs(value - want) < 1e-9,
+              f"auto {key} resolves to {value} on a 0.4 nozzle, want {want}")
     check(d["log"] is True, "logging must be on by default")
 
     # 200% of a 0.3 mm layer is 0.6 mm — the owner's own worked example
@@ -479,8 +701,14 @@ with tempfile.TemporaryDirectory() as tmp:
               f"Wave capability identities changed: {names}")
         check(not any(ch.isdigit() for ch in "".join(names)),
               f"a version leaked into a capability name: {names}")
-        check(wave.PLUGIN_VERSION == "0.0.33",
-              f"Wave runtime version is {wave.PLUGIN_VERSION}, want 0.0.33")
+        # Read from the catalogue rather than hard-coded, so a release bump
+        # does not have to be made in two places (test_installer.py already
+        # pins plugins.json against the file's own PEP 723 header).
+        want_wave = next(p["version"] for p in
+                         json.loads((REPO / "plugins.json").read_text(encoding="utf-8"))["plugins"]
+                         if p["id"] == "wave-overhangs")
+        check(wave.PLUGIN_VERSION == want_wave,
+              f"Wave runtime version is {wave.PLUGIN_VERSION}, want {want_wave}")
 
         # The active Wave implementation is deliberately G-code-only. Its
         # source must not retain the removed slice-object planner, host Polygon
@@ -510,8 +738,38 @@ with tempfile.TemporaryDirectory() as tmp:
         unexplained = sorted(k for k in wave._DEFAULTS if "_" + k not in notes)
         check(not unexplained,
               f"settings with no explanation in the panel: {unexplained}")
+        # Section headings are "_"-prefixed too, and are legitimately not
+        # settings: they are what makes 33 keys navigable. They are declared
+        # in _SECTIONS, so they are checked against that rather than ignored.
+        headings = {h for h, _title, _keys in wave._SECTIONS}
+        check(headings <= notes,
+              f"section headings missing from the panel: "
+              f"{sorted(headings - notes)}")
+        sectioned = {k for _h, _t, keys in wave._SECTIONS for k in keys}
+        check(sectioned == set(wave._DEFAULTS),
+              f"settings missing from a section (they would appear in a "
+              f"nameless OTHER group): {sorted(set(wave._DEFAULTS) - sectioned)}")
+        written = wave.dump_config(panel)
+        check("\n" not in written and "\r" not in written,
+              "Wave writes its config over multiple lines; a preset stores "
+              "it as a single value and it comes back mangled")
+        for key, value in panel.items():
+            check(";" not in str(key) and ";" not in str(value),
+                  f"Wave: {key} contains ';', the preset reference separator")
+            if isinstance(value, str):
+                check('"' not in value,
+                      f"Wave: the note for {key} contains a double quote")
+        for key in wave._DEFAULTS:
+            note = panel.get("_" + key, "")
+            check("\n" not in note,
+                  f"the Wave note for {key} contains a newline; a JSON editor "
+                  f"shows that as a literal backslash-n")
+            check(len(note) <= 240,
+                  f"the Wave note for {key} is {len(note)} characters; keep it "
+                  f"to a short sentence and put the detail in the README")
         orphans = sorted(n for n in notes
-                         if n != "_READ_ME" and n[1:] not in wave._DEFAULTS)
+                         if n != "_READ_ME" and n not in headings
+                         and n[1:] not in wave._DEFAULTS)
         check(not orphans, f"notes describing settings that do not exist: {orphans}")
         # Order matters: a note is only useful if it sits above its setting.
         keys = list(panel)
@@ -624,7 +882,7 @@ with tempfile.TemporaryDirectory() as tmp:
               "Diagnostics" in result.message,
               f"dependency failure does not give a complete beginner-safe fix: {result.message!r}")
         log = read_log(logs)
-        check("Wave Overhangs v0.0.33 loaded" in log and "MISSING" in log,
+        check(f"Wave Overhangs v{want_wave} loaded" in log and "MISSING" in log,
               f"Wave dependency state was not logged clearly:\n{log}")
         pipeline = orca.REGISTERED[0]()
         result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))

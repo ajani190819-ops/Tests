@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "amplitude": "200%",
+  "frequency": "auto",
+  "pattern": "linear",
+  "wave_angle": "auto",
+  "shape": "sine",
+  "layer_phase": 0.0,
+  "max_lift_mm": "auto",
+  "collision_check": "warn",
+  "nozzle_clearance": "auto",
+  "require_relative_e": true,
+  "segment_mm": "auto",
+  "cell_mm": "auto",
+  "blend_mm": "auto",
+  "full_strength": false,
+  "log": true,
+  "auto_restore_settings": true,
+  "restore_backup": false
+}

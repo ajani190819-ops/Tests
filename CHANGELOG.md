@@ -1,3 +1,459 @@
+## 2026-10-02 — settings survive an update by themselves, and the curved wall answered
+
+Wave Overhangs **0.0.50**, Unlayered Infill **0.4.9**.
+
+**Settings come back on their own after an update.** The manual
+`restore_backup` switch added earlier worked but was no use to someone who
+did not know it was there. Both plugins now put your values back
+automatically when the panel reappears at factory defaults AND the
+remembered snapshot comes from an earlier build. Press "Restore defaults"
+without updating and nothing happens, because the snapshot is from the
+build you are running -- the button still means what it says.
+
+**The curved perimeter: the waves already reach the wall.** With a clean
+export of that model to measure, the median distance from wall to nearest
+wave is 0.157 mm, exactly `wall_overlap` x line width. 5% of the wall is
+more than a line width away -- and **none** of those 22 stretches is
+inside the overhang. They are places the overhang does not reach, which
+Orca prints itself.
+
+Looking did turn up one real bug: `contour_finish` could never have worked,
+because it called `linemerge()` on the wall geometry, which raises when the
+walls merge to a single LineString, and the surrounding `except` swallowed
+it. Fixed and tested.
+
+The screenshots showing the jagged curve are **0.0.39 output** -- before
+the point-density fix, before internal bridges stopped being waved, and
+before crease rounding took the 90th-percentile turn from 90 degrees to
+22. Re-slicing that part on the current build is the next useful
+measurement.
+
+---
+
+## 2026-10-02 — contour_finish, and an artifact I could not reproduce (0.0.49)
+
+> "As the waves reach that outer perimeter I'd like a smooth line, because
+> right now on these rounded off edges you can see as the waves go towards
+> where that perimeter will be it curves back inwards into area that is
+> already printed instead of following the contour."
+
+The mechanism is real: wavefronts are contours of distance from the
+SUPPORTED edge, so near a curved wall the outermost front is not parallel
+to the wall and its tail points somewhere else. `contour_finish` adds a
+bead along the far boundary itself after the fronts, covering only what
+they missed.
+
+It ships **off**, because on every export available here the fronts already
+reach the wall and the pass adds nothing. On t3: 99% of wave ends are
+within 0.3 mm of the wall, the median is 0.157 mm -- exactly
+`wall_overlap` x line width -- and the median gap from wall to wave
+material is 0.000 mm. `contour_finish` finds zero paths to add.
+
+The part that shows the problem is the curved-perimeter model, and the only
+export of it in the repo is already-processed 0.0.39 output, which cannot
+be re-run. **A clean export of that model with the plugin switched off is
+what is needed.** Until then this is a switch to try, not a fix to claim.
+
+---
+
+## 2026-10-02 — no, it was not fixed (Wave 0.0.48)
+
+> "And you're certain you fixed that error that's in the last 200 lines for
+> that layer?"
+
+No. Reading the tail of the waved layer instead of measuring aggregates
+found six stranded retract/wipe/travel cycles chained together, printing
+nothing:
+
+```
+G0 F7200 X100.440 Y91.979
+G1 E-1.75 F1800          <- retract
+;WIPE_START ... ;WIPE_END
+G1 X119.932 Y120.252 F7200
+G1 E1.75 F3600           <- unretract
+```
+
+Relocating the overhang wall moved its extruding moves and left its
+plumbing -- the travel in, the unretract, the retract and the WIPE block --
+at the old position. Two previous attempts missed it because both were
+measuring travel DISTANCE, which this barely moves.
+
+A relocated run now takes that whole block with it, and a run that cannot
+is not relocated at all. Stranded cycles on t3: 32 in the unprocessed
+export, 41 in 0.0.47, **38** now. Absorption is refused unless the
+extrusion inside it nets to zero, so an unmatched retract can never shift
+the E values after it; extrusion totals are identical with relocation on or
+off.
+
+Five of the remaining cycles are the wave replacement's own, not the
+wall's: removing a covered bridge move can leave the wipe that belonged to
+it behind. `wall_last: false` gives 37, which separates the two. That is
+the next thing to fix, and it is written down rather than claimed as done.
+
+---
+
+## 2026-10-02 — the wall loop was coming apart (Wave 0.0.47)
+
+> "Specifically I'm talking about done printing the waves, how it kind of
+> just goes back through the layer stopping at random points."
+
+Found it, and it was mine. The wall relocation added in 0.0.36 judged each
+wall MOVE on its own, so a loop that was partly over air came apart: the
+hanging moves went after the waves, the supported ones stayed where they
+were, and the nozzle crossed the layer to stitch the two together. On t3
+that produced six separate relocated pieces, emitted in the order the
+slicer happened to write them.
+
+A loop is now judged as a whole -- mostly hanging means all of it moves,
+mostly supported means none of it does -- and the pieces that do move are
+ordered nearest-neighbour from where the waves ended. Travel after the
+waves on t3: 59 travels / 729 mm in 0.0.45, 28 / 279 in 0.0.46, now
+**27 / 240**.
+
+Also new: `keep_uncovered_bridge: false` drops the trips back for leftover
+bits of original bridge.
+
+Honest caveat: counting travel-then-short-extrusion pairs across the whole
+file finds 199, of which exactly one is this plugin's. The rest are
+Orca's own infill ends and wipe sequences and are in the unprocessed
+export too. If you still see stop-start motion after this, set
+`wall_last: false` -- that turns the relocation off entirely and tells us
+in one slice whether we are still looking at the same thing.
+
+---
+
+## 2026-10-02 — the post-wave jumping, properly this time (Wave 0.0.46)
+
+> "It kind of jumps around after completing all of the waves. Once the
+> waves are done it shouldn't need to go back."
+
+0.0.41 was supposed to have fixed this and the synthetic tests agreed. On
+the real export it barely fired: Orca writes `M73` progress lines between
+the moves, and any non-comment line ended a run of travels, so the pattern
+travel/M73/travel/M73 survived intact. 59 travels, 729 mm of motion to
+print 250 mm.
+
+M-codes that change state but do not move the nozzle now sit inside a
+travel run without ending it. **28 travels, 279 mm** on the same file, and
+what remains is genuine repositioning between separate pieces -- the
+longest is a 34 mm hop to the relocated overhang wall. The per-move
+comments also fold into one line naming a range, which took 390 lines down
+to a handful on that layer.
+
+The synthetic fixtures contain no `M73`, which is exactly why they could
+not catch it. That is the second time this week a captured export has
+contradicted a green test suite.
+
+---
+
+## 2026-10-02 — the jagged curves were hairpins, not facets (Wave 0.0.45)
+
+> "Those curved perimeters don't do so well with the waves, they still look
+> very jagged... it just looks like the waves on that curved arc aren't
+> smooth at all."
+
+Measured on the newly uploaded export: the **median** turn at a wave vertex
+was 15 degrees -- a smooth curve -- but the 90th percentile was **90** and
+the maximum 179. That is not faceting from too-coarse simplification, which
+is what it looks like and what I went looking for first. Those are hairpins:
+the front folds back on itself where it flows around something and rejoins,
+and every later front inherits the kink. The line of kinks is the chevron
+seam.
+
+Three wrong theories were measured and discarded on the way: simplification
+tolerance (sweeping it changes almost nothing), arc resolution, and a
+scalloped support footprint (morphological closing from 0.3 to 1.5 mm moved
+the median turn by less than a degree).
+
+`smooth_creases` (on by default) chamfers each sharp vertex three times at a
+shrinking setback, checked against the same guard that stops a front
+entering a hole. 90th-percentile turn 90 -> 22 degrees, vertices over 20
+degrees 38% -> 13%, path length within 0.2%. It costs about twice the points
+on a crease-heavy layer, and thinning them back undoes the fix -- the extra
+points are the roundness.
+
+---
+
+## 2026-10-02 — waves only where a straight bridge cannot do the job (0.0.44)
+
+> "The only parts that should be receiving wave overhangs should be ones on
+> the underside where you have horizontal overhangs that don't have any
+> other method of support... bridges at the top are still using the wave
+> overhangs instead of straight bridges... also the little divots on the
+> underside, those are using waves but they don't need to."
+
+Right on both counts, and the owner's t3 export separates the three cases
+cleanly. "Reach" below is the distance from solid material to the furthest
+point of the unsupported patch; a straight bridge has to cross twice that:
+
+| Z | type | area | reach | verdict |
+| --- | --- | --- | --- | --- |
+| 5.4 | Bridge | 1035 mm2 | 37.5 mm | **wave it** |
+| 7.8 | Bridge | 18-54 mm2 | 2.4-3.7 mm | the divots -- straight bridge |
+| 8.1 | Bridge | 1.3 mm2 | 0.2-0.4 mm | specks -- straight bridge |
+| 9.3 | Internal Bridge | 1090 mm2 | 5.5 mm | solid over infill -- straight bridge |
+
+Two filters, both on by default: `Internal Bridge` sections are left alone
+(`wave_internal_bridges: false`), and any unsupported patch a plain bridge
+can cross is left alone (`straight_bridge_span: auto`, 10 mm). t3 goes from
+7 waved sections to 1, and the pass drops from 21.7 s to 13.6 s.
+
+`straight_bridge_span: 0` plus `wave_internal_bridges: true` restores the
+old behaviour exactly, and the existing geometry regressions run that way so
+they keep measuring geometry rather than selection.
+
+---
+
+## 2026-10-02 — t3 arrives, and the "Wave does nothing" cause is NOT the timeout
+
+The owner's t3 export landed, and running the real capability against it
+settles it: **the plugin handles that part fine** -- 3 wave layers, 7
+sections, 688 bridge moves replaced, 20.0 s. The hole count and the
+multiple overhang layers are not the problem, and neither is the time
+budget: 0.0.41, with its flat 30 s, also completes the file in 19.9 s.
+
+What the file shows instead: its first line is
+`; unlayered-infill v0.4.8 (non-planar sparse infill)` and there is no
+`; wave-overhangs v...` stamp anywhere. **Unlayered Infill ran on that
+export and Wave Overhangs never did.** `Others -> Slicing Pipeline Plugin`
+is one preset field and both plugins want it.
+
+So 0.0.43 adds the message that would have caught this immediately: when
+Wave has never been handed a file, Check setup now says so and points at
+the selection rather than leaving you to suspect the geometry.
+
+The previous entry's timeout work stands on its own merits -- 20 s against
+a 30 s limit on a 1.9 MB file is uncomfortably close, and a bigger part or
+a slower machine would trip it -- but it was not what happened here, and
+the changelog entry claiming it would be was written before the evidence
+arrived.
+
+---
+
+## 2026-10-02 — why a complex part came back unprocessed (Wave Overhangs 0.0.42)
+
+> "The G-code did not get overwritten for this one, the whole system just
+> didn't work. I have a theory that it has something to do with not being
+> able to handle things with larger numbers of holes or having multiple
+> overhangs."
+
+The theory is right in effect, and the mechanism is the **time budget**. The
+pass costs what the geometry costs; the limit was a flat 30 seconds, set
+against a test cube. When it runs out the file is handed back exactly as
+Orca wrote it -- correct, and indistinguishable from the plugin never
+running.
+
+Three changes: the budget is now `auto`, 30 s plus 45 s per megabyte capped
+at 300 s; the pass is about 1.8x faster on parts with many holes, because
+`_interior_voids()` was being recomputed once per endpoint instead of once
+per region (40% of the total on a 36-hole stress case); and a budget that
+does run out now leads the Check setup report with
+`*** THE LAST EXPORT RAN OUT OF TIME ***`.
+
+**This is a diagnosis by reconstruction, not from your file** -- only
+`t3.stl` arrived, and there is no slicer in this sandbox, so I built a
+synthetic part with up to 36 holes over three overhang layers to measure it.
+Export t3 to G-code with the plugin OFF and drop it in `test-prints/` and I
+can confirm it directly. The log line or Check setup will also now say
+outright whether a timeout is what you hit.
+
+---
+
+## 2026-10-02 — nozzle clearance, the post-wave "scanning", and a home for test prints
+
+Wave Overhangs **0.0.41**, Unlayered Infill **0.4.8**.
+
+**The nozzle "scanning across the print" after the waves is fixed.** It was
+not gap filling. Each covered bridge move was replaced by a comment and a
+travel to where it used to start, so the nozzle re-traced the original
+bridge raster in mid-air -- 63 travels for 11 extrusions. Consecutive
+travels now collapse to the one that matters: 206 to 151 on the Cube export,
+with extrusion identical to the digit.
+
+**Unlayered Infill now checks the nozzle cannot drag through what it has
+already printed.** The finished file is walked in print order, remembering
+the highest material in each XY cell; anything passing below it is reported
+with the place and the depth. Threshold "auto" is 1.25 layer heights, which
+is quiet at the shipped amplitude (0.23 mm of deliberate keying) and
+reports 400% (0.46 mm) and above. `collision_check: warn | refuse | off`.
+
+**`test-prints/` exists now**, with a README on what to put in it and a
+`notes.md` per model saying what to look at. Cube^2 has been copied in.
+
+**Still open, waiting on files**: the jagged wall snapping on curved
+perimeters. Drop that export into `test-prints/` and I will work from it --
+the synthetic rounded-corner case in the suite does not reproduce what the
+photo shows.
+
+---
+
+## 2026-10-02 — curves no longer cost hundreds of moves (Wave Overhangs 0.0.40)
+
+> "There's certain points where a curve will have way more lines than it
+> needs to... when the lines approach the hole in the test print sometimes
+> there will be like hundreds of lines when a couple dozen should have
+> sufficed."
+
+Confirmed and fixed. Simplification was all-or-nothing per front: if the one
+chord near a hole would have cut the corner, the whole front kept its raster
+points. A 28 mm front came out as 132 moves; it is now 3.
+
+When the ordinary simplification gives up, the front is now refined
+chord-by-chord against the same boundary guard, splitting only the moves
+that actually fail. Rounded-corner test case: 1048 wave moves to 606, path
+length unchanged to 0.02%. Cube export: 439 to 432, 455 to 425 with
+`wall_snap: false`.
+
+Worth recording that the obvious version of this fix -- doing the per-chord
+refinement in the main simplification pass -- was measured and **rejected**:
+against a castellated bridge footprint nearly every chord leaves the region,
+so the recursion splits down to the raster and the Cube export went from 455
+moves to 2350. It is used only as the fallback.
+
+---
+
+## 2026-10-02 — fix "The preset stores invalid plugin capability configuration JSON"
+
+Wave Overhangs **0.0.39**, Unlayered Infill **0.4.7**. Reported by the owner
+against both plugins.
+
+**Cause.** A preset override is a flat key=value record whose reference
+separator is `;`. `docs/ORCA-PLUGIN-FACTS.md` already said a capability NAME
+may not contain one; the same restriction applies to the configuration value
+and that had been missed. When the notes were rewritten into short one-liners
+for the readable panel (0.0.35 / 0.4.4), nine Wave notes and six Unlayered
+notes picked up a semicolon -- "master switch; false leaves your G-code
+untouched" -- and the config was written pretty-printed, 86 lines for Wave.
+A preset cannot store that intact, and Orca reports exactly what it reads
+back.
+
+**Fix.** Every string the plugins write now passes through `preset_safe()`
+(semicolons become commas, double quotes become single, newlines and tabs
+become spaces, control characters are dropped), and `dump_config()` writes
+the JSON on one line. A test fails if any key or value in either panel
+contains a character a preset cannot carry.
+
+**Clearing the error on your machine.** The bad value is stored in the
+PRESET, so installing the new build does not remove it:
+
+1. Update both plugins and restart OrcaSlicer fully.
+2. Open the process preset's plugin configuration dialog, clear the stored
+   override for the capability (or press Restore defaults there), and save
+   the preset.
+3. If the message persists, set Others -> Slicing Pipeline Plugin to None,
+   save the preset, set it back to the plugin, save again. That rewrites the
+   preset's plugin section from scratch.
+4. The global settings in `data_dir()/orca_plugins/config.json` are a real
+   JSON file and were never affected -- and if anything did get lost,
+   `restore_backup: true` puts your values back.
+
+---
+
+## 2026-10-02 — everything that benefits from auto is now on auto
+
+> "Put anything that would benefit largely from being on auto, like max
+> iterations, on auto."
+
+Wave Overhangs **0.0.38**, Unlayered Infill **0.4.6**. The three remaining
+derivable settings are now on by default:
+
+| plugin | setting | auto means |
+| --- | --- | --- |
+| Wave | `fan` | your profile's Bridges fan speed (100% if it states none) |
+| Unlayered | `wave_angle` | square across your profile's infill angle |
+| Unlayered | `max_lift_mm` | a Z ceiling of 1.5 layer heights |
+
+`max_iterations` has been auto since 0.0.35, along with everything
+width-derived; this finishes the job.
+
+Two notes worth reading. **Wave's `fan` auto now reads `bridge_fan_speed`
+only** -- it used to fall back to `overhang_fan_speed`, a different setting
+about sloped walls that is often much lower (50% on the captured test
+profile), and quietly under-cooling unsupported extrusion is the wrong way to
+fail. **Unlayered's `wave_angle` is a visible change**: with 45 degree infill
+the ripples now run at 135 degrees instead of along X. That is the point of
+the setting -- a line parallel to the ripples never crosses one and gets
+lifted rather than waved -- but it will look different from 0.4.5.
+
+What deliberately stays a fixed number in both: amplitude, pattern, shape,
+flow ratio, print order, the taper fractions, the on/off switches. These have
+no Orca equivalent and nothing in the G-code implies them. Automating a
+judgement about how you want the part to look is not automation, it is just a
+different arbitrary number.
+
+---
+
+## 2026-10-02 — settings that survive the config being wiped, and a faster release path
+
+> "When a config is updated it kind of erases whatever my settings were. Is
+> there a way we could make it so that when it's updated it preserves my
+> settings... I'd only imagine ones would be overridden or have to be erased
+> if something extremely major happened, like the variable was entirely
+> removed. I'd also want you to make these improvements faster... and add
+> some stuff into the agents page so there is a more streamlined method."
+
+Wave Overhangs **0.0.37**, Unlayered Infill **0.4.5**.
+
+**Settings insurance.** Version-to-version migration already preserved every
+value you had set; what it could not survive was the config file itself going
+away, which OrcaSlicer can do for reasons outside the plugin's control
+("Restore defaults", a reinstall, a data-directory change). Both plugins now
+keep their own rolling backup of the values in force -- a short history
+rather than one slot, because the wipe is followed by a run that would
+otherwise overwrite the only copy with the defaults that just replaced your
+settings. Restoration is a one-shot `restore_backup: true`, never automatic,
+so "Restore defaults" still means what it says. The snapshot is taken both by
+every run and by the config lifecycle hook, so a value typed into the Config
+panel is remembered even if you close Orca without slicing. Settings this build no longer
+has are dropped rather than resurrected.
+
+**Faster releases.** Two new tools and a playbook in `AGENTS.md` section 5a:
+
+* `tools/bump_version.py <plugin> <version>` writes the version to all six
+  places at once -- PEP 723 header, `PLUGIN_VERSION`, `TOOL_VERSION`,
+  `MARKER_VERSION`, `plugins.json`, and the `.bat` fallback line in BYTES so
+  the CRLF survives -- and tells you what is still missing.
+* `tools/check_all.py` runs every test in both dependency states plus the
+  three consistency checks, one line each, and treats a SKIP as a failure so
+  a missing shapely can never be mistaken for a pass.
+
+The playbook also writes down the traps that have actually cost time here:
+never write the `.bat` in text mode, lead changelog entries with bullets
+because the description generator reads the first one, pinned geometry counts
+measure geometry and not defaults, and ask clarifying questions before
+writing code rather than after.
+
+---
+
+## 2026-10-02 — waves first, wall last (Wave Overhangs 0.0.36)
+
+> "All of the waves should be printed first, 'cause then they can actually
+> support one another as it bridges its way out, but those overhanging walls,
+> if printed first, won't be able to do anything -- they'll just fall straight
+> down... is there a way to match the way Arachne walls are done, where you
+> vary the line width or flow rate, to optimize spacing?"
+
+**Print order.** Orca emits a layer walls-first, which on an overhanging
+layer puts the wall into open air before anything exists to hold it up. Wave
+now lifts the overhanging part of the wall out of its original position and
+re-emits it directly after the wave block, verbatim — same coordinates, same
+E, same acceleration and jerk, total extrusion identical to the digit. Only
+relative-E exports are touched, a travel is left where the run was cut out,
+and the block hands the nozzle back where the waves left it. `wall_last:
+false` restores Orca's order.
+
+**Adaptive flow (experimental, off by default).** The Arachne idea is that a
+fixed bead width cannot tile an arbitrary shape, so the width should vary.
+Wave hits that in one dimension: the strip between the last front and the far
+boundary is rarely a whole spacing wide. `adaptive_flow` assigns each
+uncovered patch to the front beside it and widens that front's flow to absorb
+it, capped at `adaptive_flow_max`. Paths never move — only extrusion — which
+is the part of Arachne that can be done safely after slicing. On the Cube
+export it is +0.03% extrusion, or +0.12% with `gap_fill` off; it is a
+refinement, and it stays opt-in until someone has printed it.
+
+---
+
 # Changelog — the whole project
 
 Everything that changed in this repository, newest first. Each plugin also has
@@ -19,6 +475,105 @@ stand.
 
 Dates are the day the work was done. "Not verified" means exactly that: no
 real OrcaSlicer was involved.
+
+---
+
+## 2026-10-02 — readable config panels, and settings that inherit from Orca
+
+> "These guides are very hard to read in this format... I'd also like for
+> these configs to inherit as many of Orca's settings as possible so that the
+> resolutions match up... for the iteration cap it should have an auto
+> function so that it can adjust as needed without bloating the file... and
+> for the things that don't have Orca equivalents, have them automatically
+> defined where applicable — look at the G-code and determine what the value
+> should be."
+
+Wave Overhangs **0.0.35**, Unlayered Infill **0.4.4**. Three things, in both
+plugins.
+
+**1. The panels are grouped and the notes are one line.** 33 settings and 14
+settings respectively, now in numbered sections, generated from a single
+`_SECTIONS` list that also drives the "Check setup" guide — so the panel and
+the guide can never fall out of step. The reason notes had grown into
+paragraphs is that they were the only documentation; the reason they must not
+be is that a JSON editor renders `\n` as two literal characters. The long
+form moved to the READMEs.
+
+**2. Twelve settings now default to "auto" and are derived from the print.**
+The principle: most of these numbers were never constants, they were
+multiples of something the export already states, written down once for a
+0.4 mm nozzle. Every factor was chosen so that auto on a stock 0.4 mm
+profile reproduces the shipped constant exactly — enforced by a test, because
+"we improved your defaults" is not an acceptable surprise on someone's
+printer. On the 0.6 mm captured fixture the waves are now spaced for a 0.6
+and the file is *smaller*: 2,931 wave moves against 3,087.
+
+Inherited straight from the user's Orca profile: Resolution (as the floor for
+wave smoothing), travel speed, bridge speed (since 0.0.26), bridge fan
+(opt-in), arc fitting and arc tolerance, nozzle diameter, bridge line width.
+Derived from the G-code where Orca has no equivalent: everything width-
+derived above, plus Unlayered's segment length, blend radius and ripple
+frequency from the nozzle, and its wave angle from `fill_angle` (opt-in).
+
+**3. The iteration cap sizes itself.** It was a flat 400 — too small for a
+large overhang, pointless for a small one. Auto measures the region, asks for
+enough fronts to cross it plus headroom, and clamps to 64..20000. It cannot
+bloat the file because it never adds a front the geometry did not ask for.
+
+**What deliberately stayed constant**: amplitude, pattern, print order,
+flow ratio, the on/off switches. Reading the G-code cannot tell you what
+someone wants their part to look like.
+
+**Your settings survive.** The 0.4.2/0.0.33 migration is unchanged and was
+re-checked for this: on the first slice after updating, the saved config is
+merged with the new one, keeping every value you set.
+
+Tests: `tests/test_wave_gcode.py` gains an "auto defaults" block (auto
+reproduces the 0.4 mm constants, scales on the 0.6 mm fixture, follows the
+profile, caps adaptively, still idempotent); the fixture's pinned geometry
+counts now run against an explicit legacy config so they keep measuring
+geometry rather than defaults. `tests/test_plugin_runtime.py` checks both
+panels are complete, grouped, free of orphan notes, and one line per note.
+
+---
+
+## 2026-10-02 — Unlayered Infill 0.4.3 / Wave Overhangs 0.0.34: the Refresh failure
+
+> "If I click refresh on the plugins page in Orca Slicer the Wave Overhangs
+> is fine but then the Unlayered Infill will fail."
+
+Two defects, both specific to Unlayered Infill, which is why Wave Overhangs
+survived the same Refresh.
+
+* **A lazy stdlib import inside a capability call.** The engine's
+  `detect_layer_height()` did `from statistics import multimode` on first
+  use, which is inside `psGCodePostProcess` — inside Orca's per-call audit
+  scope, where every file open is audited. `docs/ORCA-PLUGIN-FACTS.md` has
+  said since the numpy/#15944 investigation that every import must happen at
+  module load time, and this one had slipped through because `statistics` is
+  stdlib and looked harmless. It is now a top-level import in the engine.
+* **Re-import could destroy the engine.** Refresh imports the plugin module
+  again in the same interpreter. The module published an empty
+  `nonplanar_core` into `sys.modules` before exec'ing the engine into it and
+  popped it on failure, so a second pass could leave a previously working
+  engine replaced by nothing — "engine MISSING", every capability failing.
+  The replacement module is now built aside and published only after a clean
+  exec; otherwise the working engine is kept. When the engine really cannot
+  load, Check setup now prints the exception instead of a bare "MISSING".
+
+Wave Overhangs 0.0.34 is the same two patterns closed preventively: its
+`wave_core` registration got the same aside-then-publish treatment, and
+`_pt()`'s lazy `from shapely.geometry import Point` now comes from the
+module-level import. Its output is unchanged.
+
+Guarded by a new case in `tests/test_plugin_audit.py`: a capability call must
+not import any module that was not already imported at plugin load, and the
+plugin must survive being imported repeatedly. Not verified in a real
+OrcaSlicer — the reproduction is the audit/refresh model in the tests.
+
+**Not** a fix for the stale Config panel; that is a separate thing and the
+mechanism is written up in `plugins/unlayered-infill/CHANGELOG.md` 0.4.2 and
+in `docs/ORCA-PLUGIN-FACTS.md`, "Capability configuration".
 
 ---
 

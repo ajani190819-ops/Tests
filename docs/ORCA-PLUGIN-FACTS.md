@@ -105,6 +105,28 @@ is a bug in the plugin:
   `numpy/_core/_ufunc_config.py` — both contain "conf" — so a lazy numpy
   import inside a capability dies with `PermissionError` (OrcaSlicer issue
   #15944).
+* **No import may happen for the first time inside a capability call** --
+  and that includes the standard library. Unlayered Infill 0.4.2 called
+  `from statistics import multimode` inside `detect_layer_height()`, which
+  runs in the export step, so the very first export imported `statistics`
+  from inside the audit scope. Same for a `import traceback` sitting on an
+  error path. This is the same shape as the numpy case above; it is now
+  enforced statically by `tests/test_plugin_audit.py`, over the plugin
+  module **and** over the engine sources the plugins inline as string
+  literals. The only exception is a function called from module scope to
+  probe for an optional dependency (`_import_deps`).
+* **Pressing `Refresh` in the Plugins dialog re-imports the plugin module in
+  the same interpreter.** Module-level code therefore runs more than once per
+  session and must be re-entrant. In particular, an inlined engine's
+  registration must not be able to leave the plugin worse off than before:
+  publish the replacement module only on success and restore the previous one
+  on failure, never pop. (Unlayered Infill 0.4.3 / Wave Overhangs 0.0.34.)
+* **An inlined engine must be in `sys.modules` BEFORE it is exec'd.**
+  `wave_core` combines `@dataclass` with `from __future__ import
+  annotations`, and `dataclasses` resolves those string annotations via
+  `sys.modules[cls.__module__].__dict__`. Exec'ing into a module that has not
+  been published yet fails with `AttributeError: 'NoneType' object has no
+  attribute '__dict__'`. Measured 2026-10-02.
 * Writes inside `data_dir()` need no prompt, and plugins live at
   `data_dir()/orca_plugins/<plugin>/`. So the state and log files these
   plugins write through `orca.host.plugin.storage()` are fine. Do not default
@@ -156,6 +178,19 @@ replaces an earlier **guess** in `MEMORY.md` that said Orca copies
   plugin's default configuration". The old advice ("set the preset's Slicing
   Pipeline Plugin to None and back, then save the preset") was based on the
   wrong storage model. It is harmless but it is not the fix.
+* **The config editor is a plain JSON editor, so a note containing `\n` is
+  shown as the two literal characters.** Notes must therefore be one short
+  sentence each. Grouping is done with `_`-prefixed heading keys, which the
+  editor shows in insertion order; both plugins generate the panel and the
+  Check-setup guide from one `_SECTIONS` list so the two cannot disagree.
+* **What a plugin can inherit from the user's profile is whatever Orca wrote
+  into the exported G-code's config block** — `resolution`, `travel_speed`,
+  `bridge_speed`, `bridge_fan_speed`, `overhang_fan_speed`, `fill_angle`,
+  `nozzle_diameter`, `enable_arc_fitting`, `layer_height`. Read them with a
+  `^;\s*key\s*=\s*(.+)$` match (values can be comma-separated per extruder;
+  take the first). Do **not** use `ctx.config_value()` for this — see the
+  rule above. A post-processor sees the finished file, so this is the one
+  place where the user's real settings are reliably available.
 * `get_default_config()` may legitimately contain keys that are not settings.
   Both plugins here interleave `_`-prefixed note strings so the JSON editor
   explains itself; `_cfg()` ignores any key it does not know.
@@ -219,7 +254,14 @@ replaces an earlier **guess** in `MEMORY.md` that said Orca copies
 
 * Never call `orca.host.ui.*` from a slicing capability — wrong thread.
 * A capability name may not contain `;` (it is the preset reference
-  separator).
+  separator). **The same applies to the configuration a preset override
+  stores**: a preset is a flat key=value record, so a config value holding
+  `;`, a double quote, a newline or a tab can come back mangled and Orca
+  reports "The preset stores invalid plugin capability configuration JSON."
+  Write the config as ONE line and filter those characters out of every
+  string. Measured 2026-10-02, against both shipped plugins. The global
+  store (`data_dir()/orca_plugins/config.json`) is a real JSON file and has
+  no such limitation -- this bites only when a preset override exists.
 * Pipeline steps: `posSlice`, `posPerimeters`, `posPrepareInfill`, `posInfill`,
   `posIroning`, `posContouring`, `posSupportMaterial`, `posSimplifyPath`,
   `psWipeTower`, `psSkirtBrim`, `psGCodePostProcess`.

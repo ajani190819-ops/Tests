@@ -4,14 +4,159 @@ Read `AGENTS.md` first. This file is the current state, not a replacement for
 that rulebook. `docs/ROADMAP.md` is the plan; `docs/ORCA-PLUGIN-FACTS.md` is the
 binding record of OrcaSlicer behavior.
 
-* **Last updated:** 2026-10-02, updater **2.1.0** — `Orca-Plugins.bat` is
+* **Last updated:** 2026-10-02 — **Wave Overhangs 0.0.40**: curves no longer
+  cost hundreds of moves. `_clean_wave_polyline` used to fall back to keeping
+  every raster point when the whole-front simplification ladder failed; it
+  now calls `_locally_refined()` -> `_simplify_locally()`, a Douglas-Peucker
+  variant that validates EACH chord against the hole/boundary guard and
+  splits only the failures. Worst front on the rounded-corner case: 132 moves
+  over 28 mm -> 3. **Do NOT move this into `_simplify_once`** — tried and
+  measured: with a castellated footprint (`wall_snap: false`) nearly every
+  chord leaves the region and the Cube export went 455 -> 2350 moves.
+* **Previously:** **Wave Overhangs 0.0.39 / Unlayered Infill 0.4.7**: fixes "The preset stores invalid plugin capability configuration
+  JSON", reported against BOTH plugins. A preset override is a flat
+  key=value record whose reference separator is `;`; the facts doc knew a
+  capability NAME could not contain one but not that the stored VALUE is
+  equally constrained. The one-line notes written in 0.0.35/0.4.4 introduced
+  semicolons (9 in Wave, 6 in Unlayered) and the config was saved
+  pretty-printed (86 lines). Now every written string goes through
+  `preset_safe()` (`;`->`,`, `"`->`'`, newline/tab->space, control chars
+  dropped) and `dump_config()` emits ONE line; a test fails on any unsafe
+  character in either panel. NOTE: the bad value lives in the preset, so
+  updating does not clear it — the user must clear the preset override.
+* **Previously:** **Wave Overhangs 0.0.38 / Unlayered Infill 0.4.6**: the last three derivable settings are on auto by default — Wave
+  `fan` (profile Bridges fan speed, 100% if unstated; reads
+  `bridge_fan_speed` ONLY, never `overhang_fan_speed`, which is lower on real
+  profiles and would under-cool open-air extrusion), Unlayered `wave_angle`
+  (square across `fill_angle` — a VISIBLE change: 135 instead of 0 on a 45
+  degree infill) and `max_lift_mm` (1.5 layer heights; does not bite at the
+  shipped amplitude). Deliberately still fixed numbers: amplitude, pattern,
+  shape, layer_phase, flow_ratio, wall_overlap, edge_taper_min_flow,
+  overhang_tol, min_bridge_fragment, gap_fill_min_area, time_budget, all
+  switches — no Orca equivalent and nothing in the G-code implies them.
+* **Previously:** **Wave Overhangs 0.0.37 / Unlayered Infill 0.4.5**: settings insurance + a faster release path. Both plugins keep a
+  rolling backup (`settings_backups`, newest first, max 5) of the config in
+  force, written on every `_cfg()` read. It is a HISTORY because the wipe you
+  are insuring against is followed by a run that would overwrite a single
+  slot with the defaults that just replaced the owner's settings;
+  `_settings_backup()` returns the newest snapshot holding a non-default
+  value. Restoration is never automatic — `restore_backup: true` + one slice,
+  then the flag resets — so "Restore defaults" still works. Keys absent from
+  `_DEFAULTS` are dropped on the way back in. New tooling:
+  `tools/bump_version.py` (all six version locations at once, .bat in bytes)
+  and `tools/check_all.py` (every test in both dependency states + the three
+  consistency checks; a SKIP counts as a failure). `AGENTS.md` §5a is the
+  release playbook.
+* **Previously:** **Wave Overhangs 0.0.36**: print order and
+  adaptive flow. (a) On a waved layer the OVERHANGING part of the wall is
+  lifted out of Orca's walls-first order and re-emitted directly after the
+  wave block (`wall_last`, default true). Relative-E files only; a travel is
+  left where the run was cut out and the block travels back to where the wave
+  output left the nozzle; `;TYPE:`/M204/M205 travel with the run; total
+  extrusion identical. (b) `adaptive_flow` (default FALSE, experimental): the
+  Arachne idea in one dimension — each uncovered patch is assigned to the
+  front beside it and that front's FLOW is widened to absorb it, capped by
+  `adaptive_flow_max`. Paths never move. Measured +0.03% extrusion on the Cube
+  export, +0.12% with gap_fill off, so it is a refinement; neither has been
+  printed on hardware.
+* **Previously:** **Wave Overhangs 0.0.35 / Unlayered Infill 0.4.4**: readable grouped config panels, and settings that inherit from the
+  user's own Orca profile. Both plugins now build their Config panel AND their
+  Check-setup guide from one `_SECTIONS` list (9 groups for Wave's 33
+  settings, 5 for Unlayered's 14), with one-line notes — a JSON editor renders
+  `\n` literally, so paragraph notes were unreadable. Twelve settings default
+  to `"auto"` and resolve from the export: everything width-derived
+  (line_spacing, perimeter_overlap, min_wave_length, min_wave_segment,
+  edge_taper_distance, min_overhang_area, simplify_tolerance), travel_speed
+  and max_iterations in Wave; segment_mm, blend_mm, frequency in Unlayered.
+  **Every factor is chosen so auto on a stock 0.4 mm profile reproduces the
+  old constant exactly** — pinned by tests, because changing someone's
+  defaults silently is not acceptable. `wave_angle`, `max_lift_mm` (Unlayered)
+  and `fan` (Wave) accept auto but stay off by default. The iteration cap now
+  sizes itself to the region (64..20000) instead of a flat 400. Check setup
+  prints what each auto resolved to.
+* **Previously:** **Unlayered Infill 0.4.3 / Wave Overhangs 0.0.34**, the "press Refresh and Unlayered Infill fails" report. Two
+  defects, both found in Unlayered Infill and both pre-emptively closed in
+  Wave Overhangs: (1) a lazy `from statistics import multimode` inside the
+  export capability, i.e. a first-use import inside Orca's per-call audit
+  scope (issue #15944 shape); `traceback` was the same mistake on the error
+  path. (2) the inlined-engine registration popped its module from
+  `sys.modules` on failure, so a second import — which is exactly what
+  Refresh does — could replace a working engine with nothing and leave
+  "engine MISSING". Both are now guarded by `tests/test_plugin_audit.py`,
+  which statically forbids any import below module level (including inside
+  the inlined engine sources) and re-imports each plugin three times.
+  **Related fact learned the hard way:** an inlined engine MUST be published
+  in `sys.modules` BEFORE it is exec'd — `wave_core` uses `@dataclass` with
+  `from __future__ import annotations`, and dataclasses resolves those
+  strings through `sys.modules[cls.__module__].__dict__`. Exec'ing into an
+  unpublished module raises `AttributeError: 'NoneType' object has no
+  attribute '__dict__'`.
+* **Previously:** 2026-10-02, updater **2.1.0** — `Orca-Plugins.bat` is
   the ONE updater file and the only .bat in the repository: menu, build
   picker, OrcaSlicer folder picker, remembered choices, install engine,
   self-update. At 2.1.0 the two old filenames (`Update-Orca-Plugins.bat`,
   `Choose-Orca-Plugin-Version.bat`) were removed at the owner's request so
   the repository shows exactly one updater file; copies on disk keep working
   (an old launcher self-updates into the unified file). Plugin versions
-  unchanged: Wave 0.0.33, Unlayered Infill 0.4.2.
+  at that point: Wave 0.0.33, Unlayered Infill 0.4.2.
+## START HERE NEXT SESSION — the curved-perimeter jaggedness
+
+Unfinished, and the one thing the owner is still waiting on.
+
+**The state of it.** Waves on a curved perimeter look jagged. Three
+theories have been measured and killed: simplification tolerance (sweeping
+it barely moves the turn angle), a scalloped support footprint
+(morphological closing at 0.3-1.5 mm moved the median turn by <1 degree),
+and the wave ends missing the wall (they do not -- median distance to the
+wall is 0.157 mm, exactly `wall_overlap` x line width, and every stretch
+further than a line width lies outside the overhang region).
+
+**What crease rounding (0.0.45) did:** 90th-percentile turn 90 -> 22
+degrees. Real, but the owner still sees it.
+
+**THE LEAD.** Their own 0.0.49 export and a re-run of the same input on
+the same build do not match:
+
+| | theirs | my re-run |
+| --- | --- | --- |
+| median turn | 16.1 deg | 13.8 deg |
+| p90 | 28.1 deg | 21.7 deg |
+| worst | 119.6 deg | 86.7 deg |
+| vertices >60 deg | 2.0% | 0.0% |
+
+Same build, same geometry, different output means **their configuration
+differs from the defaults**. Get it before doing anything else:
+`test-prints/t2-curved-perimeters/clean.gcode` is the input, their output
+is `waved-0.0.49.gcode`, and the job is to reproduce their numbers from
+the clean file. Suspects: `smooth_creases`, `simplify_tolerance`,
+`line_spacing`.
+
+**Do this first:** make Check setup print the resolved config, so the next
+report they paste carries it. Guessing at defaults has twice produced
+"nothing wrong here" while they were looking at something real.
+
+## Process notes earned the hard way
+
+* **Read the output, do not just measure it.** Two fixes for "the nozzle
+  jumps around" were verified by travel DISTANCE and both missed the
+  stranded retract/wipe cycles sitting in the layer tail. Reading the last
+  200 lines found them in minutes.
+* **The synthetic fixtures are not the real thing.** They contain no `M73`
+  progress lines, which is exactly why a travel-collapse bug passed the
+  whole suite and failed on a real export.
+* **Check the version stamp on an uploaded export before reasoning about
+  it** (`grep -m1 "wave-overhangs v" file.gcode`). A mislabelled file led
+  to a wrong conclusion that the owner had to correct.
+* **`.gitignore` had `*.gcode`**, so every export uploaded to
+  `test-prints/` was silently dropped from commits and vanished on every
+  sandbox reset. Fixed with `!test-prints/**/*.gcode` -- if a test print
+  goes missing again, check this first.
+* **Local git history resets between turns in this sandbox.** `git log`
+  may show `main` while the real branch state is on the remote. Always
+  `git fetch origin <branch>` and compare against
+  `origin/<branch>`, never against local `HEAD`, when measuring a
+  before/after.
+
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0fd3b-tests`. Never switch branches or push to
   `main`. (The branch is different every session — use the one you were
@@ -28,7 +173,7 @@ binding record of OrcaSlicer behavior.
   It is out of `plugins.json`, the launcher's fallback plan,
   `tools/sync_changelog.py` and the plugin tests. Do not reinstate it unless
   the owner asks.
-* **Current versions:** Wave Overhangs 0.0.33, Unlayered Infill 0.4.2,
+* **Current versions:** Wave Overhangs 0.0.40, Unlayered Infill 0.4.7,
   updater **2.1.0** — one file, `Orca-Plugins.bat`, the only .bat in the
   repository; the launcher (1.0.1) and engine (1.4.0) version histories
   ended by merging into it. PR #7 carries it; test it from the branch before

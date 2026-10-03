@@ -230,6 +230,8 @@ python3 tests/test_wave_gcode.py       # captured export; needs numpy + shapely
                                       # a pass; install them before claiming it.
 python3 tools/sync_engine.py --check   # the two engine copies are identical
 python3 tools/sync_changelog.py --check  # changelogs match the plugins
+python3 tools/dump_default_config.py --check  # docs/config-reference is current
+python3 tools/check_all.py            # ALL of the above, both dependency states
 git ls-files --eol Orca-Plugins.bat   # must say i/crlf; it is the only .bat
 ```
 
@@ -242,6 +244,68 @@ your eyes).
 Anything touching real slicing behaviour is verified against a fake harness at
 best. Say so in the PR. The first real slice on real OrcaSlicer is the real
 test; `data_dir()/log/python_*.log` holds the traceback if it fails.
+
+## 5a. The release playbook — do a version bump THIS way
+
+Shipping a change touches ten files that must agree, and discovering the
+disagreement one failing test at a time is what makes a small change take an
+hour. Do it in this order, in as few tool calls as possible.
+
+**Before writing code**
+1. If anything about the request is ambiguous -- how aggressive a default
+   should be, which plugin first, whether a behaviour change is wanted --
+   **ask**. One round of 2-4 questions costs a minute. Guessing wrong costs a
+   rewrite, and the owner has said plainly that they want to be asked.
+2. Decide the version numbers now, not at the end.
+
+**Environment, once per session**
+```bash
+pip install --break-system-packages -q shapely numpy   # test_wave_gcode needs these
+mkdir -p /tmp/nodeps && printf 'raise ImportError("blocked")\n' > /tmp/nodeps/numpy.py \
+  && cp /tmp/nodeps/numpy.py /tmp/nodeps/shapely.py    # for the deps-absent path
+```
+The sandbox can be reset between turns and lose both. If a geometry test
+suddenly reports `'NoneType' object has no attribute 'geometry'`, shapely is
+gone -- reinstall, do not debug the plugin.
+
+**The bump itself**: one script, not ten edits. `tools/bump_version.py NAME
+VERSION` does every file below and refuses to half-finish:
+
+| file | what must change |
+| --- | --- |
+| `plugins/<p>/<p>_orca.py` | PEP 723 `# version`, `PLUGIN_VERSION` |
+| `plugins/<p>/<p>_post.py` | `TOOL_VERSION`, `MARKER_VERSION` (Unlayered only) |
+| `plugins.json` | the catalogue entry |
+| `Orca-Plugins.bat` | the `^|`-joined fallback line |
+| `plugins/<p>/CHANGELOG.md` | a new entry, bullets FIRST |
+| `CHANGELOG.md` | one dated entry covering the release |
+
+**Then, in one command:**
+```bash
+python3 tools/sync_engine.py && python3 tools/sync_changelog.py \
+  && python3 tools/dump_default_config.py && python3 tools/check_all.py
+```
+`tools/check_all.py` runs every test in both dependency states and prints one
+line per check. Use it instead of running six test files by hand.
+
+**Traps that have cost real time here, all now avoidable**
+* **Never write `Orca-Plugins.bat` with Python text mode.** `write_text`
+  converts CRLF to LF and the installer test fails with five errors at once.
+  Use `read_bytes`/`write_bytes`, or `sed -i` on a line number.
+* **`tools/sync_changelog.py` rewrites the PEP 723 `description`** from the
+  FIRST bullet of the new changelog entry. Write that bullet as a one-line
+  summary and the description comes out right with no hand-editing.
+* **Changelog entries must lead with `*` bullets**, prose after. The
+  generator reads the bullets.
+* **Test files are standalone scripts.** `python3 tests/test_x.py`. Never
+  pytest -- it dies with INTERNALERROR because they `sys.exit` at module
+  scope.
+* **A pinned geometry count in `test_wave_gcode.py` is measuring geometry,
+  not defaults.** If you change a default, run the fixture against the
+  explicit `LEGACY` config and give the new behaviour its own assertions;
+  do not just edit the pinned number.
+* **One edit, one verification.** Batch independent edits into a single
+  patch script and verify once, rather than edit-test-edit-test.
 
 ## 6. Glossary (extend as needed)
 

@@ -6,6 +6,219 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.4.9 — 2026-10-02
+
+* Settings now come back by themselves after an update. If the Config
+  panel reappears at factory defaults and this plugin remembers values you
+  had set under an earlier version, they are put back on the next slice
+  and the log says what was restored. New `auto_restore_settings` (true).
+
+**Why it needed more than the manual switch added in 0.4.5/0.0.37.** That
+switch worked, but only for someone who knew it existed -- which is no use
+when the symptom is "my settings are gone".
+
+The rule is deliberately narrow, so it can never fight the Config tab's
+own **Restore defaults** button:
+
+* the saved config must be pristine -- every value at this build's
+  default, which is what a wipe looks like;
+* the newest remembered snapshot holding non-default values must come from
+  a DIFFERENT build than the one running.
+
+Press Restore defaults without updating and the newest snapshot is from
+the running build, so nothing happens and the button means what it says.
+Update, and the snapshot is from the older build, so your values return.
+Tested in `tests/test_plugin_runtime.py` as all three cases: restore after
+a version change, Restore defaults sticking inside one version, and the
+switch turning it off.
+
+## 0.4.8 — 2026-10-02
+
+* New: a nozzle-clearance check. This plugin prints one layer at several Z
+  heights, so a later move can pass underneath material already laid down.
+  The finished file is now walked in print order, remembering the highest
+  material in each small XY cell, and anything that passes below it is
+  reported with the exact place and depth.
+* collision_check: warn (default) | refuse | off, and nozzle_clearance:
+  "auto" or millimetres.
+
+**Why it is measured rather than reasoned about.** Within one wave the
+displacement is a function of position, so two moves crossing at the same XY
+always agree on Z and cannot collide. The hazard is between the waved region
+and everything flat around and above it -- perimeters, solid skin, and above
+all the next layer running into a crest. Walking the output catches all of
+those regardless of which feature caused them.
+
+**The threshold is calibrated, not zero.** This plugin exists to make layers
+key into each other, so the nozzle grazing a crest it laid down earlier is
+the feature working. "auto" is 1.25 layer heights: the shipped 200%
+amplitude measures 0.23 mm of interference and stays quiet, 400% measures
+0.46 mm and is reported, 800% measures 0.92 mm. A check that fires on every
+print would be ignored, which is the same as not having one.
+
+**warn is the default.** The author of a part is better placed than this
+plugin to decide whether a few hundredths of interference matters on their
+machine -- but they cannot decide it if nobody tells them. Set
+collision_check to refuse to have the export stop instead, leaving the
+G-code untouched.
+
+## 0.4.7 — 2026-10-02
+
+* Fixes "The preset stores invalid plugin capability configuration JSON."
+  Nothing this plugin writes can corrupt a preset any more: every note is
+  stripped of semicolons, double quotes, newlines and tabs, and the config
+  is written on a single line instead of pretty-printed over 37.
+
+**What went wrong.** The settings can live in two places. The global store
+(`data_dir()/orca_plugins/config.json`) is a real JSON file and tolerates
+anything. A **preset override** is not -- a preset is a flat key=value
+record, and `;` is its reference separator. That is already documented here
+as the reason a capability name may not contain one; what was missed is that
+it applies to the configuration VALUE as well. Several notes rewritten for
+the readable panel contained a semicolon ("master switch; false leaves your
+G-code untouched"), and the whole blob was written pretty-printed with
+newlines. Stored in a preset, that comes back mangled, and OrcaSlicer
+reports what it then sees.
+
+**Three things now guarantee it cannot recur**: a `preset_safe()` filter
+every written string passes through, single-line output from
+`dump_config()`, and a test that fails if any key or value in either panel
+contains `;`, `"`, a newline or a tab.
+
+**If you are already seeing the error**, the broken value is in the preset,
+so updating the plugin does not clear it by itself -- see the release notes
+in CHANGELOG.md for how to clear the preset override.
+
+## 0.4.6 — 2026-10-02
+
+* wave_angle now defaults to "auto": the ripples run square across your
+  profile's infill angle, read from the export. A wave only does interlocking
+  work where an infill line CROSSES it, so this is where the feature earns
+  its keep -- with the common 45 degree infill the ripples now run at 135
+  instead of straight along X.
+* max_lift_mm now defaults to "auto", a ceiling of 1.5 layer heights on the Z
+  offset. At the shipped amplitude nothing is clamped by it (the wave peaks
+  at one layer height), so this is a safety net against a big amplitude
+  driving the nozzle into material that is already printed, not a change to
+  how the part looks.
+
+With these two, every setting that can be derived from the print now is:
+frequency, segment_mm, blend_mm and cell_mm from the nozzle, wave_angle from
+fill_angle, max_lift_mm from the layer height.
+
+**What stays a fixed number.** amplitude, pattern, shape, layer_phase and the
+switches. Nothing in the G-code implies how strongly you want the layers
+keyed together or what the ripple should look like.
+
+## 0.4.5 — 2026-10-02
+
+* Your settings are now backed up by the plugin itself, so they survive the
+  Config panel being wiped. Every run saves a copy of the values in force;
+  if the panel ever comes back reset, set restore_backup to true and slice
+  once to put them back, and the flag turns itself off.
+* The backup is a short history, not one slot, because the wipe is followed
+  by a run that would otherwise overwrite the only copy with the defaults
+  that just replaced your settings.
+* A value typed into the Config panel is captured even if you never slice
+  afterwards: the snapshot is taken by the config lifecycle hook as well as
+  by every run, and it is not rate-limited by the once-per-session migration,
+  so a second and third edit in the same session are captured too.
+
+**Why this was needed.** OrcaSlicer owns the settings file and keeps it in
+one global place, so a plugin cannot stop it being reset -- "Restore
+defaults", a reinstall, a data-directory or profile change, an Orca upgrade.
+Ordinary version-to-version migration already preserved everything (it merges
+this build's new keys into your saved copy and never touches a value you
+set), but there was no protection against the file simply going away.
+
+**Nothing is restored automatically**, deliberately. Silently putting old
+settings back would make "Restore defaults" impossible, and a plugin that
+overrules an explicit action is worse than one that loses a value. So the
+backup sits there, Check setup prints exactly what it holds, and
+`restore_backup` is a one-shot undo you ask for.
+
+**The one case where a value genuinely cannot carry over** is a setting this
+build no longer has. Those are dropped on the way back in rather than
+resurrected as dead keys.
+
+## 0.4.4 — 2026-10-02
+
+**A settings panel you can actually read, and settings that follow your
+printer.** Nothing about the wave itself changed; on a 0.4 mm nozzle this
+produces the same G-code as 0.4.3, to the digit.
+
+**The panel is grouped now.** Five numbered sections — BASICS, THE SHAPE OF
+THE WAVE, LIMITS AND SAFETY, RESOLUTION AND SMOOTHING, DIAGNOSTICS — instead
+of fourteen keys in no particular order. Every note is one short sentence
+shaped `accepted values -- what it does`, because a JSON editor renders a
+newline as the two characters `\n` and a paragraph-long note is a smear. The
+long explanations moved to the README, where there is room for them. The
+panel order and the "Check setup" guide order are now generated from the same
+list, so they cannot disagree.
+
+**Your values survive the upgrade.** The migration that landed in 0.4.2 is
+unchanged: on the first slice after updating, your saved config is merged
+with this build's, keeping every value you set. Amplitude at 300% stays at
+300%. Only missing keys are added, and the notes are refreshed.
+
+**`segment_mm`, `blend_mm` and `frequency` now default to `"auto"`.** These
+were never really constants, they were multiples of the nozzle that happened
+to be written down for a 0.4:
+
+| setting | auto means | 0.4 nozzle | 0.6 nozzle |
+| --- | --- | --- | --- |
+| `segment_mm` | 2.5 x nozzle | 1.00 mm | 1.50 mm |
+| `blend_mm` | 5 x nozzle | 2.00 mm | 3.00 mm |
+| `frequency` | one ripple per 10.5 nozzle widths | 1.50 /mm | 1.00 /mm |
+
+So a 0.4 nozzle gets exactly what it got before, and a 0.6 finally gets
+settings that suit a 0.6 instead of settings that suit somebody else's
+printer. Pinned by `tests/test_plugin_runtime.py`.
+
+**Two more settings accept `"auto"`, but are still off by default** because
+turning them on changes how a part prints and that should be your decision:
+
+* `wave_angle: "auto"` reads `fill_angle` from the export and runs the
+  ripples square across your infill — which is where they do the most work,
+  since a line parallel to the ripples never crosses one.
+* `max_lift_mm: "auto"` caps the Z offset at 1.5 layer heights.
+
+**Check setup and the log now print what each auto resolved to**, with the
+reasoning — `frequency : 0.997 ripples/mm (auto: one ripple every 10.5 x
+0.60 mm nozzle widths)` — rather than echoing the word "auto" back at you.
+
+## 0.4.3 — 2026-10-02
+
+**Fixes the failure you get after pressing Refresh in the Plugins dialog**,
+where Wave Overhangs comes back fine and Unlayered Infill does not. Two
+causes, both in this plugin only, which is why only this one broke.
+
+1. **An import that happened inside OrcaSlicer's audit scope.** The engine
+   worked out your layer height with `statistics.multimode`, and it imported
+   `statistics` *the first time that line ran* — i.e. inside a capability
+   call. Orca's audit hook is off while a plugin is being imported and ON
+   during a capability call, where every file open is audited. A first-use
+   import inside that scope is an audited read of a file the plugin never
+   declared; it is the same shape as the numpy failure in OrcaSlicer issue
+   #15944. `statistics` is now imported at module load with everything else,
+   where the hook is not watching. See docs/ORCA-PLUGIN-FACTS.md, "The audit
+   hook".
+
+2. **Re-importing the plugin could destroy its own engine.** Refresh re-runs
+   discovery and imports the plugin module again in the same interpreter.
+   The old code published an empty `nonplanar_core` into `sys.modules`
+   *before* executing the engine into it, and removed it on failure — so a
+   second pass could replace a working engine with nothing and leave the
+   plugin reporting "engine MISSING". The new module is now built off to one
+   side and published only once it has executed cleanly; if it cannot, the
+   engine that already worked is kept.
+
+Also: when the engine genuinely cannot load, the reason is now printed in
+Check setup and in the failure message, instead of a bare "MISSING".
+
+No change to the G-code this plugin produces. The stamp version moves to
+v0.4.3 with the release, as always.
+
 ## 0.4.2 — 2026-10-02
 
 **The missing settings now repair themselves.** If `pattern`, `shape`,

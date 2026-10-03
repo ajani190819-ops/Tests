@@ -9,6 +9,7 @@ import math
 import pathlib
 import re
 import sys
+import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -35,7 +36,40 @@ spec.loader.exec_module(wave)
 
 source = (ROOT / "tests/fixtures/Cube^2_3m53s.gcode").read_text(
     encoding="utf-8")
+# The pinned counts further down are a GEOMETRY regression: they describe
+# what the wave algorithm does to this captured export, and they only mean
+# something if the inputs are held still. Since 0.0.35 several defaults are
+# the string "auto" and resolve against the print -- this fixture is a 0.6
+# nozzle, so auto spacing is wider than the old 0.35 constant and every count
+# moves. So the fixture run pins the explicit numbers the counts were
+# measured with, and the auto behaviour gets its own assertions below
+# (search for "auto defaults").
+LEGACY = {
+    # 0.0.44 stopped waving Internal Bridge (solid over sparse infill) and
+    # anything a plain bridge can cross. Two of this fixture's three waved
+    # sections are internal bridges and the third is a 4.7 mm overhang, so
+    # the shipped defaults now leave all of it alone -- correctly. The pinned
+    # counts below are a GEOMETRY regression, so they keep running against
+    # the old, less picky selection. The new selection has its own section
+    # (search for "picky bridging").
+    "straight_bridge_span": 0,
+    "wave_internal_bridges": True,
+    # 0.0.45 rounds the V kinks off a front, which nudges every count here.
+    # Same reasoning: these pins measure geometry, so they keep the
+    # pre-0.0.45 shape. Rounding has its own section ("crease rounding").
+    "smooth_creases": False,
+    "min_overhang_area": 0.5,
+    "line_spacing": 0.35,
+    "perimeter_overlap": 0.10,
+    "min_wave_length": 1.0,
+    "min_wave_segment": 0.30,
+    "simplify_tolerance": 0.05,
+    "edge_taper_distance": 0.60,
+    "travel_speed": 120.0,
+    "max_iterations": 400,
+}
 cfg = dict(wave._DEFAULTS)
+cfg.update(LEGACY)
 cfg["_lh"] = 0.3
 out, stats = wave._gcode_wave_rewrite(source, cfg)
 
@@ -207,7 +241,7 @@ clearance_only_move_count = sum(
 assert old_style_stats["removed_moves"] == stats["removed_moves"]
 # 0.0.31 thinned redundant vertices out of fronts that wrap a hole: this was
 # 508 before, for exactly the same geometry (wave_path_length is unchanged).
-assert old_style_move_count == 439, (
+assert old_style_move_count == 432, (
     "old no-clearance/no-taper cleanup changed unexpectedly")
 assert clearance_only_stats["removed_moves"] == stats["removed_moves"]
 assert wave_path_length(clearance_only_blocks) < wave_path_length(
@@ -427,8 +461,9 @@ legacy_blocks = re.findall(
     r"; ==== WAVE OVERHANG BEGIN ====(.*?)"
     r"; ==== WAVE OVERHANG END ====", legacy_out, re.DOTALL)
 assert legacy_stats["wall_bounded_sections"] == 0, legacy_stats
-# 739 before 0.0.31's vertex thinning; same geometry, fewer redundant points.
-assert sum(block.count("\nG1 X") for block in legacy_blocks) == 455, (
+# 739 before 0.0.31's vertex thinning, 455 before 0.0.40's local refinement;
+# same geometry each time, fewer redundant points.
+assert sum(block.count("\nG1 X") for block in legacy_blocks) == 425, (
     "wall_snap=False must still produce the 0.0.19 bridge-footprint edges")
 
 
@@ -637,10 +672,11 @@ arc_out, arc_stats = wave._gcode_wave_rewrite(
 arc_blocks = wave_blocks_of(arc_out)
 emitted_arcs = sum(block.count("\nG2 ") + block.count("\nG3 ")
                    for block in arc_blocks)
-assert arc_stats["arc_moves"] == emitted_arcs == 44, (arc_stats, emitted_arcs)
+# 44 before 0.0.40 refined the point density; one fewer arc, same path.
+assert arc_stats["arc_moves"] == emitted_arcs == 43, (arc_stats, emitted_arcs)
 arc_move_count = sum(block.count("\nG1 X") for block in arc_blocks)
-# 329 before 0.0.31's vertex thinning.
-assert arc_move_count == 260, arc_move_count
+# 329 before 0.0.31's vertex thinning, 260 before 0.0.40's local refinement.
+assert arc_move_count == 256, arc_move_count
 assert arc_move_count + emitted_arcs < wave_move_count, (
     "arcs must reduce the number of commands, not add to them")
 assert arc_stats["removed_moves"] == stats["removed_moves"], (
@@ -910,8 +946,9 @@ for step in (0.4, 0.4, 0.4):                        # then real movement
 for step in (0.0002, 0.0002):                       # and a dead tail
     hairline.append((hairline[-1][0] + step, 100.0))
 
-swcfg = wave._wave_config(dict(wave._DEFAULTS), 0.3)
-emitted = wave._emit_wave_gcode([hairline], 1.5, swcfg, dict(wave._DEFAULTS))
+swcfg = wave._wave_config({**wave._DEFAULTS, **LEGACY}, 0.3)
+emitted = wave._emit_wave_gcode([hairline], 1.5, swcfg,
+                                {**wave._DEFAULTS, **LEGACY})
 body = [l for l in emitted if l.startswith("G1 X")]
 assert body, emitted
 seen = (100.0, 100.0)
@@ -939,7 +976,18 @@ assert abs(written - expected) < expected * 0.01, (written, expected)
 # A wall-clock ceiling is the backstop for every slow path we have not
 # measured, including any we introduce later. When it fires the file must
 # come back exactly as Orca wrote it: unchanged, unstamped, and flagged.
-assert wave._DEFAULTS["time_budget"] == 30.0, wave._DEFAULTS["time_budget"]
+# "auto" since 0.0.42: a flat 30s was far too short for a real part, and
+# running out means the file comes back unwaved -- which is what "the
+# plugin did nothing" looks like from outside.
+assert wave._DEFAULTS["time_budget"] == "auto", wave._DEFAULTS["time_budget"]
+assert wave._auto_budget("x" * 100) == 30.0 + 45.0 * 100 / 1048576.0
+assert wave._auto_budget("x" * 20 * 1048576) == 300.0, "the cap must bind"
+small = wave._budget_deadline({"time_budget": "auto"}, 0.0, "x" * 1024)
+big = wave._budget_deadline({"time_budget": "auto"}, 0.0, "x" * 4 * 1048576)
+assert big > small > 30.0, (small, big)
+assert wave._budget_deadline({"time_budget": 0}, 0.0, "x") is None
+assert wave._budget_deadline({"time_budget": 12}, 0.0, "x") == 12.0
+assert wave._budget_deadline({"time_budget": "nonsense"}, 0.0, "x") > 0.0
 timed, timed_stats = wave._gcode_wave_rewrite(
     source, dict(cfg, time_budget=0.0001))
 assert timed == source, "a timed-out pass must not alter a single byte"
@@ -1144,7 +1192,8 @@ assert tiny_share < 0.08, (
     f"({100 * tiny_share:.1f}%) -- the vertex thinning has regressed")
 
 # The whole justification for thinning is that it changes nothing you can see,
-# so the printed length must survive it. 513.5 mm both before and after.
+# so the printed length must survive it. 513.5 mm before local refinement
+# (0.0.40) and 513.3 mm after, for 20 fewer moves.
 total_path = sum(all_lengths)
 assert abs(total_path - 513.5) < 1.0, (
     f"wave path length moved to {total_path:.1f} mm; thinning must remove "
@@ -1157,3 +1206,1012 @@ assert "; wave-overhangs edge taper" in out
 print(f"ok -- vertex thinning: {len(all_lengths)} wave moves, only "
       f"{len(tiny_lengths)} under 0.1 mm ({100 * tiny_share:.1f}%), "
       f"path still {total_path:.1f} mm")
+
+
+# ---------------------------------------------------------------------------
+#  auto defaults: the settings that follow the user's own Orca profile
+# ---------------------------------------------------------------------------
+# The owner's request: "I'd like for these configs to inherit as many of
+# Orca's settings as possible so that the resolutions match up... and for the
+# things that don't have Orca equivalents to be automatically defined where
+# applicable, so it can look at the G-code and determine what the value
+# should be."
+#
+# Two properties matter and both are checked here:
+#   1. auto is not a new behaviour for a stock 0.4 mm profile -- it resolves
+#      to the exact constants this plugin shipped with, so nobody's print
+#      changes just because a default became a word.
+#   2. auto actually MOVES when the print is different. This fixture is a
+#      0.6 nozzle; everything width-derived has to scale with it, or "auto"
+#      is decoration.
+profile = wave._orca_profile(source)
+assert profile.get("nozzle_diameter") == "0.6", profile
+assert profile.get("resolution") == "0.06", profile
+assert profile.get("travel_speed") == "120", profile
+
+at_040 = wave._resolve_autos(dict(wave._DEFAULTS), 0.40,
+                             {"resolution": "0.0125", "travel_speed": "120"})
+for key, shipped in (("line_spacing", 0.35), ("perimeter_overlap", 0.10),
+                     ("min_wave_length", 1.0), ("min_wave_segment", 0.30),
+                     ("simplify_tolerance", 0.05), ("edge_taper_distance", 0.60),
+                     ("min_overhang_area", 0.5), ("travel_speed", 120.0)):
+    assert abs(at_040[key] - shipped) < 1e-9, (
+        f"auto {key} resolved to {at_040[key]} on a stock 0.4 mm profile; it "
+        f"must reproduce the shipped constant {shipped} exactly, or upgrading "
+        f"silently changes how everybody's parts print")
+
+at_060 = wave._resolve_autos(dict(wave._DEFAULTS), 0.60,
+                             {"resolution": "0.06", "travel_speed": "300"})
+assert at_060["line_spacing"] > at_040["line_spacing"] * 1.4, (
+    "auto line_spacing did not scale with a wider bead -- a 0.6 nozzle would "
+    "still be printing waves spaced for a 0.4")
+assert at_060["travel_speed"] == 300.0, (
+    "auto travel_speed must come from the profile, not a constant")
+assert 0.02 <= at_060["simplify_tolerance"] <= 0.12
+
+# A deliberately absurd Resolution must not be able to smooth the waves away:
+# it is a floor on the tolerance, and the clamp is the backstop.
+coarse = wave._resolve_autos(dict(wave._DEFAULTS), 0.40, {"resolution": "5"})
+assert coarse["simplify_tolerance"] <= 0.12, coarse["simplify_tolerance"]
+
+# Explicit numbers always win over auto, and a junk value falls back rather
+# than raising -- a bad config entry must never fail an export.
+explicit = wave._resolve_autos(
+    {**wave._DEFAULTS, "line_spacing": 0.5, "travel_speed": "nonsense"},
+    0.40, {"travel_speed": "300"})
+assert explicit["line_spacing"] == 0.5
+assert explicit["travel_speed"] == 120.0, explicit["travel_speed"]
+
+# The iteration cap: auto has to be enough to cross the region, and it must
+# not be a fixed number pretending to be adaptive.
+small = wave._auto_iterations(Polygon([(0, 0), (4, 0), (4, 4), (0, 4)]), 0.35)
+big = wave._auto_iterations(Polygon([(0, 0), (200, 0), (200, 200), (0, 200)]),
+                            0.35)
+assert big > small, "auto max_iterations is not adapting to region size"
+assert small >= 64 and big <= 20000, (small, big)
+assert big >= math.hypot(200, 200) / 0.35, (
+    "auto max_iterations must be able to cross the whole region, or a large "
+    "overhang is cut off half way")
+
+# And the whole thing still has to run, end to end, on the real export with
+# nothing but auto defaults -- the configuration a new user actually gets.
+auto_cfg = dict(wave._DEFAULTS)
+# Same reason as LEGACY: this case is about what "auto" resolves to, so it
+# keeps the pre-0.0.44 bridge selection and stays comparable.
+auto_cfg["straight_bridge_span"] = 0
+auto_cfg["wave_internal_bridges"] = True
+auto_cfg["smooth_creases"] = False
+auto_cfg["_lh"] = 0.3
+auto_out, auto_stats = wave._gcode_wave_rewrite(source, auto_cfg)
+assert auto_stats["wave_layers"] == 3, auto_stats
+assert auto_stats["replaced_sections"] == 3, auto_stats
+assert auto_out.startswith("; wave-overhangs v"), "missing build stamp"
+# Wider spacing on a 0.6 nozzle means fewer wave moves than the 0.4-tuned
+# legacy config, not more. This is the anti-bloat half of the request.
+auto_moves = sum(line.startswith("G1 X") for line in auto_out.splitlines())
+legacy_moves = sum(line.startswith("G1 X") for line in out.splitlines())
+assert auto_moves < legacy_moves, (
+    f"auto defaults emitted {auto_moves} moves against the 0.4-tuned "
+    f"{legacy_moves}; on a 0.6 nozzle auto should be sparser, not denser")
+# Still idempotent, still fail-closed.
+again, again_stats = wave._gcode_wave_rewrite(auto_out, auto_cfg)
+assert again_stats["already_processed"] and again == auto_out
+
+print(f"ok -- auto defaults: reproduce the shipped 0.4 mm constants exactly, "
+      f"scale to this 0.6 mm fixture ({auto_moves} moves against "
+      f"{legacy_moves} for the 0.4-tuned config), follow the profile's travel "
+      f"speed and resolution, and the iteration cap sizes itself to the region")
+
+
+# ---------------------------------------------------------------------------
+#  print order: waves first, overhanging wall last
+# ---------------------------------------------------------------------------
+# The owner's request: "all of the waves should be printed first, 'cause then
+# they can actually support one another as it bridges its way out, but those
+# overhanging walls, if printed first, won't be able to do anything -- they'll
+# just fall straight down. So the overhanging wall should be printed last."
+#
+# Orca emits a layer walls-first, so on an overhanging layer the wall is laid
+# into open air before the waves that are supposed to carry it exist. Wave now
+# lifts the overhanging part of the wall out and re-emits it after the wave
+# block. What must be true: the wall moves move, nothing else changes, and the
+# file is still a valid continuous toolpath.
+
+
+def wall_order(text):
+    """Per layer, the line of the first wave block and of the moved wall."""
+    waves, moved, layer = {}, {}, -1
+    for i, line in enumerate(text.splitlines()):
+        if line.startswith(";Z:"):
+            layer += 1
+        elif "WAVE OVERHANG BEGIN" in line:
+            waves.setdefault(layer, i)
+        elif wave.WALL_LAST_BEGIN in line:
+            moved.setdefault(layer, i)
+    return waves, moved
+
+
+def total_e(text):
+    total = 0.0
+    for line in text.splitlines():
+        if line.startswith(("G1", "G2", "G3")):
+            match = re.search(r"\bE(-?[\d.]+)", line)
+            if match:
+                total += float(match.group(1))
+    return total
+
+
+ordered_cfg = dict(wave._DEFAULTS)
+ordered_cfg["_lh"] = 0.3
+ordered_out, ordered_stats = wave._gcode_wave_rewrite(source, ordered_cfg)
+unordered_cfg = dict(ordered_cfg)
+unordered_cfg["wall_last"] = False
+unordered_out, unordered_stats = wave._gcode_wave_rewrite(source, unordered_cfg)
+
+assert wave._DEFAULTS["wall_last"] is True, (
+    "wall_last must be on by default -- an overhanging wall printed before "
+    "the waves has nothing to sit on")
+assert ordered_stats["walls_moved"] > 0, (
+    f"no overhanging wall was relocated on the Cube export, which has one: "
+    f"{ordered_stats}")
+assert ordered_stats["wall_layers_reordered"] >= 1, ordered_stats
+
+waves_at, moved_at = wall_order(ordered_out)
+assert moved_at, "nothing was marked as a moved wall"
+for layer, at in moved_at.items():
+    assert layer in waves_at and at > waves_at[layer], (
+        f"on layer {layer} the moved wall is at line {at} but the waves start "
+        f"at {waves_at.get(layer)} -- the whole point is that the wall comes "
+        f"after")
+
+# Nothing but the order changed: identical extrusion, identical wave planning.
+assert abs(total_e(ordered_out) - total_e(unordered_out)) < 1e-6, (
+    f"relocating the wall changed total extrusion by "
+    f"{total_e(ordered_out) - total_e(unordered_out):.6f} mm")
+for key in ("removed_moves", "kept_fragments", "wave_layers",
+            "replaced_sections", "gap_fills"):
+    assert ordered_stats[key] == unordered_stats[key], (
+        f"{key} changed when the wall was relocated: "
+        f"{ordered_stats[key]} vs {unordered_stats[key]}")
+assert wave.WALL_LAST_BEGIN not in unordered_out, (
+    "wall_last=false still relocated a wall")
+
+# Every relocated move must still be in the file exactly once -- relocation,
+# not duplication and not deletion.
+moved_moves = []
+inside = False
+for line in ordered_out.splitlines():
+    if wave.WALL_LAST_BEGIN in line:
+        inside = True
+        continue
+    if wave.WALL_LAST_END in line:
+        inside = False
+        continue
+    if inside and line.startswith("G1") and " E" in line:
+        moved_moves.append(line.strip())
+assert moved_moves, "the moved block contains no extrusion"
+# (The same coordinates recur on other layers, so count against the source
+# rather than expecting a single occurrence.)
+for move in moved_moves:
+    assert move in source, (
+        f"relocated move is not verbatim from the original export: {move}")
+    assert ordered_out.count(move) == source.count(move), (
+        f"relocated move appears {ordered_out.count(move)} times, the source "
+        f"has {source.count(move)}: {move}")
+
+# The toolhead must be handed back where the rest of the file expects it: the
+# block ends with a travel to wherever the wave output finished.
+block_end = ordered_out.index(wave.WALL_LAST_END)
+after = ordered_out[block_end:].splitlines()[1:4]
+assert any(line.startswith("G0 ") and " X" in line and " Y" in line
+           for line in after), (
+    f"the moved wall block does not travel back to the resume point: {after}")
+
+# And it is still idempotent and still fail-closed.
+twice, twice_stats = wave._gcode_wave_rewrite(ordered_out, ordered_cfg)
+assert twice_stats["already_processed"] and twice == ordered_out
+
+# Absolute-E files are refused outright: in absolute E the numbers are
+# positions, so moving a run of moves would make the extruder jump.
+abs_out, abs_stats = wave._gcode_wave_rewrite(as_absolute_e(source),
+                                              ordered_cfg)
+assert abs_stats["walls_moved"] == 0, (
+    "an absolute-E export must never have its moves relocated")
+
+# The synthetic overhang-with-hole case prints its outer wall before the
+# bridge too, and has far more of it hanging in the air.
+hole_source, _hole = wave_cases.synthetic_overhang_with_hole()
+hole_out, hole_stats = wave._gcode_wave_rewrite(hole_source, dict(ordered_cfg))
+assert hole_stats["walls_moved"] > 20, hole_stats
+hole_waves, hole_moved = wall_order(hole_out)
+for layer, at in hole_moved.items():
+    assert at > hole_waves[layer], (layer, at, hole_waves)
+assert abs(total_e(hole_out)
+           - total_e(wave._gcode_wave_rewrite(
+               hole_source, {**ordered_cfg, "wall_last": False})[0])) < 1e-6
+
+print(f"ok -- print order: {ordered_stats['walls_moved']} overhanging wall "
+      f"move(s) on {ordered_stats['wall_layers_reordered']} layer(s) of the "
+      f"Cube export (and {hole_stats['walls_moved']} on the synthetic hole "
+      f"case) are now emitted AFTER the waves, verbatim, with extrusion and "
+      f"wave planning unchanged, the toolhead handed back, absolute-E refused "
+      f"and the pass still idempotent")
+
+
+# ---------------------------------------------------------------------------
+#  adaptive flow: the Arachne idea, applied to wave spacing
+# ---------------------------------------------------------------------------
+# Arachne varies bead WIDTH so a shape is filled exactly instead of being
+# tiled with fixed-width lines and left with slivers. Wave has the same
+# problem in one dimension: fronts step out a fixed spacing, so the strip
+# against the far boundary is rarely a whole bead wide. This does the half of
+# Arachne that is safe to do after slicing -- it varies flow, not geometry.
+assert wave._DEFAULTS["adaptive_flow"] is False, (
+    "adaptive_flow is experimental and changes how much plastic goes down; "
+    "it must be opt-in")
+
+flow_cfg = {**ordered_cfg, "adaptive_flow": True}
+flow_out, flow_stats = wave._gcode_wave_rewrite(source, flow_cfg)
+assert flow_stats["adaptive_flow_sections"] > 0, (
+    "adaptive flow found nothing to widen on an export that demonstrably has "
+    "uncovered slivers")
+
+# Geometry is untouched: same moves, same coordinates, only E differs.
+def xy_moves(text):
+    return [line.split(" E")[0] for line in text.splitlines()
+            if line.startswith("G1 X")]
+
+
+assert xy_moves(flow_out) == xy_moves(ordered_out), (
+    "adaptive flow moved a path; it may only change extrusion")
+assert total_e(flow_out) > total_e(ordered_out), (
+    "adaptive flow did not add any material")
+
+# It must stay within its cap. Compare each wave move's E per mm against the
+# nominal, and allow the configured ceiling plus rounding.
+def wave_e_ratios(text, nominal):
+    ratios = []
+    inside = False
+    px = py = None
+    for line in text.splitlines():
+        if "WAVE OVERHANG BEGIN" in line:
+            inside = True
+            px = py = None
+            continue
+        if "WAVE OVERHANG END" in line:
+            inside = False
+            continue
+        if not inside or not line.startswith(("G0", "G1")):
+            continue
+        words = dict((tok[0], float(tok[1:])) for tok in line.split()[1:]
+                     if len(tok) > 1 and tok[0] in "XYE"
+                     and tok[1:].replace(".", "").replace("-", "").isdigit())
+        x, y = words.get("X", px), words.get("Y", py)
+        if "E" in words and None not in (px, py, x, y):
+            length = math.hypot(x - px, y - py)
+            if length > 0.2:
+                ratios.append(words["E"] / length / nominal)
+        px, py = x, y
+    return ratios
+
+
+swcfg_nominal = wave._wave_config({**wave._DEFAULTS, **LEGACY}, 0.3)
+swcfg_nominal.line_width = 0.57
+ratios = wave_e_ratios(flow_out, swcfg_nominal.e_per_mm())
+assert ratios, "no wave extrusion measured"
+assert max(ratios) <= wave._DEFAULTS["adaptive_flow_max"] + 0.02, (
+    f"adaptive flow exceeded its cap: {max(ratios):.3f} x nominal")
+
+# A lower cap must actually bind.
+capped_out, _capped = wave._gcode_wave_rewrite(
+    source, {**flow_cfg, "adaptive_flow_max": 1.05})
+capped = wave_e_ratios(capped_out, swcfg_nominal.e_per_mm())
+assert max(capped) <= max(ratios) + 1e-9, "adaptive_flow_max did not bind"
+assert total_e(capped_out) <= total_e(flow_out) + 1e-9
+
+# With gap_fill off there is more left uncovered, so there must be more to
+# absorb -- the two mechanisms are solving the same problem different ways.
+no_gap = total_e(wave._gcode_wave_rewrite(
+    source, {**ordered_cfg, "gap_fill": False})[0])
+no_gap_flow = total_e(wave._gcode_wave_rewrite(
+    source, {**flow_cfg, "gap_fill": False})[0])
+assert no_gap_flow - no_gap > total_e(flow_out) - total_e(ordered_out), (
+    "adaptive flow should have more to do when gap_fill is not already "
+    "filling the slivers")
+
+print(f"ok -- adaptive flow: opt-in, widens {flow_stats['adaptive_flow_sections']} "
+      f"section(s) by "
+      f"{100 * (total_e(flow_out) / total_e(ordered_out) - 1):.2f}% extrusion "
+      f"({100 * (no_gap_flow / no_gap - 1):.2f}% with gap_fill off), moves no "
+      f"path, and honours its cap (max {max(ratios):.2f}x nominal)")
+
+
+# ---------------------------------------------------------------------------
+#  point density: no front may be drawn with far more moves than it needs
+# ---------------------------------------------------------------------------
+# The owner: "there's certain points where a curve will have way more lines
+# than it needs to... sometimes there will be like hundreds of lines when a
+# couple dozen should have sufficed."
+#
+# Cause: simplification was accepted or rejected for a WHOLE front. A front
+# running 28 mm along a gentle curve and then squeezing past a hole had to
+# keep its raster points everywhere, because one chord near the hole would
+# have cut the corner. Since 0.0.40 each chord is checked on its own and only
+# the failing ones are split, so points are spent where the geometry is
+# actually difficult.
+def front_density(text):
+    """[(moves, millimetres)] for each separately-travelled wave front."""
+    fronts, current, inside = [], None, False
+    px = py = None
+    for line in text.splitlines():
+        if "WAVE OVERHANG BEGIN" in line:
+            inside, px, py = True, None, None
+            continue
+        if "WAVE OVERHANG END" in line:
+            inside, current = False, None
+            continue
+        if not inside or not line.startswith(("G0", "G1")):
+            continue
+        if line.startswith("G0"):
+            current = None
+        words = {}
+        for token in line.split()[1:]:
+            try:
+                words[token[0]] = float(token[1:])
+            except ValueError:
+                pass
+        x, y = words.get("X", px), words.get("Y", py)
+        if "E" in words and None not in (px, py, x, y):
+            if current is None:
+                current = [0, 0.0]
+                fronts.append(current)
+            current[0] += 1
+            current[1] += math.hypot(x - px, y - py)
+        px, py = x, y
+    return fronts
+
+
+corner_source = wave_cases.synthetic_rounded_corner()
+if isinstance(corner_source, tuple):
+    corner_source = corner_source[0]
+corner_out, _corner_stats = wave._gcode_wave_rewrite(
+    corner_source, {**wave._DEFAULTS, "_lh": 0.3, "smooth_creases": False,
+                    "straight_bridge_span": 0, "wave_internal_bridges": True})
+corner_fronts = front_density(corner_out)
+assert corner_fronts, "the rounded-corner case produced no waves"
+
+corner_moves = sum(n for n, _mm in corner_fronts)
+corner_mm = sum(mm for _n, mm in corner_fronts)
+# Before the fix this case emitted 1048 moves, with single fronts running to
+# 132 moves over 28 mm. The curve itself is unchanged, so the path length is
+# the thing that must NOT move.
+assert corner_moves < 750, (
+    f"the rounded corner is back to {corner_moves} wave moves; local "
+    f"refinement has regressed")
+assert 1540 < corner_mm < 1610, (
+    f"wave path length moved to {corner_mm:.1f} mm -- simplification must "
+    f"remove redundant points, never reshape the path")
+
+# No single front may be drawn at an absurd density. A wave line is one bead
+# wide; more than ~3 moves per millimetre is describing noise, not geometry.
+worst = max(corner_fronts, key=lambda f: f[0] / max(f[1], 1e-9))
+assert worst[0] / max(worst[1], 1e-9) < 3.5, (
+    f"a front uses {worst[0]} moves over {worst[1]:.2f} mm "
+    f"({worst[0] / max(worst[1], 1e-9):.1f} moves/mm)")
+# And long fronts specifically: these are the ones the owner saw.
+for moves, millimetres in corner_fronts:
+    if millimetres > 10.0:
+        assert moves / millimetres < 2.0, (
+            f"a {millimetres:.1f} mm front still needs {moves} moves "
+            f"({moves / millimetres:.1f}/mm) -- that is the 'hundreds of "
+            f"lines where a couple dozen would do' case")
+
+print(f"ok -- point density: the rounded-corner case now draws its waves in "
+      f"{corner_moves} moves over {corner_mm:.0f} mm (was 1048 for the same "
+      f"path, with single fronts of 132 moves over 28 mm); no front exceeds "
+      f"{worst[0] / max(worst[1], 1e-9):.1f} moves/mm")
+
+
+# ---------------------------------------------------------------------------
+#  no pointless travels after the waves (0.0.41)
+# ---------------------------------------------------------------------------
+# The owner: "when the waves are done printing the nozzle kind of seems to
+# scan its way across the print... in the G-code it said something about
+# replacing bridges when that shouldn't be there because all the waves have
+# already been printed."
+#
+# It was not gap filling. Every original bridge move the waves covered was
+# replaced by a comment AND a travel to where that move started, so after the
+# wave block the nozzle traced the whole original bridge raster in mid-air:
+# 63 travels for 11 extrusions on this export. G0 states absolute X and Y, so
+# only the last travel in a run does anything.
+def after_first_wave_block(text):
+    lines = text.splitlines()
+    start = next(i for i, l in enumerate(lines) if "WAVE OVERHANG END" in l)
+    tail = []
+    for line in lines[start + 1:]:
+        if line.startswith(";Z:") or "WAVE OVERHANG BEGIN" in line:
+            break
+        tail.append(line)
+    return tail
+
+
+tail = after_first_wave_block(ordered_out)
+travels = sum(1 for l in tail if l.startswith("G0"))
+extrusions = sum(1 for l in tail if l.startswith("G1 X") and " E" in l)
+assert travels <= extrusions + 6, (
+    f"{travels} travels for {extrusions} extrusions after the wave block -- "
+    f"the nozzle is scanning across the print again")
+# No two travels in a row anywhere in the regions this plugin rewrote.
+previous_travel = False
+for line in ordered_out.splitlines():
+    stripped = line.strip()
+    if stripped.startswith("G0") and " E" not in stripped:
+        assert not previous_travel or "MOVED WALL" in stripped, (
+            f"two travels in a row: {stripped}")
+        previous_travel = True
+    elif stripped and not stripped.startswith(";"):
+        previous_travel = False
+
+# Collapsing travels must not touch a single unit of extrusion.
+assert abs(total_e(ordered_out) - total_e(unordered_out)) < 1e-6
+print(f"ok -- travel collapsing: {travels} travel(s) for {extrusions} "
+      f"extrusion(s) after the first wave block (was 63 for 11), no two "
+      f"travels in a row, extrusion untouched")
+
+
+# ---------------------------------------------------------------------------
+#  many holes and several overhang layers (0.0.42)
+# ---------------------------------------------------------------------------
+# The owner, on a complex part that came back completely unprocessed: "I have
+# a theory that it has something to do with not being able to handle things
+# with larger numbers of holes or having multiple overhangs."
+#
+# The theory is right in effect, and the mechanism is the time budget. The
+# pass costs what the geometry costs; a flat 30 seconds was set against a
+# test cube. When it runs out the file is handed back exactly as Orca wrote
+# it -- correct behaviour, and indistinguishable from the plugin not running.
+#
+# Two things have to hold: the cost must not explode with hole count, and
+# running out of time must be impossible to miss.
+def holey_export(holes, overhang_layers=1, size=40.0):
+    out = ["M83"]
+
+    def loop(points, kind="Outer wall", width=0.5):
+        block = [f";TYPE:{kind}", f";WIDTH:{width:.2f}",
+                 "G0 X%.3f Y%.3f" % points[0]]
+        for x, y in points[1:]:
+            block.append(f"G1 X{x:.3f} Y{y:.3f} E0.5")
+        return block
+
+    out += [";Z:0.3"]
+    out += loop([(10.0, 10.0), (size - 10, 10.0), (size - 10, size - 10),
+                 (10.0, size - 10), (10.0, 10.0)])
+    out += [";TYPE:Internal solid infill", ";WIDTH:0.45"]
+    y = 10.4
+    while y < size - 10.4:
+        out.append(f"G0 X10.4 Y{y:.3f}")
+        out.append(f"G1 X{size - 10.4:.3f} Y{y:.3f} E0.4")
+        y += 0.45
+    columns = max(1, int(math.sqrt(holes)))
+    centres = []
+    for i in range(holes):
+        step = (size - 8.0) / max(1, columns - 1) if columns > 1 else 0.0
+        centres.append((min(size - 4, 4.0 + (i % columns) * step),
+                        min(size - 4, 4.0 + (i // columns) * step)))
+    for layer in range(overhang_layers):
+        out += [f";Z:{0.6 + 0.3 * layer:.1f}"]
+        out += loop([(1.0, 1.0), (size - 1, 1.0), (size - 1, size - 1),
+                     (1.0, size - 1), (1.0, 1.0)])
+        for cx, cy in centres:
+            out += loop([(cx + 2.0 * math.cos(2 * math.pi * k / 40),
+                          cy + 2.0 * math.sin(2 * math.pi * k / 40))
+                         for k in range(41)], kind="Inner wall")
+        out += [";TYPE:Bridge", ";WIDTH:0.50"]
+        y = 1.4
+        while y < size - 1.4:
+            spans = [(1.4, size - 1.4)]
+            for cx, cy in centres:
+                if abs(y - cy) < 2.6:
+                    dx = math.sqrt(max(0.0, 2.6 ** 2 - (y - cy) ** 2))
+                    kept = []
+                    for a, b in spans:
+                        if b < cx - dx or a > cx + dx:
+                            kept.append((a, b))
+                            continue
+                        if a < cx - dx:
+                            kept.append((a, cx - dx))
+                        if b > cx + dx:
+                            kept.append((cx + dx, b))
+                    spans = kept
+            for a, b in spans:
+                if b - a >= 0.8:
+                    out.append(f"G0 X{a:.3f} Y{y:.3f}")
+                    out.append(f"G1 X{b:.3f} Y{y:.3f} E{(b - a) * 0.033:.5f}")
+            y += 0.5
+    return "\n".join(out) + "\n"
+
+
+timings = {}
+for hole_count in (1, 16, 36):
+    export = holey_export(hole_count, overhang_layers=3)
+    started = time.time()
+    holey_out, holey_stats = wave._gcode_wave_rewrite(
+        export, {**wave._DEFAULTS, "_lh": 0.3, "time_budget": 0,
+                 "smooth_creases": False,
+                 "straight_bridge_span": 0, "wave_internal_bridges": True})
+    timings[hole_count] = time.time() - started
+    assert holey_stats["wave_layers"] >= 1, (hole_count, holey_stats)
+    assert not holey_stats.get("timed_out"), holey_stats
+
+# Cost must grow roughly with the geometry, not explode. Before the
+# _interior_voids cache the 36-hole case took 7.4s against 0.6s for one
+# hole; _interior_voids was being recomputed once per ENDPOINT.
+ratio = timings[36] / max(timings[1], 1e-6)
+assert ratio < 25, (
+    f"36 holes cost {ratio:.0f}x one hole ({timings[36]:.1f}s vs "
+    f"{timings[1]:.1f}s) -- the per-hole work is superlinear again")
+
+# And a budget that runs out must be loud, not silent.
+tiny_budget_out, tiny_stats = wave._gcode_wave_rewrite(
+    holey_export(36, overhang_layers=3),
+    {**wave._DEFAULTS, "_lh": 0.3, "time_budget": 0.001,
+     "smooth_creases": False,
+     "straight_bridge_span": 0, "wave_internal_bridges": True})
+assert tiny_stats.get("timed_out"), tiny_stats
+assert tiny_budget_out == holey_export(36, overhang_layers=3), (
+    "a timeout must hand back the original file byte for byte")
+
+print(f"ok -- many holes: 1/16/36 holes over 3 overhang layers cost "
+      f"{timings[1]:.1f}/{timings[16]:.1f}/{timings[36]:.1f}s "
+      f"({ratio:.0f}x for 36x the holes), none time out, and a budget that "
+      f"does run out returns the original file untouched and says so")
+
+
+# ---------------------------------------------------------------------------
+#  waves only where a straight bridge cannot do the job (0.0.44)
+# ---------------------------------------------------------------------------
+# The owner: "the only parts that should be receiving wave overhangs should
+# be ones on the underside where you have horizontal overhangs that don't
+# have any other method of support... bridges at the top are still using the
+# wave overhangs instead of straight bridges... also the little divots on the
+# underside, those are using waves but they don't need to."
+#
+# Orca marks three different things as "bridge" and only one of them is
+# printing into thin air. Measured on the owner's t3 export:
+#
+#   Z 5.4  bridge           1035 mm2   reach 37.5 mm  <- genuine, wave it
+#   Z 7.8  bridge          18-54 mm2   reach 2.4-3.7  <- the "divots"
+#   Z 8.1  bridge            1.3 mm2   reach 0.2-0.4  <- specks
+#   Z 9.3  internal bridge  1090 mm2   reach 5.5 mm   <- solid over infill
+#
+# "reach" is the distance from supported material to the furthest point of
+# the unsupported patch, so a straight bridge has to cross twice that.
+assert wave._DEFAULTS["wave_internal_bridges"] is False, (
+    "Internal Bridge is the solid layer over sparse infill -- anchored every "
+    "few mm by the infill under it, so a straight bridge is the right tool")
+assert wave._DEFAULTS["straight_bridge_span"] == "auto"
+assert wave._straight_bridge_span({"straight_bridge_span": "auto"}) == 10.0
+assert wave._straight_bridge_span({"straight_bridge_span": 4}) == 4.0
+assert wave._straight_bridge_span({"straight_bridge_span": "junk"}) == 10.0
+
+support_square = Polygon([(0, 0), (20, 0), (20, 20), (0, 20)])
+# A 3 mm skirt around the outside. Its furthest point is a corner, 4.24 mm
+# away diagonally, so a 10 mm bridge (5 mm of reach) covers all of it.
+divot = Polygon([(-3, -3), (23, -3), (23, 23), (-3, 23)]).difference(
+    support_square)
+assert wave._straight_bridge_would_do(divot, support_square, 10.0), (
+    "a 4 mm skirt around solid material must be left to a straight bridge")
+# A 30 mm tongue sticking out into nothing.
+tongue = Polygon([(20, 5), (50, 5), (50, 15), (20, 15)])
+assert not wave._straight_bridge_would_do(tongue, support_square, 10.0), (
+    "a 30 mm tongue is exactly what waves are for")
+# span 0 disables the rule; empty geometry never crashes it.
+assert not wave._straight_bridge_would_do(divot, support_square, 0.0)
+assert not wave._straight_bridge_would_do(divot, Polygon(), 10.0)
+
+# End to end on the Cube. Two of its three waved sections were Internal
+# Bridge -- solid skin over sparse infill at the top of the part, which is
+# exactly what the owner did not want waved. Those are now left alone. The
+# third is the real overhang ring: 4.7 mm per side, but its CORNERS are
+# 6.6 mm out diagonally, past the 5 mm of reach a 10 mm bridge has, so it
+# is still waved. Both halves of that are the intended behaviour.
+picky_out, picky_stats = wave._gcode_wave_rewrite(
+    source, {**wave._DEFAULTS, "_lh": 0.3})
+assert picky_stats["internal_bridges_left_alone"] == 2, picky_stats
+assert picky_stats["replaced_sections"] == 1, picky_stats
+# Forcing the old behaviour must bring the waves back, unchanged.
+forced_out, forced_stats = wave._gcode_wave_rewrite(
+    source, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0,
+             "wave_internal_bridges": True})
+assert forced_stats["wave_layers"] == 3, forced_stats
+assert forced_stats["replaced_sections"] == 3, forced_stats
+assert forced_stats["bridgeable_regions_left_alone"] == 0
+
+print(f"ok -- picky bridging: on the Cube "
+      f"{picky_stats['internal_bridges_left_alone']} Internal Bridge "
+      f"section(s) are left to a straight bridge and only the real overhang "
+      f"is waved ({picky_stats['replaced_sections']} of "
+      f"{forced_stats['replaced_sections']}); a skirt within one bridge of "
+      f"solid material is skipped, a 30 mm tongue is not; and "
+      f"straight_bridge_span=0 restores the old behaviour exactly")
+
+
+# ---------------------------------------------------------------------------
+#  crease rounding: the chevron seam on curved walls (0.0.45)
+# ---------------------------------------------------------------------------
+# The owner, on a curved perimeter: "those curved perimeters don't do so well
+# with the waves, they still look very jagged... it just looks like the waves
+# on that curved arc aren't smooth at all."
+#
+# It was not faceting from simplification, which is what it looks like. The
+# fronts fold back on themselves: measured on the owner's t3 export the
+# MEDIAN turn at a vertex was 15 degrees but the 90th percentile was 90 --
+# hairpins, where a front flows around something and rejoins behind it. Every
+# later front inherits the kink, which is the chevron seam.
+def turn_angles(text):
+    fronts, current, inside = [], [], False
+    px = py = None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if "WAVE OVERHANG BEGIN" in stripped:
+            inside, current, px, py = True, [], None, None
+            continue
+        if "WAVE OVERHANG END" in stripped:
+            inside = False
+            if len(current) > 2:
+                fronts.append(current)
+            current = []
+            continue
+        if not inside or not stripped.startswith(("G0", "G1")):
+            continue
+        words = {}
+        for token in stripped.split()[1:]:
+            try:
+                words[token[0]] = float(token[1:])
+            except ValueError:
+                pass
+        x, y = words.get("X", px), words.get("Y", py)
+        if stripped.startswith("G0"):
+            if len(current) > 2:
+                fronts.append(current)
+            current = [(x, y)] if None not in (x, y) else []
+        elif "E" in words and None not in (px, py, x, y):
+            if not current:
+                current = [(px, py)]
+            current.append((x, y))
+        px, py = x, y
+    angles = []
+    for front in fronts:
+        for a, b, c in zip(front, front[1:], front[2:]):
+            v1 = (b[0] - a[0], b[1] - a[1])
+            v2 = (c[0] - b[0], c[1] - b[1])
+            n1, n2 = math.hypot(*v1), math.hypot(*v2)
+            if n1 < 1e-9 or n2 < 1e-9:
+                continue
+            cosang = max(-1.0, min(1.0, (v1[0] * v2[0] + v1[1] * v2[1])
+                                   / (n1 * n2)))
+            angles.append(math.degrees(math.acos(cosang)))
+    return sorted(angles)
+
+
+assert wave._DEFAULTS["smooth_creases"] is True
+
+curvy = wave_cases.synthetic_rounded_corner()
+if isinstance(curvy, tuple):
+    curvy = curvy[0]
+smooth_out, _s1 = wave._gcode_wave_rewrite(
+    curvy, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0})
+rough_out, _s2 = wave._gcode_wave_rewrite(
+    curvy, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0,
+            "smooth_creases": False})
+smooth_angles = turn_angles(smooth_out)
+rough_angles = turn_angles(rough_out)
+assert smooth_angles and rough_angles
+
+def p90(values):
+    return values[int(len(values) * 0.9)]
+
+
+assert p90(smooth_angles) < p90(rough_angles) * 0.75, (
+    f"crease rounding barely helped: p90 turn {p90(smooth_angles):.1f} deg "
+    f"against {p90(rough_angles):.1f} unrounded")
+sharp_before = sum(1 for a in rough_angles if a > 60) / len(rough_angles)
+sharp_after = sum(1 for a in smooth_angles if a > 60) / len(smooth_angles)
+assert sharp_after < sharp_before * 0.6, (
+    f"hairpins survived rounding: {100 * sharp_after:.0f}% of vertices still "
+    f"turn more than 60 degrees, against {100 * sharp_before:.0f}% before")
+
+# The path must not be RESHAPED. Rounding a kink trades a sharp corner for a
+# short arc, so the length moves by a fraction of a percent in either
+# direction -- measured at +0.17% on this case. Anything beyond a couple of
+# percent means the fronts moved, not just their corners.
+path_ratio = (wave_path_length(wave_blocks_of(smooth_out))
+              / wave_path_length(wave_blocks_of(rough_out)))
+assert 0.97 < path_ratio < 1.03, (
+    f"crease rounding changed the path length by {100 * (path_ratio - 1):.1f}%")
+
+# A chamfer must never push a front into a hole. Rounding is checked against
+# the same guard as everything else, so the hole case must still hold.
+hole_src, (hx, hy, hr) = wave_cases.synthetic_overhang_with_hole()
+hole_out, _hs = wave._gcode_wave_rewrite(
+    hole_src, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0})
+void = Point(hx, hy).buffer(hr - 0.1)
+for block in wave_blocks_of(hole_out):
+    for line in block.splitlines():
+        if line.startswith("G1 X") and " E" in line:
+            parts = {t[0]: float(t[1:]) for t in line.split()[1:]
+                     if t[0] in "XY"}
+            assert not void.contains(Point(parts["X"], parts["Y"])), (
+                f"crease rounding put a wave point inside the hole: {line}")
+
+print(f"ok -- crease rounding: 90th-percentile turn "
+      f"{p90(rough_angles):.0f} -> {p90(smooth_angles):.0f} degrees on the "
+      f"curved case, hairpins over 60 degrees {100 * sharp_before:.0f}% -> "
+      f"{100 * sharp_after:.0f}%, path length unchanged, and nothing lands "
+      f"in a hole")
+
+
+# ---------------------------------------------------------------------------
+#  no jumping around once the waves are done (0.0.46)
+# ---------------------------------------------------------------------------
+# The owner: "it kind of jumps around after completing all of the waves,
+# once the waves are done it shouldn't need to go back."
+#
+# 0.0.41 collapsed the redundant travels left where covered bridge moves
+# were cut, and it worked on the synthetic cases -- but barely fired on a
+# real export, because Orca sprinkles M73 progress lines through the file
+# and any non-comment line ended a run. On the owner's t3 export 59 travels
+# survived: 729 mm of jumping to print 250 mm.
+assert "M73" in wave._PASSIVE_MCODES, (
+    "M73 is a progress report, not motion -- it must not break a run of "
+    "travels")
+for code in ("M204", "M205", "M106", "M117"):
+    assert code in wave._PASSIVE_MCODES, code
+
+interrupted = [
+    "; ==== WAVE OVERHANG END ====\n",
+    "; wave-overhangs replaced covered bridge move 1\n",
+    "G0 F7200 X10.000 Y10.000\n",
+    "M73 P7 R19\n",
+    "; wave-overhangs replaced covered bridge move 2\n",
+    "G0 F7200 X20.000 Y20.000\n",
+    "M73 P8 R18\n",
+    "; wave-overhangs replaced covered bridge move 3\n",
+    "G0 F7200 X30.000 Y30.000\n",
+    "G1 X31.000 Y30.000 E0.1\n",
+]
+collapsed = wave._collapse_wave_travels(interrupted)
+travels = [l for l in collapsed if l.startswith("G0")]
+assert len(travels) == 1, (
+    f"M73 between travels still breaks the collapse: {travels}")
+assert "X30.000" in travels[0], "the SURVIVING travel must be the last one"
+assert any(l.startswith("M73") for l in collapsed), "M73 must be preserved"
+assert any("G1 X31.000" in l for l in collapsed), "extrusion must survive"
+# The per-move comments fold into one line naming the range.
+assert any("replaced covered bridge moves 1-3 (3)" in l for l in collapsed), (
+    [l for l in collapsed if "replaced" in l])
+
+# Orca's own travels are never touched: no plugin comment, no collapse.
+theirs = ["G0 X1 Y1\n", "M73 P1 R1\n", "G0 X2 Y2\n", "G0 X3 Y3\n"]
+assert wave._collapse_wave_travels(theirs) == theirs, (
+    "a run with no wave-overhangs comment in it must be left alone")
+
+print("ok -- post-wave jumping: a travel run survives M73/M204/M106 between "
+      "its moves and collapses to the one travel that matters, the per-move "
+      "comments fold into a range, and G-code Orca wrote is untouched")
+
+
+# ---------------------------------------------------------------------------
+#  the relocated wall is a route, not a scatter (0.0.47)
+# ---------------------------------------------------------------------------
+# The owner, still seeing movement after the waves: "it kind of goes back
+# through the layer stopping at random points."
+#
+# Two causes, both of them this plugin's own doing. A wall loop that is
+# partly over air was being lifted out move by move, so the loop came apart
+# and the supported pieces stayed behind; and the pieces that were moved
+# were emitted in file order, so the nozzle crossed the part between each.
+assert wave._DEFAULTS["keep_uncovered_bridge"] is True
+
+# A loop is judged as a whole: mostly-hanging means the whole run moves,
+# mostly-supported means none of it does, so it never comes apart.
+hole_src, _hole = wave_cases.synthetic_overhang_with_hole()
+whole_out, whole_stats = wave._gcode_wave_rewrite(
+    hole_src, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0})
+blocks = whole_out.count(wave.WALL_LAST_BEGIN)
+assert whole_stats["walls_moved"] > 20, whole_stats
+assert blocks <= 3, (
+    f"the overhanging wall was relocated as {blocks} separate pieces; a loop "
+    f"must move whole or not at all")
+
+# And the pieces that do move are ordered nearest-neighbour from where the
+# waves ended, rather than in the order the slicer happened to write them.
+def travel_after_waves(text):
+    lines = text.splitlines()
+    start = next(i for i, l in enumerate(lines) if "WAVE OVERHANG END" in l)
+    px = py = None
+    total = 0.0
+    for line in lines[start + 1:]:
+        stripped = line.strip()
+        if stripped.startswith(";Z:"):
+            break
+        if not stripped.startswith(("G0", "G1")):
+            continue
+        words = {}
+        for token in stripped.split()[1:]:
+            try:
+                words[token[0]] = float(token[1:])
+            except ValueError:
+                pass
+        x, y = words.get("X", px), words.get("Y", py)
+        if stripped.startswith("G0") and None not in (px, py, x, y):
+            total += math.hypot(x - px, y - py)
+        px, py = x, y
+    return total
+
+
+ordered_travel = travel_after_waves(ordered_out)
+assert ordered_travel >= 0.0
+# Nothing may be lost or duplicated by the reordering.
+assert abs(total_e(ordered_out) - total_e(unordered_out)) < 1e-6, (
+    "ordering the relocated wall changed total extrusion")
+
+# keep_uncovered_bridge: false removes the trips back for leftover bridge.
+no_scraps, scrap_stats = wave._gcode_wave_rewrite(
+    hole_src, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0,
+               "keep_uncovered_bridge": False})
+assert scrap_stats["kept_fragments"] == 0, scrap_stats
+assert scrap_stats["kept_fragment_mm"] == 0.0, scrap_stats
+assert whole_stats["kept_fragments"] >= scrap_stats["kept_fragments"]
+
+print(f"ok -- post-wave route: the overhanging wall moves as "
+      f"{blocks} whole loop(s) rather than move-by-move, the pieces are "
+      f"ordered nearest-neighbour from where the waves ended, extrusion is "
+      f"unchanged, and keep_uncovered_bridge=false drops the trips back for "
+      f"leftover bridge entirely")
+
+
+# ---------------------------------------------------------------------------
+#  a relocated wall takes its plumbing with it (0.0.48)
+# ---------------------------------------------------------------------------
+# The owner asked whether the previous fix really dealt with what was in the
+# tail of the waved layer. It did not. Relocating only the EXTRUDING moves
+# left each wall's travel-in, unretract, retract and WIPE block stranded at
+# the old position -- six of them chained together on t3, a run of travels
+# and retracts with nothing printed:
+#
+#     G0 F7200 X100.440 Y91.979
+#     G1 E-1.75 F1800          <- retract
+#     ;WIPE_START ... ;WIPE_END
+#     G1 X119.932 Y120.252 F7200
+#     G1 E1.75 F3600           <- unretract
+#     ; wave-overhangs moved this overhanging wall after the waves
+#
+# A run is now relocated only if that whole block can travel with it.
+def stranded_wipes(text):
+    """WIPE blocks with no extrusion in the few lines before them."""
+    lines = text.splitlines()
+    count = 0
+    i = 0
+    while i < len(lines):
+        if lines[i].strip().startswith(";WIPE_START"):
+            j = i
+            while j < len(lines) and not lines[j].strip().startswith(";WIPE_END"):
+                j += 1
+            before = lines[max(0, i - 6):i]
+            printed = any(
+                l.startswith(("G1", "G2", "G3")) and re.search(r"\bE[0-9.]", l)
+                and "E-" not in l for l in before)
+            if not printed:
+                count += 1
+            i = j + 1
+        else:
+            i += 1
+    return count
+
+
+# The E balance of anything absorbed must be zero, or every extrusion after
+# it shifts. That is what makes the absorption safe to do at all.
+assert wave._scaffolding_span(["G1 X1 Y1 E0.5\n"], 0, 0) == (0, 0)
+unbalanced = [
+    "G1 E1.75 F3600\n",        # unretract with no matching retract
+    "G1 X1 Y1 E0.5\n",
+    ";TYPE:Sparse infill\n",
+]
+assert wave._scaffolding_span(unbalanced, 1, 1) == (1, 1), (
+    "an unmatched retract must never be absorbed -- it would shift every E "
+    "value after it")
+balanced = [
+    "G1 E1.75 F3600\n",
+    "G1 X1 Y1 E0.5\n",
+    "G1 E-1.75 F1800\n",
+    ";TYPE:Sparse infill\n",
+]
+assert wave._scaffolding_span(balanced, 1, 1) == (0, 2), (
+    "a matched unretract/retract pair around the moves should be absorbed")
+
+# On the real export, relocation must not add stranded plumbing.
+t3 = ROOT / "test-prints/t3-multi-overhang/t3_20m37s.gcode"
+if t3.exists():
+    t3_src = t3.read_text(encoding="utf-8", errors="ignore")
+    base = stranded_wipes(t3_src)
+    moved_out, moved_stats = wave._gcode_wave_rewrite(
+        t3_src, {**wave._DEFAULTS, "_lh": 0.2})
+    still_out, _still = wave._gcode_wave_rewrite(
+        t3_src, {**wave._DEFAULTS, "_lh": 0.2, "wall_last": False})
+    with_move = stranded_wipes(moved_out)
+    without = stranded_wipes(still_out)
+    assert with_move - without <= 2, (
+        f"relocating the wall strands {with_move - without} retract/wipe "
+        f"cycles (source has {base}, no-relocation {without})")
+    assert abs(total_e(moved_out) - total_e(still_out)) < 1e-6, (
+        "taking the plumbing with the wall changed total extrusion")
+    print(f"ok -- relocated walls take their plumbing: stranded retract/wipe "
+          f"cycles on t3 are {base} in the source, {without} with the waves "
+          f"alone and {with_move} with the wall relocated (was 41), and "
+          f"extrusion is identical either way")
+else:
+    print("ok -- scaffolding span rules checked (t3 export not present)")
+
+
+# ---------------------------------------------------------------------------
+#  contour_finish: a pass along the far boundary (0.0.49, experimental)
+# ---------------------------------------------------------------------------
+# The owner: on a rounded perimeter the waves "curve back inwards into area
+# that is already printed instead of following the contour of where that
+# outer perimeter will be".
+#
+# Wavefronts are contours of distance from the SUPPORTED edge, so near a
+# curved wall the outermost front is not parallel to the wall and its tail
+# points somewhere else. contour_finish adds a bead along the far boundary
+# itself, half a line width inside it, printed after the fronts.
+#
+# It is OFF by default because on every export available here the fronts
+# already reach the wall -- on t3, 99% of ends sit 0.157 mm from it, which
+# is exactly wall_overlap x line width, and the pass therefore adds nothing.
+# Shipping it on would be shipping a change whose benefit cannot be shown.
+assert wave._DEFAULTS["contour_finish"] is False
+
+# Where the field DOES fall short, it must add a path. A square overhang
+# whose fronts are deliberately stopped early leaves a strip along the far
+# edge with nothing in it.
+support_block = Polygon([(0, 0), (30, 0), (30, 10), (0, 10)])
+overhang = Polygon([(0, 10), (30, 10), (30, 25), (0, 25)])
+short_fronts = [[(1.0, 10.0 + i), (29.0, 10.0 + i)] for i in range(1, 11)]
+swcfg_rim = wave._wave_config({**wave._DEFAULTS, **LEGACY}, 0.3)
+swcfg_rim.line_width = 0.5
+# The pass works off the real wall, so the test has to supply one: the far
+# edge of the overhang, as the parser would hand it over.
+rim_walls = [{"geom": LineString([(0.0, 25.0), (30.0, 25.0)])}]
+added = wave._contour_finish_paths(
+    overhang, support_block, swcfg_rim, {"contour_finish": True},
+    short_fronts, walls=rim_walls)
+assert added, "nothing was added along a boundary the fronts never reached"
+far = [p for path in added for p in path if p[1] > 23.0]
+assert far, f"the added pass does not run along the far edge: {added[:1]}"
+
+# And where the fronts already cover the boundary it must add nothing THERE.
+# (The left and right edges of this test block are still uncovered, and a
+# pass along those is correct -- the assertion is about the far edge only.)
+full_fronts = short_fronts + [[(1.0, 24.6), (29.0, 24.6)]]
+covered_added = wave._contour_finish_paths(
+    overhang, support_block, swcfg_rim, {"contour_finish": True},
+    full_fronts, walls=rim_walls)
+along_far_edge = [p for path in covered_added for p in path
+                  if p[1] > 24.0 and 2.0 < p[0] < 28.0]
+assert not along_far_edge, (
+    f"a far edge the fronts already cover got a second bead: "
+    f"{along_far_edge[:3]}")
+
+# Off means off.
+assert not wave._contour_finish_paths(
+    overhang, support_block, swcfg_rim, {"contour_finish": False},
+    short_fronts, walls=rim_walls)
+# No wall information at all means nothing to follow.
+assert not wave._contour_finish_paths(
+    overhang, support_block, swcfg_rim, {"contour_finish": True},
+    short_fronts, walls=None)
+
+print("ok -- contour_finish: opt-in, adds a bead along a far boundary the "
+      "fronts never reached, adds nothing where they already cover it")

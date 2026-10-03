@@ -38,7 +38,7 @@ import argparse
 import os
 import sys
 
-TOOL_VERSION = "0.4.2"
+TOOL_VERSION = "0.4.9"
 
 # =============================================================================
 # ENGINE -- verbatim copy of the `nonplanar_core` source inlined in
@@ -96,6 +96,14 @@ PrusaSlicer writes `;TYPE:Internal infill`, Orca `;TYPE:Sparse infill`.
 import bisect
 import math
 import re
+# Imported HERE, at module load, and never lazily inside a capability call.
+# OrcaSlicer's audit hook is off while a plugin module is being imported and
+# ON during a capability call, where every file open is audited. A first-use
+# `import statistics` inside the export step would therefore be an audited
+# read of the stdlib from inside the audit scope -- the same shape as the
+# numpy failure in OrcaSlicer issue #15944. See docs/ORCA-PLUGIN-FACTS.md,
+# "The audit hook".
+from statistics import multimode
 
 TYPE_PREFIX = ";type:"
 INFILL_MARKERS = ("internal infill", "sparse infill")
@@ -167,7 +175,7 @@ DEFAULT_MAX_LIFT_MM = 0.0    # 0 = no clamp
 # upload are separate calls), and waving an already-waved file would double
 # every displacement.
 MARKER_PREFIX = "; unlayered-infill"
-MARKER_VERSION = "0.4.2"
+MARKER_VERSION = "0.4.9"
 MARKER = f"{MARKER_PREFIX} v{MARKER_VERSION} (non-planar sparse infill)\n"
 
 _WORD = re.compile(r"([A-Za-z])\s*([-+]?\d*\.?\d+)")
@@ -236,7 +244,6 @@ def detect_layer_height(lines):
             if m and "first_layer" not in line:
                 config_lh = float(m.group(1))
     if heights:
-        from statistics import multimode
         return max(multimode(heights))
     return config_lh
 
@@ -472,6 +479,142 @@ def detect_nozzle_diameter(lines):
     return None
 
 
+# --- "auto": take the value from the print instead of a constant -----------
+#
+# Every number below that describes a LENGTH is really a multiple of the
+# nozzle, and every print has a nozzle. Hard-coding 1.0 mm or 2.0 mm means the
+# settings are right for a 0.4 nozzle and quietly wrong for a 0.25 or a 0.8.
+# "auto" reads the nozzle out of the exported G-code and scales.
+#
+# The factors are chosen so that "auto" on a 0.4 mm nozzle reproduces the
+# constants this plugin shipped with, exactly. Nothing changes for the common
+# case; the settings simply follow the printer when it is not the common case.
+AUTO_WORDS = ("", "auto", "orca")
+
+#   setting      x nozzle   value at 0.4 mm   what it is
+AUTO_NOZZLE_FACTORS = {
+    "segment_mm":  2.5,     # 1.0 mm   how finely a move is chopped
+    "blend_mm":    5.0,     # 2.0 mm   taper smoothing radius
+}
+# Wavelength, as a multiple of the nozzle. frequency = 2*pi / wavelength, so
+# 10.5 nozzles on a 0.4 gives 1.496 ~ the 1.5 this plugin shipped with. Below
+# about 6 nozzles neighbouring crests start running into each other.
+AUTO_WAVELENGTH_NOZZLES = 10.5
+# A ceiling for "auto" max_lift_mm, as a multiple of the layer height.
+AUTO_MAX_LIFT_LAYERS = 1.5
+
+
+def is_auto(spec):
+    """True for None, "", "auto" and "orca" -- anything meaning 'you decide'."""
+    return spec is None or (isinstance(spec, str)
+                            and spec.strip().lower() in AUTO_WORDS)
+
+
+def nozzle_or(lines, fallback=FALLBACK_CELL_MM):
+    noz = detect_nozzle_diameter(lines)
+    return (noz, True) if noz else (fallback, False)
+
+
+def resolve_auto_length(spec, key, lines, name):
+    """A length in mm: "auto" -> a multiple of the nozzle; a number -> itself.
+
+    Returns (millimetres, human description).
+    """
+    if is_auto(spec):
+        factor = AUTO_NOZZLE_FACTORS[key]
+        noz, measured = nozzle_or(lines)
+        value = factor * noz
+        how = (f"auto: {factor:g} x the {noz:.2f} mm nozzle"
+               if measured else
+               f"auto, but this G-code names no nozzle, so {noz:.2f} mm was "
+               f"assumed")
+        return value, f"{value:.3f} mm ({how})"
+    try:
+        value = float(spec)
+    except (TypeError, ValueError):
+        raise NonPlanarError(
+            f"Could not understand {name} {spec!r}. Use 'auto' to follow the "
+            f"nozzle, or a number of millimetres.")
+    return value, f"{value:.3f} mm (fixed value)"
+
+
+def resolve_frequency(spec, lines):
+    """'auto' -> a wavelength of AUTO_WAVELENGTH_NOZZLES nozzles."""
+    if is_auto(spec):
+        noz, measured = nozzle_or(lines)
+        value = 2.0 * math.pi / (AUTO_WAVELENGTH_NOZZLES * noz)
+        how = (f"auto: one ripple every {AUTO_WAVELENGTH_NOZZLES:g} x "
+               f"{noz:.2f} mm nozzle widths"
+               if measured else
+               f"auto, but this G-code names no nozzle, so {noz:.2f} mm was "
+               f"assumed")
+        return value, f"{value:.3f} ripples/mm ({how})"
+    try:
+        value = float(spec)
+    except (TypeError, ValueError):
+        raise NonPlanarError(
+            f"Could not understand the frequency {spec!r}. Use 'auto' to "
+            f"follow the nozzle, or a number of ripples per millimetre.")
+    return value, f"{value:.3f} ripples/mm (fixed value)"
+
+
+def resolve_wave_angle(spec, lines):
+    """'auto' -> square across the slicer's own infill angle.
+
+    A wave only does interlocking work where an infill line CROSSES it, so
+    the useful angle is the infill angle turned by 90 degrees. Orca writes
+    `; fill_angle = 45` into the exported file.
+    """
+    if is_auto(spec):
+        raw = slicer_setting(lines, "fill_angle")
+        if raw is None:
+            return 0.0, "0.0 deg (auto, but this G-code names no fill_angle)"
+        try:
+            fill = float(str(raw).split(",")[0])
+        except ValueError:
+            return 0.0, "0.0 deg (auto, but fill_angle could not be read)"
+        value = (fill + 90.0) % 180.0
+        return value, (f"{value:.1f} deg (auto: square across the "
+                       f"{fill:g} deg infill)")
+    try:
+        value = float(spec)
+    except (TypeError, ValueError):
+        raise NonPlanarError(
+            f"Could not understand the wave angle {spec!r}. Use 'auto' to run "
+            f"square across the infill, or a number of degrees.")
+    return value, f"{value:.1f} deg (fixed value)"
+
+
+def resolve_max_lift(spec, lines):
+    """'auto' -> AUTO_MAX_LIFT_LAYERS layer heights; 0 or 'off' -> no ceiling."""
+    if isinstance(spec, str) and spec.strip().lower() in ("off", "none"):
+        return 0.0, "no ceiling"
+    if is_auto(spec):
+        lh = detect_layer_height(lines)
+        if not lh:
+            return 0.0, "no ceiling (auto, but no layer height in the G-code)"
+        value = AUTO_MAX_LIFT_LAYERS * lh
+        return value, (f"{value:.3f} mm (auto: {AUTO_MAX_LIFT_LAYERS:g} x the "
+                       f"{lh:.3f} mm layer)")
+    try:
+        value = max(0.0, float(spec))
+    except (TypeError, ValueError):
+        raise NonPlanarError(
+            f"Could not understand the Z ceiling {spec!r}. Use 'auto', 0 for "
+            f"no ceiling, or a number of millimetres.")
+    return value, (f"{value:.3f} mm (fixed value)" if value else "no ceiling")
+
+
+def slicer_setting(lines, key):
+    """One `; key = value` line out of the slicer's config block, or None."""
+    pattern = re.compile(r"^;\s*" + re.escape(key) + r"\s*=\s*(.+?)\s*$")
+    for line in reversed(lines):          # the config block is at the end
+        m = pattern.match(line.rstrip("\n"))
+        if m:
+            return m.group(1).strip()
+    return None
+
+
 def resolve_cell_mm(spec, lines):
     """'auto' -> the nozzle diameter; a number -> itself.
 
@@ -491,6 +634,120 @@ def resolve_cell_mm(spec, lines):
             f"Could not understand the grid cell size {spec!r}. Use 'auto' to "
             f"follow the nozzle diameter, or a number of millimetres.")
     return v, f"{v:.3f} mm (fixed value)"
+
+
+# ---------------------------------------------------------------------------
+#  Nozzle clearance: can the nozzle hit something it already printed?
+#
+#  This plugin prints a layer at several Z heights at once, which is the
+#  whole point of it. The hazard that creates: a move at one Z passing over
+#  material that was laid down HIGHER earlier. Within a single wave the
+#  displacement is a function of position, so two moves crossing at the same
+#  XY always agree on Z and cannot collide -- but the waved infill also has
+#  to coexist with everything that is NOT waved (perimeters, solid skin, the
+#  next layer), and those are flat.
+#
+#  So rather than reason about it, measure it: walk the finished file in
+#  print order, remember the highest material deposited in each small XY
+#  cell, and report any move whose nozzle passes below that by more than the
+#  clearance. This sees real collisions regardless of which feature caused
+#  them, including the next layer running into a crest.
+#
+#  It is a REPORT by default, not a refusal. The author of a part is better
+#  placed than this plugin to judge whether 0.03 mm of interference matters
+#  on their machine -- but they cannot judge it if nobody tells them.
+# ---------------------------------------------------------------------------
+COLLISION_ACTIONS = ("warn", "refuse", "off")
+# Deliberately generous, and calibrated against the shipped settings rather
+# than against zero. This plugin EXISTS to make layers key into each other,
+# so the nozzle grazing a crest it laid down earlier is the feature working,
+# not a crash: at the shipped 200% amplitude the measured interference is
+# 0.23 mm, a bit over one layer height. The threshold sits just above that,
+# so a stock setup is quiet and anything that genuinely over-lifts -- 400%
+# amplitude measures 0.46 mm -- is reported.
+AUTO_CLEARANCE_LAYERS = 1.25     # x layer height when clearance is "auto"
+
+
+def resolve_clearance(spec, lines):
+    """'auto' -> a quarter of the layer height; a number -> millimetres."""
+    if is_auto(spec):
+        lh = detect_layer_height(lines) or 0.2
+        value = AUTO_CLEARANCE_LAYERS * lh
+        return value, (f"{value:.3f} mm (auto: {AUTO_CLEARANCE_LAYERS:g} x the "
+                       f"{lh:.3f} mm layer)")
+    try:
+        return max(0.0, float(spec)), f"{float(spec):.3f} mm (fixed value)"
+    except (TypeError, ValueError):
+        raise NonPlanarError(
+            f"Could not understand the nozzle clearance {spec!r}. Use 'auto' "
+            f"or a number of millimetres.")
+
+
+def check_nozzle_clearance(lines, cell_mm=None, clearance=0.05,
+                           max_report=5):
+    """Find moves whose nozzle would pass through material already printed.
+
+    Returns (worst_depth_mm, [description, ...], moves_checked). An empty
+    list means nothing was found. Never raises: a safety CHECK that breaks
+    the export it is checking would be worse than the hazard.
+    """
+    try:
+        cell = max(0.05, float(cell_mm or detect_nozzle_diameter(lines)
+                               or FALLBACK_CELL_MM))
+        top = {}                      # (ix, iy) -> highest material top Z
+        x = y = z = None
+        relative_e = True
+        worst = 0.0
+        hits = []
+        checked = 0
+        for raw in lines:
+            line = raw.strip()
+            if line.startswith("M83"):
+                relative_e = True
+                continue
+            if line.startswith("M82"):
+                relative_e = False
+                continue
+            if not line.startswith(("G0", "G1")):
+                continue
+            words = {}
+            for token in line.split()[1:]:
+                if token[:1] in "XYZEF":
+                    try:
+                        words[token[0]] = float(token[1:])
+                    except ValueError:
+                        pass
+            nx = words.get("X", x)
+            ny = words.get("Y", y)
+            nz = words.get("Z", z)
+            e = words.get("E")
+            extruding = e is not None and (e > 0.0 if relative_e else True)
+            if None not in (x, y, nx, ny) and nz is not None:
+                checked += 1
+                length = math.hypot(nx - x, ny - y)
+                steps = max(1, int(length / cell) + 1)
+                for i in range(steps + 1):
+                    t = i / steps
+                    px, py = x + (nx - x) * t, y + (ny - y) * t
+                    key = (int(px / cell), int(py / cell))
+                    already = top.get(key)
+                    if already is not None and nz < already - clearance:
+                        depth = already - nz
+                        if depth > worst:
+                            worst = depth
+                        if len(hits) < max_report:
+                            hits.append(
+                                f"at X{px:.1f} Y{py:.1f} the nozzle passes at "
+                                f"Z{nz:.3f} through material already printed "
+                                f"up to Z{already:.3f} ({depth:.3f} mm deep)")
+                    if extruding:
+                        if already is None or nz > already:
+                            top[key] = nz
+            x, y, z = nx, ny, nz
+        return worst, hits, checked
+    except Exception:
+        return 0.0, [], 0
+
 
 
 def build_solid_grid(lines, cell_mm=FALLBACK_CELL_MM):
@@ -530,8 +787,9 @@ def _empty_stats(**over):
             "full_strength": False, "pattern": DEFAULT_PATTERN,
             "wave_angle": DEFAULT_WAVE_ANGLE, "shape": DEFAULT_SHAPE,
             "layer_phase": DEFAULT_LAYER_PHASE,
-            "max_lift_mm": DEFAULT_MAX_LIFT_MM, "clamped": 0,
-            "wave_layers": 0}
+            "max_lift_mm": 0.0, "clamped": 0,
+            "wave_layers": 0, "frequency_desc": "", "segment_desc": "",
+            "blend_desc": "", "wave_angle_desc": "", "max_lift_desc": ""}
     base.update(over)
     return base
 
@@ -559,15 +817,23 @@ def process(lines, amplitude_spec=DEFAULT_AMPLITUDE, frequency=DEFAULT_FREQUENCY
 
     cell_resolved, cell_desc = resolve_cell_mm(cell_mm, lines)
     grid, solids = build_solid_grid(lines, cell_resolved)
-    frequency = float(frequency)
-    segment_mm = max(0.05, float(segment_mm))
-    blend_mm = max(0.0, float(blend_mm))
+    # Anything that can be read off the print is read off the print. Each
+    # resolver also hands back a sentence saying what it decided and why, so
+    # the log and "Check setup" can show the real number rather than "auto".
+    frequency, frequency_desc = resolve_frequency(frequency, lines)
+    segment_mm, segment_desc = resolve_auto_length(
+        segment_mm, "segment_mm", lines, "the segment length")
+    segment_mm = max(0.05, segment_mm)
+    blend_mm, blend_desc = resolve_auto_length(
+        blend_mm, "blend_mm", lines, "the blend radius")
+    blend_mm = max(0.0, blend_mm)
     full_strength = bool(full_strength)
     pattern = resolve_pattern(pattern)
     shape = resolve_shape(shape)
-    angle_rad = math.radians(float(wave_angle))
+    wave_angle, wave_angle_desc = resolve_wave_angle(wave_angle, lines)
+    angle_rad = math.radians(wave_angle)
     layer_phase_rad = math.radians(float(layer_phase))
-    max_lift_mm = max(0.0, float(max_lift_mm))
+    max_lift_mm, max_lift_desc = resolve_max_lift(max_lift_mm, lines)
 
     out = []
     x = y = z = None
@@ -692,6 +958,12 @@ def process(lines, amplitude_spec=DEFAULT_AMPLITUDE, frequency=DEFAULT_FREQUENCY
         "max_lift_mm": max_lift_mm,
         "clamped": clamped,
         "wave_layers": len(layer_ordinal),
+        # What each "auto" actually resolved to, in words.
+        "frequency_desc": frequency_desc,
+        "segment_desc": segment_desc,
+        "blend_desc": blend_desc,
+        "wave_angle_desc": wave_angle_desc,
+        "max_lift_desc": max_lift_desc,
     }
 # --- END nonplanar_core -----------------------------------------------------
 
