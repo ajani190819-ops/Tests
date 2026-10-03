@@ -269,6 +269,54 @@ with tempfile.TemporaryDirectory() as tmp:
     check(recovered["amplitude"] == "400%" and recovered["pattern"] == "cross",
           f"panel edits did not come back after a wipe: {recovered}")
 
+    # The owner's actual case: change settings in the Plugins menu, update
+    # the plugin, find the settings gone. A manual switch was not enough --
+    # it only helps someone who knows it is there. Restoration after an
+    # UPDATE is now automatic, and it must not fight "Restore defaults".
+    auto_cap = fresh_cap()
+    tuned_again = plugin.annotated_defaults()
+    tuned_again["amplitude"] = "325%"
+    tuned_again["shape"] = "triangle"
+    auto_cap.set_config(tuned_again)
+    auto_cap.migrate_config_if_needed()
+
+    real_version = plugin.PLUGIN_VERSION
+    try:
+        # (a) an update arrives and the panel comes back at factory defaults
+        plugin.PLUGIN_VERSION = "9.9.9"
+        plugin._MIGRATED.clear()
+        auto_cap.set_config(plugin.annotated_defaults())
+        auto_cap.migrate_config_if_needed()
+        recovered = plugin._cfg(auto_cap)
+        check(recovered["amplitude"] == "325%"
+              and recovered["shape"] == "triangle",
+              f"settings were not restored after a version change: "
+              f"{recovered['amplitude']}")
+
+        # (b) "Restore defaults" WITHOUT a version change must stick, or the
+        #     button becomes impossible to use
+        plugin._MIGRATED.clear()
+        auto_cap.set_config(plugin.annotated_defaults())
+        auto_cap.migrate_config_if_needed()
+        reset = plugin._cfg(auto_cap)
+        check(reset["amplitude"] == plugin._DEFAULTS["amplitude"],
+              f"auto-restore overrode Restore defaults within one version: "
+              f"{reset['amplitude']}")
+
+        # (c) and it can be switched off
+        plugin.PLUGIN_VERSION = "9.9.10"
+        plugin._MIGRATED.clear()
+        opted_out = plugin.annotated_defaults()
+        opted_out["auto_restore_settings"] = False
+        auto_cap.set_config(opted_out)
+        auto_cap.migrate_config_if_needed()
+        check(plugin._cfg(auto_cap)["amplitude"]
+              == plugin._DEFAULTS["amplitude"],
+              "auto_restore_settings=false still restored")
+    finally:
+        plugin.PLUGIN_VERSION = real_version
+        plugin._MIGRATED.clear()
+
     # A setting this build no longer has is dropped rather than resurrected.
     state = plugin._load_state()
     state["settings_backups"][0]["values"]["a_setting_we_deleted"] = 7

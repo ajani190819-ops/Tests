@@ -14,11 +14,11 @@ python3 tools/dump_default_config.py
 
 | File | Capability | Plugin version |
 | --- | --- | --- |
-| `unlayered-infill.json` | Unlayered Infill | 0.4.8 |
-| `unlayered-infill-check-setup.json` | Unlayered Infill - Check setup | 0.4.8 |
-| `unlayered-infill-minimal.json` | Unlayered Infill, notes stripped | 0.4.8 |
-| `wave-overhangs.json` | Wave Overhangs | 0.0.49 |
-| `wave-overhangs-check.json` | Wave Overhangs - Settings guide & check | 0.0.49 |
+| `unlayered-infill.json` | Unlayered Infill | 0.4.9 |
+| `unlayered-infill-check-setup.json` | Unlayered Infill - Check setup | 0.4.9 |
+| `unlayered-infill-minimal.json` | Unlayered Infill, notes stripped | 0.4.9 |
+| `wave-overhangs.json` | Wave Overhangs | 0.0.50 |
+| `wave-overhangs-check.json` | Wave Overhangs - Settings guide & check | 0.0.50 |
 
 Keys beginning with `_` are notes. The plugin ignores them; they exist so the
 JSON editor explains itself. The `-minimal` file is the same configuration

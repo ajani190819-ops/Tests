@@ -1,41 +1,29 @@
 # t2 — curved perimeters
 
-Uploaded 2026-10-02. **This export is already processed** by Wave Overhangs
-v0.0.39, so it is evidence of a result, not an input: the original bridge
-moves it replaced are gone, and re-running the plugin on it is a no-op
-because of the build stamp. A clean export of the same model (plugin off)
-would let the fix be iterated against it -- worth adding.
+* `clean.gcode` — exported with Wave Overhangs OFF. **This is the useful
+  one**: it can be re-run, so fixes can be measured against it.
+* `waved-0.0.39.gcode` — the same part through Wave 0.0.39, which is what
+  the screenshots show.
+* `jagged-wall-snapping.png`, and see also the curved-arc screenshot in
+  `../t3-multi-overhang/`.
 
-* Two wave layers: **Z 5.4** and **Z 9.3**.
-* 0.63 mm wave line width, bridge speed 20 mm/s.
-* `jagged-wall-snapping.png` is the owner's screenshot: wave ends against
-  the curved outer wall look scalloped rather than landing on one clean line.
+0.3 mm layers, 0.63 mm wave line.
 
-## What has been measured so far (2026-10-02)
-
-Layer **Z 5.4** — the snapping is behaving:
+## Measured on clean.gcode (2026-10-02, v0.0.50)
 
 | | |
 | --- | --- |
-| wave ends that land on a wall | 368 of 368 |
-| distance from the wall centreline | 0.156–0.174 mm (median 0.157) |
-| spacing between neighbouring ends, rounded corner | 0.479 mm, sd 0.513 |
-| spacing between neighbouring ends, flat side | 0.533 mm, sd 0.413 |
+| wave fronts on the waved layer | 189 |
+| ends within 0.3 mm of a wall | 98% |
+| median end distance | 0.157 mm (= wall_overlap x line width) |
+| median wall-to-nearest-wave distance | 0.157 mm |
+| wall more than one line width from a wave | 5% of its length |
+| **those stretches that lie inside the overhang** | **0 of 22** |
 
-0.157 mm is exactly `wall_overlap` (0.25) x the 0.63 mm line, so the ends are
-sitting where they are told to, and the rounded corner is not measurably
-worse than the straight sides.
+So the waves reach the wall everywhere they are supposed to. The worst
+"gap", 3.81 mm at X91.2 Y97.2, is not overhang at all.
 
-Layer **Z 9.3** — this one is NOT fine:
-
-| | |
-| --- | --- |
-| distance from the wall | 0.77 mm min, 3.35 mm median, 8.76 mm max |
-| ends within 0.3 mm of a wall | 0% |
-
-Every front on that layer stops well short of the wall. That is a different
-failure from the one in the screenshot and is the better lead.
-
-**Open question:** which layer is the screenshot from? If it is 9.3 the
-cause is whatever stops the fronts reaching the wall there; if it is 5.4 the
-jaggedness is something the numbers above do not capture and needs a render.
+**The jagged appearance is 0.0.39 output**, which predates the point
+density fix (0.0.40), internal bridges no longer being waved (0.0.44) and
+crease rounding (0.0.45 — 90th-percentile turn 90 degrees to 22). Re-slice
+on the current build before chasing this further.

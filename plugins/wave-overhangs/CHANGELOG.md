@@ -22,6 +22,58 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.50 — 2026-10-02
+
+* Settings now come back by themselves after an update. If the Config
+  panel reappears at factory defaults and this plugin remembers values you
+  had set under an earlier version, they are put back on the next slice
+  and the log says what was restored. New `auto_restore_settings` (true).
+
+**Why it needed more than the manual switch added in 0.4.5/0.0.37.** That
+switch worked, but only for someone who knew it existed -- which is no use
+when the symptom is "my settings are gone".
+
+The rule is deliberately narrow, so it can never fight the Config tab's
+own **Restore defaults** button:
+
+* the saved config must be pristine -- every value at this build's
+  default, which is what a wipe looks like;
+* the newest remembered snapshot holding non-default values must come from
+  a DIFFERENT build than the one running.
+
+Press Restore defaults without updating and the newest snapshot is from
+the running build, so nothing happens and the button means what it says.
+Update, and the snapshot is from the older build, so your values return.
+Tested in `tests/test_plugin_runtime.py` as all three cases: restore after
+a version change, Restore defaults sticking inside one version, and the
+switch turning it off.
+
+**Also, on the curved perimeters.** A clean export of that model finally
+arrived, and the answer is that the waves already reach the wall:
+
+| | |
+| --- | --- |
+| median distance, wall to nearest wave | 0.157 mm (= `wall_overlap` x line width) |
+| wall more than one line width away | 5% of its length |
+| those stretches that are actually overhang | **0 of 22** |
+
+Every place the waves fall short of that wall is somewhere the overhang
+does not reach -- Orca prints those itself. So `contour_finish` correctly
+finds nothing to add and stays off.
+
+One real bug came out of looking: `contour_finish` could never have done
+anything, because it called `linemerge()` on the wall geometry and that
+raises outright when the walls merge to a single LineString, which the
+surrounding `except` then swallowed. Fixed, and it now does add a bead
+along a boundary the fronts never reached -- there is a test for that.
+
+**The visual evidence predates the fixes.** The waved export in
+`test-prints/t2-curved-perimeters/` is Wave 0.0.39 output: before the
+point-density fix (0.0.40), before internal bridges stopped being waved
+(0.0.44), and before crease rounding (0.0.45), which took the
+90th-percentile turn from 90 degrees to 22. Worth re-slicing that part
+before chasing it further.
+
 ## 0.0.49 — 2026-10-02
 
 * New, EXPERIMENTAL and off by default: `contour_finish`. Adds one pass

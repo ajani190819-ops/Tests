@@ -2181,9 +2181,12 @@ overhang = Polygon([(0, 10), (30, 10), (30, 25), (0, 25)])
 short_fronts = [[(1.0, 10.0 + i), (29.0, 10.0 + i)] for i in range(1, 11)]
 swcfg_rim = wave._wave_config({**wave._DEFAULTS, **LEGACY}, 0.3)
 swcfg_rim.line_width = 0.5
+# The pass works off the real wall, so the test has to supply one: the far
+# edge of the overhang, as the parser would hand it over.
+rim_walls = [{"geom": LineString([(0.0, 25.0), (30.0, 25.0)])}]
 added = wave._contour_finish_paths(
     overhang, support_block, swcfg_rim, {"contour_finish": True},
-    short_fronts)
+    short_fronts, walls=rim_walls)
 assert added, "nothing was added along a boundary the fronts never reached"
 far = [p for path in added for p in path if p[1] > 23.0]
 assert far, f"the added pass does not run along the far edge: {added[:1]}"
@@ -2194,7 +2197,7 @@ assert far, f"the added pass does not run along the far edge: {added[:1]}"
 full_fronts = short_fronts + [[(1.0, 24.6), (29.0, 24.6)]]
 covered_added = wave._contour_finish_paths(
     overhang, support_block, swcfg_rim, {"contour_finish": True},
-    full_fronts)
+    full_fronts, walls=rim_walls)
 along_far_edge = [p for path in covered_added for p in path
                   if p[1] > 24.0 and 2.0 < p[0] < 28.0]
 assert not along_far_edge, (
@@ -2204,7 +2207,11 @@ assert not along_far_edge, (
 # Off means off.
 assert not wave._contour_finish_paths(
     overhang, support_block, swcfg_rim, {"contour_finish": False},
-    short_fronts)
+    short_fronts, walls=rim_walls)
+# No wall information at all means nothing to follow.
+assert not wave._contour_finish_paths(
+    overhang, support_block, swcfg_rim, {"contour_finish": True},
+    short_fronts, walls=None)
 
 print("ok -- contour_finish: opt-in, adds a bead along a far boundary the "
       "fronts never reached, adds nothing where they already cover it")

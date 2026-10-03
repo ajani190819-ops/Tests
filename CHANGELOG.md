@@ -1,3 +1,35 @@
+## 2026-10-02 — settings survive an update by themselves, and the curved wall answered
+
+Wave Overhangs **0.0.50**, Unlayered Infill **0.4.9**.
+
+**Settings come back on their own after an update.** The manual
+`restore_backup` switch added earlier worked but was no use to someone who
+did not know it was there. Both plugins now put your values back
+automatically when the panel reappears at factory defaults AND the
+remembered snapshot comes from an earlier build. Press "Restore defaults"
+without updating and nothing happens, because the snapshot is from the
+build you are running -- the button still means what it says.
+
+**The curved perimeter: the waves already reach the wall.** With a clean
+export of that model to measure, the median distance from wall to nearest
+wave is 0.157 mm, exactly `wall_overlap` x line width. 5% of the wall is
+more than a line width away -- and **none** of those 22 stretches is
+inside the overhang. They are places the overhang does not reach, which
+Orca prints itself.
+
+Looking did turn up one real bug: `contour_finish` could never have worked,
+because it called `linemerge()` on the wall geometry, which raises when the
+walls merge to a single LineString, and the surrounding `except` swallowed
+it. Fixed and tested.
+
+The screenshots showing the jagged curve are **0.0.39 output** -- before
+the point-density fix, before internal bridges stopped being waved, and
+before crease rounding took the 90th-percentile turn from 90 degrees to
+22. Re-slicing that part on the current build is the next useful
+measurement.
+
+---
+
 ## 2026-10-02 — contour_finish, and an artifact I could not reproduce (0.0.49)
 
 > "As the waves reach that outer perimeter I'd like a smooth line, because

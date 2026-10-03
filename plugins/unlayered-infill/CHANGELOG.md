@@ -6,6 +6,32 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.4.9 — 2026-10-02
+
+* Settings now come back by themselves after an update. If the Config
+  panel reappears at factory defaults and this plugin remembers values you
+  had set under an earlier version, they are put back on the next slice
+  and the log says what was restored. New `auto_restore_settings` (true).
+
+**Why it needed more than the manual switch added in 0.4.5/0.0.37.** That
+switch worked, but only for someone who knew it existed -- which is no use
+when the symptom is "my settings are gone".
+
+The rule is deliberately narrow, so it can never fight the Config tab's
+own **Restore defaults** button:
+
+* the saved config must be pristine -- every value at this build's
+  default, which is what a wipe looks like;
+* the newest remembered snapshot holding non-default values must come from
+  a DIFFERENT build than the one running.
+
+Press Restore defaults without updating and the newest snapshot is from
+the running build, so nothing happens and the button means what it says.
+Update, and the snapshot is from the older build, so your values return.
+Tested in `tests/test_plugin_runtime.py` as all three cases: restore after
+a version change, Restore defaults sticking inside one version, and the
+switch turning it off.
+
 ## 0.4.8 — 2026-10-02
 
 * New: a nozzle-clearance check. This plugin prints one layer at several Z

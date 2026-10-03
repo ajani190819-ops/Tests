@@ -37,6 +37,8 @@
   "_5_DIAGNOSTICS": "===== 5. DIAGNOSTICS AND RECOVERY =====",
   "_log": "true | false -- append a record of every export to the log file named by Check setup.",
   "log": true,
+  "_auto_restore_settings": "true | false -- if an update leaves this panel at factory defaults, put back the values you had. Only after a version change, so the Config tab's own Restore defaults still works.",
+  "auto_restore_settings": true,
   "_restore_backup": "true | false -- a one-shot undo. Set true and slice once: every setting this plugin remembers from before is put back, and this returns to false. Check setup prints what is remembered.",
   "restore_backup": false
 }
