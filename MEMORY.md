@@ -99,6 +99,64 @@ binding record of OrcaSlicer behavior.
   the repository shows exactly one updater file; copies on disk keep working
   (an old launcher self-updates into the unified file). Plugin versions
   at that point: Wave 0.0.33, Unlayered Infill 0.4.2.
+## START HERE NEXT SESSION — the curved-perimeter jaggedness
+
+Unfinished, and the one thing the owner is still waiting on.
+
+**The state of it.** Waves on a curved perimeter look jagged. Three
+theories have been measured and killed: simplification tolerance (sweeping
+it barely moves the turn angle), a scalloped support footprint
+(morphological closing at 0.3-1.5 mm moved the median turn by <1 degree),
+and the wave ends missing the wall (they do not -- median distance to the
+wall is 0.157 mm, exactly `wall_overlap` x line width, and every stretch
+further than a line width lies outside the overhang region).
+
+**What crease rounding (0.0.45) did:** 90th-percentile turn 90 -> 22
+degrees. Real, but the owner still sees it.
+
+**THE LEAD.** Their own 0.0.49 export and a re-run of the same input on
+the same build do not match:
+
+| | theirs | my re-run |
+| --- | --- | --- |
+| median turn | 16.1 deg | 13.8 deg |
+| p90 | 28.1 deg | 21.7 deg |
+| worst | 119.6 deg | 86.7 deg |
+| vertices >60 deg | 2.0% | 0.0% |
+
+Same build, same geometry, different output means **their configuration
+differs from the defaults**. Get it before doing anything else:
+`test-prints/t2-curved-perimeters/clean.gcode` is the input, their output
+is `waved-0.0.49.gcode`, and the job is to reproduce their numbers from
+the clean file. Suspects: `smooth_creases`, `simplify_tolerance`,
+`line_spacing`.
+
+**Do this first:** make Check setup print the resolved config, so the next
+report they paste carries it. Guessing at defaults has twice produced
+"nothing wrong here" while they were looking at something real.
+
+## Process notes earned the hard way
+
+* **Read the output, do not just measure it.** Two fixes for "the nozzle
+  jumps around" were verified by travel DISTANCE and both missed the
+  stranded retract/wipe cycles sitting in the layer tail. Reading the last
+  200 lines found them in minutes.
+* **The synthetic fixtures are not the real thing.** They contain no `M73`
+  progress lines, which is exactly why a travel-collapse bug passed the
+  whole suite and failed on a real export.
+* **Check the version stamp on an uploaded export before reasoning about
+  it** (`grep -m1 "wave-overhangs v" file.gcode`). A mislabelled file led
+  to a wrong conclusion that the owner had to correct.
+* **`.gitignore` had `*.gcode`**, so every export uploaded to
+  `test-prints/` was silently dropped from commits and vanished on every
+  sandbox reset. Fixed with `!test-prints/**/*.gcode` -- if a test print
+  goes missing again, check this first.
+* **Local git history resets between turns in this sandbox.** `git log`
+  may show `main` while the real branch state is on the remote. Always
+  `git fetch origin <branch>` and compare against
+  `origin/<branch>`, never against local `HEAD`, when measuring a
+  before/after.
+
 * **Repository:** `ajani190819-ops/Tests`, public.
 * **Session branch:** `arena/01a0fd3b-tests`. Never switch branches or push to
   `main`. (The branch is different every session — use the one you were

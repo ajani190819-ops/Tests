@@ -9,9 +9,13 @@ __pycache__/
 .install_state.json
 
 # Sliced output used for hand-testing the G-code tools. Keep the captured
-# regression fixture under version control.
+# regression fixture AND the owner's test prints under version control --
+# this rule was silently dropping every export uploaded to test-prints/,
+# so they only existed in the upload commits and vanished from the working
+# tree whenever the sandbox reset.
 *.gcode
 !tests/fixtures/*.gcode
+!test-prints/**/*.gcode
 
 # Runtime logs created by Orca/plugin tests; never source.
 *.log
