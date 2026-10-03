@@ -22,6 +22,39 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.42 — 2026-10-02
+
+* The time budget is now "auto" and scales with the size of the export --
+  30 s plus 45 s per megabyte, capped at 300 s -- instead of a flat 30 s.
+  A flat 30 s was set against a test cube; on a real part the pass ran out,
+  handed the file back exactly as Orca wrote it, and looked for all the
+  world like the plugin had not run at all.
+* Roughly 1.8x faster on parts with many holes. _interior_voids() was being
+  recomputed once per ENDPOINT -- 696 times on a 36-hole stress case, each
+  doing a buffer and a union, 40% of the whole pass. It is a property of
+  the region, so it is now computed once and cached.
+* A budget that does run out is impossible to miss: Check setup leads with
+  "*** THE LAST EXPORT RAN OUT OF TIME ***" and says no waves were added.
+
+**Context: the owner reported a complex part coming back completely
+unprocessed**, with the theory that it was about hole count or multiple
+overhangs. That is right in effect. Measured on a synthetic stress case
+(40 mm block, round holes, three overhang layers):
+
+| holes | before | after |
+| --- | --- | --- |
+| 1 | 0.6 s | 0.7 s |
+| 16 | 2.1 s | 1.6 s |
+| 36 | 7.4 s | 4.0 s |
+
+The cost grows with the geometry, as it must, but it was growing faster
+than it needed to and the ceiling it was growing into was too low. A 4 MB
+export now gets 210 s instead of 30 s.
+
+**Why not just remove the limit.** An export that never finishes is a
+broken printer. The budget stays, it is now proportional to the work, and
+`time_budget: 0` still disables it for anyone who would rather wait.
+
 ## 0.0.41 — 2026-10-02
 
 * Fixes the nozzle appearing to "scan its way across the print" after the

@@ -4,7 +4,7 @@
     {
       "id": "wave-overhangs",
       "name": "Wave Overhangs",
-      "version": "0.0.41",
+      "version": "0.0.42",
       "status": "ready",
       "file": "wave_overhangs_orca.py",
       "path": "plugins/wave-overhangs/wave_overhangs_orca.py",

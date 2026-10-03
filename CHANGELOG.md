@@ -1,3 +1,32 @@
+## 2026-10-02 — why a complex part came back unprocessed (Wave Overhangs 0.0.42)
+
+> "The G-code did not get overwritten for this one, the whole system just
+> didn't work. I have a theory that it has something to do with not being
+> able to handle things with larger numbers of holes or having multiple
+> overhangs."
+
+The theory is right in effect, and the mechanism is the **time budget**. The
+pass costs what the geometry costs; the limit was a flat 30 seconds, set
+against a test cube. When it runs out the file is handed back exactly as
+Orca wrote it -- correct, and indistinguishable from the plugin never
+running.
+
+Three changes: the budget is now `auto`, 30 s plus 45 s per megabyte capped
+at 300 s; the pass is about 1.8x faster on parts with many holes, because
+`_interior_voids()` was being recomputed once per endpoint instead of once
+per region (40% of the total on a 36-hole stress case); and a budget that
+does run out now leads the Check setup report with
+`*** THE LAST EXPORT RAN OUT OF TIME ***`.
+
+**This is a diagnosis by reconstruction, not from your file** -- only
+`t3.stl` arrived, and there is no slicer in this sandbox, so I built a
+synthetic part with up to 36 holes over three overhang layers to measure it.
+Export t3 to G-code with the plugin OFF and drop it in `test-prints/` and I
+can confirm it directly. The log line or Check setup will also now say
+outright whether a timeout is what you hit.
+
+---
+
 ## 2026-10-02 — nozzle clearance, the post-wave "scanning", and a home for test prints
 
 Wave Overhangs **0.0.41**, Unlayered Infill **0.4.8**.

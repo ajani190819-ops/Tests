@@ -9,6 +9,7 @@ import math
 import pathlib
 import re
 import sys
+import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -962,7 +963,18 @@ assert abs(written - expected) < expected * 0.01, (written, expected)
 # A wall-clock ceiling is the backstop for every slow path we have not
 # measured, including any we introduce later. When it fires the file must
 # come back exactly as Orca wrote it: unchanged, unstamped, and flagged.
-assert wave._DEFAULTS["time_budget"] == 30.0, wave._DEFAULTS["time_budget"]
+# "auto" since 0.0.42: a flat 30s was far too short for a real part, and
+# running out means the file comes back unwaved -- which is what "the
+# plugin did nothing" looks like from outside.
+assert wave._DEFAULTS["time_budget"] == "auto", wave._DEFAULTS["time_budget"]
+assert wave._auto_budget("x" * 100) == 30.0 + 45.0 * 100 / 1048576.0
+assert wave._auto_budget("x" * 20 * 1048576) == 300.0, "the cap must bind"
+small = wave._budget_deadline({"time_budget": "auto"}, 0.0, "x" * 1024)
+big = wave._budget_deadline({"time_budget": "auto"}, 0.0, "x" * 4 * 1048576)
+assert big > small > 30.0, (small, big)
+assert wave._budget_deadline({"time_budget": 0}, 0.0, "x") is None
+assert wave._budget_deadline({"time_budget": 12}, 0.0, "x") == 12.0
+assert wave._budget_deadline({"time_budget": "nonsense"}, 0.0, "x") > 0.0
 timed, timed_stats = wave._gcode_wave_rewrite(
     source, dict(cfg, time_budget=0.0001))
 assert timed == source, "a timed-out pass must not alter a single byte"
@@ -1627,3 +1639,107 @@ assert abs(total_e(ordered_out) - total_e(unordered_out)) < 1e-6
 print(f"ok -- travel collapsing: {travels} travel(s) for {extrusions} "
       f"extrusion(s) after the first wave block (was 63 for 11), no two "
       f"travels in a row, extrusion untouched")
+
+
+# ---------------------------------------------------------------------------
+#  many holes and several overhang layers (0.0.42)
+# ---------------------------------------------------------------------------
+# The owner, on a complex part that came back completely unprocessed: "I have
+# a theory that it has something to do with not being able to handle things
+# with larger numbers of holes or having multiple overhangs."
+#
+# The theory is right in effect, and the mechanism is the time budget. The
+# pass costs what the geometry costs; a flat 30 seconds was set against a
+# test cube. When it runs out the file is handed back exactly as Orca wrote
+# it -- correct behaviour, and indistinguishable from the plugin not running.
+#
+# Two things have to hold: the cost must not explode with hole count, and
+# running out of time must be impossible to miss.
+def holey_export(holes, overhang_layers=1, size=40.0):
+    out = ["M83"]
+
+    def loop(points, kind="Outer wall", width=0.5):
+        block = [f";TYPE:{kind}", f";WIDTH:{width:.2f}",
+                 "G0 X%.3f Y%.3f" % points[0]]
+        for x, y in points[1:]:
+            block.append(f"G1 X{x:.3f} Y{y:.3f} E0.5")
+        return block
+
+    out += [";Z:0.3"]
+    out += loop([(10.0, 10.0), (size - 10, 10.0), (size - 10, size - 10),
+                 (10.0, size - 10), (10.0, 10.0)])
+    out += [";TYPE:Internal solid infill", ";WIDTH:0.45"]
+    y = 10.4
+    while y < size - 10.4:
+        out.append(f"G0 X10.4 Y{y:.3f}")
+        out.append(f"G1 X{size - 10.4:.3f} Y{y:.3f} E0.4")
+        y += 0.45
+    columns = max(1, int(math.sqrt(holes)))
+    centres = []
+    for i in range(holes):
+        step = (size - 8.0) / max(1, columns - 1) if columns > 1 else 0.0
+        centres.append((min(size - 4, 4.0 + (i % columns) * step),
+                        min(size - 4, 4.0 + (i // columns) * step)))
+    for layer in range(overhang_layers):
+        out += [f";Z:{0.6 + 0.3 * layer:.1f}"]
+        out += loop([(1.0, 1.0), (size - 1, 1.0), (size - 1, size - 1),
+                     (1.0, size - 1), (1.0, 1.0)])
+        for cx, cy in centres:
+            out += loop([(cx + 2.0 * math.cos(2 * math.pi * k / 40),
+                          cy + 2.0 * math.sin(2 * math.pi * k / 40))
+                         for k in range(41)], kind="Inner wall")
+        out += [";TYPE:Bridge", ";WIDTH:0.50"]
+        y = 1.4
+        while y < size - 1.4:
+            spans = [(1.4, size - 1.4)]
+            for cx, cy in centres:
+                if abs(y - cy) < 2.6:
+                    dx = math.sqrt(max(0.0, 2.6 ** 2 - (y - cy) ** 2))
+                    kept = []
+                    for a, b in spans:
+                        if b < cx - dx or a > cx + dx:
+                            kept.append((a, b))
+                            continue
+                        if a < cx - dx:
+                            kept.append((a, cx - dx))
+                        if b > cx + dx:
+                            kept.append((cx + dx, b))
+                    spans = kept
+            for a, b in spans:
+                if b - a >= 0.8:
+                    out.append(f"G0 X{a:.3f} Y{y:.3f}")
+                    out.append(f"G1 X{b:.3f} Y{y:.3f} E{(b - a) * 0.033:.5f}")
+            y += 0.5
+    return "\n".join(out) + "\n"
+
+
+timings = {}
+for hole_count in (1, 16, 36):
+    export = holey_export(hole_count, overhang_layers=3)
+    started = time.time()
+    holey_out, holey_stats = wave._gcode_wave_rewrite(
+        export, {**wave._DEFAULTS, "_lh": 0.3, "time_budget": 0})
+    timings[hole_count] = time.time() - started
+    assert holey_stats["wave_layers"] >= 1, (hole_count, holey_stats)
+    assert not holey_stats.get("timed_out"), holey_stats
+
+# Cost must grow roughly with the geometry, not explode. Before the
+# _interior_voids cache the 36-hole case took 7.4s against 0.6s for one
+# hole; _interior_voids was being recomputed once per ENDPOINT.
+ratio = timings[36] / max(timings[1], 1e-6)
+assert ratio < 25, (
+    f"36 holes cost {ratio:.0f}x one hole ({timings[36]:.1f}s vs "
+    f"{timings[1]:.1f}s) -- the per-hole work is superlinear again")
+
+# And a budget that runs out must be loud, not silent.
+tiny_budget_out, tiny_stats = wave._gcode_wave_rewrite(
+    holey_export(36, overhang_layers=3),
+    {**wave._DEFAULTS, "_lh": 0.3, "time_budget": 0.001})
+assert tiny_stats.get("timed_out"), tiny_stats
+assert tiny_budget_out == holey_export(36, overhang_layers=3), (
+    "a timeout must hand back the original file byte for byte")
+
+print(f"ok -- many holes: 1/16/36 holes over 3 overhang layers cost "
+      f"{timings[1]:.1f}/{timings[16]:.1f}/{timings[36]:.1f}s "
+      f"({ratio:.0f}x for 36x the holes), none time out, and a budget that "
+      f"does run out returns the original file untouched and says so")
