@@ -22,6 +22,51 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.48 — 2026-10-02
+
+* A relocated overhang wall now takes its travel-in, unretract, retract and
+  WIPE block with it, instead of leaving them stranded at the old position.
+  A wall run that cannot take that block with it is no longer relocated at
+  all.
+
+**The owner asked whether 0.0.47 really dealt with what was in the tail of
+the waved layer. It had not.** Relocating only the EXTRUDING moves left each
+wall's plumbing behind, and on t3 six of them ended up chained together:
+
+```
+G0 F7200 X100.440 Y91.979
+G1 E-1.75 F1800          <- retract
+;WIPE_START ... ;WIPE_END
+G1 X119.932 Y120.252 F7200
+G1 E1.75 F3600           <- unretract
+; wave-overhangs moved this overhanging wall after the waves
+```
+
+Travel, retract, wipe, travel, unretract, repeat -- with nothing printed.
+That is the "goes back through the layer stopping at random points", and it
+survived the previous two attempts because both were measuring travel
+distance, which this barely changes, rather than reading the output.
+
+Counting retract/wipe cycles that print nothing, on t3:
+
+| | cycles |
+| --- | --- |
+| unprocessed export (Orca's own) | 32 |
+| waves, no wall relocation | 37 |
+| 0.0.47 | 41 |
+| **0.0.48** | **38** |
+
+Absorbing the plumbing is only safe when the extrusion inside it nets to
+zero -- an unretract matched by its retract. Where it does not, the span is
+refused and the run stays where it is, because taking half of a retract pair
+would shift every E value after it. Total extrusion is identical with
+relocation on or off, and there is a test for that.
+
+**Still outstanding, and measured rather than guessed**: 5 of those cycles
+come from the wave replacement itself, not the wall -- removing a covered
+bridge move can leave the wipe that belonged to it. `wall_last: false` takes
+the count to 37, which isolates the two.
+
 ## 0.0.47 — 2026-10-02
 
 * An overhanging wall loop now moves after the waves whole or not at all.

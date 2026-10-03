@@ -1,3 +1,39 @@
+## 2026-10-02 — no, it was not fixed (Wave 0.0.48)
+
+> "And you're certain you fixed that error that's in the last 200 lines for
+> that layer?"
+
+No. Reading the tail of the waved layer instead of measuring aggregates
+found six stranded retract/wipe/travel cycles chained together, printing
+nothing:
+
+```
+G0 F7200 X100.440 Y91.979
+G1 E-1.75 F1800          <- retract
+;WIPE_START ... ;WIPE_END
+G1 X119.932 Y120.252 F7200
+G1 E1.75 F3600           <- unretract
+```
+
+Relocating the overhang wall moved its extruding moves and left its
+plumbing -- the travel in, the unretract, the retract and the WIPE block --
+at the old position. Two previous attempts missed it because both were
+measuring travel DISTANCE, which this barely moves.
+
+A relocated run now takes that whole block with it, and a run that cannot
+is not relocated at all. Stranded cycles on t3: 32 in the unprocessed
+export, 41 in 0.0.47, **38** now. Absorption is refused unless the
+extrusion inside it nets to zero, so an unmatched retract can never shift
+the E values after it; extrusion totals are identical with relocation on or
+off.
+
+Five of the remaining cycles are the wave replacement's own, not the
+wall's: removing a covered bridge move can leave the wipe that belonged to
+it behind. `wall_last: false` gives 37, which separates the two. That is
+the next thing to fix, and it is written down rather than claimed as done.
+
+---
+
 ## 2026-10-02 — the wall loop was coming apart (Wave 0.0.47)
 
 > "Specifically I'm talking about done printing the waves, how it kind of

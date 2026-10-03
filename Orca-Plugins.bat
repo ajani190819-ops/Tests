@@ -607,7 +607,7 @@ rem  writes, and this way it lands on a field nothing reads.
 rem ---------------------------------------------------------------------------
 :fallback_plan
 echo   Using the fallback plan built into this file.
->  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.47^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Settings guide & check^|end
+>  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.48^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Settings guide & check^|end
 >> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.4.8^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
 exit /b 0
 

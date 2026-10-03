@@ -2070,3 +2070,86 @@ print(f"ok -- post-wave route: the overhanging wall moves as "
       f"ordered nearest-neighbour from where the waves ended, extrusion is "
       f"unchanged, and keep_uncovered_bridge=false drops the trips back for "
       f"leftover bridge entirely")
+
+
+# ---------------------------------------------------------------------------
+#  a relocated wall takes its plumbing with it (0.0.48)
+# ---------------------------------------------------------------------------
+# The owner asked whether the previous fix really dealt with what was in the
+# tail of the waved layer. It did not. Relocating only the EXTRUDING moves
+# left each wall's travel-in, unretract, retract and WIPE block stranded at
+# the old position -- six of them chained together on t3, a run of travels
+# and retracts with nothing printed:
+#
+#     G0 F7200 X100.440 Y91.979
+#     G1 E-1.75 F1800          <- retract
+#     ;WIPE_START ... ;WIPE_END
+#     G1 X119.932 Y120.252 F7200
+#     G1 E1.75 F3600           <- unretract
+#     ; wave-overhangs moved this overhanging wall after the waves
+#
+# A run is now relocated only if that whole block can travel with it.
+def stranded_wipes(text):
+    """WIPE blocks with no extrusion in the few lines before them."""
+    lines = text.splitlines()
+    count = 0
+    i = 0
+    while i < len(lines):
+        if lines[i].strip().startswith(";WIPE_START"):
+            j = i
+            while j < len(lines) and not lines[j].strip().startswith(";WIPE_END"):
+                j += 1
+            before = lines[max(0, i - 6):i]
+            printed = any(
+                l.startswith(("G1", "G2", "G3")) and re.search(r"\bE[0-9.]", l)
+                and "E-" not in l for l in before)
+            if not printed:
+                count += 1
+            i = j + 1
+        else:
+            i += 1
+    return count
+
+
+# The E balance of anything absorbed must be zero, or every extrusion after
+# it shifts. That is what makes the absorption safe to do at all.
+assert wave._scaffolding_span(["G1 X1 Y1 E0.5\n"], 0, 0) == (0, 0)
+unbalanced = [
+    "G1 E1.75 F3600\n",        # unretract with no matching retract
+    "G1 X1 Y1 E0.5\n",
+    ";TYPE:Sparse infill\n",
+]
+assert wave._scaffolding_span(unbalanced, 1, 1) == (1, 1), (
+    "an unmatched retract must never be absorbed -- it would shift every E "
+    "value after it")
+balanced = [
+    "G1 E1.75 F3600\n",
+    "G1 X1 Y1 E0.5\n",
+    "G1 E-1.75 F1800\n",
+    ";TYPE:Sparse infill\n",
+]
+assert wave._scaffolding_span(balanced, 1, 1) == (0, 2), (
+    "a matched unretract/retract pair around the moves should be absorbed")
+
+# On the real export, relocation must not add stranded plumbing.
+t3 = ROOT / "test-prints/t3-multi-overhang/t3_20m37s.gcode"
+if t3.exists():
+    t3_src = t3.read_text(encoding="utf-8", errors="ignore")
+    base = stranded_wipes(t3_src)
+    moved_out, moved_stats = wave._gcode_wave_rewrite(
+        t3_src, {**wave._DEFAULTS, "_lh": 0.2})
+    still_out, _still = wave._gcode_wave_rewrite(
+        t3_src, {**wave._DEFAULTS, "_lh": 0.2, "wall_last": False})
+    with_move = stranded_wipes(moved_out)
+    without = stranded_wipes(still_out)
+    assert with_move - without <= 2, (
+        f"relocating the wall strands {with_move - without} retract/wipe "
+        f"cycles (source has {base}, no-relocation {without})")
+    assert abs(total_e(moved_out) - total_e(still_out)) < 1e-6, (
+        "taking the plumbing with the wall changed total extrusion")
+    print(f"ok -- relocated walls take their plumbing: stranded retract/wipe "
+          f"cycles on t3 are {base} in the source, {without} with the waves "
+          f"alone and {with_move} with the wall relocated (was 41), and "
+          f"extrusion is identical either way")
+else:
+    print("ok -- scaffolding span rules checked (t3 export not present)")
