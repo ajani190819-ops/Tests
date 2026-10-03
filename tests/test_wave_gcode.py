@@ -2153,3 +2153,58 @@ if t3.exists():
           f"extrusion is identical either way")
 else:
     print("ok -- scaffolding span rules checked (t3 export not present)")
+
+
+# ---------------------------------------------------------------------------
+#  contour_finish: a pass along the far boundary (0.0.49, experimental)
+# ---------------------------------------------------------------------------
+# The owner: on a rounded perimeter the waves "curve back inwards into area
+# that is already printed instead of following the contour of where that
+# outer perimeter will be".
+#
+# Wavefronts are contours of distance from the SUPPORTED edge, so near a
+# curved wall the outermost front is not parallel to the wall and its tail
+# points somewhere else. contour_finish adds a bead along the far boundary
+# itself, half a line width inside it, printed after the fronts.
+#
+# It is OFF by default because on every export available here the fronts
+# already reach the wall -- on t3, 99% of ends sit 0.157 mm from it, which
+# is exactly wall_overlap x line width, and the pass therefore adds nothing.
+# Shipping it on would be shipping a change whose benefit cannot be shown.
+assert wave._DEFAULTS["contour_finish"] is False
+
+# Where the field DOES fall short, it must add a path. A square overhang
+# whose fronts are deliberately stopped early leaves a strip along the far
+# edge with nothing in it.
+support_block = Polygon([(0, 0), (30, 0), (30, 10), (0, 10)])
+overhang = Polygon([(0, 10), (30, 10), (30, 25), (0, 25)])
+short_fronts = [[(1.0, 10.0 + i), (29.0, 10.0 + i)] for i in range(1, 11)]
+swcfg_rim = wave._wave_config({**wave._DEFAULTS, **LEGACY}, 0.3)
+swcfg_rim.line_width = 0.5
+added = wave._contour_finish_paths(
+    overhang, support_block, swcfg_rim, {"contour_finish": True},
+    short_fronts)
+assert added, "nothing was added along a boundary the fronts never reached"
+far = [p for path in added for p in path if p[1] > 23.0]
+assert far, f"the added pass does not run along the far edge: {added[:1]}"
+
+# And where the fronts already cover the boundary it must add nothing THERE.
+# (The left and right edges of this test block are still uncovered, and a
+# pass along those is correct -- the assertion is about the far edge only.)
+full_fronts = short_fronts + [[(1.0, 24.6), (29.0, 24.6)]]
+covered_added = wave._contour_finish_paths(
+    overhang, support_block, swcfg_rim, {"contour_finish": True},
+    full_fronts)
+along_far_edge = [p for path in covered_added for p in path
+                  if p[1] > 24.0 and 2.0 < p[0] < 28.0]
+assert not along_far_edge, (
+    f"a far edge the fronts already cover got a second bead: "
+    f"{along_far_edge[:3]}")
+
+# Off means off.
+assert not wave._contour_finish_paths(
+    overhang, support_block, swcfg_rim, {"contour_finish": False},
+    short_fronts)
+
+print("ok -- contour_finish: opt-in, adds a bead along a far boundary the "
+      "fronts never reached, adds nothing where they already cover it")

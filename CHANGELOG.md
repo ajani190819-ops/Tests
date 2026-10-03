@@ -1,3 +1,29 @@
+## 2026-10-02 — contour_finish, and an artifact I could not reproduce (0.0.49)
+
+> "As the waves reach that outer perimeter I'd like a smooth line, because
+> right now on these rounded off edges you can see as the waves go towards
+> where that perimeter will be it curves back inwards into area that is
+> already printed instead of following the contour."
+
+The mechanism is real: wavefronts are contours of distance from the
+SUPPORTED edge, so near a curved wall the outermost front is not parallel
+to the wall and its tail points somewhere else. `contour_finish` adds a
+bead along the far boundary itself after the fronts, covering only what
+they missed.
+
+It ships **off**, because on every export available here the fronts already
+reach the wall and the pass adds nothing. On t3: 99% of wave ends are
+within 0.3 mm of the wall, the median is 0.157 mm -- exactly
+`wall_overlap` x line width -- and the median gap from wall to wave
+material is 0.000 mm. `contour_finish` finds zero paths to add.
+
+The part that shows the problem is the curved-perimeter model, and the only
+export of it in the repo is already-processed 0.0.39 output, which cannot
+be re-run. **A clean export of that model with the plugin switched off is
+what is needed.** Until then this is a switch to try, not a fix to claim.
+
+---
+
 ## 2026-10-02 — no, it was not fixed (Wave 0.0.48)
 
 > "And you're certain you fixed that error that's in the last 200 lines for

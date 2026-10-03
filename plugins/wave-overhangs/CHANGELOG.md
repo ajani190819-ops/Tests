@@ -22,6 +22,39 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.49 — 2026-10-02
+
+* New, EXPERIMENTAL and off by default: `contour_finish`. Adds one pass
+  along the far boundary after the fronts, half a line width inside it, so
+  the waved area ends ON a curved wall instead of wherever the outermost
+  front happened to be pointing. Only the stretches no front already
+  covers are added.
+
+**Why it is off.** The owner reported that on rounded perimeters the waves
+"curve back inwards into area that is already printed instead of following
+the contour". The diagnosis is sound in principle -- wavefronts are
+contours of distance from the SUPPORTED edge, and near a curved wall that
+is not the same shape as the wall, so the last front is not parallel to it.
+
+But it could not be reproduced on any export available here. On t3:
+
+| | |
+| --- | --- |
+| wave ends within 0.3 mm of the wall | 99% |
+| median end distance | 0.157 mm (= wall_overlap x line width) |
+| median gap from wall to wave material | 0.000 mm |
+| paths `contour_finish` finds to add | 0 |
+
+So on that part the fronts already reach the wall and the pass is a no-op.
+Turning it on by default would be shipping a change whose benefit cannot be
+demonstrated, so it ships as a switch to try on the part that actually
+shows the problem.
+
+The curved-perimeter export in `test-prints/t2-curved-perimeters/` is
+Wave 0.0.39 output, so it cannot be re-run: the original bridge moves are
+already gone. **A clean export of that model -- same part, plugin switched
+off -- is what is needed to finish this.**
+
 ## 0.0.48 — 2026-10-02
 
 * A relocated overhang wall now takes its travel-in, unretract, retract and

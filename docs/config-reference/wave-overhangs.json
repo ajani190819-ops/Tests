@@ -50,6 +50,8 @@
   "_6_WALLS": "===== 6. MEETING THE WALL =====",
   "_wall_last": "true | false -- print the overhanging part of the wall AFTER the waves, not before. Orca's walls-first order lays that wall into open air with nothing under it, the waves give it something to land on.",
   "wall_last": true,
+  "_contour_finish": "true | false -- EXPERIMENTAL. Adds one pass along the far boundary after the fronts, so the waved area ends on a curved wall. Adds nothing where the fronts already reach it.",
+  "contour_finish": false,
   "_wall_snap": "true | false -- stretch waves out to the real wall instead of stopping at the ragged edge of Orca's bridge lines. Leave on.",
   "wall_snap": true,
   "_wall_reach": "'auto' or mm -- how far that stretch may reach. auto is one and a half line widths.",
