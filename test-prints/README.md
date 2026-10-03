@@ -11,12 +11,10 @@ One folder per model:
 
 ```
 test-prints/
-  cube-squared/
-    Cube^2.stl
-    Cube^2_3m53s.gcode        <- exported with the plugin OFF
-    notes.md                  <- printer, nozzle, layer height, what to look at
-  holes/
-  curved-perimeters/
+  cube-squared/            the original overhanging-box test
+  t1-unlayered/            holes, processed by Unlayered Infill 0.4.7
+  t2-curved-perimeters/    curved walls, processed by Wave Overhangs 0.0.39
+                           + the screenshot of the jagged wall snapping
 ```
 
 **Export with the plugins switched off** unless the file is specifically
