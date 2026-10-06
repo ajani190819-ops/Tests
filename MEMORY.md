@@ -220,7 +220,9 @@ Important locations:
   engine test, the real-export Wave regression, and the geometry-stage Wave
   regression.
 - `keyboard-lighting/` — unrelated personal project. Do not reorganize or
-  modify it.
+  modify it; if the owner asks for work on it, follow
+  `keyboard-lighting/AGENTS.md` (its own rulebook; canonical app source is
+  the HSEQB repo).
 - `orca-plugins.log` is runtime output, not source; it is ignored and must not
   be committed.
 
@@ -251,6 +253,17 @@ The active implementation is one transactional G-code pass at
    fronts before cleanup, retain interior curve points, and remove only short
    endpoint stubs. Drop isolated short fronts so edge chatter does not become
    blobs. Surviving front endpoints remain on the valid overhang wall or hole
+   boundary.
+5. Order fronts using configurable smart, monotonic, or zigzag patterns plus
+   deterministic endpoint policies. Travel between fronts stays non-extruding.
+6. Remove only bridge centerline portions covered by generated Wave paths and
+   re-emit substantial uncovered fragments with proportional extrusion.
+7. Restore the expected XY, fan, and E mode/value state. Uniform absolute-E
+   sections restore `M82` and `G92`; mixed E-mode sections remain untouched.
+8. Snap Wave endpoints back onto non-support detail boundaries by extending in
+   the Wave endpoint direction, then taper E on existing moves by default.
+   Optional centerline clearance and taper micro-segmentation exist for
+he valid overhang wall or hole
    boundary.
 5. Order fronts using configurable smart, monotonic, or zigzag patterns plus
    deterministic endpoint policies. Travel between fronts stays non-extruding.
@@ -377,7 +390,8 @@ or a printer.
 - The updater's own batch file must never overwrite itself while it is running.
 - A selected test branch is all-or-nothing. Missing or invalid files stop the
   install before Orca's folders change.
-- Do not touch `keyboard-lighting/`.
+- Do not touch `keyboard-lighting/` unless the owner asks; when they do,
+  `keyboard-lighting/AGENTS.md` is the rulebook for it.
 - Keep GPL-3.0 attribution for Unlayered Infill and the predecessor tool.
 
 ## What remains to do
@@ -1364,6 +1378,41 @@ reached region smooths the sharp V where the wave rejoins behind a hole, and
 it works on the synthetic round hole. On the owner's real part it loses 4% of
 wave coverage (1911 -> 1833 mm) and takes tiny fragments from 8 to 40, because
 healing makes consecutive fronts partly coincide and the "already reached"
+subtraction then cuts them into dashes. Two fixes failed. It ships at default
+0, where output is byte-identical to 0.0.25 on all five shapes, and the
+untried polyline-fillet approach is written up in `docs/ROADMAP.md`. The
+lesson worth keeping: path and move counts are blind to wave *shape* -- four
+`wake_blend` values all gave 56 paths on geometry that rendered very
+differently. Judge shape by rendering it, and quantify with total path length
+and fragment counts.
+
+Chasing that exposed a genuine latent crash. `linemerge` raises
+`GEOSException` on a single-point crumb left by clipping, and `GEOSException`
+is not a `ValueError`, so the existing `except (TypeError, ValueError)` could
+not catch it and the entire layer failed closed. Same fault that had killed an
+earlier `simplify` optimisation, so that is worth revisiting now. The retry
+lives only inside the `except`, keeping the success path bit-identical.
+
+### 2026-10-01 — Wave 0.0.11
+
+Replaced the ineffective slice-object/cross-callback architecture with one
+transactional G-code bridge replacement pass. Real captured-export evidence
+showed three generated layers, covered bridge removal, retained uncovered
+fragments, fan restoration, fail-closed generation, and idempotence. The owner
+then confirmed visible waves in real Orca.
+
+### Earlier sessions
+
+- The chooser was made strict: selected branch only, all-file preflight, safe
+  manual/API failure behavior, and selected-branch updater execution.
+- Plugin identities were made permanently version-free after Orca preset
+  identity research.
+- Unlayered Infill received its standalone tool, complete controls, shared
+  engine synchronization, relative-E refusal, and later no-prompt plugin-storage
+  logging.
+- Import-time filesystem writes were removed from all shipped plugins and
+  guarded by the audit test.
+the "already reached"
 subtraction then cuts them into dashes. Two fixes failed. It ships at default
 0, where output is byte-identical to 0.0.25 on all five shapes, and the
 untried polyline-fillet approach is written up in `docs/ROADMAP.md`. The

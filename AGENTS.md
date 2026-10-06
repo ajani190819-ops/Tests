@@ -166,7 +166,8 @@ you forget, and it is the safety net for exactly this.
 5. **Exactly two capabilities per plugin** in the catalogue — the .bat's plan
    has two capability slots.
 6. **Never delete or rewrite `keyboard-lighting/`** — it is here for storage,
-   not review.
+   not review. If the owner asks for work on it, follow
+   `keyboard-lighting/AGENTS.md`, which is that project's own rulebook.
 7. **GPL-3.0 attribution must survive.** `unlayered-infill` and
    `tools/nonplanar-infill-tool` derive from Roman Tenger's NonPlanarInfill
    (GPL-3.0). Keep the copyright headers; keep the licence when distributing.
