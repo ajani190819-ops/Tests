@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 4 after checking the values.
+	// registerAndLoad writes it as 5 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
@@ -77,6 +77,26 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 0, max = 240)
 	public int hiddenBelowScreenPixels = 105;
+
+	/**
+	 * A safe 2.5D floor-plane illusion. The HUD API only exposes a 2D GUI pose,
+	 * so this deliberately uses vertical foreshortening instead of a world/UI
+	 * capture renderer. At the horizon the panel is thin; it fills out as the
+	 * player looks toward its configured face-on pitch.
+	 */
+	@ConfigEntry.Category("planeTilt")
+	@ConfigEntry.Gui.Tooltip
+	public boolean lookDownPlaneTilt = true;
+
+	@ConfigEntry.Category("planeTilt")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 20, max = 89)
+	public int planeFaceOnPitch = 65;
+
+	@ConfigEntry.Category("planeTilt")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 5, max = 100)
+	public int planeHorizonHeightPercent = 18;
 
 	// Motion. A time-based filter is used, so it remains smooth above 20 FPS.
 	@ConfigEntry.Category("motion")
@@ -147,9 +167,9 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 	}
 
-	/** Adds safe reveal and companion-layout defaults to older config files. */
+	/** Adds safe reveal, tilt, and companion-layout defaults to older config files. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 4) {
+		if (cfg.configVersion >= 5) {
 			return;
 		}
 
@@ -163,10 +183,19 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.onlyDuringGameplay = true;
 		}
 
-		// The new compatibility path is opt-out: it is deliberately narrow and
-		// only applies when the corresponding companion mod is actually loaded.
-		cfg.preserveCompanionStatusLayout = true;
-		cfg.configVersion = 4;
+		if (cfg.configVersion < 4) {
+			// This is deliberately narrow and applies only when a corresponding
+			// companion mod is actually loaded.
+			cfg.preserveCompanionStatusLayout = true;
+		}
+
+		if (cfg.configVersion < 5) {
+			cfg.lookDownPlaneTilt = true;
+			cfg.planeFaceOnPitch = 65;
+			cfg.planeHorizonHeightPercent = 18;
+		}
+
+		cfg.configVersion = 5;
 		save();
 	}
 

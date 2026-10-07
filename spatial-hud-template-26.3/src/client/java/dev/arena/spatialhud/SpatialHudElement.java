@@ -105,6 +105,19 @@ final class SpatialHudElement implements HudElement {
 			tgtY = lerp(hiddenY, revealedY, reveal);
 		}
 
+		// The GUI pose API is affine rather than a world-space projection. A
+		// vertical foreshortening curve therefore gives the safe, readable
+		// horizontal-plane cue: nearly edge-on at the horizon and face-on only
+		// after looking down toward the configured pitch.
+		float verticalForeshortening = 1.0f;
+		if (cfg.lookDownPlaneTilt) {
+			float faceOn = clamp(cfg.planeFaceOnPitch, 20f, 89f);
+			float lookDown = clamp(SpatialHud.pitch, 0f, faceOn);
+			float amount = smoothstep(0f, 1f, lookDown / faceOn);
+			float horizonHeight = clamp(cfg.planeHorizonHeightPercent / 100.0f, 0.05f, 1.0f);
+			verticalForeshortening = lerp(horizonHeight, 1.0f, amount);
+		}
+
 		float strength = clamp((float) cfg.sway, 0.0f, 2.0f);
 		float yawErr = SpatialHud.wrapDegrees(SpatialHud.yaw - SpatialHud.smoothYaw);
 		float pitchErr = SpatialHud.pitch - SpatialHud.smoothPitch;
@@ -121,7 +134,7 @@ final class SpatialHudElement implements HudElement {
 		if (swayAngle != 0f) {
 			pose.rotateAbout((float) Math.toRadians(swayAngle), 0f, 0f);
 		}
-		pose.scale(scale, scale);
+		pose.scale(scale, scale * verticalForeshortening);
 		pose.translate(-srcX, -srcY);
 	}
 

@@ -22,6 +22,22 @@ bring it smoothly into view; keep looking down to see the complete panel.
 - **Smooth transition:** it slides in and out using the exact pitch, not a
   sudden on/off switch
 
+### Safe look-down plane tilt
+
+The default **Tilt HUD Plane Toward Look-Down** setting adds a deliberately safe
+2.5D floor-plane cue. Near the horizon, the spatial hotbar/panel is vertically
+foreshortened as though it is edge-on; as you look down it fills out, reaching
+its normal height at **65° down** by default. This makes looking toward the
+panel feel more like looking perpendicular to a floating horizontal plane,
+without restoring the rejected world/UI capture renderer.
+
+This is intentionally an affine GUI effect, not a world-rendered object:
+minimap, FPS/debug text, screens, and unrelated overlays remain outside it.
+Change **Face-On Look-Down Pitch** to require a steeper or shallower view, or
+turn the tilt off if you prefer the previous front-facing panel. Companion
+status bars protected by the AppleSkin/Detail Armor compatibility setting stay
+native while revealed so their own overlays remain coherent.
+
 The configuration screen offers separate controls for the two reveal angles,
 hidden distance, panel placement, FOV-aware sizing, motion, companion-mod
 layout protection, and individual HUD parts.
