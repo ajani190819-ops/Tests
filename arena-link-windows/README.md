@@ -64,6 +64,11 @@ npm run dist:win
 The output is written under `dist/`. Do not run an unsigned build from an
 untrusted location.
 
+A successful branch build also uploads both Windows executables to the rolling
+[**Arena Link latest release**](https://github.com/ajani190819-ops/Tests/releases/tag/arena-link-latest).
+The installer is not code-signed in this initial build, so verify that the
+release/tag points to this repository before opening it.
+
 ## Arena Gateway setup
 
 The Arena gateway documentation is the source of truth:
