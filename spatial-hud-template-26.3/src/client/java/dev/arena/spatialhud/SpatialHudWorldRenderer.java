@@ -116,7 +116,7 @@ public final class SpatialHudWorldRenderer {
 			return;
 		}
 
-		var camera = mc.gameRenderer.getMainCamera();
+		var camera = mc.gameRenderer.mainCamera();
 		capturedPose.setIdentity();
 		capturedPose.mulPose(new Quaternionf()
 				.rotateX((float) Math.toRadians(camera.xRot()))
