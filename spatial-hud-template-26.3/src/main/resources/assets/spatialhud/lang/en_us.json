@@ -1,5 +1,6 @@
 {
   "key.spatialhud.open_config": "Open Spatial HUD Settings",
+  "key.spatialhud.toggle": "Toggle Spatial HUD",
 
   "text.autoconfig.spatialhud.title": "Spatial HUD",
   "text.autoconfig.spatialhud.category.general": "General",

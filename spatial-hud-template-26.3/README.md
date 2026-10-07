@@ -171,8 +171,11 @@ let a companion mod own a part if two mods draw it twice.
 ## Configuration
 
 Open **Mod Menu → Spatial HUD → Configure** or press **H**. The underlying
-configuration file is `config/spatialhud.json`. The **Open Spatial HUD
-Settings** entry also appears under Minecraft Controls, where you can rebind it.
+configuration file is `config/spatialhud.json`. Minecraft Controls contains:
+
+- **Open Spatial HUD Settings** — defaults to **H** and can be rebound.
+- **Toggle Spatial HUD** — unbound by default, so you can assign a rapid
+  test key without replacing a modpack binding.
 
 ## Requirements
 

@@ -17,10 +17,13 @@
 
 - `VirtualHudPlane.java` is the shared physical-plane projection model.
   The current pending revision makes its default pose camera-yaw-local:
-  waist-height, in front of the player, following camera yaw but not camera
-  pitch.
+  waist-height and in front of the player, following camera yaw rather than
+  body yaw, with a mesh that rotates in response to look pitch.
 - `ExperimentalHudCapture.java` captures only the selected lower HUD into a
-  private target and renders it through a tessellated mesh.
+  private target and renders it through a tessellated mesh. Its private
+  `GuiRenderer` must share Minecraft's existing picture-in-picture renderer
+  map: 26.3 GUI item rendering uses that path, and an empty map can omit
+  hotbar item content while leaving simple backing/bar pixels visible.
 - `SpatialHudGameRendererMixin.java` composites the mesh after the normal
   `GuiRenderer` call.
 - `SpatialHudGuiRendererMixin.java` redirects only the private captured

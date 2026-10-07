@@ -12,7 +12,7 @@ import net.minecraft.resources.Identifier;
  * The in-game Cloth Config definition for Spatial HUD.
  *
  * <p>This intentionally uses the same configuration framework as Spatial GUI:
- * the settings appear in Mod Menu, can be opened from an unbound Controls
+ * the settings appear in Mod Menu, can be opened from the Controls settings
  * keybind, and are stored in {@code config/spatialhud.json}. The old v0.3 JSON
  * fields keep their names, so existing settings continue to load.</p>
  */
@@ -21,20 +21,18 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 13 after checking the values.
+	// registerAndLoad writes it as 14 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
 	@ConfigEntry.Gui.Tooltip
 	public boolean enabled = true;
 
-	@ConfigEntry.Category("general")
-	@ConfigEntry.Gui.Tooltip
+	// Earlier affine-only settings retained solely for old JSON files.
+	@ConfigEntry.Gui.Excluded
 	public boolean autoScaleByFov = true;
 
-	@ConfigEntry.Category("general")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 30, max = 110)
+	@ConfigEntry.Gui.Excluded
 	public int fovBaseline = 70;
 
 	@ConfigEntry.Category("general")
@@ -90,10 +88,7 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
 	public int virtualPitch = 0;
 
-	/**
-	 * Retained only so v1.2 config files still load. Player-body anchoring uses
-	 * a fixed physical plane; view pitch changes the camera's angle to it.
-	 */
+	/** Retained only so v1.2 config files still load; it is no longer read. */
 	@ConfigEntry.Gui.Excluded
 	public boolean virtualTiltWithLook = false;
 
@@ -113,12 +108,12 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.BoundedDiscrete(min = -80, max = 80)
 	public int virtualYaw = 0;
 
-	@ConfigEntry.Category("virtualPlane")
-	@ConfigEntry.Gui.Tooltip
+	// Legacy alternatives remain readable from JSON but are not part of the
+	// supported hologram model. The migration selects CAMERA_YAW.
+	@ConfigEntry.Gui.Excluded
 	public VirtualAnchorMode virtualAnchorMode = VirtualAnchorMode.CAMERA_YAW;
 
-	@ConfigEntry.Category("virtualPlane")
-	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.Gui.Excluded
 	public double virtualWorldParallaxStrength = 0.35;
 
 	public enum VirtualAnchorMode {
@@ -161,24 +156,19 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public boolean experimentalCaptureWarp = false;
 
-	/** Optional screen-space bow for the experimental mesh; zero is flat. */
-	@ConfigEntry.Category("experimentalCapture")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	/** Reserved for a later cylindrical mesh mode; normal hologram mode is flat. */
+	@ConfigEntry.Gui.Excluded
 	public int experimentalCaptureCurvaturePercent = 0;
 
-	// Motion. A time-based filter is used, so it remains smooth above 20 FPS.
-	@ConfigEntry.Category("motion")
-	@ConfigEntry.Gui.Tooltip
+	// Legacy motion fields retained for saved configurations. The supported
+	// Camera Yaw hologram uses the player's current view directly.
+	@ConfigEntry.Gui.Excluded
 	public double sway = 0.35;
 
-	@ConfigEntry.Category("motion")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 20, max = 500)
+	@ConfigEntry.Gui.Excluded
 	public int swayResponseMs = 85;
 
-	@ConfigEntry.Category("motion")
-	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.Gui.Excluded
 	public boolean rotateWithSway = true;
 
 	/**
@@ -235,9 +225,9 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 	}
 
-	/** Adds safe reveal, tilt, and companion-layout defaults to older config files. */
+	/** Migrates legacy JSON fields to the single supported hologram defaults. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 13) {
+		if (cfg.configVersion >= 14) {
 			return;
 		}
 
@@ -333,11 +323,18 @@ public final class SpatialHudConfig implements ConfigData {
 
 		if (cfg.configVersion < 13) {
 			// Camera-yaw anchoring keeps the location stable horizontally, while
-			// this value restores the strong real mesh taper as look pitch changes.
+			// this value restores the strong mesh taper as look pitch changes.
 			cfg.virtualHorizonPerspectivePitch = 80;
 		}
 
-		cfg.configVersion = 13;
+		if (cfg.configVersion < 14) {
+			// v1.4 supports one camera-yaw hologram model. Old anchor selections
+			// are retained only as ignored JSON values, preventing competing pose
+			// rules from silently selecting a different renderer path.
+			cfg.virtualAnchorMode = VirtualAnchorMode.CAMERA_YAW;
+		}
+
+		cfg.configVersion = 14;
 		save();
 	}
 

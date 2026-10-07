@@ -19,12 +19,16 @@
     pass, addressing output being overwritten or rendered with an unstable
     GUI state.
   - `931b6de`: added a first look-pitch deformation attempt.
-- Latest pending build: camera-yaw hologram pose with pitch-driven mesh
-  rotation and a fully-offscreen visibility guard. It is rectangular at 30°
-  down, strongly squashed near the horizon, and tapers in the opposite
-  direction farther down. H opens settings instead of toggling the HUD.
-- Experimental diagnostics record whether the vanilla hotbar root reaches the
-  private capture. No real F5W result has yet confirmed this revision.
+- Pending refactor: replace the overlapping legacy pose paths with one
+  camera-yaw, pitch-driven projection: rectangular at 30° down, tapered above
+  or below that angle, and guarded only against total off-screen loss.
+- Concrete hotbar finding: the private `GuiRenderer` was constructed with no
+  picture-in-picture renderers. 26.3 GUI item rendering uses that path. The
+  refactor shares Minecraft's existing map with the private renderer while
+  continuing to capture only selected lower-HUD roots.
+- Controls target: H opens settings; a separate unbound Toggle Spatial HUD
+  action appears in Minecraft Controls. No real F5W result has confirmed this
+  refactor yet.
 
 ### Direct Modrinth updater
 
@@ -42,24 +46,21 @@
   real test result.
 - AppleSkin and Detail Armor Bar Reconstructed pixels belong in the same
   selected capture when their vanilla status root is captured.
-- User wants a waist-height hologram that follows camera yaw, stays parallel
-  to the horizon, and does not turn with body yaw. At 30° down it is
+- User wants a waist-height hologram that follows camera yaw, does not turn
+  with body yaw, and rotates its mesh with look pitch. At 30° down it is
   rectangular; looking higher makes the far top edge horizontally narrower.
 - Keep all work on `arena/c83497e6-tests`; commit and push each completed
   change.
 
 ## Next action
 
-1. Install the next rolling Spatial HUD JAR in F5W.
-2. Press H and confirm it opens settings without toggling the HUD.
-3. Enable the experimental captured-texture mode and select `Camera Yaw
-   (Hologram)`.
-4. Test the 30° face-on view and a higher/grazing view. Record whether the
-   whole capture changes from a rectangle to a trapezoid with a narrow far top
-   edge while remaining directly in front after a yaw turn.
-5. Record whether the hotbar disappears while the backing remains. Search the
-   same-run log for the one-time hotbar-capture diagnostic before changing the
-   capture or safe fallback.
+1. Build the renderer/PiP refactor and publish it.
+2. In F5W, bind Toggle Spatial HUD from Minecraft Controls if desired; H must
+   open settings.
+3. Enable experimental capture and test the full F5W bottom HUD at 30° down
+   and at a higher/grazing view.
+4. Confirm hotbar slots/items, status bars, AppleSkin, Detail Armor, XP, and
+   held-item text enter one captured trapezoid without flicker or loss.
 
 ## Evidence
 

@@ -8,7 +8,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
  * A quiet translucent backing panel drawn beneath the spatial strip. It is
- * also the single per-frame update point for sway, before wrapped HUD
+ * also the single per-frame camera-pose update point, before wrapped HUD
  * elements read the shared pose.
  */
 final class SpatialHudPanelElement implements HudElement {
@@ -19,8 +19,8 @@ final class SpatialHudPanelElement implements HudElement {
 		}
 
 		// Run even when the backing is hidden: this is registered immediately
-		// before HOTBAR and makes the time-based pose stable for every element.
-		SpatialHud.updateRenderSway();
+		// before HOTBAR and gives every selected root one camera pitch value.
+		SpatialHud.updateViewPose();
 
 		// This prepares an isolated state only when the explicitly opt-in
 		// experiment is active. It never touches the main GUI extractor or a

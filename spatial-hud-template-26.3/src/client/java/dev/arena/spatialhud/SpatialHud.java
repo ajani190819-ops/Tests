@@ -22,14 +22,17 @@ import java.util.List;
  * Spatial HUD — a compact, smooth Spatial-GUI-style panel for the vanilla
  * bottom HUD strip (hotbar, bars, XP and held-item name).
  *
- * <p>The render path intentionally uses only Fabric's official HUD API. Each
- * vanilla element is re-extracted under one shared affine pose; disabling the
- * mod immediately delegates every element back to vanilla.</p>
+ * <p>The render path intentionally uses Fabric's HUD API for its selected
+ * vanilla roots. Safe mode re-extracts them under one affine tangent; the
+ * opt-in capture mode composites their completed texture through one
+ * projective mesh. Disabling the mod immediately delegates every element back
+ * to vanilla.</p>
  */
 public class SpatialHud implements ClientModInitializer {
 	public static final Logger LOGGER = LoggerFactory.getLogger("spatialhud");
 
 	private static KeyMapping openConfigKey;
+	private static KeyMapping toggleHudKey;
 	private static boolean enabled;
 
 	// These two mods add their visual details by injecting inside vanilla's
@@ -38,12 +41,9 @@ public class SpatialHud implements ClientModInitializer {
 	private static boolean appleSkinLoaded;
 	private static boolean detailArmorBarLoaded;
 
-	// Render-frame sway state. The panel updates it once before the strip is
-	// extracted, so every wrapped vanilla element has precisely the same pose.
-	static float smoothYaw, smoothPitch;
-	static float yaw, pitch, bodyYaw;
-	private static boolean snapped;
-	private static long lastSwayNanos;
+	// The panel samples camera pitch once before every selected HUD extraction,
+	// so the backing and all captured roots share one mesh pose for that frame.
+	static float pitch;
 
 	/** The vanilla elements that make up the bottom HUD strip. */
 	private static final List<Identifier> STRIP_ELEMENTS = List.of(
@@ -82,6 +82,14 @@ public class SpatialHud implements ClientModInitializer {
 				SDLScancode.SDL_SCANCODE_H,
 				KeyMapping.Category.MISC));
 
+		// Deliberately unbound. The Controls menu exposes a separate quick
+		// enable/disable action without taking another key in a large modpack.
+		toggleHudKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+				"key.spatialhud.toggle",
+				InputConstants.UNKNOWN.getType(),
+				InputConstants.UNKNOWN.getValue(),
+				KeyMapping.Category.MISC));
+
 		for (Identifier id : STRIP_ELEMENTS) {
 			HudElementRegistry.replaceElement(id, vanilla -> new SpatialHudElement(id, vanilla));
 		}
@@ -98,6 +106,15 @@ public class SpatialHud implements ClientModInitializer {
 				client.setScreenAndShow(
 						me.shedaniel.autoconfig.AutoConfigClient
 								.getConfigScreen(SpatialHudConfig.class, null).get());
+			}
+
+			while (toggleHudKey.consumeClick()) {
+				enabled = !enabled;
+				SpatialHudConfig.get().enabled = enabled;
+				SpatialHudConfig.save();
+				if (!enabled) {
+					resetSway();
+				}
 			}
 
 			if (client.player == null) {
@@ -167,41 +184,18 @@ public class SpatialHud implements ClientModInitializer {
 		return true;
 	}
 
-	/**
-	 * Called by the panel once per HUD extraction frame. Spatial GUI uses the
-	 * same time-based exponential filtering for its first-person parallax: it
-	 * stays fluid at any FPS rather than stepping once per client tick.
-	 */
-	static void updateRenderSway() {
+	/** Samples the current camera pitch once before the selected HUD roots extract. */
+	static void updateViewPose() {
 		Minecraft mc = Minecraft.getInstance();
 		if (!enabled || mc.player == null) {
-			resetSway();
+			pitch = 0.0f;
 			return;
 		}
-
-		yaw = mc.player.getYRot();
 		pitch = mc.player.getXRot();
-		bodyYaw = mc.player.yBodyRot;
-		long now = System.nanoTime();
-		if (!snapped || lastSwayNanos == 0L) {
-			smoothYaw = yaw;
-			smoothPitch = pitch;
-			snapped = true;
-			lastSwayNanos = now;
-			return;
-		}
-
-		float dt = Math.min((now - lastSwayNanos) / 1_000_000_000.0f, 0.1f);
-		lastSwayNanos = now;
-		float tau = Math.max(20, SpatialHudConfig.get().swayResponseMs) / 1000.0f;
-		float alpha = 1.0f - (float) Math.exp(-dt / tau);
-		smoothYaw += wrapDegrees(yaw - smoothYaw) * alpha;
-		smoothPitch += (pitch - smoothPitch) * alpha;
 	}
 
 	private static void resetSway() {
-		snapped = false;
-		lastSwayNanos = 0L;
+		pitch = 0.0f;
 	}
 
 	/** Self-protection: never keep the HUD broken over our own math. */
@@ -211,12 +205,5 @@ public class SpatialHud implements ClientModInitializer {
 		SpatialHudConfig.get().enabled = false;
 		SpatialHudConfig.save();
 		LOGGER.error("Spatial HUD hit an error and disabled itself (vanilla HUD is restored):", t);
-	}
-
-	static float wrapDegrees(float d) {
-		d %= 360.0f;
-		if (d >= 180.0f) d -= 360.0f;
-		if (d < -180.0f) d += 360.0f;
-		return d;
 	}
 }
