@@ -42,7 +42,9 @@ The accepted model is camera-yaw anchored with pitch-driven mesh rotation.
 At `virtualFaceOnLookDownPitch` (default 30°), it is face-on. Looking higher
 makes the top/far edge narrower; looking lower changes perspective in the
 opposite direction. `virtualHorizonPerspectivePitch` controls the maximum
-horizon taper (default 80°); `virtualPitch` is a manual offset.
+horizon taper (default 80°); `virtualPitch` is a manual offset. If all sampled
+mesh points leave the GUI vertically, the projection is translated only enough
+to expose an edge; the trapezoid geometry is not changed.
 
 ## Compatibility and fallback
 

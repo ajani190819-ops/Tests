@@ -98,7 +98,9 @@ When the camera looks higher than the configured face-on angle, the plane's
 upper/far edge recedes and becomes horizontally narrower. The captured mesh
 therefore becomes a real trapezoid. Looking lower changes the perspective in
 the opposite direction. This is the same physical plane for the backing and
-all captured HUD pixels.
+all captured HUD pixels. If an extreme angle would place the complete mesh
+outside the GUI target, Spatial HUD preserves its shape and moves only enough
+of it back on-screen to keep an edge visible.
 
 ### Captured projective mesh — disabled by default
 

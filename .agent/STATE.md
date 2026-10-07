@@ -19,10 +19,10 @@
     pass, addressing output being overwritten or rendered with an unstable
     GUI state.
   - `931b6de`: added a first look-pitch deformation attempt.
-- Latest pending build: camera-yaw hologram pose with restored pitch-driven
-  mesh rotation. It is rectangular at 30° down, strongly squashed near the
-  horizon, and tapers in the opposite direction farther down. H opens settings
-  instead of toggling the HUD.
+- Latest pending build: camera-yaw hologram pose with pitch-driven mesh
+  rotation and a fully-offscreen visibility guard. It is rectangular at 30°
+  down, strongly squashed near the horizon, and tapers in the opposite
+  direction farther down. H opens settings instead of toggling the HUD.
 - Experimental diagnostics record whether the vanilla hotbar root reaches the
   private capture. No real F5W result has yet confirmed this revision.
 

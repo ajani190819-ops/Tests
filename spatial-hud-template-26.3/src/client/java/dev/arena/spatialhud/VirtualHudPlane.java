@@ -32,6 +32,7 @@ final class VirtualHudPlane {
 	private final float sourceCenterY;
 	private final float sourceWidth;
 	private final float sourceHeight;
+	private final float cameraYawVisibilityOffsetY;
 
 	private VirtualHudPlane(SpatialHudConfig cfg, int guiWidth, int guiHeight, float focalLength) {
 		this.cfg = cfg;
@@ -46,6 +47,9 @@ final class VirtualHudPlane {
 		this.sourceBottom = guiHeight + SOURCE_BOTTOM_BELOW_SCREEN;
 		this.sourceWidth = sourceRight - sourceLeft;
 		this.sourceHeight = sourceBottom - sourceTop;
+		this.cameraYawVisibilityOffsetY = cfg.virtualAnchorMode == SpatialHudConfig.VirtualAnchorMode.CAMERA_YAW
+				? cameraYawVisibilityOffsetY()
+				: 0.0f;
 	}
 
 	static VirtualHudPlane forGui(SpatialHudConfig cfg, int guiWidth, int guiHeight) {
@@ -120,6 +124,11 @@ final class VirtualHudPlane {
 	 * configured face-on angle, and tapered in the other direction below it.
 	 */
 	private Point projectCameraYawHologram(float localX, float localY, float localZ) {
+		Point raw = projectCameraYawHologramRaw(localX, localY, localZ);
+		return new Point(raw.x(), raw.y() + cameraYawVisibilityOffsetY);
+	}
+
+	private Point projectCameraYawHologramRaw(float localX, float localY, float localZ) {
 		return projectHologram(localX, localY, localZ, 0.0f, cameraYawPlanePitch());
 	}
 
@@ -146,6 +155,39 @@ final class VirtualHudPlane {
 		float cameraY = bodyY * (float) Math.cos(cameraPitch) + cameraForward * (float) Math.sin(cameraPitch);
 		float depth = -bodyY * (float) Math.sin(cameraPitch) + cameraForward * (float) Math.cos(cameraPitch);
 		return projectCameraSpace(cameraX, cameraY, depth);
+	}
+
+	/**
+	 * The dynamic plane must never vanish completely because its centre crossed
+	 * the GUI boundary at an extreme view angle. Keep its geometry unchanged and
+	 * translate only a fully off-screen mesh just far enough to reveal an edge.
+	 * Partly visible poses and all user placement choices are left untouched.
+	 */
+	private float cameraYawVisibilityOffsetY() {
+		float planeWidth = clamp((float) cfg.planeWidth, 0.10f, 6.0f);
+		float planeHeight = planeWidth * sourceHeight / sourceWidth;
+		float minY = Float.POSITIVE_INFINITY;
+		float maxY = Float.NEGATIVE_INFINITY;
+		// Sample the full rectangular mesh envelope, including its optional bow.
+		for (int row = 0; row <= 2; row++) {
+			float v = row * 0.5f;
+			float localY = (0.5f - v) * planeHeight;
+			for (int column = 0; column <= 2; column++) {
+				float u = column * 0.5f;
+				float localX = (u - 0.5f) * planeWidth;
+				Point point = projectCameraYawHologramRaw(localX, localY, curvedDepth(u, planeWidth));
+				minY = Math.min(minY, point.y());
+				maxY = Math.max(maxY, point.y());
+			}
+		}
+		float edge = Math.min(16.0f, Math.max(4.0f, guiHeight * 0.04f));
+		if (maxY < edge) {
+			return edge - maxY;
+		}
+		if (minY > guiHeight - edge) {
+			return guiHeight - edge - minY;
+		}
+		return 0.0f;
 	}
 
 	/**
