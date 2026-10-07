@@ -1,78 +1,143 @@
 package dev.arena.spatialhud;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import me.shedaniel.autoconfig.AutoConfig;
+import me.shedaniel.autoconfig.ConfigData;
+import me.shedaniel.autoconfig.annotation.Config;
+import me.shedaniel.autoconfig.annotation.ConfigEntry;
+import me.shedaniel.autoconfig.serializer.GsonConfigSerializer;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.resources.Identifier;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
 /**
- * Config, persisted to config/spatialhud.json with Gson.
+ * The in-game Cloth Config definition for Spatial HUD.
+ *
+ * <p>This intentionally uses the same configuration framework as Spatial GUI:
+ * the settings appear in Mod Menu, can be opened from an unbound Controls
+ * keybind, and are stored in {@code config/spatialhud.json}. The old v0.3 JSON
+ * fields keep their names, so existing settings continue to load.</p>
  */
-public final class SpatialHudConfig {
+@Config(name = "spatialhud")
+public final class SpatialHudConfig implements ConfigData {
+	/** Incremented when a safe default migration is needed. */
+	@ConfigEntry.Gui.Excluded
+	// Starts at 0 so a v0.3 file, which has no version field, is detected.
+	// registerAndLoad writes it as 2 after checking the values.
+	public int configVersion = 0;
+
+	@ConfigEntry.Category("general")
+	@ConfigEntry.Gui.Tooltip
 	public boolean enabled = true;
 
-	/** Distance of the plane from the eye, in blocks. */
-	public double distance = 1.1;
-	/** Width of the plane, in blocks (182 gui-pixel strip maps onto this). */
-	public double planeWidth = 1.9;
-	/** How far below the view center the plane floats, in blocks. */
-	public double height = 0.35;
-	/** Strength of the look-lag sway (0 = rigid, 1 = pronounced). */
-	public double sway = 0.6;
-	/** Reserved for a future tilt effect (26.x gui poses are 2D affine). */
-	public double tiltDegrees = 14;
+	@ConfigEntry.Category("general")
+	@ConfigEntry.Gui.Tooltip
+	public boolean autoScaleByFov = true;
 
+	@ConfigEntry.Category("general")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 30, max = 110)
+	public int fovBaseline = 70;
+
+	@ConfigEntry.Category("general")
+	@ConfigEntry.Gui.Tooltip
 	public boolean showPanel = true;
+
+	// Placement — expressed in blocks to mirror Spatial GUI's first-person controls.
+	@ConfigEntry.Category("placement")
+	@ConfigEntry.Gui.Tooltip
+	public double distance = 1.75;
+
+	@ConfigEntry.Category("placement")
+	@ConfigEntry.Gui.Tooltip
+	public double planeWidth = 1.45;
+
+	@ConfigEntry.Category("placement")
+	@ConfigEntry.Gui.Tooltip
+	public double height = 0.85;
+
+	// Motion. A time-based filter is used, so it remains smooth above 20 FPS.
+	@ConfigEntry.Category("motion")
+	@ConfigEntry.Gui.Tooltip
+	public double sway = 0.35;
+
+	@ConfigEntry.Category("motion")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 20, max = 500)
+	public int swayResponseMs = 85;
+
+	@ConfigEntry.Category("motion")
+	@ConfigEntry.Gui.Tooltip
+	public boolean rotateWithSway = true;
+
+	@ConfigEntry.Category("visibility")
+	@ConfigEntry.Gui.Tooltip
 	public boolean showHotbar = true;
+
+	@ConfigEntry.Category("visibility")
+	@ConfigEntry.Gui.Tooltip
 	public boolean showBars = true;
+
+	@ConfigEntry.Category("visibility")
+	@ConfigEntry.Gui.Tooltip
 	public boolean showXp = true;
+
+	@ConfigEntry.Category("visibility")
+	@ConfigEntry.Gui.Tooltip
 	public boolean showMountBars = true;
+
+	@ConfigEntry.Category("visibility")
+	@ConfigEntry.Gui.Tooltip
 	public boolean showHeldItemName = true;
 
-	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static SpatialHudConfig instance;
+	private static boolean registered;
 
-	public static SpatialHudConfig get() {
-		if (instance == null) {
-			load();
+	/** Register once early in client startup, then load the saved configuration. */
+	public static SpatialHudConfig registerAndLoad() {
+		if (!registered) {
+			AutoConfig.register(SpatialHudConfig.class, GsonConfigSerializer::new);
+			registered = true;
+			instance = AutoConfig.getConfigHolder(SpatialHudConfig.class).getConfig();
+			migrateV03Defaults(instance);
 		}
 		return instance;
 	}
 
-	public static SpatialHudConfig load() {
-		Path path = configPath();
-		if (Files.exists(path)) {
-			try {
-				instance = GSON.fromJson(Files.readString(path), SpatialHudConfig.class);
-			} catch (Exception e) {
-				SpatialHud.LOGGER.warn("Could not read spatialhud.json, using defaults", e);
-			}
-		}
-		if (instance == null) {
-			instance = new SpatialHudConfig();
-		}
-		return instance;
+	public static SpatialHudConfig get() {
+		return registered ? instance : registerAndLoad();
 	}
 
 	public static void save() {
-		if (instance == null) {
-			return;
-		}
-		try {
-			Files.createDirectories(configPath().getParent());
-			Files.writeString(configPath(), GSON.toJson(instance));
-		} catch (IOException e) {
-			SpatialHud.LOGGER.warn("Could not save spatialhud.json", e);
+		if (registered) {
+			AutoConfig.getConfigHolder(SpatialHudConfig.class).save();
 		}
 	}
 
-	private static Path configPath() {
-		return FabricLoader.getInstance().getConfigDir().resolve("spatialhud.json");
+	/**
+	 * v0.3's first-release defaults made the strip roughly twice as wide as
+	 * vanilla and raised it toward the centre of the screen. Only replace that
+	 * exact untouched combination; deliberately customized values are left alone.
+	 */
+	private static void migrateV03Defaults(SpatialHudConfig cfg) {
+		if (cfg.configVersion >= 2) {
+			return;
+		}
+
+		boolean untouchedV03Placement = nearly(cfg.distance, 1.1)
+				&& nearly(cfg.planeWidth, 1.9)
+				&& nearly(cfg.height, 0.35)
+				&& nearly(cfg.sway, 0.6);
+		if (untouchedV03Placement) {
+			cfg.distance = 1.75;
+			cfg.planeWidth = 1.45;
+			cfg.height = 0.85;
+			cfg.sway = 0.35;
+		}
+		cfg.configVersion = 2;
+		save();
+	}
+
+	private static boolean nearly(double value, double expected) {
+		return Math.abs(value - expected) < 0.00001;
 	}
 
 	/** Per-element visibility inside spatial mode. */

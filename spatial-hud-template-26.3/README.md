@@ -1,46 +1,61 @@
 # Spatial HUD (build project — canonical)
 
-**Spatial GUI, but for your HUD.** The bottom HUD strip (hotbar, hearts,
-hunger, armor, air, XP, mount bars, held-item name) rendered as a panel
-floating in front of you instead of glued to the screen edge. Client-side
-only. **H** toggles it in-game.
+**Spatial GUI, but for your HUD.** The bottom HUD strip — hotbar, hearts,
+hunger, armor, air, XP, mount bars, and held-item name — becomes a compact
+floating panel instead of being glued to the bottom edge. It is **client-side
+only**; servers do not need it. **H** toggles it in-game.
 
 This folder is the active build project. **You never need to build locally** —
-GitHub Actions builds it on every change and publishes the jar here:
+GitHub Actions builds every change and replaces the jar at this permanent link:
 
 **Download (always the latest build):**
-https://github.com/ajani190819-ops/Tests/releases/tag/spatial-hud-latest
+https://github.com/ajani190819-ops/Tests/releases/download/spatial-hud-latest/spatial-hud-1.0.0.jar
 
-## How it works (v0.3, MC 26.3)
+## v0.4 — compact and configurable
 
-MC 26.x rebuilt the GUI pipeline around render-state extraction with 2D
-affine transforms, so the mod now uses the official Fabric HUD element API:
+This release is tuned around the first in-game feedback:
 
-- Each vanilla bottom-strip element is wrapped with
-  `HudElementRegistry.replaceElement` — spatial pose when enabled, perfect
-  vanilla passthrough when disabled (zero mixins in this mod!)
-- The pose is real perspective math: focal length from the current FOV,
-  `distance`/`planeWidth`/`height` in blocks, so the panel behaves like a
-  screen-parallel plane floating in the world
-- Look-lag "sway" — the panel drifts slightly when you turn, then settles
-- Translucent backing panel behind the strip
-- Any render error → the mod logs once and disables itself; vanilla HUD
-  returns. It will never crash your game over a HUD.
+- **Smaller and lower by default.** The v0.3 untouched defaults automatically
+  migrate to the new compact, lower placement. Custom v0.3 placement values
+  are respected.
+- **Smooth frame-time parallax.** Sway now uses the same time-based
+  exponential filtering approach as Spatial GUI, rather than updating only at
+  Minecraft's 20-tick rhythm. Every wrapped HUD part uses the same frame pose.
+- **Correct rotation pivot.** The small parallax turn now happens around the
+  panel centre, eliminating the old off-centre jump.
+- **Mod Menu configuration.** Spatial HUD now has a normal Cloth Config screen
+  in **Mod Menu → Spatial HUD → Configure**, matching Spatial GUI's familiar
+  configuration experience. It also adds an **unbound** `Open Spatial HUD
+  Config` entry under Controls if you prefer a keybind.
+- **FOV-aware sizing.** Enabled by default, using the same comfortable
+  FOV-compensation curve as Spatial GUI.
 
-Config: `config/spatialhud.json` (distance, planeWidth, height, sway,
-per-element toggles, showPanel).
+The config screen groups the controls into **General**, **First-Person
+Placement**, **Motion**, and **Visible HUD Parts**. The underlying file stays
+at `config/spatialhud.json`.
 
-## Source layout (official 26.x template structure)
+## How it works
 
-- `src/client/java/` — all mod code (client-only mod)
-- `src/main/resources/` — fabric.mod.json, lang
-- Split environment source sets per the official template; no mappings
-  line (26.x Minecraft is unobfuscated)
+MC 26.x uses render-state extraction with 2D affine GUI poses. Spatial HUD uses
+Fabric's official HUD API only:
 
-## Known limits / next steps
+- `HudElementRegistry.replaceElement` wraps every vanilla bottom-strip element
+  — when disabled it is a direct vanilla passthrough (no mixins).
+- A shared perspective pose maps the strip to its configured width, distance,
+  and lower-screen height. The GUI pipeline currently has 2D affine poses, so
+  this is a screen-parallel floating panel rather than a perspective trapezoid.
+- A subtle backing panel is drawn under the strip. Every render error is caught;
+  the mod disables itself and restores vanilla HUD rather than crashing the
+  game.
 
-- **Tilt**: the 26.x GUI pose API is 2D affine, so a *tilted* 3D plane
-  (perspective trapezoid) needs a v0.4 trick (e.g., affine slice columns or
-  a world-space custom renderer). v0.3's plane is screen-parallel — real
-  distance, real scale, sway, no tilt.
-- Feedback wanted: position, size, sway strength, panel look — all tunable.
+## Requirements
+
+Minecraft **26.3**, Fabric Loader **0.19.5+**, Fabric API, and Cloth Config
+(Spatial GUI already requires Cloth Config). Mod Menu is optional but strongly
+recommended; it supplies the one-click **Configure** button.
+
+## Source layout
+
+- `src/client/java/` — client-only implementation and Mod Menu entrypoint
+- `src/main/resources/` — mod metadata and English config labels
+- `config/spatialhud.json` — generated user settings (not in this repository)

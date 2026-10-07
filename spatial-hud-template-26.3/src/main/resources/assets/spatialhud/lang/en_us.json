@@ -1,3 +1,44 @@
 {
-	"key.spatialhud.toggle": "Toggle Spatial HUD"
+  "key.spatialhud.toggle": "Toggle Spatial HUD",
+  "key.spatialhud.open_config": "Open Spatial HUD Config",
+
+  "text.autoconfig.spatialhud.title": "Spatial HUD",
+  "text.autoconfig.spatialhud.category.general": "General",
+  "text.autoconfig.spatialhud.category.placement": "First-Person Placement",
+  "text.autoconfig.spatialhud.category.motion": "Motion",
+  "text.autoconfig.spatialhud.category.visibility": "Visible HUD Parts",
+
+  "text.autoconfig.spatialhud.option.enabled": "Enable Spatial HUD",
+  "text.autoconfig.spatialhud.option.enabled.@Tooltip": "Render the bottom HUD strip as a floating panel. H toggles this at any time.",
+  "text.autoconfig.spatialhud.option.autoScaleByFov": "FOV-Aware Scale",
+  "text.autoconfig.spatialhud.option.autoScaleByFov.@Tooltip": "Keep the panel at a comfortable apparent size as your Minecraft FOV changes. Uses the same scale approach as Spatial GUI.",
+  "text.autoconfig.spatialhud.option.fovBaseline": "FOV Scale Baseline",
+  "text.autoconfig.spatialhud.option.fovBaseline.@Tooltip": "The FOV at which no automatic scale adjustment is made.",
+  "text.autoconfig.spatialhud.option.showPanel": "Show Backing Panel",
+  "text.autoconfig.spatialhud.option.showPanel.@Tooltip": "Show the subtle translucent background behind the floating HUD.",
+
+  "text.autoconfig.spatialhud.option.distance": "Panel Distance",
+  "text.autoconfig.spatialhud.option.distance.@Tooltip": "Distance of the panel from your view, in blocks. Higher values make it smaller and steadier.",
+  "text.autoconfig.spatialhud.option.planeWidth": "Panel Width",
+  "text.autoconfig.spatialhud.option.planeWidth.@Tooltip": "Physical width of the HUD panel, in blocks. Increase this if you prefer a larger hotbar.",
+  "text.autoconfig.spatialhud.option.height": "Vertical Offset",
+  "text.autoconfig.spatialhud.option.height.@Tooltip": "How far below the view centre the panel sits, in blocks. Increase this to move the HUD lower.",
+
+  "text.autoconfig.spatialhud.option.sway": "Parallax Strength",
+  "text.autoconfig.spatialhud.option.sway.@Tooltip": "How much the panel gently trails your look direction. Set to 0 for a perfectly rigid HUD.",
+  "text.autoconfig.spatialhud.option.swayResponseMs": "Parallax Response (ms)",
+  "text.autoconfig.spatialhud.option.swayResponseMs.@Tooltip": "Lower values settle faster. This is frame-time based, so it stays smooth above 20 FPS.",
+  "text.autoconfig.spatialhud.option.rotateWithSway": "Rotate With Parallax",
+  "text.autoconfig.spatialhud.option.rotateWithSway.@Tooltip": "Add a subtle 2D turn as the panel follows your view.",
+
+  "text.autoconfig.spatialhud.option.showHotbar": "Hotbar and Spectator Menu",
+  "text.autoconfig.spatialhud.option.showHotbar.@Tooltip": "Show the hotbar and spectator controls on the panel.",
+  "text.autoconfig.spatialhud.option.showBars": "Health, Hunger, Armor and Air",
+  "text.autoconfig.spatialhud.option.showBars.@Tooltip": "Show the vanilla status bars on the panel.",
+  "text.autoconfig.spatialhud.option.showXp": "Experience Bar and Level",
+  "text.autoconfig.spatialhud.option.showXp.@Tooltip": "Show the XP progress bar and level number on the panel.",
+  "text.autoconfig.spatialhud.option.showMountBars": "Mount Health",
+  "text.autoconfig.spatialhud.option.showMountBars.@Tooltip": "Show mount health when riding an entity.",
+  "text.autoconfig.spatialhud.option.showHeldItemName": "Held Item Name",
+  "text.autoconfig.spatialhud.option.showHeldItemName.@Tooltip": "Show the selected item name above the panel."
 }

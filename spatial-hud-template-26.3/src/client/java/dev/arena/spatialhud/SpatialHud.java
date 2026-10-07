@@ -12,32 +12,32 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 
 import java.util.List;
 
 /**
- * Spatial HUD — the bottom HUD strip (hotbar, hearts, hunger, armor, air,
- * XP, mount bars, held item name) rendered as a panel floating in front of
- * you instead of glued to the screen edge.
+ * Spatial HUD — a compact, smooth Spatial-GUI-style panel for the vanilla
+ * bottom HUD strip (hotbar, bars, XP and held-item name).
  *
- * MC 26.x rebuilt the GUI pipeline around render-state extraction with 2D
- * affine transforms, so v0.3 renders the strip as a screen-parallel plane
- * at a true perspective distance (scale computed from the actual FOV and
- * distance in blocks), with look-lag "sway". It uses only the official
- * Fabric HUD API — HudElementRegistry.replaceElement wraps each vanilla
- * element; disabling the mod makes every wrapper delegate back to vanilla.
+ * <p>The render path intentionally uses only Fabric's official HUD API. Each
+ * vanilla element is re-extracted under one shared affine pose; disabling the
+ * mod immediately delegates every element back to vanilla.</p>
  */
 public class SpatialHud implements ClientModInitializer {
 	public static final Logger LOGGER = LoggerFactory.getLogger("spatialhud");
 
 	private static KeyMapping toggleKey;
+	private static KeyMapping openConfigKey;
 	private static boolean enabled;
 
-	// Look-lag sway: smoothed camera angles, updated once per tick.
+	// Render-frame sway state. The panel updates it once before the strip is
+	// extracted, so every wrapped vanilla element has precisely the same pose.
 	static float smoothYaw, smoothPitch;
 	static float yaw, pitch;
-	private static boolean snapped = false;
+	private static boolean snapped;
+	private static long lastSwayNanos;
 
 	/** The vanilla elements that make up the bottom HUD strip. */
 	private static final List<Identifier> STRIP_ELEMENTS = List.of(
@@ -55,7 +55,7 @@ public class SpatialHud implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
-		SpatialHudConfig cfg = SpatialHudConfig.load();
+		SpatialHudConfig cfg = SpatialHudConfig.registerAndLoad();
 		enabled = cfg.enabled;
 
 		toggleKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
@@ -64,13 +64,21 @@ public class SpatialHud implements ClientModInitializer {
 				SDLScancode.SDL_SCANCODE_H,
 				KeyMapping.Category.MISC));
 
-		// Wrap every bottom-strip element: spatial pose when enabled,
-		// perfect vanilla passthrough when disabled.
+		// Just like Spatial GUI, this is unbound by default to avoid claiming a
+		// key in a large modpack. It can be assigned under Controls, while the
+		// same screen is always available from Mod Menu.
+		openConfigKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+				"key.spatialhud.open_config",
+				InputConstants.UNKNOWN.getType(),
+				InputConstants.UNKNOWN.getValue(),
+				KeyMapping.Category.MISC));
+
 		for (Identifier id : STRIP_ELEMENTS) {
 			HudElementRegistry.replaceElement(id, vanilla -> new SpatialHudElement(id, vanilla));
 		}
 
-		// Translucent backing panel, drawn just under the strip elements.
+		// The panel is extracted before HOTBAR. It also marks the start of our
+		// render-frame update, eliminating the old 20 Hz (tick-only) sway.
 		HudElementRegistry.attachElementBefore(
 				VanillaHudElements.HOTBAR,
 				Identifier.fromNamespaceAndPath("spatialhud", "panel"),
@@ -82,35 +90,68 @@ public class SpatialHud implements ClientModInitializer {
 				SpatialHudConfig.get().enabled = enabled;
 				SpatialHudConfig.save();
 				if (!enabled) {
-					snapped = false;
+					resetSway();
 				}
 			}
 
-			if (client.player != null) {
-				yaw = client.player.getYRot();
-				pitch = client.player.getXRot();
-				if (!snapped) {
-					// Snap once so the plane doesn't fly in from angle 0.
-					smoothYaw = yaw;
-					smoothPitch = pitch;
-					snapped = true;
-				} else {
-					smoothYaw += wrapDegrees(yaw - smoothYaw) * 0.35f;
-					smoothPitch += (pitch - smoothPitch) * 0.35f;
-				}
+			while (openConfigKey.consumeClick()) {
+				client.setScreenAndShow(
+						me.shedaniel.autoconfig.AutoConfigClient
+								.getConfigScreen(SpatialHudConfig.class, null).get());
+			}
+
+			if (client.player == null) {
+				resetSway();
 			}
 		});
 
-		LOGGER.info("Spatial HUD initialized. Press H to toggle; config at config/spatialhud.json");
+		LOGGER.info("Spatial HUD initialized. Press H to toggle; configure it from Mod Menu or an assigned Controls key.");
 	}
 
 	public static boolean isEnabled() {
 		return enabled;
 	}
 
+	/**
+	 * Called by the panel once per HUD extraction frame. Spatial GUI uses the
+	 * same time-based exponential filtering for its first-person parallax: it
+	 * stays fluid at any FPS rather than stepping once per client tick.
+	 */
+	static void updateRenderSway() {
+		Minecraft mc = Minecraft.getInstance();
+		if (!enabled || mc.player == null) {
+			resetSway();
+			return;
+		}
+
+		yaw = mc.player.getYRot();
+		pitch = mc.player.getXRot();
+		long now = System.nanoTime();
+		if (!snapped || lastSwayNanos == 0L) {
+			smoothYaw = yaw;
+			smoothPitch = pitch;
+			snapped = true;
+			lastSwayNanos = now;
+			return;
+		}
+
+		float dt = Math.min((now - lastSwayNanos) / 1_000_000_000.0f, 0.1f);
+		lastSwayNanos = now;
+		float tau = Math.max(20, SpatialHudConfig.get().swayResponseMs) / 1000.0f;
+		float alpha = 1.0f - (float) Math.exp(-dt / tau);
+		smoothYaw += wrapDegrees(yaw - smoothYaw) * alpha;
+		smoothPitch += (pitch - smoothPitch) * alpha;
+	}
+
+	private static void resetSway() {
+		snapped = false;
+		lastSwayNanos = 0L;
+	}
+
 	/** Self-protection: never keep the HUD broken over our own math. */
 	static void safeDisable(Throwable t) {
 		enabled = false;
+		resetSway();
 		SpatialHudConfig.get().enabled = false;
 		SpatialHudConfig.save();
 		LOGGER.error("Spatial HUD hit an error and disabled itself (vanilla HUD is restored):", t);

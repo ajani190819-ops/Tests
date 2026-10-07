@@ -9,12 +9,19 @@
 	"entrypoints": {
 		"client": [
 			"dev.arena.spatialhud.SpatialHud"
+		],
+		"modmenu": [
+			"dev.arena.spatialhud.SpatialHudModMenu"
 		]
 	},
 	"depends": {
 		"fabricloader": ">=0.19.5",
 		"minecraft": "~26.3",
 		"java": ">=25",
-		"fabric-api": "*"
+		"fabric-api": "*",
+		"cloth-config": ">=26.3.158"
+	},
+	"suggests": {
+		"modmenu": "*"
 	}
 }

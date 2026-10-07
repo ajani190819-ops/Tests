@@ -4,11 +4,11 @@ plugins {
 }
 
 repositories {
-	// Add repositories to retrieve artifacts from in here.
-	// You should only use this when depending on other mods because
-	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
-	// for more information about repositories.
+	// Spatial HUD uses the same Cloth Config + Mod Menu configuration stack as
+	// Spatial GUI. Mod Menu stays optional at runtime; Cloth Config provides
+	// the in-game screen and config serializer.
+	maven { name = "Cloth Config"; url = "https://maven.shedaniel.me/" }
+	maven { name = "Terraformers"; url = "https://maven.terraformersmc.com/" }
 }
 
 loom {
@@ -36,6 +36,12 @@ dependencies {
 	// the split-source-set wiring differs between loom versions.
 	clientImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	clientImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Matches Spatial GUI's config experience. Cloth Config is a required
+	// client dependency; Mod Menu is compile-only/optional and discovers our
+	// dedicated `modmenu` entrypoint when it is installed.
+	clientImplementation "me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}"
+	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 }
 
 processResources {
