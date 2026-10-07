@@ -31,6 +31,19 @@ cd spatial-hud
 gradlew build
 ```
 
+### No `gradlew` in this folder? (expected)
+
+This project ships without Gradle's binary wrapper. Easiest fix — borrow the
+official template's:
+
+1. Generate one at https://fabricmc.net/develop/template/ (mod name
+   `spatial-hud`, package `dev.arena.spatialhud`, your MC version).
+2. Unzip it, then copy this project's `src/` folder plus `build.gradle`,
+   `settings.gradle` and `gradle.properties` into it (overwriting).
+3. Use the template's `gradlew`.
+
+Or, with Gradle installed: `gradle wrapper --gradle-version 8.10`.
+
 The jar lands in `build/libs/spatial-hud-0.1.0.jar` — drop it in `mods/`
 alongside Fabric API.
 
