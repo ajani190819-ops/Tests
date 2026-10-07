@@ -70,6 +70,31 @@ These are the owner's explicit expectations for how AI assistance goes:
    entry (its §9 is the checklist). The owner should be able to open a brand
    new chat, point it at this repo, and have it pick up mid-stride.
 
+### 2a. How to communicate with the owner
+
+Use direct, plain language. The owner wants useful answers, not an AI-style
+performance.
+
+1. **Answer first.** State the result, decision, or limitation in the first
+   sentence. Do not open with praise, agreement, a recap, or filler.
+2. **Use only the detail needed to make the answer understandable.** Explain a
+   technical term when it matters, then use ordinary words. Do not restate the
+   whole request or narrate routine work.
+3. **Use factual status labels.** Separate `Done`, `Tested`, `Not tested`,
+   `Blocked`, and `Need from you` when they apply. Do not imply that a build
+   check proves a real-world result.
+4. **Do not manufacture certainty or enthusiasm.** Avoid phrases such as
+   "exactly", "great progress", "this is the missing piece", "rest assured",
+   or promises that have not been verified. State what the evidence supports.
+5. **Keep formatting functional.** Use short headings and bullets only when
+   they make instructions or status easier to scan. Do not add a conclusion,
+   motivational close, repeated summary, or generic offer of more help.
+6. **Give the next action only when the owner needs to take one.** Say what to
+   do, why, and what result to report. Otherwise stop after the useful answer.
+7. **Match the owner's level without talking down.** Explain enough context to
+   support a decision, but do not hide the answer behind jargon or a long
+   tutorial.
+
 ## 3. Repo map
 
 ```

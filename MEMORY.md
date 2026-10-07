@@ -429,6 +429,14 @@ or a printer.
 
 ## Session log
 
+### 2026-10-07 — Direct communication rule
+
+The owner asked for answers without AI-style filler. `AGENTS.md` §2a now
+requires a direct answer first, only necessary explanation, explicit status
+labels where useful, no manufactured certainty or enthusiasm, and no generic
+closing. Apply this to every owner-facing response unless the owner asks for
+more detail.
+
 ### 2026-10-02 — Updater 2.1.0: only one .bat left in the repository
 
 The owner, viewing the branch: *"All three iterations of the updater are
