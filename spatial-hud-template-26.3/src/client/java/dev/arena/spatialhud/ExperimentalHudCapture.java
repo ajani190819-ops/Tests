@@ -46,8 +46,10 @@ import java.util.OptionalDouble;
  */
 public final class ExperimentalHudCapture {
 	private static final String TARGET_NAME = "Spatial HUD experimental bottom-strip capture";
-	private static final int MESH_COLUMNS = 12;
-	private static final int MESH_ROWS = 8;
+	// Dense enough that curvature and per-icon projective deformation do not
+	// reveal the old root-by-root affine seams.
+	private static final int MESH_COLUMNS = 24;
+	private static final int MESH_ROWS = 12;
 	private static final RenderPipeline WARP_PIPELINE = RenderPipelines.GUI_TEXTURED;
 	private static final StagedVertexBuffer WARP_BUFFER = new StagedVertexBuffer(
 			() -> "Spatial HUD experimental warp mesh", RenderType.SMALL_BUFFER_SIZE);
@@ -118,6 +120,31 @@ public final class ExperimentalHudCapture {
 			return true;
 		} catch (Throwable t) {
 			fallback(t, "extracting a selected bottom-HUD root");
+			return false;
+		}
+	}
+
+	/**
+	 * Draw the backing into the same isolated source texture as the vanilla
+	 * roots. The backing and each finished icon therefore share every vertex of
+	 * one projective mesh rather than merely looking approximately aligned.
+	 */
+	static boolean captureBacking(SpatialHudConfig cfg) {
+		if (!isFrameActive() || !cfg.showPanel) {
+			return false;
+		}
+		try {
+			VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
+			int left = (int) Math.floor(plane.sourceLeft() - 6.0f);
+			int right = (int) Math.ceil(plane.sourceRight() + 6.0f);
+			int top = (int) Math.floor(plane.sourceTop() - 4.0f);
+			int bottom = (int) Math.ceil(plane.sourceBottom() + 4.0f);
+			capturedGraphics.fill(left, top, right, bottom, 0x80101018);
+			capturedGraphics.fill(left, top, right, top + 4, 0x5038384A);
+			frameHasContent = true;
+			return true;
+		} catch (Throwable t) {
+			fallback(t, "adding the selected bottom-HUD backing to the capture");
 			return false;
 		}
 	}
@@ -236,121 +263,35 @@ public final class ExperimentalHudCapture {
 		}
 	}
 
+	/**
+	 * Every cell uses the one {@link VirtualHudPlane} projection. This is the
+	 * critical distinction from the former root-scale approximation: UVs stay
+	 * tied to finished capture pixels while vertex depth changes across the
+	 * entire strip, so a single heart or hotbar slot itself becomes trapezoidal.
+	 */
 	private static void addWarpMesh(VertexConsumer vertices, SpatialHudConfig cfg) {
-		// This source area tightly covers the selected vanilla roots: held-name
-		// tooltip at the far edge through the hotbar at the near edge. The
-		// texture target itself is window-sized only to retain the game's native
-		// GUI scaling and avoid an unsafe global Window/GUI-scale redirect.
-		float sourceCenterX = guiWidth * 0.5f;
-		float sourceCenterY = guiHeight - 33.0f;
-		float sourceLeft = sourceCenterX - 112.0f;
-		float sourceRight = sourceCenterX + 112.0f;
-		float sourceTop = Math.max(0.0f, guiHeight - 128.0f);
-		float sourceBottom = guiHeight + 4.0f;
-
+		VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
 		for (int row = 0; row < MESH_ROWS; row++) {
 			float v0 = row / (float) MESH_ROWS;
 			float v1 = (row + 1) / (float) MESH_ROWS;
 			for (int column = 0; column < MESH_COLUMNS; column++) {
 				float u0 = column / (float) MESH_COLUMNS;
 				float u1 = (column + 1) / (float) MESH_COLUMNS;
-				addWarpVertex(vertices, cfg, sourceCenterX, sourceCenterY, sourceLeft, sourceRight, sourceTop, sourceBottom, u0, v0);
-				addWarpVertex(vertices, cfg, sourceCenterX, sourceCenterY, sourceLeft, sourceRight, sourceTop, sourceBottom, u1, v0);
-				addWarpVertex(vertices, cfg, sourceCenterX, sourceCenterY, sourceLeft, sourceRight, sourceTop, sourceBottom, u1, v1);
-				addWarpVertex(vertices, cfg, sourceCenterX, sourceCenterY, sourceLeft, sourceRight, sourceTop, sourceBottom, u0, v1);
+				addWarpVertex(vertices, plane, u0, v0);
+				addWarpVertex(vertices, plane, u1, v0);
+				addWarpVertex(vertices, plane, u1, v1);
+				addWarpVertex(vertices, plane, u0, v1);
 			}
 		}
 	}
 
-	private static void addWarpVertex(
-			VertexConsumer vertices,
-			SpatialHudConfig cfg,
-			float sourceCenterX,
-			float sourceCenterY,
-			float sourceLeft,
-			float sourceRight,
-			float sourceTop,
-			float sourceBottom,
-			float u,
-			float v) {
-		float sx = lerp(sourceLeft, sourceRight, u);
-		float sy = lerp(sourceTop, sourceBottom, v);
-		float[] destination = transformPoint(cfg, sourceCenterX, sourceCenterY, sx, sy, u, v);
-
-		// The target is native-window sized while the GuiRenderer retains native
-		// GUI scale. GUI-space source coordinates therefore normalize against
-		// the logical GUI bounds for correct texels at every UI scale.
-		float textureU = sx / guiWidth;
-		float textureV = sy / guiHeight;
-		vertices.addVertex(IDENTITY, destination[0], destination[1], 0.0f)
-				.setUv(textureU, textureV)
+	private static void addWarpVertex(VertexConsumer vertices, VirtualHudPlane plane, float u, float v) {
+		float sourceX = lerp(plane.sourceLeft(), plane.sourceRight(), u);
+		float sourceY = lerp(plane.sourceTop(), plane.sourceBottom(), v);
+		VirtualHudPlane.Point destination = plane.project(sourceX, sourceY);
+		vertices.addVertex(IDENTITY, destination.x(), destination.y(), 0.0f)
+				.setUv(plane.textureU(sourceX), plane.textureV(sourceY))
 				.setColor(255, 255, 255, 255);
-	}
-
-	/** The projective plane equation used by every mesh vertex. */
-	private static float[] transformPoint(
-			SpatialHudConfig cfg, float sourceCenterX, float sourceCenterY, float sx, float sy, float u, float v) {
-		Minecraft mc = Minecraft.getInstance();
-		double fov = clamp(mc.options.fov().get(), 30.0, 150.0);
-		double focal = (guiHeight * 0.5) / Math.tan(Math.toRadians(fov) * 0.5);
-		double distance = Math.max(0.10, cfg.distance);
-		double width = Math.max(0.10, cfg.planeWidth);
-		double fovCompensation = 1.0;
-		if (cfg.autoScaleByFov) {
-			double baseline = clamp(cfg.fovBaseline, 30.0, 110.0);
-			fovCompensation = Math.pow(fov / baseline, 1.2);
-		}
-		float scale = clamp((float) ((width * focal / distance) / 182.0 * fovCompensation), 0.15f, 4.0f);
-
-		float revealY = guiHeight * 0.5f + (float) (cfg.height * focal / distance);
-		float targetY = revealY;
-		if (cfg.revealWhenLookingDown) {
-			float start = clamp(cfg.revealStartPitch, 0.0f, 89.0f);
-			float full = Math.max(start + 1.0f, clamp(cfg.revealFullPitch, 1.0f, 90.0f));
-			float reveal = smoothstep(start, full, SpatialHud.pitch);
-			targetY = lerp(guiHeight + Math.max(20, cfg.hiddenBelowScreenPixels), revealY, reveal);
-		}
-
-		float tilt = SpatialHudElement.planeTiltAmount(cfg);
-		float vertical = cfg.lookDownPlaneTilt
-				? lerp(clamp(cfg.planeHorizonHeightPercent / 100.0f, 0.05f, 1.0f), 1.0f, tilt)
-				: 1.0f;
-		float farWidth = cfg.lookDownPlaneTilt
-				? lerp(clamp(cfg.planeHorizonFarEdgeWidthPercent / 100.0f, 0.20f, 1.0f), 1.0f, tilt)
-				: 1.0f;
-
-		float strength = clamp((float) cfg.sway, 0.0f, 2.0f);
-		float yawError = SpatialHud.wrapDegrees(SpatialHud.yaw - SpatialHud.smoothYaw);
-		float pitchError = SpatialHud.pitch - SpatialHud.smoothPitch;
-		float swayX = clamp((float) (-Math.toRadians(yawError) * focal * 0.30 * strength), -60.0f, 60.0f);
-		float swayY = clamp((float) (Math.toRadians(pitchError) * focal * 0.30 * strength), -60.0f, 60.0f);
-		float rotation = cfg.rotateWithSway ? clamp(yawError * 0.20f * strength, -5.0f, 5.0f) : 0.0f;
-
-		// Top = far side. Interpolating reciprocal depth is the projective
-		// perspective law, rather than simply scaling every HUD root as in the
-		// released performance path. The mesh carries that non-affine mapping
-		// into each finished icon, bar, glyph, and tooltip pixel.
-		float depth = lerp(farWidth, 1.0f, v);
-		float localX = (sx - sourceCenterX) * scale * depth;
-		float localY = (sy - sourceCenterY) * scale * vertical;
-
-		// Optional, explicitly experimental screen-space cylinder bow. Zero is
-		// the default; it is intentionally never implied by safe mode.
-		if (cfg.experimentalCaptureCurvaturePercent > 0) {
-			float normalizedX = u * 2.0f - 1.0f;
-			float curve = cfg.experimentalCaptureCurvaturePercent / 100.0f;
-			localY -= normalizedX * normalizedX * curve * 24.0f * scale * depth;
-		}
-
-		if (rotation != 0.0f) {
-			float radians = (float) Math.toRadians(rotation);
-			float cos = (float) Math.cos(radians);
-			float sin = (float) Math.sin(radians);
-			float rx = localX * cos - localY * sin;
-			localY = localX * sin + localY * cos;
-			localX = rx;
-		}
-		return new float[] {sourceCenterX + swayX + localX, targetY + swayY + localY};
 	}
 
 	private static void drawToMainTarget(StagedVertexBuffer.ExecuteInfo info, GpuTextureView texture) {
@@ -395,21 +336,8 @@ public final class ExperimentalHudCapture {
 		SpatialHud.LOGGER.error("Spatial HUD experimental capture failed while {}; switched to the safe affine renderer for this session.", stage, error);
 	}
 
-	private static float smoothstep(float edge0, float edge1, float value) {
-		float t = clamp((value - edge0) / (edge1 - edge0), 0.0f, 1.0f);
-		return t * t * (3.0f - 2.0f * t);
-	}
-
 	private static float lerp(float from, float to, float amount) {
 		return from + (to - from) * amount;
-	}
-
-	private static float clamp(float value, float min, float max) {
-		return value < min ? min : (value > max ? max : value);
-	}
-
-	private static double clamp(double value, double min, double max) {
-		return value < min ? min : (value > max ? max : value);
 	}
 
 	@FunctionalInterface

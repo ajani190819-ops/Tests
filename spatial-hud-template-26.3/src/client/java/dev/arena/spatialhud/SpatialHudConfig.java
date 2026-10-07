@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 8 after checking the values.
+	// registerAndLoad writes it as 9 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
@@ -54,73 +54,79 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public double planeWidth = 1.45;
 
-	@ConfigEntry.Category("placement")
-	@ConfigEntry.Gui.Tooltip
+	/**
+	 * Legacy fields remain in old JSON files but are no longer exposed. The
+	 * virtual plane is always present now; migration translates placement into
+	 * the explicit X/Y/Z controls below instead of keeping a look-down reveal.
+	 */
+	@ConfigEntry.Gui.Excluded
 	public double height = 0.85;
 
-	// Look-down reveal keeps the HUD out of the way until it is intentionally needed.
-	@ConfigEntry.Category("lookDownReveal")
-	@ConfigEntry.Gui.Tooltip
-	public boolean revealWhenLookingDown = true;
+	@ConfigEntry.Gui.Excluded
+	public boolean revealWhenLookingDown = false;
 
-	@ConfigEntry.Category("lookDownReveal")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 89)
+	@ConfigEntry.Gui.Excluded
 	public int revealStartPitch = 18;
 
-	@ConfigEntry.Category("lookDownReveal")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 1, max = 90)
+	@ConfigEntry.Gui.Excluded
 	public int revealFullPitch = 48;
 
-	@ConfigEntry.Category("lookDownReveal")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 240)
+	@ConfigEntry.Gui.Excluded
 	public int hiddenBelowScreenPixels = 105;
 
-	/**
-	 * A safe 2.5D floor-plane illusion. The HUD API only exposes a 2D GUI pose,
-	 * so this deliberately uses vertical foreshortening instead of a world/UI
-	 * capture renderer. At the horizon the panel is thin; it fills out as the
-	 * player looks toward its configured face-on pitch.
-	 */
-	@ConfigEntry.Category("planeTilt")
+	/** Virtual camera-relative placement: +X right, +Y up, +Z away. */
+	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
-	public boolean lookDownPlaneTilt = true;
+	public double virtualOffsetX = 0.0;
 
-	@ConfigEntry.Category("planeTilt")
+	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 20, max = 89)
+	public double virtualOffsetY = -0.42;
+
+	@ConfigEntry.Category("virtualPlane")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = -80, max = 80)
+	public int virtualPitch = 48;
+
+	@ConfigEntry.Category("virtualPlane")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = -80, max = 80)
+	public int virtualYaw = 0;
+
+	@ConfigEntry.Category("virtualPlane")
+	@ConfigEntry.Gui.Tooltip
+	public VirtualAnchorMode virtualAnchorMode = VirtualAnchorMode.VIEW_LOCKED;
+
+	@ConfigEntry.Category("virtualPlane")
+	@ConfigEntry.Gui.Tooltip
+	public double virtualWorldParallaxStrength = 0.35;
+
+	public enum VirtualAnchorMode {
+		VIEW_LOCKED,
+		WORLD_LIKE
+	}
+
+	/**
+	 * Legacy affine-plane fields kept only to read existing JSON files. The
+	 * virtual plane and captured mesh supersede them; hiding them prevents two
+	 * competing placement models in Mod Menu.
+	 */
+	@ConfigEntry.Gui.Excluded
+	public boolean lookDownPlaneTilt = false;
+
+	@ConfigEntry.Gui.Excluded
 	public int planeFaceOnPitch = 72;
 
-	@ConfigEntry.Category("planeTilt")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 5, max = 100)
+	@ConfigEntry.Gui.Excluded
 	public int planeHorizonHeightPercent = 18;
 
-	/**
-	 * A true projective warp needs a captured texture or a world renderer, both
-	 * of which are deliberately outside this compatibility-first build. The
-	 * backing plate can still taper safely with ordinary HUD rectangles, giving
-	 * the panel a clear near/far edge without touching vanilla icon geometry.
-	 */
-	@ConfigEntry.Category("planeTilt")
-	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.Gui.Excluded
 	public boolean taperBackingPlate = true;
 
-	@ConfigEntry.Category("planeTilt")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 20, max = 100)
+	@ConfigEntry.Gui.Excluded
 	public int planeHorizonFarEdgeWidthPercent = 42;
 
-	/**
-	 * Applies the same near/far perspective ratio to each vanilla bottom-strip
-	 * root. This is the closest safe approximation to icon warping available
-	 * through Fabric's public affine HUD pose: individual roots stretch with
-	 * their depth, but no framebuffer capture or global GUI hook is needed.
-	 */
-	@ConfigEntry.Category("planeTilt")
-	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.Gui.Excluded
 	public boolean projectiveIconScaling = true;
 
 	/**
@@ -154,11 +160,10 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean rotateWithSway = true;
 
 	/**
-	 * AppleSkin and Detail Armor Bar Reconstructed inject decoration into the
-	 * vanilla status-bar methods rather than registering standalone HUD elements.
-	 * Leave those decorated roots in their native layout while revealed so the
-	 * whole group stays visible and aligned. The roots are still omitted until
-	 * the look-down reveal begins.
+	 * Safe affine fallback only: AppleSkin and Detail Armor Bar Reconstructed
+	 * inject decoration into vanilla status-bar methods. Keep those complete
+	 * roots native there to avoid detached companion pixels. Experimental
+	 * capture deliberately takes the complete injected group instead.
 	 */
 	@ConfigEntry.Category("compatibility")
 	@ConfigEntry.Gui.Tooltip
@@ -210,7 +215,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Adds safe reveal, tilt, and companion-layout defaults to older config files. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 8) {
+		if (cfg.configVersion >= 9) {
 			return;
 		}
 
@@ -258,7 +263,20 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.experimentalCaptureCurvaturePercent = 0;
 		}
 
-		cfg.configVersion = 8;
+		if (cfg.configVersion < 9) {
+			// v1.1 retires the look-down-only presentation in favour of an
+			// always-visible virtual plane. Preserve a player's old vertical
+			// placement in the new +Y-up coordinate system as closely as possible.
+			cfg.revealWhenLookingDown = false;
+			cfg.virtualOffsetX = 0.0;
+			cfg.virtualOffsetY = -Math.max(0.05, Math.min(2.0, cfg.height * 0.5));
+			cfg.virtualPitch = 48;
+			cfg.virtualYaw = 0;
+			cfg.virtualAnchorMode = VirtualAnchorMode.VIEW_LOCKED;
+			cfg.virtualWorldParallaxStrength = 0.35;
+		}
+
+		cfg.configVersion = 9;
 		save();
 	}
 

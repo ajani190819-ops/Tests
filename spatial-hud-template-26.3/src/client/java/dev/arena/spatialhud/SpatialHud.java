@@ -176,11 +176,11 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/**
-	 * The compatibility roots are not spatially scaled. To retain the ordinary
-	 * look-down behavior, do not extract them at all until the reveal begins.
+	 * The virtual-plane refactor is always visible. This method remains only so
+	 * a pre-v1.1 JSON field cannot reintroduce a hidden companion status group.
 	 */
 	static boolean isStatusLayoutRevealed(SpatialHudConfig cfg) {
-		return !cfg.revealWhenLookingDown || pitch >= Math.max(0, cfg.revealStartPitch);
+		return true;
 	}
 
 	/**
