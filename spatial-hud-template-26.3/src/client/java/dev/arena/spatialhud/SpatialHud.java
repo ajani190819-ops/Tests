@@ -29,7 +29,6 @@ import java.util.List;
 public class SpatialHud implements ClientModInitializer {
 	public static final Logger LOGGER = LoggerFactory.getLogger("spatialhud");
 
-	private static KeyMapping toggleKey;
 	private static KeyMapping openConfigKey;
 	private static boolean enabled;
 
@@ -42,7 +41,7 @@ public class SpatialHud implements ClientModInitializer {
 	// Render-frame sway state. The panel updates it once before the strip is
 	// extracted, so every wrapped vanilla element has precisely the same pose.
 	static float smoothYaw, smoothPitch;
-	static float yaw, pitch;
+	static float yaw, pitch, bodyYaw;
 	private static boolean snapped;
 	private static long lastSwayNanos;
 
@@ -74,19 +73,13 @@ public class SpatialHud implements ClientModInitializer {
 			LOGGER.info("Spatial HUD compatibility layout enabled for {}; affected status bars remain in their native layout while revealed.", companions);
 		}
 
-		toggleKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-				"key.spatialhud.toggle",
-				InputConstants.Type.KEYBOARD,
-				SDLScancode.SDL_SCANCODE_H,
-				KeyMapping.Category.MISC));
-
-		// Just like Spatial GUI, this is unbound by default to avoid claiming a
-		// key in a large modpack. It can be assigned under Controls, while the
-		// same screen is always available from Mod Menu.
+		// H is deliberately reserved for rapid HUD tuning. The HUD enable switch
+		// remains available in its configuration screen; this key only opens that
+		// screen and never changes render state by itself.
 		openConfigKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
 				"key.spatialhud.open_config",
-				InputConstants.UNKNOWN.getType(),
-				InputConstants.UNKNOWN.getValue(),
+				InputConstants.Type.KEYBOARD,
+				SDLScancode.SDL_SCANCODE_H,
 				KeyMapping.Category.MISC));
 
 		for (Identifier id : STRIP_ELEMENTS) {
@@ -101,15 +94,6 @@ public class SpatialHud implements ClientModInitializer {
 				new SpatialHudPanelElement());
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
-			while (toggleKey.consumeClick()) {
-				enabled = !enabled;
-				SpatialHudConfig.get().enabled = enabled;
-				SpatialHudConfig.save();
-				if (!enabled) {
-					resetSway();
-				}
-			}
-
 			while (openConfigKey.consumeClick()) {
 				client.setScreenAndShow(
 						me.shedaniel.autoconfig.AutoConfigClient
@@ -121,7 +105,7 @@ public class SpatialHud implements ClientModInitializer {
 			}
 		});
 
-		LOGGER.info("Spatial HUD initialized. Press H to toggle; configure it from Mod Menu or an assigned Controls key.");
+		LOGGER.info("Spatial HUD initialized. Press H to open settings; use Mod Menu as an alternative.");
 	}
 
 	public static boolean isEnabled() {
@@ -197,6 +181,7 @@ public class SpatialHud implements ClientModInitializer {
 
 		yaw = mc.player.getYRot();
 		pitch = mc.player.getXRot();
+		bodyYaw = mc.player.yBodyRot;
 		long now = System.nanoTime();
 		if (!snapped || lastSwayNanos == 0L) {
 			smoothYaw = yaw;

@@ -16,6 +16,9 @@
 ## Rendering design
 
 - `VirtualHudPlane.java` is the shared physical-plane projection model.
+  The current pending revision makes its default pose player-body-local:
+  waist-height, in front of the player, following body yaw but not camera
+  pitch.
 - `ExperimentalHudCapture.java` captures only the selected lower HUD into a
   private target and renders it through a tessellated mesh.
 - `SpatialHudGameRendererMixin.java` composites the mesh after the normal
@@ -35,9 +38,11 @@ A head-on plane projects as a rectangle. When viewed at a grazing angle, its
 far edge must project narrower than its near edge. This is projective geometry,
 not independent affine scaling of icon groups.
 
-With `virtualTiltWithLook` enabled, view pitch changes the plane's effective
-pitch continuously. `virtualFaceOnLookDownPitch` selects the downward view
-angle at which the plane becomes face-on. `virtualPitch` is a manual offset.
+The accepted model is a fixed player-body-local plane. At the configurable
+`virtualFaceOnLookDownPitch` (default 30°), it is face-on. Looking higher makes
+the top/far edge narrower; looking lower changes perspective in the opposite
+direction. `virtualPitch` is a fixed manual offset. Do not reintroduce
+look-pitch-driven plane rotation for the `PLAYER_BODY` anchor.
 
 ## Compatibility and fallback
 

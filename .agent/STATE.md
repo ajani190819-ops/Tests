@@ -14,15 +14,17 @@
   pixels must deform together.
 - The experimental captured-mesh mode is opt-in and remains off by default.
   The safe mode is affine only and cannot provide pixel-level deformation.
-- Latest code changes:
+- Latest built code changes:
   - `1a89847`: composites the private capture after Minecraft's normal GUI
     pass, addressing output being overwritten or rendered with an unstable
     GUI state.
-  - `931b6de`: changes the virtual plane continuously with view pitch. At a
-    grazing angle, the far edge narrows; at the configured face-on angle, the
-    mesh is rectangular.
-- CI builds passed for both commits. No real F5W result has yet confirmed the
-  latest look-driven deformation.
+  - `931b6de`: added a first look-pitch deformation attempt.
+- Pending build: replace that camera-relative attempt with a fixed,
+  player-body hologram pose. Default face-on angle is 30° below the horizon;
+  the plane follows player position/body yaw but not camera pitch. H opens
+  settings instead of toggling the HUD.
+- CI builds passed for the earlier commits. No real F5W result has yet
+  confirmed the player-body implementation.
 
 ### Direct Modrinth updater
 
@@ -40,21 +42,23 @@
   real test result.
 - AppleSkin and Detail Armor Bar Reconstructed pixels belong in the same
   selected capture when their vanilla status root is captured.
-- User wants physical perspective: head-on is rectangular; a grazing view is
-  a trapezoid with the far edge horizontally narrower.
+- User wants a player-body hologram at waist height, not a pitch-animated
+  screen card. At 30° down it is rectangular; looking higher makes the far
+  top edge horizontally narrower into a trapezoid.
 - Keep all work on `arena/c83497e6-tests`; commit and push each completed
   change.
 
 ## Next action
 
-1. Install the latest rolling Spatial HUD JAR in F5W.
-2. Enable the experimental captured-texture mode and leave look-driven tilt
-   enabled.
-3. Test a head-on view and a grazing/upward relative view.
-4. Record whether the whole capture changes from a rectangle to a trapezoid,
-   whether the far edge narrows, and whether flicker returns.
-5. If it still renders as a rectangle or flickers, inspect the render pass
-   rather than making the safe mode the default.
+1. Install the next rolling Spatial HUD JAR in F5W.
+2. Press H and confirm it opens settings without toggling the HUD.
+3. Enable the experimental captured-texture mode and select `Player Body
+   (Hologram)`.
+4. Test the 30° face-on view and a higher/grazing view. Record whether the
+   whole capture changes from a rectangle to a trapezoid with a narrow far top
+   edge.
+5. Record whether the hotbar disappears while the backing remains. If it does,
+   inspect capture content and mesh clipping before changing the safe mode.
 
 ## Evidence
 

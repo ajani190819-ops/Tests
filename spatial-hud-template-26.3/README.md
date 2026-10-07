@@ -3,7 +3,7 @@
 **Spatial GUI-inspired HUD behavior without touching the rest of the GUI.**
 Spatial HUD controls only the vanilla bottom strip: hotbar, hearts, hunger,
 armor, air, XP, mount bars, and held-item name. It is client-side only;
-servers do not need it. Press **H** to toggle it.
+servers do not need it. Press **H** to open its settings.
 
 GitHub Actions builds every change and replaces the jar at this fixed link:
 
@@ -65,31 +65,37 @@ the computer's permanent policy. The old
 [`Get-Latest-SpatialHUD.bat`](Get-Latest-SpatialHUD.bat) remains available when
 you specifically want a Downloads copy instead of a direct Modrinth install.
 
-## v1.1 — virtual-plane renderer refactor
+## v1.3 — player-body hologram pose
 
-Spatial HUD now treats the bottom strip as a configurable virtual plane rather
-than a look-down-only panel. The old reveal settings remain only for old JSON
-compatibility and are no longer shown in Mod Menu.
+Spatial HUD now treats the bottom strip as a configurable plane at a real
+player-relative location rather than a look-down-only or camera-space panel.
+The old reveal settings remain only for old JSON compatibility and are no
+longer shown in Mod Menu.
 
 ### Virtual placement
 
-The **Virtual HUD Plane** category provides a camera-relative, block-like pose:
+The default **Player Body (Hologram)** anchor places the plane 1.25 blocks in
+front of the player and about waist height below eye level. It follows player
+position and body yaw, but it does not follow look pitch. Looking down reveals
+the plane naturally; it is not moved into view by a screen-space animation.
 
-- **X:** horizontal offset, positive right
-- **Y:** vertical offset, positive up
-- **Z:** the existing Panel Distance control, positive away from the viewer
-- **pitch offset and yaw:** orientation of the simulated plane
-- **Tilt Plane While Looking Down:** physical floor-plane response—edge-on at
-  the horizon, becoming increasingly face-on as the player looks down
-- **Face-On Look-Down Pitch:** choose how quickly that turn happens
+The **Virtual HUD Plane** category provides these controls:
+
+- **X:** player-relative horizontal offset, positive right
+- **Y:** player-relative vertical offset from eye height, positive up
+- **Z:** player-forward distance in blocks
+- **Face-On Look-Down Pitch:** the view angle at which the fixed plane is a
+  rectangle; the default is 30° below the horizon
+- **pitch offset and yaw:** additional fixed orientation tuning
 - **scale:** the existing Panel Width control
-- **anchor:** choose steady **View Locked** or stronger simulated
-  **World Like** head-motion parallax
+- **anchor:** `Player Body (Hologram)` is the default. `View Locked` and
+  `World Like` retain the earlier camera-space behavior for compatibility.
 
-This gives the same controls a real 3D plane would expose without moving the
-whole GUI into the world renderer. The panel is visible at its configured pose;
-it is not hidden until looking down, but its geometry now changes continuously
-with the look direction.
+When the camera looks higher than the configured face-on angle, the plane's
+upper/far edge recedes and becomes horizontally narrower. The captured mesh
+therefore becomes a real trapezoid. Looking lower changes the perspective in
+the opposite direction. This is the same physical plane for the backing and
+all captured HUD pixels.
 
 ### Captured projective mesh — disabled by default
 
@@ -159,9 +165,9 @@ let a companion mod own a part if two mods draw it twice.
 
 ## Configuration
 
-Open **Mod Menu → Spatial HUD → Configure**. The underlying configuration file
-is `config/spatialhud.json`. An unbound **Open Spatial HUD Config** entry is
-also available under Minecraft Controls if you want to assign a key.
+Open **Mod Menu → Spatial HUD → Configure** or press **H**. The underlying
+configuration file is `config/spatialhud.json`. The **Open Spatial HUD
+Settings** entry also appears under Minecraft Controls, where you can rebind it.
 
 ## Requirements
 

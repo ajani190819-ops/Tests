@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 10 after checking the values.
+	// registerAndLoad writes it as 11 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
@@ -45,10 +45,11 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public boolean onlyDuringGameplay = true;
 
-	// Placement — expressed in blocks to mirror Spatial GUI's first-person controls.
+	// Player-relative placement in block units. The default is in front of the
+	// player at waist height rather than fixed in screen/camera space.
 	@ConfigEntry.Category("placement")
 	@ConfigEntry.Gui.Tooltip
-	public double distance = 1.75;
+	public double distance = 1.25;
 
 	@ConfigEntry.Category("placement")
 	@ConfigEntry.Gui.Tooltip
@@ -74,33 +75,32 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Excluded
 	public int hiddenBelowScreenPixels = 105;
 
-	/** Virtual camera-relative placement: +X right, +Y up, +Z away. */
+	/** Player-local placement: +X right, +Y up, and +Z forward. */
 	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
 	public double virtualOffsetX = 0.0;
 
 	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
-	public double virtualOffsetY = -0.42;
+	public double virtualOffsetY = -0.72;
 
-	/**
-	 * Manual pitch offset for the virtual plane. With look-driven tilt enabled,
-	 * zero means a physical floor-plane response: edge-on at the horizon and
-	 * increasingly face-on while the player looks down.
-	 */
+	/** Extra plane tilt relative to the configured face-on view angle. */
 	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = -80, max = 80)
+	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
 	public int virtualPitch = 0;
 
-	@ConfigEntry.Category("virtualPlane")
-	@ConfigEntry.Gui.Tooltip
-	public boolean virtualTiltWithLook = true;
+	/**
+	 * Retained only so v1.2 config files still load. Player-body anchoring uses
+	 * a fixed physical plane; view pitch changes the camera's angle to it.
+	 */
+	@ConfigEntry.Gui.Excluded
+	public boolean virtualTiltWithLook = false;
 
 	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 20, max = 89)
-	public int virtualFaceOnLookDownPitch = 60;
+	@ConfigEntry.BoundedDiscrete(min = 5, max = 80)
+	public int virtualFaceOnLookDownPitch = 30;
 
 	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
@@ -109,13 +109,14 @@ public final class SpatialHudConfig implements ConfigData {
 
 	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
-	public VirtualAnchorMode virtualAnchorMode = VirtualAnchorMode.VIEW_LOCKED;
+	public VirtualAnchorMode virtualAnchorMode = VirtualAnchorMode.PLAYER_BODY;
 
 	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
 	public double virtualWorldParallaxStrength = 0.35;
 
 	public enum VirtualAnchorMode {
+		PLAYER_BODY,
 		VIEW_LOCKED,
 		WORLD_LIKE
 	}
@@ -229,7 +230,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Adds safe reveal, tilt, and companion-layout defaults to older config files. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 10) {
+		if (cfg.configVersion >= 11) {
 			return;
 		}
 
@@ -292,15 +293,32 @@ public final class SpatialHudConfig implements ConfigData {
 
 		if (cfg.configVersion < 10) {
 			// The first virtual-plane release used a static pitch, which made the
-			// mesh look like a moved 2D card. v1.2 restores the physical floor
-			// cue: at the horizon it is edge-on, then it progressively faces the
-			// player as they look down. Keep a manual offset for deliberate tuning.
+			// mesh look like a moved 2D card. This is superseded by the player-body
+			// model below, but keep the fields valid while migrating older JSON.
 			cfg.virtualPitch = 0;
-			cfg.virtualTiltWithLook = true;
-			cfg.virtualFaceOnLookDownPitch = 60;
+			cfg.virtualTiltWithLook = false;
+			cfg.virtualFaceOnLookDownPitch = 30;
 		}
 
-		cfg.configVersion = 10;
+		if (cfg.configVersion < 11) {
+			// v1.3 gives the hologram a real player-local pose. Preserve a player's
+			// deliberate X/Y/Z tuning where possible, but move untouched v1.2
+			// defaults to a practical waist-height location in front of the body.
+			boolean priorDefaults = Math.abs(cfg.distance - 1.75) < 0.02
+					&& Math.abs(cfg.virtualOffsetX) < 0.02
+					&& Math.abs(cfg.virtualOffsetY + 0.42) < 0.02;
+			if (priorDefaults) {
+				cfg.distance = 1.25;
+				cfg.virtualOffsetX = 0.0;
+				cfg.virtualOffsetY = -0.72;
+			}
+			cfg.virtualPitch = 0;
+			cfg.virtualTiltWithLook = false;
+			cfg.virtualFaceOnLookDownPitch = 30;
+			cfg.virtualAnchorMode = VirtualAnchorMode.PLAYER_BODY;
+		}
+
+		cfg.configVersion = 11;
 		save();
 	}
 

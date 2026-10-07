@@ -3,14 +3,14 @@ package dev.arena.spatialhud;
 import net.minecraft.client.Minecraft;
 
 /**
- * One camera-relative virtual plane shared by the backing and the captured HUD
+ * One player-local virtual plane shared by the backing and captured HUD
  * texture. The mesh renderer consumes the full projective mapping; the public
  * HUD API can consume its centre tangent as a deliberately safe affine fallback.
  *
- * <p>Coordinates are expressed in familiar Spatial-GUI-style blocks: positive
- * X is right, positive Y is up, and positive Z is farther from the viewer.
- * The source rectangle is the intentionally small bottom-HUD envelope rather
- * than the complete GUI texture, so no unrelated overlay can enter the mesh.</p>
+ * <p>The default pose is a hologram in front of the player's body near waist
+ * height. It follows the body position and yaw, but not the camera pitch. The
+ * view therefore changes the camera's angle to a fixed plane instead of merely
+ * animating a screen-space card.</p>
  */
 final class VirtualHudPlane {
 	static final float SOURCE_HALF_WIDTH = 112.0f;
@@ -90,8 +90,8 @@ final class VirtualHudPlane {
 	/**
 	 * Project one source pixel through the same physical plane used by every
 	 * captured texture vertex. Because depth is evaluated per vertex, a finished
-	 * heart, slot icon, or glyph really becomes a trapezoid/curved shape rather
-	 * than merely moving as an affine HUD root.
+	 * heart, slot icon, or glyph really becomes a trapezoid rather than merely
+	 * moving as an affine HUD root.
 	 */
 	Point project(float sourceX, float sourceY) {
 		float u = (sourceX - sourceLeft) / sourceWidth;
@@ -104,23 +104,62 @@ final class VirtualHudPlane {
 		float localY = (0.5f - v) * planeHeight;
 		float localZ = curvedDepth(u, planeWidth);
 
+		if (cfg.virtualAnchorMode == SpatialHudConfig.VirtualAnchorMode.PLAYER_BODY) {
+			return projectPlayerBody(localX, localY, localZ);
+		}
+		return projectCameraRelative(localX, localY, localZ);
+	}
+
+	/**
+	 * Projects a plane whose centre and orientation are fixed in player-body
+	 * space. The camera yaw/pitch only changes the view of that plane. At the
+	 * configured face-on pitch the projected plane is rectangular; looking
+	 * higher makes the top/far edge recede and become horizontally narrower.
+	 */
+	private Point projectPlayerBody(float localX, float localY, float localZ) {
+		float planeYaw = (float) Math.toRadians(clamp(cfg.virtualYaw, -80, 80));
+		float yawX = localX * (float) Math.cos(planeYaw) + localZ * (float) Math.sin(planeYaw);
+		float yawZ = -localX * (float) Math.sin(planeYaw) + localZ * (float) Math.cos(planeYaw);
+
+		// This is a fixed orientation in player-body space, not a look-pitch
+		// animation. For example, a 30-degree face-on setting makes the plane
+		// rectangular when the camera looks 30 degrees below the horizon.
+		float planePitch = (float) Math.toRadians(clamp(
+				cfg.virtualFaceOnLookDownPitch + cfg.virtualPitch, -80, 80));
+		float bodyPlaneY = localY * (float) Math.cos(planePitch) - yawZ * (float) Math.sin(planePitch);
+		float bodyPlaneZ = localY * (float) Math.sin(planePitch) + yawZ * (float) Math.cos(planePitch);
+
+		float bodyX = (float) cfg.virtualOffsetX + yawX;
+		float bodyY = (float) cfg.virtualOffsetY + bodyPlaneY;
+		float bodyZ = (float) Math.max(0.10, cfg.distance) + bodyPlaneZ;
+
+		// Move the player-local position and orientation into current camera
+		// space. A head turn therefore looks around the body-anchored hologram;
+		// it does not drag the hologram with the view.
+		float yawDifference = (float) Math.toRadians(SpatialHud.wrapDegrees(SpatialHud.bodyYaw - SpatialHud.yaw));
+		float cameraX = bodyX * (float) Math.cos(yawDifference) + bodyZ * (float) Math.sin(yawDifference);
+		float cameraForward = -bodyX * (float) Math.sin(yawDifference) + bodyZ * (float) Math.cos(yawDifference);
+		float cameraPitch = (float) Math.toRadians(SpatialHud.pitch);
+		float cameraY = bodyY * (float) Math.cos(cameraPitch) + cameraForward * (float) Math.sin(cameraPitch);
+		float depth = -bodyY * (float) Math.sin(cameraPitch) + cameraForward * (float) Math.cos(cameraPitch);
+		return projectCameraSpace(cameraX, cameraY, depth);
+	}
+
+	/**
+	 * Compatibility implementation for the earlier camera-relative anchor
+	 * choices. PLAYER_BODY is the default and is the only mode that models a
+	 * stable hologram at a position in front of the player.
+	 */
+	private Point projectCameraRelative(float localX, float localY, float localZ) {
 		float yaw = (float) Math.toRadians(clamp(cfg.virtualYaw, -80, 80));
 		float effectivePitch = cfg.virtualPitch;
 		if (cfg.virtualTiltWithLook) {
-			float faceOnAt = clamp(cfg.virtualFaceOnLookDownPitch, 20, 89);
+			float faceOnAt = clamp(cfg.virtualFaceOnLookDownPitch, 5, 80);
 			float lookingDown = clamp(SpatialHud.pitch, 0.0f, faceOnAt);
-			// Relative to the camera, a horizontal plane is edge-on at the
-			// horizon and turns face-on as the view pitches downward. This is
-			// deliberately linear so the perspective starts changing immediately
-			// when the player begins looking down, rather than waiting through a
-			// smoothstep dead zone.
 			effectivePitch += 80.0f * (1.0f - lookingDown / faceOnAt);
 		}
 		float pitch = (float) Math.toRadians(clamp(effectivePitch, -80, 80));
 
-		// Rotate first about vertical (yaw), then horizontal (pitch). Positive
-		// pitch moves the far/top edge away, creating the expected floor-plane
-		// trapezoid without hand-authored far-edge scaling.
 		float yawX = localX * (float) Math.cos(yaw) + localZ * (float) Math.sin(yaw);
 		float yawZ = -localX * (float) Math.sin(yaw) + localZ * (float) Math.cos(yaw);
 		float planeY = localY * (float) Math.cos(pitch) - yawZ * (float) Math.sin(pitch);
@@ -135,14 +174,16 @@ final class VirtualHudPlane {
 			centreX -= (float) Math.toRadians(yawError) * Math.max(0.10, cfg.distance) * strength;
 			centreY += (float) Math.toRadians(pitchError) * Math.max(0.10, cfg.distance) * strength;
 		}
+		return projectCameraSpace(centreX + yawX, centreY + planeY,
+				(float) Math.max(0.10, cfg.distance) + planeZ);
+	}
 
-		float depth = (float) Math.max(0.10, cfg.distance) + planeZ;
-		// A plane edge may never travel behind the virtual camera. Clamping here
-		// is a deterministic safe fallback for an extreme config instead of a
-		// NaN that could poison a complete GUI frame.
+	private Point projectCameraSpace(float x, float y, float depth) {
+		// A vertex may never travel behind the virtual camera. This only protects
+		// extreme user values; ordinary player-body poses remain well in front.
 		depth = Math.max(0.08f, depth);
-		float screenX = guiWidth * 0.5f + focalLength * (centreX + yawX) / depth;
-		float screenY = guiHeight * 0.5f - focalLength * (centreY + planeY) / depth;
+		float screenX = guiWidth * 0.5f + focalLength * x / depth;
+		float screenY = guiHeight * 0.5f - focalLength * y / depth;
 		return new Point(screenX, screenY);
 	}
 
