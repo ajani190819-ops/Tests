@@ -31,6 +31,11 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Safety net: make sure the client source set sees our mod deps even if
+	// the split-source-set wiring differs between loom versions.
+	clientImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	clientImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 }
 
 processResources {
