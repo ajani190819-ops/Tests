@@ -1,4 +1,9 @@
-# Spatial HUD
+# Spatial HUD (v0.1 yarn-era draft — SUPERSEDED)
+
+> **The active build project is now `spatial-hud-template-26.3/` in this repo's
+> root** — migrated to Mojang mappings for MC 26.3 (Yarn is unsupported past
+> 1.21.10). This folder is kept as the original draft and does not build on
+> 26.x toolchains.
 
 **Spatial GUI, but for your HUD.** Renders the hotbar, hearts, hunger, armor,
 air, XP bar, mount bars and held-item name on a tilted 3D plane floating in

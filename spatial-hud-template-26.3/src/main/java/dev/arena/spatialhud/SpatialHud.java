@@ -1,42 +1,47 @@
 package dev.arena.spatialhud;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.text.Text;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Spatial HUD — mojmap edition.
+ * (MC 26.x is the Mojang-mappings era; all MC class names here are official
+ * Mojang names: Minecraft, KeyMapping, GuiGraphics, Gui, DeltaTracker, ...)
+ */
 public class SpatialHud implements ClientModInitializer {
 
     public static final String MOD_ID = "spatialhud";
     public static final Logger LOGGER = LoggerFactory.getLogger("SpatialHud");
 
-    private static KeyBinding toggleKey;
+    private static KeyMapping toggleKey;
 
     @Override
     public void onInitializeClient() {
         SpatialHudConfig.load();
 
-        toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        toggleKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
                 "key.spatialhud.toggle",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_H,
                 "category.spatialhud"
         ));
 
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (toggleKey.wasPressed()) {
+        ClientTickEvents.END_CLIENT_TICK.register(minecraft -> {
+            while (toggleKey.consumeClick()) {
                 SpatialHudConfig cfg = SpatialHudConfig.get();
                 cfg.enabled = !cfg.enabled;
                 SpatialHudConfig.save();
-                if (client.player != null) {
-                    client.player.sendMessage(
-                            Text.literal("Spatial HUD: " + (cfg.enabled ? "ON" : "OFF")), true);
+                if (minecraft.player != null) {
+                    minecraft.player.displayClientMessage(
+                            Component.literal("Spatial HUD: " + (cfg.enabled ? "ON" : "OFF")), true);
                 }
             }
         });
@@ -46,18 +51,17 @@ public class SpatialHud implements ClientModInitializer {
     }
 
     /**
-     * Decides whether the flat vanilla HUD bottom strip should be suppressed.
-     * We only steal the HUD while actually playing: not in menus, not with GUIs
-     * open (so the normal flat HUD shows behind inventories like vanilla),
+     * Whether the flat vanilla HUD bottom strip should be suppressed.
+     * Only while actually playing: not in menus, not with screens open,
      * not when the HUD is hidden with F1.
      */
     public static boolean shouldStealHud() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft minecraft = Minecraft.getInstance();
         SpatialHudConfig cfg = SpatialHudConfig.get();
         return cfg.enabled
-                && client.world != null
-                && client.player != null
-                && !client.options.hudHidden
-                && client.currentScreen == null;
+                && minecraft.level != null
+                && minecraft.player != null
+                && !minecraft.options.hideGui
+                && minecraft.screen == null;
     }
 }
