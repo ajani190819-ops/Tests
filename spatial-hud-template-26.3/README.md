@@ -74,10 +74,12 @@ longer shown in Mod Menu.
 
 ### Virtual placement
 
-The default **Player Body (Hologram)** anchor places the plane 1.25 blocks in
-front of the player and about waist height below eye level. It follows player
-position and body yaw, but it does not follow look pitch. Looking down reveals
-the plane naturally; it is not moved into view by a screen-space animation.
+The default **Camera Yaw (Hologram)** anchor places the plane 1.25 blocks in
+front of the player and about waist height below eye level. It follows camera
+yaw so it remains directly in front while looking left or right, but it does
+not follow look pitch. Its fixed orientation stays parallel to the horizon;
+looking down changes the viewing angle rather than moving the plane with a
+screen-space animation.
 
 The **Virtual HUD Plane** category provides these controls:
 
@@ -88,8 +90,8 @@ The **Virtual HUD Plane** category provides these controls:
   rectangle; the default is 30° below the horizon
 - **pitch offset and yaw:** additional fixed orientation tuning
 - **scale:** the existing Panel Width control
-- **anchor:** `Player Body (Hologram)` is the default. `View Locked` and
-  `World Like` retain the earlier camera-space behavior for compatibility.
+- **anchor:** `Camera Yaw (Hologram)` is the default. `Player Body`,
+  `View Locked`, and `World Like` retain earlier behavior for compatibility.
 
 When the camera looks higher than the configured face-on angle, the plane's
 upper/far edge recedes and becomes horizontally narrower. The captured mesh

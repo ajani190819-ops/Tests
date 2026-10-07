@@ -20,6 +20,8 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.StagedVertexBuffer;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.state.gui.GuiRenderState;
+import net.minecraft.resources.Identifier;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
@@ -63,6 +65,9 @@ public final class ExperimentalHudCapture {
 	private static TextureTarget capturedTarget;
 	private static boolean frameActive;
 	private static boolean frameHasContent;
+	private static boolean frameCapturedHotbar;
+	private static boolean loggedHotbarExtraction;
+	private static boolean loggedMissingHotbar;
 	private static boolean sessionFallback;
 	private static int guiWidth;
 	private static int guiHeight;
@@ -77,6 +82,7 @@ public final class ExperimentalHudCapture {
 	static void beginFrame(GuiGraphicsExtractor sourceGraphics) {
 		frameActive = false;
 		frameHasContent = false;
+		frameCapturedHotbar = false;
 
 		if (!SpatialHud.isExperimentalCaptureActive() || sessionFallback) {
 			return;
@@ -109,13 +115,20 @@ public final class ExperimentalHudCapture {
 	 * false after an error so the caller can use the released affine path for
 	 * its current root rather than losing a future HUD frame.
 	 */
-	static boolean capture(HudRootRenderer root, DeltaTracker deltaTracker) {
+	static boolean capture(Identifier id, HudRootRenderer root, DeltaTracker deltaTracker) {
 		if (!isFrameActive()) {
 			return false;
 		}
 
 		try {
 			root.extract(capturedGraphics, deltaTracker);
+			if (id.equals(VanillaHudElements.HOTBAR)) {
+				frameCapturedHotbar = true;
+				if (!loggedHotbarExtraction) {
+					loggedHotbarExtraction = true;
+					SpatialHud.LOGGER.info("Spatial HUD experimental capture extracted the hotbar root into its private texture.");
+				}
+			}
 			frameHasContent = true;
 			return true;
 		} catch (Throwable t) {
@@ -173,6 +186,10 @@ public final class ExperimentalHudCapture {
 	public static void renderAndComposite() {
 		if (!frameActive || !frameHasContent || sessionFallback) {
 			return;
+		}
+		if (SpatialHudConfig.get().showHotbar && !frameCapturedHotbar && !loggedMissingHotbar) {
+			loggedMissingHotbar = true;
+			SpatialHud.LOGGER.warn("Spatial HUD experimental capture did not receive the vanilla hotbar root. The backing may render without hotbar pixels; check the Hotbar and Spectator Menu setting and mod HUD replacement order.");
 		}
 
 		try {

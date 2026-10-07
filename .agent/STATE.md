@@ -19,12 +19,12 @@
     pass, addressing output being overwritten or rendered with an unstable
     GUI state.
   - `931b6de`: added a first look-pitch deformation attempt.
-- Pending build: replace that camera-relative attempt with a fixed,
-  player-body hologram pose. Default face-on angle is 30° below the horizon;
-  the plane follows player position/body yaw but not camera pitch. H opens
+- Latest pending build: fixed camera-yaw hologram pose. Default face-on angle
+  is 30° below the horizon; it follows camera yaw but not camera pitch, so the
+  plane remains horizon-parallel while pitch changes perspective. H opens
   settings instead of toggling the HUD.
-- CI builds passed for the earlier commits. No real F5W result has yet
-  confirmed the player-body implementation.
+- Experimental diagnostics now record whether the vanilla hotbar root reaches
+  the private capture. No real F5W result has yet confirmed this revision.
 
 ### Direct Modrinth updater
 
@@ -42,9 +42,9 @@
   real test result.
 - AppleSkin and Detail Armor Bar Reconstructed pixels belong in the same
   selected capture when their vanilla status root is captured.
-- User wants a player-body hologram at waist height, not a pitch-animated
-  screen card. At 30° down it is rectangular; looking higher makes the far
-  top edge horizontally narrower into a trapezoid.
+- User wants a waist-height hologram that follows camera yaw, stays parallel
+  to the horizon, and does not turn with body yaw. At 30° down it is
+  rectangular; looking higher makes the far top edge horizontally narrower.
 - Keep all work on `arena/c83497e6-tests`; commit and push each completed
   change.
 
@@ -52,13 +52,14 @@
 
 1. Install the next rolling Spatial HUD JAR in F5W.
 2. Press H and confirm it opens settings without toggling the HUD.
-3. Enable the experimental captured-texture mode and select `Player Body
+3. Enable the experimental captured-texture mode and select `Camera Yaw
    (Hologram)`.
 4. Test the 30° face-on view and a higher/grazing view. Record whether the
    whole capture changes from a rectangle to a trapezoid with a narrow far top
-   edge.
-5. Record whether the hotbar disappears while the backing remains. If it does,
-   inspect capture content and mesh clipping before changing the safe mode.
+   edge while remaining directly in front after a yaw turn.
+5. Record whether the hotbar disappears while the backing remains. Search the
+   same-run log for the one-time hotbar-capture diagnostic before changing the
+   capture or safe fallback.
 
 ## Evidence
 

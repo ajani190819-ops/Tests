@@ -16,8 +16,8 @@
 ## Rendering design
 
 - `VirtualHudPlane.java` is the shared physical-plane projection model.
-  The current pending revision makes its default pose player-body-local:
-  waist-height, in front of the player, following body yaw but not camera
+  The current pending revision makes its default pose camera-yaw-local:
+  waist-height, in front of the player, following camera yaw but not camera
   pitch.
 - `ExperimentalHudCapture.java` captures only the selected lower HUD into a
   private target and renders it through a tessellated mesh.
@@ -38,11 +38,11 @@ A head-on plane projects as a rectangle. When viewed at a grazing angle, its
 far edge must project narrower than its near edge. This is projective geometry,
 not independent affine scaling of icon groups.
 
-The accepted model is a fixed player-body-local plane. At the configurable
-`virtualFaceOnLookDownPitch` (default 30°), it is face-on. Looking higher makes
-the top/far edge narrower; looking lower changes perspective in the opposite
-direction. `virtualPitch` is a fixed manual offset. Do not reintroduce
-look-pitch-driven plane rotation for the `PLAYER_BODY` anchor.
+The accepted model is a fixed horizon-parallel plane anchored to camera yaw.
+At the configurable `virtualFaceOnLookDownPitch` (default 30°), it is face-on.
+Looking higher makes the top/far edge narrower; looking lower changes
+perspective in the opposite direction. `virtualPitch` is a fixed manual offset.
+Do not reintroduce look-pitch-driven plane rotation for `CAMERA_YAW`.
 
 ## Compatibility and fallback
 
@@ -55,8 +55,11 @@ look-pitch-driven plane rotation for the `PLAYER_BODY` anchor.
   Opacity, and Durability Warner HUD.
 - The user reported an early capture build flickering, with invisible backing
   and no visible deformation. The supplied `latest.log` had no capture failure
-  latch message. The post-GUI composite and look-driven plane changes were
-  built after that observation and require real F5W testing.
+  latch message. The post-GUI composite and later hologram-pose changes require
+  real F5W testing.
+- The current capture path logs once whether `VanillaHudElements.HOTBAR` was
+  extracted into the private texture. Use that message to distinguish a missing
+  root from a projected/composite loss when the backing appears without slots.
 
 ## Relevant commits
 

@@ -7,10 +7,10 @@ import net.minecraft.client.Minecraft;
  * texture. The mesh renderer consumes the full projective mapping; the public
  * HUD API can consume its centre tangent as a deliberately safe affine fallback.
  *
- * <p>The default pose is a hologram in front of the player's body near waist
- * height. It follows the body position and yaw, but not the camera pitch. The
- * view therefore changes the camera's angle to a fixed plane instead of merely
- * animating a screen-space card.</p>
+ * <p>The default pose is a hologram in front of the player near waist height.
+ * It follows camera yaw, but not camera pitch, so it stays parallel to the
+ * horizon. The view therefore changes the camera's angle to a fixed plane
+ * instead of merely animating a screen-space card.</p>
  */
 final class VirtualHudPlane {
 	static final float SOURCE_HALF_WIDTH = 112.0f;
@@ -104,6 +104,9 @@ final class VirtualHudPlane {
 		float localY = (0.5f - v) * planeHeight;
 		float localZ = curvedDepth(u, planeWidth);
 
+		if (cfg.virtualAnchorMode == SpatialHudConfig.VirtualAnchorMode.CAMERA_YAW) {
+			return projectCameraYawHologram(localX, localY, localZ);
+		}
 		if (cfg.virtualAnchorMode == SpatialHudConfig.VirtualAnchorMode.PLAYER_BODY) {
 			return projectPlayerBody(localX, localY, localZ);
 		}
@@ -111,19 +114,29 @@ final class VirtualHudPlane {
 	}
 
 	/**
-	 * Projects a plane whose centre and orientation are fixed in player-body
-	 * space. The camera yaw/pitch only changes the view of that plane. At the
-	 * configured face-on pitch the projected plane is rectangular; looking
-	 * higher makes the top/far edge recede and become horizontally narrower.
+	 * Default hologram anchor. The plane follows camera yaw so it remains in
+	 * front while the player looks left or right, but it never follows camera
+	 * pitch. It therefore stays parallel to the horizon while pitch changes the
+	 * perspective of a fixed plane.
 	 */
+	private Point projectCameraYawHologram(float localX, float localY, float localZ) {
+		return projectHologram(localX, localY, localZ, 0.0f);
+	}
+
+	/** Compatibility option for a plane that remains aligned to body yaw. */
 	private Point projectPlayerBody(float localX, float localY, float localZ) {
+		float yawDifference = (float) Math.toRadians(SpatialHud.wrapDegrees(SpatialHud.bodyYaw - SpatialHud.yaw));
+		return projectHologram(localX, localY, localZ, yawDifference);
+	}
+
+	private Point projectHologram(float localX, float localY, float localZ, float yawDifference) {
 		float planeYaw = (float) Math.toRadians(clamp(cfg.virtualYaw, -80, 80));
 		float yawX = localX * (float) Math.cos(planeYaw) + localZ * (float) Math.sin(planeYaw);
 		float yawZ = -localX * (float) Math.sin(planeYaw) + localZ * (float) Math.cos(planeYaw);
 
-		// This is a fixed orientation in player-body space, not a look-pitch
-		// animation. For example, a 30-degree face-on setting makes the plane
-		// rectangular when the camera looks 30 degrees below the horizon.
+		// This is a fixed orientation in horizon/player space, not a look-pitch
+		// animation. A 30-degree face-on setting is rectangular when the camera
+		// looks 30 degrees below the horizon.
 		float planePitch = (float) Math.toRadians(clamp(
 				cfg.virtualFaceOnLookDownPitch + cfg.virtualPitch, -80, 80));
 		float bodyPlaneY = localY * (float) Math.cos(planePitch) - yawZ * (float) Math.sin(planePitch);
@@ -133,10 +146,6 @@ final class VirtualHudPlane {
 		float bodyY = (float) cfg.virtualOffsetY + bodyPlaneY;
 		float bodyZ = (float) Math.max(0.10, cfg.distance) + bodyPlaneZ;
 
-		// Move the player-local position and orientation into current camera
-		// space. A head turn therefore looks around the body-anchored hologram;
-		// it does not drag the hologram with the view.
-		float yawDifference = (float) Math.toRadians(SpatialHud.wrapDegrees(SpatialHud.bodyYaw - SpatialHud.yaw));
 		float cameraX = bodyX * (float) Math.cos(yawDifference) + bodyZ * (float) Math.sin(yawDifference);
 		float cameraForward = -bodyX * (float) Math.sin(yawDifference) + bodyZ * (float) Math.cos(yawDifference);
 		float cameraPitch = (float) Math.toRadians(SpatialHud.pitch);

@@ -17,7 +17,7 @@
 1. Press H and verify that it opens Spatial HUD settings without changing HUD
    enabled state.
 2. In settings, enable the experimental captured-texture warp.
-3. Select `Player Body (Hologram)` and start with `Face-On Look-Down Pitch` at
+3. Select `Camera Yaw (Hologram)` and start with `Face-On Look-Down Pitch` at
    30 and `Plane Pitch Offset` at 0.
 4. Test with native status-bar preservation both on and off if companion bars
    are involved.

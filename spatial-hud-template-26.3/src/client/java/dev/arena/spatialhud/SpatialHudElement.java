@@ -34,7 +34,7 @@ final class SpatialHudElement implements HudElement {
 		// companion group enters one projective texture mesh. Safe affine mode
 		// keeps the conservative native-layout fallback below.
 		if (ExperimentalHudCapture.isFrameActive()
-				&& ExperimentalHudCapture.capture((isolated, tracker) -> vanilla.extractRenderState(isolated, tracker), deltaTracker)) {
+				&& ExperimentalHudCapture.capture(id, (isolated, tracker) -> vanilla.extractRenderState(isolated, tracker), deltaTracker)) {
 			return;
 		}
 

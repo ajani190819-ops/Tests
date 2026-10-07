@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 11 after checking the values.
+	// registerAndLoad writes it as 12 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
@@ -109,13 +109,14 @@ public final class SpatialHudConfig implements ConfigData {
 
 	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
-	public VirtualAnchorMode virtualAnchorMode = VirtualAnchorMode.PLAYER_BODY;
+	public VirtualAnchorMode virtualAnchorMode = VirtualAnchorMode.CAMERA_YAW;
 
 	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
 	public double virtualWorldParallaxStrength = 0.35;
 
 	public enum VirtualAnchorMode {
+		CAMERA_YAW,
 		PLAYER_BODY,
 		VIEW_LOCKED,
 		WORLD_LIKE
@@ -230,7 +231,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Adds safe reveal, tilt, and companion-layout defaults to older config files. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 11) {
+		if (cfg.configVersion >= 12) {
 			return;
 		}
 
@@ -318,7 +319,15 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.virtualAnchorMode = VirtualAnchorMode.PLAYER_BODY;
 		}
 
-		cfg.configVersion = 11;
+		if (cfg.configVersion < 12) {
+			// The HUD should remain directly in front while the player looks left
+			// or right, without inheriting body-turn lag. Camera yaw changes the
+			// player-relative forward direction; camera pitch only changes the
+			// perspective of the horizon-parallel plane.
+			cfg.virtualAnchorMode = VirtualAnchorMode.CAMERA_YAW;
+		}
+
+		cfg.configVersion = 12;
 		save();
 	}
 
