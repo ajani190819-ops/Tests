@@ -1,66 +1,46 @@
 # Spatial HUD (build project — canonical)
 
-**Spatial GUI, but for your HUD.** Renders the hotbar, hearts, hunger, armor,
-air, XP bar, mount bars and held-item name on a tilted 3D plane floating in
-front of you. Client-side only. Press **H** in-game to toggle. Config:
-`config/spatialhud.json` (distance, planeWidth, height, tilt, sway, element
-toggles).
+**Spatial GUI, but for your HUD.** The bottom HUD strip (hotbar, hearts,
+hunger, armor, air, XP, mount bars, held-item name) rendered as a panel
+floating in front of you instead of glued to the screen edge. Client-side
+only. **H** toggles it in-game.
 
-This folder (`spatial-hud-template-26.3/`) is the **active build project** —
-official Fabric template for MC 26.3 + our sources. The `spatial-hud/` folder
-in the repo root is the older yarn-era draft, kept for reference.
+This folder is the active build project. **You never need to build locally** —
+GitHub Actions builds it on every change and publishes the jar here:
 
-## Fix round 1 (current state)
+**Download (always the latest build):**
+https://github.com/ajani190819-ops/Tests/releases/tag/spatial-hud-latest
 
-The original draft was written against **Yarn mappings** — dead past MC
-1.21.10. Your 26.3 toolchain uses **Mojang mappings**, so every MC class
-reference failed to compile. All sources have been rewritten to official
-Mojang names (`Minecraft`, `Gui`, `GuiGraphics`, `KeyMapping`, `DeltaTracker`,
-`PoseStack`, `MultiBufferSource`, ...), and `build.gradle` now pins
-`mappings loom.officialMojangMappings()` explicitly.
+## How it works (v0.3, MC 26.3)
 
-## Requirements — READ THIS ONE
+MC 26.x rebuilt the GUI pipeline around render-state extraction with 2D
+affine transforms, so the mod now uses the official Fabric HUD element API:
 
-- **JDK 25** (this template compiles with `--release 25`; JDK 21 will fail
-  with "invalid source release: 25"). Install Temurin 25 from
-  https://adoptium.net (Windows x64 MSI). If you have multiple JDKs and
-  Gradle picks the wrong one, set `JAVA_HOME` to the JDK 25 folder.
-- Internet for the first Gradle run.
+- Each vanilla bottom-strip element is wrapped with
+  `HudElementRegistry.replaceElement` — spatial pose when enabled, perfect
+  vanilla passthrough when disabled (zero mixins in this mod!)
+- The pose is real perspective math: focal length from the current FOV,
+  `distance`/`planeWidth`/`height` in blocks, so the panel behaves like a
+  screen-parallel plane floating in the world
+- Look-lag "sway" — the panel drifts slightly when you turn, then settles
+- Translucent backing panel behind the strip
+- Any render error → the mod logs once and disables itself; vanilla HUD
+  returns. It will never crash your game over a HUD.
 
-## Building
+Config: `config/spatialhud.json` (distance, planeWidth, height, sway,
+per-element toggles, showPanel).
 
-```
-gradlew build
-```
+## Source layout (official 26.x template structure)
 
-Jar: `build\libs\spatial-hud-1.0.0.jar` (not the `-sources` one). Drop into
-your instance's `mods/` folder. Requires Fabric Loader 26.3 profile + Fabric
-API (your pack already has both).
+- `src/client/java/` — all mod code (client-only mod)
+- `src/main/resources/` — fabric.mod.json, lang
+- Split environment source sets per the official template; no mappings
+  line (26.x Minecraft is unobfuscated)
 
-For the first test, disable HUD-overlap mods (Detail Armor Bar Reconstructed,
-Armor Indicator, Bedrock Hotbar, DualBar, Durability Warner HUD) so the plane
-is clean.
+## Known limits / next steps
 
-## Verify points (round 2 risks, in order of likelihood)
-
-These are now **runtime** risks, not build risks — the code compiles, but
-26.3's exact internals are unverified:
-
-1. **Mixin signatures at launch** (`GuiAccessor`/`GuiMixin`) — if the game
-   crashes during startup with "Critical injection failure" or "method ... not
-   found in class ...Gui", one of the six method signatures drifted. The crash
-   log names the exact method. → paste it.
-2. **`GuiGraphics(Minecraft, MultiBufferSource)` constructor** — compile
-   error if changed (unlikely; stable for years).
-3. **`PoseStack` method names** — `pushPose/popPose/setIdentity`.
-4. **`gameMode.hasStatusBars()` / `player.jumpableVehicle()` / `getTimer()`**
-   — used for the survival-vs-mount dispatch; if any fails to compile, paste
-   the error (these have fallback-free single call sites).
-5. **Visual result** — if the plane is upside-down/mirrored/too close, that's
-   config values or one matrix sign; describe what you see, not a crash.
-
-## Self-protection
-
-If the renderer ever throws during play, the mod logs the error once, writes
-`enabled=false` into the config, and the flat vanilla HUD returns — it will
-never crash your game over a HUD.
+- **Tilt**: the 26.x GUI pose API is 2D affine, so a *tilted* 3D plane
+  (perspective trapezoid) needs a v0.4 trick (e.g., affine slice columns or
+  a world-space custom renderer). v0.3's plane is screen-parallel — real
+  distance, real scale, sway, no tilt.
+- Feedback wanted: position, size, sway strength, panel look — all tunable.
