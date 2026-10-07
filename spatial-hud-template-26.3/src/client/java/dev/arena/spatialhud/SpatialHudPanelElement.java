@@ -1,16 +1,11 @@
 package dev.arena.spatialhud;
 
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
-
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
-/**
- * A quiet translucent backing panel drawn beneath the spatial strip. It is
- * also the single per-frame update point for sway, before wrapped HUD
- * elements read the shared pose.
- */
+/** Draws a restrained glass-like backing into the captured HUD texture. */
 final class SpatialHudPanelElement implements HudElement {
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
@@ -18,34 +13,31 @@ final class SpatialHudPanelElement implements HudElement {
 			return;
 		}
 
-		// Run even when the backing is hidden: this is registered immediately
-		// before HOTBAR and makes the time-based pose stable for every element.
-		SpatialHud.updateRenderSway();
-
 		SpatialHudConfig cfg = SpatialHudConfig.get();
 		if (!cfg.showPanel) {
 			return;
 		}
 
-		int w = graphics.guiWidth();
-		int h = graphics.guiHeight();
-
-		// Covers the whole vanilla bottom-strip stack: held name, bars, XP and
-		// hotbar. Bounds are specified before the shared spatial transform.
-		int x0 = w / 2 - 91;
-		int x1 = w / 2 + 91;
-		int y0 = h - 70;
-		int y1 = h - 7;
-
-		graphics.pose().pushMatrix();
 		try {
-			SpatialHudElement.applySpatialPose(graphics, cfg);
-			graphics.fill(x0 - 6, y0 - 4, x1 + 6, y1 + 4, 0x80101018);
-			graphics.fill(x0 - 6, y0 - 4, x1 + 6, y0, 0x5038384A);
+			GuiGraphicsExtractor capture = SpatialHudWorldRenderer.get().graphics();
+			if (capture == null) {
+				return;
+			}
+
+			int w = capture.guiWidth();
+			int h = capture.guiHeight();
+			int x0 = w / 2 - 96;
+			int x1 = w / 2 + 96;
+			int y0 = h - 71;
+			int y1 = h - 6;
+
+			// The main surface is intentionally subtle; the game HUD remains the
+			// focus while a narrow top highlight gives the panel a finished edge.
+			capture.fill(x0, y0, x1, y1, 0x94101420);
+			capture.fill(x0, y0, x1, y0 + 2, 0x887A8CA8);
+			capture.fill(x0, y1 - 1, x1, y1, 0x40101018);
 		} catch (Throwable t) {
 			SpatialHud.safeDisable(t);
-		} finally {
-			graphics.pose().popMatrix();
 		}
 	}
 }

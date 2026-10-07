@@ -10,6 +10,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -83,6 +84,10 @@ public class SpatialHud implements ClientModInitializer {
 				VanillaHudElements.HOTBAR,
 				Identifier.fromNamespaceAndPath("spatialhud", "panel"),
 				new SpatialHudPanelElement());
+
+		// Capture the real world projection just before the GUI phase. The
+		// renderer restores this projection to draw the HUD texture in 3D.
+		LevelRenderEvents.END_MAIN.register(context -> SpatialHudWorldRenderer.get().capturePerspective());
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			while (toggleKey.consumeClick()) {
