@@ -14,8 +14,8 @@ repositories {
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	// 26.x is the Mojang-mappings era; Yarn is unsupported past 1.21.10.
-	mappings loom.officialMojangMappings()
+	// 26.x Minecraft is unobfuscated — no mappings line is needed (and
+	// loom 1.18 rejects one). Sources use Mojang names natively.
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
 	// Fabric API. This is technically optional, but you probably want it anyway.

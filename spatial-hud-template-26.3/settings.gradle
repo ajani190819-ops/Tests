@@ -40,17 +40,31 @@ if (System.getenv('GITHUB_ACTIONS') == 'true') {
 		void flush() { realErr.flush() }
 	}, true)
 
+	// Console capture: attaches to the root project's logging manager as soon
+	// as projects exist (before build.gradle is evaluated, so config-phase
+	// errors are captured too). Catching compile diagnostics needs these
+	// listeners — the plain System.out tee above misses gradle's daemon IPC.
+	def console = new StringBuilder()
+
 	gradle.addBuildListener(new BuildListener() {
 		void buildStarted(Gradle g) { }
 		void settingsEvaluated(Settings s) { }
-		void projectsLoaded(Gradle g) { }
+		void projectsLoaded(Gradle g) {
+			try {
+				def sink = { CharSequence s -> console.append(s) } as StandardOutputListener
+				g.rootProject.logging.addStandardOutputListener(sink)
+				g.rootProject.logging.addStandardErrorListener(sink)
+			} catch (Throwable t) {
+				realErr.println('CI: could not attach console listeners: ' + t)
+			}
+		}
 		void projectsEvaluated(Gradle g) { }
 		void buildFinished(BuildResult result) {
 			if (result.failure == null) {
 				return
 			}
 			try {
-				def text = outCopy.toString('UTF-8') + errCopy.toString('UTF-8')
+				def text = outCopy.toString('UTF-8') + errCopy.toString('UTF-8') + console.toString()
 				if (text.length() > 200000) {
 					text = '[... output truncated, showing the last 200 kB ...]\n' + text.substring(text.length() - 200000)
 				}
