@@ -1,0 +1,50 @@
+name: Build Spatial HUD
+
+on:
+  push:
+    branches: [arena/c83497e6-tests]
+    paths:
+      - 'spatial-hud-template-26.3/**'
+      - '.github/workflows/build-spatial-hud.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: spatial-hud-template-26.3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: gradle
+
+      - name: Build
+        run: |
+          chmod +x gradlew
+          ./gradlew build --no-daemon
+
+      - name: Publish jar to rolling release
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          rm -f build/libs/*-sources.jar
+          if ! gh release view spatial-hud-latest > /dev/null 2>&1; then
+            gh release create spatial-hud-latest \
+              --target "$GITHUB_SHA" \
+              --title "Spatial HUD — latest build" \
+              --notes "Automated build from commit ${GITHUB_SHA::7}. Minecraft 26.3, Fabric." \
+              --prerelease
+          fi
+          gh release upload spatial-hud-latest build/libs/spatial-hud-*.jar --clobber
