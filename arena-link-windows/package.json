@@ -1,0 +1,37 @@
+{
+  "name": "arena-link",
+  "version": "0.1.0",
+  "description": "A local-first Windows developer companion for approved Git repositories and the Arena gateway.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check main.js && node --check preload.js && node --check renderer/app.js",
+    "dist:win": "electron-builder --win nsis portable"
+  },
+  "devDependencies": {
+    "electron": "44.6.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "ai.arena.link",
+    "productName": "Arena Link",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "README.md",
+      "ARENA_GATEWAY_SETUP.md"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
