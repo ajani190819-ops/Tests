@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 5 after checking the values.
+	// registerAndLoad writes it as 6 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
@@ -98,6 +98,21 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.BoundedDiscrete(min = 5, max = 100)
 	public int planeHorizonHeightPercent = 18;
 
+	/**
+	 * A true projective warp needs a captured texture or a world renderer, both
+	 * of which are deliberately outside this compatibility-first build. The
+	 * backing plate can still taper safely with ordinary HUD rectangles, giving
+	 * the panel a clear near/far edge without touching vanilla icon geometry.
+	 */
+	@ConfigEntry.Category("planeTilt")
+	@ConfigEntry.Gui.Tooltip
+	public boolean taperBackingPlate = true;
+
+	@ConfigEntry.Category("planeTilt")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 20, max = 100)
+	public int planeHorizonFarEdgeWidthPercent = 48;
+
 	// Motion. A time-based filter is used, so it remains smooth above 20 FPS.
 	@ConfigEntry.Category("motion")
 	@ConfigEntry.Gui.Tooltip
@@ -169,7 +184,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Adds safe reveal, tilt, and companion-layout defaults to older config files. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 5) {
+		if (cfg.configVersion >= 6) {
 			return;
 		}
 
@@ -195,7 +210,12 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.planeHorizonHeightPercent = 18;
 		}
 
-		cfg.configVersion = 5;
+		if (cfg.configVersion < 6) {
+			cfg.taperBackingPlate = true;
+			cfg.planeHorizonFarEdgeWidthPercent = 48;
+		}
+
+		cfg.configVersion = 6;
 		save();
 	}
 

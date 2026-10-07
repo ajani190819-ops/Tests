@@ -34,9 +34,15 @@ without restoring the rejected world/UI capture renderer.
 This is intentionally an affine GUI effect, not a world-rendered object:
 minimap, FPS/debug text, screens, and unrelated overlays remain outside it.
 Change **Face-On Look-Down Pitch** to require a steeper or shallower view, or
-turn the tilt off if you prefer the previous front-facing panel. Companion
-status bars protected by the AppleSkin/Detail Armor compatibility setting stay
-native while revealed so their own overlays remain coherent.
+turn the tilt off if you prefer the previous front-facing panel.
+
+**Taper Backing Plate Width** is also enabled by default. It draws the panel
+backing as a near/far trapezoid: its upper (far) edge begins at **48%** of the
+near edge near the horizon and widens smoothly to a rectangle at the face-on
+pitch. The vanilla hotbar/icons are intentionally not texture-warped; doing so
+requires the world/UI capture path that previously broke modded screens.
+Companion status bars protected by the AppleSkin/Detail Armor compatibility
+setting stay native while revealed so their own overlays remain coherent.
 
 The configuration screen offers separate controls for the two reveal angles,
 hidden distance, panel placement, FOV-aware sizing, motion, companion-mod

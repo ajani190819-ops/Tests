@@ -111,11 +111,8 @@ final class SpatialHudElement implements HudElement {
 		// after looking down toward the configured pitch.
 		float verticalForeshortening = 1.0f;
 		if (cfg.lookDownPlaneTilt) {
-			float faceOn = clamp(cfg.planeFaceOnPitch, 20f, 89f);
-			float lookDown = clamp(SpatialHud.pitch, 0f, faceOn);
-			float amount = smoothstep(0f, 1f, lookDown / faceOn);
 			float horizonHeight = clamp(cfg.planeHorizonHeightPercent / 100.0f, 0.05f, 1.0f);
-			verticalForeshortening = lerp(horizonHeight, 1.0f, amount);
+			verticalForeshortening = lerp(horizonHeight, 1.0f, planeTiltAmount(cfg));
 		}
 
 		float strength = clamp((float) cfg.sway, 0.0f, 2.0f);
@@ -136,6 +133,19 @@ final class SpatialHudElement implements HudElement {
 		}
 		pose.scale(scale, scale * verticalForeshortening);
 		pose.translate(-srcX, -srcY);
+	}
+
+	/**
+	 * Shared by the panel backing and the affine HUD pose. Zero is the horizon;
+	 * one is the player looking directly at the configured face-on angle.
+	 */
+	static float planeTiltAmount(SpatialHudConfig cfg) {
+		if (!cfg.lookDownPlaneTilt) {
+			return 1.0f;
+		}
+		float faceOn = clamp(cfg.planeFaceOnPitch, 20f, 89f);
+		float lookDown = clamp(SpatialHud.pitch, 0f, faceOn);
+		return smoothstep(0f, 1f, lookDown / faceOn);
 	}
 
 	private static float smoothstep(float edge0, float edge1, float value) {

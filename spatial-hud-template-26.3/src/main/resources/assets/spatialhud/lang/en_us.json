@@ -44,6 +44,10 @@
   "text.autoconfig.spatialhud.option.planeFaceOnPitch.@Tooltip": "Degrees downward where the tilted HUD reaches its full height. Increase this to require looking farther down before it looks face-on.",
   "text.autoconfig.spatialhud.option.planeHorizonHeightPercent": "Horizon Plane Height",
   "text.autoconfig.spatialhud.option.planeHorizonHeightPercent.@Tooltip": "How tall the tilted HUD remains at the horizon, as a percent. Lower values give a stronger edge-on floating-plane effect.",
+  "text.autoconfig.spatialhud.option.taperBackingPlate": "Taper Backing Plate Width",
+  "text.autoconfig.spatialhud.option.taperBackingPlate.@Tooltip": "Give the backing plate a near/far trapezoid shape as you look down. This safely adds width perspective without capturing or warping vanilla HUD icons.",
+  "text.autoconfig.spatialhud.option.planeHorizonFarEdgeWidthPercent": "Horizon Far-Edge Width",
+  "text.autoconfig.spatialhud.option.planeHorizonFarEdgeWidthPercent.@Tooltip": "Width of the plate's far (upper) edge near the horizon, as a percent of its near edge. Lower values make the taper stronger.",
 
   "text.autoconfig.spatialhud.option.sway": "Parallax Strength",
   "text.autoconfig.spatialhud.option.sway.@Tooltip": "How much the panel gently trails your look direction. Set to 0 for a perfectly rigid HUD.",
