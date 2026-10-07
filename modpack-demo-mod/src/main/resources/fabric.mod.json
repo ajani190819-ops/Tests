@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "demo-fps-hud",
+  "version": "${version}",
+  "name": "Demo FPS HUD",
+  "description": "Tiny client-side demo: a toggleable FPS readout on the HUD. Built as a capability demo.",
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.arena.demo.DemoMod"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": ">=1.21"
+  }
+}
