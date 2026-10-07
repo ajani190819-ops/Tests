@@ -23,16 +23,24 @@ its first run, it already targets the supplied F5W Modrinth profile:
 For `C:\Users\kamau`, that resolves to the requested
 `C:\Users\kamau\AppData\Roaming\ModrinthApp\profiles\F5W\mods`. Press
 **Enter** (or choose **1**) to install the newest successful Spatial HUD build
-directly there. It opens the installed JAR in Explorer afterward; there is no
-manual "From file" step in Modrinth.
+directly there. It does **not** open any folder afterward by default, and there
+is no manual "From file" step in Modrinth.
 
-The menu remembers its folder and release feed under
+The menu remembers its folder, release feed, and optional folder opener under
 `%LOCALAPPDATA%\SpatialHudUpdater`, and lets you:
 
 - change the profile's `mods` folder at any time;
-- change the published GitHub **release feed** after validating it;
+- choose a different published GitHub build/release feed after validating it;
+- leave the post-install folder opener disabled (the default), or ask it to
+  auto-detect **OneCommander** / save a custom file-manager `.exe`;
 - inspect the current JAR name, build time, and size; and
-- restore the default F5W folder and `spatial-hud-latest` feed.
+- restore the default F5W folder, `spatial-hud-latest` feed, and no-opener
+  setting.
+
+When a OneCommander path is configured, the updater opens the profile's `mods`
+folder in OneCommander after a successful install. It never invokes Windows
+Explorer. If OneCommander is installed in an unusual portable or Microsoft
+Store location, choose **[4]** and paste the full path to `OneCommander.exe`.
 
 It downloads and verifies the replacement before touching the profile, then
 identifies old copies through their own `fabric.mod.json` mod id (`spatialhud`),
@@ -42,11 +50,13 @@ or move fails, it restores any copies already moved out of the way.
 
 Close Minecraft before updating so Windows cannot hold the old JAR open.
 
-There is intentionally no fake branch picker: Minecraft JARs are compiled
-release assets, not source files that can be installed straight from a Git
-branch. The default rolling release feed is updated by the successful GitHub
-Actions build from this branch. A different published release tag can still be
-entered and saved through the menu.
+The build selector is intentionally based on **published build/release feeds**,
+not a fake source-branch download: Minecraft JARs are compiled artifacts, while
+a Git branch only contains source. The default `spatial-hud-latest` feed is
+updated by the successful GitHub Actions build from this branch. When a
+branch-specific build is published as its own release feed, choose it through
+**[3]** (or enter that published tag); a raw branch is never mislabeled as an
+installable JAR.
 
 The batch file temporarily refreshes its maintained PowerShell helper from
 GitHub before each run, then deletes that temporary helper. Its

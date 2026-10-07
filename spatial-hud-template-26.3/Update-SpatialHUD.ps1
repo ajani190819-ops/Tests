@@ -4,15 +4,14 @@
 # needs to keep; it refreshes this helper from GitHub before every run.
 #
 # Default target: %APPDATA%\ModrinthApp\profiles\F5W\mods
-# The target and release feed are remembered under %LOCALAPPDATA%\SpatialHudUpdater
-# and can always be changed from the menu.
+# The target, release feed, and optional folder opener are remembered under
+# %LOCALAPPDATA%\SpatialHudUpdater and can always be changed from the menu.
 
 [CmdletBinding()]
 param(
     [string]$TargetDirectory,
     [string]$ReleaseTag,
-    [switch]$Install,
-    [switch]$OpenFolder
+    [switch]$Install
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,6 +23,7 @@ $DefaultTargetDirectory = Join-Path $env:APPDATA 'ModrinthApp\profiles\F5W\mods'
 $StateDirectory = Join-Path $env:LOCALAPPDATA 'SpatialHudUpdater'
 $TargetStateFile = Join-Path $StateDirectory 'target-directory.txt'
 $ReleaseStateFile = Join-Path $StateDirectory 'release-tag.txt'
+$FolderOpenerStateFile = Join-Path $StateDirectory 'folder-opener.txt'
 
 function Read-RememberedValue {
     param([string]$Path, [string]$Fallback)
@@ -208,8 +208,125 @@ function Set-ReleaseFeed {
     return $newTag
 }
 
+function Get-OneCommanderExecutable {
+    # OneCommander can be installed per-user, machine-wide, or be available on
+    # PATH. Try the common locations first; a custom executable path remains
+    # available in the menu when a portable/MS Store layout is used instead.
+    $candidates = @()
+    if ($env:LOCALAPPDATA) { $candidates += (Join-Path $env:LOCALAPPDATA 'Programs\OneCommander\OneCommander.exe') }
+    if ($env:LOCALAPPDATA) { $candidates += (Join-Path $env:LOCALAPPDATA 'OneCommander\OneCommander.exe') }
+    if ($env:ProgramFiles) { $candidates += (Join-Path $env:ProgramFiles 'OneCommander\OneCommander.exe') }
+    if (${env:ProgramFiles(x86)}) { $candidates += (Join-Path ${env:ProgramFiles(x86)} 'OneCommander\OneCommander.exe') }
+
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return [System.IO.Path]::GetFullPath($candidate)
+        }
+    }
+
+    $onPath = Get-Command 'OneCommander.exe' -ErrorAction SilentlyContinue
+    if ($onPath -and (Test-Path -LiteralPath $onPath.Source -PathType Leaf)) {
+        return $onPath.Source
+    }
+
+    foreach ($registryPath in @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths\OneCommander.exe',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\App Paths\OneCommander.exe'
+    )) {
+        $key = Get-Item -LiteralPath $registryPath -ErrorAction SilentlyContinue
+        if ($key) {
+            $registered = [string]$key.GetValue('')
+            if ($registered -and (Test-Path -LiteralPath $registered -PathType Leaf)) {
+                return $registered
+            }
+        }
+    }
+    return $null
+}
+
+function Get-FolderOpenerLabel {
+    param([string]$Executable)
+
+    if ([string]::IsNullOrWhiteSpace($Executable)) {
+        return 'Disabled (do not open a folder after install)'
+    }
+    return "$(Split-Path -Leaf $Executable): $Executable"
+}
+
+function Set-FolderOpener {
+    param([string]$CurrentExecutable)
+
+    Write-Host ''
+    Write-Host 'Optional post-install folder opener' -ForegroundColor Cyan
+    Write-Host "Current: $(Get-FolderOpenerLabel $CurrentExecutable)"
+    Write-Host ''
+    Write-Host ' [1] Disabled - do not open any folder after installing (default)'
+    Write-Host ' [2] Use OneCommander - find it automatically'
+    Write-Host ' [3] Use another file manager - paste its .exe path'
+    Write-Host ' [M] Keep the current setting'
+    $choice = Read-Host 'Choice'
+
+    switch -Regex ($choice) {
+        '^1$' {
+            Save-RememberedValue $FolderOpenerStateFile ''
+            Write-Host 'Folder opening disabled.' -ForegroundColor Green
+            return ''
+        }
+        '^2$' {
+            $oneCommander = Get-OneCommanderExecutable
+            if (-not $oneCommander) {
+                Write-Host 'OneCommander was not found automatically. Use option 3 to paste OneCommander.exe.' -ForegroundColor Yellow
+                return $CurrentExecutable
+            }
+            Save-RememberedValue $FolderOpenerStateFile $oneCommander
+            Write-Host "OneCommander saved: $oneCommander" -ForegroundColor Green
+            return $oneCommander
+        }
+        '^3$' {
+            $entered = Read-Host 'Full path to the file manager .exe'
+            if ([string]::IsNullOrWhiteSpace($entered)) {
+                return $CurrentExecutable
+            }
+            $executable = [Environment]::ExpandEnvironmentVariables($entered.Trim().Trim('"'))
+            if (-not (Test-Path -LiteralPath $executable -PathType Leaf) -or [System.IO.Path]::GetExtension($executable) -notmatch '^\.exe$') {
+                Write-Host 'That is not an existing .exe file. The current setting was kept.' -ForegroundColor Yellow
+                return $CurrentExecutable
+            }
+            $executable = [System.IO.Path]::GetFullPath($executable)
+            Save-RememberedValue $FolderOpenerStateFile $executable
+            Write-Host "Folder opener saved: $executable" -ForegroundColor Green
+            return $executable
+        }
+        '^[Mm]$' { return $CurrentExecutable }
+        default {
+            Write-Host 'That is not a menu choice. The current setting was kept.' -ForegroundColor Yellow
+            return $CurrentExecutable
+        }
+    }
+}
+
+function Open-InstallFolder {
+    param([string]$Directory, [string]$Executable)
+
+    if ([string]::IsNullOrWhiteSpace($Executable)) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
+        Write-Host "The configured folder opener no longer exists, so no folder was opened: $Executable" -ForegroundColor Yellow
+        return
+    }
+    try {
+        Start-Process -FilePath $Executable -ArgumentList @("`"$Directory`"") -ErrorAction Stop
+    }
+    catch {
+        # An optional convenience must never turn a successful install into a
+        # failure or trigger rollback of the new verified JAR.
+        Write-Host "Spatial HUD installed, but the configured folder opener could not start: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
 function Install-SpatialHud {
-    param([string]$Directory, [string]$Tag, [switch]$SelectResult)
+	param([string]$Directory, [string]$Tag, [string]$FolderOpener)
 
     $Directory = Resolve-InstallDirectory $Directory
     if (-not (Test-Path -LiteralPath $Directory -PathType Container)) {
@@ -256,9 +373,10 @@ function Install-SpatialHud {
             Write-Host "Replaced $($existing.Count) prior Spatial HUD copy/copies."
         }
 
-        if ($SelectResult) {
-            Start-Process explorer.exe -ArgumentList "/select,`"$destination`""
-        }
+        # Opening a folder is an optional user preference. Default is no
+        # opener, and OneCommander/custom file managers are supported without
+        # invoking Windows Explorer.
+        Open-InstallFolder $Directory $FolderOpener
     }
     catch {
         if (-not $installed) {
@@ -277,11 +395,12 @@ function Install-SpatialHud {
 
 $rememberedTarget = if ($TargetDirectory) { Resolve-InstallDirectory $TargetDirectory } else { Read-RememberedValue $TargetStateFile $DefaultTargetDirectory }
 $rememberedTag = if ($ReleaseTag) { $ReleaseTag.Trim() } else { Read-RememberedValue $ReleaseStateFile $DefaultReleaseTag }
+$rememberedFolderOpener = Read-RememberedValue $FolderOpenerStateFile ''
 Test-ReleaseTag $rememberedTag
 
 try {
     if ($Install) {
-        Install-SpatialHud $rememberedTarget $rememberedTag -SelectResult:$OpenFolder
+        Install-SpatialHud $rememberedTarget $rememberedTag $rememberedFolderOpener
         exit 0
     }
 
@@ -292,31 +411,35 @@ try {
         Write-Host '==============================================================='
         Write-Host " Folder:  $rememberedTarget"
         Write-Host " Feed:    $rememberedTag"
+        Write-Host " Opener:  $(Get-FolderOpenerLabel $rememberedFolderOpener)"
         Write-Host '==============================================================='
         Write-Host ''
         Write-Host ' [1] Install or update Spatial HUD now'
         Write-Host ' [2] Change the Modrinth mods folder'
-        Write-Host ' [3] Change the release feed'
-        Write-Host ' [4] Check the current feed details'
-        Write-Host ' [5] Restore the default folder and feed'
+        Write-Host ' [3] Choose the published build / release feed'
+        Write-Host ' [4] Configure optional folder opener (OneCommander / none)'
+        Write-Host ' [5] Check the current build details'
+        Write-Host ' [6] Restore the default folder, feed, and no-opener setting'
         Write-Host ' [Q] Quit'
         Write-Host ''
         $choice = Read-Host 'Choice, or Enter to install'
 
         if ([string]::IsNullOrWhiteSpace($choice) -or $choice -eq '1') {
-            Install-SpatialHud $rememberedTarget $rememberedTag -SelectResult
+            Install-SpatialHud $rememberedTarget $rememberedTag $rememberedFolderOpener
             Read-Host 'Press Enter to return to the menu' | Out-Null
             continue
         }
         switch -Regex ($choice) {
             '^2$' { $rememberedTarget = Set-InstallDirectory $rememberedTarget; Read-Host 'Press Enter to continue' | Out-Null; continue }
             '^3$' { $rememberedTag = Set-ReleaseFeed $rememberedTag; Read-Host 'Press Enter to continue' | Out-Null; continue }
-            '^4$' { Show-FeedDetails $rememberedTag; Read-Host 'Press Enter to continue' | Out-Null; continue }
-            '^5$' {
+            '^4$' { $rememberedFolderOpener = Set-FolderOpener $rememberedFolderOpener; Read-Host 'Press Enter to continue' | Out-Null; continue }
+            '^5$' { Show-FeedDetails $rememberedTag; Read-Host 'Press Enter to continue' | Out-Null; continue }
+            '^6$' {
                 $rememberedTarget = $DefaultTargetDirectory
                 $rememberedTag = $DefaultReleaseTag
-                Remove-Item -LiteralPath $TargetStateFile, $ReleaseStateFile -Force -ErrorAction SilentlyContinue
-                Write-Host 'Restored the default folder and release feed.' -ForegroundColor Green
+                $rememberedFolderOpener = ''
+                Remove-Item -LiteralPath $TargetStateFile, $ReleaseStateFile, $FolderOpenerStateFile -Force -ErrorAction SilentlyContinue
+                Write-Host 'Restored the default folder, feed, and no-opener setting.' -ForegroundColor Green
                 Read-Host 'Press Enter to continue' | Out-Null
                 continue
             }
