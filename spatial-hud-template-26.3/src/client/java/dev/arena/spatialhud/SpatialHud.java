@@ -113,6 +113,17 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/**
+	 * Never transform HUD elements while another screen owns the GUI. This keeps
+	 * containers, Mod Menu, chat, inventories, config screens, and modded UI
+	 * renderers completely outside Spatial HUD's scope.
+	 */
+	static boolean isGameplayHudActive() {
+		Minecraft mc = Minecraft.getInstance();
+		return enabled && mc.player != null && mc.level != null
+				&& (!SpatialHudConfig.get().onlyDuringGameplay || mc.gui.screen() == null);
+	}
+
+	/**
 	 * Called by the panel once per HUD extraction frame. Spatial GUI uses the
 	 * same time-based exponential filtering for its first-person parallax: it
 	 * stays fluid at any FPS rather than stepping once per client tick.

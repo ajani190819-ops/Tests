@@ -5,6 +5,7 @@
   "text.autoconfig.spatialhud.title": "Spatial HUD",
   "text.autoconfig.spatialhud.category.general": "General",
   "text.autoconfig.spatialhud.category.placement": "First-Person Placement",
+  "text.autoconfig.spatialhud.category.lookDownReveal": "Look-Down Reveal",
   "text.autoconfig.spatialhud.category.motion": "Motion",
   "text.autoconfig.spatialhud.category.visibility": "Visible HUD Parts",
 
@@ -16,6 +17,8 @@
   "text.autoconfig.spatialhud.option.fovBaseline.@Tooltip": "The FOV at which no automatic scale adjustment is made.",
   "text.autoconfig.spatialhud.option.showPanel": "Show Backing Panel",
   "text.autoconfig.spatialhud.option.showPanel.@Tooltip": "Show the subtle translucent background behind the floating HUD.",
+  "text.autoconfig.spatialhud.option.onlyDuringGameplay": "Gameplay Only (Recommended)",
+  "text.autoconfig.spatialhud.option.onlyDuringGameplay.@Tooltip": "Never transform the HUD while another screen is open. This preserves inventories, containers, chat, Mod Menu, and modded GUIs exactly as they are.",
 
   "text.autoconfig.spatialhud.option.distance": "Panel Distance",
   "text.autoconfig.spatialhud.option.distance.@Tooltip": "Distance of the panel from your view, in blocks. Higher values make it smaller and steadier.",
@@ -23,6 +26,15 @@
   "text.autoconfig.spatialhud.option.planeWidth.@Tooltip": "Physical width of the HUD panel, in blocks. Increase this if you prefer a larger hotbar.",
   "text.autoconfig.spatialhud.option.height": "Vertical Offset",
   "text.autoconfig.spatialhud.option.height.@Tooltip": "How far below the view centre the panel sits, in blocks. Increase this to move the HUD lower.",
+
+  "text.autoconfig.spatialhud.option.revealWhenLookingDown": "Reveal Only When Looking Down",
+  "text.autoconfig.spatialhud.option.revealWhenLookingDown.@Tooltip": "Hide the complete Spatial HUD below the screen until you deliberately look down. This is enabled by default.",
+  "text.autoconfig.spatialhud.option.revealStartPitch": "Reveal Start Pitch",
+  "text.autoconfig.spatialhud.option.revealStartPitch.@Tooltip": "Degrees downward before the panel begins to enter the view. Positive pitch is looking down.",
+  "text.autoconfig.spatialhud.option.revealFullPitch": "Fully Visible Pitch",
+  "text.autoconfig.spatialhud.option.revealFullPitch.@Tooltip": "Degrees downward where the panel is fully visible.",
+  "text.autoconfig.spatialhud.option.hiddenBelowScreenPixels": "Hidden Distance Below Screen",
+  "text.autoconfig.spatialhud.option.hiddenBelowScreenPixels.@Tooltip": "Extra GUI pixels below the screen while hidden. Higher values guarantee the panel stays out of view.",
 
   "text.autoconfig.spatialhud.option.sway": "Parallax Strength",
   "text.autoconfig.spatialhud.option.sway.@Tooltip": "How much the panel gently trails your look direction. Set to 0 for a perfectly rigid HUD.",

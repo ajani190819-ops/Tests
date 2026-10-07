@@ -29,7 +29,7 @@ final class SpatialHudElement implements HudElement {
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
 		SpatialHudConfig cfg = SpatialHudConfig.get();
-		if (!SpatialHud.isEnabled() || Minecraft.getInstance().player == null) {
+		if (!SpatialHud.isGameplayHudActive()) {
 			vanilla.extractRenderState(graphics, deltaTracker);
 			return;
 		}
@@ -78,11 +78,20 @@ final class SpatialHudElement implements HudElement {
 		float srcX = w / 2.0f;
 		float srcY = h - STRIP_Y_OFF;
 
-		// Target: lower-half placement. v0.4's compact defaults deliberately
-		// keep the hotbar close to the lower edge instead of near screen centre.
+		// Target: a compact lower-half panel when deliberately revealed. In the
+		// normal look direction it slides completely below the screen, rather
+		// than competing with the world, minimap, crosshair, or overlay mods.
 		float drop = (float) (cfg.height * focal / distance);
 		float tgtX = w / 2.0f;
-		float tgtY = h / 2.0f + drop;
+		float revealedY = h / 2.0f + drop;
+		float tgtY = revealedY;
+		if (cfg.revealWhenLookingDown) {
+			float start = clamp(cfg.revealStartPitch, 0f, 89f);
+			float full = Math.max(start + 1f, clamp(cfg.revealFullPitch, 1f, 90f));
+			float reveal = smoothstep(start, full, SpatialHud.pitch);
+			float hiddenY = h + Math.max(20, cfg.hiddenBelowScreenPixels);
+			tgtY = lerp(hiddenY, revealedY, reveal);
+		}
 
 		float strength = clamp((float) cfg.sway, 0.0f, 2.0f);
 		float yawErr = SpatialHud.wrapDegrees(SpatialHud.yaw - SpatialHud.smoothYaw);
@@ -102,6 +111,15 @@ final class SpatialHudElement implements HudElement {
 		}
 		pose.scale(scale, scale);
 		pose.translate(-srcX, -srcY);
+	}
+
+	private static float smoothstep(float edge0, float edge1, float value) {
+		float t = clamp((value - edge0) / (edge1 - edge0), 0f, 1f);
+		return t * t * (3f - 2f * t);
+	}
+
+	private static float lerp(float from, float to, float amount) {
+		return from + (to - from) * amount;
 	}
 
 	private static float clamp(float v, float min, float max) {

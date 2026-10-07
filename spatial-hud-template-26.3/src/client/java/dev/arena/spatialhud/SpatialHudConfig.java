@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 2 after checking the values.
+	// registerAndLoad writes it as 3 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
@@ -41,6 +41,10 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public boolean showPanel = true;
 
+	@ConfigEntry.Category("general")
+	@ConfigEntry.Gui.Tooltip
+	public boolean onlyDuringGameplay = true;
+
 	// Placement — expressed in blocks to mirror Spatial GUI's first-person controls.
 	@ConfigEntry.Category("placement")
 	@ConfigEntry.Gui.Tooltip
@@ -53,6 +57,26 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("placement")
 	@ConfigEntry.Gui.Tooltip
 	public double height = 0.85;
+
+	// Look-down reveal keeps the HUD out of the way until it is intentionally needed.
+	@ConfigEntry.Category("lookDownReveal")
+	@ConfigEntry.Gui.Tooltip
+	public boolean revealWhenLookingDown = true;
+
+	@ConfigEntry.Category("lookDownReveal")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 89)
+	public int revealStartPitch = 18;
+
+	@ConfigEntry.Category("lookDownReveal")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 1, max = 90)
+	public int revealFullPitch = 48;
+
+	@ConfigEntry.Category("lookDownReveal")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 240)
+	public int hiddenBelowScreenPixels = 105;
 
 	// Motion. A time-based filter is used, so it remains smooth above 20 FPS.
 	@ConfigEntry.Category("motion")
@@ -112,32 +136,20 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 	}
 
-	/**
-	 * v0.3's first-release defaults made the strip roughly twice as wide as
-	 * vanilla and raised it toward the centre of the screen. Only replace that
-	 * exact untouched combination; deliberately customized values are left alone.
-	 */
+	/** Adds the compatibility-safe look-down reveal settings to older files. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 2) {
+		if (cfg.configVersion >= 3) {
 			return;
 		}
-
-		boolean untouchedV03Placement = nearly(cfg.distance, 1.1)
-				&& nearly(cfg.planeWidth, 1.9)
-				&& nearly(cfg.height, 0.35)
-				&& nearly(cfg.sway, 0.6);
-		if (untouchedV03Placement) {
-			cfg.distance = 1.75;
-			cfg.planeWidth = 1.45;
-			cfg.height = 0.85;
-			cfg.sway = 0.35;
-		}
-		cfg.configVersion = 2;
+		// v0.4 placement remains intact; only the new deliberate-reveal defaults
+		// are added. This makes existing user placement tuning safe to keep.
+		cfg.revealWhenLookingDown = true;
+		cfg.revealStartPitch = 18;
+		cfg.revealFullPitch = 48;
+		cfg.hiddenBelowScreenPixels = 105;
+		cfg.onlyDuringGameplay = true;
+		cfg.configVersion = 3;
 		save();
-	}
-
-	private static boolean nearly(double value, double expected) {
-		return Math.abs(value - expected) < 0.00001;
 	}
 
 	/** Per-element visibility inside spatial mode. */

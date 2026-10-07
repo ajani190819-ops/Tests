@@ -14,7 +14,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 final class SpatialHudPanelElement implements HudElement {
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
-		if (!SpatialHud.isEnabled() || Minecraft.getInstance().player == null) {
+		if (!SpatialHud.isGameplayHudActive()) {
 			return;
 		}
 
