@@ -22,9 +22,9 @@ import java.util.List;
  * Spatial HUD — a compact, smooth Spatial-GUI-style panel for the vanilla
  * bottom HUD strip (hotbar, bars, XP and held-item name).
  *
- * <p>Vanilla elements are captured through Fabric's HUD API and drawn on an
- * isolated texture plane under the actual world projection. Disabling the mod
- * immediately delegates every element back to vanilla.</p>
+ * <p>The render path intentionally uses only Fabric's official HUD API. Each
+ * vanilla element is re-extracted under one shared affine pose; disabling the
+ * mod immediately delegates every element back to vanilla.</p>
  */
 public class SpatialHud implements ClientModInitializer {
 	public static final Logger LOGGER = LoggerFactory.getLogger("spatialhud");
@@ -78,8 +78,8 @@ public class SpatialHud implements ClientModInitializer {
 			HudElementRegistry.replaceElement(id, vanilla -> new SpatialHudElement(id, vanilla));
 		}
 
-		// The panel is extracted before HOTBAR so its backing is captured behind
-		// every vanilla strip element on the isolated 3D texture.
+		// The panel is extracted before HOTBAR. It also marks the start of our
+		// render-frame update, eliminating the old 20 Hz (tick-only) sway.
 		HudElementRegistry.attachElementBefore(
 				VanillaHudElements.HOTBAR,
 				Identifier.fromNamespaceAndPath("spatialhud", "panel"),
