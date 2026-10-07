@@ -49,8 +49,39 @@ bottom-HUD root: nearer hotbar content stays wider, while health, hunger,
 armor, XP, and held-item roots narrow according to their depth in the strip.
 That gives icon groups real near/far width change instead of leaving them all
 at one width. A single icon cannot be trapezoid-warped by Fabric's public
-affine HUD pose, so exact per-pixel curvature/projective texture warping still
-requires the world/UI capture path that previously broke modded screens.
+affine HUD pose, so exact per-pixel curvature/projective texture warping needs
+an explicitly opt-in capture path rather than the default performance path.
+
+### Experimental captured-texture warp — disabled by default
+
+**Experimental Bottom-HUD Capture → Enable Experimental Captured-Texture Warp**
+is a separate, off-by-default prototype for real finished-texture deformation.
+It does not capture Minecraft's GUI wholesale. The existing Fabric wrappers
+send only the selected gameplay bottom-HUD roots—hotbar/spectator controls,
+status bars, XP, held-item label, and mount bar—to one private render state.
+That private state is rendered into a private texture and composited as a
+tessellated trapezoidal mesh, so completed slot icons, bars, and text undergo
+actual texture warping instead of the default per-root affine approximation.
+
+The experimental path deliberately has stricter safeguards than the default:
+
+- it runs only with an active player and world **and while no screen is open**,
+  even if the normal Gameplay Only preference was changed;
+- the renderer-target mixin uses a strict private-renderer identity check; it
+  never redirects Minecraft's normal renderer, any Screen, chat, minimap,
+  debug/FPS text, or a separately registered overlay;
+- status roots remain native when the existing AppleSkin/Detail Armor safety
+  setting is active, because that companion combination is not yet certified
+  for the experimental texture path;
+- any setup, extraction, texture-target, or GPU draw error disables the
+  experimental switch for the session and returns to the released affine mode.
+
+The optional **Experimental Capture Curvature** control bends the tessellated
+texture surface in screen space. It is zero/flat by default. This is an honest
+2.5D GUI composite, not a world-space HUD object. A true 3D/world-rendered
+"quality" mode is intentionally unavailable until this captured path has a
+reproducible compatibility matrix, including AppleSkin and Detail Armor Bar
+Reconstructed.
 
 Companion status bars protected by the AppleSkin/Detail Armor compatibility
 setting stay native while revealed so their own overlays remain coherent. Turn
@@ -84,10 +115,14 @@ status bars are spatially scaled together.
 
 ### Compatibility boundary
 
-This mod deliberately has **no renderer mixins, no framebuffer redirects, no
-screen hooks, and no world-render passes.** It uses Fabric's public HUD element
-API only. With **Gameplay Only** enabled (the default), it delegates directly
-to vanilla whenever another screen is open. That includes:
+The released **default performance mode** uses Fabric's public HUD element API
+only: it has no renderer mixins, framebuffer redirects, screen hooks, or
+world-render passes. The disabled experimental capture switch adds two narrowly
+scoped renderer hooks solely for its private bottom-HUD renderer; normal GUI
+renderers never meet their identity check. With **Gameplay Only** enabled (the
+default), the safe renderer delegates directly to vanilla whenever another
+screen is open, and the experimental renderer enforces that same screen-open
+bypass unconditionally. That includes:
 
 - inventory, creative inventory, chest, crafting, furnace, anvil, and other
   container screens

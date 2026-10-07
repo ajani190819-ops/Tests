@@ -49,6 +49,16 @@ final class SpatialHudElement implements HudElement {
 			return;
 		}
 
+		// The experiment receives only the roots this Fabric wrapper already
+		// owns. It does not capture the main GUI, a screen, a minimap, chat, or
+		// any separately registered overlay. If its private path declines a root
+		// (including after an internal error), immediately use the released
+		// affine renderer for this root instead.
+		if (ExperimentalHudCapture.isFrameActive()
+				&& ExperimentalHudCapture.capture((isolated, tracker) -> vanilla.extractRenderState(isolated, tracker), deltaTracker)) {
+			return;
+		}
+
 		graphics.pose().pushMatrix();
 		try {
 			applySpatialPose(graphics, cfg, id);

@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 7 after checking the values.
+	// registerAndLoad writes it as 8 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
@@ -123,6 +123,22 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public boolean projectiveIconScaling = true;
 
+	/**
+	 * Experimental capture mode is intentionally opt-in. It captures only the
+	 * selected gameplay bottom-HUD roots into a private texture, then warps that
+	 * completed strip as a mesh. Normal GUI renderers are never redirected.
+	 * Any capture/render error immediately latches the released affine mode.
+	 */
+	@ConfigEntry.Category("experimentalCapture")
+	@ConfigEntry.Gui.Tooltip
+	public boolean experimentalCaptureWarp = false;
+
+	/** Optional screen-space bow for the experimental mesh; zero is flat. */
+	@ConfigEntry.Category("experimentalCapture")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int experimentalCaptureCurvaturePercent = 0;
+
 	// Motion. A time-based filter is used, so it remains smooth above 20 FPS.
 	@ConfigEntry.Category("motion")
 	@ConfigEntry.Gui.Tooltip
@@ -194,7 +210,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Adds safe reveal, tilt, and companion-layout defaults to older config files. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 7) {
+		if (cfg.configVersion >= 8) {
 			return;
 		}
 
@@ -235,7 +251,14 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.projectiveIconScaling = true;
 		}
 
-		cfg.configVersion = 7;
+		if (cfg.configVersion < 8) {
+			// Never silently opt an existing installation into renderer hooks. The
+			// isolated capture path remains a deliberate experimental choice.
+			cfg.experimentalCaptureWarp = false;
+			cfg.experimentalCaptureCurvaturePercent = 0;
+		}
+
+		cfg.configVersion = 8;
 		save();
 	}
 

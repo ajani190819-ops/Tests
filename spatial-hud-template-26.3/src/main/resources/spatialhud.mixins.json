@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "dev.arena.spatialhud.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "SpatialHudGuiRendererMixin",
+    "SpatialHudGameRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

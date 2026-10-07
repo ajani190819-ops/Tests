@@ -22,6 +22,12 @@ final class SpatialHudPanelElement implements HudElement {
 		// before HOTBAR and makes the time-based pose stable for every element.
 		SpatialHud.updateRenderSway();
 
+		// This prepares an isolated state only when the explicitly opt-in
+		// experiment is active. It never touches the main GUI extractor or a
+		// screen renderer; selected wrapped roots decide individually whether to
+		// feed it below.
+		ExperimentalHudCapture.beginFrame(graphics);
+
 		SpatialHudConfig cfg = SpatialHudConfig.get();
 		if (!cfg.showPanel) {
 			return;

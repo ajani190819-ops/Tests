@@ -7,6 +7,7 @@
   "text.autoconfig.spatialhud.category.placement": "First-Person Placement",
   "text.autoconfig.spatialhud.category.lookDownReveal": "Look-Down Reveal",
   "text.autoconfig.spatialhud.category.planeTilt": "Look-Down Plane Tilt",
+  "text.autoconfig.spatialhud.category.experimentalCapture": "Experimental Bottom-HUD Capture",
   "text.autoconfig.spatialhud.category.motion": "Motion",
   "text.autoconfig.spatialhud.category.compatibility": "Bottom-HUD Compatibility",
   "text.autoconfig.spatialhud.category.visibility": "Visible HUD Parts",
@@ -50,6 +51,11 @@
   "text.autoconfig.spatialhud.option.planeHorizonFarEdgeWidthPercent.@Tooltip": "Width of the plate's far (upper) edge near the horizon, as a percent of its near edge. Lower values make the taper stronger.",
   "text.autoconfig.spatialhud.option.projectiveIconScaling": "Perspective-Scale HUD Icons",
   "text.autoconfig.spatialhud.option.projectiveIconScaling.@Tooltip": "Scale each vanilla HUD group by its near/far depth using the same perspective ratio as the backing plate. Enabled by default for the strongest safe 2.5D effect; it does not use a framebuffer or global GUI hook.",
+
+  "text.autoconfig.spatialhud.option.experimentalCaptureWarp": "Enable Experimental Captured-Texture Warp (Off by Default)",
+  "text.autoconfig.spatialhud.option.experimentalCaptureWarp.@Tooltip": "EXPERIMENTAL: capture only the selected gameplay bottom-HUD roots into a private texture, then projectively warp that finished strip. Normal screens, chat, minimaps, debug text, and other overlays are never captured. It forces gameplay-only operation and automatically returns to the safe affine renderer if an error occurs.",
+  "text.autoconfig.spatialhud.option.experimentalCaptureCurvaturePercent": "Experimental Capture Curvature",
+  "text.autoconfig.spatialhud.option.experimentalCaptureCurvaturePercent.@Tooltip": "Optional screen-space bow for the experimental captured strip. 0 is a flat projective plane. This setting has no effect unless Experimental Captured-Texture Warp is enabled.",
 
   "text.autoconfig.spatialhud.option.sway": "Parallax Strength",
   "text.autoconfig.spatialhud.option.sway.@Tooltip": "How much the panel gently trails your look direction. Set to 0 for a perfectly rigid HUD.",

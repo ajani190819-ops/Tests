@@ -140,6 +140,19 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/**
+	 * The experimental texture path has a stricter boundary than the released
+	 * affine renderer: it is gameplay-only even if a user turns off the normal
+	 * Gameplay Only preference. This is intentionally non-negotiable while the
+	 * compatibility matrix is still being established.
+	 */
+	static boolean isExperimentalCaptureActive() {
+		Minecraft mc = Minecraft.getInstance();
+		return isGameplayHudActive()
+				&& SpatialHudConfig.get().experimentalCaptureWarp
+				&& mc.gui.screen() == null;
+	}
+
+	/**
 	 * AppleSkin 3.0.10 injects its saturation/food/health decorations inside
 	 * {@code Hud.extractFood}/{@code extractHearts}; Detail Armor Bar
 	 * Reconstructed 5.3.2 injects inside {@code Hud.extractArmor}. Keeping those
