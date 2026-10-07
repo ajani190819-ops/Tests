@@ -1,13 +1,12 @@
 Spatial HUD CI build FAILED
-Run: https://github.com/ajani190819-ops/Tests/actions/runs/37627925487
+Run: https://github.com/ajani190819-ops/Tests/actions/runs/37628309559
 
 --- captured build output ---
 
 --- exception ---
-org.gradle.internal.exceptions.LocationAwareException: Build file '/home/runner/work/Tests/Tests/spatial-hud-template-26.3/build.gradle' line: 18
-A problem occurred evaluating root project 'spatial-hud'.
+org.gradle.internal.exceptions.LocationAwareException: Execution failed for task ':compileJava' (registered by plugin class 'org.gradle.api.plugins.JavaBasePlugin').
 	at org.gradle.initialization.exception.DefaultExceptionAnalyser.transform(DefaultExceptionAnalyser.java:97)
-	at org.gradle.initialization.exception.DefaultExceptionAnalyser.collectFailures(DefaultExceptionAnalyser.java:51)
+	at org.gradle.initialization.exception.DefaultExceptionAnalyser.collectFailures(DefaultExceptionAnalyser.java:63)
 	at org.gradle.initialization.exception.MultipleBuildFailuresExceptionAnalyser.transform(MultipleBuildFailuresExceptionAnalyser.java:56)
 	at org.gradle.initialization.exception.StackTraceSanitizingExceptionAnalyser.transform(StackTraceSanitizingExceptionAnalyser.java:40)
 	at org.gradle.internal.buildtree.DefaultBuildTreeFinishExecutor.finishBuildTree(DefaultBuildTreeFinishExecutor.java:56)
@@ -102,12 +101,367 @@ A problem occurred evaluating root project 'spatial-hud'.
 	at org.gradle.launcher.daemon.server.DaemonStateCoordinator.lambda$runCommand$0(DaemonStateCoordinator.java:321)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:65)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
-Caused by: org.gradle.api.GradleScriptException: A problem occurred evaluating root project 'spatial-hud'.
-	at org.gradle.groovy.scripts.internal.DefaultScriptRunnerFactory$ScriptRunnerImpl.run(DefaultScriptRunnerFactory.java:93)
-	at org.gradle.configuration.DefaultScriptPluginFactory$ScriptPluginImpl.lambda$apply$1(DefaultScriptPluginFactory.java:141)
-	at org.gradle.configuration.ProjectScriptTarget.addConfiguration(ProjectScriptTarget.java:79)
-	at org.gradle.configuration.DefaultScriptPluginFactory$ScriptPluginImpl.apply(DefaultScriptPluginFactory.java:144)
-	at org.gradle.configuration.BuildOperationScriptPlugin$1.run(BuildOperationScriptPlugin.java:68)
+Caused by: org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':compileJava' (registered by plugin class 'org.gradle.api.plugins.JavaBasePlugin').
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:135)
+	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:288)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:133)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:121)
+	at org.gradle.api.internal.tasks.execution.ProblemsTaskPathTrackingTaskExecuter.execute(ProblemsTaskPathTrackingTaskExecuter.java:41)
+	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
+	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
+	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
+	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
+	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
+	at org.gradle.execution.plan.DefaultNodeExecutor.executeLocalTaskNode(DefaultNodeExecutor.java:55)
+	at org.gradle.execution.plan.DefaultNodeExecutor.execute(DefaultNodeExecutor.java:34)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:355)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:343)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:339)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:84)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:339)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:328)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	... 2 more
+Caused by: org.gradle.api.internal.tasks.compile.CompilationFailedException: Compilation failed; see the compiler output below.
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/SpatialHud.java:6: error: package net.fabricmc.fabric.api.client.keybinding.v1 does not exist
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+                                                   ^
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/SpatialHud.java:10: error: package org.lwjgl.glfw does not exist
+import org.lwjgl.glfw.GLFW;
+                     ^
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiMixin.java:6: error: cannot find symbol
+import net.minecraft.client.gui.GuiGraphics;
+                               ^
+  symbol:   class GuiGraphics
+  location: package net.minecraft.client.gui
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiMixin.java:7: error: cannot find symbol
+import net.minecraft.client.player.PlayerRideableJumping;
+                                  ^
+  symbol:   class PlayerRideableJumping
+  location: package net.minecraft.client.player
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiMixin.java:22: error: cannot find symbol
+    private void spatialhud$suppressHotbar(GuiGraphics guiGraphics, DeltaTracker deltaTracker, CallbackInfo ci) {
+                                           ^
+  symbol:   class GuiGraphics
+  location: class GuiMixin
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiMixin.java:27: error: cannot find symbol
+    private void spatialhud$suppressPlayerHealth(GuiGraphics guiGraphics, CallbackInfo ci) {
+                                                 ^
+  symbol:   class GuiGraphics
+  location: class GuiMixin
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiMixin.java:32: error: cannot find symbol
+    private void spatialhud$suppressExperienceBar(GuiGraphics guiGraphics, int x, CallbackInfo ci) {
+                                                  ^
+  symbol:   class GuiGraphics
+  location: class GuiMixin
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiMixin.java:37: error: cannot find symbol
+    private void spatialhud$suppressVehicleHealth(GuiGraphics guiGraphics, CallbackInfo ci) {
+                                                  ^
+  symbol:   class GuiGraphics
+  location: class GuiMixin
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiMixin.java:42: error: cannot find symbol
+    private void spatialhud$suppressJumpMeter(PlayerRideableJumping rideable, GuiGraphics guiGraphics, int x, CallbackInfo ci) {
+                                              ^
+  symbol:   class PlayerRideableJumping
+  location: class GuiMixin
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiMixin.java:42: error: cannot find symbol
+    private void spatialhud$suppressJumpMeter(PlayerRideableJumping rideable, GuiGraphics guiGraphics, int x, CallbackInfo ci) {
+                                                                              ^
+  symbol:   class GuiGraphics
+  location: class GuiMixin
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiMixin.java:47: error: cannot find symbol
+    private void spatialhud$suppressSelectedItemName(GuiGraphics guiGraphics, CallbackInfo ci) {
+                                                     ^
+  symbol:   class GuiGraphics
+  location: class GuiMixin
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiAccessor.java:5: error: cannot find symbol
+import net.minecraft.client.gui.GuiGraphics;
+                               ^
+  symbol:   class GuiGraphics
+  location: package net.minecraft.client.gui
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiAccessor.java:6: error: cannot find symbol
+import net.minecraft.client.player.PlayerRideableJumping;
+                                  ^
+  symbol:   class PlayerRideableJumping
+  location: package net.minecraft.client.player
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiAccessor.java:31: error: cannot find symbol
+    void invokeRenderHotbar(GuiGraphics guiGraphics, DeltaTracker deltaTracker);
+                            ^
+  symbol:   class GuiGraphics
+  location: interface GuiAccessor
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiAccessor.java:34: error: cannot find symbol
+    void invokeRenderPlayerHealth(GuiGraphics guiGraphics);
+                                  ^
+  symbol:   class GuiGraphics
+  location: interface GuiAccessor
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiAccessor.java:37: error: cannot find symbol
+    void invokeRenderExperienceBar(GuiGraphics guiGraphics, int x);
+                                   ^
+  symbol:   class GuiGraphics
+  location: interface GuiAccessor
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiAccessor.java:40: error: cannot find symbol
+    void invokeRenderVehicleHealth(GuiGraphics guiGraphics);
+                                   ^
+  symbol:   class GuiGraphics
+  location: interface GuiAccessor
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiAccessor.java:43: error: cannot find symbol
+    void invokeRenderJumpMeter(PlayerRideableJumping rideable, GuiGraphics guiGraphics, int x);
+                               ^
+  symbol:   class PlayerRideableJumping
+  location: interface GuiAccessor
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiAccessor.java:43: error: cannot find symbol
+    void invokeRenderJumpMeter(PlayerRideableJumping rideable, GuiGraphics guiGraphics, int x);
+                                                               ^
+  symbol:   class GuiGraphics
+  location: interface GuiAccessor
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/mixin/GuiAccessor.java:46: error: cannot find symbol
+    void invokeRenderSelectedItemName(GuiGraphics guiGraphics);
+                                      ^
+  symbol:   class GuiGraphics
+  location: interface GuiAccessor
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:5: error: cannot find symbol
+import com.mojang.blaze3d.vertex.Tesselator;
+                                ^
+  symbol:   class Tesselator
+  location: package com.mojang.blaze3d.vertex
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:7: error: cannot find symbol
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+                                                  ^
+  symbol:   class WorldRenderContext
+  location: package net.fabricmc.fabric.api.client.rendering.v1
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:8: error: cannot find symbol
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+                                                  ^
+  symbol:   class WorldRenderEvents
+  location: package net.fabricmc.fabric.api.client.rendering.v1
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:11: error: cannot find symbol
+import net.minecraft.client.gui.GuiGraphics;
+                               ^
+  symbol:   class GuiGraphics
+  location: package net.minecraft.client.gui
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:12: error: cannot find symbol
+import net.minecraft.client.player.PlayerRideableJumping;
+                                  ^
+  symbol:   class PlayerRideableJumping
+  location: package net.minecraft.client.player
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:13: error: cannot find symbol
+import net.minecraft.client.renderer.Camera;
+                                    ^
+  symbol:   class Camera
+  location: package net.minecraft.client.renderer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:14: error: cannot find symbol
+import net.minecraft.client.renderer.MultiBufferSource;
+                                    ^
+  symbol:   class MultiBufferSource
+  location: package net.minecraft.client.renderer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:52: error: cannot find symbol
+    private static void render(WorldRenderContext ctx) {
+                               ^
+  symbol:   class WorldRenderContext
+  location: class HudPlaneRenderer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:66: error: cannot find symbol
+    private static void renderInner(WorldRenderContext ctx) {
+                                    ^
+  symbol:   class WorldRenderContext
+  location: class HudPlaneRenderer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:168: error: cannot find symbol
+    private static DeltaTracker tickCounter(Minecraft minecraft, WorldRenderContext ctx) {
+                                                                 ^
+  symbol:   class WorldRenderContext
+  location: class HudPlaneRenderer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/VertexSortingHolder.java:3: error: cannot find symbol
+import net.minecraft.client.renderer.VertexSorting;
+                                    ^
+  symbol:   class VertexSorting
+  location: package net.minecraft.client.renderer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/VertexSortingHolder.java:14: error: cannot find symbol
+    public static final VertexSorting BY_DISTANCE = VertexSorting.BY_DISTANCE;
+                        ^
+  symbol:   class VertexSorting
+  location: class VertexSortingHolder
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/SpatialHud.java:32: error: cannot find symbol
+                InputConstants.Type.KEYSYM,
+                                   ^
+  symbol:   variable KEYSYM
+  location: class Type
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/SpatialHud.java:33: error: cannot find symbol
+                GLFW.GLFW_KEY_H,
+                ^
+  symbol:   variable GLFW
+  location: class SpatialHud
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/SpatialHud.java:30: error: cannot find symbol
+        toggleKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+                    ^
+  symbol:   variable KeyBindingHelper
+  location: class SpatialHud
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/SpatialHud.java:43: error: cannot find symbol
+                    minecraft.player.displayClientMessage(
+                                    ^
+  symbol:   method displayClientMessage(MutableComponent,boolean)
+  location: variable player of type LocalPlayer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/SpatialHud.java:64: error: cannot find symbol
+                && !minecraft.options.hideGui
+                                     ^
+  symbol:   variable hideGui
+  location: variable options of type Options
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/SpatialHud.java:65: error: cannot find symbol
+                && minecraft.screen == null;
+                            ^
+  symbol:   variable screen
+  location: variable minecraft of type Minecraft
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:49: error: package WorldRenderEvents does not exist
+        WorldRenderEvents.LAST.register(HudPlaneRenderer::render);
+                         ^
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:71: error: cannot find symbol
+        if (minecraft.options.hideGui || minecraft.screen != null) return;
+                             ^
+  symbol:   variable hideGui
+  location: variable options of type Options
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:71: error: cannot find symbol
+        if (minecraft.options.hideGui || minecraft.screen != null) return;
+                                                  ^
+  symbol:   variable screen
+  location: variable minecraft of type Minecraft
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:73: error: cannot find symbol
+        Camera cam = ctx.camera();
+        ^
+  symbol:   class Camera
+  location: class HudPlaneRenderer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:108: error: cannot find symbol
+        Matrix4f proj = new Matrix4f(RenderSystem.getProjectionMatrix())
+                                                 ^
+  symbol:   method getProjectionMatrix()
+  location: class RenderSystem
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:113: error: cannot find symbol
+        Matrix4f oldProj = new Matrix4f(RenderSystem.getProjectionMatrix());
+                                                    ^
+  symbol:   method getProjectionMatrix()
+  location: class RenderSystem
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:114: error: incompatible types: Matrix4fStack cannot be converted to PoseStack
+        PoseStack mv = RenderSystem.getModelViewStack();   // VERIFY: pushPose/popPose/setIdentity
+                                                     ^
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:117: error: cannot find symbol
+        RenderSystem.applyModelViewMatrix();
+                    ^
+  symbol:   method applyModelViewMatrix()
+  location: class RenderSystem
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/VertexSortingHolder.java:14: error: cannot find symbol
+    public static final VertexSorting BY_DISTANCE = VertexSorting.BY_DISTANCE;
+                                                    ^
+  symbol:   variable VertexSorting
+  location: class VertexSortingHolder
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:119: error: cannot find symbol
+        RenderSystem.disableDepthTest();
+                    ^
+  symbol:   method disableDepthTest()
+  location: class RenderSystem
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:120: error: cannot find symbol
+        RenderSystem.enableBlend();
+                    ^
+  symbol:   method enableBlend()
+  location: class RenderSystem
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:121: error: cannot find symbol
+        RenderSystem.defaultBlendFunc();
+                    ^
+  symbol:   method defaultBlendFunc()
+  location: class RenderSystem
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:124: error: package MultiBufferSource does not exist
+        MultiBufferSource.BufferSource immediate =
+                         ^
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:125: error: cannot find symbol
+                MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
+                ^
+  symbol:   variable MultiBufferSource
+  location: class HudPlaneRenderer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:125: error: cannot find symbol
+                MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
+                                            ^
+  symbol:   variable Tesselator
+  location: class HudPlaneRenderer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:126: error: cannot find symbol
+        GuiGraphics gg = new GuiGraphics(minecraft, immediate); // VERIFY: ctor (Minecraft, MultiBufferSource)
+        ^
+  symbol:   class GuiGraphics
+  location: class HudPlaneRenderer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:126: error: cannot find symbol
+        GuiGraphics gg = new GuiGraphics(minecraft, immediate); // VERIFY: ctor (Minecraft, MultiBufferSource)
+                             ^
+  symbol:   class GuiGraphics
+  location: class HudPlaneRenderer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:143: error: cannot find symbol
+                && minecraft.gameMode.hasStatusBars();              // VERIFY: hasStatusBars
+                                     ^
+  symbol:   method hasStatusBars()
+  location: variable gameMode of type MultiPlayerGameMode
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:145: error: cannot find symbol
+        PlayerRideableJumping rideable = minecraft.player.jumpableVehicle(); // VERIFY: jumpableVehicle
+        ^
+  symbol:   class PlayerRideableJumping
+  location: class HudPlaneRenderer
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:162: error: cannot find symbol
+        RenderSystem.enableDepthTest();
+                    ^
+  symbol:   method enableDepthTest()
+  location: class RenderSystem
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:164: error: cannot find symbol
+        RenderSystem.applyModelViewMatrix();
+                    ^
+  symbol:   method applyModelViewMatrix()
+  location: class RenderSystem
+/home/runner/work/Tests/Tests/spatial-hud-template-26.3/src/main/java/dev/arena/spatialhud/HudPlaneRenderer.java:172: error: cannot find symbol
+            return minecraft.getTimer();       // VERIFY: getTimer
+                            ^
+  symbol:   method getTimer()
+  location: variable minecraft of type Minecraft
+60 errors
+	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:88)
+	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:49)
+	at org.gradle.api.internal.tasks.compile.NormalizingJavaCompiler.delegateAndHandleErrors(NormalizingJavaCompiler.java:98)
+	at org.gradle.api.internal.tasks.compile.NormalizingJavaCompiler.execute(NormalizingJavaCompiler.java:52)
+	at org.gradle.api.internal.tasks.compile.NormalizingJavaCompiler.execute(NormalizingJavaCompiler.java:38)
+	at org.gradle.api.internal.tasks.compile.AnnotationProcessorDiscoveringCompiler.execute(AnnotationProcessorDiscoveringCompiler.java:52)
+	at org.gradle.api.internal.tasks.compile.AnnotationProcessorDiscoveringCompiler.execute(AnnotationProcessorDiscoveringCompiler.java:38)
+	at org.gradle.api.internal.tasks.compile.ModuleApplicationNameWritingCompiler.execute(ModuleApplicationNameWritingCompiler.java:46)
+	at org.gradle.api.internal.tasks.compile.ModuleApplicationNameWritingCompiler.execute(ModuleApplicationNameWritingCompiler.java:36)
+	at org.gradle.jvm.toolchain.internal.DefaultToolchainJavaCompiler.execute(DefaultToolchainJavaCompiler.java:57)
+	at org.gradle.api.tasks.compile.JavaCompile.lambda$createToolchainCompiler$0(JavaCompile.java:207)
+	at org.gradle.api.internal.tasks.compile.CleaningJavaCompiler.execute(CleaningJavaCompiler.java:53)
+	at org.gradle.api.internal.tasks.compile.incremental.IncrementalCompilerFactory.lambda$createRebuildAllCompiler$0(IncrementalCompilerFactory.java:55)
+	at org.gradle.api.internal.tasks.compile.incremental.SelectiveCompiler.execute(SelectiveCompiler.java:70)
+	at org.gradle.api.internal.tasks.compile.incremental.SelectiveCompiler.execute(SelectiveCompiler.java:44)
+	at org.gradle.api.internal.tasks.compile.incremental.IncrementalResultStoringCompiler.execute(IncrementalResultStoringCompiler.java:66)
+	at org.gradle.api.internal.tasks.compile.incremental.IncrementalResultStoringCompiler.execute(IncrementalResultStoringCompiler.java:52)
+	at org.gradle.api.internal.tasks.compile.CompileJavaBuildOperationReportingCompiler$CompileOperation.call(CompileJavaBuildOperationReportingCompiler.java:78)
+	at org.gradle.api.internal.tasks.compile.CompileJavaBuildOperationReportingCompiler$CompileOperation.call(CompileJavaBuildOperationReportingCompiler.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.api.internal.tasks.compile.CompileJavaBuildOperationReportingCompiler.execute(CompileJavaBuildOperationReportingCompiler.java:49)
+	at org.gradle.api.tasks.compile.JavaCompile.performCompilation(JavaCompile.java:225)
+	at org.gradle.api.tasks.compile.JavaCompile.performIncrementalCompilation(JavaCompile.java:166)
+	at org.gradle.api.tasks.compile.JavaCompile.compile(JavaCompile.java:151)
+	at org.gradle.internal.reflect.JavaMethod.invoke(JavaMethod.java:125)
+	at org.gradle.api.internal.project.taskfactory.IncrementalTaskAction.doExecute(IncrementalTaskAction.java:45)
+	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.execute(StandardTaskAction.java:51)
+	at org.gradle.api.internal.project.taskfactory.IncrementalTaskAction.execute(IncrementalTaskAction.java:26)
+	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.execute(StandardTaskAction.java:29)
+	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:259)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
@@ -115,116 +469,92 @@ Caused by: org.gradle.api.GradleScriptException: A problem occurred evaluating r
 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
-	at org.gradle.configuration.BuildOperationScriptPlugin.lambda$apply$0(BuildOperationScriptPlugin.java:65)
-	at org.gradle.internal.code.DefaultUserCodeApplicationContext.apply(DefaultUserCodeApplicationContext.java:44)
-	at org.gradle.configuration.BuildOperationScriptPlugin.apply(BuildOperationScriptPlugin.java:65)
-	at org.gradle.api.internal.project.DefaultProjectState.lambda$applyToMutableState$0(DefaultProjectState.java:241)
-	at org.gradle.api.internal.project.DefaultProjectState.lambda$fromMutableState$0(DefaultProjectState.java:248)
-	at org.gradle.api.internal.project.DefaultProjectState.runWithModelLock(DefaultProjectState.java:271)
-	at org.gradle.api.internal.project.DefaultProjectState.fromMutableState(DefaultProjectState.java:248)
-	at org.gradle.api.internal.project.DefaultProjectState.applyToMutableState(DefaultProjectState.java:240)
-	at org.gradle.configuration.project.BuildScriptProcessor.execute(BuildScriptProcessor.java:46)
-	at org.gradle.configuration.project.BuildScriptProcessor.execute(BuildScriptProcessor.java:27)
-	at org.gradle.configuration.project.ConfigureActionsProjectEvaluator.evaluate(ConfigureActionsProjectEvaluator.java:35)
-	at org.gradle.configuration.project.LifecycleProjectEvaluator$EvaluateProject.lambda$run$0(LifecycleProjectEvaluator.java:109)
-	at org.gradle.api.internal.project.DefaultProjectState.lambda$applyToMutableState$0(DefaultProjectState.java:241)
-	at org.gradle.api.internal.project.DefaultProjectState.lambda$fromMutableState$0(DefaultProjectState.java:248)
-	at org.gradle.api.internal.project.DefaultProjectState.runWithModelLock(DefaultProjectState.java:271)
-	at org.gradle.api.internal.project.DefaultProjectState.fromMutableState(DefaultProjectState.java:248)
-	at org.gradle.api.internal.project.DefaultProjectState.applyToMutableState(DefaultProjectState.java:240)
-	at org.gradle.configuration.project.LifecycleProjectEvaluator$EvaluateProject.run(LifecycleProjectEvaluator.java:100)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeAction(TaskExecution.java:244)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeActions(TaskExecution.java:227)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeWithPreviousOutputFiles(TaskExecution.java:210)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.execute(TaskExecution.java:176)
+	at org.gradle.internal.execution.steps.ExecuteStep.executeInternal(ExecuteStep.java:167)
+	at org.gradle.internal.execution.steps.ExecuteStep.access$000(ExecuteStep.java:47)
+	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:137)
+	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:134)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
-	at org.gradle.configuration.project.LifecycleProjectEvaluator.evaluate(LifecycleProjectEvaluator.java:72)
-	at org.gradle.api.internal.project.DefaultProject.evaluateUnchecked(DefaultProject.java:828)
-	at org.gradle.api.internal.project.ProjectLifecycleController.lambda$ensureSelfConfigured$1(ProjectLifecycleController.java:98)
-	at org.gradle.api.internal.project.DefaultProjectState.lambda$withProjectLock$0(DefaultProjectState.java:253)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$runAndReleaseLocks$0(DefaultWorkerLeaseService.java:302)
-	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAndReleaseLocks(DefaultWorkerLeaseService.java:300)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocksAcquired(DefaultWorkerLeaseService.java:296)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withReplacedLocks$0(DefaultWorkerLeaseService.java:452)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:374)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withReplacedLocks(DefaultWorkerLeaseService.java:451)
-	at org.gradle.api.internal.project.DefaultProjectState.runWithModelLock(DefaultProjectState.java:276)
-	at org.gradle.api.internal.project.DefaultProjectState.withProjectLock(DefaultProjectState.java:252)
-	at org.gradle.api.internal.project.ProjectLifecycleController.lambda$ensureSelfConfigured$0(ProjectLifecycleController.java:98)
-	at org.gradle.internal.model.StateTransitionController.lambda$doTransition$0(StateTransitionController.java:313)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:324)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:312)
-	at org.gradle.internal.model.StateTransitionController.lambda$maybeTransitionIfNotCurrentlyTransitioning$0(StateTransitionController.java:257)
-	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:35)
-	at org.gradle.internal.model.StateTransitionController.maybeTransitionIfNotCurrentlyTransitioning(StateTransitionController.java:253)
-	at org.gradle.api.internal.project.ProjectLifecycleController.ensureSelfConfigured(ProjectLifecycleController.java:98)
-	at org.gradle.api.internal.project.DefaultProjectState.ensureConfigured(DefaultProjectState.java:209)
-	at org.gradle.execution.TaskPathProjectEvaluator.configureHierarchy(TaskPathProjectEvaluator.java:78)
-	at org.gradle.configuration.DefaultProjectsPreparer.prepareProjects(DefaultProjectsPreparer.java:52)
-	at org.gradle.configuration.BuildTreePreparingProjectsPreparer.prepareProjects(BuildTreePreparingProjectsPreparer.java:65)
-	at org.gradle.configuration.BuildOperationFiringProjectsPreparer$ConfigureBuild.run(BuildOperationFiringProjectsPreparer.java:52)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
-	at org.gradle.configuration.BuildOperationFiringProjectsPreparer.prepareProjects(BuildOperationFiringProjectsPreparer.java:40)
-	at org.gradle.initialization.VintageBuildModelController.lambda$prepareProjects$0(VintageBuildModelController.java:83)
-	at org.gradle.internal.model.StateTransitionController.lambda$doTransition$0(StateTransitionController.java:313)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:324)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:312)
-	at org.gradle.internal.model.StateTransitionController.lambda$transitionIfNotPreviously$0(StateTransitionController.java:271)
-	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:35)
-	at org.gradle.internal.model.StateTransitionController.transitionIfNotPreviously(StateTransitionController.java:267)
-	at org.gradle.initialization.VintageBuildModelController.prepareProjects(VintageBuildModelController.java:83)
-	at org.gradle.initialization.VintageBuildModelController.prepareToScheduleTasks(VintageBuildModelController.java:70)
-	at org.gradle.internal.cc.impl.ConfigurationCacheAwareBuildModelController.prepareToScheduleTasks(ConfigurationCacheAwareBuildModelController.kt:59)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$prepareToScheduleTasks$0(DefaultBuildLifecycleController.java:185)
-	at org.gradle.internal.model.StateTransitionController.lambda$doTransition$0(StateTransitionController.java:313)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:324)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:312)
-	at org.gradle.internal.model.StateTransitionController.lambda$maybeTransition$0(StateTransitionController.java:248)
-	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:35)
-	at org.gradle.internal.model.StateTransitionController.maybeTransition(StateTransitionController.java:244)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.prepareToScheduleTasks(DefaultBuildLifecycleController.java:183)
-	at org.gradle.internal.buildtree.DefaultBuildTreeWorkPreparer.scheduleRequestedTasks(DefaultBuildTreeWorkPreparer.java:35)
-	at org.gradle.internal.cc.impl.ConfigurationCacheAwareBuildTreeWorkController$scheduleAndRunRequestedTasks$executionResult$1$result$1.call$lambda$0(ConfigurationCacheAwareBuildTreeWorkController.kt:60)
-	at org.gradle.internal.cc.impl.DefaultConfigurationCache.loadOrScheduleRequestedTasks$lambda$1(DefaultConfigurationCache.kt:280)
-	at org.gradle.internal.cc.impl.DefaultConfigurationCache.runWorkThatContributesToCacheEntry(DefaultConfigurationCache.kt:654)
-	at org.gradle.internal.cc.impl.DefaultConfigurationCache.loadOrScheduleRequestedTasks(DefaultConfigurationCache.kt:279)
-	at org.gradle.internal.cc.impl.ConfigurationCacheAwareBuildTreeWorkController$scheduleAndRunRequestedTasks$executionResult$1$result$1.call(ConfigurationCacheAwareBuildTreeWorkController.kt:57)
-	at org.gradle.internal.cc.impl.ConfigurationCacheAwareBuildTreeWorkController$scheduleAndRunRequestedTasks$executionResult$1$result$1.call(ConfigurationCacheAwareBuildTreeWorkController.kt:56)
-	at org.gradle.internal.Try.ofFailable(Try.java:46)
-	at org.gradle.internal.cc.impl.ConfigurationCacheAwareBuildTreeWorkController$scheduleAndRunRequestedTasks$executionResult$1.apply(ConfigurationCacheAwareBuildTreeWorkController.kt:56)
-	at org.gradle.internal.cc.impl.ConfigurationCacheAwareBuildTreeWorkController$scheduleAndRunRequestedTasks$executionResult$1.apply(ConfigurationCacheAwareBuildTreeWorkController.kt:55)
-	at org.gradle.composite.internal.DefaultIncludedBuildTaskGraph.withNewWorkGraph(DefaultIncludedBuildTaskGraph.java:115)
-	at org.gradle.internal.cc.impl.ConfigurationCacheAwareBuildTreeWorkController.scheduleAndRunRequestedTasks(ConfigurationCacheAwareBuildTreeWorkController.kt:55)
-	at org.gradle.internal.buildtree.DefaultBuildTreeLifecycleController.lambda$scheduleAndRunTasks$0(DefaultBuildTreeLifecycleController.java:80)
-	at org.gradle.internal.buildtree.DefaultBuildTreeLifecycleController.lambda$runBuild$0(DefaultBuildTreeLifecycleController.java:166)
-	... 79 more
-Caused by: java.lang.UnsupportedOperationException: Cannot use Mojang mappings in a non-obfuscated environment
-	at net.fabricmc.loom.extension.LoomGradleExtensionApiImpl.officialMojangMappings(LoomGradleExtensionApiImpl.java:274)
-	at build_b5325ubp9zids6ag2trpp8ldq$_run_closure2.doCall$original(/home/runner/work/Tests/Tests/spatial-hud-template-26.3/build.gradle:18)
-	at build_b5325ubp9zids6ag2trpp8ldq$_run_closure2.doCall(/home/runner/work/Tests/Tests/spatial-hud-template-26.3/build.gradle)
-	at org.gradle.util.internal.ClosureBackedAction.execute(ClosureBackedAction.java:73)
-	at org.gradle.util.internal.ConfigureUtil.configureTarget(ConfigureUtil.java:166)
-	at org.gradle.util.internal.ConfigureUtil.configure(ConfigureUtil.java:107)
-	at org.gradle.api.internal.project.DefaultProject.dependencies(DefaultProject.java:1343)
-	at org.gradle.internal.metaobject.BeanDynamicObject$MetaClassAdapter.invokeMethod(BeanDynamicObject.java:586)
-	at org.gradle.internal.metaobject.BeanDynamicObject.tryInvokeMethod(BeanDynamicObject.java:228)
-	at org.gradle.internal.metaobject.CompositeDynamicObject.tryInvokeMethod(CompositeDynamicObject.java:113)
-	at org.gradle.internal.extensibility.ExtensibleDynamicObject.doTryInvokeMethod(ExtensibleDynamicObject.java:345)
-	at org.gradle.internal.extensibility.ExtensibleDynamicObject.tryInvokeMethod(ExtensibleDynamicObject.java:394)
-	at org.gradle.groovy.scripts.BasicScript$ScriptDynamicObject.tryInvokeMethod(BasicScript.java:186)
-	at org.gradle.internal.metaobject.AbstractDynamicObject.invokeMethod(AbstractDynamicObject.java:169)
-	at org.gradle.groovy.scripts.BasicScript.lambda$invokeMethod$0(BasicScript.java:100)
-	at org.gradle.groovy.scripts.BasicScript.withCallerContext(BasicScript.java:120)
-	at org.gradle.groovy.scripts.BasicScript.invokeMethod(BasicScript.java:100)
-	at build_b5325ubp9zids6ag2trpp8ldq.run(/home/runner/work/Tests/Tests/spatial-hud-template-26.3/build.gradle:14)
-	at org.gradle.groovy.scripts.internal.DefaultScriptRunnerFactory$ScriptRunnerImpl.run(DefaultScriptRunnerFactory.java:91)
-	... 181 more
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:134)
+	at org.gradle.internal.execution.steps.ExecuteStep$Mutable.execute(ExecuteStep.java:80)
+	at org.gradle.internal.execution.steps.CancelExecutionStep.execute(CancelExecutionStep.java:42)
+	at org.gradle.internal.execution.steps.TimeoutStep.executeWithoutTimeout(TimeoutStep.java:75)
+	at org.gradle.internal.execution.steps.TimeoutStep.execute(TimeoutStep.java:55)
+	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:51)
+	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:29)
+	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.executeMutable(RemovePreviousOutputsStep.java:67)
+	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.executeMutable(RemovePreviousOutputsStep.java:39)
+	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:42)
+	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:24)
+	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:69)
+	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:46)
+	at org.gradle.internal.execution.steps.ResolveInputChangesStep.executeMutable(ResolveInputChangesStep.java:39)
+	at org.gradle.internal.execution.steps.ResolveInputChangesStep.executeMutable(ResolveInputChangesStep.java:28)
+	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithoutCache(BuildCacheStep.java:189)
+	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$execute$1(BuildCacheStep.java:76)
+	at org.gradle.internal.Either$Right.fold(Either.java:176)
+	at org.gradle.internal.execution.caching.CachingState.fold(CachingState.java:62)
+	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:74)
+	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:49)
+	at org.gradle.internal.execution.steps.StoreExecutionStateStep.executeMutable(StoreExecutionStateStep.java:46)
+	at org.gradle.internal.execution.steps.StoreExecutionStateStep.executeMutable(StoreExecutionStateStep.java:35)
+	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:75)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:53)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:53)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:35)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:37)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:27)
+	at org.gradle.internal.execution.steps.ResolveMutableCachingStateStep.executeDelegate(ResolveMutableCachingStateStep.java:70)
+	at org.gradle.internal.execution.steps.ResolveMutableCachingStateStep.executeDelegate(ResolveMutableCachingStateStep.java:32)
+	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:69)
+	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:37)
+	at org.gradle.internal.execution.steps.ResolveChangesStep.executeMutable(ResolveChangesStep.java:63)
+	at org.gradle.internal.execution.steps.ResolveChangesStep.executeMutable(ResolveChangesStep.java:34)
+	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+	at org.gradle.internal.execution.steps.ValidateStep$Mutable.executeDelegate(ValidateStep.java:79)
+	at org.gradle.internal.execution.steps.ValidateStep$Mutable.executeDelegate(ValidateStep.java:65)
+	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:105)
+	at org.gradle.internal.execution.steps.ValidateStep$Mutable.execute(ValidateStep.java:65)
+	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.executeMutable(CaptureMutableStateBeforeExecutionStep.java:86)
+	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:65)
+	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:45)
+	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeWithNonEmptySources(SkipEmptyMutableWorkStep.java:210)
+	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:90)
+	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:53)
+	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
+	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.executeMutable(LoadPreviousExecutionStateStep.java:36)
+	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.executeMutable(LoadPreviousExecutionStateStep.java:23)
+	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.executeMutable(HandleStaleOutputsStep.java:77)
+	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.executeMutable(HandleStaleOutputsStep.java:43)
+	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$executeMutable$0(AssignMutableWorkspaceStep.java:34)
+	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:305)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.executeMutable(AssignMutableWorkspaceStep.java:30)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.executeMutable(AssignMutableWorkspaceStep.java:21)
+	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
+	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
+	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
+	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
+	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:56)
+	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:38)
+	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:68)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:132)
+	... 30 more
