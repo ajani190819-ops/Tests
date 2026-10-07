@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 3 after checking the values.
+	// registerAndLoad writes it as 4 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
@@ -92,6 +92,17 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public boolean rotateWithSway = true;
 
+	/**
+	 * AppleSkin and Detail Armor Bar Reconstructed inject decoration into the
+	 * vanilla status-bar methods rather than registering standalone HUD elements.
+	 * Leave those decorated roots in their native layout while revealed so the
+	 * whole group stays visible and aligned. The roots are still omitted until
+	 * the look-down reveal begins.
+	 */
+	@ConfigEntry.Category("compatibility")
+	@ConfigEntry.Gui.Tooltip
+	public boolean preserveCompanionStatusLayout = true;
+
 	@ConfigEntry.Category("visibility")
 	@ConfigEntry.Gui.Tooltip
 	public boolean showHotbar = true;
@@ -136,19 +147,26 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 	}
 
-	/** Adds the compatibility-safe look-down reveal settings to older files. */
+	/** Adds safe reveal and companion-layout defaults to older config files. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 3) {
+		if (cfg.configVersion >= 4) {
 			return;
 		}
-		// v0.4 placement remains intact; only the new deliberate-reveal defaults
-		// are added. This makes existing user placement tuning safe to keep.
-		cfg.revealWhenLookingDown = true;
-		cfg.revealStartPitch = 18;
-		cfg.revealFullPitch = 48;
-		cfg.hiddenBelowScreenPixels = 105;
-		cfg.onlyDuringGameplay = true;
-		cfg.configVersion = 3;
+
+		if (cfg.configVersion < 3) {
+			// v0.4 placement remains intact; only the new deliberate-reveal
+			// defaults are added. This keeps a player's placement tuning intact.
+			cfg.revealWhenLookingDown = true;
+			cfg.revealStartPitch = 18;
+			cfg.revealFullPitch = 48;
+			cfg.hiddenBelowScreenPixels = 105;
+			cfg.onlyDuringGameplay = true;
+		}
+
+		// The new compatibility path is opt-out: it is deliberately narrow and
+		// only applies when the corresponding companion mod is actually loaded.
+		cfg.preserveCompanionStatusLayout = true;
+		cfg.configVersion = 4;
 		save();
 	}
 

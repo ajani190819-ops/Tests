@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -31,6 +32,12 @@ public class SpatialHud implements ClientModInitializer {
 	private static KeyMapping toggleKey;
 	private static KeyMapping openConfigKey;
 	private static boolean enabled;
+
+	// These two mods add their visual details by injecting inside vanilla's
+	// status-bar extraction methods. Their exact 26.3 Fabric releases are
+	// AppleSkin 3.0.10 and Detail Armor Bar Reconstructed 5.3.2.
+	private static boolean appleSkinLoaded;
+	private static boolean detailArmorBarLoaded;
 
 	// Render-frame sway state. The panel updates it once before the strip is
 	// extracted, so every wrapped vanilla element has precisely the same pose.
@@ -57,6 +64,15 @@ public class SpatialHud implements ClientModInitializer {
 	public void onInitializeClient() {
 		SpatialHudConfig cfg = SpatialHudConfig.registerAndLoad();
 		enabled = cfg.enabled;
+		appleSkinLoaded = FabricLoader.getInstance().isModLoaded("appleskin");
+		detailArmorBarLoaded = FabricLoader.getInstance().isModLoaded("detailabreconst");
+
+		if (cfg.preserveCompanionStatusLayout && (appleSkinLoaded || detailArmorBarLoaded)) {
+			String companions = appleSkinLoaded && detailArmorBarLoaded
+					? "AppleSkin and Detail Armor Bar Reconstructed"
+					: (appleSkinLoaded ? "AppleSkin" : "Detail Armor Bar Reconstructed");
+			LOGGER.info("Spatial HUD compatibility layout enabled for {}; affected status bars remain in their native layout while revealed.", companions);
+		}
 
 		toggleKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
 				"key.spatialhud.toggle",
@@ -121,6 +137,37 @@ public class SpatialHud implements ClientModInitializer {
 		Minecraft mc = Minecraft.getInstance();
 		return enabled && mc.player != null && mc.level != null
 				&& (!SpatialHudConfig.get().onlyDuringGameplay || mc.gui.screen() == null);
+	}
+
+	/**
+	 * AppleSkin 3.0.10 injects its saturation/food/health decorations inside
+	 * {@code Hud.extractFood}/{@code extractHearts}; Detail Armor Bar
+	 * Reconstructed 5.3.2 injects inside {@code Hud.extractArmor}. Keeping those
+	 * roots native while they are revealed makes their complete, already-laid-out
+	 * groups draw together. It avoids assuming a registration order for either
+	 * mod and does not hook any unrelated HUD/GUI layer.
+	 */
+	static boolean shouldPreserveNativeStatusLayout(Identifier id, SpatialHudConfig cfg) {
+		if (!cfg.preserveCompanionStatusLayout) {
+			return false;
+		}
+		if (!appleSkinLoaded && !detailArmorBarLoaded) {
+			return false;
+		}
+		// Preserve the whole adjacent group. Keeping only one root native would
+		// allow a custom armor-row height or air bar to split the group again.
+		return id.equals(VanillaHudElements.ARMOR_BAR)
+				|| id.equals(VanillaHudElements.HEALTH_BAR)
+				|| id.equals(VanillaHudElements.FOOD_BAR)
+				|| id.equals(VanillaHudElements.AIR_BAR);
+	}
+
+	/**
+	 * The compatibility roots are not spatially scaled. To retain the ordinary
+	 * look-down behavior, do not extract them at all until the reveal begins.
+	 */
+	static boolean isStatusLayoutRevealed(SpatialHudConfig cfg) {
+		return !cfg.revealWhenLookingDown || pitch >= Math.max(0, cfg.revealStartPitch);
 	}
 
 	/**

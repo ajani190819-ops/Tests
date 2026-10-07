@@ -7,6 +7,7 @@
   "text.autoconfig.spatialhud.category.placement": "First-Person Placement",
   "text.autoconfig.spatialhud.category.lookDownReveal": "Look-Down Reveal",
   "text.autoconfig.spatialhud.category.motion": "Motion",
+  "text.autoconfig.spatialhud.category.compatibility": "Bottom-HUD Compatibility",
   "text.autoconfig.spatialhud.category.visibility": "Visible HUD Parts",
 
   "text.autoconfig.spatialhud.option.enabled": "Enable Spatial HUD",
@@ -42,6 +43,9 @@
   "text.autoconfig.spatialhud.option.swayResponseMs.@Tooltip": "Lower values settle faster. This is frame-time based, so it stays smooth above 20 FPS.",
   "text.autoconfig.spatialhud.option.rotateWithSway": "Rotate With Parallax",
   "text.autoconfig.spatialhud.option.rotateWithSway.@Tooltip": "Add a subtle 2D turn as the panel follows your view.",
+
+  "text.autoconfig.spatialhud.option.preserveCompanionStatusLayout": "Keep AppleSkin and Detail Armor Bars Native",
+  "text.autoconfig.spatialhud.option.preserveCompanionStatusLayout.@Tooltip": "When AppleSkin or Detail Armor Bar Reconstructed is installed, keep its affected health, hunger, air, or armor group in its native layout while looking down. This prevents companion overlays from separating, disappearing, or covering each other. Disable only if you prefer to spatially transform every status bar.",
 
   "text.autoconfig.spatialhud.option.showHotbar": "Hotbar and Spectator Menu",
   "text.autoconfig.spatialhud.option.showHotbar.@Tooltip": "Show the hotbar and spectator controls on the panel.",

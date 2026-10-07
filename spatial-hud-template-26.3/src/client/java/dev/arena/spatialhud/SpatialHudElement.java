@@ -37,6 +37,18 @@ final class SpatialHudElement implements HudElement {
 			return;
 		}
 
+		// AppleSkin and Detail Armor Bar Reconstructed add their own pixels from
+		// inside these vanilla calls, rather than as independently registered HUD
+		// elements. Their complete roots remain native in compatibility mode so
+		// their icons cannot become detached from the hearts/food/armor they
+		// decorate. They are still hidden until the player looks down.
+		if (SpatialHud.shouldPreserveNativeStatusLayout(id, cfg)) {
+			if (SpatialHud.isStatusLayoutRevealed(cfg)) {
+				vanilla.extractRenderState(graphics, deltaTracker);
+			}
+			return;
+		}
+
 		graphics.pose().pushMatrix();
 		try {
 			applySpatialPose(graphics, cfg);

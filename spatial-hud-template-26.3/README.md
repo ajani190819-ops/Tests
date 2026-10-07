@@ -23,8 +23,29 @@ bring it smoothly into view; keep looking down to see the complete panel.
   sudden on/off switch
 
 The configuration screen offers separate controls for the two reveal angles,
-hidden distance, panel placement, FOV-aware sizing, motion, and individual HUD
-parts.
+hidden distance, panel placement, FOV-aware sizing, motion, companion-mod
+layout protection, and individual HUD parts.
+
+### AppleSkin + Detail Armor Bar Reconstructed
+
+For the tested Minecraft 26.3 Fabric releases—**AppleSkin 3.0.10** and
+**Detail Armor Bar Reconstructed 5.3.2**—Spatial HUD enables a narrow
+compatibility layout by default. Those mods add their visuals *inside* the
+vanilla health, food, air, and armor extraction calls, rather than as unrelated
+Fabric HUD elements. When either matching mod is loaded, Spatial HUD:
+
+- continues to hide the affected status group until the look-down reveal starts;
+- draws the complete adjacent health/food/air/armor group in its native
+  in-game layout while revealed, including AppleSkin's overlays and Detail
+  Armor Bar Reconstructed's armor renderer;
+- leaves the spatial hotbar, XP, held-item name, panel, minimap, FPS/debug text,
+  and every other GUI layer alone.
+
+This keeps AppleSkin saturation/held-food indicators aligned with hunger and
+prevents the armor renderer from being composited through a separate transformed
+status-bar pass. Turn off **Bottom-HUD Compatibility → Keep AppleSkin and Detail
+Armor Bars Native** only if you deliberately prefer the old behavior where all
+status bars are spatially scaled together.
 
 ### Compatibility boundary
 
@@ -49,13 +70,13 @@ counter are therefore outside its render scope.
 These modpack entries intentionally alter the same bottom HUD region:
 **Bedrock Hotbar**, **Immersive Hotbar**, **Detail Armor Bar Reconstructed**,
 **DualBar**, **Status Effect Bars**, **AppleSkin**, **Armor Indicator**,
-**Mount Opacity**, **Durability Warner HUD**, and **Async Hotbars**. Spatial HUD
-wraps the final Fabric HUD element, so compatible visual changes normally move
-with it; Async Hotbars changes data handling rather than drawing and remains
-outside the render path. The visual layout winner for a particular bottom-strip
-piece is determined by Fabric HUD registration order, which differs by version.
-Use Spatial HUD's **Visible HUD Parts** switches to let a companion mod own a
-part if two mods draw it twice.
+**Mount Opacity**, **Durability Warner HUD**, and **Async Hotbars**. The two
+explicitly supported 26.3 status-bar integrations are described above.
+Async Hotbars changes data handling rather than drawing and remains outside the
+render path. Other bottom-HUD mods can still choose a different Fabric layer or
+modify the same vanilla root, so their visual result must be checked with the
+exact jar versions in use. Use Spatial HUD's **Visible HUD Parts** switches to
+let a companion mod own a part if two mods draw it twice.
 
 ## Configuration
 
