@@ -24,7 +24,7 @@ final class SpatialHudElement implements HudElement {
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
 		SpatialHudConfig cfg = SpatialHudConfig.get();
-		if (!SpatialHud.isWorldModeActive()) {
+		if (!SpatialHud.isEnabled() || Minecraft.getInstance().player == null) {
 			vanilla.extractRenderState(graphics, deltaTracker);
 			return;
 		}
