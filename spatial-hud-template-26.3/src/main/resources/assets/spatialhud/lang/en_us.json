@@ -48,6 +48,8 @@
   "text.autoconfig.spatialhud.option.taperBackingPlate.@Tooltip": "Give the backing plate a near/far trapezoid shape as you look down. This safely adds width perspective without capturing or warping vanilla HUD icons.",
   "text.autoconfig.spatialhud.option.planeHorizonFarEdgeWidthPercent": "Horizon Far-Edge Width",
   "text.autoconfig.spatialhud.option.planeHorizonFarEdgeWidthPercent.@Tooltip": "Width of the plate's far (upper) edge near the horizon, as a percent of its near edge. Lower values make the taper stronger.",
+  "text.autoconfig.spatialhud.option.projectiveIconScaling": "Perspective-Scale HUD Icons",
+  "text.autoconfig.spatialhud.option.projectiveIconScaling.@Tooltip": "Scale each vanilla HUD group by its near/far depth using the same perspective ratio as the backing plate. Enabled by default for the strongest safe 2.5D effect; it does not use a framebuffer or global GUI hook.",
 
   "text.autoconfig.spatialhud.option.sway": "Parallax Strength",
   "text.autoconfig.spatialhud.option.sway.@Tooltip": "How much the panel gently trails your look direction. Set to 0 for a perfectly rigid HUD.",

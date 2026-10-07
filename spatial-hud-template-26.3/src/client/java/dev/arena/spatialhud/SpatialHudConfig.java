@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 6 after checking the values.
+	// registerAndLoad writes it as 7 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
@@ -91,7 +91,7 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("planeTilt")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 20, max = 89)
-	public int planeFaceOnPitch = 65;
+	public int planeFaceOnPitch = 72;
 
 	@ConfigEntry.Category("planeTilt")
 	@ConfigEntry.Gui.Tooltip
@@ -111,7 +111,17 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("planeTilt")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 20, max = 100)
-	public int planeHorizonFarEdgeWidthPercent = 48;
+	public int planeHorizonFarEdgeWidthPercent = 42;
+
+	/**
+	 * Applies the same near/far perspective ratio to each vanilla bottom-strip
+	 * root. This is the closest safe approximation to icon warping available
+	 * through Fabric's public affine HUD pose: individual roots stretch with
+	 * their depth, but no framebuffer capture or global GUI hook is needed.
+	 */
+	@ConfigEntry.Category("planeTilt")
+	@ConfigEntry.Gui.Tooltip
+	public boolean projectiveIconScaling = true;
 
 	// Motion. A time-based filter is used, so it remains smooth above 20 FPS.
 	@ConfigEntry.Category("motion")
@@ -184,7 +194,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Adds safe reveal, tilt, and companion-layout defaults to older config files. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 6) {
+		if (cfg.configVersion >= 7) {
 			return;
 		}
 
@@ -215,7 +225,17 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.planeHorizonFarEdgeWidthPercent = 48;
 		}
 
-		cfg.configVersion = 6;
+		if (cfg.configVersion < 7) {
+			// Only retune the old shipped defaults. A player who already changed
+			// either value keeps their deliberate placement preference.
+			if (cfg.planeFaceOnPitch == 65 && cfg.planeHorizonFarEdgeWidthPercent == 48) {
+				cfg.planeFaceOnPitch = 72;
+				cfg.planeHorizonFarEdgeWidthPercent = 42;
+			}
+			cfg.projectiveIconScaling = true;
+		}
+
+		cfg.configVersion = 7;
 		save();
 	}
 

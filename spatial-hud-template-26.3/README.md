@@ -27,8 +27,10 @@ bring it smoothly into view; keep looking down to see the complete panel.
 The default **Tilt HUD Plane Toward Look-Down** setting adds a deliberately safe
 2.5D floor-plane cue. Near the horizon, the spatial hotbar/panel is vertically
 foreshortened as though it is edge-on; as you look down it fills out, reaching
-its normal height at **65° down** by default. This makes looking toward the
-panel feel more like looking perpendicular to a floating horizontal plane,
+its normal height at **72° down** by default. This deliberately requires a
+steeper downward view before the plane looks face-on, closer to a physical
+floating plane. Looking toward the panel therefore feels more like looking
+perpendicular to a floating horizontal plane,
 without restoring the rejected world/UI capture renderer.
 
 This is intentionally an affine GUI effect, not a world-rendered object:
@@ -37,12 +39,23 @@ Change **Face-On Look-Down Pitch** to require a steeper or shallower view, or
 turn the tilt off if you prefer the previous front-facing panel.
 
 **Taper Backing Plate Width** is also enabled by default. It draws the panel
-backing as a near/far trapezoid: its upper (far) edge begins at **48%** of the
+backing as a near/far trapezoid: its upper (far) edge begins at **42%** of the
 near edge near the horizon and widens smoothly to a rectangle at the face-on
-pitch. The vanilla hotbar/icons are intentionally not texture-warped; doing so
+pitch.
+
+**Perspective-Scale HUD Icons** is enabled by default as well. It uses the
+flat-plane perspective relation `scale = 1 / (1 + depth × k)` for each vanilla
+bottom-HUD root: nearer hotbar content stays wider, while health, hunger,
+armor, XP, and held-item roots narrow according to their depth in the strip.
+That gives icon groups real near/far width change instead of leaving them all
+at one width. A single icon cannot be trapezoid-warped by Fabric's public
+affine HUD pose, so exact per-pixel curvature/projective texture warping still
 requires the world/UI capture path that previously broke modded screens.
+
 Companion status bars protected by the AppleSkin/Detail Armor compatibility
-setting stay native while revealed so their own overlays remain coherent.
+setting stay native while revealed so their own overlays remain coherent. Turn
+that protection off only if you choose visual perspective over the verified
+AppleSkin/Detail Armor layout safeguard.
 
 The configuration screen offers separate controls for the two reveal angles,
 hidden distance, panel placement, FOV-aware sizing, motion, companion-mod

@@ -51,7 +51,7 @@ final class SpatialHudElement implements HudElement {
 
 		graphics.pose().pushMatrix();
 		try {
-			applySpatialPose(graphics, cfg);
+			applySpatialPose(graphics, cfg, id);
 			vanilla.extractRenderState(graphics, deltaTracker);
 		} catch (Throwable t) {
 			SpatialHud.safeDisable(t);
@@ -66,7 +66,13 @@ final class SpatialHudElement implements HudElement {
 	 * blocks. FOV compensation is enabled by default, matching Spatial GUI's
 	 * comfortable, consistent apparent scale at different FOV settings.
 	 */
+	/** Apply the panel pose for its backing plate (which has no single HUD root). */
 	static void applySpatialPose(GuiGraphicsExtractor graphics, SpatialHudConfig cfg) {
+		applySpatialPose(graphics, cfg, null);
+	}
+
+	/** Apply the shared pose plus a root-specific projective width approximation. */
+	static void applySpatialPose(GuiGraphicsExtractor graphics, SpatialHudConfig cfg, Identifier elementId) {
 		Minecraft mc = Minecraft.getInstance();
 		int w = graphics.guiWidth();
 		int h = graphics.guiHeight();
@@ -115,6 +121,14 @@ final class SpatialHudElement implements HudElement {
 			verticalForeshortening = lerp(horizonHeight, 1.0f, planeTiltAmount(cfg));
 		}
 
+		// A single affine pose cannot taper a texture from its top to its bottom.
+		// Each vanilla HUD root does, however, have a known depth in the strip.
+		// Scale that root by the actual perspective law 1 / (1 + depth * k),
+		// where k comes from the configured near/far plate-width ratio. This
+		// gives the hotbar, bars, XP, and tooltip visibly different apparent
+		// widths without capturing them or applying a global GUI transform.
+		float horizontalPerspective = horizontalPerspectiveScale(elementId, cfg);
+
 		float strength = clamp((float) cfg.sway, 0.0f, 2.0f);
 		float yawErr = SpatialHud.wrapDegrees(SpatialHud.yaw - SpatialHud.smoothYaw);
 		float pitchErr = SpatialHud.pitch - SpatialHud.smoothPitch;
@@ -131,7 +145,7 @@ final class SpatialHudElement implements HudElement {
 		if (swayAngle != 0f) {
 			pose.rotateAbout((float) Math.toRadians(swayAngle), 0f, 0f);
 		}
-		pose.scale(scale, scale * verticalForeshortening);
+		pose.scale(scale * horizontalPerspective, scale * verticalForeshortening);
 		pose.translate(-srcX, -srcY);
 	}
 
@@ -146,6 +160,48 @@ final class SpatialHudElement implements HudElement {
 		float faceOn = clamp(cfg.planeFaceOnPitch, 20f, 89f);
 		float lookDown = clamp(SpatialHud.pitch, 0f, faceOn);
 		return smoothstep(0f, 1f, lookDown / faceOn);
+	}
+
+	/**
+	 * Approximates a horizontal plane's perspective scale at a known HUD-root
+	 * depth. The ratio is exact for a flat plane's left/right projection:
+	 * nearScale / farScale = zNear / zFar. We cannot warp individual pixels
+	 * with the public affine GUI pose, but each root remains internally crisp.
+	 */
+	static float horizontalPerspectiveScale(Identifier elementId, SpatialHudConfig cfg) {
+		if (!cfg.projectiveIconScaling || elementId == null || !cfg.lookDownPlaneTilt) {
+			return 1.0f;
+		}
+
+		float horizonFarEdge = clamp(cfg.planeHorizonFarEdgeWidthPercent / 100.0f, 0.20f, 1.0f);
+		float farEdgeWidth = lerp(horizonFarEdge, 1.0f, planeTiltAmount(cfg));
+		float depth = stripDepth(elementId);
+		return 1.0f / (1.0f + depth * (1.0f / farEdgeWidth - 1.0f));
+	}
+
+	/**
+	 * 0 = near/hotbar edge, 1 = far/held-item edge. These match vanilla's
+	 * bottom-HUD layout and intentionally keep every root centred while its
+	 * apparent width changes with depth.
+	 */
+	private static float stripDepth(Identifier id) {
+		if (id.equals(VanillaHudElements.HOTBAR) || id.equals(VanillaHudElements.SPECTATOR_MENU)) {
+			return 0.20f;
+		}
+		if (id.equals(VanillaHudElements.INFO_BAR) || id.equals(VanillaHudElements.EXPERIENCE_LEVEL)) {
+			return 0.38f;
+		}
+		if (id.equals(VanillaHudElements.HEALTH_BAR) || id.equals(VanillaHudElements.FOOD_BAR)) {
+			return 0.58f;
+		}
+		if (id.equals(VanillaHudElements.ARMOR_BAR) || id.equals(VanillaHudElements.AIR_BAR)
+				|| id.equals(VanillaHudElements.MOUNT_HEALTH)) {
+			return 0.74f;
+		}
+		if (id.equals(VanillaHudElements.HELD_ITEM_TOOLTIP) || id.equals(VanillaHudElements.SPECTATOR_TOOLTIP)) {
+			return 0.90f;
+		}
+		return 0.50f;
 	}
 
 	private static float smoothstep(float edge0, float edge1, float value) {
