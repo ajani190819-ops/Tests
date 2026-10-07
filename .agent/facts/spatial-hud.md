@@ -1,7 +1,8 @@
 # Spatial HUD facts
 
 - Status: active; some runtime behavior remains unverified.
-- Last verified: 2026-10-07 build CI.
+- Last verified: 2026-10-07 CI build `37705190664` for `bb99cda`; runtime
+  behavior remains unverified.
 - Read when: changing Spatial HUD code, its updater, or F5W compatibility.
 
 ## Source and release

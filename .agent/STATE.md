@@ -8,7 +8,7 @@
 
 ### Spatial HUD captured-mesh renderer
 
-- Status: built; runtime approval is pending.
+- Status: compiled by CI; runtime approval is pending.
 - Goal: render one selected lower-HUD capture through a shared projective mesh.
   The backing, hotbar, status bars, icons, text, and compatible injected HUD
   pixels must deform together.
@@ -19,16 +19,18 @@
     pass, addressing output being overwritten or rendered with an unstable
     GUI state.
   - `931b6de`: added a first look-pitch deformation attempt.
-- Pending refactor: replace the overlapping legacy pose paths with one
-  camera-yaw, pitch-driven projection: rectangular at 30° down, tapered above
-  or below that angle, and guarded only against total off-screen loss.
-- Concrete hotbar finding: the private `GuiRenderer` was constructed with no
-  picture-in-picture renderers. 26.3 GUI item rendering uses that path. The
-  refactor shares Minecraft's existing map with the private renderer while
-  continuing to capture only selected lower-HUD roots.
-- Controls target: H opens settings; a separate unbound Toggle Spatial HUD
-  action appears in Minecraft Controls. No real F5W result has confirmed this
-  refactor yet.
+- `bb99cda`: replaced overlapping legacy pose paths with one camera-yaw,
+  pitch-driven projection: rectangular at 30° down, tapered above or below
+  that angle, and guarded only against total off-screen loss.
+- The private `GuiRenderer` now shares the main renderer's existing
+  picture-in-picture map after private construction. 26.3 GUI item rendering
+  uses that path; this avoids an empty map dropping hotbar item content while
+  avoiding duplicate constructor-time registration by third-party mixins.
+- H opens settings; a separate unbound Toggle Spatial HUD action appears in
+  Minecraft Controls. No real F5W result has confirmed this refactor yet.
+- GitHub Actions run `37705190664` compiled and published `bb99cda` with JDK
+  25. A local Gradle build was unavailable because this sandbox has no Java
+  runtime; static JSON/reference/whitespace contracts also passed locally.
 
 ### Direct Modrinth updater
 
@@ -54,13 +56,15 @@
 
 ## Next action
 
-1. Build the renderer/PiP refactor and publish it.
+1. Install the rolling JAR updated at 2026-10-07 23:58 UTC in F5W.
 2. In F5W, bind Toggle Spatial HUD from Minecraft Controls if desired; H must
-   open settings.
+   open settings without toggling.
 3. Enable experimental capture and test the full F5W bottom HUD at 30° down
    and at a higher/grazing view.
 4. Confirm hotbar slots/items, status bars, AppleSkin, Detail Armor, XP, and
-   held-item text enter one captured trapezoid without flicker or loss.
+   held-item text enter one captured trapezoid without flicker or loss. Check
+   the log for the hotbar-root capture message and any capture/projection
+   failure latch.
 
 ## Evidence
 
