@@ -118,6 +118,16 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/**
+	 * World capture is deliberately gameplay-only. Screens such as inventories,
+	 * chat, Mod Menu, and modded container UIs retain Minecraft's untouched GUI
+	 * renderer; they never share Spatial HUD's off-screen target or 3D pass.
+	 */
+	public static boolean isWorldModeActive() {
+		Minecraft mc = Minecraft.getInstance();
+		return enabled && mc.player != null && mc.level != null && mc.gui.screen() == null;
+	}
+
+	/**
 	 * Called by the panel once per HUD extraction frame. Spatial GUI uses the
 	 * same time-based exponential filtering for its first-person parallax: it
 	 * stays fluid at any FPS rather than stepping once per client tick.

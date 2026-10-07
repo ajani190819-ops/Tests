@@ -76,7 +76,7 @@ public final class SpatialHudWorldRenderer {
 
 	/** Starts exactly one isolated HUD extraction per game frame. */
 	public void beginFrame() {
-		if (!SpatialHud.isEnabled() || Minecraft.getInstance().player == null || frameOpen) {
+		if (!SpatialHud.isWorldModeActive() || frameOpen) {
 			return;
 		}
 
@@ -107,14 +107,11 @@ public final class SpatialHudWorldRenderer {
 
 	/** Captures the perspective projection at the end of level rendering. */
 	void capturePerspective() {
-		if (!SpatialHud.isEnabled()) {
+		if (!SpatialHud.isWorldModeActive()) {
 			return;
 		}
 
 		Minecraft mc = Minecraft.getInstance();
-		if (mc.player == null || mc.level == null) {
-			return;
-		}
 
 		var camera = mc.gameRenderer.mainCamera();
 		capturedPose.setIdentity();
@@ -128,6 +125,13 @@ public final class SpatialHudWorldRenderer {
 
 	/** Called immediately before Minecraft draws its main GUI. */
 	public void renderBeforeMainGui() {
+		if (!SpatialHud.isWorldModeActive()) {
+			// A screen opened between extraction and rendering. Never let a stale
+			// isolated frame leak into a normal/modded GUI pass.
+			frameOpen = false;
+			isolatedGraphics = null;
+			return;
+		}
 		if (!frameOpen) {
 			return;
 		}
