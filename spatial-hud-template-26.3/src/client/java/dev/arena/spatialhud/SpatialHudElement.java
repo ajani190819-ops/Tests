@@ -2,17 +2,22 @@ package dev.arena.spatialhud;
 
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
 
 /**
- * Moves one vanilla HUD element into Spatial HUD's isolated GUI render state.
- * Minecraft still extracts the original element itself; it is simply drawn to
- * a transparent texture which is then presented as a real 3D panel.
+ * Wraps one vanilla bottom-strip element. Disabled mode is a direct vanilla
+ * passthrough; enabled mode applies the one shared Spatial HUD pose.
  */
 final class SpatialHudElement implements HudElement {
+	/** Vanilla bottom-strip width in GUI pixels (hotbar plus the bar block). */
+	private static final float STRIP_W = 182.0f;
+	/** Reference centre for the vanilla bottom-strip group, in GUI pixels. */
+	private static final float STRIP_Y_OFF = 33.0f;
+
 	private final Identifier id;
 	private final HudElement vanilla;
 
@@ -32,27 +37,74 @@ final class SpatialHudElement implements HudElement {
 			return;
 		}
 
+		graphics.pose().pushMatrix();
 		try {
-			SpatialHudWorldRenderer.get().extract(vanilla, deltaTracker);
+			applySpatialPose(graphics, cfg);
+			vanilla.extractRenderState(graphics, deltaTracker);
 		} catch (Throwable t) {
 			SpatialHud.safeDisable(t);
-			// Preserve a usable HUD if an unexpected modded element fails.
-			vanilla.extractRenderState(graphics, deltaTracker);
+		} finally {
+			graphics.pose().popMatrix();
 		}
 	}
 
-	/** Kept here so all element visibility rules remain in one well-known place. */
-	static boolean isBottomStripElement(Identifier id) {
-		return id.equals(VanillaHudElements.HOTBAR)
-				|| id.equals(VanillaHudElements.ARMOR_BAR)
-				|| id.equals(VanillaHudElements.HEALTH_BAR)
-				|| id.equals(VanillaHudElements.FOOD_BAR)
-				|| id.equals(VanillaHudElements.AIR_BAR)
-				|| id.equals(VanillaHudElements.MOUNT_HEALTH)
-				|| id.equals(VanillaHudElements.INFO_BAR)
-				|| id.equals(VanillaHudElements.EXPERIENCE_LEVEL)
-				|| id.equals(VanillaHudElements.HELD_ITEM_TOOLTIP)
-				|| id.equals(VanillaHudElements.SPECTATOR_MENU)
-				|| id.equals(VanillaHudElements.SPECTATOR_TOOLTIP);
+	/**
+	 * Computes the common plane pose. The physical placement controls follow
+	 * Spatial GUI's terminology: width, distance, and vertical height are in
+	 * blocks. FOV compensation is enabled by default, matching Spatial GUI's
+	 * comfortable, consistent apparent scale at different FOV settings.
+	 */
+	static void applySpatialPose(GuiGraphicsExtractor graphics, SpatialHudConfig cfg) {
+		Minecraft mc = Minecraft.getInstance();
+		int w = graphics.guiWidth();
+		int h = graphics.guiHeight();
+
+		double fov = Math.max(30.0, Math.min(150.0, mc.options.fov().get()));
+		double focal = (h / 2.0) / Math.tan(Math.toRadians(fov) / 2.0);
+		double distance = Math.max(0.10, cfg.distance);
+		double width = Math.max(0.10, cfg.planeWidth);
+
+		// Same FOV-aware scale curve used by Spatial GUI (baseline 70 by
+		// default). It prevents a high FOV from making the HUD unreadably tiny.
+		double fovCompensation = 1.0;
+		if (cfg.autoScaleByFov) {
+			double baseline = Math.max(30.0, Math.min(110.0, cfg.fovBaseline));
+			fovCompensation = Math.pow(fov / baseline, 1.2);
+		}
+		float scale = (float) ((width * focal / distance) / STRIP_W * fovCompensation);
+		scale = clamp(scale, 0.15f, 4.0f);
+
+		// Source: centre of the unmodified vanilla strip.
+		float srcX = w / 2.0f;
+		float srcY = h - STRIP_Y_OFF;
+
+		// Target: lower-half placement. v0.4's compact defaults deliberately
+		// keep the hotbar close to the lower edge instead of near screen centre.
+		float drop = (float) (cfg.height * focal / distance);
+		float tgtX = w / 2.0f;
+		float tgtY = h / 2.0f + drop;
+
+		float strength = clamp((float) cfg.sway, 0.0f, 2.0f);
+		float yawErr = SpatialHud.wrapDegrees(SpatialHud.yaw - SpatialHud.smoothYaw);
+		float pitchErr = SpatialHud.pitch - SpatialHud.smoothPitch;
+		float swayX = clamp((float) (-Math.toRadians(yawErr) * focal * 0.30 * strength), -60f, 60f);
+		float swayY = clamp((float) (Math.toRadians(pitchErr) * focal * 0.30 * strength), -60f, 60f);
+		float swayAngle = cfg.rotateWithSway
+				? clamp(yawErr * 0.20f * strength, -5f, 5f) : 0f;
+
+		var pose = graphics.pose();
+		// Transform order matters. Rotating while the strip is centred at the
+		// local origin keeps its centre locked to the target. v0.3 rotated about
+		// a post-transform screen coordinate, which could make the strip jump.
+		pose.translate(tgtX + swayX, tgtY + swayY);
+		if (swayAngle != 0f) {
+			pose.rotateAbout((float) Math.toRadians(swayAngle), 0f, 0f);
+		}
+		pose.scale(scale, scale);
+		pose.translate(-srcX, -srcY);
+	}
+
+	private static float clamp(float v, float min, float max) {
+		return v < min ? min : (v > max ? max : v);
 	}
 }

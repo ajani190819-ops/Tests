@@ -17,14 +17,12 @@
   "text.autoconfig.spatialhud.option.showPanel": "Show Backing Panel",
   "text.autoconfig.spatialhud.option.showPanel.@Tooltip": "Show the subtle translucent background behind the floating HUD.",
 
-  "text.autoconfig.spatialhud.option.worldDistance": "Panel Distance",
-  "text.autoconfig.spatialhud.option.worldDistance.@Tooltip": "Distance of the real 3D panel from your camera, in blocks.",
-  "text.autoconfig.spatialhud.option.worldScale": "Panel Scale",
-  "text.autoconfig.spatialhud.option.worldScale.@Tooltip": "Scale of the complete captured HUD canvas. Increase this for a larger hotbar and panel.",
-  "text.autoconfig.spatialhud.option.worldHeight": "Vertical Offset",
-  "text.autoconfig.spatialhud.option.worldHeight.@Tooltip": "Vertical position of the 3D panel in blocks. Increase this to raise it.",
-  "text.autoconfig.spatialhud.option.worldSideOffset": "Side Offset",
-  "text.autoconfig.spatialhud.option.worldSideOffset.@Tooltip": "Move the 3D panel left or right in blocks."
+  "text.autoconfig.spatialhud.option.distance": "Panel Distance",
+  "text.autoconfig.spatialhud.option.distance.@Tooltip": "Distance of the panel from your view, in blocks. Higher values make it smaller and steadier.",
+  "text.autoconfig.spatialhud.option.planeWidth": "Panel Width",
+  "text.autoconfig.spatialhud.option.planeWidth.@Tooltip": "Physical width of the HUD panel, in blocks. Increase this if you prefer a larger hotbar.",
+  "text.autoconfig.spatialhud.option.height": "Vertical Offset",
+  "text.autoconfig.spatialhud.option.height.@Tooltip": "How far below the view centre the panel sits, in blocks. Increase this to move the HUD lower.",
 
   "text.autoconfig.spatialhud.option.sway": "Parallax Strength",
   "text.autoconfig.spatialhud.option.sway.@Tooltip": "How much the panel gently trails your look direction. Set to 0 for a perfectly rigid HUD.",
