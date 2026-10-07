@@ -76,19 +76,20 @@ longer shown in Mod Menu.
 
 The default **Camera Yaw (Hologram)** anchor places the plane 1.25 blocks in
 front of the player and about waist height below eye level. It follows camera
-yaw so it remains directly in front while looking left or right, but it does
-not follow look pitch. Its fixed orientation stays parallel to the horizon;
-looking down changes the viewing angle rather than moving the plane with a
-screen-space animation.
+yaw so it remains directly in front while looking left or right. Its pitch
+responds to looking up or down: it is face-on at the configured angle and
+becomes a stronger projective trapezoid away from that angle.
 
 The **Virtual HUD Plane** category provides these controls:
 
 - **X:** player-relative horizontal offset, positive right
 - **Y:** player-relative vertical offset from eye height, positive up
 - **Z:** player-forward distance in blocks
-- **Face-On Look-Down Pitch:** the view angle at which the fixed plane is a
+- **Face-On Look-Down Pitch:** the view angle at which the plane is a
   rectangle; the default is 30° below the horizon
-- **pitch offset and yaw:** additional fixed orientation tuning
+- **Horizon Perspective Strength:** how strongly it squashes and narrows at a
+  grazing angle; the default is 80°
+- **pitch offset and yaw:** additional orientation tuning
 - **scale:** the existing Panel Width control
 - **anchor:** `Camera Yaw (Hologram)` is the default. `Player Body`,
   `View Locked`, and `World Like` retain earlier behavior for compatibility.

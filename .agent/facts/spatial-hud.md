@@ -38,11 +38,11 @@ A head-on plane projects as a rectangle. When viewed at a grazing angle, its
 far edge must project narrower than its near edge. This is projective geometry,
 not independent affine scaling of icon groups.
 
-The accepted model is a fixed horizon-parallel plane anchored to camera yaw.
-At the configurable `virtualFaceOnLookDownPitch` (default 30°), it is face-on.
-Looking higher makes the top/far edge narrower; looking lower changes
-perspective in the opposite direction. `virtualPitch` is a fixed manual offset.
-Do not reintroduce look-pitch-driven plane rotation for `CAMERA_YAW`.
+The accepted model is camera-yaw anchored with pitch-driven mesh rotation.
+At `virtualFaceOnLookDownPitch` (default 30°), it is face-on. Looking higher
+makes the top/far edge narrower; looking lower changes perspective in the
+opposite direction. `virtualHorizonPerspectivePitch` controls the maximum
+horizon taper (default 80°); `virtualPitch` is a manual offset.
 
 ## Compatibility and fallback
 

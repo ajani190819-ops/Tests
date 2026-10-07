@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 12 after checking the values.
+	// registerAndLoad writes it as 13 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
@@ -101,6 +101,12 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 5, max = 80)
 	public int virtualFaceOnLookDownPitch = 30;
+
+	/** Maximum camera-relative taper while looking at the horizon. */
+	@ConfigEntry.Category("virtualPlane")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 15, max = 85)
+	public int virtualHorizonPerspectivePitch = 80;
 
 	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
@@ -231,7 +237,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Adds safe reveal, tilt, and companion-layout defaults to older config files. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 12) {
+		if (cfg.configVersion >= 13) {
 			return;
 		}
 
@@ -321,13 +327,17 @@ public final class SpatialHudConfig implements ConfigData {
 
 		if (cfg.configVersion < 12) {
 			// The HUD should remain directly in front while the player looks left
-			// or right, without inheriting body-turn lag. Camera yaw changes the
-			// player-relative forward direction; camera pitch only changes the
-			// perspective of the horizon-parallel plane.
+			// or right, without inheriting body-turn lag.
 			cfg.virtualAnchorMode = VirtualAnchorMode.CAMERA_YAW;
 		}
 
-		cfg.configVersion = 12;
+		if (cfg.configVersion < 13) {
+			// Camera-yaw anchoring keeps the location stable horizontally, while
+			// this value restores the strong real mesh taper as look pitch changes.
+			cfg.virtualHorizonPerspectivePitch = 80;
+		}
+
+		cfg.configVersion = 13;
 		save();
 	}
 

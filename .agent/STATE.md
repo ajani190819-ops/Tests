@@ -19,12 +19,12 @@
     pass, addressing output being overwritten or rendered with an unstable
     GUI state.
   - `931b6de`: added a first look-pitch deformation attempt.
-- Latest pending build: fixed camera-yaw hologram pose. Default face-on angle
-  is 30° below the horizon; it follows camera yaw but not camera pitch, so the
-  plane remains horizon-parallel while pitch changes perspective. H opens
-  settings instead of toggling the HUD.
-- Experimental diagnostics now record whether the vanilla hotbar root reaches
-  the private capture. No real F5W result has yet confirmed this revision.
+- Latest pending build: camera-yaw hologram pose with restored pitch-driven
+  mesh rotation. It is rectangular at 30° down, strongly squashed near the
+  horizon, and tapers in the opposite direction farther down. H opens settings
+  instead of toggling the HUD.
+- Experimental diagnostics record whether the vanilla hotbar root reaches the
+  private capture. No real F5W result has yet confirmed this revision.
 
 ### Direct Modrinth updater
 

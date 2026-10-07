@@ -8,9 +8,9 @@ import net.minecraft.client.Minecraft;
  * HUD API can consume its centre tangent as a deliberately safe affine fallback.
  *
  * <p>The default pose is a hologram in front of the player near waist height.
- * It follows camera yaw, but not camera pitch, so it stays parallel to the
- * horizon. The view therefore changes the camera's angle to a fixed plane
- * instead of merely animating a screen-space card.</p>
+ * Its position follows camera yaw. Its plane pitch responds to camera pitch:
+ * it is face-on at the configured angle and becomes a projective trapezoid
+ * above or below that angle.</p>
  */
 final class VirtualHudPlane {
 	static final float SOURCE_HALF_WIDTH = 112.0f;
@@ -114,31 +114,25 @@ final class VirtualHudPlane {
 	}
 
 	/**
-	 * Default hologram anchor. The plane follows camera yaw so it remains in
-	 * front while the player looks left or right, but it never follows camera
-	 * pitch. It therefore stays parallel to the horizon while pitch changes the
-	 * perspective of a fixed plane.
+	 * Default hologram anchor. The position follows camera yaw so it remains in
+	 * front while the player looks left or right. Its pitch is driven from the
+	 * camera angle: strongly tapered near the horizon, rectangular at the
+	 * configured face-on angle, and tapered in the other direction below it.
 	 */
 	private Point projectCameraYawHologram(float localX, float localY, float localZ) {
-		return projectHologram(localX, localY, localZ, 0.0f);
+		return projectHologram(localX, localY, localZ, 0.0f, cameraYawPlanePitch());
 	}
 
 	/** Compatibility option for a plane that remains aligned to body yaw. */
 	private Point projectPlayerBody(float localX, float localY, float localZ) {
 		float yawDifference = (float) Math.toRadians(SpatialHud.wrapDegrees(SpatialHud.bodyYaw - SpatialHud.yaw));
-		return projectHologram(localX, localY, localZ, yawDifference);
+		return projectHologram(localX, localY, localZ, yawDifference, fixedPlanePitch());
 	}
 
-	private Point projectHologram(float localX, float localY, float localZ, float yawDifference) {
+	private Point projectHologram(float localX, float localY, float localZ, float yawDifference, float planePitch) {
 		float planeYaw = (float) Math.toRadians(clamp(cfg.virtualYaw, -80, 80));
 		float yawX = localX * (float) Math.cos(planeYaw) + localZ * (float) Math.sin(planeYaw);
 		float yawZ = -localX * (float) Math.sin(planeYaw) + localZ * (float) Math.cos(planeYaw);
-
-		// This is a fixed orientation in horizon/player space, not a look-pitch
-		// animation. A 30-degree face-on setting is rectangular when the camera
-		// looks 30 degrees below the horizon.
-		float planePitch = (float) Math.toRadians(clamp(
-				cfg.virtualFaceOnLookDownPitch + cfg.virtualPitch, -80, 80));
 		float bodyPlaneY = localY * (float) Math.cos(planePitch) - yawZ * (float) Math.sin(planePitch);
 		float bodyPlaneZ = localY * (float) Math.sin(planePitch) + yawZ * (float) Math.cos(planePitch);
 
@@ -155,9 +149,33 @@ final class VirtualHudPlane {
 	}
 
 	/**
+	 * Gives the fixed-position camera-yaw plane the strong pitch response of the
+	 * earlier successful mesh. The value here is its body/horizon-space pitch;
+	 * subtracting the camera pitch in {@link #projectHologram} leaves the desired
+	 * screen-relative taper. At face-on it matches camera pitch, so all four
+	 * corners have equal depth and the projection is rectangular.
+	 */
+	private float cameraYawPlanePitch() {
+		float faceOn = clamp(cfg.virtualFaceOnLookDownPitch, 5, 80);
+		float horizonTilt = clamp(cfg.virtualHorizonPerspectivePitch, 15, 85);
+		float lookPitch = clamp(SpatialHud.pitch, -80, 89);
+		float relativePitch;
+		if (lookPitch <= faceOn) {
+			relativePitch = horizonTilt * (1.0f - clamp(lookPitch, 0.0f, faceOn) / faceOn);
+		} else {
+			relativePitch = -horizonTilt * clamp((lookPitch - faceOn) / (90.0f - faceOn), 0.0f, 1.0f);
+		}
+		return (float) Math.toRadians(clamp(lookPitch + relativePitch + cfg.virtualPitch, -80, 80));
+	}
+
+	private float fixedPlanePitch() {
+		return (float) Math.toRadians(clamp(
+				cfg.virtualFaceOnLookDownPitch + cfg.virtualPitch, -80, 80));
+	}
+
+	/**
 	 * Compatibility implementation for the earlier camera-relative anchor
-	 * choices. PLAYER_BODY is the default and is the only mode that models a
-	 * stable hologram at a position in front of the player.
+	 * choices. CAMERA_YAW is the default hologram mode.
 	 */
 	private Point projectCameraRelative(float localX, float localY, float localZ) {
 		float yaw = (float) Math.toRadians(clamp(cfg.virtualYaw, -80, 80));
