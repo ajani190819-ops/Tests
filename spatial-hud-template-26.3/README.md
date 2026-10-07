@@ -10,23 +10,50 @@ GitHub Actions builds every change and replaces the jar at this fixed link:
 **Download (always the newest successful build):**
 https://github.com/ajani190819-ops/Tests/releases/download/spatial-hud-latest/spatial-hud-1.0.0.jar
 
-### Windows: replace the Downloads copy automatically
+### Windows: one-click Modrinth install / update
 
-For the simplest route, save [`Get-Latest-SpatialHUD.bat`](Get-Latest-SpatialHUD.bat)
-to your computer once, then double-click it whenever you want an update. The
-batch file downloads the maintained helper to a temporary file, runs it, opens
-Downloads with the result selected, and removes that temporary helper again.
+For the simplest route, save [`Update-SpatialHUD.bat`](Update-SpatialHUD.bat)
+to your computer once, then double-click it whenever you want an update. On
+its first run, it already targets the supplied F5W Modrinth profile:
 
-The helper downloads the fixed release asset to `Downloads\spatial-hud-1.0.0.jar`,
-verifies that it is a JAR, then removes only older `spatial-hud*.jar` copies in
-Downloads. It never touches your Modrinth instance or any other mod. After it
-finishes, use Modrinth App → your instance → **Mods** → **Add content** →
-**From file**, and choose that one jar.
+```text
+%APPDATA%\ModrinthApp\profiles\F5W\mods
+```
 
-The batch file uses a process-only PowerShell bypass for this one update; it
-does not change the computer's permanent execution policy. The underlying
-[`Get-Latest-SpatialHUD.ps1`](Get-Latest-SpatialHUD.ps1) remains available if
-you prefer to inspect or run the plain-text helper directly.
+For `C:\Users\kamau`, that resolves to the requested
+`C:\Users\kamau\AppData\Roaming\ModrinthApp\profiles\F5W\mods`. Press
+**Enter** (or choose **1**) to install the newest successful Spatial HUD build
+directly there. It opens the installed JAR in Explorer afterward; there is no
+manual "From file" step in Modrinth.
+
+The menu remembers its folder and release feed under
+`%LOCALAPPDATA%\SpatialHudUpdater`, and lets you:
+
+- change the profile's `mods` folder at any time;
+- change the published GitHub **release feed** after validating it;
+- inspect the current JAR name, build time, and size; and
+- restore the default F5W folder and `spatial-hud-latest` feed.
+
+It downloads and verifies the replacement before touching the profile, then
+identifies old copies through their own `fabric.mod.json` mod id (`spatialhud`),
+not just their filenames. It replaces every old Spatial HUD copy it finds and
+leaves Spatial GUI and every unrelated mod alone. If the download, validation,
+or move fails, it restores any copies already moved out of the way.
+
+Close Minecraft before updating so Windows cannot hold the old JAR open.
+
+There is intentionally no fake branch picker: Minecraft JARs are compiled
+release assets, not source files that can be installed straight from a Git
+branch. The default rolling release feed is updated by the successful GitHub
+Actions build from this branch. A different published release tag can still be
+entered and saved through the menu.
+
+The batch file temporarily refreshes its maintained PowerShell helper from
+GitHub before each run, then deletes that temporary helper. Its
+ExecutionPolicy bypass applies only to that updater process and does not change
+the computer's permanent policy. The old
+[`Get-Latest-SpatialHUD.bat`](Get-Latest-SpatialHUD.bat) remains available when
+you specifically want a Downloads copy instead of a direct Modrinth install.
 
 ## v0.5 — look-down HUD and compatibility-first behavior
 
