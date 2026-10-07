@@ -69,7 +69,8 @@ public final class SpatialHudWorldRenderer {
 	}
 
 	/** Used by the GuiRenderer mixin only for our isolated render state. */
-	public TextureTarget getTargetOr(TextureTarget fallback) {
+	public com.mojang.blaze3d.pipeline.RenderTarget getTargetOr(
+			com.mojang.blaze3d.pipeline.RenderTarget fallback) {
 		return hudTarget != null ? hudTarget : fallback;
 	}
 
