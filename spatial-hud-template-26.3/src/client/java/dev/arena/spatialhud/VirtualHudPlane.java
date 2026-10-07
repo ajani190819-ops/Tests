@@ -105,7 +105,18 @@ final class VirtualHudPlane {
 		float localZ = curvedDepth(u, planeWidth);
 
 		float yaw = (float) Math.toRadians(clamp(cfg.virtualYaw, -80, 80));
-		float pitch = (float) Math.toRadians(clamp(cfg.virtualPitch, -80, 80));
+		float effectivePitch = cfg.virtualPitch;
+		if (cfg.virtualTiltWithLook) {
+			float faceOnAt = clamp(cfg.virtualFaceOnLookDownPitch, 20, 89);
+			float lookingDown = clamp(SpatialHud.pitch, 0.0f, faceOnAt);
+			// Relative to the camera, a horizontal plane is edge-on at the
+			// horizon and turns face-on as the view pitches downward. This is
+			// deliberately linear so the perspective starts changing immediately
+			// when the player begins looking down, rather than waiting through a
+			// smoothstep dead zone.
+			effectivePitch += 80.0f * (1.0f - lookingDown / faceOnAt);
+		}
+		float pitch = (float) Math.toRadians(clamp(effectivePitch, -80, 80));
 
 		// Rotate first about vertical (yaw), then horizontal (pitch). Positive
 		// pitch moves the far/top edge away, creating the expected floor-plane

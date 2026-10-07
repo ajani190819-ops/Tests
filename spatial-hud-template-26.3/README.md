@@ -78,14 +78,18 @@ The **Virtual HUD Plane** category provides a camera-relative, block-like pose:
 - **X:** horizontal offset, positive right
 - **Y:** vertical offset, positive up
 - **Z:** the existing Panel Distance control, positive away from the viewer
-- **pitch and yaw:** orientation of the simulated plane
+- **pitch offset and yaw:** orientation of the simulated plane
+- **Tilt Plane While Looking Down:** physical floor-plane response—edge-on at
+  the horizon, becoming increasingly face-on as the player looks down
+- **Face-On Look-Down Pitch:** choose how quickly that turn happens
 - **scale:** the existing Panel Width control
 - **anchor:** choose steady **View Locked** or stronger simulated
   **World Like** head-motion parallax
 
 This gives the same controls a real 3D plane would expose without moving the
 whole GUI into the world renderer. The panel is visible at its configured pose;
-it is not hidden until looking down.
+it is not hidden until looking down, but its geometry now changes continuously
+with the look direction.
 
 ### Captured projective mesh — disabled by default
 

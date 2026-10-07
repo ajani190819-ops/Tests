@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 9 after checking the values.
+	// registerAndLoad writes it as 10 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
@@ -83,10 +83,24 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public double virtualOffsetY = -0.42;
 
+	/**
+	 * Manual pitch offset for the virtual plane. With look-driven tilt enabled,
+	 * zero means a physical floor-plane response: edge-on at the horizon and
+	 * increasingly face-on while the player looks down.
+	 */
 	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = -80, max = 80)
-	public int virtualPitch = 48;
+	public int virtualPitch = 0;
+
+	@ConfigEntry.Category("virtualPlane")
+	@ConfigEntry.Gui.Tooltip
+	public boolean virtualTiltWithLook = true;
+
+	@ConfigEntry.Category("virtualPlane")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 20, max = 89)
+	public int virtualFaceOnLookDownPitch = 60;
 
 	@ConfigEntry.Category("virtualPlane")
 	@ConfigEntry.Gui.Tooltip
@@ -215,7 +229,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Adds safe reveal, tilt, and companion-layout defaults to older config files. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 9) {
+		if (cfg.configVersion >= 10) {
 			return;
 		}
 
@@ -276,7 +290,17 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.virtualWorldParallaxStrength = 0.35;
 		}
 
-		cfg.configVersion = 9;
+		if (cfg.configVersion < 10) {
+			// The first virtual-plane release used a static pitch, which made the
+			// mesh look like a moved 2D card. v1.2 restores the physical floor
+			// cue: at the horizon it is edge-on, then it progressively faces the
+			// player as they look down. Keep a manual offset for deliberate tuning.
+			cfg.virtualPitch = 0;
+			cfg.virtualTiltWithLook = true;
+			cfg.virtualFaceOnLookDownPitch = 60;
+		}
+
+		cfg.configVersion = 10;
 		save();
 	}
 
