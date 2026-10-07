@@ -12,24 +12,21 @@ https://github.com/ajani190819-ops/Tests/releases/download/spatial-hud-latest/sp
 
 ### Windows: replace the Downloads copy automatically
 
-Run [`Get-Latest-SpatialHUD.ps1`](Get-Latest-SpatialHUD.ps1) whenever you want
-the latest successful build. It downloads the fixed release asset to
-`Downloads\spatial-hud-1.0.0.jar`, verifies that it is a JAR, then removes only
-older `spatial-hud*.jar` copies in Downloads. It never touches your Modrinth
-instance or any other mod. After it finishes, use Modrinth App → your instance
-→ **Mods** → **Add content** → **From file**, and choose that one jar.
+For the simplest route, save [`Get-Latest-SpatialHUD.bat`](Get-Latest-SpatialHUD.bat)
+to your computer once, then double-click it whenever you want an update. The
+batch file downloads the maintained helper to a temporary file, runs it, opens
+Downloads with the result selected, and removes that temporary helper again.
 
-To download and run the script from a fresh PowerShell window:
+The helper downloads the fixed release asset to `Downloads\spatial-hud-1.0.0.jar`,
+verifies that it is a JAR, then removes only older `spatial-hud*.jar` copies in
+Downloads. It never touches your Modrinth instance or any other mod. After it
+finishes, use Modrinth App → your instance → **Mods** → **Add content** →
+**From file**, and choose that one jar.
 
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-$script = Join-Path $HOME 'Downloads\Get-Latest-SpatialHUD.ps1'
-Invoke-WebRequest 'https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/c83497e6-tests/spatial-hud-template-26.3/Get-Latest-SpatialHUD.ps1' -OutFile $script
-& $script -OpenFolder
-```
-
-The execution-policy setting is process-only: it closes with that PowerShell
-window and does not change the computer's permanent policy.
+The batch file uses a process-only PowerShell bypass for this one update; it
+does not change the computer's permanent execution policy. The underlying
+[`Get-Latest-SpatialHUD.ps1`](Get-Latest-SpatialHUD.ps1) remains available if
+you prefer to inspect or run the plain-text helper directly.
 
 ## v0.5 — look-down HUD and compatibility-first behavior
 
