@@ -10,6 +10,27 @@ GitHub Actions builds every change and replaces the jar at this fixed link:
 **Download (always the newest successful build):**
 https://github.com/ajani190819-ops/Tests/releases/download/spatial-hud-latest/spatial-hud-1.0.0.jar
 
+### Windows: replace the Downloads copy automatically
+
+Run [`Get-Latest-SpatialHUD.ps1`](Get-Latest-SpatialHUD.ps1) whenever you want
+the latest successful build. It downloads the fixed release asset to
+`Downloads\spatial-hud-1.0.0.jar`, verifies that it is a JAR, then removes only
+older `spatial-hud*.jar` copies in Downloads. It never touches your Modrinth
+instance or any other mod. After it finishes, use Modrinth App → your instance
+→ **Mods** → **Add content** → **From file**, and choose that one jar.
+
+To download and run the script from a fresh PowerShell window:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+$script = Join-Path $HOME 'Downloads\Get-Latest-SpatialHUD.ps1'
+Invoke-WebRequest 'https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/c83497e6-tests/spatial-hud-template-26.3/Get-Latest-SpatialHUD.ps1' -OutFile $script
+& $script -OpenFolder
+```
+
+The execution-policy setting is process-only: it closes with that PowerShell
+window and does not change the computer's permanent policy.
+
 ## v0.5 — look-down HUD and compatibility-first behavior
 
 The normal gameplay view should be for the world, not UI. By default Spatial
