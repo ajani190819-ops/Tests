@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 14 after checking the values.
+	// registerAndLoad writes it as 15 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("general")
@@ -42,6 +42,23 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("general")
 	@ConfigEntry.Gui.Tooltip
 	public boolean onlyDuringGameplay = true;
+
+	/**
+	 * The one top-level rendering choice. The method controls the implementation,
+	 * not which HUD parts are visible; those controls remain in HUD Contents.
+	 */
+	@ConfigEntry.Category("rendering")
+	@ConfigEntry.Gui.Tooltip
+	public RenderMethod renderMethod = RenderMethod.CLASSIC_AFFINE;
+
+	public enum RenderMethod {
+		/** Original public-HUD API path: stable, but only affine. */
+		CLASSIC_AFFINE,
+		/** Private captured texture composited as a projective GUI-space mesh. */
+		CAPTURED_MESH,
+		/** Private captured texture drawn on a real plane in the rendered world. */
+		WORLD_SPACE_TEXTURE
+	}
 
 	// Player-relative placement in block units. The default is in front of the
 	// player at waist height rather than fixed in screen/camera space.
@@ -106,6 +123,22 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.BoundedDiscrete(min = -80, max = 80)
 	public int virtualYaw = 0;
 
+	/** These controls affect only Render Method: World-Space Texture. */
+	@ConfigEntry.Category("worldSpace")
+	@ConfigEntry.Gui.Tooltip
+	public WorldSpaceAnchor worldSpaceAnchor = WorldSpaceAnchor.CAMERA_YAW;
+
+	@ConfigEntry.Category("worldSpace")
+	@ConfigEntry.Gui.Tooltip
+	public boolean worldSpaceOccludeBehindWorld = true;
+
+	public enum WorldSpaceAnchor {
+		/** Keep the plane in front as the camera turns horizontally. */
+		CAMERA_YAW,
+		/** Keep the plane at a heading fixed to the player body. */
+		PLAYER_BODY
+	}
+
 	// Legacy alternatives remain readable from JSON but are not part of the
 	// supported hologram model. The migration selects CAMERA_YAW.
 	@ConfigEntry.Gui.Excluded
@@ -145,13 +178,10 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean projectiveIconScaling = true;
 
 	/**
-	 * Experimental capture mode is intentionally opt-in. It captures only the
-	 * selected gameplay bottom-HUD roots into a private texture, then warps that
-	 * completed strip as a mesh. Normal GUI renderers are never redirected.
-	 * Any capture/render error immediately latches the released affine mode.
+	 * Legacy switch retained to migrate pre-v1.5 JSON files. Render Method is
+	 * now the only visible selector and any failure returns to Classic Affine.
 	 */
-	@ConfigEntry.Category("experimentalCapture")
-	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.Gui.Excluded
 	public boolean experimentalCaptureWarp = false;
 
 	/** Reserved for a later cylindrical mesh mode; normal hologram mode is flat. */
@@ -223,9 +253,20 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 	}
 
-	/** Migrates legacy JSON fields to the single supported hologram defaults. */
+	/** Whether this render method needs the isolated bottom-HUD texture. */
+	boolean capturesTexture() {
+		return renderMethod == RenderMethod.CAPTURED_MESH
+				|| renderMethod == RenderMethod.WORLD_SPACE_TEXTURE;
+	}
+
+	/** Whether the captured texture is presented by the real world renderer. */
+	boolean usesWorldSpaceTexture() {
+		return renderMethod == RenderMethod.WORLD_SPACE_TEXTURE;
+	}
+
+	/** Migrates legacy JSON fields to the current named rendering methods. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 14) {
+		if (cfg.configVersion >= 15) {
 			return;
 		}
 
@@ -332,7 +373,17 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.virtualAnchorMode = VirtualAnchorMode.CAMERA_YAW;
 		}
 
-		cfg.configVersion = 14;
+		if (cfg.configVersion < 15) {
+			// Preserve an explicit earlier capture choice. New installations stay on
+			// the original stable affine path until the player picks a method.
+			cfg.renderMethod = cfg.experimentalCaptureWarp
+					? RenderMethod.CAPTURED_MESH
+					: RenderMethod.CLASSIC_AFFINE;
+			cfg.worldSpaceAnchor = WorldSpaceAnchor.CAMERA_YAW;
+			cfg.worldSpaceOccludeBehindWorld = true;
+		}
+
+		cfg.configVersion = 15;
 		save();
 	}
 

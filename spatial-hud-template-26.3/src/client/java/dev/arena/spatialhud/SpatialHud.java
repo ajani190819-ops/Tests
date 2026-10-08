@@ -65,6 +65,7 @@ public class SpatialHud implements ClientModInitializer {
 		enabled = cfg.enabled;
 		appleSkinLoaded = FabricLoader.getInstance().isModLoaded("appleskin");
 		detailArmorBarLoaded = FabricLoader.getInstance().isModLoaded("detailabreconst");
+		WorldSpaceHudRenderer.initialize();
 
 		if (cfg.preserveCompanionStatusLayout && (appleSkinLoaded || detailArmorBarLoaded)) {
 			String companions = appleSkinLoaded && detailArmorBarLoaded
@@ -141,16 +142,20 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/**
-	 * The experimental texture path has a stricter boundary than the released
-	 * affine renderer: it is gameplay-only even if a user turns off the normal
-	 * Gameplay Only preference. This is intentionally non-negotiable while the
-	 * compatibility matrix is still being established.
+	 * Both texture methods have a stricter boundary than Classic Affine: they
+	 * are gameplay-only even if a user turns off the normal Gameplay Only
+	 * preference. This keeps the private capture separate from every screen.
 	 */
-	static boolean isExperimentalCaptureActive() {
+	static boolean isTextureCaptureActive() {
 		Minecraft mc = Minecraft.getInstance();
 		return isGameplayHudActive()
-				&& SpatialHudConfig.get().experimentalCaptureWarp
-				&& mc.gui.screen() == null;
+					&& SpatialHudConfig.get().capturesTexture()
+					&& mc.gui.screen() == null;
+	}
+
+	/** True only for the third renderer: a captured texture on a world-space quad. */
+	static boolean isWorldSpaceTextureActive() {
+		return isTextureCaptureActive() && SpatialHudConfig.get().usesWorldSpaceTexture();
 	}
 
 	/**

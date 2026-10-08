@@ -68,6 +68,8 @@ public final class ExperimentalHudCapture {
 	private static boolean frameCapturedHotbar;
 	private static boolean loggedHotbarExtraction;
 	private static boolean loggedMissingHotbar;
+	/** Becomes true after a completed capture can be drawn by Method 3 next frame. */
+	private static boolean worldTextureReady;
 	private static boolean sessionFallback;
 	private static int guiWidth;
 	private static int guiHeight;
@@ -84,7 +86,7 @@ public final class ExperimentalHudCapture {
 		frameHasContent = false;
 		frameCapturedHotbar = false;
 
-		if (!SpatialHud.isExperimentalCaptureActive() || sessionFallback) {
+			if (!SpatialHud.isTextureCaptureActive() || sessionFallback) {
 			return;
 		}
 
@@ -176,6 +178,20 @@ public final class ExperimentalHudCapture {
 		return capturedTarget != null ? capturedTarget : original;
 	}
 
+	/** A completed previous-frame texture for Method 3's world render pass. */
+	static GpuTextureView worldTextureView() {
+		if (!worldTextureReady || sessionFallback || capturedTarget == null
+				|| !SpatialHud.isWorldSpaceTextureActive()) {
+			return null;
+		}
+		return capturedTarget.getColorTextureView();
+	}
+
+	/** World rendering must use the same loud, safe failure behavior as capture. */
+	static void worldTextureFailed(Throwable error) {
+		fallback(error, "drawing the world-space HUD texture");
+	}
+
 	/**
 	 * Invoked immediately before Minecraft draws its normal GUI renderer. By
 	 * then the Fabric HUD wrappers have extracted only the selected roots. Draw
@@ -193,12 +209,21 @@ public final class ExperimentalHudCapture {
 		}
 
 		try {
-			ensureTarget();
-			clearTarget();
-			capturedRenderer.render();
-			capturedRenderer.endFrame();
-			compositeProjectiveMesh();
-		} catch (Throwable t) {
+				ensureTarget();
+				clearTarget();
+				capturedRenderer.render();
+				capturedRenderer.endFrame();
+
+				SpatialHudConfig cfg = SpatialHudConfig.get();
+				if (cfg.renderMethod == SpatialHudConfig.RenderMethod.CAPTURED_MESH) {
+					worldTextureReady = false;
+					compositeProjectiveMesh();
+				} else if (cfg.renderMethod == SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE) {
+					// Level rendering happens before GUI extraction. The world renderer
+					// intentionally draws this finished texture on the next frame.
+					worldTextureReady = true;
+				}
+			} catch (Throwable t) {
 			fallback(t, "rendering the selected bottom-HUD texture");
 		} finally {
 			// The isolated GuiRenderer has consumed this exact state. Always clear
@@ -346,11 +371,13 @@ public final class ExperimentalHudCapture {
 		sessionFallback = true;
 		frameActive = false;
 		frameHasContent = false;
+		worldTextureReady = false;
 		capturedGraphics = null;
 		SpatialHudConfig cfg = SpatialHudConfig.get();
 		cfg.experimentalCaptureWarp = false;
+		cfg.renderMethod = SpatialHudConfig.RenderMethod.CLASSIC_AFFINE;
 		SpatialHudConfig.save();
-		SpatialHud.LOGGER.error("Spatial HUD experimental capture failed while {}; switched to the safe affine renderer for this session.", stage, error);
+		SpatialHud.LOGGER.error("Spatial HUD texture renderer failed while {}; switched to Classic Affine for this session.", stage, error);
 	}
 
 	private static float lerp(float from, float to, float amount) {

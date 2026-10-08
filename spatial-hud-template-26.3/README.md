@@ -65,58 +65,47 @@ the computer's permanent policy. The old
 [`Get-Latest-SpatialHUD.bat`](Get-Latest-SpatialHUD.bat) remains available when
 you specifically want a Downloads copy instead of a direct Modrinth install.
 
-## v1.3 — camera-yaw projective plane
+## Render methods and placement
 
-Spatial HUD treats the bottom strip as one configurable physical plane at a
-player-relative location rather than a look-down-only screen card. The old
-reveal settings remain only for JSON compatibility and are no longer shown in
-Mod Menu.
+Spatial HUD treats the selected bottom strip as one panel at a player-relative
+location. **Render Method** is now the first setting and is the only place that
+chooses a renderer:
 
-### Virtual placement
+1. **Classic Affine (Stable)** — the original public-HUD implementation. It is
+   the compatibility default and has no private texture or world renderer. It
+   can move, rotate, and scale the HUD safely, but it cannot make the corners
+   or pixels inside an icon form a true perspective trapezoid.
+2. **Captured Projective Mesh (Experimental)** — captures only the selected
+   gameplay bottom HUD—backing plate, hotbar, status roots, XP, mount bar, and
+   held-item label—into a private texture. A 24 × 12 GUI-space mesh projects
+   every finished pixel, so a heart, item, slot, or glyph can become
+   trapezoidal rather than merely being root-scaled.
+3. **World-Space Texture (Experimental)** — captures the same selected texture
+   but draws it on a real quad in the rendered level. It supports a separate
+   **Camera Yaw** or **Player Body** horizontal anchor and an **Occlude Behind
+   World** switch. It intentionally displays the completed previous-frame
+   texture, avoiding global GUI redirection while the current GUI is captured.
 
-The plane is always **camera-yaw anchored**: looking left or right keeps it in
-front of the camera, without turning it when the player's body faces a
-separate direction. Its fixed physical orientation is face-on at the configured
-look-down angle and creates ordinary perspective at every other view angle.
+The **Panel Size & Position** controls are shared by all three methods:
 
-The **Virtual HUD Plane** category provides these controls:
+- **Forward Distance**, **Horizontal Offset**, and **Vertical Offset** place
+  the panel around the player.
+- **Panel Width** controls the physical size.
+- **Face-On Look-Down Angle** is where the fixed physical plane is rectangular
+  (30° by default). Looking above or below it produces ordinary perspective in
+  Method 2 and Method 3.
+- **Pitch Offset** and **Yaw Offset** provide deliberate orientation tuning.
 
-- **X:** player-relative horizontal offset, positive right
-- **Y:** player-relative vertical offset from eye height, positive up
-- **Z:** player-forward distance in blocks
-- **Face-On Look-Down Pitch:** the view angle at which the plane is a
-  rectangle; the default is 30° below the horizon
-- **pitch offset and yaw:** additional orientation tuning
-- **scale:** the existing Panel Width control
-
-When the camera looks higher than the configured face-on angle, the plane's
-upper/far edge recedes and becomes horizontally narrower. The captured mesh
-therefore becomes a real trapezoid. Looking lower changes the perspective in
-the opposite direction. The backing and every captured HUD pixel use this same
-plane.
-
-### Captured projective mesh — disabled by default
-
-**Experimental Bottom-HUD Capture → Enable Experimental Captured-Texture Warp**
-is the true deformation path. It captures only the selected gameplay bottom
-HUD—backing plate, hotbar, status roots, XP, mount bar, and held-item label—into
-one private texture. A 24 × 12 mesh maps that finished texture through the
-same virtual-plane projection for every vertex. That means a heart, hunger
-icon, hotbar slot, XP glyph, or tooltip letter itself becomes trapezoidal as
-its depth changes; it is not merely moved or root-scaled.
-
-The captured backing is intentionally part of that same texture. Its corners,
-curvature, and every icon pixel therefore share one projection, removing the
-old visual mismatch where a correctly tapered plate held rectangular icon groups.
-The experiment remains opt-in while the modpack compatibility matrix is built;
-the safe affine tangent renderer is still the default fallback.
+Methods 1 and 2 are camera-yaw anchored: looking left or right keeps the panel
+in front without body-turn rotation. Method 3 exposes its anchor as a separate
+setting so it can instead remain fixed to player-body yaw.
 
 ### Companion-mod baseline
 
 AppleSkin and Detail Armor Bar Reconstructed are captured before the legacy
-native-layout safeguard. Their injected pixels are therefore warped together
-with the vanilla hearts, hunger, armor, and air roots in experimental mode.
-The safe renderer retains its native companion fallback. The supplied F5W
+native-layout safeguard. Their injected pixels therefore stay with the vanilla
+hearts, hunger, armor, and air roots in both texture methods. Classic Affine
+retains its native companion fallback. The supplied F5W
 modpack also includes Bedrock Hotbar, Immersive Hotbar, DualBar, Armor
 Indicator, Status Effect Bars, Mount Opacity, Durability Warner HUD, Async
 Hotbars, and Spatial GUI; these are tracked as bottom-HUD compatibility
@@ -128,13 +117,14 @@ separately registered overlay enters the capture target.
 
 ### Compatibility boundary
 
-The released **default performance mode** uses Fabric's public HUD element API
-only: it has no renderer mixins, framebuffer redirects, screen hooks, or
-world-render passes. The disabled experimental capture switch adds two narrowly
-scoped renderer hooks solely for its private bottom-HUD renderer; normal GUI
-renderers never meet their identity check. With **Gameplay Only** enabled (the
-default), the safe renderer delegates directly to vanilla whenever another
-screen is open, and the experimental renderer enforces that same screen-open
+**Classic Affine** uses Fabric's public HUD element API only: it has no
+private texture, framebuffer redirect, or world-render pass. **Captured
+Projective Mesh** and **World-Space Texture** add two narrowly scoped renderer
+hooks solely for their private bottom-HUD renderer; normal GUI renderers never
+meet their identity check. World-Space Texture additionally submits only that
+finished private texture to the level render pass. With **Gameplay Only**
+enabled (the default), Classic Affine delegates directly to vanilla whenever
+another screen is open, and both texture methods enforce that same screen-open
 bypass unconditionally. That includes:
 
 - inventory, creative inventory, chest, crafting, furnace, anvil, and other

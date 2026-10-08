@@ -24,4 +24,9 @@ abstract class SpatialHudGameRendererMixin {
 	private void spatialhud$drawSelectedBottomHudCapture(CallbackInfo ci) {
 		dev.arena.spatialhud.ExperimentalHudCapture.renderAndComposite();
 	}
+
+	@Inject(method = "close", at = @At("RETURN"))
+	private void spatialhud$closeWorldTextureBuffer(CallbackInfo ci) {
+		dev.arena.spatialhud.WorldSpaceHudRenderer.close();
+	}
 }
