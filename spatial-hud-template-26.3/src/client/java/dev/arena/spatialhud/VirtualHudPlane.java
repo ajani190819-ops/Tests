@@ -3,16 +3,16 @@ package dev.arena.spatialhud;
 import net.minecraft.client.Minecraft;
 
 /**
- * One camera-yaw-local physical plane shared by the captured HUD texture and
- * the safe affine fallback. The experimental mesh consumes the full projective
- * mapping; the public HUD API can consume only its centre tangent.
+ * One camera-yaw-local waist-height lectern shared by the captured HUD texture
+ * and the safe affine fallback. The experimental mesh consumes the full
+ * projective mapping; the public HUD API can consume only its centre tangent.
  *
- * <p>The plane stays in front of the camera as the player looks left or right,
- * without turning with player-body yaw. It has a fixed horizon-space pitch, so
- * looking at it from different vertical angles changes its real perspective.
- * At the configured face-on look-down angle (30° by default) its projection is
- * rectangular; away from that angle, opposite edges have different depth and
- * the captured mesh becomes a trapezoid.</p>
+ * <p>The plane stays in front as the player turns horizontally but never rotates
+ * with camera pitch to remain visible. Its default 45° primary tilt puts the
+ * far/top edge farther away, so the captured mesh has a visibly tapered edge
+ * at the default 30° look-down threshold. If the physical corners leave the
+ * viewport or pass behind the camera, the whole selected panel is suppressed
+ * rather than clamped into a screen-filling card.</p>
  */
 final class VirtualHudPlane {
 	static final float SOURCE_HALF_WIDTH = 112.0f;
@@ -95,6 +95,46 @@ final class VirtualHudPlane {
 	 * being moved as an independently affine HUD root.
 	 */
 	Point project(float sourceX, float sourceY) {
+		return toScreenPoint(projectPhysicalPoint(sourceX, sourceY));
+	}
+
+	/**
+	 * True only when all four physical panel corners are in front of the camera
+	 * and their projected bounds intersect the current GUI viewport. This avoids
+	 * clamping behind-camera vertices into the giant screen-filling card that
+	 * earlier builds showed while looking up.
+	 */
+	boolean intersectsViewport() {
+		Projection[] corners = {
+				projectPhysicalPoint(sourceLeft, sourceTop),
+				projectPhysicalPoint(sourceRight, sourceTop),
+				projectPhysicalPoint(sourceRight, sourceBottom),
+				projectPhysicalPoint(sourceLeft, sourceBottom)
+		};
+		float minX = Float.POSITIVE_INFINITY;
+		float minY = Float.POSITIVE_INFINITY;
+		float maxX = Float.NEGATIVE_INFINITY;
+		float maxY = Float.NEGATIVE_INFINITY;
+		for (Projection corner : corners) {
+			if (corner.depth() <= 0.08f) {
+				return false;
+			}
+			Point screen = toScreenPoint(corner);
+			minX = Math.min(minX, screen.x());
+			minY = Math.min(minY, screen.y());
+			maxX = Math.max(maxX, screen.x());
+			maxY = Math.max(maxY, screen.y());
+		}
+		return maxX >= 0.0f && minX <= guiWidth && maxY >= 0.0f && minY <= guiHeight;
+	}
+
+	/**
+	 * Converts a source pixel to the panel's camera-space physical position.
+	 * Local X is panel left/right, local Y is panel bottom/top, and local Z is
+	 * the panel normal. Roll is deliberately applied first around that normal:
+	 * positive roll raises the right edge before yaw/tilt place the lectern.
+	 */
+	private Projection projectPhysicalPoint(float sourceX, float sourceY) {
 		float u = (sourceX - sourceLeft) / sourceWidth;
 		float v = (sourceY - sourceTop) / sourceHeight;
 		float planeWidth = clamp((float) cfg.planeWidth, 0.10f, 6.0f);
@@ -104,46 +144,52 @@ final class VirtualHudPlane {
 		float localX = (u - 0.5f) * planeWidth;
 		float localY = (0.5f - v) * planeHeight;
 		float localZ = curvedDepth(u, planeWidth);
-		return projectCameraYawHologram(localX, localY, localZ);
+		float roll = radians(clamp(cfg.virtualRoll, -45, 45));
+		float rolledX = localX * cos(roll) - localY * sin(roll);
+		float rolledY = localX * sin(roll) + localY * cos(roll);
+		return projectCameraYawLectern(rolledX, rolledY, localZ);
 	}
 
 	/**
-	 * The only active anchor. It deliberately has no player body-yaw input:
-	 * horizontal camera turns keep the panel in front without rotating it around
-	 * the player when body and camera headings differ.
+	 * Methods 1 and 2 use a camera-yaw lectern. Horizontal turns keep it in
+	 * front, but camera pitch only observes the fixed waist-height plane—it
+	 * never rotates the panel to keep it on-screen.
 	 */
-	private Point projectCameraYawHologram(float localX, float localY, float localZ) {
+	private Projection projectCameraYawLectern(float localX, float localY, float localZ) {
 		float planeYaw = radians(clamp(cfg.virtualYaw, -80, 80));
-		float yawX = localX * cos(planeYaw) + localZ * sin(planeYaw);
-		float yawZ = -localX * sin(planeYaw) + localZ * cos(planeYaw);
+		// Keep this local up-axis turn identical to WorldSpaceHudRenderer:
+		// positive turn moves the right edge farther forward.
+		float yawX = localX * cos(planeYaw) - localZ * sin(planeYaw);
+		float yawZ = localX * sin(planeYaw) + localZ * cos(planeYaw);
 
-		// Fixed physical orientation in horizon space. This makes the plane
-		// face-on at the configured downward look angle, and creates the actual
-		// near/far-edge depth change needed for a trapezoid everywhere else.
-		float planePitch = radians(clamp(
+		// This is a literal lectern tilt around the panel's left-to-right axis.
+		// Positive tilt places the far/top edge farther away, which gives the
+		// captured mesh a real narrow far edge at ordinary downward views.
+		float planeTilt = radians(clamp(
 				cfg.virtualFaceOnLookDownPitch + cfg.virtualPitch, -80, 80));
-		float planeY = localY * cos(planePitch) - yawZ * sin(planePitch);
-		float planeZ = localY * sin(planePitch) + yawZ * cos(planePitch);
+		float planeY = localY * cos(planeTilt) - yawZ * sin(planeTilt);
+		float planeZ = localY * sin(planeTilt) + yawZ * cos(planeTilt);
 
-		// Camera coordinates already represent camera-yaw anchoring. Only the
-		// current look pitch converts this physical waist-height centre and plane
-		// into camera space.
 		float bodyX = (float) cfg.virtualOffsetX + yawX;
 		float bodyY = (float) cfg.virtualOffsetY + planeY;
 		float bodyZ = (float) Math.max(0.10, cfg.distance) + planeZ;
 		float cameraPitch = radians(clamp(SpatialHud.pitch, -80, 89));
 		float cameraY = bodyY * cos(cameraPitch) + bodyZ * sin(cameraPitch);
 		float depth = -bodyY * sin(cameraPitch) + bodyZ * cos(cameraPitch);
-		return projectCameraSpace(bodyX, cameraY, depth);
+		return new Projection(bodyX, cameraY, depth);
 	}
 
-	private Point projectCameraSpace(float x, float y, float depth) {
-		// Do not permit extreme placement settings to move a vertex behind the
-		// virtual camera; normal poses remain well in front of it.
-		depth = Math.max(0.08f, depth);
+	private Point toScreenPoint(Projection point) {
+		// Callers gate through intersectsViewport before accepting a panel. The
+		// clamp is a final guard for a configuration edited outside Cloth Config,
+		// not a normal rendering path.
+		float depth = Math.max(0.08f, point.depth());
 		return new Point(
-				guiWidth * 0.5f + focalLength * x / depth,
-				guiHeight * 0.5f - focalLength * y / depth);
+				guiWidth * 0.5f + focalLength * point.x() / depth,
+				guiHeight * 0.5f - focalLength * point.y() / depth);
+	}
+
+	private record Projection(float x, float y, float depth) {
 	}
 
 	Point projectAt(float u, float v) {

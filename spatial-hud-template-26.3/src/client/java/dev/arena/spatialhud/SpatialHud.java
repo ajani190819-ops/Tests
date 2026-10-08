@@ -142,6 +142,32 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/**
+	 * A physical desk panel should not be transformed into a giant off-screen
+	 * card while the camera is level or raised. This inexpensive gate runs before
+	 * any private capture, mesh upload, or world-plane extraction.
+	 */
+	static boolean isLecternLookDownEligible() {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player == null) {
+			return false;
+		}
+		int configured = SpatialHudConfig.get().minimumLookDownPitch;
+		int threshold = Math.max(0, Math.min(80, configured));
+		return mc.player.getXRot() >= threshold;
+	}
+
+	/**
+	 * Keeps selected vanilla HUD roots hidden unless the finite physical panel
+	 * actually intersects the GUI viewport. This is intentionally distinct from
+	 * disabled mode: disabled delegates to vanilla, while an off-screen lectern
+	 * has no visible panel at all.
+	 */
+	static boolean isLecternVisibleInGui(int guiWidth, int guiHeight) {
+		return isLecternLookDownEligible()
+				&& VirtualHudPlane.forGui(SpatialHudConfig.get(), guiWidth, guiHeight).intersectsViewport();
+	}
+
+	/**
 	 * Both texture methods have a stricter boundary than Classic Affine: they
 	 * are gameplay-only even if a user turns off the normal Gameplay Only
 	 * preference. This keeps the private capture separate from every screen.
@@ -149,6 +175,7 @@ public class SpatialHud implements ClientModInitializer {
 	static boolean isTextureCaptureActive() {
 		Minecraft mc = Minecraft.getInstance();
 		return isGameplayHudActive()
+					&& isLecternLookDownEligible()
 					&& SpatialHudConfig.get().capturesTexture()
 					&& mc.gui.screen() == null;
 	}

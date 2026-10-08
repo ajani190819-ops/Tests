@@ -23,7 +23,10 @@
    Render Method**, **Panel Positioning & Orientation**, and **HUD Contents**—
    and that all placement controls are together in the middle section. Confirm
    all three named methods have readable contextual descriptions.
-2. Start with `Face-On Look-Down Angle` at 30 and `Pitch Offset` at 0.
+2. Start with `Minimum Look-Down Angle` at 30, `Primary Lectern Tilt — Left ↔
+   Right Axis` at 45, `Fine Tilt Offset` at 0, `Turn — Up Axis` at 0, and
+   `Roll — Panel-Normal Axis` at 0. The positive direction and affected axis
+   are defined in the in-game tooltips.
 3. Test with native status-bar preservation both on and off if companion bars
    are involved. This setting changes only Method 1 behavior.
 
@@ -33,12 +36,13 @@ Record each result separately by Render Method:
 
 | Method | Check | Pass condition |
 |---|---|---|
-| 1 — Classic Affine | Baseline and marker | Selected HUD is stable; it may not form a true icon-level trapezoid. The compact upper-left panel marker is green. |
-| 2 — Captured Projective Mesh | Capture stability and marker | No flicker, disappearing plate, or frame-to-frame loss. The compact upper-left panel marker is blue and follows the captured mesh. |
-| 2 — Captured Projective Mesh | Geometry | Backing, hotbar, icons, bars, text, and blue marker use one real trapezoid: rectangular at 30° down, with a visibly narrower far edge at a grazing view. |
+| 1–3 | Physical visibility gate | At pitches below the configured 30° downward threshold—including level/upward views—the selected Spatial HUD roots and marker are absent, with no flat vanilla fallback. They appear only after looking down toward the waist-height lectern. |
+| 1 — Classic Affine | Compatibility baseline and marker | Selected HUD is stable at the same physical location/gate. It may not form a true icon-level trapezoid because it intentionally uses the native affine path. The compact upper-left marker is green. |
+| 2 — Captured Projective Mesh | Capture stability and marker | No flicker, disappearing plate, or frame-to-frame loss. The compact upper-left marker is blue and follows the captured mesh. |
+| 2 — Captured Projective Mesh | Geometry | With 45° primary lectern tilt at the 30° downward threshold, backing, hotbar, icons, bars, text, and blue marker use one genuine trapezoid whose far/top edge is visibly narrower than its near/bottom edge. |
 | 2 or 3 | Scope | Menus and unrelated GUI elements remain normal. |
 | 2 or 3 | Companion pixels | AppleSkin and Detail Armor pixels are captured with their selected status root. |
-| 3 — World-Space Texture | Camera Yaw anchor and marker | Plane stays in front while looking left/right without player-body lag. The compact upper-left panel marker is red and is part of the world texture. |
+| 3 — World-Space Texture | Camera Yaw anchor, geometry, and marker | Plane stays in front while looking left/right without player-body lag. At the default lectern tilt, its physical far/top edge is visibly narrower than the near/bottom edge. The compact upper-left marker is red and is part of the world texture. |
 | 3 — World-Space Texture | Player Body anchor | Plane stays at the body heading and may move to the side when looking away. |
 | 3 — World-Space Texture | Occlude Behind World on | A block between camera and panel hides the panel like a physical object. |
 | 3 — World-Space Texture | Occlude Behind World off | Panel remains visible through the same block. |

@@ -122,20 +122,31 @@ public final class WorldSpaceHudRenderer {
 		float topY = cos(pitch);
 		float topZ = panelForwardZ * sin(pitch);
 
+		// Roll is around the panel normal, not the player vertical. Positive
+		// roll raises the right edge: apply it by rotating the established right
+		// and top basis vectors before emitting real world-space corners.
+		float roll = radians(clamp(cfg.virtualRoll, -45, 45));
+		float rolledRightX = panelRightX * cos(roll) + topX * sin(roll);
+		float rolledRightY = topY * sin(roll);
+		float rolledRightZ = panelRightZ * cos(roll) + topZ * sin(roll);
+		float rolledTopX = topX * cos(roll) - panelRightX * sin(roll);
+		float rolledTopY = topY * cos(roll);
+		float rolledTopZ = topZ * cos(roll) - panelRightZ * sin(roll);
+
 		float halfWidth = width * 0.5f;
 		float halfHeight = height * 0.5f;
-		Point bottomLeft = point(centerX - panelRightX * halfWidth - topX * halfHeight,
-				centerY - topY * halfHeight,
-				centerZ - panelRightZ * halfWidth - topZ * halfHeight);
-		Point bottomRight = point(centerX + panelRightX * halfWidth - topX * halfHeight,
-				centerY - topY * halfHeight,
-				centerZ + panelRightZ * halfWidth - topZ * halfHeight);
-		Point topRight = point(centerX + panelRightX * halfWidth + topX * halfHeight,
-				centerY + topY * halfHeight,
-				centerZ + panelRightZ * halfWidth + topZ * halfHeight);
-		Point topLeft = point(centerX - panelRightX * halfWidth + topX * halfHeight,
-				centerY + topY * halfHeight,
-				centerZ - panelRightZ * halfWidth + topZ * halfHeight);
+		Point bottomLeft = point(centerX - rolledRightX * halfWidth - rolledTopX * halfHeight,
+				centerY - rolledRightY * halfWidth - rolledTopY * halfHeight,
+				centerZ - rolledRightZ * halfWidth - rolledTopZ * halfHeight);
+		Point bottomRight = point(centerX + rolledRightX * halfWidth - rolledTopX * halfHeight,
+				centerY + rolledRightY * halfWidth - rolledTopY * halfHeight,
+				centerZ + rolledRightZ * halfWidth - rolledTopZ * halfHeight);
+		Point topRight = point(centerX + rolledRightX * halfWidth + rolledTopX * halfHeight,
+				centerY + rolledRightY * halfWidth + rolledTopY * halfHeight,
+				centerZ + rolledRightZ * halfWidth + rolledTopZ * halfHeight);
+		Point topLeft = point(centerX - rolledRightX * halfWidth + rolledTopX * halfHeight,
+				centerY - rolledRightY * halfWidth + rolledTopY * halfHeight,
+				centerZ - rolledRightZ * halfWidth + rolledTopZ * halfHeight);
 		planeState = new PlaneState(bottomLeft, bottomRight, topRight, topLeft,
 				cfg.worldSpaceOccludeBehindWorld);
 	}

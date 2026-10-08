@@ -21,7 +21,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 15 after checking the values.
+	// registerAndLoad writes it as 16 after checking the values.
 	public int configVersion = 0;
 
 	@ConfigEntry.Category("setup")
@@ -113,29 +113,53 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public double virtualOffsetY = -0.72;
 
-	/** Extra plane tilt relative to the configured face-on view angle. */
+	/** Fine adjustment on the same left-to-right axis as the primary lectern tilt. */
 	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
 	public int virtualPitch = 0;
 
+	/**
+	 * A hard early-out keeps the physical panel completely absent until the
+	 * player looks downward toward its waist-height location. This avoids both
+	 * off-screen geometry work and the old upward-looking screen-fill behavior.
+	 */
+	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 80)
+	public int minimumLookDownPitch = 30;
+
 	/** Retained only so v1.2 config files still load; it is no longer read. */
 	@ConfigEntry.Gui.Excluded
 	public boolean virtualTiltWithLook = false;
 
+	/**
+	 * Main lectern tilt around the panel's left-to-right axis. A larger positive
+	 * value moves the far/top edge away, producing the desired paper taper.
+	 */
 	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 5, max = 80)
-	public int virtualFaceOnLookDownPitch = 30;
+	public int virtualFaceOnLookDownPitch = 45;
 
 	/** Retained for v1.4 JSON compatibility; fixed-plane perspective ignores it. */
 	@ConfigEntry.Gui.Excluded
 	public int virtualHorizonPerspectivePitch = 80;
 
+	/** Turn around the player-local/world-up axis. Positive values turn right. */
 	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = -80, max = 80)
 	public int virtualYaw = 0;
+
+	/**
+	 * Roll around the panel normal. Positive values raise the panel's right
+	 * edge; keep zero for a normal readable desk surface.
+	 */
+	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
+	public int virtualRoll = 0;
 
 	/** These controls affect only Render Method: World-Space Texture. */
 	@ConfigEntry.Category("positioning")
@@ -284,7 +308,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Migrates legacy JSON fields to the current named rendering methods. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 15) {
+		if (cfg.configVersion >= 16) {
 			return;
 		}
 
@@ -401,7 +425,20 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.worldSpaceOccludeBehindWorld = true;
 		}
 
-		cfg.configVersion = 15;
+		if (cfg.configVersion < 16) {
+			// Restore an actual waist-height lectern rather than an always-visible
+			// screen card. Retune only the former shipped zero-trim 30° default;
+			// deliberate tilt/yaw changes remain the player's choice.
+			boolean formerDefaultTilt = cfg.virtualFaceOnLookDownPitch == 30
+					&& cfg.virtualPitch == 0 && cfg.virtualYaw == 0;
+			if (formerDefaultTilt) {
+				cfg.virtualFaceOnLookDownPitch = 45;
+			}
+			cfg.virtualRoll = 0;
+			cfg.minimumLookDownPitch = 30;
+		}
+
+		cfg.configVersion = 16;
 		save();
 	}
 

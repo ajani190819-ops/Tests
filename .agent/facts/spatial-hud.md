@@ -30,15 +30,20 @@
   method-specific. The panel's short upper-left marker is green for Method 1,
   blue for Method 2, and red for Method 3. Texture methods capture the marker
   into their same selected-HUD source texture.
-- `VirtualHudPlane.java` is the shared Method 1/2 physical-plane projection.
-  Its camera-yaw pose follows camera yaw rather than body yaw, has a fixed
-  horizon-space orientation, and is face-on at the configured 30° down look
-  angle. Different camera pitch then produces real perspective.
+- `VirtualHudPlane.java` is the shared Method 1/2 physical waist-height
+  lectern projection. It follows camera yaw rather than body yaw but never
+  follows camera pitch to remain on-screen. Its primary 45° tilt is around the
+  panel left-to-right axis, placing the far/top edge farther away; at the 30°
+  minimum look-down gate, the default far edge is about 86% the width of the
+  near edge. It refuses any panel with a behind-camera corner or no viewport
+  intersection rather than clamping it to a huge card.
 - `ExperimentalHudCapture.java` captures only the selected lower HUD into a
   private target. Method 2 composites it through a tessellated mesh; Method 3
   leaves it for `WorldSpaceHudRenderer` on the following level frame. The
-  rollback retains the isolated `GuiRenderer(..., List.of())` implementation
-  from `46874e5`; it does not share or mutate the main PiP renderer map.
+  capture path exits before allocation/upload when the 30° look-down gate or
+  physical viewport test fails. The rollback retains the isolated
+  `GuiRenderer(..., List.of())` implementation from `46874e5`; it does not
+  share or mutate the main PiP renderer map.
 - `WorldSpaceHudRenderer.java` extracts a physical Method 3 quad during level
   extraction and draws the previous completed private texture after translucent
   terrain. `worldSpaceAnchor` selects Camera Yaw or Player Body; depth texture
@@ -66,15 +71,20 @@
 
 ## Perspective requirement
 
-A head-on plane projects as a rectangle. When viewed at a grazing angle, its
-far edge must project narrower than its near edge. This is projective geometry,
-not independent affine scaling of icon groups.
+A physical angled-paper panel has a nearer lower edge and a farther upper edge;
+when projected, the far edge must become narrower. This is projective geometry,
+not independent affine scaling of icon groups. The selected default uses a 45°
+lectern tilt while the player begins rendering at 30° downward pitch, making
+that taper obvious instead of starting face-on and rectangular.
 
-The current recovery model is a fixed physical plane that is camera-yaw
-anchored. At `virtualFaceOnLookDownPitch` (default 30°), it is face-on. Looking
-higher makes the top/far edge narrower; looking lower changes perspective in
-the opposite direction. `virtualPitch` is a manual physical-orientation offset.
-`virtualHorizonPerspectivePitch` remains only as ignored old JSON data.
+The configuration explicitly defines all orientation axes: primary/fine tilt
+rotate around the panel's left-to-right axis; turn rotates around the up axis;
+roll rotates around the panel normal. `minimumLookDownPitch` defaults to 30°
+and is a hard no-render gate. Method 1 shares that physical placement but can
+only use one affine centre tangent through Fabric's public HUD API. Method 2
+maps the finished capture through the true tapered mesh; Method 3 emits the
+same physical basis as a world quad. `virtualHorizonPerspectivePitch` remains
+only as ignored old JSON data.
 
 ## Compatibility and fallback
 

@@ -86,7 +86,8 @@ public final class ExperimentalHudCapture {
 		frameHasContent = false;
 		frameCapturedHotbar = false;
 
-			if (!SpatialHud.isTextureCaptureActive() || sessionFallback) {
+		if (!SpatialHud.isTextureCaptureActive() || sessionFallback
+				|| !SpatialHud.isLecternVisibleInGui(sourceGraphics.guiWidth(), sourceGraphics.guiHeight())) {
 			return;
 		}
 

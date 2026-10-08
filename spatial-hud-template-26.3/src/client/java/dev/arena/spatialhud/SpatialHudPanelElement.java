@@ -22,6 +22,13 @@ final class SpatialHudPanelElement implements HudElement {
 		// before HOTBAR and gives every selected root one camera pitch value.
 		SpatialHud.updateViewPose();
 
+		// A raised/level camera should see no spatial panel at all—not a clamped
+		// projection stretched across the screen. The wrapped HUD roots make this
+		// same check and remain suppressed for this frame.
+		if (!SpatialHud.isLecternVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
+			return;
+		}
+
 		// This prepares an isolated state only when the explicitly opt-in
 		// experiment is active. It never touches the main GUI extractor or a
 		// screen renderer; selected wrapped roots decide individually whether to

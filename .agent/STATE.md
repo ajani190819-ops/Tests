@@ -24,11 +24,19 @@
   categories and localized descriptions. Method 3 uses the same selected-HUD
   private capture but draws the completed previous-frame texture in the level.
   It exposes Camera Yaw/Player Body anchor and world-occlusion settings.
-- Methods 1 and 2 retain camera-yaw anchoring with no body-yaw branch. Their
-  fixed plane is face-on at 30° down and projectively trapezoidal at grazing
-  angles. Method 3 is intentionally configurable per the user's selection.
-- H opens settings; a separate unbound Toggle Spatial HUD action remains in
-  Minecraft Controls.
+- The requested physical model is now an angled waist-height lectern, not an
+  always-visible camera card. Methods 1 and 2 remain Camera-Yaw anchored;
+  Method 3 retains its Camera-Yaw/Player-Body choice. The default primary
+  tilt is 45° around the panel left-to-right axis, with a 30° hard look-down
+  gate: while level or looking up, selected Spatial HUD roots are suppressed
+  and no texture capture/mesh/world-plane work begins.
+- The Positioning section exposes explicit three-axis adjustments: primary and
+  fine **Tilt** (left-to-right axis; positive moves far/top edge away), **Turn**
+  (up axis), and **Roll** (panel-normal axis; positive raises the right edge).
+  Method 1 stays the native affine compatibility approximation at this same
+  physical location; Method 2 is the actual per-pixel tapered mesh; Method 3
+  is the actual tapered world quad. H opens settings; a separate unbound Toggle
+  Spatial HUD action remains in Minecraft Controls.
 - The attached log identifies the actual launch failure: custom pipeline
   `spatialhud:world_texture_through_world` fails resource reload because its
   cloned entity snippet requests undefined `Sampler1`. Fabric then aborts
@@ -65,10 +73,12 @@
   real test result.
 - AppleSkin and Detail Armor Bar Reconstructed pixels belong in the same
   selected capture when their vanilla status root is captured.
-- Methods 1 and 2 must keep the waist-height, camera-yaw hologram: no
-  player-body rotation, rectangular at 30° down, and horizontally narrower at
-  higher/grazing views. For Method 3, the user selected a configurable Camera
-  Yaw/Player Body anchor and configurable terrain occlusion.
+- Methods 1 and 2 must keep the waist-height, Camera-Yaw angled lectern: no
+  player-body rotation and no camera-pitch-following card. The hard 30°
+  look-down threshold suppresses it while looking level/up; Method 2 must show
+  a genuine narrowed far/top edge at the default 45° tilt. Method 1 remains
+  the native affine compatibility approximation. For Method 3, the user
+  selected a configurable Camera-Yaw/Player-Body anchor and terrain occlusion.
 - Keep all work on `arena/c83497e6-tests`; commit and push each completed
   change.
 
@@ -82,13 +92,17 @@
    ... SpatialHudConfig.instance` error. Confirm the three sections and all
    three named methods with their long contextual descriptions: green Method 1,
    blue Method 2, and red Method 3.
-3. Test Method 1 as the baseline. Test Method 2 at 30° down and a grazing
-   view: backing and hotbar must form one trapezoid without flicker or body-yaw
-   rotation.
-4. Test Method 3 separately with Camera Yaw, then Player Body, and with
-   Occlude Behind World both enabled and disabled. It will show the previous
-   completed frame by design; record any persistent loss/flicker or depth
-   failure.
+3. At the default 30° minimum look-down angle, verify all selected Spatial HUD
+   roots are absent while looking level/up, then appear only when looking down
+   toward the waist-height lectern. Confirm this does not fall back to a flat
+   vanilla hotbar while Spatial HUD remains enabled.
+4. Test Method 1 as the compatibility baseline: it shares the physical
+   location/gate but remains affine. Test blue Method 2 at the default 45°
+   lectern tilt: its top/far edge must be visibly narrower than its near edge,
+   with backing, hotbar, and marker all using one trapezoid. Test red Method 3
+   separately with Camera Yaw, then Player Body, and with Occlude Behind World
+   both enabled and disabled. It will show the previous completed frame by
+   design; record any persistent loss/flicker or depth failure.
 5. For both texture methods, record hotbar slots/items, status bars, AppleSkin,
    Detail Armor, XP, and held-item text separately; check the log for a
    hotbar-root capture message and any capture failure latch.

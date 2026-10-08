@@ -92,19 +92,30 @@ Every method draws its short colour marker at the panel's upper-left edge. The
 marker is part of the captured texture in Methods 2 and 3, so it follows the
 same mesh or world plane rather than becoming a separate screen overlay.
 
-The **Panel Size & Position** controls are shared by all three methods:
+The **Panel Positioning & Orientation** controls are shared by all three
+methods and model a real waist-height lectern rather than a card that follows
+camera pitch:
 
 - **Forward Distance**, **Horizontal Offset**, and **Vertical Offset** place
-  the panel around the player.
-- **Panel Width** controls the physical size.
-- **Face-On Look-Down Angle** is where the fixed physical plane is rectangular
-  (30° by default). Looking above or below it produces ordinary perspective in
-  Method 2 and Method 3.
-- **Pitch Offset** and **Yaw Offset** provide deliberate orientation tuning.
+  the panel around the player. The default vertical offset is waist-high.
+- **Minimum Look-Down Angle** defaults to **30°**. Below that downward pitch,
+  Spatial HUD suppresses its selected roots and does no texture capture, mesh
+  upload, or world-plane extraction. Looking up therefore leaves no enlarged
+  HUD card on screen.
+- **Panel Width** controls physical size.
+- **Primary Lectern Tilt — Left ↔ Right Axis** defaults to **45°**. Positive
+  tilt moves the far/top edge away; this deliberately produces a tapered far
+  edge at the 30° viewing threshold in Methods 2 and 3.
+- **Fine Tilt Offset** uses that same left-to-right axis; **Turn — Up Axis**
+  angles the panel left/right; **Roll — Panel-Normal Axis** raises the right
+  edge for a deliberate slant. Their in-game tooltips define each positive
+  direction exactly.
 
-Methods 1 and 2 are camera-yaw anchored: looking left or right keeps the panel
-in front without body-turn rotation. Method 3 exposes its anchor as a separate
-setting so it can instead remain fixed to player-body yaw.
+Method 1 retains a stable native-HUD affine approximation at that same physical
+location, so it cannot taper individual pixels. Method 2 applies genuine
+per-pixel projective taper through its mesh. Method 3 is a true world quad;
+Methods 1 and 2 are camera-yaw anchored, while Method 3 exposes its anchor as a
+separate setting so it can instead remain fixed to player-body yaw.
 
 ### Companion-mod baseline
 
