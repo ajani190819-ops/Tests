@@ -1,0 +1,116 @@
+# Current state
+
+- Last updated: 2026-10-07
+- Session branch: `arena/c83497e6-tests`
+- Read when: starting any task in this repository.
+
+## Active work
+
+### Spatial HUD render methods
+
+- Status: all three methods compile and are published; every method still needs
+  real F5W runtime approval.
+- Goal: provide one clear render-method choice without mixing renderer paths:
+  1. Classic Affine (original stable HUD transform), 2. Captured Projective
+  Mesh (GUI-space texture warp), and 3. World-Space Texture (captured texture
+  on a real level quad).
+- `bb99cda` passed CI but its newer projective/PiP path regressed the actual
+  F5W renderer. Do not use it as a runtime baseline.
+- `5c245d5` restores `ExperimentalHudCapture.java` and its two mixin
+  registrations exactly from user-observed working camera-yaw revision
+  `46874e5`; it removes the PiP-map accessors introduced by `bb99cda`.
+- `d2308fb` adds `renderMethod`, migrates saved `experimentalCaptureWarp`
+  settings to Captured Projective Mesh, and reorganizes Cloth Config into clear
+  categories and localized descriptions. Method 3 uses the same selected-HUD
+  private capture but draws the completed previous-frame texture in the level.
+  It exposes Camera Yaw/Player Body anchor and world-occlusion settings.
+- The requested physical model is now an angled waist-height lectern, not an
+  always-visible camera card. Methods 1 and 2 remain Camera-Yaw anchored;
+  Method 3 retains its Camera-Yaw/Player-Body choice. The default primary
+  tilt is 45° around the panel left-to-right axis, with a 30° hard look-down
+  gate: while level or looking up, selected Spatial HUD roots are suppressed
+  and no texture capture/mesh/world-plane work begins.
+- The Positioning section exposes explicit three-axis adjustments: primary and
+  fine **Tilt** (left-to-right axis; positive moves far/top edge away), **Turn**
+  (up axis), and **Roll** (panel-normal axis; positive raises the right edge).
+  Method 1 stays the native affine compatibility approximation at this same
+  physical location; Method 2 is the actual per-pixel tapered mesh; Method 3
+  is the actual tapered world quad. GitHub Actions run `37730150490` compiled
+  and published `7964948` with JDK 25; the rolling JAR was updated at
+  2026-10-08 05:00 UTC. H opens settings; a separate unbound Toggle Spatial
+  HUD action remains in Minecraft Controls.
+- The attached log identifies the actual launch failure: custom pipeline
+  `spatialhud:world_texture_through_world` fails resource reload because its
+  cloned entity snippet requests undefined `Sampler1`. Fabric then aborts
+  loading, explaining the missing mod/UI and disturbed resource/animation
+  state. `036ca35` removes that custom shader pipeline completely: Method 3
+  now uses only vanilla `ENTITY_TRANSLUCENT` (depth on) and `GUI_TEXTURED`
+  (depth off) pipelines. No Spatial HUD custom pipeline is registered.
+- `d6aae3a` also excludes Cloth Config runtime singletons and keeps Method 3's
+  GPU buffer lazy. GitHub Actions run `37711539940` compiled and published
+  `036ca35` with JDK 25; the rolling JAR was updated at 2026-10-08 01:10 UTC.
+  A local Gradle build is unavailable because this sandbox has no Java runtime.
+- The configuration/UI has a read-only **Method Guide — Read This First** tab
+  ahead of its three settings sections—Setup & Render Method, Panel Positioning
+  & Orientation, and HUD Contents. The guide uses plain-language cards to
+  explain the green Classic Affine, blue Captured Projective Mesh, and red
+  World-Space Texture choices; it contains no editable values and is transient,
+  so it is never saved to config. The panel carries the same green/blue/red
+  top-edge marker, and texture methods capture that marker with the panel.
+
+### Direct Modrinth updater
+
+- Status: implemented; not the active task.
+- Target defaults to `%APPDATA%\ModrinthApp\profiles\F5W\mods` and is
+  remembered. Folder opening is optional and never forced to Windows Explorer.
+- The eventual branch picker must offer `main` plus five recent successfully
+  built branches, each with its own compiled JAR.
+
+## Non-negotiable constraints
+
+- Do not restore global GUI cancellation, whole-screen offscreen capture, or
+  a general GUI mixin. Only the selected lower HUD may be captured.
+- Do not claim F5W, Iris, AppleSkin, or Detail Armor compatibility without a
+  real test result.
+- AppleSkin and Detail Armor Bar Reconstructed pixels belong in the same
+  selected capture when their vanilla status root is captured.
+- Methods 1 and 2 must keep the waist-height, Camera-Yaw angled lectern: no
+  player-body rotation and no camera-pitch-following card. The hard 30°
+  look-down threshold suppresses it while looking level/up; Method 2 must show
+  a genuine narrowed far/top edge at the default 45° tilt. Method 1 remains
+  the native affine compatibility approximation. For Method 3, the user
+  selected a configurable Camera-Yaw/Player-Body anchor and terrain occlusion.
+- Keep all work on `arena/c83497e6-tests`; commit and push each completed
+  change.
+
+## Next action
+
+1. Install the rolling JAR updated at 2026-10-08 05:00 UTC in F5W, replacing
+   every older `spatial-hud` JAR. The new `latest.log` must contain
+   `Spatial HUD render-method build initialized` and must not contain
+   `spatialhud:world_texture_through_world` or `Sampler1`.
+2. Verify H opens the config without a `No GUI provider registered for field
+   ... SpatialHudConfig.instance` error. Confirm the three sections and all
+   three named methods with their long contextual descriptions: green Method 1,
+   blue Method 2, and red Method 3.
+3. At the default 30° minimum look-down angle, verify all selected Spatial HUD
+   roots are absent while looking level/up, then appear only when looking down
+   toward the waist-height lectern. Confirm this does not fall back to a flat
+   vanilla hotbar while Spatial HUD remains enabled.
+4. Test Method 1 as the compatibility baseline: it shares the physical
+   location/gate but remains affine. Test blue Method 2 at the default 45°
+   lectern tilt: its top/far edge must be visibly narrower than its near edge,
+   with backing, hotbar, and marker all using one trapezoid. Test red Method 3
+   separately with Camera Yaw, then Player Body, and with Occlude Behind World
+   both enabled and disabled. It will show the previous completed frame by
+   design; record any persistent loss/flicker or depth failure.
+5. For both texture methods, record hotbar slots/items, status bars, AppleSkin,
+   Detail Armor, XP, and held-item text separately; check the log for a
+   hotbar-root capture message and any capture failure latch.
+
+## Evidence
+
+- Supplied F5W log: `latest.log`.
+- Compatibility plan: `spatial-hud-template-26.3/COMPATIBILITY.md`.
+- Source root: `spatial-hud-template-26.3/`.
+- Technical summary: `.agent/facts/spatial-hud.md`.

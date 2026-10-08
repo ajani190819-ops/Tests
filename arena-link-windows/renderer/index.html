@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'none';" />
+    <title>Arena Link</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">LOCAL-FIRST DEVELOPER COMPANION</p>
+        <h1>Arena Link</h1>
+      </div>
+      <div id="system-status" class="system-status" aria-live="polite">Checking local tools…</div>
+    </header>
+
+    <main>
+      <section class="hero panel">
+        <div>
+          <h2>Keep local work connected, deliberately.</h2>
+          <p>
+            Arena Link reads only Git repositories you explicitly approve. It uses Git and the GitHub CLI with fixed,
+            visible commands—never an arbitrary shell—and it never stores or displays an Arena API key.
+          </p>
+        </div>
+        <button id="choose-repository" class="button primary">Approve repository…</button>
+      </section>
+
+      <section class="grid">
+        <article class="panel gateway-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">ARENA GATEWAY</p>
+              <h2>Bring your own dedicated key</h2>
+            </div>
+            <span id="gateway-badge" class="badge neutral">Checking…</span>
+          </div>
+          <p id="gateway-detail" class="muted">The application checks only whether a gateway key is present in its process environment.</p>
+          <div class="button-row">
+            <button id="open-gateway-docs" class="button secondary">Open setup guide</button>
+            <button id="open-gateway-keys" class="button secondary">Open Keys page</button>
+          </div>
+          <p class="footnote">
+            The current Arena gateway supports the interactive Claude Code CLI. This app does not send prompts or keys
+            itself; it is the local repository and diagnostics side of the workflow.
+          </p>
+        </article>
+
+        <article class="panel repositories-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">APPROVED REPOSITORIES</p>
+              <h2>Repository snapshots</h2>
+            </div>
+            <button id="refresh-repositories" class="icon-button" title="Refresh repository snapshots" aria-label="Refresh repository snapshots">↻</button>
+          </div>
+          <div id="repository-list" class="repository-list" aria-live="polite">
+            <p class="empty-state">No repositories have been approved yet.</p>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel assistant-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">READ-ONLY GATEWAY CONSULTATION</p>
+            <h2>Ask Arena about the selected repository</h2>
+          </div>
+          <span id="consultation-badge" class="badge neutral">No source files are sent</span>
+        </div>
+        <p class="muted">The request includes only the selected repository’s name, branch, latest commit, GitHub slug, and Git working-tree status. It cannot run commands or edit files.</p>
+        <label class="prompt-label" for="gateway-prompt">Developer request</label>
+        <textarea id="gateway-prompt" maxlength="6000" placeholder="Example: Summarize the working-tree state and propose a safe validation plan."></textarea>
+        <div class="button-row">
+          <button id="ask-gateway" class="button primary" disabled>Ask Arena</button>
+          <span id="consultation-meta" class="footnote"></span>
+        </div>
+        <pre id="gateway-response" class="gateway-response">A response appears here after you configure a dedicated gateway key and send a request.</pre>
+      </section>
+
+      <section class="panel detail-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">SELECTED REPOSITORY</p>
+            <h2 id="detail-title">Choose a repository to inspect it</h2>
+          </div>
+          <button id="refresh-selected" class="button secondary" disabled>Refresh selected</button>
+        </div>
+        <div id="repository-detail" class="empty-state">
+          Repository status, latest commit, open pull requests, and recent GitHub Actions runs will appear here.
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Approval list and UI preferences remain on this computer.</span>
+      <span>No token, source file, command shell, or credential is exposed to the renderer.</span>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>

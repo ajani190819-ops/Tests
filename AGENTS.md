@@ -5,23 +5,28 @@ If you are an AI, everything in this file is an instruction from the repository
 owner and it is **high priority**: it outranks your own defaults wherever the
 two disagree.
 
-**Start every session by reading `MEMORY.md`.** It is the handoff file: where
-the work stands, what was already decided, what was tried and failed, and what
-to do next. A new chat has no memory of the last one, so that file is the
-memory — and you are expected to **update it before your session ends**
-(`MEMORY.md` §9 is the checklist).
+**Start every session by reading `.agent/STATE.md`, then `.agent/INDEX.md`.**
+They identify the active work and the smallest set of facts needed for it. Do
+not load large historical or unrelated documents by default. A new chat has no
+memory of the last one, so update the current state before ending a session.
 
-Companion documents, also mandatory when relevant:
+Companion documents, mandatory only when the current task needs them:
 
-* `MEMORY.md` — state of the work + session log. Read first, update last.
-* `docs/ORCA-PLUGIN-FACTS.md` — hard-won facts about OrcaSlicer's plugin system.
-  Do not re-derive them; do not contradict them.
-* `docs/ROADMAP.md` — what is planned, what is in flight, and every open
-  question. Read it before planning work; update it as part of the work.
+* `.agent/INDEX.md` — topic map, reading order, and agent-document rules.
+* `.agent/facts/` — short, confirmed technical facts by topic.
+* `.agent/decisions/` — accepted design constraints and their reasons.
+* `.agent/runbooks/` — repeatable test and release procedures.
+* `docs/ORCA-PLUGIN-FACTS.md` — binding OrcaSlicer facts. Read before changing
+  an Orca plugin; do not re-derive or contradict it.
+* `docs/ROADMAP.md` — Orca plugin plans and open questions. Read before
+  planning Orca work; update it when that plan changes.
+* `MEMORY.md` — a redirect to preserved history. Do not use as an active
+  handoff.
 
-The division of labour between the three: `MEMORY.md` is **where we are**,
-`docs/ROADMAP.md` is **where we are going**, `docs/ORCA-PLUGIN-FACTS.md` is
-**what is already known**. Keep them from contradicting each other.
+The division of labour: `.agent/STATE.md` is **where we are**,
+`.agent/facts/` is **what is known**, `.agent/decisions/` is **why a constraint
+exists**, and `docs/ROADMAP.md` is **where Orca work is going**. Keep them from
+contradicting each other.
 
 ---
 
@@ -46,10 +51,10 @@ internals. That is a design constraint, not an apology:
 These are the owner's explicit expectations for how AI assistance goes:
 
 1. **Write out what is about to happen, before it happens.** For any task that
-   needs more than a couple of minutes of work: post the plan first — what you
-   will do, in what order, what you will NOT do, and where the risks are. The
-   owner should never watch a 15-minute silent build with no idea what is
-   coming. Update `docs/ROADMAP.md` so the plan also lives in the repo.
+   needs more than a couple of minutes of work: post a concise plan — what you
+   will do, what you will not do, and any material risk. Update
+   `.agent/STATE.md` when the active work changes. Update `docs/ROADMAP.md`
+   only for Orca plugin planning.
 2. **Ask instead of guessing.** Whenever a decision is user-facing, ambiguous,
    or a matter of taste, ask a clarifying question with concrete options and a
    recommended default — batch the questions so they can all be answered at
@@ -65,10 +70,35 @@ These are the owner's explicit expectations for how AI assistance goes:
    next. Keep it short enough to actually read.
 6. **Be honest about uncertainty.** Label guesses as guesses. If the docs say
    something has never been tested on real hardware, keep saying so.
-7. **Leave the next session a memory.** Before you finish, update `MEMORY.md`
-   — state, decisions, answered questions, next actions, and a session-log
-   entry (its §9 is the checklist). The owner should be able to open a brand
-   new chat, point it at this repo, and have it pick up mid-stride.
+7. **Leave usable context for the next session.** Before you finish, update
+   `.agent/STATE.md` with the active status and next action. Add a fact,
+   decision, runbook change, or dated history note only when it belongs in one
+   of those records. Do not turn the state file into a session diary.
+
+### 2a. How to communicate with the owner
+
+Use direct, plain language. The owner wants useful answers, not an AI-style
+performance.
+
+1. **Answer first.** State the result, decision, or limitation in the first
+   sentence. Do not open with praise, agreement, a recap, or filler.
+2. **Use only the detail needed to make the answer understandable.** Explain a
+   technical term when it matters, then use ordinary words. Do not restate the
+   whole request or narrate routine work.
+3. **Use factual status labels.** Separate `Done`, `Tested`, `Not tested`,
+   `Blocked`, and `Need from you` when they apply. Do not imply that a build
+   check proves a real-world result.
+4. **Do not manufacture certainty or enthusiasm.** Avoid phrases such as
+   "exactly", "great progress", "this is the missing piece", "rest assured",
+   or promises that have not been verified. State what the evidence supports.
+5. **Keep formatting functional.** Use short headings and bullets only when
+   they make instructions or status easier to scan. Do not add a conclusion,
+   motivational close, repeated summary, or generic offer of more help.
+6. **Give the next action only when the owner needs to take one.** Say what to
+   do, why, and what result to report. Otherwise stop after the useful answer.
+7. **Match the owner's level without talking down.** Explain enough context to
+   support a decision, but do not hide the answer behind jargon or a long
+   tutorial.
 
 ## 3. Repo map
 
@@ -88,9 +118,15 @@ Orca-Plugins.bat            THE ONE FILE A USER DOWNLOADS, the whole updater
                             self-updates into this file), so do not
                             reintroduce them without the owner asking.
 plugins.json                the catalogue the updater reads (what + where + version)
-AGENTS.md                   this rulebook
-MEMORY.md                   handoff: state of the work + session log. Read at the
-                            start of a session, update at the end of it.
+AGENTS.md                   permanent agent rules; read first
+MEMORY.md                   short redirect to the preserved legacy handoff
+.agent/
+  STATE.md                  active status and next action; read every session
+  INDEX.md                  agent topic map and document maintenance rules
+  facts/                    confirmed technical facts by topic
+  decisions/                accepted design constraints and their reasons
+  runbooks/                 repeatable agent test/release procedures
+  history/                  dated context; do not load by default
 README.md                   human-facing front door / tour
 docs/
   ORCA-PLUGIN-FACTS.md      OrcaSlicer plugin-system facts (do not re-derive)
@@ -231,13 +267,7 @@ python3 tests/test_wave_gcode.py       # captured export; needs numpy + shapely
 python3 tools/sync_engine.py --check   # the two engine copies are identical
 python3 tools/sync_changelog.py --check  # changelogs match the plugins
 python3 tools/dump_default_config.py --check  # docs/config-reference is current
-python3 tools/check_all.py            # ALL of the above, both dependency states
-git ls-files --eol Orca-Plugins.bat   # must say i/crlf; it is the only .bat
-```
-
-The .bat itself is Windows-only and cannot be executed in this sandbox. When
-you change it: keep it one logical change at a time, re-read the whole file
-afterwards, and simulate the pieces you can (the repo test already simulates
+python3 tools/check_all.py            # ALL of the above, both dependency sest already simulates
 the `for /f` tokenization the .bat performs — extend it rather than trusting
 your eyes).
 
@@ -324,6 +354,13 @@ line per check. Use it instead of running six test files by hand.
   nightly.
 * **post-processing script** — a plain script run on the finished G-code,
   either by hand or via Orca's *Post-processing scripts* setting. Works on any
+  Orca version; this is what `tools/nonplanar-infill-tool` is.
+* **CRLF** — Windows line endings (`\r\n`). The .bat needs them.
+* **raw.githubusercontent.com** — GitHub's "give me this file as-is" URL
+  service; how the updater downloads.
+* **GPL-3.0** — a copyleft licence; derived code must keep attribution and the
+  same licence.
+sing scripts* setting. Works on any
   Orca version; this is what `tools/nonplanar-infill-tool` is.
 * **CRLF** — Windows line endings (`\r\n`). The .bat needs them.
 * **raw.githubusercontent.com** — GitHub's "give me this file as-is" URL

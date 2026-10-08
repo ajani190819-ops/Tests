@@ -1,0 +1,30 @@
+{
+	"schemaVersion": 1,
+	"id": "spatialhud",
+	"version": "${version}",
+	"name": "Spatial HUD",
+	"description": "Renders your hotbar, hearts, hunger, XP and mount bars as a panel floating in front of you — Spatial GUI, but for the HUD.",
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"dev.arena.spatialhud.SpatialHud"
+		],
+		"modmenu": [
+			"dev.arena.spatialhud.SpatialHudModMenu"
+		]
+	},
+	"mixins": [
+		"spatialhud.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*",
+		"cloth-config": ">=26.3.158"
+	},
+	"suggests": {
+		"modmenu": "*"
+	}
+}
