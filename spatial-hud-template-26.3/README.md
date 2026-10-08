@@ -68,7 +68,7 @@ you specifically want a Downloads copy instead of a direct Modrinth install.
 ## Render methods and placement
 
 Spatial HUD treats the selected bottom strip as one panel at a player-relative
-location. Use the single **Render Method** selector in the Setup config tab to
+location. Use the single **Render Mode Slider** in the Setup config tab to
 choose a presentation; F6/F7/F8 remain optional direct keys for the first
 three modes:
 
@@ -184,7 +184,7 @@ explanation tab plus three focused settings sections:
   of the green stable path, blue true projective mesh, and red real world panel.
   It contains no settings and is never saved into the configuration file.
 - **Setup** combines the enable switch, panel visibility, gameplay boundary,
-  companion-bar safeguard, and one simple **Render Method** selector.
+  companion-bar safeguard, and one simple **Render Mode Slider**.
 - **Panel Positioning & Orientation** keeps every geometric control together:
   distance, size, offsets, three-axis rotation, the flat-map tilt, and the
   Method 3 anchor and terrain-occlusion choices. The Method 3-only tooltips

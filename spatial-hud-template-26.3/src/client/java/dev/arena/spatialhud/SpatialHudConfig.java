@@ -44,7 +44,7 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("guide")
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 18 after checking the values.
+	// registerAndLoad writes it as 19 after checking the values.
 	public int configVersion = 0;
 
 	/*
@@ -95,14 +95,23 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean onlyDuringGameplay = true;
 
 	/**
-	 * One simple in-config selector for the presentation mode. It remains saved
-	 * in the normal config, while F6/F7/F8 retain their optional quick select
-	 * bindings for the first three renderers.
+	 * Visible, deliberately simple 1–4 selector. Cloth Config renders this as a
+	 * bounded slider, which avoids relying on an enum dropdown in a large
+	 * modpack's config UI. The value is read live, so saving the config takes
+	 * effect immediately on the next HUD frame.
 	 */
 	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Tooltip
-	// Perspective capture is the baseline: every selectable HUD renderer carries
-	// the complete lower-HUD texture rather than a flat root-by-root presentation.
+	@ConfigEntry.BoundedDiscrete(min = 1, max = 4)
+	public int renderModePicker = 2;
+
+	/**
+	 * Legacy JSON/keybinding storage. The public slider above is the one visible
+	 * config control; this enum is retained so existing files and F6/F7/F8 keep
+	 * working without a destructive format change.
+	 */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
 	public RenderMethod renderMethod = RenderMethod.CAPTURED_MESH;
 
 	public enum RenderMethod {
@@ -123,7 +132,7 @@ public final class SpatialHudConfig implements ConfigData {
 	 * drawn as an unrelated overlay.
 	 */
 	int modeIndicatorColor() {
-		return switch (renderMethod) {
+		return switch (selectedRenderMethod()) {
 			case CLASSIC_AFFINE -> 0xE038C172; // green: balanced forced mesh warp
 			case CAPTURED_MESH -> 0xE0469AEF; // blue: strong forced mesh warp
 			case WORLD_SPACE_TEXTURE -> 0xE0EF5350; // red: physical world texture
@@ -444,13 +453,34 @@ public final class SpatialHudConfig implements ConfigData {
 	 * The purple polygon diagnostic is intentionally the exception: it has no
 	 * capture, texture, shader, or world-render dependency.
 	 */
+	/** Maps the visible 1–4 slider to the one active renderer. */
+	RenderMethod selectedRenderMethod() {
+		return switch (Math.max(1, Math.min(4, renderModePicker))) {
+			case 1 -> RenderMethod.CLASSIC_AFFINE;
+			case 2 -> RenderMethod.CAPTURED_MESH;
+			case 3 -> RenderMethod.WORLD_SPACE_TEXTURE;
+			default -> RenderMethod.POLYGON_TEST;
+		};
+	}
+
+	/** Synchronizes direct key selection with the visible slider and old JSON field. */
+	void selectRenderMethod(RenderMethod method) {
+		renderMethod = method;
+		renderModePicker = switch (method) {
+			case CLASSIC_AFFINE -> 1;
+			case CAPTURED_MESH -> 2;
+			case WORLD_SPACE_TEXTURE -> 3;
+			case POLYGON_TEST -> 4;
+		};
+	}
+
 	boolean capturesTexture() {
-		return renderMethod != RenderMethod.POLYGON_TEST;
+		return selectedRenderMethod() != RenderMethod.POLYGON_TEST;
 	}
 
 	/** The purple test mode deliberately renders only its editable quad. */
 	boolean usesPolygonTest() {
-		return renderMethod == RenderMethod.POLYGON_TEST;
+		return selectedRenderMethod() == RenderMethod.POLYGON_TEST;
 	}
 
 	/**
@@ -459,22 +489,22 @@ public final class SpatialHudConfig implements ConfigData {
 	 * the unmistakable map-like trapezoid that a general X/Y distortion lacks.
 	 */
 	float meshTopEdgeWidthMultiplier() {
-		return renderMethod == RenderMethod.CLASSIC_AFFINE ? 0.80f : 0.46f;
+		return selectedRenderMethod() == RenderMethod.CLASSIC_AFFINE ? 0.80f : 0.46f;
 	}
 
 	/** Matching near-edge widening for the same forced trapezoid. */
 	float meshBottomEdgeWidthMultiplier() {
-		return renderMethod == RenderMethod.CLASSIC_AFFINE ? 1.10f : 1.22f;
+		return selectedRenderMethod() == RenderMethod.CLASSIC_AFFINE ? 1.10f : 1.22f;
 	}
 
 	/** Whether the captured texture is presented by the real world renderer. */
 	boolean usesWorldSpaceTexture() {
-		return renderMethod == RenderMethod.WORLD_SPACE_TEXTURE;
+		return selectedRenderMethod() == RenderMethod.WORLD_SPACE_TEXTURE;
 	}
 
 	/** Migrates legacy JSON fields to the current named rendering methods. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 18) {
+		if (cfg.configVersion >= 19) {
 			return;
 		}
 
@@ -626,7 +656,14 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.experimentalCaptureWarp = true;
 		}
 
-		cfg.configVersion = 18;
+		if (cfg.configVersion < 19) {
+			// v1.9 replaces the enum-dropdown dependency with a visible 1–4 slider.
+			// Translate the already-saved enum once so the old chosen mode remains
+			// selected while the new purple polygon test becomes available.
+			cfg.selectRenderMethod(cfg.renderMethod);
+		}
+
+		cfg.configVersion = 19;
 		save();
 	}
 

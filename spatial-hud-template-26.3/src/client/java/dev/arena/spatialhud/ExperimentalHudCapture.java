@@ -88,7 +88,7 @@ public final class ExperimentalHudCapture {
 		frameHasContent = false;
 		frameCapturedHotbar = false;
 
-		SpatialHudConfig.RenderMethod requestedMethod = SpatialHudConfig.get().renderMethod;
+		SpatialHudConfig.RenderMethod requestedMethod = SpatialHudConfig.get().selectedRenderMethod();
 		// Do not make a transient driver/companion-mod failure permanently turn
 		// the requested warp off. Changing method is an explicit request to retry
 		// the private capture path during this client session.
@@ -240,7 +240,7 @@ public final class ExperimentalHudCapture {
 				capturedRenderer.endFrame();
 
 				SpatialHudConfig cfg = SpatialHudConfig.get();
-				if (cfg.renderMethod == SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE) {
+				if (cfg.selectedRenderMethod() == SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE) {
 					// Level rendering happens before GUI extraction. The world renderer
 					// intentionally draws this finished texture on the next frame.
 					worldTextureReady = true;
@@ -410,7 +410,7 @@ public final class ExperimentalHudCapture {
 		frameHasContent = false;
 		worldTextureReady = false;
 		capturedGraphics = null;
-		failedMethod = SpatialHudConfig.get().renderMethod;
+		failedMethod = SpatialHudConfig.get().selectedRenderMethod();
 		// Keep the selected method intact. Rewriting it to the old affine mode
 		// made a user-requested mesh/world method appear to ignore its selector.
 		// A restart—or deliberately choosing a different method—will retry it.

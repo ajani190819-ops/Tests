@@ -13,7 +13,7 @@
   "text.autoconfig.spatialhud.category.contents": "HUD Contents",
 
   "text.autoconfig.spatialhud.option.guideOverview.title": "How to picture Spatial HUD",
-  "text.autoconfig.spatialhud.option.guideOverview.body": "Use the simple Render Method selector in Setup to choose among the three HUD presentations or the separate purple polygon diagnostic. The green, blue, and red modes treat the selected lower HUD as a flat Minecraft-map surface and remain active while that physical surface intersects the screen. F6, F7, and F8 remain optional quick keys for Methods 1, 2, and 3. Purple Polygon Test is different on purpose: it hides the selected HUD roots and displays only four movable purple corners and their filled outline, so its shape can be tested independently of HUD capture or world rendering.",
+  "text.autoconfig.spatialhud.option.guideOverview.body": "Use the Render Mode Slider in Setup to choose among the three HUD presentations or the separate purple polygon diagnostic. The green, blue, and red modes treat the selected lower HUD as a flat Minecraft-map surface and remain active while that physical surface intersects the screen. F6, F7, and F8 remain optional quick keys for Methods 1, 2, and 3. Purple Polygon Test is different on purpose: it hides the selected HUD roots and displays only four movable purple corners and their filled outline, so its shape can be tested independently of HUD capture or world rendering.",
   "text.autoconfig.spatialhud.option.guideClassicAffine.title": "Method 1 — Green — Balanced Captured Warp",
   "text.autoconfig.spatialhud.option.guideClassicAffine.body": "Green is a required captured-texture mesh, not the old unwarped root-by-root path. It applies a balanced forced perspective warp to every selected pixel, including health and status bars, while retaining a map-like readable shape. Use it when you want real distortion without the stronger blue exaggeration. The wide green band is a live confirmation that this method is selected.",
   "text.autoconfig.spatialhud.option.guideCapturedMesh.title": "Method 2 — Blue — Strong Captured Projective Warp",
@@ -30,8 +30,10 @@
   "text.autoconfig.spatialhud.option.onlyDuringGameplay": "Gameplay Only",
   "text.autoconfig.spatialhud.option.onlyDuringGameplay.@Tooltip": "Keep the spatial presentation out of inventories, chat, pause menus, Mod Menu, and other screens. This is recommended for normal play. Texture methods enforce the same screen-open boundary even if this option is turned off, because they intentionally capture gameplay HUD roots only.",
 
-  "text.autoconfig.spatialhud.option.renderMethod": "Render Method",
-  "text.autoconfig.spatialhud.option.renderMethod.@Tooltip": "Choose the current presentation. Green, blue, and red are the three lower-HUD renderers. Purple Polygon Test is an isolated diagnostic: it hides the selected Spatial HUD roots and displays only a four-corner purple quadrilateral. Use the Purple Polygon Test tab to move each corner by percentage. F6, F7, and F8 remain optional quick keys for the first three methods.",
+  "text.autoconfig.spatialhud.option.renderModePicker": "Render Mode Slider",
+  "text.autoconfig.spatialhud.option.renderModePicker.@Tooltip": "Move this slider to choose the active mode: 1 is green balanced warp, 2 is blue strong warp, 3 is red world-space texture, and 4 is the purple four-corner polygon test. This is the visible mode control; it takes effect as soon as the config is saved.",
+  "text.autoconfig.spatialhud.option.renderMethod": "Legacy Render Method (hidden)",
+  "text.autoconfig.spatialhud.option.renderMethod.@Tooltip": "Legacy saved value. Use Render Mode Slider above instead.",
   "text.autoconfig.spatialhud.enum.renderMethod.CLASSIC_AFFINE": "1 — Balanced Captured Warp · Green",
   "text.autoconfig.spatialhud.enum.renderMethod.CAPTURED_MESH": "2 — Strong Projective Warp · Blue · Default",
   "text.autoconfig.spatialhud.enum.renderMethod.WORLD_SPACE_TEXTURE": "3 — World-Space Texture · Red · Experimental",

@@ -161,8 +161,8 @@ public class SpatialHud implements ClientModInitializer {
 	private static void selectRenderMethod(SpatialHudConfig.RenderMethod method, int number,
 			String description) {
 		SpatialHudConfig cfg = SpatialHudConfig.get();
-		if (cfg.renderMethod != method) {
-			cfg.renderMethod = method;
+		if (cfg.selectedRenderMethod() != method) {
+			cfg.selectRenderMethod(method);
 			SpatialHudConfig.save();
 		}
 		// The full-width green/blue/red band is the deliberately on-panel visual
