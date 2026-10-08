@@ -1,7 +1,7 @@
 # Test Spatial HUD in F5W
 
 - Status: current test procedure.
-- Last verified: 2026-10-08 CI build `37713731571` (`b1c9600`); all F5W method results remain pending.
+- Last verified: 2026-10-08 CI build `37716303182` (`b772d72`); all F5W method results remain pending.
 - Read when: requesting or evaluating an F5W runtime test.
 
 ## Before starting
