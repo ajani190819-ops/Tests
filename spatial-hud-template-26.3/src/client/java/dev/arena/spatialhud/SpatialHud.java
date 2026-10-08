@@ -167,10 +167,8 @@ public class SpatialHud implements ClientModInitializer {
 			SpatialHudConfig.save();
 		}
 		LOGGER.info("Spatial HUD Method {} selected: {}.", number, description);
-		if (client.player != null) {
-			client.player.displayClientMessage(Component.literal(
-					"Spatial HUD — Method " + number + ": " + description), true);
-		}
+		client.gui.setOverlayMessage(Component.literal(
+				"Spatial HUD — Method " + number + ": " + description), false);
 	}
 
 	public static boolean isEnabled() {
