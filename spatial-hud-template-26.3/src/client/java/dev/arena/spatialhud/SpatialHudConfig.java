@@ -44,7 +44,7 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("guide")
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 17 after checking the values.
+	// registerAndLoad writes it as 18 after checking the values.
 	public int configVersion = 0;
 
 	/*
@@ -96,14 +96,17 @@ public final class SpatialHudConfig implements ConfigData {
 	 */
 	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Tooltip
-	public RenderMethod renderMethod = RenderMethod.CLASSIC_AFFINE;
+	// Perspective capture is the baseline: every selectable method now carries
+	// the complete lower-HUD texture rather than silently defaulting to a flat
+	// root-by-root presentation.
+	public RenderMethod renderMethod = RenderMethod.CAPTURED_MESH;
 
 	public enum RenderMethod {
-		/** Original public-HUD API path: stable, but only affine. */
+		/** Captured texture with a balanced, always-on projective mesh warp. */
 		CLASSIC_AFFINE,
-		/** Private captured texture composited as a projective GUI-space mesh. */
+		/** Captured texture with an intentionally strong projective mesh warp. */
 		CAPTURED_MESH,
-		/** Private captured texture drawn on a real plane in the rendered world. */
+		/** Captured texture drawn on a real plane in the rendered world. */
 		WORLD_SPACE_TEXTURE
 	}
 
@@ -115,8 +118,8 @@ public final class SpatialHudConfig implements ConfigData {
 	 */
 	int modeIndicatorColor() {
 		return switch (renderMethod) {
-			case CLASSIC_AFFINE -> 0xE038C172; // green: stable public-HUD path
-			case CAPTURED_MESH -> 0xE0469AEF; // blue: projective capture mesh
+			case CLASSIC_AFFINE -> 0xE038C172; // green: balanced forced mesh warp
+			case CAPTURED_MESH -> 0xE0469AEF; // blue: strong forced mesh warp
 			case WORLD_SPACE_TEXTURE -> 0xE0EF5350; // red: physical world texture
 		};
 	}
@@ -383,10 +386,22 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 	}
 
-	/** Whether this render method needs the isolated bottom-HUD texture. */
+	/**
+	 * Perspective capture is deliberately mandatory for every method. Method 1
+	 * and Method 2 use two clearly different mesh-warp strengths; Method 3
+	 * presents the same completed source texture on a real world plane.
+	 */
 	boolean capturesTexture() {
-		return renderMethod == RenderMethod.CAPTURED_MESH
-				|| renderMethod == RenderMethod.WORLD_SPACE_TEXTURE;
+		return true;
+	}
+
+	/**
+	 * Method 1 is still the more balanced green presentation, but it is no
+	 * longer a flat affine fallback. Method 2 deliberately exaggerates the
+	 * finite-plane projection so a mode change is obvious at a glance.
+	 */
+	float meshWarpStrength() {
+		return renderMethod == RenderMethod.CLASSIC_AFFINE ? 1.25f : 2.10f;
 	}
 
 	/** Whether the captured texture is presented by the real world renderer. */
@@ -396,7 +411,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Migrates legacy JSON fields to the current named rendering methods. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 17) {
+		if (cfg.configVersion >= 18) {
 			return;
 		}
 
@@ -538,7 +553,17 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.preserveCompanionStatusLayout = false;
 		}
 
-		cfg.configVersion = 17;
+		if (cfg.configVersion < 18) {
+			// v1.8 makes real texture warping the non-optional baseline. Older
+			// files began on the legacy affine path, which is why a method choice
+			// could appear to do nothing in a heavily modded HUD stack. Start at
+			// the unmistakably stronger blue mesh; users can still pick green or
+			// red explicitly afterwards.
+			cfg.renderMethod = RenderMethod.CAPTURED_MESH;
+			cfg.experimentalCaptureWarp = true;
+		}
+
+		cfg.configVersion = 18;
 		save();
 	}
 

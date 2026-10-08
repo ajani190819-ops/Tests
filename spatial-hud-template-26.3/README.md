@@ -71,17 +71,15 @@ Spatial HUD treats the selected bottom strip as one panel at a player-relative
 location. **Render Method** is now the first setting and is the only place that
 chooses a renderer:
 
-1. **Classic Affine (Stable — green marker)** — the original public-HUD
-   implementation. It is the compatibility default and has no private texture
-   or world renderer. It can move, rotate, and scale the HUD safely, but it
-   cannot make the corners or pixels inside an icon form a true perspective
-   trapezoid.
-2. **Captured Projective Mesh (Experimental — blue marker)** — captures only
-   the selected gameplay bottom HUD—backing plate, hotbar, status roots, XP,
-   mount bar, and held-item label—into a private texture. A 24 × 12 GUI-space
-   mesh projects every finished pixel, so a heart, item, slot, or glyph can
-   become trapezoidal rather than merely being root-scaled.
-3. **World-Space Texture (Experimental — red marker)** — captures the same
+1. **Balanced Captured Warp (green marker)** — captures the selected gameplay
+   lower HUD into a private texture and applies a balanced forced projective
+   mesh. It is no longer a flat root-by-root fallback: hearts, slots, icons,
+   bars, and glyphs all receive a real pixel warp.
+2. **Strong Projective Warp (blue marker; default)** — captures the same lower
+   HUD, then applies an intentionally stronger forced projection through a
+   dense **32 × 24** GUI-space mesh. Its exaggeration makes the perspective
+   unmistakable even at camera angles where natural taper would be subtle.
+3. **World-Space Texture (red marker)** — captures the same
    selected texture but draws it on a real quad in the rendered level. It
    supports a separate **Camera Yaw** or **Player Body** horizontal anchor and
    an **Occlude Behind World** switch. It intentionally displays the completed
@@ -112,12 +110,12 @@ than a card that follows camera pitch:
   edge for a deliberate slant. Their in-game tooltips define each positive
   direction exactly.
 
-Method 1 retains a stable native-HUD affine approximation at that same physical
-location, so it cannot taper individual pixels. Method 2 applies genuine
-per-pixel projective perspective through its mesh. Method 3 is a true world
-quad and samples the same lower-HUD source rectangle rather than a full-window
-texture; Methods 1 and 2 are camera-yaw anchored, while Method 3 exposes its
-anchor as a separate setting so it can instead remain fixed to player-body yaw.
+Methods 1 and 2 both apply genuine per-pixel projective perspective through
+captured meshes: Method 1 is balanced; Method 2 is deliberately stronger and
+the default. Method 3 is a true world quad and samples the same lower-HUD
+source rectangle rather than a full-window texture; Methods 1 and 2 are
+camera-yaw anchored, while Method 3 exposes its anchor as a separate setting so
+it can instead remain fixed to player-body yaw.
 
 ### Companion-mod baseline
 
@@ -137,15 +135,12 @@ separately registered overlay enters the capture target.
 
 ### Compatibility boundary
 
-**Classic Affine** uses Fabric's public HUD element API only: it has no
-private texture, framebuffer redirect, or world-render pass. **Captured
-Projective Mesh** and **World-Space Texture** add two narrowly scoped renderer
-hooks solely for their private bottom-HUD renderer; normal GUI renderers never
-meet their identity check. World-Space Texture additionally submits only that
-finished private texture to the level render pass. With **Gameplay Only**
-enabled (the default), Classic Affine delegates directly to vanilla whenever
-another screen is open, and both texture methods enforce that same screen-open
-bypass unconditionally. That includes:
+**Balanced Captured Warp**, **Strong Projective Warp**, and **World-Space
+Texture** use two narrowly scoped renderer hooks solely for their private
+bottom-HUD renderer; normal GUI renderers never meet their identity check.
+World-Space Texture additionally submits only that finished private texture to
+the level render pass. With **Gameplay Only** enabled (the default), all three
+methods bypass private capture whenever another screen is open. That includes:
 
 - inventory, creative inventory, chest, crafting, furnace, anvil, and other
   container screens

@@ -24,6 +24,10 @@ final class VirtualHudPlane {
 	record Point(float x, float y) {
 	}
 
+	/** Cached centre tangent used to force an obvious mesh-only perspective warp. */
+	record WarpBasis(Point centre, Point xTangent, Point yTangent) {
+	}
+
 	private final SpatialHudConfig cfg;
 	private final int guiWidth;
 	private final int guiHeight;
@@ -98,6 +102,33 @@ final class VirtualHudPlane {
 	 */
 	Point project(float sourceX, float sourceY) {
 		return toScreenPoint(projectPhysicalPoint(sourceX, sourceY));
+	}
+
+	/** Builds one affine centre tangent for a complete forced-warp mesh frame. */
+	WarpBasis createWarpBasis() {
+		Point centre = project(sourceCenterX, sourceCenterY);
+		return new WarpBasis(centre, project(sourceCenterX + 1.0f, sourceCenterY),
+				project(sourceCenterX, sourceCenterY + 1.0f));
+	}
+
+	/**
+	 * Project a texture-mesh vertex with a deliberately non-zero perspective
+	 * component. Strength 0 is the old single affine tangent, 1 is the physical
+	 * projection, and strengths above 1 exaggerate the real far-edge taper.
+	 */
+	Point projectWarped(float sourceX, float sourceY, float strength, WarpBasis basis) {
+		Point physical = project(sourceX, sourceY);
+		float deltaX = sourceX - sourceCenterX;
+		float deltaY = sourceY - sourceCenterY;
+		Point centre = basis.centre();
+		Point xTangent = basis.xTangent();
+		Point yTangent = basis.yTangent();
+		float affineX = centre.x() + deltaX * (xTangent.x() - centre.x())
+				+ deltaY * (yTangent.x() - centre.x());
+		float affineY = centre.y() + deltaX * (xTangent.y() - centre.y())
+				+ deltaY * (yTangent.y() - centre.y());
+		return new Point(affineX + (physical.x() - affineX) * strength,
+				affineY + (physical.y() - affineY) * strength);
 	}
 
 	/**

@@ -41,17 +41,17 @@ import java.util.OptionalDouble;
  * object identity. Normal screens, chat, minimaps, debug text, and every
  * other GUI renderer therefore retain their original target and draw call.</p>
  *
- * <p>The feature is disabled by default. Any extraction, target, or GPU error
- * latches this class into its safe affine fallback for the rest of the client
- * session and turns the config switch off. The next HUD frame then follows the
- * released public-HUD-API renderer exactly.</p>
+ * <p>Texture capture is the required baseline for all three presentation
+ * methods. A GPU error still latches a safe affine display for the current
+ * session, but it never rewrites the player's selected method: a restart or
+ * selecting another method retries the requested captured path.</p>
  */
 public final class ExperimentalHudCapture {
 	private static final String TARGET_NAME = "Spatial HUD experimental bottom-strip capture";
 	// Dense enough that curvature and per-icon projective deformation do not
 	// reveal the old root-by-root affine seams.
-	private static final int MESH_COLUMNS = 24;
-	private static final int MESH_ROWS = 12;
+	private static final int MESH_COLUMNS = 32;
+	private static final int MESH_ROWS = 24;
 	private static final RenderPipeline WARP_PIPELINE = RenderPipelines.GUI_TEXTURED;
 	private static final StagedVertexBuffer WARP_BUFFER = new StagedVertexBuffer(
 			() -> "Spatial HUD experimental warp mesh", RenderType.SMALL_BUFFER_SIZE);
@@ -71,6 +71,8 @@ public final class ExperimentalHudCapture {
 	/** Becomes true after a completed capture can be drawn by Method 3 next frame. */
 	private static boolean worldTextureReady;
 	private static boolean sessionFallback;
+	/** Lets a deliberate mode change retry capture after a one-session failure. */
+	private static SpatialHudConfig.RenderMethod failedMethod;
 	private static int guiWidth;
 	private static int guiHeight;
 
@@ -85,6 +87,16 @@ public final class ExperimentalHudCapture {
 		frameActive = false;
 		frameHasContent = false;
 		frameCapturedHotbar = false;
+
+		SpatialHudConfig.RenderMethod requestedMethod = SpatialHudConfig.get().renderMethod;
+		// Do not make a transient driver/companion-mod failure permanently turn
+		// the requested warp off. Changing method is an explicit request to retry
+		// the private capture path during this client session.
+		if (sessionFallback && requestedMethod != failedMethod) {
+			sessionFallback = false;
+			failedMethod = null;
+			SpatialHud.LOGGER.info("Spatial HUD retrying the forced texture warp after render-method change to {}.", requestedMethod);
+		}
 
 		if (!SpatialHud.isTextureCaptureActive() || sessionFallback
 				|| !SpatialHud.isPhysicalPanelVisibleInGui(sourceGraphics.guiWidth(), sourceGraphics.guiHeight())) {
@@ -228,13 +240,16 @@ public final class ExperimentalHudCapture {
 				capturedRenderer.endFrame();
 
 				SpatialHudConfig cfg = SpatialHudConfig.get();
-				if (cfg.renderMethod == SpatialHudConfig.RenderMethod.CAPTURED_MESH) {
-					worldTextureReady = false;
-					compositeProjectiveMesh();
-				} else if (cfg.renderMethod == SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE) {
+				if (cfg.renderMethod == SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE) {
 					// Level rendering happens before GUI extraction. The world renderer
 					// intentionally draws this finished texture on the next frame.
 					worldTextureReady = true;
+				} else {
+					// Both screen-space choices are mandatory texture meshes. Their
+					// different warp strengths make green and blue visibly different
+					// without ever falling back to a root-by-root flat card.
+					worldTextureReady = false;
+					compositeProjectiveMesh(cfg);
 				}
 			} catch (Throwable t) {
 			fallback(t, "rendering the selected bottom-HUD texture");
@@ -292,7 +307,7 @@ public final class ExperimentalHudCapture {
 	 * Extra columns make optional cylindrical curvature smooth without affecting
 	 * the safe default mode (whose curvature value is zero).
 	 */
-	private static void compositeProjectiveMesh() {
+	private static void compositeProjectiveMesh(SpatialHudConfig cfg) {
 		if (capturedTarget == null || capturedTarget.getColorTextureView() == null) {
 			throw new IllegalStateException("bottom-HUD capture texture view is unavailable");
 		}
@@ -306,7 +321,7 @@ public final class ExperimentalHudCapture {
 		StagedVertexBuffer.Draw draw = WARP_BUFFER.appendDraw(format, primitive, null);
 		try {
 			VertexConsumer vertices = WARP_BUFFER.getVertexBuilder(draw);
-			addWarpMesh(vertices, SpatialHudConfig.get());
+			addWarpMesh(vertices, cfg);
 			WARP_BUFFER.upload();
 			StagedVertexBuffer.ExecuteInfo info = WARP_BUFFER.getExecuteInfo(draw);
 			if (info == null) {
@@ -323,27 +338,35 @@ public final class ExperimentalHudCapture {
 	 * critical distinction from the former root-scale approximation: UVs stay
 	 * tied to finished capture pixels while vertex depth changes across the
 	 * entire strip, so a single heart or hotbar slot itself becomes trapezoidal.
+	 *
+	 * <p>The two mesh methods intentionally blend/extrapolate away from the
+	 * centre's affine tangent. Therefore the visible difference is not dependent
+	 * on a subtle camera angle: green is a balanced forced warp and blue is a
+	 * deliberately strong forced warp.</p>
 	 */
 	private static void addWarpMesh(VertexConsumer vertices, SpatialHudConfig cfg) {
 		VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
+		VirtualHudPlane.WarpBasis warpBasis = plane.createWarpBasis();
+		float warpStrength = cfg.meshWarpStrength();
 		for (int row = 0; row < MESH_ROWS; row++) {
 			float v0 = row / (float) MESH_ROWS;
 			float v1 = (row + 1) / (float) MESH_ROWS;
 			for (int column = 0; column < MESH_COLUMNS; column++) {
 				float u0 = column / (float) MESH_COLUMNS;
 				float u1 = (column + 1) / (float) MESH_COLUMNS;
-				addWarpVertex(vertices, plane, u0, v0);
-				addWarpVertex(vertices, plane, u1, v0);
-				addWarpVertex(vertices, plane, u1, v1);
-				addWarpVertex(vertices, plane, u0, v1);
+				addWarpVertex(vertices, plane, warpBasis, u0, v0, warpStrength);
+				addWarpVertex(vertices, plane, warpBasis, u1, v0, warpStrength);
+				addWarpVertex(vertices, plane, warpBasis, u1, v1, warpStrength);
+				addWarpVertex(vertices, plane, warpBasis, u0, v1, warpStrength);
 			}
 		}
 	}
 
-	private static void addWarpVertex(VertexConsumer vertices, VirtualHudPlane plane, float u, float v) {
+	private static void addWarpVertex(VertexConsumer vertices, VirtualHudPlane plane,
+			VirtualHudPlane.WarpBasis warpBasis, float u, float v, float warpStrength) {
 		float sourceX = lerp(plane.sourceLeft(), plane.sourceRight(), u);
 		float sourceY = lerp(plane.sourceTop(), plane.sourceBottom(), v);
-		VirtualHudPlane.Point destination = plane.project(sourceX, sourceY);
+		VirtualHudPlane.Point destination = plane.projectWarped(sourceX, sourceY, warpStrength, warpBasis);
 		vertices.addVertex(IDENTITY, destination.x(), destination.y(), 0.0f)
 				.setUv(plane.textureU(sourceX), plane.textureV(sourceY))
 				.setColor(255, 255, 255, 255);
@@ -386,11 +409,12 @@ public final class ExperimentalHudCapture {
 		frameHasContent = false;
 		worldTextureReady = false;
 		capturedGraphics = null;
-		SpatialHudConfig cfg = SpatialHudConfig.get();
-		cfg.experimentalCaptureWarp = false;
-		cfg.renderMethod = SpatialHudConfig.RenderMethod.CLASSIC_AFFINE;
-		SpatialHudConfig.save();
-		SpatialHud.LOGGER.error("Spatial HUD texture renderer failed while {}; switched to Classic Affine for this session.", stage, error);
+		failedMethod = SpatialHudConfig.get().renderMethod;
+		// Keep the selected method intact. Rewriting it to the old affine mode
+		// made a user-requested mesh/world method appear to ignore its selector.
+		// A restart—or deliberately choosing a different method—will retry it.
+		SpatialHud.LOGGER.error("Spatial HUD forced texture warp failed while {}. Requested {} remains selected; choose another method or restart to retry. A safe affine display is used only for this session.",
+				stage, failedMethod, error);
 	}
 
 	private static float lerp(float from, float to, float amount) {
