@@ -53,10 +53,19 @@ final class VirtualHudPlane {
 	}
 
 	static VirtualHudPlane forGui(SpatialHudConfig cfg, int guiWidth, int guiHeight) {
+		return new VirtualHudPlane(cfg, guiWidth, guiHeight, focalLengthFor(guiHeight));
+	}
+
+	/**
+	 * The camera's focal length in GUI pixels, derived from the player's field
+	 * of view. Method 2's mesh and Method 4's pitched card both project through
+	 * this one value, so all of Spatial HUD's perspective matches the world and
+	 * the FOV setting instead of using invented screen fractions.
+	 */
+	static float focalLengthFor(int guiHeight) {
 		Minecraft mc = Minecraft.getInstance();
 		double fov = clamp(mc.options.fov().get(), 30.0, 150.0);
-		float focal = (float) ((guiHeight * 0.5) / Math.tan(Math.toRadians(fov) * 0.5));
-		return new VirtualHudPlane(cfg, guiWidth, guiHeight, focal);
+		return (float) ((Math.max(1, guiHeight) * 0.5) / Math.tan(Math.toRadians(fov) * 0.5));
 	}
 
 	int guiWidth() {

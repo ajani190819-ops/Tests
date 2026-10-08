@@ -43,7 +43,8 @@ Record each result separately by mode.
 | 4 | Content | The captured hotbar, hearts/hunger/armor/air, XP bar and level, and held-item text are all warped into the purple quad. Nothing else from the screen appears inside it. |
 | 4 | Single surface | Nothing is drawn at the normal vanilla HUD position — no second dark rectangle anywhere on screen while the mode is enabled. |
 | 4 | Border and handles | The purple border and the four corner handles sit exactly on the four configured corners and deform with them. |
-| 4 | Pitch response | Looking down pulls the top edge inward/upward and opens the bottom; looking up reverses it; the warped HUD, border, and handles move together as one surface. **Follow Camera Pitch = off** freezes the quad. |
+| 4 | Pitch response | The surface behaves like a flat card in a 3D renderer: looking down tips the far/top edge away so it narrows while the near/bottom edge widens and the card foreshortens; looking up mirrors it. Warped HUD, border, and handles tilt as one surface, the card centre stays where the handles placed it, and the tilt stops at 70° without ever becoming a line. **Follow Camera Pitch = off** freezes the quad. |
+| 4 | Straight lines | On the tilted surface, straight HUD lines (hotbar edges, bar outlines) stay straight instead of bowing. |
 | 4 | Corners | Move each of the eight percentages and confirm exactly that corner moves. |
 | 4 | Companion pixels | AppleSkin and Detail Armor pixels appear inside the quad with their vanilla root. |
 | 4 | Backing switch | **Show Backing Panel** off leaves the purple border and handles with a see-through interior; the HUD pixels stay readable with it on. |

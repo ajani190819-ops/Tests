@@ -77,20 +77,52 @@ mode again, not the outline-only diagnostic that the previous session shipped.
   can cover whatever else is there (for example the crosshair region). Methods
   1–3 have the same property over their own area.
 
-### Pitch response
+### Pitch response — a real plane projection
 
 Method 4 uses the eight saved percentage values exactly when the view pitch is
-level. By default it then responds live to pitch:
+level. By default it then pitches the surface about its own left-to-right axis,
+the way a 3D renderer moves a flat card:
 
-- looking **down** pulls the top edge inward/upward and opens the lower edge;
-- looking **up** reverses that motion.
+- looking **down** tips the far/top edge away from the camera, so that edge
+  narrows while the near/bottom edge widens and the surface foreshortens;
+- looking **up** reverses the motion.
+
+This is a genuine perspective divide per corner, not the previous invented
+pinch. For a corner at `dy` pixels from the card's own centre line:
+
+```text
+w  = 1 - dy * sin(angle) / focal
+x' = screenCentreX + (x - screenCentreX) / w
+y' = screenCentreY + (cardCentreY - screenCentreY + dy * cos(angle)) / w
+```
+
+`focal` comes from the player's field of view
+(`VirtualHudPlane.focalLengthFor(guiHeight)`, the same value Methods 1–3 use),
+so the tilt matches the world's perspective at any FOV or GUI scale. The card's
+centre stays where the handles put it, so placement is unaffected. The tilt is
+clamped to 70°, which keeps the surface readable instead of collapsing to a
+line at a straight-down look, and the divide has a `0.15` floor that only a
+corner set far taller than the screen can reach.
+
+The interior mapping is now also projective: `PolygonTestRenderer.Quad` holds
+the square-to-quad homography, so straight HUD lines stay straight on the
+tilted surface. The previous bilinear interpolation bowed them. Deliberately
+crossed or collapsed handles cannot define a homography, and fall back to the
+old bilinear surface so a stress-test configuration still draws.
 
 Controls in `SpatialHudConfig`: `polygonFollowCameraPitch` (default `true`) and
-`polygonPitchResponsePercent` (bounded `0`–`100`, default `100`).
-`PolygonTestRenderer.respondToPitch(...)` reads the per-frame `SpatialHud.pitch`,
-and `SpatialHudPanelElement` calls `SpatialHud.updateViewPose()` before drawing,
-so the value is current-frame rather than one frame stale. The composite reads
-the same `quad(...)` call, which is why the texture moves with the outline.
+`polygonPitchResponsePercent` (bounded `0`–`100`, default `100`, which scales
+the look angle before the clamp). `PolygonTestRenderer.respondToPitch(...)` reads
+the per-frame `SpatialHud.pitch`, and `SpatialHudPanelElement` calls
+`SpatialHud.updateViewPose()` before drawing, so the value is current-frame
+rather than one frame stale. Both the capture mesh and the fallback guide call
+the same `quad(...)`, which is why the texture, border, and handles tilt
+together.
+
+**Verified by numeric simulation, not in game:** at level pitch the corners are
+returned exactly; the far edge narrows and the near edge widens as pitch
+increases; the mapping stays finite and un-inverted across −90°…+90° at every
+response strength; and a straight source line stays straight.
 
 ## Updater: choosing a build (added 2026-10-08)
 
