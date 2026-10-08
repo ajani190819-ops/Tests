@@ -18,6 +18,18 @@ final class SpatialHudPanelElement implements HudElement {
 			return;
 		}
 
+		SpatialHudConfig cfg = SpatialHudConfig.get();
+		if (cfg.usesPolygonTest()) {
+			// This diagnostic intentionally ignores physical-panel/FOV logic and
+			// displays only the directly configured purple quadrilateral.
+			try {
+				PolygonTestRenderer.draw(graphics, cfg);
+			} catch (Throwable t) {
+				SpatialHud.safeDisable(t);
+			}
+			return;
+		}
+
 		// Run even when the backing is hidden: this is registered immediately
 		// before HOTBAR and gives every selected root one camera pitch value.
 		SpatialHud.updateViewPose();
@@ -35,7 +47,6 @@ final class SpatialHudPanelElement implements HudElement {
 		// feed it below.
 		ExperimentalHudCapture.beginFrame(graphics);
 
-		SpatialHudConfig cfg = SpatialHudConfig.get();
 		// In the texture modes, both the optional backing and wide coloured mode
 		// band are part of the same source texture as hotbar/status pixels. They
 		// must not also draw here, or an affine duplicate would diverge from the

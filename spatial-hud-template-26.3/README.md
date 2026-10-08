@@ -68,8 +68,9 @@ you specifically want a Downloads copy instead of a direct Modrinth install.
 ## Render methods and placement
 
 Spatial HUD treats the selected bottom strip as one panel at a player-relative
-location. Bind the three direct method-selection actions in **Minecraft
-Controls** to choose its renderer instantly:
+location. Use the single **Render Method** selector in the Setup config tab to
+choose a presentation; F6/F7/F8 remain optional direct keys for the first
+three modes:
 
 1. **Balanced Captured Warp (green marker)** — captures the selected gameplay
    lower HUD into a private texture and applies a balanced forced projective
@@ -85,8 +86,12 @@ Controls** to choose its renderer instantly:
    an **Occlude Behind World** switch. It intentionally displays the completed
    previous-frame texture, avoiding global GUI redirection while the current
    GUI is captured.
+4. **Four-Corner Polygon Test (purple)** — an isolated test mode that renders
+   only a filled purple quadrilateral and four square corner handles. Its own
+   config tab exposes one X/Y percentage pair per handle, so the four corners
+   can be reshaped without any HUD capture, shader, or world-render path.
 
-Every method draws a **full-width, eight-pixel colour band** inside the panel's
+Every HUD method draws a **full-width, eight-pixel colour band** inside the panel's
 source rectangle: green for Method 1, blue for Method 2, and red for Method 3.
 The band is part of the captured texture in Methods 2 and 3, so it follows the
 same mesh or world plane rather than becoming a separate screen overlay.
@@ -179,12 +184,14 @@ explanation tab plus three focused settings sections:
   of the green stable path, blue true projective mesh, and red real world panel.
   It contains no settings and is never saved into the configuration file.
 - **Setup** combines the enable switch, panel visibility, gameplay boundary,
-  and companion-bar safeguard. Method selection is intentionally not a config
-  field; use the three direct keybindings listed below.
+  companion-bar safeguard, and one simple **Render Method** selector.
 - **Panel Positioning & Orientation** keeps every geometric control together:
   distance, size, offsets, three-axis rotation, the flat-map tilt, and the
   Method 3 anchor and terrain-occlusion choices. The Method 3-only tooltips
   explicitly say when a setting is ignored by the other two methods.
+- **Purple Polygon Test** provides eight percentage sliders—X and Y for each
+  top-left, top-right, bottom-right, and bottom-left handle. They affect only
+  Method 4 and directly reshape its isolated purple quad.
 - **HUD Contents** chooses which lower-HUD roots Spatial HUD owns.
 
 Minecraft Controls contains:

@@ -25,6 +25,11 @@ final class SpatialHudElement implements HudElement {
 			vanilla.extractRenderState(graphics, deltaTracker);
 			return;
 		}
+		if (cfg.usesPolygonTest()) {
+			// The purple test is intentionally an isolated quad-only diagnostic:
+			// it suppresses every selected lower-HUD root and never captures one.
+			return;
+		}
 		// Enabled Spatial HUD owns these selected roots. When the finite physical
 		// map surface is outside the viewport, suppress them rather than falling
 		// back to a flat vanilla HUD. There is no artificial look-down threshold:

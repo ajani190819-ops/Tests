@@ -69,6 +69,10 @@ public final class SpatialHudConfig implements ConfigData {
 	@MethodGuideText(color = 0xFFEF5350)
 	public transient String guideWorldSpace = "";
 
+	@ConfigEntry.Category("guide")
+	@MethodGuideText(color = 0xFFC75CFF)
+	public transient String guidePolygonTest = "";
+
 	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Tooltip
 	public boolean enabled = true;
@@ -91,15 +95,14 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean onlyDuringGameplay = true;
 
 	/**
-	 * Persisted direct-key selection. It is intentionally hidden from Cloth
-	 * Config: bind Method 1, 2, and 3 under Minecraft Controls to choose it.
-	 * HUD-content controls remain separately available in HUD Contents.
+	 * One simple in-config selector for the presentation mode. It remains saved
+	 * in the normal config, while F6/F7/F8 retain their optional quick select
+	 * bindings for the first three renderers.
 	 */
 	@ConfigEntry.Category("setup")
-	@ConfigEntry.Gui.Excluded
-	// Perspective capture is the baseline: every selectable method now carries
-	// the complete lower-HUD texture rather than silently defaulting to a flat
-	// root-by-root presentation.
+	@ConfigEntry.Gui.Tooltip
+	// Perspective capture is the baseline: every selectable HUD renderer carries
+	// the complete lower-HUD texture rather than a flat root-by-root presentation.
 	public RenderMethod renderMethod = RenderMethod.CAPTURED_MESH;
 
 	public enum RenderMethod {
@@ -108,7 +111,9 @@ public final class SpatialHudConfig implements ConfigData {
 		/** Captured texture with an intentionally strong projective mesh warp. */
 		CAPTURED_MESH,
 		/** Captured texture drawn on a real plane in the rendered world. */
-		WORLD_SPACE_TEXTURE
+		WORLD_SPACE_TEXTURE,
+		/** Purple GUI test surface with four independently positioned corners. */
+		POLYGON_TEST
 	}
 
 	/**
@@ -122,6 +127,7 @@ public final class SpatialHudConfig implements ConfigData {
 			case CLASSIC_AFFINE -> 0xE038C172; // green: balanced forced mesh warp
 			case CAPTURED_MESH -> 0xE0469AEF; // blue: strong forced mesh warp
 			case WORLD_SPACE_TEXTURE -> 0xE0EF5350; // red: physical world texture
+			case POLYGON_TEST -> 0xE0C75CFF; // purple: independently shaped test quad
 		};
 	}
 
@@ -316,6 +322,52 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public boolean preserveCompanionStatusLayout = false;
 
+	/**
+	 * Purple test-mode controls. Values are percentages of the current GUI
+	 * viewport, so the four handles remain meaningful at every resolution.
+	 * Keep corners in top-left, top-right, bottom-right, bottom-left order for a
+	 * normal convex map surface; deliberate crossing is useful for stress tests.
+	 */
+	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int polygonTopLeftXPercent = 30;
+
+	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int polygonTopLeftYPercent = 35;
+
+	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int polygonTopRightXPercent = 70;
+
+	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int polygonTopRightYPercent = 35;
+
+	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int polygonBottomRightXPercent = 80;
+
+	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int polygonBottomRightYPercent = 70;
+
+	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int polygonBottomLeftXPercent = 20;
+
+	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int polygonBottomLeftYPercent = 70;
+
 	@ConfigEntry.Category("contents")
 	@ConfigEntry.Gui.Tooltip
 	public boolean showHotbar = true;
@@ -388,12 +440,17 @@ public final class SpatialHudConfig implements ConfigData {
 	}
 
 	/**
-	 * Perspective capture is deliberately mandatory for every method. Method 1
-	 * and Method 2 use two clearly different mesh-warp strengths; Method 3
-	 * presents the same completed source texture on a real world plane.
+	 * Perspective capture is deliberately mandatory for the three HUD renderers.
+	 * The purple polygon diagnostic is intentionally the exception: it has no
+	 * capture, texture, shader, or world-render dependency.
 	 */
 	boolean capturesTexture() {
-		return true;
+		return renderMethod != RenderMethod.POLYGON_TEST;
+	}
+
+	/** The purple test mode deliberately renders only its editable quad. */
+	boolean usesPolygonTest() {
+		return renderMethod == RenderMethod.POLYGON_TEST;
 	}
 
 	/**
