@@ -2,8 +2,10 @@
 #
 # Maintained by Update-SpatialHUD.bat. The batch file is the only file a player
 # needs to keep; it refreshes this helper from GitHub before every run.
+# This one helper covers everything: installing into the Modrinth mods folder,
+# picking a build, and saving a copy to Downloads (the old Get-Latest flow).
 #
-# SpatialHUD-Helper-Version: 2
+# SpatialHUD-Helper-Version: 3
 #
 # Default target: %APPDATA%\ModrinthApp\profiles\F5W\mods
 # The target, chosen build, and optional folder opener are remembered under
@@ -654,6 +656,40 @@ function Install-SpatialHud {
     }
 }
 
+function Save-SpatialHudToDownloads {
+    param([string]$Tag)
+
+    $asset = Get-ReleaseAsset $Tag
+    $downloads = Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Downloads'
+    if (-not (Test-Path -LiteralPath $downloads -PathType Container)) {
+        New-Item -ItemType Directory -Path $downloads -Force | Out-Null
+    }
+    $temporary = Join-Path $downloads ($asset.Name + '.download')
+    $destination = Join-Path $downloads $asset.Name
+
+    Write-Host ''
+    Write-Host 'Saving a copy to Downloads' -ForegroundColor Cyan
+    Write-Host "  Build:  $(Get-BuildLabel $Tag)"
+    Write-Host "  File:   $($asset.Name), updated $($asset.UpdatedAt)"
+    try {
+        Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+        Invoke-WebRequest -Uri $asset.Url -OutFile $temporary
+        Test-SpatialHudJar $temporary
+    }
+    catch {
+        Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+        throw
+    }
+
+    # Previous Spatial HUD copies in Downloads are removed only after the new
+    # jar has passed the same checks the mods-folder install uses.
+    Get-ChildItem -LiteralPath $downloads -File -Filter 'spatial-hud*.jar' | Remove-Item -Force
+    Move-Item -LiteralPath $temporary -Destination $destination -Force
+    Write-Host "Saved: $destination" -ForegroundColor Green
+    Write-Host 'In the Modrinth App: open your instance, Mods -> Add content -> From file, and pick this jar.'
+    Start-Process explorer.exe -ArgumentList "/select,`"$destination`""
+}
+
 $rememberedTarget = if ($TargetDirectory) { Resolve-InstallDirectory $TargetDirectory } else { Read-RememberedValue $TargetStateFile $DefaultTargetDirectory }
 $rememberedTag = if ($ReleaseTag) { $ReleaseTag.Trim() } else { Read-RememberedValue $ReleaseStateFile $DefaultReleaseTag }
 $rememberedFolderOpener = Read-RememberedValue $FolderOpenerStateFile ''
@@ -683,6 +719,7 @@ try {
         Write-Host ' [5] Check the chosen build details'
         Write-Host ' [6] Advanced: use a different release feed'
         Write-Host ' [7] Restore the default folder, build, and no-opener setting'
+        Write-Host ' [D] Save a copy of the chosen build to Downloads instead (no mods change)'
         Write-Host ' [Q] Quit'
         Write-Host ''
         $choice = Read-Host 'Choice, or Enter to install'
@@ -707,6 +744,7 @@ try {
                 Read-Host 'Press Enter to continue' | Out-Null
                 continue
             }
+            '^[Dd]$' { Save-SpatialHudToDownloads $rememberedTag; Read-Host 'Press Enter to return to the menu' | Out-Null; continue }
             '^[Qq]$' { exit 0 }
             default { Write-Host 'That is not a menu choice.' -ForegroundColor Yellow; Start-Sleep -Seconds 1 }
         }

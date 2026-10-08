@@ -43,8 +43,8 @@
   branch build is a release tag), `build-choice.txt` (tag + branch label, two
   lines), `folder-opener.txt`.
 - The helper's first lines carry `SpatialHUD-Helper-Version: N`.
-  `Update-SpatialHUD.bat` and `Get-Latest-SpatialHUD.bat` try `main` and then
-  the session branch, keep the higher version, and fall back to a plain `main`
+  `Update-SpatialHUD.bat` (the only updater; `Get-Latest-SpatialHUD.bat` is now
+  a redirect and its helper is deleted) tries `main` and then the session branch, keep the higher version, and fall back to a plain `main`
   fetch, so a saved .bat survives a merge without another download. A missing
   marker counts as version 0.
 - Install safety is unchanged: download to a temp folder, verify the file is a

@@ -2,8 +2,9 @@
 setlocal
 
 rem Update-SpatialHUD.bat
-rem Keep this one file anywhere convenient and double-click it to install a
-rem Spatial HUD build directly into the remembered Modrinth profile mods folder.
+rem THE ONLY SPATIAL HUD UPDATER. Keep this one file anywhere convenient and
+rem double-click it to install a Spatial HUD build directly into the remembered
+rem Modrinth profile mods folder, or save a copy to Downloads with [D].
 rem It refreshes its maintained PowerShell helper from GitHub before every run,
 rem so the menu and safety checks stay current. The menu can then install the
 rem newest build on any branch, or a build of one branch you pick by name.

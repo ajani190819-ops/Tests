@@ -136,3 +136,11 @@
 - Technical summary: `.agent/facts/spatial-hud.md`.
 - Continuity note: `spatial-hud-template-26.3/AGENT_HANDOFF.md`.
 - Build instructions for the owner: `PASTE-ME-CI-SETUP.md`.
+
+## Single updater (2026-10-08, latest)
+
+- `Update-SpatialHUD.bat` is the only updater to download. Its helper
+  (`Update-SpatialHUD.ps1`, version 3) covers Modrinth install, the build picker
+  and option [D], a Downloads copy of the chosen build.
+- `Get-Latest-SpatialHUD.bat` is a redirect; its `.ps1` is deleted.
+- Not tested: PowerShell and the `.bat` in Windows (no Windows here).

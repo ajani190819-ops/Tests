@@ -175,8 +175,10 @@ Mechanics the next session must not break:
 - `src/main/resources/assets/spatialhud/lang/en_us.json` — config labels,
   tooltips, method descriptions (updated for the new Method 4).
 - `README.md` — public behavior documentation (updated).
-- `Update-SpatialHUD.ps1` / `Update-SpatialHUD.bat` / `Get-Latest-SpatialHUD.*`
-  — the Modrinth updater, now with the build picker.
+- `Update-SpatialHUD.ps1` / `Update-SpatialHUD.bat` — the single updater: Modrinth
+  install, the build picker, and option [D] (Downloads copy, merged from the old
+  Get-Latest flow). Helper version 3. `Get-Latest-SpatialHUD.bat` is a redirect
+  only; its `.ps1` was deleted.
 - Repository root `PASTE-ME-CI-SETUP.md` — the exact workflow file to paste and
   the two owner actions; workflow edits need a human.
 

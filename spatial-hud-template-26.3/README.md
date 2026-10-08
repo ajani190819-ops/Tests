@@ -88,9 +88,12 @@ main itself has been built.
 The batch file temporarily refreshes its maintained PowerShell helper from
 GitHub before each run, then deletes that temporary helper. Its
 ExecutionPolicy bypass applies only to that updater process and does not change
-the computer's permanent policy. The old
-[`Get-Latest-SpatialHUD.bat`](Get-Latest-SpatialHUD.bat) remains available when
-you specifically want a Downloads copy instead of a direct Modrinth install.
+the computer's permanent policy.
+
+This is the only updater you need. Option **[D]** in its menu saves the chosen
+build to your Downloads folder instead of the mods folder, for when you want to
+add it yourself through Modrinth's "From file". (The old
+[`Get-Latest-SpatialHUD.bat`](Get-Latest-SpatialHUD.bat) now just points here.)
 
 ## Render methods and placement
 
