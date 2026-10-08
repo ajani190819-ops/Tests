@@ -14,6 +14,7 @@ or unrelated product documentation by default.
 | Task | Read |
 |---|---|
 | Spatial HUD rendering, F5W, or its updater | `.agent/facts/spatial-hud.md` |
+| Getting a Spatial HUD build (agent cannot touch workflows) | `PASTE-ME-CI-SETUP.md` |
 | Testing Spatial HUD in F5W | `.agent/runbooks/test-spatial-hud-f5w.md` |
 | Any change that might capture or affect other GUIs | `.agent/decisions/0001-selected-hud-only.md` |
 | OrcaSlicer plugin behavior | `docs/ORCA-PLUGIN-FACTS.md` |

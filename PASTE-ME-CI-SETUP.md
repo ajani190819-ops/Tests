@@ -1,29 +1,47 @@
-# ONE-TIME SETUP — let GitHub build the mod for us (~60 seconds)
+# Build setup — make GitHub build the mod
 
-**Why:** GitHub won't let the agent's connection create automation files (a
-security rule for app tokens). Only a human logged into the website can do
-it. You do this **once** — after that, every build happens in the cloud:
-no JDK, no Gradle, no command prompt, no ZIPs on your machine ever again.
+**Situation on 2026-10-08:** the build file exists and works, but it is still
+set to start only for the **previous** session's branch
+(`arena/c83497e6-tests`). This session's code is already pushed to
+`arena/b4016c28-tests`, so nothing has built automatically yet.
 
-## Steps
+The agent's GitHub connection is not allowed to edit files under
+`.github/workflows/` — that is a GitHub rule for app connections, not a bug in
+the repo. So this one line needs a human. Pick either option below.
 
-1. Open this link (it opens the "create new file" editor on our branch):
-   https://github.com/ajani190819-ops/Tests/new/arena/c83497e6-tests
+**Download link for the newest successful build (both options):**
 
-2. In the **file name box** (where it says `Name your file...`), type exactly:
-   ```
-   .github/workflows/build-spatial-hud.yml
-   ```
-   (the editor creates the folders automatically as you type the slashes)
+https://github.com/ajani190819-ops/Tests/releases/download/spatial-hud-latest/spatial-hud-1.0.0.jar
 
-3. In the big **file contents box**, paste ALL of this:
+## Option A — start one build now, nothing to paste
+
+1. Open
+   https://github.com/ajani190819-ops/Tests/actions/workflows/build-spatial-hud.yml
+2. On the right, click **Run workflow**.
+3. In the **Branch** dropdown choose `arena/b4016c28-tests`, then click the
+   green **Run workflow** button.
+4. Wait 3–5 minutes. The new build appears at the top of the list; a green
+   check means it published the jar.
+
+Use this when you just want the jar in your `mods` folder today.
+
+## Option B — stop doing that by hand (recommended, ~30 seconds)
+
+Change the branch filter so every agent push builds by itself, in this session
+and in every future one.
+
+1. Open that file in the editor, on our branch:
+
+   https://github.com/ajani190819-ops/Tests/edit/arena/b4016c28-tests/.github/workflows/build-spatial-hud.yml
+
+2. Select everything in the text box, delete it, and paste **all** of this:
 
    ```yaml
    name: Build Spatial HUD
 
    on:
      push:
-       branches: [arena/c83497e6-tests]
+       branches: [main, 'arena/*-tests']
        paths:
          - 'spatial-hud-template-26.3/**'
          - '.github/workflows/build-spatial-hud.yml'
@@ -71,22 +89,19 @@ no JDK, no Gradle, no command prompt, no ZIPs on your machine ever again.
              gh release upload spatial-hud-latest build/libs/spatial-hud-*.jar --clobber
    ```
 
-4. Click **Commit changes...** → **Commit directly to the `arena/c83497e6-tests` branch** → **Commit changes**.
+3. Click **Commit changes...**, keep **Commit directly to the
+   `arena/b4016c28-tests` branch**, then click **Commit changes**.
 
-5. Done. Committing the file automatically starts the first build.
-   Tell the agent it's done — it watches the build, fixes any errors, and
-   re-runs until a working jar appears here:
-
-   **Download link (after first successful build):**
-   https://github.com/ajani190819-ops/Tests/releases/tag/spatial-hud-latest
+4. That commit starts a build by itself. Done — from then on, every change the
+   agent pushes to an `arena/...-tests` branch (or to `main`, after a merge)
+   builds and updates the download link automatically.
 
 ## What the automation does
 
-- On every code change to `spatial-hud-template-26.3/`, GitHub spins up a
-  fresh Linux machine, installs JDK 25, runs the Gradle build, and attaches
-  the finished `spatial-hud-1.0.0.jar` to the rolling release above.
-- If a build fails, the agent reads the build log from GitHub, fixes the
-  code, and pushes — the next build starts automatically. You watch progress
-  (if you want) under the repo's **Actions** tab.
-- Your only job from then on: click the download link, drop the jar in
-  your instance's `mods` folder.
+- On every matching push, GitHub starts a fresh Linux machine, installs JDK 25,
+  runs the Gradle build, and attaches the finished `spatial-hud-1.0.0.jar` to
+  the rolling release above.
+- If a build fails, the agent reads the log from GitHub, fixes the code, and
+  pushes; the next build starts by itself.
+- Your only job after that: click the download link, drop the jar into your
+  instance's `mods` folder (remove any older `spatial-hud` jar first).

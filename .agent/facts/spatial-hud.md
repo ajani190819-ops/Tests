@@ -1,9 +1,10 @@
 # Spatial HUD facts
 
-- Status: three named renderer methods compile; all F5W runtime results remain
-  pending.
-- Last verified: 2026-10-08 CI build `37730150490` for the plain-language
-  method-guide update `7964948`; no F5W runtime result exists yet.
+- Status: four renderer modes compile in CI history; the Method 4 texture
+  change is pushed but has no build or runtime result yet.
+- Last verified: source re-read on 2026-10-08 at `4f7162f`; the last CI build
+  of any revision was run `37808537092` (previous session, now gone from this
+  checkout's squashed history).
 - Read when: changing Spatial HUD code, its updater, or F5W compatibility.
 
 ## Source and release
@@ -11,112 +12,86 @@
 - Mod source: `spatial-hud-template-26.3/`.
 - Rolling artifact: GitHub release `spatial-hud-latest`, asset
   `spatial-hud-1.0.0.jar`.
-- GitHub workflow: `.github/workflows/build-spatial-hud.yml`.
-- Source version and release asset name may remain `1.0.0`; use commit and
-  asset timestamp when identifying a test build.
+- GitHub workflow: `.github/workflows/build-spatial-hud.yml` (JDK 25,
+  Temurin). Its `on.push.branches` list must be kept current; an agent
+  connection cannot edit `.github/workflows/**`, so a human pastes changes —
+  see `PASTE-ME-CI-SETUP.md`.
+- Source version and asset name may stay `1.0.0`; identify a test build by
+  commit hash and asset timestamp.
+- This checkout's git history is squashed, so commit hashes mentioned in older
+  notes may not exist locally.
 
 ## Rendering design
 
-- `SpatialHudConfig.RenderMethod` is the one visible renderer selector:
-  `CLASSIC_AFFINE` (original safe path), `CAPTURED_MESH` (private captured
-  texture on a GUI-space projective mesh), and `WORLD_SPACE_TEXTURE`
-  (**World-Space Texture**, the same selected texture drawn on a real level
-  quad). Existing JSON with
-  `experimentalCaptureWarp: true` migrates to `CAPTURED_MESH`.
-- The Cloth Config GUI has a read-only **Method Guide — Read This First** tab
-  plus three settings sections: **Setup & Render Method**, **Panel Positioning
-  & Orientation**, and **HUD Contents**. The guide consists of static wrapped
-  cards that explain the green Method 1, blue Method 2, and red Method 3 in
-  plain language; its transient anchors are rendered by a custom AutoConfig
-  provider and are never serialized. All geometric controls, including Method
-  3-only anchor and terrain occlusion, share the positioning section; their
-  tooltips state when a control is method-specific. The panel's short
-  upper-left marker is green for Method 1, blue for Method 2, and red for
-  Method 3. Texture methods capture the marker into their selected-HUD source
-  texture.
-- `VirtualHudPlane.java` is the shared Method 1/2 physical waist-height
-  lectern projection. It follows camera yaw rather than body yaw but never
-  follows camera pitch to remain on-screen. Its primary 45° tilt is around the
-  panel left-to-right axis, placing the far/top edge farther away; at the 30°
-  minimum look-down gate, the default far edge is about 86% the width of the
-  near edge. It refuses any panel with a behind-camera corner or no viewport
-  intersection rather than clamping it to a huge card.
-- `ExperimentalHudCapture.java` captures only the selected lower HUD into a
-  private target. Method 2 composites it through a tessellated mesh; Method 3
-  leaves it for `WorldSpaceHudRenderer` on the following level frame. The
-  capture path exits before allocation/upload when the 30° look-down gate or
-  physical viewport test fails. The rollback retains the isolated
-  `GuiRenderer(..., List.of())` implementation from `46874e5`; it does not
-  share or mutate the main PiP renderer map.
-- `WorldSpaceHudRenderer.java` extracts a physical Method 3 quad during level
-  extraction and draws the previous completed private texture after translucent
-  terrain. `worldSpaceAnchor` selects Camera Yaw or Player Body; depth texture
-  attachment is selected by `worldSpaceOccludeBehindWorld`. It uses **only
-  vanilla pipelines**: `ENTITY_TRANSLUCENT` for depth-occluded rendering and
-  `GUI_TEXTURED` for through-world rendering. Its GPU buffer is lazy.
-- The attached F5W log found the real startup failure in `d2308fb`:
-  `spatialhud:world_texture_through_world` cloned an entity snippet that
-  requested undefined `Sampler1`, causing required shader-program reload
-  failure. `036ca35` removes that custom pipeline entirely.
-- `SpatialHudConfig.instance` and `registered` are explicitly excluded from
-  Cloth Config. The supplied F5W log also showed Cloth Config trying to expose
-  the private `instance` singleton as a setting; that GUI-provider error is
-  fixed in `d6aae3a`.
-- `SpatialHudGameRendererMixin.java` completes the private capture after the
-  normal `GuiRenderer` call and closes Method 3's GPU buffer on shutdown.
-- `SpatialHudGuiRendererMixin.java` redirects only the private captured
-  renderer by object identity.
-- The capture includes the backing plate and selected bottom-HUD pixels. It
-  must not capture ordinary screens, chat, maps, menus, debug text, or an
-  unrelated mod's GUI.
-- The experimental mesh uses a 24 by 12 grid. Its projection comes from one
-  virtual plane, so the backing and all captured pixels share the same corners
-  and perspective.
+- The one visible selector is the Setup **Render Mode Slider**
+  (`renderModePicker`, 1–4); `SpatialHudConfig.selectedRenderMethod()` maps it
+  onto the `RenderMethod` enum. `renderMethod` itself stays hidden for
+  compatibility and direct key selection. Migration is version 20.
+  1. `CLASSIC_AFFINE` (green) — captured HUD through the balanced GUI-space
+     mesh. The name is historical; it is **not** a flat per-root fallback.
+  2. `CAPTURED_MESH` (blue) — the same capture through the stronger mesh.
+  3. `WORLD_SPACE_TEXTURE` (red) — the same capture on a real level quad,
+     drawn one completed frame later.
+  4. `POLYGON_TEST` (purple) — the same capture warped onto four
+     percentage-positioned GUI corners, pitch-responsive.
+- Every mode requires the private texture:
+  `SpatialHudConfig.capturesTexture()` is true for all four, and
+  `SpatialHud.isTextureCaptureActive()` adds the gameplay/screen boundary.
+- `ExperimentalHudCapture` captures only the selected lower HUD into a private
+  `GuiRenderState` rendered by a private `GuiRenderer` into a private
+  `TextureTarget`. Method 2 composites it through a 32×24 mesh;
+  `WorldSpaceHudRenderer` draws it for Method 3; `compositePolygonTestMesh`
+  warps it into the Method 4 quad. The capture path exits before
+  allocation/upload when `isTextureCaptureActive()` fails.
+  `SpatialHudGuiRendererMixin` redirects only the private renderer by object
+  identity; `SpatialHudGameRendererMixin` runs the composite after the normal
+  GUI pass and closes Method 3's buffer on shutdown.
+- Method 4 geometry lives in `PolygonTestRenderer`. `quad(cfg, guiWidth,
+  guiHeight)` is the single definition used by both the capture mesh and the
+  plain fallback guide, so the warped HUD and the outline always share the four
+  corners and the live pitch response (`respondToPitch`, driven by
+  `SpatialHud.pitch` via `polygonFollowCameraPitch` /
+  `polygonPitchResponsePercent`).
+- Method 4 draws its own purple identity into the captured texture: a
+  translucent interior painted before the vanilla roots extract (so the HUD
+  pixels stay readable), then a 3px border and four inward corner handles on
+  top. Both are sampled from the same source band, so they land exactly on the
+  configured corners. `Show Backing Panel` controls the interior tint only.
+- Method 4 samples the bottom `ExperimentalHudCapture.POLYGON_SOURCE_HEIGHT`
+  (72) GUI pixels of the strip, clamped to the real GUI. The plane's own source
+  rectangle is 184px tall and extends 4px below the screen; the extra height is
+  empty sky and the below-screen line is clipped, so using it would leave the
+  HUD in the bottom quarter of the quad with a transparent sliver at its base.
+- `VirtualHudPlane` is the physical waist-height plane used by Methods 1–3. It
+  follows camera yaw, never rotates with camera pitch, and refuses panels with
+  a behind-camera corner or no viewport intersection. **There is no
+  look-down-angle gate**: `minimumLookDownPitch` remains as an unused field
+  that migration forces to 0.
+- `SpatialHudConfig.instance` and `registered` are excluded from Cloth Config.
+  The read-only **Method Guide — Read This First** tab is transient and never
+  serialized.
 
-## Perspective requirement
+## Failure behavior
 
-A physical angled-paper panel has a nearer lower edge and a farther upper edge;
-when projected, the far edge must become narrower. This is projective geometry,
-not independent affine scaling of icon groups. The selected default uses a 45°
-lectern tilt while the player begins rendering at 30° downward pitch, making
-that taper obvious instead of starting face-on and rectangular.
+- Any capture/render error calls `ExperimentalHudCapture.fallback(...)`, which
+  latches a session fallback, keeps the user's selected method, and logs the
+  stage. Changing method retries the capture in the same session.
+- `SpatialHudElement` decides per root: feed the private capture when it is
+  active; in Method 4, otherwise draw the untouched vanilla root so a failed
+  capture cannot leave the player without a HUD; in the other modes, fall
+  through to the affine presentation.
+- Method 4 draws its plain outline and handles whenever the capture is not
+  running, so the control surface stays visible.
 
-The configuration explicitly defines all orientation axes: primary/fine tilt
-rotate around the panel's left-to-right axis; turn rotates around the up axis;
-roll rotates around the panel normal. `minimumLookDownPitch` defaults to 30°
-and is a hard no-render gate. Method 1 shares that physical placement but can
-only use one affine centre tangent through Fabric's public HUD API. Method 2
-maps the finished capture through the true tapered mesh; Method 3 emits the
-same physical basis as a world quad. `virtualHorizonPerspectivePitch` remains
-only as ignored old JSON data.
+## Compatibility
 
-## Compatibility and fallback
-
-- New installations default to Classic Affine. It cannot bend pixels inside an
-  icon or text glyph.
-- Method 2 and Method 3 are isolated texture experiments. Their shared capture
-  failure latches them back to Classic Affine and logs the stage/error.
-- First-class targets: AppleSkin and Detail Armor Bar Reconstructed.
-- F5W also includes other same-region HUD mods, including Bedrock Hotbar,
-  Immersive Hotbar, DualBar, Armor Indicator, Status Effect Bars, Mount
-  Opacity, and Durability Warner HUD.
-- The user reported that the newer experimental/PiP/refactor builds no longer
-  work reliably, despite resolving a flicker. The recovery deliberately returns
-  the selected-capture path to the camera-yaw implementation in `46874e5`,
-  while removing all body-yaw rotation. Its F5W result is still required.
-- The current capture path logs once whether `VanillaHudElements.HOTBAR` was
-  extracted into the private texture. Use that message to distinguish a missing
-  root from a projected/composite loss when the backing appears without slots.
-
-## Relevant commits
-
-- `25a8447` — shared virtual plane and selected capture architecture.
-- `1a89847` — composite after normal GUI pass.
-- `931b6de` — drive plane perspective from look pitch.
-- `46874e5` — last user-observed working camera-yaw capture path; restored as
-  the experimental-renderer baseline after the later refactor regressed F5W.
-- `d2308fb` — clear three-method configuration and initial world-space texture
-  renderer; CI-complete but no gameplay runtime result yet.
+- First-class targets: AppleSkin and Detail Armor Bar Reconstructed. Their
+  pixels enter the same capture as the vanilla root they inject into.
+- F5W also carries other same-region HUD mods: Bedrock Hotbar, Immersive
+  Hotbar, DualBar, Armor Indicator, Status Effect Bars, Mount Opacity,
+  Durability Warner HUD.
+- No F5W, Iris, or companion-mod compatibility claim is verified by a build.
+  Only a real run in the F5W profile can confirm one.
 
 ## Related files
 
@@ -124,3 +99,4 @@ only as ignored old JSON data.
 - User-facing setup: `spatial-hud-template-26.3/README.md`.
 - F5W test runbook: `.agent/runbooks/test-spatial-hud-f5w.md`.
 - Design constraint: `.agent/decisions/0001-selected-hud-only.md`.
+- Build instructions for the owner: `PASTE-ME-CI-SETUP.md`.
