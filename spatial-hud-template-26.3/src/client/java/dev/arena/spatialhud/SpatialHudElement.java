@@ -25,16 +25,11 @@ final class SpatialHudElement implements HudElement {
 			vanilla.extractRenderState(graphics, deltaTracker);
 			return;
 		}
-		if (cfg.usesPolygonTest()) {
-			// The purple test is intentionally an isolated quad-only diagnostic:
-			// it suppresses every selected lower-HUD root and never captures one.
-			return;
-		}
-		// Enabled Spatial HUD owns these selected roots. When the finite physical
-		// map surface is outside the viewport, suppress them rather than falling
-		// back to a flat vanilla HUD. There is no artificial look-down threshold:
-		// any visible piece of the surface keeps its selected roots live.
-		if (!SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
+		// Enabled Spatial HUD owns these selected roots. Method 4 deliberately
+		// bypasses physical-map FOV culling because its target quad is placed by
+		// four GUI-space handles; the other methods retain normal viewport culling.
+		if (!cfg.usesPolygonTest()
+				&& !SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
 			return;
 		}
 		if (!cfg.showElement(id)) {
@@ -47,6 +42,11 @@ final class SpatialHudElement implements HudElement {
 		// keeps the conservative native-layout fallback below.
 		if (ExperimentalHudCapture.isFrameActive()
 				&& ExperimentalHudCapture.capture(id, (isolated, tracker) -> vanilla.extractRenderState(isolated, tracker), deltaTracker)) {
+			return;
+		}
+		if (cfg.usesPolygonTest()) {
+			// Method 4 must never leak an unwarped root to the native HUD if its
+			// private capture fails. The failure is logged by the capture path.
 			return;
 		}
 

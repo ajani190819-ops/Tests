@@ -99,7 +99,8 @@ public final class ExperimentalHudCapture {
 		}
 
 		if (!SpatialHud.isTextureCaptureActive() || sessionFallback
-				|| !SpatialHud.isPhysicalPanelVisibleInGui(sourceGraphics.guiWidth(), sourceGraphics.guiHeight())) {
+				|| (!SpatialHudConfig.get().usesPolygonTest()
+						&& !SpatialHud.isPhysicalPanelVisibleInGui(sourceGraphics.guiWidth(), sourceGraphics.guiHeight()))) {
 			return;
 		}
 
@@ -172,21 +173,44 @@ public final class ExperimentalHudCapture {
 			int right = (int) Math.ceil(plane.sourceRight());
 			int top = (int) Math.floor(plane.sourceTop());
 			int bottom = (int) Math.ceil(plane.sourceBottom());
-			if (cfg.showPanel) {
-				capturedGraphics.fill(left, top, right, bottom, 0x80101018);
-				capturedGraphics.fill(left, top, right, top + 8, 0x5038384A);
+			if (cfg.usesPolygonTest()) {
+				// Method 4's purple backing, outline, and four source-corner handles
+				// are captured with the hotbar/status roots. The polygon composite
+				// maps these same pixels to the four GUI-space control points.
+				capturedGraphics.fill(left, top, right, bottom, 0x9831004D);
+				capturedGraphics.fill(left, top, right, top + 3, 0xFFC75CFF);
+				capturedGraphics.fill(left, bottom - 3, right, bottom, 0xFFC75CFF);
+				capturedGraphics.fill(left, top, left + 3, bottom, 0xFFC75CFF);
+				capturedGraphics.fill(right - 3, top, right, bottom, 0xFFC75CFF);
+				drawPolygonHandle(left, top, 1, 1);
+				drawPolygonHandle(right, top, -1, 1);
+				drawPolygonHandle(right, bottom, -1, -1);
+				drawPolygonHandle(left, bottom, 1, -1);
+			} else {
+				if (cfg.showPanel) {
+					capturedGraphics.fill(left, top, right, bottom, 0x80101018);
+					capturedGraphics.fill(left, top, right, top + 8, 0x5038384A);
+				}
+				// A full-width, 8px top band is a deliberately obvious live method
+				// indicator: green = affine, blue = projective mesh, red = world quad.
+				// It lives in this texture, so it receives exactly the same perspective
+				// and world-depth treatment as the selected HUD pixels.
+				capturedGraphics.fill(left, top, right, top + 8, cfg.modeIndicatorColor());
 			}
-			// A full-width, 8px top band is a deliberately obvious live method
-			// indicator: green = affine, blue = projective mesh, red = world quad.
-			// It lives in this texture, so it receives exactly the same perspective
-			// and world-depth treatment as the selected HUD pixels.
-			capturedGraphics.fill(left, top, right, top + 8, cfg.modeIndicatorColor());
 			frameHasContent = true;
 			return true;
 		} catch (Throwable t) {
 			fallback(t, "adding the selected bottom-HUD panel decorations to the capture");
 			return false;
 		}
+	}
+
+	/** Draws an inward-facing 10px source marker that lands on a quad corner. */
+	private static void drawPolygonHandle(int cornerX, int cornerY, int xDirection, int yDirection) {
+		int x0 = xDirection > 0 ? cornerX : cornerX - 10;
+		int y0 = yDirection > 0 ? cornerY : cornerY - 10;
+		capturedGraphics.fill(x0, y0, x0 + 10, y0 + 10, 0xFFFFD6FF);
+		capturedGraphics.fill(x0 + 2, y0 + 2, x0 + 8, y0 + 8, 0xFF6C1D8B);
 	}
 
 	/** The GuiRenderer mixin uses this strict identity check for target routing. */
@@ -244,6 +268,9 @@ public final class ExperimentalHudCapture {
 					// Level rendering happens before GUI extraction. The world renderer
 					// intentionally draws this finished texture on the next frame.
 					worldTextureReady = true;
+				} else if (cfg.usesPolygonTest()) {
+					worldTextureReady = false;
+					compositePolygonTestMesh(cfg);
 				} else {
 					// Both screen-space choices are mandatory texture meshes. Their
 					// different warp strengths make green and blue visibly different
@@ -334,6 +361,38 @@ public final class ExperimentalHudCapture {
 	}
 
 	/**
+	 * Method 4 uses the exact same isolated lower-HUD texture as the regular
+	 * mesh path, but maps its source rectangle to four user-controlled GUI
+	 * points. A dense grid preserves continuous item/icon/text deformation while
+	 * allowing a normal trapezoid or any deliberate corner stress case.
+	 */
+	private static void compositePolygonTestMesh(SpatialHudConfig cfg) {
+		if (capturedTarget == null || capturedTarget.getColorTextureView() == null) {
+			throw new IllegalStateException("polygon test capture texture view is unavailable");
+		}
+		GpuTextureView texture = capturedTarget.getColorTextureView();
+		VertexFormat format = WARP_PIPELINE.getVertexFormatBinding(0);
+		PrimitiveTopology primitive = WARP_PIPELINE.getPrimitiveTopology();
+		if (format == null || primitive != PrimitiveTopology.QUADS) {
+			throw new IllegalStateException("polygon test pipeline does not expose textured QUADS");
+		}
+
+		StagedVertexBuffer.Draw draw = WARP_BUFFER.appendDraw(format, primitive, null);
+		try {
+			VertexConsumer vertices = WARP_BUFFER.getVertexBuilder(draw);
+			addPolygonTestMesh(vertices, cfg);
+			WARP_BUFFER.upload();
+			StagedVertexBuffer.ExecuteInfo info = WARP_BUFFER.getExecuteInfo(draw);
+			if (info == null) {
+				throw new IllegalStateException("GPU rejected the four-corner polygon mesh");
+			}
+			drawToMainTarget(info, texture);
+		} finally {
+			WARP_BUFFER.endFrame();
+		}
+	}
+
+	/**
 	 * Every cell uses the one {@link VirtualHudPlane} projection. This is the
 	 * critical distinction from the former root-scale approximation: UVs stay
 	 * tied to finished capture pixels while vertex depth changes across the
@@ -370,6 +429,33 @@ public final class ExperimentalHudCapture {
 				topEdgeWidth, bottomEdgeWidth);
 		vertices.addVertex(IDENTITY, destination.x(), destination.y(), 0.0f)
 				.setUv(plane.textureU(sourceX), plane.textureV(sourceY))
+				.setColor(255, 255, 255, 255);
+	}
+
+	private static void addPolygonTestMesh(VertexConsumer vertices, SpatialHudConfig cfg) {
+		VirtualHudPlane source = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
+		PolygonTestRenderer.Quad target = PolygonTestRenderer.quad(cfg, guiWidth, guiHeight);
+		for (int row = 0; row < MESH_ROWS; row++) {
+			float v0 = row / (float) MESH_ROWS;
+			float v1 = (row + 1) / (float) MESH_ROWS;
+			for (int column = 0; column < MESH_COLUMNS; column++) {
+				float u0 = column / (float) MESH_COLUMNS;
+				float u1 = (column + 1) / (float) MESH_COLUMNS;
+				addPolygonTestVertex(vertices, source, target, u0, v0);
+				addPolygonTestVertex(vertices, source, target, u1, v0);
+				addPolygonTestVertex(vertices, source, target, u1, v1);
+				addPolygonTestVertex(vertices, source, target, u0, v1);
+			}
+		}
+	}
+
+	private static void addPolygonTestVertex(VertexConsumer vertices, VirtualHudPlane source,
+			PolygonTestRenderer.Quad target, float u, float v) {
+		float sourceX = lerp(source.sourceLeft(), source.sourceRight(), u);
+		float sourceY = lerp(source.sourceTop(), source.sourceBottom(), v);
+		PolygonTestRenderer.Point destination = target.project(u, v);
+		vertices.addVertex(IDENTITY, destination.x(), destination.y(), 0.0f)
+				.setUv(source.textureU(sourceX), source.textureV(sourceY))
 				.setColor(255, 255, 255, 255);
 	}
 

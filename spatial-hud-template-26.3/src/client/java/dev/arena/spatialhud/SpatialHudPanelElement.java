@@ -19,25 +19,16 @@ final class SpatialHudPanelElement implements HudElement {
 		}
 
 		SpatialHudConfig cfg = SpatialHudConfig.get();
-		if (cfg.usesPolygonTest()) {
-			// This diagnostic intentionally ignores physical-panel/FOV logic and
-			// displays only the directly configured purple quadrilateral.
-			try {
-				PolygonTestRenderer.draw(graphics, cfg);
-			} catch (Throwable t) {
-				SpatialHud.safeDisable(t);
-			}
-			return;
-		}
 
 		// Run even when the backing is hidden: this is registered immediately
 		// before HOTBAR and gives every selected root one camera pitch value.
 		SpatialHud.updateViewPose();
 
-		// Do not clamp a partially invalid projection into a screen-filling card.
-		// The wrapped HUD roots make the same finite-surface viewport check; a
-		// level camera may still show a genuine lower edge when it is in view.
-		if (!SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
+		// Purple Method 4 is a screen-space four-corner test, so its capture is
+		// intentionally not gated by the physical map's FOV. The other methods
+		// keep finite-surface viewport culling.
+		if (!cfg.usesPolygonTest()
+				&& !SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
 			return;
 		}
 
@@ -52,6 +43,11 @@ final class SpatialHudPanelElement implements HudElement {
 		// must not also draw here, or an affine duplicate would diverge from the
 		// true projective/world surface.
 		if (ExperimentalHudCapture.capturePanelDecorations(cfg)) {
+			return;
+		}
+		if (cfg.usesPolygonTest()) {
+			// Capture failed or is unavailable. Never draw an unwarped duplicate
+			// of the test panel while Method 4 is selected.
 			return;
 		}
 

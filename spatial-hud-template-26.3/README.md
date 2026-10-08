@@ -86,10 +86,11 @@ three modes:
    an **Occlude Behind World** switch. It intentionally displays the completed
    previous-frame texture, avoiding global GUI redirection while the current
    GUI is captured.
-4. **Four-Corner Polygon Test (purple)** — an isolated test mode that renders
-   only a filled purple quadrilateral and four square corner handles. Its own
-   config tab exposes one X/Y percentage pair per handle, so the four corners
-   can be reshaped without any HUD capture, shader, or world-render path.
+4. **Four-Corner Polygon Test (purple)** — captures the same selected lower
+   HUD, then maps every captured pixel to a filled purple quadrilateral. Its
+   own config tab exposes one X/Y percentage pair per handle, so hotbar slots,
+   hearts, bars, icons, and text deform with the exact four-corner shape
+   without any world-render path.
 
 Every HUD method draws a **full-width, eight-pixel colour band** inside the panel's
 source rectangle: green for Method 1, blue for Method 2, and red for Method 3.
@@ -191,7 +192,8 @@ explanation tab plus three focused settings sections:
   explicitly say when a setting is ignored by the other two methods.
 - **Purple Polygon Test** provides eight percentage sliders—X and Y for each
   top-left, top-right, bottom-right, and bottom-left handle. They affect only
-  Method 4 and directly reshape its isolated purple quad.
+  Method 4 and directly reshape the purple target carrying the captured hotbar
+  and enabled surrounding lower-HUD roots.
 - **HUD Contents** chooses which lower-HUD roots Spatial HUD owns.
 
 Minecraft Controls contains:

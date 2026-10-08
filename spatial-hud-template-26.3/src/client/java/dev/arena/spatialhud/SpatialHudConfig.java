@@ -448,11 +448,6 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 	}
 
-	/**
-	 * Perspective capture is deliberately mandatory for the three HUD renderers.
-	 * The purple polygon diagnostic is intentionally the exception: it has no
-	 * capture, texture, shader, or world-render dependency.
-	 */
 	/** Maps the visible 1–4 slider to the one active renderer. */
 	RenderMethod selectedRenderMethod() {
 		return switch (Math.max(1, Math.min(4, renderModePicker))) {
@@ -474,11 +469,16 @@ public final class SpatialHudConfig implements ConfigData {
 		};
 	}
 
+	/**
+	 * Every mode captures the selected lower HUD. Method 4 uses that same source
+	 * texture but maps it to its editable purple four-corner target instead of a
+	 * physical virtual plane.
+	 */
 	boolean capturesTexture() {
-		return selectedRenderMethod() != RenderMethod.POLYGON_TEST;
+		return true;
 	}
 
-	/** The purple test mode deliberately renders only its editable quad. */
+	/** Method 4 maps the captured lower HUD to its editable GUI-space quad. */
 	boolean usesPolygonTest() {
 		return selectedRenderMethod() == RenderMethod.POLYGON_TEST;
 	}

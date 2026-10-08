@@ -202,11 +202,12 @@ public class SpatialHud implements ClientModInitializer {
 	 */
 	static boolean isTextureCaptureActive() {
 		Minecraft mc = Minecraft.getInstance();
+		SpatialHudConfig cfg = SpatialHudConfig.get();
 		return isGameplayHudActive()
-					&& SpatialHudConfig.get().capturesTexture()
+					&& cfg.capturesTexture()
 					&& mc.gui.screen() == null
-					&& isPhysicalPanelVisibleInGui(
-							mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
+					&& (cfg.usesPolygonTest() || isPhysicalPanelVisibleInGui(
+							mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight()));
 	}
 
 	/** True only for the third renderer: a captured texture on a world-space quad. */
