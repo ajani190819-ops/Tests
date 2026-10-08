@@ -140,12 +140,14 @@ public final class ExperimentalHudCapture {
 	}
 
 	/**
-	 * Draw the backing into the same isolated source texture as the vanilla
-	 * roots. The backing and each finished icon therefore share every vertex of
-	 * one projective mesh rather than merely looking approximately aligned.
+	 * Draw the optional backing and the active-method indicator into the same
+	 * isolated source texture as the vanilla roots. The green/blue/red marker is
+	 * part of the captured surface in both texture methods, never an unrelated
+	 * GUI overlay. It remains visible as a compact identity marker even when the
+	 * player hides the backing panel.
 	 */
-	static boolean captureBacking(SpatialHudConfig cfg) {
-		if (!isFrameActive() || !cfg.showPanel) {
+	static boolean capturePanelDecorations(SpatialHudConfig cfg) {
+		if (!isFrameActive()) {
 			return false;
 		}
 		try {
@@ -154,12 +156,19 @@ public final class ExperimentalHudCapture {
 			int right = (int) Math.ceil(plane.sourceRight() + 6.0f);
 			int top = (int) Math.floor(plane.sourceTop() - 4.0f);
 			int bottom = (int) Math.ceil(plane.sourceBottom() + 4.0f);
-			capturedGraphics.fill(left, top, right, bottom, 0x80101018);
-			capturedGraphics.fill(left, top, right, top + 4, 0x5038384A);
+			if (cfg.showPanel) {
+				capturedGraphics.fill(left, top, right, bottom, 0x80101018);
+				capturedGraphics.fill(left, top, right, top + 4, 0x5038384A);
+			}
+			// A short top-edge stripe: green = Method 1, blue = Method 2,
+			// red = Method 3. Keep it small so it identifies a mode without
+			// competing with selected HUD pixels.
+			capturedGraphics.fill(left, top, Math.min(right, left + 26), top + 4,
+					cfg.modeIndicatorColor());
 			frameHasContent = true;
 			return true;
 		} catch (Throwable t) {
-			fallback(t, "adding the selected bottom-HUD backing to the capture");
+			fallback(t, "adding the selected bottom-HUD panel decorations to the capture");
 			return false;
 		}
 	}

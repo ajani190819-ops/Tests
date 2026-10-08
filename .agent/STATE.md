@@ -39,8 +39,13 @@
 - `d6aae3a` also excludes Cloth Config runtime singletons and keeps Method 3's
   GPU buffer lazy. GitHub Actions run `37711539940` compiled and published
   `036ca35` with JDK 25; the rolling JAR was updated at 2026-10-08 01:10 UTC.
-  A local Gradle build is unavailable because this sandbox has no Java runtime;
-  static JSON/reference/whitespace contracts passed locally.
+  A local Gradle build is unavailable because this sandbox has no Java runtime.
+- The configuration/UI follows the user's simplification request: Cloth Config
+  is reduced to three sections—Setup & Render Method, Panel Positioning &
+  Orientation, and HUD Contents—with detailed contextual tooltips. The panel
+  carries an actual top-edge method marker: green for Classic Affine, blue for
+  Captured Projective Mesh, and red for World-Space Texture. Texture methods
+  capture that marker with the rest of the panel.
 
 ### Direct Modrinth updater
 
@@ -72,8 +77,9 @@
    `Spatial HUD render-method build initialized` and must not contain
    `spatialhud:world_texture_through_world` or `Sampler1`.
 2. Verify H opens the config without a `No GUI provider registered for field
-   ... SpatialHudConfig.instance` error. Confirm Render Method has all three
-   named choices with descriptions.
+   ... SpatialHudConfig.instance` error. Confirm the three sections and all
+   three named methods with their long contextual descriptions: green Method 1,
+   blue Method 2, and red Method 3.
 3. Test Method 1 as the baseline. Test Method 2 at 30° down and a grazing
    view: backing and hotbar must form one trapezoid without flicker or body-yaw
    rotation.

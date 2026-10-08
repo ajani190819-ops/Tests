@@ -19,8 +19,10 @@
 ## Test setup
 
 1. Press H and verify that it opens Spatial HUD settings without changing HUD
-   enabled state. Confirm **Render Method** has all three named choices and
-   readable descriptions.
+   enabled state. Confirm there are exactly three focused sections—**Setup &
+   Render Method**, **Panel Positioning & Orientation**, and **HUD Contents**—
+   and that all placement controls are together in the middle section. Confirm
+   all three named methods have readable contextual descriptions.
 2. Start with `Face-On Look-Down Angle` at 30 and `Pitch Offset` at 0.
 3. Test with native status-bar preservation both on and off if companion bars
    are involved. This setting changes only Method 1 behavior.
@@ -31,12 +33,12 @@ Record each result separately by Render Method:
 
 | Method | Check | Pass condition |
 |---|---|---|
-| 1 — Classic Affine | Baseline | Selected HUD is stable; it may not form a true icon-level trapezoid. |
-| 2 — Captured Projective Mesh | Capture stability | No flicker, disappearing plate, or frame-to-frame loss. |
-| 2 — Captured Projective Mesh | Geometry | Backing, hotbar, icons, bars, and text use one real trapezoid: rectangular at 30° down, with a visibly narrower far edge at a grazing view. |
+| 1 — Classic Affine | Baseline and marker | Selected HUD is stable; it may not form a true icon-level trapezoid. The compact upper-left panel marker is green. |
+| 2 — Captured Projective Mesh | Capture stability and marker | No flicker, disappearing plate, or frame-to-frame loss. The compact upper-left panel marker is blue and follows the captured mesh. |
+| 2 — Captured Projective Mesh | Geometry | Backing, hotbar, icons, bars, text, and blue marker use one real trapezoid: rectangular at 30° down, with a visibly narrower far edge at a grazing view. |
 | 2 or 3 | Scope | Menus and unrelated GUI elements remain normal. |
 | 2 or 3 | Companion pixels | AppleSkin and Detail Armor pixels are captured with their selected status root. |
-| 3 — World-Space Texture | Camera Yaw anchor | Plane stays in front while looking left/right without player-body lag. |
+| 3 — World-Space Texture | Camera Yaw anchor and marker | Plane stays in front while looking left/right without player-body lag. The compact upper-left panel marker is red and is part of the world texture. |
 | 3 — World-Space Texture | Player Body anchor | Plane stays at the body heading and may move to the side when looking away. |
 | 3 — World-Space Texture | Occlude Behind World on | A block between camera and panel hides the panel like a physical object. |
 | 3 — World-Space Texture | Occlude Behind World off | Panel remains visible through the same block. |

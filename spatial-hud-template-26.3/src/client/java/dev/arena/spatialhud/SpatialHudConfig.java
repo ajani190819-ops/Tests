@@ -24,7 +24,7 @@ public final class SpatialHudConfig implements ConfigData {
 	// registerAndLoad writes it as 15 after checking the values.
 	public int configVersion = 0;
 
-	@ConfigEntry.Category("general")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Tooltip
 	public boolean enabled = true;
 
@@ -35,11 +35,11 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Excluded
 	public int fovBaseline = 70;
 
-	@ConfigEntry.Category("general")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Tooltip
 	public boolean showPanel = true;
 
-	@ConfigEntry.Category("general")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Tooltip
 	public boolean onlyDuringGameplay = true;
 
@@ -47,7 +47,7 @@ public final class SpatialHudConfig implements ConfigData {
 	 * The one top-level rendering choice. The method controls the implementation,
 	 * not which HUD parts are visible; those controls remain in HUD Contents.
 	 */
-	@ConfigEntry.Category("rendering")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Tooltip
 	public RenderMethod renderMethod = RenderMethod.CLASSIC_AFFINE;
 
@@ -60,13 +60,27 @@ public final class SpatialHudConfig implements ConfigData {
 		WORLD_SPACE_TEXTURE
 	}
 
+	/**
+	 * A small, always-present panel-edge marker makes the active renderer
+	 * unmistakable in screenshots and while switching methods. Its pixels enter
+	 * the same capture texture as the HUD in Methods 2 and 3, rather than being
+	 * drawn as an unrelated overlay.
+	 */
+	int modeIndicatorColor() {
+		return switch (renderMethod) {
+			case CLASSIC_AFFINE -> 0xE038C172; // green: stable public-HUD path
+			case CAPTURED_MESH -> 0xE0469AEF; // blue: projective capture mesh
+			case WORLD_SPACE_TEXTURE -> 0xE0EF5350; // red: physical world texture
+		};
+	}
+
 	// Player-relative placement in block units. The default is in front of the
 	// player at waist height rather than fixed in screen/camera space.
-	@ConfigEntry.Category("placement")
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	public double distance = 1.25;
 
-	@ConfigEntry.Category("placement")
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	public double planeWidth = 1.45;
 
@@ -91,16 +105,16 @@ public final class SpatialHudConfig implements ConfigData {
 	public int hiddenBelowScreenPixels = 105;
 
 	/** Player-local placement: +X right, +Y up, and +Z forward. */
-	@ConfigEntry.Category("virtualPlane")
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	public double virtualOffsetX = 0.0;
 
-	@ConfigEntry.Category("virtualPlane")
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	public double virtualOffsetY = -0.72;
 
 	/** Extra plane tilt relative to the configured face-on view angle. */
-	@ConfigEntry.Category("virtualPlane")
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
 	public int virtualPitch = 0;
@@ -109,7 +123,7 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Excluded
 	public boolean virtualTiltWithLook = false;
 
-	@ConfigEntry.Category("virtualPlane")
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 5, max = 80)
 	public int virtualFaceOnLookDownPitch = 30;
@@ -118,17 +132,17 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Excluded
 	public int virtualHorizonPerspectivePitch = 80;
 
-	@ConfigEntry.Category("virtualPlane")
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = -80, max = 80)
 	public int virtualYaw = 0;
 
 	/** These controls affect only Render Method: World-Space Texture. */
-	@ConfigEntry.Category("worldSpace")
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	public WorldSpaceAnchor worldSpaceAnchor = WorldSpaceAnchor.CAMERA_YAW;
 
-	@ConfigEntry.Category("worldSpace")
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	public boolean worldSpaceOccludeBehindWorld = true;
 
@@ -205,27 +219,27 @@ public final class SpatialHudConfig implements ConfigData {
 	 * roots native there to avoid detached companion pixels. Experimental
 	 * capture deliberately takes the complete injected group instead.
 	 */
-	@ConfigEntry.Category("compatibility")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Tooltip
 	public boolean preserveCompanionStatusLayout = true;
 
-	@ConfigEntry.Category("visibility")
+	@ConfigEntry.Category("contents")
 	@ConfigEntry.Gui.Tooltip
 	public boolean showHotbar = true;
 
-	@ConfigEntry.Category("visibility")
+	@ConfigEntry.Category("contents")
 	@ConfigEntry.Gui.Tooltip
 	public boolean showBars = true;
 
-	@ConfigEntry.Category("visibility")
+	@ConfigEntry.Category("contents")
 	@ConfigEntry.Gui.Tooltip
 	public boolean showXp = true;
 
-	@ConfigEntry.Category("visibility")
+	@ConfigEntry.Category("contents")
 	@ConfigEntry.Gui.Tooltip
 	public boolean showMountBars = true;
 
-	@ConfigEntry.Category("visibility")
+	@ConfigEntry.Category("contents")
 	@ConfigEntry.Gui.Tooltip
 	public boolean showHeldItemName = true;
 

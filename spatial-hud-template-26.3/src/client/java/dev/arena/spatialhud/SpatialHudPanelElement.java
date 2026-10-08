@@ -7,9 +7,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
- * A quiet translucent backing panel drawn beneath the spatial strip. It is
- * also the single per-frame camera-pose update point, before wrapped HUD
- * elements read the shared pose.
+ * An optional translucent backing panel and a compact method-colour stripe
+ * beneath the spatial strip. It is also the single per-frame camera-pose
+ * update point, before wrapped HUD elements read the shared pose.
  */
 final class SpatialHudPanelElement implements HudElement {
 	@Override
@@ -29,13 +29,11 @@ final class SpatialHudPanelElement implements HudElement {
 		ExperimentalHudCapture.beginFrame(graphics);
 
 		SpatialHudConfig cfg = SpatialHudConfig.get();
-		// In captured-mesh mode the backing is part of the same source texture
-		// as hotbar/status pixels. It must not also draw here, or a second affine
-		// plate would visibly diverge from the true projective icon surface.
-		if (ExperimentalHudCapture.captureBacking(cfg)) {
-			return;
-		}
-		if (!cfg.showPanel) {
+		// In the texture modes, both the optional backing and short coloured mode
+		// stripe are part of the same source texture as hotbar/status pixels. They
+		// must not also draw here, or an affine duplicate would diverge from the
+		// true projective/world surface.
+		if (ExperimentalHudCapture.capturePanelDecorations(cfg)) {
 			return;
 		}
 
@@ -53,8 +51,15 @@ final class SpatialHudPanelElement implements HudElement {
 		graphics.pose().pushMatrix();
 		try {
 			SpatialHudElement.applySpatialPose(graphics, cfg);
-			graphics.fill(x0 - 6, y0 - 4, x1 + 6, y1 + 4, 0x80101018);
-			graphics.fill(x0 - 6, y0 - 4, x1 + 6, y0, 0x5038384A);
+			if (cfg.showPanel) {
+				graphics.fill(x0 - 6, y0 - 4, x1 + 6, y1 + 4, 0x80101018);
+				graphics.fill(x0 - 6, y0 - 4, x1 + 6, y0, 0x5038384A);
+			}
+			// A compact top-edge stripe stays with the panel pose. Green identifies
+			// stable Method 1, blue Method 2's captured mesh, and red Method 3's
+			// physical world texture.
+			graphics.fill(x0 - 6, y0 - 4, Math.min(x1 + 6, x0 + 20), y0,
+					cfg.modeIndicatorColor());
 		} catch (Throwable t) {
 			SpatialHud.safeDisable(t);
 		} finally {

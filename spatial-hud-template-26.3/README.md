@@ -71,20 +71,26 @@ Spatial HUD treats the selected bottom strip as one panel at a player-relative
 location. **Render Method** is now the first setting and is the only place that
 chooses a renderer:
 
-1. **Classic Affine (Stable)** — the original public-HUD implementation. It is
-   the compatibility default and has no private texture or world renderer. It
-   can move, rotate, and scale the HUD safely, but it cannot make the corners
-   or pixels inside an icon form a true perspective trapezoid.
-2. **Captured Projective Mesh (Experimental)** — captures only the selected
-   gameplay bottom HUD—backing plate, hotbar, status roots, XP, mount bar, and
-   held-item label—into a private texture. A 24 × 12 GUI-space mesh projects
-   every finished pixel, so a heart, item, slot, or glyph can become
-   trapezoidal rather than merely being root-scaled.
-3. **World-Space Texture (Experimental)** — captures the same selected texture
-   but draws it on a real quad in the rendered level. It supports a separate
-   **Camera Yaw** or **Player Body** horizontal anchor and an **Occlude Behind
-   World** switch. It intentionally displays the completed previous-frame
-   texture, avoiding global GUI redirection while the current GUI is captured.
+1. **Classic Affine (Stable — green marker)** — the original public-HUD
+   implementation. It is the compatibility default and has no private texture
+   or world renderer. It can move, rotate, and scale the HUD safely, but it
+   cannot make the corners or pixels inside an icon form a true perspective
+   trapezoid.
+2. **Captured Projective Mesh (Experimental — blue marker)** — captures only
+   the selected gameplay bottom HUD—backing plate, hotbar, status roots, XP,
+   mount bar, and held-item label—into a private texture. A 24 × 12 GUI-space
+   mesh projects every finished pixel, so a heart, item, slot, or glyph can
+   become trapezoidal rather than merely being root-scaled.
+3. **World-Space Texture (Experimental — red marker)** — captures the same
+   selected texture but draws it on a real quad in the rendered level. It
+   supports a separate **Camera Yaw** or **Player Body** horizontal anchor and
+   an **Occlude Behind World** switch. It intentionally displays the completed
+   previous-frame texture, avoiding global GUI redirection while the current
+   GUI is captured.
+
+Every method draws its short colour marker at the panel's upper-left edge. The
+marker is part of the captured texture in Methods 2 and 3, so it follows the
+same mesh or world plane rather than becoming a separate screen overlay.
 
 The **Panel Size & Position** controls are shared by all three methods:
 
@@ -154,7 +160,19 @@ let a companion mod own a part if two mods draw it twice.
 ## Configuration
 
 Open **Mod Menu → Spatial HUD → Configure** or press **H**. The underlying
-configuration file is `config/spatialhud.json`. Minecraft Controls contains:
+configuration file is `config/spatialhud.json`. The screen has three focused
+sections rather than separate implementation tabs:
+
+- **Setup & Render Method** combines the enable switch, panel visibility,
+  gameplay boundary, method selector, and the Classic-only companion-bar
+  safeguard.
+- **Panel Positioning & Orientation** keeps every geometric control together:
+  distance, size, offsets, face-on angle, pitch/yaw, and the Method 3 anchor
+  and terrain-occlusion choices. The Method 3-only tooltips explicitly say when
+  a setting is ignored by the other two methods.
+- **HUD Contents** chooses which lower-HUD roots Spatial HUD owns.
+
+Minecraft Controls contains:
 
 - **Open Spatial HUD Settings** — defaults to **H** and can be rebound.
 - **Toggle Spatial HUD** — unbound by default, so you can assign a rapid

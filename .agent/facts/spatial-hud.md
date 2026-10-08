@@ -23,6 +23,13 @@
   (**World-Space Texture**, the same selected texture drawn on a real level
   quad). Existing JSON with
   `experimentalCaptureWarp: true` migrates to `CAPTURED_MESH`.
+- The Cloth Config GUI intentionally has three sections: **Setup & Render
+  Method**, **Panel Positioning & Orientation**, and **HUD Contents**. All
+  geometric controls, including Method 3-only anchor and terrain occlusion,
+  share the positioning section; their tooltips state when a control is
+  method-specific. The panel's short upper-left marker is green for Method 1,
+  blue for Method 2, and red for Method 3. Texture methods capture the marker
+  into their same selected-HUD source texture.
 - `VirtualHudPlane.java` is the shared Method 1/2 physical-plane projection.
   Its camera-yaw pose follows camera yaw rather than body yaw, has a fixed
   horizon-space orientation, and is face-on at the configured 30° down look
