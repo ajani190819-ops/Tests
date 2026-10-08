@@ -97,10 +97,8 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.BoundedDiscrete(min = 5, max = 80)
 	public int virtualFaceOnLookDownPitch = 30;
 
-	/** Maximum camera-relative taper while looking at the horizon. */
-	@ConfigEntry.Category("virtualPlane")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 15, max = 85)
+	/** Retained for v1.4 JSON compatibility; fixed-plane perspective ignores it. */
+	@ConfigEntry.Gui.Excluded
 	public int virtualHorizonPerspectivePitch = 80;
 
 	@ConfigEntry.Category("virtualPlane")

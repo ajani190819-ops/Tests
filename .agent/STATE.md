@@ -8,7 +8,7 @@
 
 ### Spatial HUD captured-mesh renderer
 
-- Status: compiled by CI; runtime approval is pending.
+- Status: recovery rollback is locally edited; CI build and F5W runtime approval are pending.
 - Goal: render one selected lower-HUD capture through a shared projective mesh.
   The backing, hotbar, status bars, icons, text, and compatible injected HUD
   pixels must deform together.
@@ -19,18 +19,19 @@
     pass, addressing output being overwritten or rendered with an unstable
     GUI state.
   - `931b6de`: added a first look-pitch deformation attempt.
-- `bb99cda`: replaced overlapping legacy pose paths with one camera-yaw,
-  pitch-driven projection: rectangular at 30° down, tapered above or below
-  that angle, and guarded only against total off-screen loss.
-- The private `GuiRenderer` now shares the main renderer's existing
-  picture-in-picture map after private construction. 26.3 GUI item rendering
-  uses that path; this avoids an empty map dropping hotbar item content while
-  avoiding duplicate constructor-time registration by third-party mixins.
-- H opens settings; a separate unbound Toggle Spatial HUD action appears in
-  Minecraft Controls. No real F5W result has confirmed this refactor yet.
-- GitHub Actions run `37705190664` compiled and published `bb99cda` with JDK
-  25. A local Gradle build was unavailable because this sandbox has no Java
-  runtime; static JSON/reference/whitespace contracts also passed locally.
+- `bb99cda` passed CI but its newer projective/PiP path regressed the actual
+  F5W renderer. Do not use it as a runtime baseline.
+- Pending recovery restores `ExperimentalHudCapture.java` and its two mixin
+  registrations exactly from user-observed working camera-yaw revision
+  `46874e5`; it removes the PiP-map accessors introduced by `bb99cda`.
+- Pending `VirtualHudPlane` retains camera-yaw anchoring but removes every
+  body-yaw and anchor-mode branch. It uses the earlier fixed physical plane:
+  face-on at 30° down and projectively trapezoidal at grazing angles.
+- H opens settings; a separate unbound Toggle Spatial HUD action remains in
+  Minecraft Controls. No real F5W result has confirmed the recovery yet.
+- GitHub Actions run `37705190664` compiled the superseded refactor with JDK
+  25. A local Gradle build is unavailable because this sandbox has no Java
+  runtime; static JSON/reference/whitespace contracts passed locally.
 
 ### Direct Modrinth updater
 
@@ -56,15 +57,15 @@
 
 ## Next action
 
-1. Install the rolling JAR updated at 2026-10-07 23:58 UTC in F5W.
-2. In F5W, bind Toggle Spatial HUD from Minecraft Controls if desired; H must
-   open settings without toggling.
+1. Build and publish the recovery rollback.
+2. Install that newly updated rolling JAR in F5W. H must open settings without
+   toggling; Camera Yaw is now the only active plane pose.
 3. Enable experimental capture and test the full F5W bottom HUD at 30° down
    and at a higher/grazing view.
-4. Confirm hotbar slots/items, status bars, AppleSkin, Detail Armor, XP, and
-   held-item text enter one captured trapezoid without flicker or loss. Check
-   the log for the hotbar-root capture message and any capture/projection
-   failure latch.
+4. Confirm the backing and hotbar form one trapezoid without flicker or body
+   yaw rotation. Then record hotbar slots/items, status bars, AppleSkin, Detail
+   Armor, XP, and held-item text separately; check the log for a hotbar-root
+   capture message and any capture failure latch.
 
 ## Evidence
 

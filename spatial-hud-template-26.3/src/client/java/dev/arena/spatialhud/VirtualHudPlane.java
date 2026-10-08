@@ -3,10 +3,16 @@ package dev.arena.spatialhud;
 import net.minecraft.client.Minecraft;
 
 /**
- * The one projection model for both the captured lower-HUD texture and the
- * safe affine fallback. The plane is camera-yaw anchored at a player-relative
- * waist-height pose. Looking up or down changes its mesh pitch; it is not a
- * collection of separately transformed HUD roots.
+ * One camera-yaw-local physical plane shared by the captured HUD texture and
+ * the safe affine fallback. The experimental mesh consumes the full projective
+ * mapping; the public HUD API can consume only its centre tangent.
+ *
+ * <p>The plane stays in front of the camera as the player looks left or right,
+ * without turning with player-body yaw. It has a fixed horizon-space pitch, so
+ * looking at it from different vertical angles changes its real perspective.
+ * At the configured face-on look-down angle (30° by default) its projection is
+ * rectangular; away from that angle, opposite edges have different depth and
+ * the captured mesh becomes a trapezoid.</p>
  */
 final class VirtualHudPlane {
 	static final float SOURCE_HALF_WIDTH = 112.0f;
@@ -28,7 +34,6 @@ final class VirtualHudPlane {
 	private final float sourceCenterY;
 	private final float sourceWidth;
 	private final float sourceHeight;
-	private final float visibilityOffsetY;
 
 	private VirtualHudPlane(SpatialHudConfig cfg, int guiWidth, int guiHeight, float focalLength) {
 		this.cfg = cfg;
@@ -43,7 +48,6 @@ final class VirtualHudPlane {
 		this.sourceBottom = guiHeight + SOURCE_BOTTOM_BELOW_SCREEN;
 		this.sourceWidth = sourceRight - sourceLeft;
 		this.sourceHeight = sourceBottom - sourceTop;
-		this.visibilityOffsetY = fullyOffscreenVerticalCorrection();
 	}
 
 	static VirtualHudPlane forGui(SpatialHudConfig cfg, int guiWidth, int guiHeight) {
@@ -86,91 +90,56 @@ final class VirtualHudPlane {
 	}
 
 	/**
-	 * Projects one finished source pixel. The experimental path calls this for
-	 * every mesh vertex, so hotbar slots, icon pixels, bars, and glyphs share
-	 * exactly the same trapezoid instead of being affine root groups.
+	 * Projects a finished source pixel. Depth is evaluated at every mesh vertex,
+	 * so a hotbar slot, item icon, bar, or glyph is genuinely warped instead of
+	 * being moved as an independently affine HUD root.
 	 */
 	Point project(float sourceX, float sourceY) {
-		Point raw = projectRaw(sourceX, sourceY);
-		return new Point(raw.x(), raw.y() + visibilityOffsetY);
-	}
-
-	private Point projectRaw(float sourceX, float sourceY) {
 		float u = (sourceX - sourceLeft) / sourceWidth;
 		float v = (sourceY - sourceTop) / sourceHeight;
 		float planeWidth = clamp((float) cfg.planeWidth, 0.10f, 6.0f);
 		float planeHeight = planeWidth * sourceHeight / sourceWidth;
 
+		// Plane-local Y is up, while GUI source Y grows downward.
 		float localX = (u - 0.5f) * planeWidth;
 		float localY = (0.5f - v) * planeHeight;
 		float localZ = curvedDepth(u, planeWidth);
-
-		// Camera yaw is the anchor, so a left/right look keeps the hologram in
-		// front. virtualYaw is deliberate user tuning, not body-turn lag.
-		float yaw = radians(clamp(cfg.virtualYaw, -80, 80));
-		float yawX = localX * cos(yaw) + localZ * sin(yaw);
-		float yawZ = -localX * sin(yaw) + localZ * cos(yaw);
-
-		// This is the complete pitch rule in camera space. At face-on pitch the
-		// relative tilt is zero. Above it the far/top edge recedes; below it the
-		// opposite edge recedes. Nothing else in the renderer applies pitch.
-		float relativePitch = relativeMeshPitch();
-		float planeY = localY * cos(relativePitch) - yawZ * sin(relativePitch);
-		float planeZ = localY * sin(relativePitch) + yawZ * cos(relativePitch);
-
-		// The centre remains at a waist-height player-relative pose. Convert only
-		// that centre through the current look pitch; the mesh orientation above
-		// remains one controlled camera-space deformation.
-		float viewPitch = radians(clamp(SpatialHud.pitch, -80, 89));
-		float centreY = (float) cfg.virtualOffsetY * cos(viewPitch)
-				+ (float) Math.max(0.10, cfg.distance) * sin(viewPitch);
-		float centreDepth = -(float) cfg.virtualOffsetY * sin(viewPitch)
-				+ (float) Math.max(0.10, cfg.distance) * cos(viewPitch);
-		return projectCameraSpace((float) cfg.virtualOffsetX + yawX,
-				centreY + planeY, centreDepth + planeZ);
-	}
-
-	private float relativeMeshPitch() {
-		float faceOn = clamp(cfg.virtualFaceOnLookDownPitch, 5, 80);
-		float horizonStrength = clamp(cfg.virtualHorizonPerspectivePitch, 15, 85);
-		float look = clamp(SpatialHud.pitch, -80, 89);
-		float tilt;
-		if (look <= faceOn) {
-			tilt = horizonStrength * (1.0f - clamp(look, 0.0f, faceOn) / faceOn);
-		} else {
-			tilt = -horizonStrength * clamp((look - faceOn) / (90.0f - faceOn), 0.0f, 1.0f);
-		}
-		return radians(clamp(tilt + cfg.virtualPitch, -85, 85));
+		return projectCameraYawHologram(localX, localY, localZ);
 	}
 
 	/**
-	 * Never allow an extreme pose to make the complete plane disappear. This is
-	 * a last-resort translation only when every sampled mesh point is above or
-	 * below the GUI; it does not flatten, rescale, or otherwise alter the mesh.
+	 * The only active anchor. It deliberately has no player body-yaw input:
+	 * horizontal camera turns keep the panel in front without rotating it around
+	 * the player when body and camera headings differ.
 	 */
-	private float fullyOffscreenVerticalCorrection() {
-		float minY = Float.POSITIVE_INFINITY;
-		float maxY = Float.NEGATIVE_INFINITY;
-		for (int row = 0; row <= 2; row++) {
-			float v = row * 0.5f;
-			for (int column = 0; column <= 2; column++) {
-				float u = column * 0.5f;
-				Point point = projectRaw(lerp(sourceLeft, sourceRight, u), lerp(sourceTop, sourceBottom, v));
-				minY = Math.min(minY, point.y());
-				maxY = Math.max(maxY, point.y());
-			}
-		}
-		float edge = Math.min(16.0f, Math.max(4.0f, guiHeight * 0.04f));
-		if (maxY < edge) {
-			return edge - maxY;
-		}
-		if (minY > guiHeight - edge) {
-			return guiHeight - edge - minY;
-		}
-		return 0.0f;
+	private Point projectCameraYawHologram(float localX, float localY, float localZ) {
+		float planeYaw = radians(clamp(cfg.virtualYaw, -80, 80));
+		float yawX = localX * cos(planeYaw) + localZ * sin(planeYaw);
+		float yawZ = -localX * sin(planeYaw) + localZ * cos(planeYaw);
+
+		// Fixed physical orientation in horizon space. This makes the plane
+		// face-on at the configured downward look angle, and creates the actual
+		// near/far-edge depth change needed for a trapezoid everywhere else.
+		float planePitch = radians(clamp(
+				cfg.virtualFaceOnLookDownPitch + cfg.virtualPitch, -80, 80));
+		float planeY = localY * cos(planePitch) - yawZ * sin(planePitch);
+		float planeZ = localY * sin(planePitch) + yawZ * cos(planePitch);
+
+		// Camera coordinates already represent camera-yaw anchoring. Only the
+		// current look pitch converts this physical waist-height centre and plane
+		// into camera space.
+		float bodyX = (float) cfg.virtualOffsetX + yawX;
+		float bodyY = (float) cfg.virtualOffsetY + planeY;
+		float bodyZ = (float) Math.max(0.10, cfg.distance) + planeZ;
+		float cameraPitch = radians(clamp(SpatialHud.pitch, -80, 89));
+		float cameraY = bodyY * cos(cameraPitch) + bodyZ * sin(cameraPitch);
+		float depth = -bodyY * sin(cameraPitch) + bodyZ * cos(cameraPitch);
+		return projectCameraSpace(bodyX, cameraY, depth);
 	}
 
 	private Point projectCameraSpace(float x, float y, float depth) {
+		// Do not permit extreme placement settings to move a vertex behind the
+		// virtual camera; normal poses remain well in front of it.
 		depth = Math.max(0.08f, depth);
 		return new Point(
 				guiWidth * 0.5f + focalLength * x / depth,

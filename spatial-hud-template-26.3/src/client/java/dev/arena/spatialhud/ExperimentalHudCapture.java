@@ -16,8 +16,6 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.render.GuiRenderer;
-import dev.arena.spatialhud.mixin.SpatialHudGameRendererAccessor;
-import dev.arena.spatialhud.mixin.SpatialHudGuiRendererAccessor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.StagedVertexBuffer;
 import net.minecraft.client.renderer.rendertype.RenderType;
@@ -217,16 +215,10 @@ public final class ExperimentalHudCapture {
 		}
 		Minecraft mc = Minecraft.getInstance();
 		capturedState = new GuiRenderState();
-		// 26.3 renders GUI items through picture-in-picture renderers. An empty
-		// list leaves the backing and simple bars available but can lose hotbar
-		// items. Construct privately, then share the main renderer's existing map
-		// instead of registering a second copy of every renderer. The private state
-		// still receives only the selected lower-HUD roots.
+		// Picture-in-picture renderers are intentionally omitted. The captured
+		// state receives only the explicitly wrapped vanilla bottom HUD roots,
+		// never a screen or a globally registered GUI layer.
 		capturedRenderer = new GuiRenderer(capturedState, mc.gameRenderer.featureRenderDispatcher(), List.of());
-		GuiRenderer mainRenderer = ((SpatialHudGameRendererAccessor) mc.gameRenderer).spatialhud$getGuiRenderer();
-		SpatialHudGuiRendererAccessor mainAccessor = (SpatialHudGuiRendererAccessor) mainRenderer;
-		((SpatialHudGuiRendererAccessor) capturedRenderer)
-				.spatialhud$setPictureInPictureRenderers(mainAccessor.spatialhud$getPictureInPictureRenderers());
 	}
 
 	private static void ensureTarget() {

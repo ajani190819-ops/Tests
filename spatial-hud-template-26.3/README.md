@@ -65,20 +65,19 @@ the computer's permanent policy. The old
 [`Get-Latest-SpatialHUD.bat`](Get-Latest-SpatialHUD.bat) remains available when
 you specifically want a Downloads copy instead of a direct Modrinth install.
 
-## v1.3 — player-body hologram pose
+## v1.3 — camera-yaw projective plane
 
-Spatial HUD now treats the bottom strip as a configurable plane at a real
-player-relative location rather than a look-down-only or camera-space panel.
-The old reveal settings remain only for old JSON compatibility and are no
-longer shown in Mod Menu.
+Spatial HUD treats the bottom strip as one configurable physical plane at a
+player-relative location rather than a look-down-only screen card. The old
+reveal settings remain only for JSON compatibility and are no longer shown in
+Mod Menu.
 
 ### Virtual placement
 
-The default **Camera Yaw (Hologram)** anchor places the plane 1.25 blocks in
-front of the player and about waist height below eye level. It follows camera
-yaw so it remains directly in front while looking left or right. Its pitch
-responds to looking up or down: it is face-on at the configured angle and
-becomes a stronger projective trapezoid away from that angle.
+The plane is always **camera-yaw anchored**: looking left or right keeps it in
+front of the camera, without turning it when the player's body faces a
+separate direction. Its fixed physical orientation is face-on at the configured
+look-down angle and creates ordinary perspective at every other view angle.
 
 The **Virtual HUD Plane** category provides these controls:
 
@@ -87,20 +86,14 @@ The **Virtual HUD Plane** category provides these controls:
 - **Z:** player-forward distance in blocks
 - **Face-On Look-Down Pitch:** the view angle at which the plane is a
   rectangle; the default is 30° below the horizon
-- **Horizon Perspective Strength:** how strongly it squashes and narrows at a
-  grazing angle; the default is 80°
 - **pitch offset and yaw:** additional orientation tuning
 - **scale:** the existing Panel Width control
-- **anchor:** `Camera Yaw (Hologram)` is the default. `Player Body`,
-  `View Locked`, and `World Like` retain earlier behavior for compatibility.
 
 When the camera looks higher than the configured face-on angle, the plane's
 upper/far edge recedes and becomes horizontally narrower. The captured mesh
 therefore becomes a real trapezoid. Looking lower changes the perspective in
-the opposite direction. This is the same physical plane for the backing and
-all captured HUD pixels. If an extreme angle would place the complete mesh
-outside the GUI target, Spatial HUD preserves its shape and moves only enough
-of it back on-screen to keep an edge visible.
+the opposite direction. The backing and every captured HUD pixel use this same
+plane.
 
 ### Captured projective mesh — disabled by default
 

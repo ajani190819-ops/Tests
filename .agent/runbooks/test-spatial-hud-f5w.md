@@ -17,8 +17,9 @@
 1. Press H and verify that it opens Spatial HUD settings without changing HUD
    enabled state.
 2. In settings, enable the experimental captured-texture warp.
-3. Select `Camera Yaw (Hologram)` and start with `Face-On Look-Down Pitch` at
-   30, `Horizon Perspective Strength` at 80, and `Plane Pitch Offset` at 0.
+3. Start with `Face-On Look-Down Pitch` at 30 and `Plane Pitch Offset` at 0.
+   Camera-yaw anchoring is the only active pose; it is not a selectable
+   body-yaw mode. The retired Horizon Perspective value is ignored.
 4. Test with native status-bar preservation both on and off if companion bars
    are involved.
 
