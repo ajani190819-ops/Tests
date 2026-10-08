@@ -14,7 +14,6 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
 import java.util.List;
@@ -131,15 +130,15 @@ public class SpatialHud implements ClientModInitializer {
 			}
 
 			while (selectMethodOneKey.consumeClick()) {
-				selectRenderMethod(client, SpatialHudConfig.RenderMethod.CLASSIC_AFFINE, 1,
+				selectRenderMethod(SpatialHudConfig.RenderMethod.CLASSIC_AFFINE, 1,
 						"green balanced trapezoid warp");
 			}
 			while (selectMethodTwoKey.consumeClick()) {
-				selectRenderMethod(client, SpatialHudConfig.RenderMethod.CAPTURED_MESH, 2,
+				selectRenderMethod(SpatialHudConfig.RenderMethod.CAPTURED_MESH, 2,
 						"blue strong trapezoid warp");
 			}
 			while (selectMethodThreeKey.consumeClick()) {
-				selectRenderMethod(client, SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE, 3,
+				selectRenderMethod(SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE, 3,
 						"red real world map");
 			}
 
@@ -159,16 +158,16 @@ public class SpatialHud implements ClientModInitializer {
 				KeyMapping.Category.MISC));
 	}
 
-	private static void selectRenderMethod(Minecraft client, SpatialHudConfig.RenderMethod method,
-			int number, String description) {
+	private static void selectRenderMethod(SpatialHudConfig.RenderMethod method, int number,
+			String description) {
 		SpatialHudConfig cfg = SpatialHudConfig.get();
 		if (cfg.renderMethod != method) {
 			cfg.renderMethod = method;
 			SpatialHudConfig.save();
 		}
+		// The full-width green/blue/red band is the deliberately on-panel visual
+		// confirmation; logging also gives modpack troubleshooting an exact trace.
 		LOGGER.info("Spatial HUD Method {} selected: {}.", number, description);
-		client.gui.setOverlayMessage(Component.literal(
-				"Spatial HUD — Method " + number + ": " + description), false);
 	}
 
 	public static boolean isEnabled() {

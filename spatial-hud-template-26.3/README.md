@@ -194,8 +194,8 @@ Minecraft Controls contains:
   test key without replacing a modpack binding.
 - **Spatial HUD — Select Method 1 / 2 / 3** — default to **F6 / F7 / F8**,
   avoiding the hotbar number keys. Rebind any conflict in Controls. Each press
-  shows the chosen green balanced warp, blue strong warp, or red world-map mode
-  in the action bar.
+  changes the on-panel band to the chosen green balanced warp, blue strong warp,
+  or red world-map mode.
 
 ## Requirements
 
