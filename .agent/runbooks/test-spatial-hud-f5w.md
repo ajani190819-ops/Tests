@@ -1,7 +1,7 @@
 # Test Spatial HUD in F5W
 
 - Status: current test procedure.
-- Last verified: 2026-10-08 CI build `37706894548`; F5W runtime remains pending.
+- Last verified: 2026-10-08 CI build `37708052786`; all F5W method results remain pending.
 - Read when: requesting or evaluating an F5W runtime test.
 
 ## Before starting
@@ -15,27 +15,28 @@
 ## Test setup
 
 1. Press H and verify that it opens Spatial HUD settings without changing HUD
-   enabled state.
-2. In settings, enable the experimental captured-texture warp.
-3. Start with `Face-On Look-Down Pitch` at 30 and `Plane Pitch Offset` at 0.
-   Camera-yaw anchoring is the only active pose; it is not a selectable
-   body-yaw mode. The retired Horizon Perspective value is ignored.
-4. Test with native status-bar preservation both on and off if companion bars
-   are involved.
+   enabled state. Confirm **Render Method** has all three named choices and
+   readable descriptions.
+2. Start with `Face-On Look-Down Angle` at 30 and `Pitch Offset` at 0.
+3. Test with native status-bar preservation both on and off if companion bars
+   are involved. This setting changes only Method 1 behavior.
 
 ## Required observations
 
-Record each result separately:
+Record each result separately by Render Method:
 
-| Check | Pass condition |
-|---|---|
-| Capture stability | No flicker, disappearing plate, or frame-to-frame loss |
-| Scope | Menus and unrelated GUI elements remain normal |
-| Whole-plane geometry | Backing, hotbar, icons, bars, and text use the same shape |
-| Head-on geometry | Capture appears rectangular |
-| Grazing geometry | Far edge visibly narrows horizontally into a trapezoid |
-| Look response | Geometry changes continuously while view pitch changes |
-| Companion pixels | AppleSkin and Detail Armor pixels are captured with their status root |
+| Method | Check | Pass condition |
+|---|---|---|
+| 1 — Classic Affine | Baseline | Selected HUD is stable; it may not form a true icon-level trapezoid. |
+| 2 — Captured Projective Mesh | Capture stability | No flicker, disappearing plate, or frame-to-frame loss. |
+| 2 — Captured Projective Mesh | Geometry | Backing, hotbar, icons, bars, and text use one real trapezoid: rectangular at 30° down, with a visibly narrower far edge at a grazing view. |
+| 2 or 3 | Scope | Menus and unrelated GUI elements remain normal. |
+| 2 or 3 | Companion pixels | AppleSkin and Detail Armor pixels are captured with their selected status root. |
+| 3 — World-Space Texture | Camera Yaw anchor | Plane stays in front while looking left/right without player-body lag. |
+| 3 — World-Space Texture | Player Body anchor | Plane stays at the body heading and may move to the side when looking away. |
+| 3 — World-Space Texture | Occlude Behind World on | A block between camera and panel hides the panel like a physical object. |
+| 3 — World-Space Texture | Occlude Behind World off | Panel remains visible through the same block. |
+| 3 — World-Space Texture | Latency/stability | One completed-frame delay is expected; persistent loss, flicker, or stale texture is not. |
 
 ## Report format
 

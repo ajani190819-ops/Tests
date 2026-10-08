@@ -1,9 +1,9 @@
 # Spatial HUD facts
 
-- Status: the experimental renderer was restored to its prior camera-yaw
-  capture path; an F5W runtime result is pending.
-- Last verified: 2026-10-08 CI build `37706894548` for recovery `5c245d5`;
-  no rollback runtime result exists yet.
+- Status: three named renderer methods compile; all F5W runtime results remain
+  pending.
+- Last verified: 2026-10-08 CI build `37708052786` for `d2308fb`; no Method 3
+  runtime result exists yet.
 - Read when: changing Spatial HUD code, its updater, or F5W compatibility.
 
 ## Source and release
@@ -17,18 +17,27 @@
 
 ## Rendering design
 
-- `VirtualHudPlane.java` is the shared physical-plane projection model. Its
-  active camera-yaw pose follows camera yaw rather than body yaw, has a fixed
+- `SpatialHudConfig.RenderMethod` is the one visible renderer selector:
+  `CLASSIC_AFFINE` (original safe path), `CAPTURED_MESH` (private captured
+  texture on a GUI-space projective mesh), and `WORLD_SPACE_TEXTURE`
+  (**World-Space Texture**, the same selected texture drawn on a real level
+  quad). Existing JSON with
+  `experimentalCaptureWarp: true` migrates to `CAPTURED_MESH`.
+- `VirtualHudPlane.java` is the shared Method 1/2 physical-plane projection.
+  Its camera-yaw pose follows camera yaw rather than body yaw, has a fixed
   horizon-space orientation, and is face-on at the configured 30° down look
-  angle. Different camera pitch then produces the plane's real perspective.
+  angle. Different camera pitch then produces real perspective.
 - `ExperimentalHudCapture.java` captures only the selected lower HUD into a
-  private target and renders it through a tessellated mesh. The current
-  rollback intentionally restores the isolated `GuiRenderer(..., List.of())`
-  implementation from `46874e5`; it does not share or mutate the main
-  picture-in-picture renderer map. The map-sharing attempt is a suspect F5W
-  regression and must not return without a separate, successful runtime test.
-- `SpatialHudGameRendererMixin.java` composites the mesh after the normal
-  `GuiRenderer` call.
+  private target. Method 2 composites it through a tessellated mesh; Method 3
+  leaves it for `WorldSpaceHudRenderer` on the following level frame. The
+  rollback retains the isolated `GuiRenderer(..., List.of())` implementation
+  from `46874e5`; it does not share or mutate the main PiP renderer map.
+- `WorldSpaceHudRenderer.java` extracts a physical Method 3 quad during level
+  extraction and draws the previous completed private texture after translucent
+  terrain. `worldSpaceAnchor` selects Camera Yaw or Player Body; depth texture
+  attachment is selected by `worldSpaceOccludeBehindWorld`.
+- `SpatialHudGameRendererMixin.java` completes the private capture after the
+  normal `GuiRenderer` call and closes Method 3's GPU buffer on shutdown.
 - `SpatialHudGuiRendererMixin.java` redirects only the private captured
   renderer by object identity.
 - The capture includes the backing plate and selected bottom-HUD pixels. It
@@ -52,9 +61,10 @@ the opposite direction. `virtualPitch` is a manual physical-orientation offset.
 
 ## Compatibility and fallback
 
-- Experimental captured-mesh mode is default off.
-- The normal mode is a safe affine fallback. It cannot bend pixels inside an
+- New installations default to Classic Affine. It cannot bend pixels inside an
   icon or text glyph.
+- Method 2 and Method 3 are isolated texture experiments. Their shared capture
+  failure latches them back to Classic Affine and logs the stage/error.
 - First-class targets: AppleSkin and Detail Armor Bar Reconstructed.
 - F5W also includes other same-region HUD mods, including Bedrock Hotbar,
   Immersive Hotbar, DualBar, Armor Indicator, Status Effect Bars, Mount
@@ -74,6 +84,8 @@ the opposite direction. `virtualPitch` is a manual physical-orientation offset.
 - `931b6de` — drive plane perspective from look pitch.
 - `46874e5` — last user-observed working camera-yaw capture path; restored as
   the experimental-renderer baseline after the later refactor regressed F5W.
+- `d2308fb` — clear three-method configuration and initial world-space texture
+  renderer; CI-complete but no gameplay runtime result yet.
 
 ## Related files
 
