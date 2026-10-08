@@ -44,7 +44,7 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("guide")
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 19 after checking the values.
+	// registerAndLoad writes it as 20 after checking the values.
 	public int configVersion = 0;
 
 	/*
@@ -339,6 +339,15 @@ public final class SpatialHudConfig implements ConfigData {
 	 */
 	@ConfigEntry.Category("polygon")
 	@ConfigEntry.Gui.Tooltip
+	public boolean polygonFollowCameraPitch = true;
+
+	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int polygonPitchResponsePercent = 100;
+
+	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
 	public int polygonTopLeftXPercent = 30;
 
@@ -470,15 +479,15 @@ public final class SpatialHudConfig implements ConfigData {
 	}
 
 	/**
-	 * Every mode captures the selected lower HUD. Method 4 uses that same source
-	 * texture but maps it to its editable purple four-corner target instead of a
-	 * physical virtual plane.
+	 * The three HUD presentation modes use a private lower-HUD texture. Method
+	 * 4 is deliberately the single direct purple test surface, so it never
+	 * starts a second captured rectangle behind the editable outline.
 	 */
 	boolean capturesTexture() {
-		return true;
+		return !usesPolygonTest();
 	}
 
-	/** Method 4 maps the captured lower HUD to its editable GUI-space quad. */
+	/** Method 4 draws the one editable GUI-space quad. */
 	boolean usesPolygonTest() {
 		return selectedRenderMethod() == RenderMethod.POLYGON_TEST;
 	}
@@ -504,7 +513,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Migrates legacy JSON fields to the current named rendering methods. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 19) {
+		if (cfg.configVersion >= 20) {
 			return;
 		}
 
@@ -663,7 +672,14 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.selectRenderMethod(cfg.renderMethod);
 		}
 
-		cfg.configVersion = 19;
+		if (cfg.configVersion < 20) {
+			// Purple Method 4 now has one visible test surface, whose configured
+			// corners respond continuously to look pitch by default.
+			cfg.polygonFollowCameraPitch = true;
+			cfg.polygonPitchResponsePercent = 100;
+		}
+
+		cfg.configVersion = 20;
 		save();
 	}
 

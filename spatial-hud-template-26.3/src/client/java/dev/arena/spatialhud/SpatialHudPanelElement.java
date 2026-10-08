@@ -19,21 +19,21 @@ final class SpatialHudPanelElement implements HudElement {
 		}
 
 		SpatialHudConfig cfg = SpatialHudConfig.get();
-		if (cfg.usesPolygonTest()) {
-			// Keep the four configured corners visibly responsive even before the
-			// captured HUD mesh composites at the end of the GUI render pass.
-			PolygonTestRenderer.drawGuide(graphics, cfg);
-		}
 
 		// Run even when the backing is hidden: this is registered immediately
 		// before HOTBAR and gives every selected root one camera pitch value.
 		SpatialHud.updateViewPose();
 
-		// Purple Method 4 is a screen-space four-corner test, so its capture is
-		// intentionally not gated by the physical map's FOV. The other methods
-		// keep finite-surface viewport culling.
-		if (!cfg.usesPolygonTest()
-				&& !SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
+		if (cfg.usesPolygonTest()) {
+			// Method 4 is intentionally a single, self-contained purple test
+			// surface. Do not begin the lower-HUD texture capture here: that path
+			// adds a second dark panel and makes the editable target ambiguous.
+			PolygonTestRenderer.drawGuide(graphics, cfg);
+			return;
+		}
+
+		// The physical-map methods keep finite-surface viewport culling.
+		if (!SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
 			return;
 		}
 

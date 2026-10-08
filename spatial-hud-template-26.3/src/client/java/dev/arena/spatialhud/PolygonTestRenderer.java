@@ -17,9 +17,9 @@ final class PolygonTestRenderer {
 	}
 
 	/**
-	 * Direct GUI-space outline used as a fail-visible guide. The captured HUD
-	 * mesh is composited later over this same outline, but this guide still moves
-	 * with every slider if a driver/mod blocks private texture capture.
+	 * Method 4's one and only visible surface. Its corners start at the saved
+	 * percentage positions, then optionally respond to the player's live camera
+	 * pitch. It deliberately has no captured-HUD duplicate behind it.
 	 */
 	static void drawGuide(GuiGraphicsExtractor graphics, SpatialHudConfig cfg) {
 		Quad quad = quad(cfg, graphics.guiWidth(), graphics.guiHeight());
@@ -37,11 +37,40 @@ final class PolygonTestRenderer {
 	}
 
 	static Quad quad(SpatialHudConfig cfg, int guiWidth, int guiHeight) {
-		return new Quad(
+		Quad base = new Quad(
 				point(cfg.polygonTopLeftXPercent, cfg.polygonTopLeftYPercent, guiWidth, guiHeight),
 				point(cfg.polygonTopRightXPercent, cfg.polygonTopRightYPercent, guiWidth, guiHeight),
 				point(cfg.polygonBottomRightXPercent, cfg.polygonBottomRightYPercent, guiWidth, guiHeight),
 				point(cfg.polygonBottomLeftXPercent, cfg.polygonBottomLeftYPercent, guiWidth, guiHeight));
+		return cfg.polygonFollowCameraPitch ? respondToPitch(base, cfg, guiWidth, guiHeight) : base;
+	}
+
+	/**
+	 * At level view (pitch zero), preserve the eight saved coordinates exactly.
+	 * Looking down pulls the far/top edge inward and upward while opening the
+	 * near/bottom edge; looking up reverses the motion. The response uses all
+	 * four saved corners as its starting point instead of replacing them with a
+	 * hard-coded rectangle.
+	 */
+	private static Quad respondToPitch(Quad base, SpatialHudConfig cfg, int guiWidth, int guiHeight) {
+		float amount = clamp(SpatialHud.pitch / 90.0f, -1.0f, 1.0f)
+				* clamp(cfg.polygonPitchResponsePercent, 0, 100) / 100.0f;
+		if (Math.abs(amount) < 0.0001f) {
+			return base;
+		}
+		return new Quad(
+				pitchPoint(base.topLeft(), guiWidth, guiHeight, 0.35f, -0.10f, amount),
+				pitchPoint(base.topRight(), guiWidth, guiHeight, 0.35f, -0.10f, amount),
+				pitchPoint(base.bottomRight(), guiWidth, guiHeight, 0.12f, 0.05f, amount),
+				pitchPoint(base.bottomLeft(), guiWidth, guiHeight, 0.12f, 0.05f, amount));
+	}
+
+	private static Point pitchPoint(Point base, int guiWidth, int guiHeight,
+			float horizontalResponse, float verticalResponse, float amount) {
+		float centreX = guiWidth * 0.5f;
+		float x = centreX + (base.x() - centreX) * (1.0f - horizontalResponse * amount);
+		float y = base.y() + guiHeight * verticalResponse * amount;
+		return new Point(clamp(x, 0.0f, guiWidth), clamp(y, 0.0f, guiHeight));
 	}
 
 	private static void drawEdge(GuiGraphicsExtractor graphics, Point from, Point to) {
@@ -68,6 +97,10 @@ final class PolygonTestRenderer {
 
 	private static int clampPercent(int value) {
 		return Math.max(0, Math.min(100, value));
+	}
+
+	private static float clamp(float value, float minimum, float maximum) {
+		return Math.max(minimum, Math.min(maximum, value));
 	}
 
 	record Point(float x, float y) {

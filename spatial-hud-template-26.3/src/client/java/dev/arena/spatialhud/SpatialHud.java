@@ -36,7 +36,6 @@ public class SpatialHud implements ClientModInitializer {
 	private static KeyMapping selectMethodOneKey;
 	private static KeyMapping selectMethodTwoKey;
 	private static KeyMapping selectMethodThreeKey;
-	private static boolean enabled;
 
 	// These two mods add their visual details by injecting inside vanilla's
 	// status-bar extraction methods. Their exact 26.3 Fabric releases are
@@ -65,7 +64,6 @@ public class SpatialHud implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		SpatialHudConfig cfg = SpatialHudConfig.registerAndLoad();
-		enabled = cfg.enabled;
 		appleSkinLoaded = FabricLoader.getInstance().isModLoaded("appleskin");
 		detailArmorBarLoaded = FabricLoader.getInstance().isModLoaded("detailabreconst");
 		WorldSpaceHudRenderer.initialize();
@@ -121,12 +119,13 @@ public class SpatialHud implements ClientModInitializer {
 			}
 
 			while (toggleHudKey.consumeClick()) {
-				enabled = !enabled;
-				SpatialHudConfig.get().enabled = enabled;
+				SpatialHudConfig cfg = SpatialHudConfig.get();
+				cfg.enabled = !cfg.enabled;
 				SpatialHudConfig.save();
-				if (!enabled) {
+				if (!cfg.enabled) {
 					resetSway();
 				}
+				LOGGER.info("Spatial HUD toggled {}.", cfg.enabled ? "on" : "off");
 			}
 
 			while (selectMethodOneKey.consumeClick()) {
@@ -170,8 +169,9 @@ public class SpatialHud implements ClientModInitializer {
 		LOGGER.info("Spatial HUD Method {} selected: {}.", number, description);
 	}
 
+	/** The config instance is the sole live source of truth for the Enable toggle. */
 	public static boolean isEnabled() {
-		return enabled;
+		return SpatialHudConfig.get().enabled;
 	}
 
 	/**
@@ -181,8 +181,9 @@ public class SpatialHud implements ClientModInitializer {
 	 */
 	static boolean isGameplayHudActive() {
 		Minecraft mc = Minecraft.getInstance();
-		return enabled && mc.player != null && mc.level != null
-				&& (!SpatialHudConfig.get().onlyDuringGameplay || mc.gui.screen() == null);
+		SpatialHudConfig cfg = SpatialHudConfig.get();
+		return cfg.enabled && mc.player != null && mc.level != null
+				&& (!cfg.onlyDuringGameplay || mc.gui.screen() == null);
 	}
 
 	/**
@@ -249,7 +250,7 @@ public class SpatialHud implements ClientModInitializer {
 	/** Samples the current camera pitch once before the selected HUD roots extract. */
 	static void updateViewPose() {
 		Minecraft mc = Minecraft.getInstance();
-		if (!enabled || mc.player == null) {
+		if (!isEnabled() || mc.player == null) {
 			pitch = 0.0f;
 			return;
 		}
@@ -262,7 +263,6 @@ public class SpatialHud implements ClientModInitializer {
 
 	/** Self-protection: never keep the HUD broken over our own math. */
 	static void safeDisable(Throwable t) {
-		enabled = false;
 		resetSway();
 		SpatialHudConfig.get().enabled = false;
 		SpatialHudConfig.save();

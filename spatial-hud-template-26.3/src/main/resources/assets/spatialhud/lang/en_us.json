@@ -4,16 +4,14 @@
   "key.spatialhud.select_method_1": "Spatial HUD — Select Method 1 (Balanced Green Warp)",
   "key.spatialhud.select_method_2": "Spatial HUD — Select Method 2 (Strong Blue Warp)",
   "key.spatialhud.select_method_3": "Spatial HUD — Select Method 3 (Red World Map)",
-
   "text.autoconfig.spatialhud.title": "Spatial HUD",
   "text.autoconfig.spatialhud.category.guide": "Method Guide — Read This First",
   "text.autoconfig.spatialhud.category.setup": "Setup",
   "text.autoconfig.spatialhud.category.positioning": "Panel Positioning & Orientation",
   "text.autoconfig.spatialhud.category.polygon": "Purple Polygon Test",
   "text.autoconfig.spatialhud.category.contents": "HUD Contents",
-
   "text.autoconfig.spatialhud.option.guideOverview.title": "How to picture Spatial HUD",
-  "text.autoconfig.spatialhud.option.guideOverview.body": "Use the Render Mode Slider in Setup to choose among the three HUD presentations or the separate purple polygon diagnostic. The green, blue, and red modes treat the selected lower HUD as a flat Minecraft-map surface and remain active while that physical surface intersects the screen. F6, F7, and F8 remain optional quick keys for Methods 1, 2, and 3. Purple Polygon Test is different on purpose: it captures the selected lower HUD and maps it to the four movable purple corners, so the hotbar and surrounding selected UI visibly deform with the exact test shape without world rendering.",
+  "text.autoconfig.spatialhud.option.guideOverview.body": "Use the Render Mode Slider in Setup to choose among the three HUD presentations or the separate purple polygon diagnostic. The green, blue, and red modes treat the selected lower HUD as a flat Minecraft-map surface and remain active while that physical surface intersects the screen. F6, F7, and F8 remain optional quick keys for Methods 1, 2, and 3. Purple Polygon Test is different on purpose: it shows one direct purple four-corner surface, with no dark captured-HUD duplicate. Its saved corner positions can also respond continuously to your camera pitch.",
   "text.autoconfig.spatialhud.option.guideClassicAffine.title": "Method 1 — Green — Balanced Captured Warp",
   "text.autoconfig.spatialhud.option.guideClassicAffine.body": "Green is a required captured-texture mesh, not the old unwarped root-by-root path. It applies a balanced forced perspective warp to every selected pixel, including health and status bars, while retaining a map-like readable shape. Use it when you want real distortion without the stronger blue exaggeration. The wide green band is a live confirmation that this method is selected.",
   "text.autoconfig.spatialhud.option.guideCapturedMesh.title": "Method 2 — Blue — Strong Captured Projective Warp",
@@ -21,24 +19,21 @@
   "text.autoconfig.spatialhud.option.guideWorldSpace.title": "Method 3 — Red — World-Space Texture: a real in-world map",
   "text.autoconfig.spatialhud.option.guideWorldSpace.body": "Choose this when you want the panel to exist as a real flat textured surface in the Minecraft world. It uses the same selected lower-HUD source rectangle as blue Method 2, but places it on a physical world quad instead of a GUI-space mesh. Normal game perspective and optional terrain occlusion therefore apply directly. You can decide whether it follows Camera Yaw or Player Body direction. It intentionally shows the last completed HUD picture, so a one-frame delay is normal; persistent flicker or missing texture is not.",
   "text.autoconfig.spatialhud.option.guidePolygonTest.title": "Method 4 — Purple — Four-Corner Polygon Test",
-  "text.autoconfig.spatialhud.option.guidePolygonTest.body": "Choose Purple Polygon Test from the Render Mode Slider to capture the selected lower HUD and map every captured pixel onto a translucent purple quadrilateral. The hotbar, health, armor, hunger, air, XP, and other enabled selected roots deform with the same four-corner surface. The Purple Polygon Test tab provides an X and Y percentage for each corner: top-left, top-right, bottom-right, and bottom-left. Change any pair to move that exact corner. The bright purple/white outline moves directly with the sliders, and the captured HUD texture composites into the same four-corner surface. Use it to test a trapezoid or intentionally crossed surface without world-render code.",
-
+  "text.autoconfig.spatialhud.option.guidePolygonTest.body": "Choose Purple Polygon Test from the Render Mode Slider for one direct purple/white four-corner surface, with no second dark HUD rectangle. The Purple Polygon Test tab provides an X and Y percentage for top-left, top-right, bottom-right, and bottom-left. Change any pair to move that exact saved corner. At level view, those eight values are used exactly. By default, looking down draws the top edge inward and upward while opening the lower edge; looking up reverses that movement. Use Follow Camera Pitch and Pitch Response Strength to control or disable that live adjustment.",
   "text.autoconfig.spatialhud.option.enabled": "Enable Spatial HUD",
-  "text.autoconfig.spatialhud.option.enabled.@Tooltip": "Master switch for Spatial HUD. When disabled, every wrapped vanilla HUD root is immediately delegated back to Minecraft without a pose transform, private capture, or world-space draw. The separate Toggle Spatial HUD keybinding changes this same switch for quick comparison.",
+  "text.autoconfig.spatialhud.option.enabled.@Tooltip": "Master switch for Spatial HUD. Turning this off in Setup immediately restores the normal vanilla HUD and hides the purple test surface. The separately bindable Toggle Spatial HUD control changes this exact same saved switch.",
   "text.autoconfig.spatialhud.option.showPanel": "Show Backing Panel",
   "text.autoconfig.spatialhud.option.showPanel.@Tooltip": "Draw the subtle translucent backing behind the selected lower-HUD surface. Methods 2 and 3 put this backing into the same private texture as the icons and text, so it receives exactly the same projective or world-space deformation. The full-width green, blue, or red method band remains as an identity marker even when this backing is hidden.",
   "text.autoconfig.spatialhud.option.onlyDuringGameplay": "Gameplay Only",
   "text.autoconfig.spatialhud.option.onlyDuringGameplay.@Tooltip": "Keep the spatial presentation out of inventories, chat, pause menus, Mod Menu, and other screens. This is recommended for normal play. Texture methods enforce the same screen-open boundary even if this option is turned off, because they intentionally capture gameplay HUD roots only.",
-
   "text.autoconfig.spatialhud.option.renderModePicker": "Render Mode Slider",
-  "text.autoconfig.spatialhud.option.renderModePicker.@Tooltip": "Move this slider to choose the active mode: 1 is green balanced warp, 2 is blue strong warp, 3 is red world-space texture, and 4 captures the selected lower HUD and maps it to the purple four-corner polygon. This is the visible mode control; it takes effect as soon as the config is saved.",
+  "text.autoconfig.spatialhud.option.renderModePicker.@Tooltip": "Move this slider to choose the active mode: 1 is green balanced warp, 2 is blue strong warp, 3 is red world-space texture, and 4 is the single purple four-corner pitch-responsive test surface. This is the visible mode control; it takes effect as soon as the config is saved.",
   "text.autoconfig.spatialhud.option.renderMethod": "Legacy Render Method (hidden)",
   "text.autoconfig.spatialhud.option.renderMethod.@Tooltip": "Legacy saved value. Use Render Mode Slider above instead.",
   "text.autoconfig.spatialhud.enum.renderMethod.CLASSIC_AFFINE": "1 — Balanced Captured Warp · Green",
   "text.autoconfig.spatialhud.enum.renderMethod.CAPTURED_MESH": "2 — Strong Projective Warp · Blue · Default",
   "text.autoconfig.spatialhud.enum.renderMethod.WORLD_SPACE_TEXTURE": "3 — World-Space Texture · Red · Experimental",
   "text.autoconfig.spatialhud.enum.renderMethod.POLYGON_TEST": "4 — Four-Corner Polygon Test · Purple",
-
   "text.autoconfig.spatialhud.option.distance": "Forward Distance",
   "text.autoconfig.spatialhud.option.distance.@Tooltip": "Shared placement distance in block-like units, measured forward from the player-local panel origin. Methods 1 and 2 remain camera-yaw anchored while Method 3 uses the selected Method 3 anchor below. Increasing this makes the panel appear farther away and smaller in perspective; extremely low values are clamped to keep the plane in front of the camera.",
   "text.autoconfig.spatialhud.option.planeWidth": "Panel Width",
@@ -63,10 +58,8 @@
   "text.autoconfig.spatialhud.enum.worldSpaceAnchor.PLAYER_BODY": "Player Body — follows body heading",
   "text.autoconfig.spatialhud.option.worldSpaceOccludeBehindWorld": "Method 3 Terrain Occlusion",
   "text.autoconfig.spatialhud.option.worldSpaceOccludeBehindWorld.@Tooltip": "Applies only to red Method 3. When enabled, the HUD texture uses the world depth buffer, so terrain or a block between the camera and the plane hides it like a physical object. Disable it to retain the world-space position but draw the panel visibly through terrain. This setting is ignored by Methods 1 and 2.",
-
   "text.autoconfig.spatialhud.option.preserveCompanionStatusLayout": "Keep Companion Bars Native in Method 1",
   "text.autoconfig.spatialhud.option.preserveCompanionStatusLayout.@Tooltip": "Compatibility fallback for green Classic Affine, disabled by default. Health, armor, hunger, and air normally travel with the spatial panel in all methods. Enable this only if AppleSkin, Detail Armor Bar Reconstructed, or a similar companion mod produces detached or duplicate status decorations; it leaves the complete affected status roots at their native location in Method 1 only.",
-
   "text.autoconfig.spatialhud.option.polygonTopLeftXPercent": "Top-Left Corner X",
   "text.autoconfig.spatialhud.option.polygonTopLeftXPercent.@Tooltip": "Purple test only. Horizontal position of the top-left square handle as a percentage of the GUI width. 0 is the left edge; 100 is the right edge.",
   "text.autoconfig.spatialhud.option.polygonTopLeftYPercent": "Top-Left Corner Y",
@@ -83,7 +76,6 @@
   "text.autoconfig.spatialhud.option.polygonBottomLeftXPercent.@Tooltip": "Purple test only. Horizontal position of the bottom-left square handle as a percentage of the GUI width.",
   "text.autoconfig.spatialhud.option.polygonBottomLeftYPercent": "Bottom-Left Corner Y",
   "text.autoconfig.spatialhud.option.polygonBottomLeftYPercent.@Tooltip": "Purple test only. Vertical position of the bottom-left square handle as a percentage of the GUI height.",
-
   "text.autoconfig.spatialhud.option.showHotbar": "Hotbar & Spectator Controls",
   "text.autoconfig.spatialhud.option.showHotbar.@Tooltip": "Include the hotbar plus the vanilla spectator menu and spectator tooltip in the spatial panel. Disable this if another HUD mod owns the hotbar or if you want Spatial HUD to present only the status information around it.",
   "text.autoconfig.spatialhud.option.showBars": "Health, Hunger, Armor & Air",
@@ -93,5 +85,9 @@
   "text.autoconfig.spatialhud.option.showMountBars": "Mount Health",
   "text.autoconfig.spatialhud.option.showMountBars.@Tooltip": "Include the vanilla mount-health root while riding an entity. It has no effect while no mount-health HUD is active.",
   "text.autoconfig.spatialhud.option.showHeldItemName": "Held Item Name",
-  "text.autoconfig.spatialhud.option.showHeldItemName.@Tooltip": "Include the transient selected-item name above the lower HUD panel. Disable it if a tooltip or inventory mod already provides a preferred held-item label."
+  "text.autoconfig.spatialhud.option.showHeldItemName.@Tooltip": "Include the transient selected-item name above the lower HUD panel. Disable it if a tooltip or inventory mod already provides a preferred held-item label.",
+  "text.autoconfig.spatialhud.option.polygonFollowCameraPitch": "Follow Camera Pitch",
+  "text.autoconfig.spatialhud.option.polygonFollowCameraPitch.@Tooltip": "Purple test only. Make the one visible four-corner surface react continuously to your viewing pitch. At level view, the saved corner percentages are used exactly. Disable this to keep the polygon fixed.",
+  "text.autoconfig.spatialhud.option.polygonPitchResponsePercent": "Pitch Response Strength",
+  "text.autoconfig.spatialhud.option.polygonPitchResponsePercent.@Tooltip": "Purple test only. Strength of the live pitch adjustment. At 100, looking down pulls the top corners strongly inward and upward while the bottom opens; 0 leaves the saved corners fixed."
 }
