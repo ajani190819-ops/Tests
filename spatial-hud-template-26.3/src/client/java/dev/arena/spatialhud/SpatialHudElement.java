@@ -45,8 +45,12 @@ final class SpatialHudElement implements HudElement {
 			return;
 		}
 		if (cfg.usesPolygonTest()) {
-			// Method 4 must never leak an unwarped root to the native HUD if its
-			// private capture fails. The failure is logged by the capture path.
+			// Method 4 shows this root inside the captured purple quad, and the
+			// capture above already consumed it in that case. Reaching this point
+			// means the capture is not running - it failed and latched for this
+			// session, or this frame never started one - so draw the untouched
+			// vanilla root instead of hiding the player's HUD.
+			vanilla.extractRenderState(graphics, deltaTracker);
 			return;
 		}
 

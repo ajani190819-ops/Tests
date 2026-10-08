@@ -197,9 +197,12 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/**
-	 * Both texture methods have a stricter boundary than Classic Affine: they
-	 * are gameplay-only even if a user turns off the normal Gameplay Only
-	 * preference. This keeps the private capture separate from every screen.
+	 * All four methods present the captured texture, so they share one stricter
+	 * boundary than a plain HUD transform: they are gameplay-only even if a user
+	 * turns off the normal Gameplay Only preference. This keeps the private
+	 * capture separate from every screen. Method 4 is additionally exempt from
+	 * the physical-plane viewport test, because its target is placed by four
+	 * GUI-space handles instead of by the virtual plane.
 	 */
 	static boolean isTextureCaptureActive() {
 		Minecraft mc = Minecraft.getInstance();

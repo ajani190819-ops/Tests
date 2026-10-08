@@ -17,9 +17,10 @@ final class PolygonTestRenderer {
 	}
 
 	/**
-	 * Method 4's one and only visible surface. Its corners start at the saved
-	 * percentage positions, then optionally respond to the player's live camera
-	 * pitch. It deliberately has no captured-HUD duplicate behind it.
+	 * Method 4's plain fallback control surface: the outline and its four corner
+	 * handles, drawn directly only when the private capture is not running.
+	 * While the capture is running, this same quad instead carries the warped
+	 * lower-HUD texture, which includes its own purple border and handles.
 	 */
 	static void drawGuide(GuiGraphicsExtractor graphics, SpatialHudConfig cfg) {
 		Quad quad = quad(cfg, graphics.guiWidth(), graphics.guiHeight());
@@ -36,6 +37,11 @@ final class PolygonTestRenderer {
 		}
 	}
 
+	/**
+	 * The one quad definition shared by the warped capture mesh and the fallback
+	 * guide, so both always land on the same four corners - including the live
+	 * pitch response.
+	 */
 	static Quad quad(SpatialHudConfig cfg, int guiWidth, int guiHeight) {
 		Quad base = new Quad(
 				point(cfg.polygonTopLeftXPercent, cfg.polygonTopLeftYPercent, guiWidth, guiHeight),

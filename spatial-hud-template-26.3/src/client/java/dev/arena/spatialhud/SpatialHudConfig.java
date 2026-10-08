@@ -479,15 +479,19 @@ public final class SpatialHudConfig implements ConfigData {
 	}
 
 	/**
-	 * The three HUD presentation modes use a private lower-HUD texture. Method
-	 * 4 is deliberately the single direct purple test surface, so it never
-	 * starts a second captured rectangle behind the editable outline.
+	 * Every mode presents the selected lower HUD through the one private
+	 * captured texture: Methods 1-3 draw it on their own physical surfaces and
+	 * Method 4 warps it onto the four configured purple GUI corners. Capture is
+	 * therefore always required while Spatial HUD is enabled.
 	 */
 	boolean capturesTexture() {
-		return !usesPolygonTest();
+		return true;
 	}
 
-	/** Method 4 draws the one editable GUI-space quad. */
+	/**
+	 * Method 4 warps the captured lower HUD onto the one editable GUI-space
+	 * quad whose four corners the player positions by percentage.
+	 */
 	boolean usesPolygonTest() {
 		return selectedRenderMethod() == RenderMethod.POLYGON_TEST;
 	}

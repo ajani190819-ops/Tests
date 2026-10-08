@@ -86,20 +86,30 @@ three modes:
    an **Occlude Behind World** switch. It intentionally displays the completed
    previous-frame texture, avoiding global GUI redirection while the current
    GUI is captured.
-4. **Four-Corner Polygon Test (purple)** — shows one direct purple/white
-   four-corner test surface and never adds a second dark captured-HUD rectangle.
-   Its tab exposes one X/Y percentage pair per handle. At level view those saved
-   positions are exact; optional live pitch response moves the corners as the
-   player looks up or down.
+4. **Four-Corner Polygon Test (purple)** — captures that same selected lower
+   HUD and warps the whole picture into one purple four-corner surface, so the
+   hotbar, bars, experience, and held-item text all bend with the quad you
+   position. There is never a second dark rectangle left at the bottom of the
+   screen. Its tab exposes one X/Y percentage pair per handle. At level view
+   those saved positions are exact; optional live pitch response moves the
+   corners as the player looks up or down, and the warped HUD moves with them.
+   It maps the bottom of the strip where the HUD actually draws, and it stays
+   active regardless of the physical panel's position because its target is
+   placed by four GUI-space handles rather than by the world-plane geometry.
+   The warped surface is composited over the GUI for the area it covers, so it
+   can draw over whatever else sits inside its four corners (for example the
+   crosshair region) while the quad is on screen.
 
-Every HUD method draws a **full-width, eight-pixel colour band** inside the panel's
-source rectangle: green for Method 1, blue for Method 2, and red for Method 3.
-The band is part of the captured texture in Methods 2 and 3, so it follows the
-same mesh or world plane rather than becoming a separate screen overlay.
+Methods 1, 2, and 3 draw a **full-width, eight-pixel colour band** inside the
+panel's source rectangle: green for Method 1, blue for Method 2, and red for
+Method 3. The band is part of the captured texture, so it follows the same mesh
+or world plane rather than becoming a separate screen overlay. Method 4 marks
+itself with its purple border and four corner handles instead, and those are
+part of the captured texture too.
 
-The **Panel Positioning & Orientation** controls are shared by all three
-methods and model a real waist-height **flat Minecraft-map surface** rather
-than a card that follows camera pitch:
+The **Panel Positioning & Orientation** controls are shared by the three
+physical methods and model a real waist-height **flat Minecraft-map surface**
+rather than a card that follows camera pitch:
 
 - **Forward Distance**, **Horizontal Offset**, and **Vertical Offset** place
   the panel around the player. The default vertical offset is waist-high.
@@ -144,12 +154,13 @@ separately registered overlay enters the capture target.
 
 ### Compatibility boundary
 
-**Balanced Captured Warp**, **Strong Projective Warp**, and **World-Space
-Texture** use two narrowly scoped renderer hooks solely for their private
-bottom-HUD renderer; normal GUI renderers never meet their identity check.
-World-Space Texture additionally submits only that finished private texture to
-the level render pass. With **Gameplay Only** enabled (the default), all three
-methods bypass private capture whenever another screen is open. That includes:
+**Balanced Captured Warp**, **Strong Projective Warp**, **World-Space
+Texture**, and the **Four-Corner Polygon Test** all use the same two narrowly
+scoped renderer hooks solely for their private bottom-HUD renderer; normal GUI
+renderers never meet their identity check. World-Space Texture additionally
+submits only that finished private texture to the level render pass. With
+**Gameplay Only** enabled (the default), all four methods bypass private
+capture whenever another screen is open. That includes:
 
 - inventory, creative inventory, chest, crafting, furnace, anvil, and other
   container screens
@@ -179,22 +190,28 @@ let a companion mod own a part if two mods draw it twice.
 
 Open **Mod Menu → Spatial HUD → Configure** or press **H**. The underlying
 configuration file is `config/spatialhud.json`. The screen has one read-only
-explanation tab plus three focused settings sections:
+explanation tab plus four focused settings sections:
 
 - **Method Guide — Read This First** is a plain-language, read-only comparison
-  of the green stable path, blue true projective mesh, and red real world panel.
-  It contains no settings and is never saved into the configuration file.
+  of the green stable path, blue true projective mesh, red real world panel, and
+  purple four-corner HUD warp. It contains no settings and is never saved into
+  the configuration file.
 - **Setup** combines the enable switch, panel visibility, gameplay boundary,
   companion-bar safeguard, and one simple **Render Mode Slider**.
-- **Panel Positioning & Orientation** keeps every geometric control together:
+- **Panel Positioning & Orientation** keeps the three physical methods'
+  geometric controls together:
   distance, size, offsets, three-axis rotation, the flat-map tilt, and the
   Method 3 anchor and terrain-occlusion choices. The Method 3-only tooltips
   explicitly say when a setting is ignored by the other two methods.
 - **Purple Polygon Test** provides eight percentage sliders—X and Y for each
   top-left, top-right, bottom-right, and bottom-left handle. They affect only
-  Method 4's one direct purple/white target. **Follow Camera Pitch** enables
-  live motion as the player looks up or down, and **Pitch Response Strength**
-  controls its amount; disable pitch following for a perfectly fixed target.
+  Method 4, and they set the four corners that the captured lower HUD is warped
+  onto. **Follow Camera Pitch** enables live motion as the player looks up or
+  down, and **Pitch Response Strength** controls its amount; disable pitch
+  following for a perfectly fixed target. **Show Backing Panel** controls
+  Method 4's translucent purple interior; the purple border and corner handles
+  always remain. Anything another mod draws higher than the bottom of the strip
+  stays outside the quad.
 - **HUD Contents** chooses which lower-HUD roots Spatial HUD owns.
 
 Minecraft Controls contains:

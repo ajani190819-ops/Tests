@@ -55,6 +55,16 @@ public final class ExperimentalHudCapture {
 	private static final RenderPipeline WARP_PIPELINE = RenderPipelines.GUI_TEXTURED;
 	private static final StagedVertexBuffer WARP_BUFFER = new StagedVertexBuffer(
 			() -> "Spatial HUD experimental warp mesh", RenderType.SMALL_BUFFER_SIZE);
+	// Method 4's purple identity colours. The interior is deliberately
+	// translucent so the warped HUD stays readable on top of it.
+	private static final int POLYGON_BACKING_COLOR = 0x7031004D;
+	private static final int POLYGON_EDGE_COLOR = 0xFFC75CFF;
+	private static final int POLYGON_HANDLE_COLOR = 0xFFFFD6FF;
+	private static final int POLYGON_HANDLE_INNER_COLOR = 0xFF6C1D8B;
+	// Height, in GUI pixels above the bottom of the screen, of the strip band
+	// that Method 4 warps onto its quad: hotbar, status bars, experience level,
+	// and held-item text.
+	private static final int POLYGON_SOURCE_HEIGHT = 72;
 	private static final Matrix4f IDENTITY = new Matrix4f();
 	private static final Vector3f ZERO = new Vector3f();
 	private static final Vector4f WHITE = new Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
@@ -117,6 +127,12 @@ public final class ExperimentalHudCapture {
 			// mouse state from leaking into this selected-only render state.
 			capturedGraphics = new GuiGraphicsExtractor(Minecraft.getInstance(), capturedState, -1, -1);
 			frameActive = true;
+			if (SpatialHudConfig.get().usesPolygonTest()) {
+				// Method 4's purple interior is painted before any vanilla root
+				// extracts, so the captured hotbar, bars, icons and text stay
+				// readable on top of it instead of being tinted by it.
+				capturePolygonBackdrop();
+			}
 		} catch (Throwable t) {
 			fallback(t, "preparing the selected bottom-HUD capture");
 		}
@@ -175,18 +191,24 @@ public final class ExperimentalHudCapture {
 			int top = (int) Math.floor(plane.sourceTop());
 			int bottom = (int) Math.ceil(plane.sourceBottom());
 			if (cfg.usesPolygonTest()) {
-				// Method 4's purple backing, outline, and four source-corner handles
-				// are captured with the hotbar/status roots. The polygon composite
-				// maps these same pixels to the four GUI-space control points.
-				capturedGraphics.fill(left, top, right, bottom, 0x9831004D);
-				capturedGraphics.fill(left, top, right, top + 3, 0xFFC75CFF);
-				capturedGraphics.fill(left, bottom - 3, right, bottom, 0xFFC75CFF);
-				capturedGraphics.fill(left, top, left + 3, bottom, 0xFFC75CFF);
-				capturedGraphics.fill(right - 3, top, right, bottom, 0xFFC75CFF);
-				drawPolygonHandle(left, top, 1, 1);
-				drawPolygonHandle(right, top, -1, 1);
-				drawPolygonHandle(right, bottom, -1, -1);
-				drawPolygonHandle(left, bottom, 1, -1);
+				// Method 4's purple border and four corner handles are captured
+				// together with the hotbar/status roots. The polygon composite
+				// maps these same pixels onto the four GUI-space control points,
+				// so the visible outline lands exactly on the configured corners
+				// and follows the live pitch response with the rest of the quad.
+				SourceRect polygon = polygonSourceRect(cfg);
+				int edgeLeft = polygon.left();
+				int edgeTop = polygon.top();
+				int edgeRight = polygon.right();
+				int edgeBottom = polygon.bottom();
+				capturedGraphics.fill(edgeLeft, edgeTop, edgeRight, edgeTop + 3, POLYGON_EDGE_COLOR);
+				capturedGraphics.fill(edgeLeft, edgeBottom - 3, edgeRight, edgeBottom, POLYGON_EDGE_COLOR);
+				capturedGraphics.fill(edgeLeft, edgeTop, edgeLeft + 3, edgeBottom, POLYGON_EDGE_COLOR);
+				capturedGraphics.fill(edgeRight - 3, edgeTop, edgeRight, edgeBottom, POLYGON_EDGE_COLOR);
+				drawPolygonHandle(edgeLeft, edgeTop, 1, 1);
+				drawPolygonHandle(edgeRight, edgeTop, -1, 1);
+				drawPolygonHandle(edgeRight, edgeBottom, -1, -1);
+				drawPolygonHandle(edgeLeft, edgeBottom, 1, -1);
 			} else {
 				if (cfg.showPanel) {
 					capturedGraphics.fill(left, top, right, bottom, 0x80101018);
@@ -210,8 +232,53 @@ public final class ExperimentalHudCapture {
 	private static void drawPolygonHandle(int cornerX, int cornerY, int xDirection, int yDirection) {
 		int x0 = xDirection > 0 ? cornerX : cornerX - 10;
 		int y0 = yDirection > 0 ? cornerY : cornerY - 10;
-		capturedGraphics.fill(x0, y0, x0 + 10, y0 + 10, 0xFFFFD6FF);
-		capturedGraphics.fill(x0 + 2, y0 + 2, x0 + 8, y0 + 8, 0xFF6C1D8B);
+		capturedGraphics.fill(x0, y0, x0 + 10, y0 + 10, POLYGON_HANDLE_COLOR);
+		capturedGraphics.fill(x0 + 2, y0 + 2, x0 + 8, y0 + 8, POLYGON_HANDLE_INNER_COLOR);
+	}
+
+	/**
+	 * Method 4's translucent purple interior. It is painted before the selected
+	 * roots so the captured pixels stay readable on top of it. The border and
+	 * corner handles are added afterwards by {@link #capturePanelDecorations},
+	 * and the whole rectangle is mapped onto the configured corners, so the
+	 * pitch response moves this surface with the rest of the quad.
+	 */
+	private static void capturePolygonBackdrop() {
+		// Whatever the other settings are, the quad itself is the control
+		// surface for Method 4, so the frame always has visible content.
+		frameHasContent = true;
+		SpatialHudConfig cfg = SpatialHudConfig.get();
+		if (!cfg.showPanel) {
+			// Show Backing Panel owns the interior tint here exactly as it owns
+			// the backing of the other methods. The border and handles remain.
+			return;
+		}
+		SourceRect rect = polygonSourceRect(cfg);
+		capturedGraphics.fill(rect.left(), rect.top(), rect.right(), rect.bottom(), POLYGON_BACKING_COLOR);
+	}
+
+	/**
+	 * The source band Method 4 maps onto the four corners: the full width of the
+	 * captured strip, but only its bottom {@link #POLYGON_SOURCE_HEIGHT} GUI
+	 * pixels. That is where the hotbar, status bars, experience and held-item
+	 * text actually draw, so the quad fills with HUD instead of showing the
+	 * hotbar in its bottom quarter under mostly empty purple.
+	 *
+	 * <p>The bottom edge is clamped to the real GUI because the plane
+	 * deliberately samples a few pixels below the screen: that line is clipped
+	 * away, and its pixels arrive transparent.</p>
+	 */
+	private static SourceRect polygonSourceRect(SpatialHudConfig cfg) {
+		VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
+		int left = (int) Math.floor(Math.max(0.0f, plane.sourceLeft()));
+		int right = (int) Math.ceil(Math.min(guiWidth, plane.sourceRight()));
+		int bottom = (int) Math.ceil(Math.min(guiHeight, plane.sourceBottom()));
+		int top = Math.max(0, bottom - POLYGON_SOURCE_HEIGHT);
+		return new SourceRect(left, top, right, bottom);
+	}
+
+	/** Inclusive-exclusive GUI pixel bounds of the painted capture surface. */
+	private record SourceRect(int left, int top, int right, int bottom) {
 	}
 
 	/** The GuiRenderer mixin uses this strict identity check for target routing. */
@@ -440,24 +507,28 @@ public final class ExperimentalHudCapture {
 	private static void addPolygonTestMesh(VertexConsumer vertices, SpatialHudConfig cfg) {
 		VirtualHudPlane source = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
 		PolygonTestRenderer.Quad target = PolygonTestRenderer.quad(cfg, guiWidth, guiHeight);
+		// Sample exactly the band that carries the painted purple border and the
+		// HUD pixels, so the configured corners land on painted source and the
+		// whole quad fills with the warped strip.
+		SourceRect painted = polygonSourceRect(cfg);
 		for (int row = 0; row < MESH_ROWS; row++) {
 			float v0 = row / (float) MESH_ROWS;
 			float v1 = (row + 1) / (float) MESH_ROWS;
 			for (int column = 0; column < MESH_COLUMNS; column++) {
 				float u0 = column / (float) MESH_COLUMNS;
 				float u1 = (column + 1) / (float) MESH_COLUMNS;
-				addPolygonTestVertex(vertices, source, target, u0, v0);
-				addPolygonTestVertex(vertices, source, target, u1, v0);
-				addPolygonTestVertex(vertices, source, target, u1, v1);
-				addPolygonTestVertex(vertices, source, target, u0, v1);
+				addPolygonTestVertex(vertices, source, painted, target, u0, v0);
+				addPolygonTestVertex(vertices, source, painted, target, u1, v0);
+				addPolygonTestVertex(vertices, source, painted, target, u1, v1);
+				addPolygonTestVertex(vertices, source, painted, target, u0, v1);
 			}
 		}
 	}
 
 	private static void addPolygonTestVertex(VertexConsumer vertices, VirtualHudPlane source,
-			PolygonTestRenderer.Quad target, float u, float v) {
-		float sourceX = lerp(source.sourceLeft(), source.sourceRight(), u);
-		float sourceY = lerp(source.sourceTop(), source.sourceBottom(), v);
+			SourceRect painted, PolygonTestRenderer.Quad target, float u, float v) {
+		float sourceX = lerp(painted.left(), painted.right(), u);
+		float sourceY = lerp(painted.top(), painted.bottom(), v);
 		PolygonTestRenderer.Point destination = target.project(u, v);
 		vertices.addVertex(IDENTITY, destination.x(), destination.y(), 0.0f)
 				.setUv(source.textureU(sourceX), source.textureV(sourceY))

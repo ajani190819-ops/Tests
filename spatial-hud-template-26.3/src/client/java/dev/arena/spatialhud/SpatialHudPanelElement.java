@@ -7,9 +7,15 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
- * An optional translucent backing panel and a full-width method-colour band
- * beneath the spatial strip. It is also the single per-frame camera-pose
- * update point, before wrapped HUD elements read the shared pose.
+ * Starts the private lower-HUD capture for the active mode and draws the
+ * optional translucent backing panel and full-width method-colour band beneath
+ * the spatial strip. It is also the single per-frame camera-pose update point,
+ * before wrapped HUD elements read the shared pose.
+ *
+ * <p>Method 4 uses this same private texture: its purple interior, border, and
+ * four corner handles are captured together with the selected vanilla roots,
+ * and the composite maps that whole source rectangle onto the configured
+ * corners.</p>
  */
 final class SpatialHudPanelElement implements HudElement {
 	@Override
@@ -25,9 +31,19 @@ final class SpatialHudPanelElement implements HudElement {
 		SpatialHud.updateViewPose();
 
 		if (cfg.usesPolygonTest()) {
-			// Method 4 is intentionally a single, self-contained purple test
-			// surface. Do not begin the lower-HUD texture capture here: that path
-			// adds a second dark panel and makes the editable target ambiguous.
+			// Method 4 textures the selected lower HUD into the four purple
+			// GUI corners, so the private capture has to start here - before the
+			// wrapped vanilla roots extract below. The purple interior, border
+			// and corner handles belong to that same texture, which is why
+			// nothing else is drawn while the capture is running: one surface,
+			// already following the live pitch response of the target quad.
+			ExperimentalHudCapture.beginFrame(graphics);
+			if (ExperimentalHudCapture.isFrameActive() && ExperimentalHudCapture.capturePanelDecorations(cfg)) {
+				return;
+			}
+			// Capture unavailable or failed for this frame. Keep the plain
+			// outline and handles visible so the quad can still be seen and
+			// tuned by hand while the vanilla HUD stays readable.
 			PolygonTestRenderer.drawGuide(graphics, cfg);
 			return;
 		}
@@ -48,11 +64,6 @@ final class SpatialHudPanelElement implements HudElement {
 		// must not also draw here, or an affine duplicate would diverge from the
 		// true projective/world surface.
 		if (ExperimentalHudCapture.capturePanelDecorations(cfg)) {
-			return;
-		}
-		if (cfg.usesPolygonTest()) {
-			// Capture failed or is unavailable. Never draw an unwarped duplicate
-			// of the test panel while Method 4 is selected.
 			return;
 		}
 
