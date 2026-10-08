@@ -115,11 +115,31 @@ branch builds and publishes automatically — this is a one-time paste.
 
 ## Action 2 — replace your saved updater once (needed for the new menu)
 
-Save this file over the `Update-SpatialHUD.bat` you already have (right-click →
-**Save link as…**, or open it and use File → Save page as, keeping the name
-exactly `Update-SpatialHUD.bat`):
+The `.bat` file you already have loads its menu from the **previous** session's
+branch, which is why your menu has no "choose the build" option yet. Replace
+that one file with the current copy.
 
-https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/b4016c28-tests/spatial-hud-template-26.3/Update-SpatialHUD.bat
+**Easiest route (browser):**
+
+1. Open
+   https://github.com/ajani190819-ops/Tests/blob/arena/b4016c28-tests/spatial-hud-template-26.3/Update-SpatialHUD.bat
+2. Click the **download** icon near the top-right of the file view
+   (**Download raw file**), or right-click the **Raw** button and choose
+   **Save link as…**.
+3. Save it over your existing `Update-SpatialHUD.bat` — usually in your
+   **Downloads** folder. Keep the name exactly `Update-SpatialHUD.bat`.
+
+**Alternative route (one line, no browser saving):** press **Windows key**, type
+`powershell`, open it, paste this, and press Enter. It writes the file straight
+into your Downloads folder:
+
+```powershell
+Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/b4016c28-tests/spatial-hud-template-26.3/Update-SpatialHUD.bat' -OutFile "$env:USERPROFILE\Downloads\Update-SpatialHUD.bat"
+```
+
+**How to tell the new menu loaded:** its top lines include a **`Build:`** row
+(saying `Newest successful build, any branch` or a branch name), and the menu
+has **seven** numbered options. The old menu has no `Build:` row.
 
 Double-click the saved file. Its menu now has:
 
@@ -137,6 +157,12 @@ Double-click the saved file. Its menu now has:
 Choose **2**, pick the branch you want, then choose **1** to install it. The
 choice is remembered, so later runs install that same branch until you change
 it. **[R]** inside the list goes back to "newest build on any branch".
+
+While no branch has built yet, option **2** says so instead of showing an empty
+list — that is expected until action 1 finishes a build, because a branch can
+only be offered once its jar exists. Option **1** still installs the newest
+build on any branch in the meantime, and it replaces the Spatial HUD jar in your
+F5W `mods` folder by itself (close Minecraft first).
 
 This one replacement is permanent: the file reads the newer of its two helper
 copies by a version marker, so it keeps working after the branch is merged into

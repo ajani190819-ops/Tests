@@ -308,7 +308,11 @@ function Select-InstallBuild {
         Write-Host (" [{0}] {1} - {2} - {3:N1} KB" -f ($position + 2), $item.Branch, (Format-BuildAge $item.UpdatedAt), ($item.Size / 1KB))
     }
     if ($rows.Count -lt 1) {
-        Write-Host ' No branch builds are published yet.'
+        # Never leave an empty list looking broken: say why it is empty and
+        # what can be installed instead.
+        Write-Host ' No branch builds are published yet.' -ForegroundColor Yellow
+        Write-Host ' A branch appears here after its own GitHub build succeeds.'
+        Write-Host ' [R] installs the newest build on any branch until then.'
     }
     Write-Host ''
     Write-Host ' Released main first, then the five most recently built branches.'

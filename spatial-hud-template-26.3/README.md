@@ -56,7 +56,8 @@ Pick the build whose behavior you want to test, then install it:
 than this build picker, replace that file once with the current copy from
 <https://raw.githubusercontent.com/ajani190819-ops/Tests/main/spatial-hud-template-26.3/Update-SpatialHUD.bat>
 (or from the `arena/...` branch you are testing). Older copies still install the
-newest build correctly, but they show the older menu. After this one
+newest build correctly, but they show the older menu — the quick check is the
+**`Build:`** row in the menu header, which only the current updater shows. After this one
 replacement, the file keeps working on its own: it reads the newer of its two
 helper copies by a version marker, so it survives a merge without any further
 download.
