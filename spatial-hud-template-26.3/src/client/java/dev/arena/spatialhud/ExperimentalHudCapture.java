@@ -171,11 +171,12 @@ public final class ExperimentalHudCapture {
 	}
 
 	/**
-	 * Draw the optional backing and the active-method indicator into the same
-	 * isolated source texture as the vanilla roots. The green/blue/red marker is
-	 * part of the captured surface in both texture methods, never an unrelated
-	 * GUI overlay. It remains visible as a full-width identity band even when
-	 * the player hides the backing panel.
+	 * Draw the active mode's own identity decorations into the same isolated
+	 * source texture as the vanilla roots: the optional backing and the
+	 * full-width method band for Methods 1-3, or the purple border and four
+	 * corner handles for Method 4. All of them are part of the captured
+	 * surface, never an unrelated GUI overlay, and the band stays visible even
+	 * when the player hides the backing panel.
 	 */
 	static boolean capturePanelDecorations(SpatialHudConfig cfg) {
 		if (!isFrameActive()) {
@@ -183,7 +184,7 @@ public final class ExperimentalHudCapture {
 		}
 		try {
 			VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
-			// Draw only inside the source rectangle sampled by Methods 2 and 3.
+			// Draw only inside the source rectangle sampled by the other methods.
 			// Painting a margin outside it would make an indicator disappear during
 			// the texture presentation even though it appeared in Method 1.
 			int left = (int) Math.floor(plane.sourceLeft());
