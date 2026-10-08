@@ -119,13 +119,13 @@ public class SpatialHud implements ClientModInitializer {
 			}
 
 			while (toggleHudKey.consumeClick()) {
-				SpatialHudConfig cfg = SpatialHudConfig.get();
-				cfg.enabled = !cfg.enabled;
+				SpatialHudConfig toggleConfig = SpatialHudConfig.get();
+				toggleConfig.enabled = !toggleConfig.enabled;
 				SpatialHudConfig.save();
-				if (!cfg.enabled) {
+				if (!toggleConfig.enabled) {
 					resetSway();
 				}
-				LOGGER.info("Spatial HUD toggled {}.", cfg.enabled ? "on" : "off");
+				LOGGER.info("Spatial HUD toggled {}.", toggleConfig.enabled ? "on" : "off");
 			}
 
 			while (selectMethodOneKey.consumeClick()) {
