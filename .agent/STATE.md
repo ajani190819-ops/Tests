@@ -29,16 +29,18 @@
   angles. Method 3 is intentionally configurable per the user's selection.
 - H opens settings; a separate unbound Toggle Spatial HUD action remains in
   Minecraft Controls.
-- The supplied `latest.log` did not show a title-screen launch crash: it
-  reached and ran a world, but its startup message was from an older Spatial HUD
-  JAR and it logged Cloth Config trying to make a GUI for `SpatialHudConfig`'s
-  private static singleton. `d6aae3a` excludes those runtime fields and keeps
-  all Method 3 GPU pipeline/buffer allocation lazy, so Method 1/2 startup no
-  longer initializes an unused world render pass.
-- GitHub Actions run `37709400728` compiled and published `d6aae3a` with JDK
-  25; the rolling JAR was updated at 2026-10-08 00:45 UTC. A local Gradle build
-  is unavailable because this sandbox has no Java runtime; static
-  JSON/reference/whitespace contracts passed locally.
+- The attached log identifies the actual launch failure: custom pipeline
+  `spatialhud:world_texture_through_world` fails resource reload because its
+  cloned entity snippet requests undefined `Sampler1`. Fabric then aborts
+  loading, explaining the missing mod/UI and disturbed resource/animation
+  state. `036ca35` removes that custom shader pipeline completely: Method 3
+  now uses only vanilla `ENTITY_TRANSLUCENT` (depth on) and `GUI_TEXTURED`
+  (depth off) pipelines. No Spatial HUD custom pipeline is registered.
+- `d6aae3a` also excludes Cloth Config runtime singletons and keeps Method 3's
+  GPU buffer lazy. GitHub Actions run `37711539940` compiled and published
+  `036ca35` with JDK 25; the rolling JAR was updated at 2026-10-08 01:10 UTC.
+  A local Gradle build is unavailable because this sandbox has no Java runtime;
+  static JSON/reference/whitespace contracts passed locally.
 
 ### Direct Modrinth updater
 
@@ -65,10 +67,10 @@
 
 ## Next action
 
-1. Install the rolling JAR updated at 2026-10-08 00:45 UTC in F5W, replacing
-   every older `spatial-hud` JAR. On startup, search `latest.log` for
-   `Spatial HUD render-method build initialized`; without that exact line, the
-   current artifact is not the JAR Fabric loaded.
+1. Install the rolling JAR updated at 2026-10-08 01:10 UTC in F5W, replacing
+   every older `spatial-hud` JAR. The new `latest.log` must contain
+   `Spatial HUD render-method build initialized` and must not contain
+   `spatialhud:world_texture_through_world` or `Sampler1`.
 2. Verify H opens the config without a `No GUI provider registered for field
    ... SpatialHudConfig.instance` error. Confirm Render Method has all three
    named choices with descriptions.

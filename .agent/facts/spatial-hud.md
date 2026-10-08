@@ -2,8 +2,8 @@
 
 - Status: three named renderer methods compile; all F5W runtime results remain
   pending.
-- Last verified: 2026-10-08 CI build `37709400728` for startup isolation fix
-  `d6aae3a`; no Method 3 runtime result exists yet.
+- Last verified: 2026-10-08 CI build `37711539940` for shader-startup fix
+  `036ca35`; no Method 3 runtime result exists yet.
 - Read when: changing Spatial HUD code, its updater, or F5W compatibility.
 
 ## Source and release
@@ -35,12 +35,17 @@
 - `WorldSpaceHudRenderer.java` extracts a physical Method 3 quad during level
   extraction and draws the previous completed private texture after translucent
   terrain. `worldSpaceAnchor` selects Camera Yaw or Player Body; depth texture
-  attachment is selected by `worldSpaceOccludeBehindWorld`. Its custom pipeline
-  and GPU buffer are lazy: Method 1/2 startup never creates them.
+  attachment is selected by `worldSpaceOccludeBehindWorld`. It uses **only
+  vanilla pipelines**: `ENTITY_TRANSLUCENT` for depth-occluded rendering and
+  `GUI_TEXTURED` for through-world rendering. Its GPU buffer is lazy.
+- The attached F5W log found the real startup failure in `d2308fb`:
+  `spatialhud:world_texture_through_world` cloned an entity snippet that
+  requested undefined `Sampler1`, causing required shader-program reload
+  failure. `036ca35` removes that custom pipeline entirely.
 - `SpatialHudConfig.instance` and `registered` are explicitly excluded from
-  Cloth Config. The supplied F5W log showed Cloth Config trying to expose the
-  private `instance` singleton as a setting; that GUI-provider error is fixed
-  in `d6aae3a`.
+  Cloth Config. The supplied F5W log also showed Cloth Config trying to expose
+  the private `instance` singleton as a setting; that GUI-provider error is
+  fixed in `d6aae3a`.
 - `SpatialHudGameRendererMixin.java` completes the private capture after the
   normal `GuiRenderer` call and closes Method 3's GPU buffer on shutdown.
 - `SpatialHudGuiRendererMixin.java` redirects only the private captured
