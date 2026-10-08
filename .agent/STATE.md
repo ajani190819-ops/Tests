@@ -35,9 +35,9 @@
   (up axis), and **Roll** (panel-normal axis; positive raises the right edge).
   Method 1 stays the native affine compatibility approximation at this same
   physical location; Method 2 is the actual per-pixel tapered mesh; Method 3
-  is the actual tapered world quad. GitHub Actions run `37716303182` compiled
-  and published `b772d72` with JDK 25; the rolling JAR was updated at
-  2026-10-08 02:07 UTC. H opens settings; a separate unbound Toggle Spatial
+  is the actual tapered world quad. GitHub Actions run `37730150490` compiled
+  and published `7964948` with JDK 25; the rolling JAR was updated at
+  2026-10-08 05:00 UTC. H opens settings; a separate unbound Toggle Spatial
   HUD action remains in Minecraft Controls.
 - The attached log identifies the actual launch failure: custom pipeline
   `spatialhud:world_texture_through_world` fails resource reload because its
@@ -85,7 +85,7 @@
 
 ## Next action
 
-1. Install the rolling JAR updated at 2026-10-08 02:07 UTC in F5W, replacing
+1. Install the rolling JAR updated at 2026-10-08 05:00 UTC in F5W, replacing
    every older `spatial-hud` JAR. The new `latest.log` must contain
    `Spatial HUD render-method build initialized` and must not contain
    `spatialhud:world_texture_through_world` or `Sampler1`.
