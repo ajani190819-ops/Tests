@@ -229,7 +229,11 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public boolean showHeldItemName = true;
 
+	// AutoConfig reflects fields when constructing Cloth Config. These are runtime
+	// singletons, never settings; excluding them prevents a config-screen error.
+	@ConfigEntry.Gui.Excluded
 	private static SpatialHudConfig instance;
+	@ConfigEntry.Gui.Excluded
 	private static boolean registered;
 
 	/** Register once early in client startup, then load the saved configuration. */

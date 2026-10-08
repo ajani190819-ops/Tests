@@ -123,7 +123,7 @@ public class SpatialHud implements ClientModInitializer {
 			}
 		});
 
-		LOGGER.info("Spatial HUD initialized. Press H to open settings; use Mod Menu as an alternative.");
+		LOGGER.info("Spatial HUD render-method build initialized. Press H to open settings; use Mod Menu as an alternative.");
 	}
 
 	public static boolean isEnabled() {

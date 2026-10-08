@@ -43,19 +43,13 @@ public final class WorldSpaceHudRenderer {
 	private static final Identifier THROUGH_WORLD_PIPELINE_ID =
 			Identifier.fromNamespaceAndPath("spatialhud", "world_texture_through_world");
 
-	/** Vanilla entity texture pipeline: translucent and depth-tested. */
-	private static final RenderPipeline OCCLUDED_PIPELINE = RenderPipelines.ENTITY_TRANSLUCENT;
-
-	/** The same entity-texture vertex layout with no depth attachment or test. */
-	private static final RenderPipeline THROUGH_WORLD_PIPELINE = RenderPipelines.register(
-			RenderPipeline.builder(RenderPipelines.ENTITY_SNIPPET)
-					.withLocation(THROUGH_WORLD_PIPELINE_ID)
-					.withDepthStencilState(Optional.empty())
-					.withCull(false)
-					.build());
-
-	private static final StagedVertexBuffer BUFFER = new StagedVertexBuffer(
-				() -> "Spatial HUD world-space texture", RenderType.SMALL_BUFFER_SIZE);
+	/*
+	 * Keep GPU resources uninitialized until Method 3 is actually selected.
+	 * Method 1 and Method 2 must be able to launch in an Iris-heavy profile
+	 * without asking that renderer to compile or override an unused world pass.
+	 */
+	private static RenderPipeline throughWorldPipeline;
+	private static StagedVertexBuffer buffer;
 	private static final Vector4f WHITE = new Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
 	private static final Vector3f ZERO = new Vector3f();
 	private static final Matrix4f IDENTITY = new Matrix4f();
@@ -72,6 +66,27 @@ public final class WorldSpaceHudRenderer {
 		initialized = true;
 		LevelExtractionEvents.END_EXTRACTION.register(WorldSpaceHudRenderer::extractPlane);
 		LevelRenderEvents.AFTER_TRANSLUCENT_TERRAIN.register(WorldSpaceHudRenderer::renderPlane);
+	}
+
+	/** Only Method 3 asks Iris/the active renderer to prepare this custom pass. */
+	private static RenderPipeline throughWorldPipeline() {
+		if (throughWorldPipeline == null) {
+			throughWorldPipeline = RenderPipelines.register(
+					RenderPipeline.builder(RenderPipelines.ENTITY_SNIPPET)
+							.withLocation(THROUGH_WORLD_PIPELINE_ID)
+							.withDepthStencilState(Optional.empty())
+							.withCull(false)
+							.build());
+		}
+		return throughWorldPipeline;
+	}
+
+	private static StagedVertexBuffer buffer() {
+		if (buffer == null) {
+			buffer = new StagedVertexBuffer(
+					() -> "Spatial HUD world-space texture", RenderType.SMALL_BUFFER_SIZE);
+		}
+		return buffer;
 	}
 
 	/**
@@ -151,14 +166,17 @@ public final class WorldSpaceHudRenderer {
 		}
 
 		try {
-			RenderPipeline pipeline = state.occludeBehindWorld() ? OCCLUDED_PIPELINE : THROUGH_WORLD_PIPELINE;
+			RenderPipeline pipeline = state.occludeBehindWorld()
+					? RenderPipelines.ENTITY_TRANSLUCENT
+					: throughWorldPipeline();
 			VertexFormat format = pipeline.getVertexFormatBinding(0);
 			PrimitiveTopology primitive = pipeline.getPrimitiveTopology();
 			if (format == null || primitive != PrimitiveTopology.QUADS) {
 				throw new IllegalStateException("world-space HUD pipeline does not expose textured QUADS");
 			}
 
-			StagedVertexBuffer.Draw draw = BUFFER.appendDraw(format, primitive,
+			StagedVertexBuffer buffer = buffer();
+			StagedVertexBuffer.Draw draw = buffer.appendDraw(format, primitive,
 					RenderSystem.getProjectionType().vertexSorting());
 			try {
 				PoseStack matrices = context.poseStack();
@@ -166,17 +184,17 @@ public final class WorldSpaceHudRenderer {
 				matrices.pushPose();
 				try {
 					matrices.translate(-camera.x, -camera.y, -camera.z);
-					addQuad(BUFFER.getVertexBuilder(draw), matrices.last().pose(), state);
+					addQuad(buffer.getVertexBuilder(draw), matrices.last().pose(), state);
 				} finally {
 					matrices.popPose();
 				}
-				BUFFER.upload();
-				StagedVertexBuffer.ExecuteInfo info = BUFFER.getExecuteInfo(draw);
+				buffer.upload();
+				StagedVertexBuffer.ExecuteInfo info = buffer.getExecuteInfo(draw);
 				if (info != null) {
 					drawToLevelTarget(info, pipeline, texture, state.occludeBehindWorld());
 				}
 			} finally {
-				BUFFER.endFrame();
+				buffer.endFrame();
 			}
 		} catch (Throwable t) {
 			ExperimentalHudCapture.worldTextureFailed(t);
@@ -237,7 +255,10 @@ public final class WorldSpaceHudRenderer {
 	}
 
 	public static void close() {
-		BUFFER.close();
+		if (buffer != null) {
+			buffer.close();
+			buffer = null;
+		}
 	}
 
 	private record Point(float x, float y, float z) {
