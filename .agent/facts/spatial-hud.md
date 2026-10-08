@@ -1,9 +1,9 @@
 # Spatial HUD facts
 
 - Status: the experimental renderer was restored to its prior camera-yaw
-  capture path; a new build and F5W runtime result are pending.
-- Last verified: 2026-10-07 CI build `37705190664` for superseded refactor
-  `bb99cda`; no rollback runtime result exists yet.
+  capture path; an F5W runtime result is pending.
+- Last verified: 2026-10-08 CI build `37706894548` for recovery `5c245d5`;
+  no rollback runtime result exists yet.
 - Read when: changing Spatial HUD code, its updater, or F5W compatibility.
 
 ## Source and release
