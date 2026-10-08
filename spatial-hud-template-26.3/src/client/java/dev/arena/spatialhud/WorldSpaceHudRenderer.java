@@ -20,7 +20,6 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.StagedVertexBuffer;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -40,15 +39,11 @@ import java.util.OptionalDouble;
  * normal GUI or world renderer.</p>
  */
 public final class WorldSpaceHudRenderer {
-	private static final Identifier THROUGH_WORLD_PIPELINE_ID =
-			Identifier.fromNamespaceAndPath("spatialhud", "world_texture_through_world");
-
 	/*
-	 * Keep GPU resources uninitialized until Method 3 is actually selected.
-	 * Method 1 and Method 2 must be able to launch in an Iris-heavy profile
-	 * without asking that renderer to compile or override an unused world pass.
+	 * The world-space method intentionally uses only vanilla precompiled
+	 * pipelines. A custom pipeline caused F5W/Iris resource reload failure when
+	 * the entity snippet declared sampler uniforms the shader did not provide.
 	 */
-	private static RenderPipeline throughWorldPipeline;
 	private static StagedVertexBuffer buffer;
 	private static final Vector4f WHITE = new Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
 	private static final Vector3f ZERO = new Vector3f();
@@ -66,19 +61,6 @@ public final class WorldSpaceHudRenderer {
 		initialized = true;
 		LevelExtractionEvents.END_EXTRACTION.register(WorldSpaceHudRenderer::extractPlane);
 		LevelRenderEvents.AFTER_TRANSLUCENT_TERRAIN.register(WorldSpaceHudRenderer::renderPlane);
-	}
-
-	/** Only Method 3 asks Iris/the active renderer to prepare this custom pass. */
-	private static RenderPipeline throughWorldPipeline() {
-		if (throughWorldPipeline == null) {
-			throughWorldPipeline = RenderPipelines.register(
-					RenderPipeline.builder(RenderPipelines.ENTITY_SNIPPET)
-							.withLocation(THROUGH_WORLD_PIPELINE_ID)
-							.withDepthStencilState(Optional.empty())
-							.withCull(false)
-							.build());
-		}
-		return throughWorldPipeline;
 	}
 
 	private static StagedVertexBuffer buffer() {
@@ -166,9 +148,12 @@ public final class WorldSpaceHudRenderer {
 		}
 
 		try {
+			// Both are vanilla precompiled pipelines. ENTITY_TRANSLUCENT uses the
+			// depth texture; GUI_TEXTURED deliberately does not, so it appears
+			// through terrain without needing a custom shader definition.
 			RenderPipeline pipeline = state.occludeBehindWorld()
 					? RenderPipelines.ENTITY_TRANSLUCENT
-					: throughWorldPipeline();
+					: RenderPipelines.GUI_TEXTURED;
 			VertexFormat format = pipeline.getVertexFormatBinding(0);
 			PrimitiveTopology primitive = pipeline.getPrimitiveTopology();
 			if (format == null || primitive != PrimitiveTopology.QUADS) {
@@ -184,7 +169,8 @@ public final class WorldSpaceHudRenderer {
 				matrices.pushPose();
 				try {
 					matrices.translate(-camera.x, -camera.y, -camera.z);
-					addQuad(buffer.getVertexBuilder(draw), matrices.last().pose(), state);
+					addQuad(buffer.getVertexBuilder(draw), matrices.last().pose(), state,
+							state.occludeBehindWorld());
 				} finally {
 					matrices.popPose();
 				}
@@ -201,22 +187,38 @@ public final class WorldSpaceHudRenderer {
 		}
 	}
 
-	private static void addQuad(VertexConsumer vertices, Matrix4fc matrix, PlaneState state) {
-		// Entity-texture pipelines use UV0, overlay UV1, lightmap UV2, and a
-		// normal. Full-bright keeps the HUD legible under Method 3 lighting.
-		addVertex(vertices, matrix, state.bottomLeft(), 0.0f, 1.0f);
-		addVertex(vertices, matrix, state.bottomRight(), 1.0f, 1.0f);
-		addVertex(vertices, matrix, state.topRight(), 1.0f, 0.0f);
-		addVertex(vertices, matrix, state.topLeft(), 0.0f, 0.0f);
+	private static void addQuad(VertexConsumer vertices, Matrix4fc matrix, PlaneState state,
+			boolean occludeBehindWorld) {
+		if (occludeBehindWorld) {
+			// ENTITY_TRANSLUCENT uses UV0, overlay UV1, lightmap UV2, and a normal.
+			// Full-bright keeps the HUD legible on the depth-tested world plane.
+			addEntityVertex(vertices, matrix, state.bottomLeft(), 0.0f, 1.0f);
+			addEntityVertex(vertices, matrix, state.bottomRight(), 1.0f, 1.0f);
+			addEntityVertex(vertices, matrix, state.topRight(), 1.0f, 0.0f);
+			addEntityVertex(vertices, matrix, state.topLeft(), 0.0f, 0.0f);
+		} else {
+			// GUI_TEXTURED is a vanilla no-depth texture pipeline, with the same
+			// simple position/color/UV layout used by the GUI mesh renderer.
+			addGuiVertex(vertices, matrix, state.bottomLeft(), 0.0f, 1.0f);
+			addGuiVertex(vertices, matrix, state.bottomRight(), 1.0f, 1.0f);
+			addGuiVertex(vertices, matrix, state.topRight(), 1.0f, 0.0f);
+			addGuiVertex(vertices, matrix, state.topLeft(), 0.0f, 0.0f);
+		}
 	}
 
-	private static void addVertex(VertexConsumer vertices, Matrix4fc matrix, Point point, float u, float v) {
+	private static void addEntityVertex(VertexConsumer vertices, Matrix4fc matrix, Point point, float u, float v) {
 		vertices.addVertex(matrix, point.x(), point.y(), point.z())
 				.setColor(255, 255, 255, 255)
 				.setUv(u, v)
 				.setUv1(0, 10)
 				.setUv2(240, 240)
 				.setNormal(0.0f, 1.0f, 0.0f);
+	}
+
+	private static void addGuiVertex(VertexConsumer vertices, Matrix4fc matrix, Point point, float u, float v) {
+		vertices.addVertex(matrix, point.x(), point.y(), point.z())
+				.setColor(255, 255, 255, 255)
+				.setUv(u, v);
 	}
 
 	private static void drawToLevelTarget(StagedVertexBuffer.ExecuteInfo info, RenderPipeline pipeline,
