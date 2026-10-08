@@ -2,7 +2,7 @@
 
 - Status: four renderer modes compile in CI history; the Method 4 texture
   change is pushed but has no build or runtime result yet.
-- Last verified: source re-read on 2026-10-08 at `4f7162f`; the last CI build
+- Last verified: source re-read on 2026-10-08; the last CI build
   of any revision was run `37808537092` (previous session, now gone from this
   checkout's squashed history).
 - Read when: changing Spatial HUD code, its updater, or F5W compatibility.
@@ -14,12 +14,44 @@
   `spatial-hud-1.0.0.jar`.
 - GitHub workflow: `.github/workflows/build-spatial-hud.yml` (JDK 25,
   Temurin). Its `on.push.branches` list must be kept current; an agent
-  connection cannot edit `.github/workflows/**`, so a human pastes changes —
-  see `PASTE-ME-CI-SETUP.md`.
+  connection cannot edit `.github/workflows/**` and cannot dispatch a run, so a
+  human pastes changes — see `PASTE-ME-CI-SETUP.md`, which holds the current
+  file contents and both remedies.
 - Source version and asset name may stay `1.0.0`; identify a test build by
   commit hash and asset timestamp.
 - This checkout's git history is squashed, so commit hashes mentioned in older
   notes may not exist locally.
+
+## Updater and published builds
+
+- Two kinds of release, both updated by the same workflow run:
+  - `spatial-hud-latest` — the rolling feed. Asset name is always
+    `spatial-hud-1.0.0.jar`, which is the link in `README.md` and what every
+    older updater copy installs.
+  - `spatial-hud-build-<branch>` — one per branch, e.g.
+    `spatial-hud-build-arena-b4016c28-tests`, `spatial-hud-build-main`. Same
+    asset name inside it; release notes carry `Branch: <name>` (what the picker
+    shows), the short commit, and the build time. Each build of that branch
+    replaces the asset, so the entry holds that branch's newest jar.
+- `Update-SpatialHUD.ps1` is the menu helper (fetched fresh by the .bat each
+  run). It reads `/releases?per_page=100` once and lists
+  `spatial-hud-build-*`: **main first, then the five most recently built
+  branches**, with [A] all, [T] type a branch name, [R] newest build any
+  branch, [M]/Enter keep. Only branches with a published jar can appear.
+- Remembered state lives in `%LOCALAPPDATA%\SpatialHudUpdater`:
+  `target-directory.txt`, `release-tag.txt` (the chosen build, since every
+  branch build is a release tag), `build-choice.txt` (tag + branch label, two
+  lines), `folder-opener.txt`.
+- The helper's first lines carry `SpatialHUD-Helper-Version: N`.
+  `Update-SpatialHUD.bat` and `Get-Latest-SpatialHUD.bat` try `main` and then
+  the session branch, keep the higher version, and fall back to a plain `main`
+  fetch, so a saved .bat survives a merge without another download. A missing
+  marker counts as version 0.
+- Install safety is unchanged: download to a temp folder, verify the file is a
+  Spatial HUD jar via its own `fabric.mod.json` id, move old copies aside, then
+  replace and delete the backups only after the new jar is in place.
+- Not verified on Windows: no PowerShell is available in the agent sandbox. The
+  workflow's publish shell block was executed locally with a stubbed `gh`.
 
 ## Rendering design
 

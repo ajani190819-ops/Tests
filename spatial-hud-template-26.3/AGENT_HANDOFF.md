@@ -8,23 +8,24 @@
 This document is a concise continuity note for the next agent/chat. It describes
 the **currently released behavior**, plus the change that has not been built yet.
 
-## Build is blocked on you
+## Build and updater are blocked on you (two short actions)
 
-The rolling jar in the release still contains the **previous** revision; the
-Method 4 change is pushed but has never been compiled.
+The rolling jar still contains the **previous** revision: the Method 4 change
+and the updater change are pushed but never compiled.
 
 - `spatial-hud-1.0.0.jar`, 61,963 bytes, uploaded 2026-10-08 16:30 UTC, is the
-  old build and does **not** include this change.
-- Two reasons nothing built automatically:
-  1. the workflow still starts only for the previous session's branch
-     (`arena/c83497e6-tests`);
-  2. the agent's GitHub connection has no `workflows`/Actions permission, so it
-     can neither edit `.github/workflows/**` nor dispatch a run.
-- `PASTE-ME-CI-SETUP.md` (repository root) has both fixes: **option A** starts
-  one build from the Actions page with no pasting, **option B** replaces the
-  branch filter so every future agent push builds by itself.
-- The local workspace has no JDK and Gradle needs Maven hosts this sandbox
-  cannot reach, so CI is the only way to compile this mod.
+  old build.
+- Nothing built automatically because (1) the workflow still starts only for
+  the previous session's branch (`arena/c83497e6-tests`), and (2) the agent's
+  GitHub connection has no `workflows`/Actions permission, so it can neither
+  edit `.github/workflows/**` nor dispatch a run.
+- `PASTE-ME-CI-SETUP.md` (repository root) is the current, authoritative
+  instruction: **action 1** paste the updated workflow file on this branch
+  (that commit builds by itself and creates the per-branch releases), **action
+  2** replace the saved `Update-SpatialHUD.bat` once so the menu has the build
+  picker.
+- The local workspace has no JDK, no PowerShell and no Windows; Gradle also
+  needs Maven hosts this sandbox cannot reach. CI is the only way to compile.
 - Roll link:
   <https://github.com/ajani190819-ops/Tests/releases/download/spatial-hud-latest/spatial-hud-1.0.0.jar>
 
@@ -91,6 +92,31 @@ and `SpatialHudPanelElement` calls `SpatialHud.updateViewPose()` before drawing,
 so the value is current-frame rather than one frame stale. The composite reads
 the same `quad(...)` call, which is why the texture moves with the outline.
 
+## Updater: choosing a build (added 2026-10-08)
+
+The owner asked to pick a branch build from the updater instead of only taking
+the newest jar. Menu option **2** now offers:
+
+- `main` first, then the five most recently built branches;
+- [A] every branch with a published build, [T] type a branch name,
+  [R] the newest build on any branch, [M]/Enter keep the current choice.
+
+Mechanics the next session must not break:
+
+- `spatial-hud-build-<branch>` releases are created and updated by the workflow;
+  the picker lists them from `/releases?per_page=100` and reads the branch name
+  from the release notes line `Branch: <name>` (falling back to the tag suffix).
+  A branch with no published jar never appears.
+- The remembered choice stays a release tag, so install, "check details", and
+  the advanced feed option all reuse the existing code path.
+- `Update-SpatialHUD.bat` fetches its helper from `main` and from this session's
+  branch, keeping the higher `SpatialHUD-Helper-Version` marker (missing = 0).
+  If a future session changes the helper, it must bump that marker and add its
+  own branch to the candidate list in both .bat files.
+- The rolling `spatial-hud-latest` release and the asset name
+  `spatial-hud-1.0.0.jar` must never change: they are the plain download link
+  and the install path of updater copies already saved on the owner's PC.
+
 ## Enable/disable behavior (unchanged)
 
 - `SpatialHudConfig.get().enabled` is the sole live source of truth; disabling
@@ -117,8 +143,10 @@ the same `quad(...)` call, which is why the texture moves with the outline.
 - `src/main/resources/assets/spatialhud/lang/en_us.json` — config labels,
   tooltips, method descriptions (updated for the new Method 4).
 - `README.md` — public behavior documentation (updated).
-- Repository root `PASTE-ME-CI-SETUP.md` — how to get a build; the workflow
-  branch filter needs a human.
+- `Update-SpatialHUD.ps1` / `Update-SpatialHUD.bat` / `Get-Latest-SpatialHUD.*`
+  — the Modrinth updater, now with the build picker.
+- Repository root `PASTE-ME-CI-SETUP.md` — the exact workflow file to paste and
+  the two owner actions; workflow edits need a human.
 
 ## Important unresolved validation point
 

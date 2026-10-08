@@ -6,6 +6,36 @@
 
 ## Active work
 
+### Spatial HUD updater — a real build picker
+
+- Status: implemented and pushed; **needs two owner actions** (see below).
+  Cannot be verified from here: no Windows, no PowerShell, no JDK.
+- The owner asked to pick a branch build in the updater, not only the newest
+  build. GitHub Actions now publishes one release per branch
+  (`spatial-hud-build-<branch>`, e.g. `spatial-hud-build-arena-b4016c28-tests`,
+  and `spatial-hud-build-main`), each holding that branch's newest jar under the
+  stable asset name; the rolling `spatial-hud-latest` jar is unchanged so the
+  plain download link and older updater copies keep working.
+- `Update-SpatialHUD.ps1` (helper, version marker 2) fetches
+  `/releases?per_page=100` once and lists `spatial-hud-build-*`: **main first,
+  then the five most recently built branches**, with [A] all, [T] type a branch
+  name, [R] newest build any branch, [M]/Enter keep. A listed branch always has
+  a published jar; the choice is remembered in `build-choice.txt` (tag + branch)
+  and re-verified with the release API before it is saved.
+- `Update-SpatialHUD.bat` now tries two helper URLs (`main`, then this session's
+  branch) and runs the copy with the higher `SpatialHUD-Helper-Version` marker,
+  falling back to the plain `main` fetch if that fails. That is why one
+  re-download of the .bat is needed now and never again.
+- **Owner actions** (both in `PASTE-ME-CI-SETUP.md`): (1) paste the updated
+  `.github/workflows/build-spatial-hud.yml` on this branch — the agent
+  connection cannot touch workflow files, and the current file still triggers
+  only for the previous session's branch; (2) replace the saved
+  `Update-SpatialHUD.bat` once with the current copy.
+- Verified here: the publish shell block was executed locally with a stubbed
+  `gh` (fresh build, re-build, and no-jar paths); the workflow YAML parses; the
+  live release API returns the fields the picker reads. Not verified: the
+  PowerShell helper and the .bat (no PowerShell/Windows available).
+
 ### Spatial HUD — Method 4 textures the captured HUD into the purple quad
 
 - Status: implemented and pushed (`4f7162f`). **Not built and not tested at
@@ -26,9 +56,9 @@
   transparent.
 - A capture failure no longer hides the HUD: `SpatialHudElement` draws the
   untouched vanilla root whenever the private capture is not running.
-- Blocked on the owner: run the build (`PASTE-ME-CI-SETUP.md`, option A =
-  one manual run, option B = fix the branch filter permanently), install the
-  jar in the F5W profile, and report per `.agent/runbooks/test-spatial-hud-f5w.md`.
+- Blocked on the owner: the same workflow paste builds it, then install the
+  jar in the F5W profile and report per
+  `.agent/runbooks/test-spatial-hud-f5w.md`.
 
 ### Spatial HUD — standing model (re-read from the source 2026-10-08)
 
@@ -58,10 +88,11 @@
 
 ### Direct Modrinth updater
 
-- Status: implemented; not the active task.
+- Status: implemented, including the branch build picker described above.
 - Defaults to `%APPDATA%\ModrinthApp\profiles\F5W\mods` and remembers the
-  choice. The eventual branch picker must offer `main` plus five recent
-  successfully built branches, each with its own compiled jar.
+  folder, the chosen build, and the optional folder opener under
+  `%LOCALAPPDATA%\SpatialHudUpdater`. The picker offers `main` plus the five
+  most recently built branches, and only lists branches with a published jar.
 
 ## Non-negotiable constraints
 
@@ -75,15 +106,23 @@
 
 ## Next action
 
-1. Run the build using `PASTE-ME-CI-SETUP.md`, then install the resulting
-   `spatial-hud-1.0.0.jar` in the F5W profile, replacing every older
-   `spatial-hud` jar.
-2. Test Method 4 as `.agent/runbooks/test-spatial-hud-f5w.md` describes: the
-   captured hotbar/bars/XP/held-item text warped into the four purple corners,
-   the border and handles on those corners, the whole surface following camera
-   pitch, nothing left at the vanilla HUD position, and the vanilla HUD (not an
-   empty outline) if the capture fails.
-3. Send `latest.log` plus a screenshot from that exact session.
+1. Owner: apply both actions in `PASTE-ME-CI-SETUP.md` (paste the workflow on
+   this branch; replace the saved `Update-SpatialHUD.bat`).
+2. Owner: in the updater, choose option **2**, pick
+   `arena/b4016c28-tests`, then option **1** to install it into the F5W profile
+   (remove any older `spatial-hud` jar first).
+3. Owner: test Method 4 as `.agent/runbooks/test-spatial-hud-f5w.md` describes
+   — the captured hotbar/bars/XP/held-item text warped into the four purple
+   corners, border and handles on those corners, the whole surface following
+   camera pitch, nothing left at the vanilla HUD position, and the vanilla HUD
+   (not an empty outline) if the capture fails.
+4. Owner: send `latest.log` plus a screenshot from that exact session, and say
+   whether the build menu showed the branch you picked.
+5. If the owner pasted the workflow file (action 1), the branch now has one
+   commit the sandbox does not: `git fetch origin` and rebase before pushing
+   again, or the push is rejected as non-fast-forward. The pasted file also
+   means the local `.github/workflows/` copy is now out of date in the sandbox;
+   never try to push that path.
 
 ## Evidence
 

@@ -3,9 +3,15 @@
 # Maintained by Update-SpatialHUD.bat. The batch file is the only file a player
 # needs to keep; it refreshes this helper from GitHub before every run.
 #
+# SpatialHUD-Helper-Version: 2
+#
 # Default target: %APPDATA%\ModrinthApp\profiles\F5W\mods
-# The target, release feed, and optional folder opener are remembered under
+# The target, chosen build, and optional folder opener are remembered under
 # %LOCALAPPDATA%\SpatialHudUpdater and can always be changed from the menu.
+#
+# Choosing a build: every branch that GitHub has built owns one release named
+# spatial-hud-build-<branch>. The picker lists main first and then the five
+# most recently built branches, so no branch name has to be typed or guessed.
 
 [CmdletBinding()]
 param(
@@ -19,10 +25,12 @@ $ProgressPreference = 'SilentlyContinue'
 
 $Repository = 'ajani190819-ops/Tests'
 $DefaultReleaseTag = 'spatial-hud-latest'
+$BranchReleasePrefix = 'spatial-hud-build-'
 $DefaultTargetDirectory = Join-Path $env:APPDATA 'ModrinthApp\profiles\F5W\mods'
 $StateDirectory = Join-Path $env:LOCALAPPDATA 'SpatialHudUpdater'
 $TargetStateFile = Join-Path $StateDirectory 'target-directory.txt'
 $ReleaseStateFile = Join-Path $StateDirectory 'release-tag.txt'
+$BuildChoiceStateFile = Join-Path $StateDirectory 'build-choice.txt'
 $FolderOpenerStateFile = Join-Path $StateDirectory 'folder-opener.txt'
 
 function Read-RememberedValue {
@@ -87,6 +95,251 @@ function Get-ReleaseAsset {
         Size = [Int64]$asset.size
         UpdatedAt = [string]$asset.updated_at
         ReleaseName = [string]$release.name
+        Branch = Get-ReleaseBranchLabel $release
+    }
+}
+
+function Get-ReleaseBranchLabel {
+    # A branch build's release body carries 'Branch: <name>'. The tag is only a
+    # fallback, because the '/' inside a branch name cannot survive in a tag.
+    param($Release)
+
+    $match = [regex]::Match([string]$Release.body, '(?m)^Branch:\s*(\S.*?)\s*$')
+    if ($match.Success) {
+        return $match.Groups[1].Value
+    }
+    $tag = [string]$Release.tag_name
+    if ($tag.StartsWith($BranchReleasePrefix)) {
+        return $tag.Substring($BranchReleasePrefix.Length)
+    }
+    return ''
+}
+
+function Get-BranchBuilds {
+    # One request. Every branch that GitHub has built owns one release, and that
+    # release's asset is replaced by each new build, so the release's own update
+    # time is when the jar attached to it was built.
+    $headers = @{ 'User-Agent' = 'SpatialHUD-Updater' }
+    $releases = @(Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$Repository/releases?per_page=100")
+    $builds = @()
+    foreach ($release in $releases) {
+        $tag = [string]$release.tag_name
+        if (-not $tag.StartsWith($BranchReleasePrefix)) {
+            continue
+        }
+        $jar = @($release.assets | Where-Object { $_.name -match '^spatial-hud-.*\.jar$' } | Select-Object -First 1)
+        if ($jar.Count -lt 1) {
+            continue
+        }
+        $branch = Get-ReleaseBranchLabel $release
+        if ([string]::IsNullOrWhiteSpace($branch)) {
+            $branch = $tag.Substring($BranchReleasePrefix.Length)
+        }
+        $when = [string]$jar[0].updated_at
+        if (-not $when) { $when = [string]$release.updated_at }
+        if (-not $when) { $when = [string]$release.created_at }
+        $builds += [PSCustomObject]@{
+            Tag = $tag
+            Branch = $branch
+            IsMain = ($branch -eq 'main')
+            UpdatedAt = [DateTimeOffset]::Parse($when)
+            Size = [Int64]$jar[0].size
+        }
+    }
+    # Released main is always first, then the most recently built branches.
+    return @($builds | Sort-Object -Property @{ Expression = { $_.IsMain }; Descending = $true }, @{ Expression = { $_.UpdatedAt }; Descending = $true })
+}
+
+function Format-BuildAge {
+    param([DateTimeOffset]$When)
+
+    $age = [DateTimeOffset]::UtcNow - $When
+    if ($age.TotalMinutes -lt 2) { return 'built just now' }
+    if ($age.TotalHours -lt 1) { return ('built {0} minutes ago' -f [math]::Floor($age.TotalMinutes)) }
+    if ($age.TotalDays -lt 1) { return ('built {0} hours ago' -f [math]::Floor($age.TotalHours)) }
+    return ('built {0} days ago' -f [math]::Floor($age.TotalDays))
+}
+
+function Save-BuildChoiceLabel {
+    # Two lines: the remembered tag and the branch it belongs to. The label is
+    # what the menu shows, so the '/' in a branch name stays readable.
+    param([string]$Tag, [string]$Branch)
+
+    if ([string]::IsNullOrWhiteSpace($Branch)) {
+        Remove-Item -LiteralPath $BuildChoiceStateFile -Force -ErrorAction SilentlyContinue
+        return
+    }
+    if (-not (Test-Path -LiteralPath $StateDirectory -PathType Container)) {
+        New-Item -ItemType Directory -Path $StateDirectory -Force | Out-Null
+    }
+    [System.IO.File]::WriteAllText($BuildChoiceStateFile, ($Tag.Trim() + "`n" + $Branch.Trim()), [System.Text.Encoding]::UTF8)
+}
+
+function Get-BuildLabel {
+    param([string]$Tag)
+
+    if ([string]::IsNullOrWhiteSpace($Tag) -or $Tag -eq $DefaultReleaseTag) {
+        return 'Newest successful build, any branch'
+    }
+    if (Test-Path -LiteralPath $BuildChoiceStateFile -PathType Leaf) {
+        $lines = @(Get-Content -LiteralPath $BuildChoiceStateFile -ErrorAction SilentlyContinue)
+        if ($lines.Count -ge 2 -and $lines[0].Trim() -eq $Tag -and $lines[1].Trim()) {
+            return "Branch $($lines[1].Trim())"
+        }
+    }
+    if ($Tag.StartsWith($BranchReleasePrefix)) {
+        return "Branch $($Tag.Substring($BranchReleasePrefix.Length))"
+    }
+    return "Release feed $Tag"
+}
+
+function Remember-BuildChoice {
+    param([string]$Tag, [string]$Branch)
+
+    Test-ReleaseTag $Tag
+    # Verify before remembering, so a build that does not exist is never saved.
+    $asset = Get-ReleaseAsset $Tag
+    if ([string]::IsNullOrWhiteSpace($Branch)) {
+        $Branch = [string]$asset.Branch
+    }
+    Save-RememberedValue $ReleaseStateFile $Tag
+    Save-BuildChoiceLabel $Tag $Branch
+    Write-Host "Saved build: $(Get-BuildLabel $Tag)" -ForegroundColor Green
+    return $Tag
+}
+
+function Enter-BuildByBranchName {
+    param([string]$CurrentTag)
+
+    Write-Host ''
+    Write-Host 'Type a branch name, or the build release tag from GitHub.'
+    Write-Host 'Example: arena/b4016c28-tests'
+    $entered = Read-Host 'Branch'
+    if ([string]::IsNullOrWhiteSpace($entered)) {
+        return $CurrentTag
+    }
+
+    $name = $entered.Trim()
+    if ($name.StartsWith($BranchReleasePrefix)) {
+        $name = $name.Substring($BranchReleasePrefix.Length)
+    }
+    $safe = $name -replace '/', '-'
+    if ($safe -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$' -or $safe.Contains('..')) {
+        Write-Host 'That is not a valid branch name. The current choice was kept.' -ForegroundColor Yellow
+        return $CurrentTag
+    }
+
+    try {
+        return Remember-BuildChoice ($BranchReleasePrefix + $safe) ''
+    }
+    catch {
+        Write-Host "No published build was found for that branch: $($_.Exception.Message)" -ForegroundColor Yellow
+        return $CurrentTag
+    }
+}
+
+function Select-FromBuildList {
+    param($Builds, [string]$CurrentTag, [string]$Heading)
+
+    if ($Builds.Count -lt 1) {
+        Write-Host 'No branch builds are published yet.' -ForegroundColor Yellow
+        return $CurrentTag
+    }
+
+    Write-Host ''
+    Write-Host $Heading
+    for ($position = 0; $position -lt $Builds.Count; $position++) {
+        $item = $Builds[$position]
+        Write-Host (" [{0}] {1} - {2} - {3:N1} KB" -f ($position + 1), $item.Branch, (Format-BuildAge $item.UpdatedAt), ($item.Size / 1KB))
+    }
+    Write-Host ' [M] Keep the current choice'
+    Write-Host ''
+    $choice = Read-Host 'Choice'
+    if ([string]::IsNullOrWhiteSpace($choice) -or $choice -match '^[Mm]$') {
+        return $CurrentTag
+    }
+    if ($choice.Trim() -match '^\d+$') {
+        $number = [int]$choice.Trim()
+        if ($number -ge 1 -and $number -le $Builds.Count) {
+            $picked = $Builds[$number - 1]
+            return Remember-BuildChoice $picked.Tag $picked.Branch
+        }
+    }
+    Write-Host 'That is not one of the listed builds. The current choice was kept.' -ForegroundColor Yellow
+    return $CurrentTag
+}
+
+function Select-InstallBuild {
+    param([string]$CurrentTag)
+
+    Write-Host ''
+    Write-Host 'Choose the build to install' -ForegroundColor Cyan
+    Write-Host "Current: $(Get-BuildLabel $CurrentTag)"
+    Write-Host ''
+    Write-Host 'Fetching the published branch builds from GitHub...'
+
+    $builds = @()
+    try {
+        $builds = @(Get-BranchBuilds)
+    }
+    catch {
+        Write-Host "GitHub's build list could not be loaded: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host 'Nothing was changed. You can still type a branch name or keep the newest build.' -ForegroundColor Yellow
+    }
+
+    $main = @($builds | Where-Object { $_.IsMain })
+    $others = @($builds | Where-Object { -not $_.IsMain })
+    $listed = @($others | Select-Object -First 5)
+
+    $rows = @()
+    if ($main.Count -gt 0) {
+        $rows += $main[0]
+    }
+    $rows += $listed
+    Write-Host ''
+    if ($main.Count -gt 0) {
+        Write-Host (" [1] main - {0} - {1:N1} KB" -f (Format-BuildAge $main[0].UpdatedAt), ($main[0].Size / 1KB))
+    }
+    else {
+        Write-Host ' main: no published build yet'
+    }
+    for ($position = 0; $position -lt $listed.Count; $position++) {
+        $item = $listed[$position]
+        Write-Host (" [{0}] {1} - {2} - {3:N1} KB" -f ($position + 2), $item.Branch, (Format-BuildAge $item.UpdatedAt), ($item.Size / 1KB))
+    }
+    if ($rows.Count -lt 1) {
+        Write-Host ' No branch builds are published yet.'
+    }
+    Write-Host ''
+    Write-Host ' Released main first, then the five most recently built branches.'
+    Write-Host ' [A] Show every branch with a published build'
+    Write-Host ' [T] Type a branch name myself'
+    Write-Host ' [R] Use the newest successful build, any branch'
+    Write-Host ' [M] Keep the current choice'
+    Write-Host ''
+    $choice = Read-Host 'Choice'
+
+    if ([string]::IsNullOrWhiteSpace($choice) -or $choice -match '^[Mm]$') {
+        return $CurrentTag
+    }
+    if ($choice.Trim() -match '^\d+$') {
+        $number = [int]$choice.Trim()
+        if ($number -ge 1 -and $number -le $rows.Count) {
+            $picked = $rows[$number - 1]
+            return Remember-BuildChoice $picked.Tag $picked.Branch
+        }
+        Write-Host 'That build number is not in the list. The current choice was kept.' -ForegroundColor Yellow
+        return $CurrentTag
+    }
+
+    switch -Regex ($choice.Trim()) {
+        '^[Aa]$' { return Select-FromBuildList $builds $CurrentTag 'Every branch with a published build:' }
+        '^[Tt]$' { return Enter-BuildByBranchName $CurrentTag }
+        '^[Rr]$' { return Remember-BuildChoice $DefaultReleaseTag '' }
+        default {
+            Write-Host 'That is not a menu choice. The current choice was kept.' -ForegroundColor Yellow
+            return $CurrentTag
+        }
     }
 }
 
@@ -152,11 +405,12 @@ function Show-FeedDetails {
     param([string]$Tag)
 
     Write-Host ''
-    Write-Host 'Checking the current release feed...' -ForegroundColor Cyan
+    Write-Host 'Checking the chosen build...' -ForegroundColor Cyan
     $asset = Get-ReleaseAsset $Tag
-    Write-Host "  Feed:     $($asset.Tag)"
+    Write-Host "  Build:    $(Get-BuildLabel $Tag)"
+    Write-Host "  Feed tag: $($asset.Tag)"
     Write-Host "  Release:  $($asset.ReleaseName)"
-    Write-Host "  Asset:    $($asset.Name) ($([Math]::Round($asset.Size / 1KB, 1)) KB)"
+    Write-Host "  File:     $($asset.Name) ($([Math]::Round($asset.Size / 1KB, 1)) KB)"
     Write-Host "  Updated:  $($asset.UpdatedAt)"
 }
 
@@ -190,9 +444,10 @@ function Set-ReleaseFeed {
     param([string]$CurrentTag)
 
     Write-Host ''
-    Write-Host 'Release feed' -ForegroundColor Cyan
+    Write-Host 'Advanced: release feed' -ForegroundColor Cyan
     Write-Host "Current: $CurrentTag"
-    Write-Host "The default '$DefaultReleaseTag' is the newest successful Spatial HUD build."
+    Write-Host "The default '$DefaultReleaseTag' is the newest successful Spatial HUD build on any branch."
+    Write-Host 'For a named branch, use the build picker (menu option 2): it lists the live branch builds.'
     Write-Host 'Enter another published GitHub release tag, or press Enter to keep the current feed.'
     $entered = Read-Host 'Release tag'
     if ([string]::IsNullOrWhiteSpace($entered)) {
@@ -202,8 +457,9 @@ function Set-ReleaseFeed {
     $newTag = $entered.Trim()
     Test-ReleaseTag $newTag
     # Verify before remembering a custom channel; a typo is never saved.
-    $null = Get-ReleaseAsset $newTag
+    $asset = Get-ReleaseAsset $newTag
     Save-RememberedValue $ReleaseStateFile $newTag
+    Save-BuildChoiceLabel $newTag ([string]$asset.Branch)
     Write-Host "Saved release feed: $newTag" -ForegroundColor Green
     return $newTag
 }
@@ -337,8 +593,9 @@ function Install-SpatialHud {
     Write-Host 'Spatial HUD installer' -ForegroundColor Cyan
     Write-Host "  Target: $Directory"
     $asset = Get-ReleaseAsset $Tag
+    Write-Host "  Build:  $(Get-BuildLabel $Tag)"
     Write-Host "  Feed:   $($asset.Tag)"
-    Write-Host "  Build:  $($asset.Name), updated $($asset.UpdatedAt)"
+    Write-Host "  File:   $($asset.Name), updated $($asset.UpdatedAt)"
 
     $workDirectory = Join-Path $env:TEMP ("SpatialHudUpdater-" + [Guid]::NewGuid().ToString('N'))
     $downloadPath = Join-Path $workDirectory $asset.Name
@@ -410,16 +667,18 @@ try {
         Write-Host ' Spatial HUD -- Modrinth install / update'
         Write-Host '==============================================================='
         Write-Host " Folder:  $rememberedTarget"
+        Write-Host " Build:   $(Get-BuildLabel $rememberedTag)"
         Write-Host " Feed:    $rememberedTag"
         Write-Host " Opener:  $(Get-FolderOpenerLabel $rememberedFolderOpener)"
         Write-Host '==============================================================='
         Write-Host ''
         Write-Host ' [1] Install or update Spatial HUD now'
-        Write-Host ' [2] Change the Modrinth mods folder'
-        Write-Host ' [3] Choose the published build / release feed'
+        Write-Host ' [2] Choose the build - main or one of the newest branches'
+        Write-Host ' [3] Change the Modrinth mods folder'
         Write-Host ' [4] Configure optional folder opener (OneCommander / none)'
-        Write-Host ' [5] Check the current build details'
-        Write-Host ' [6] Restore the default folder, feed, and no-opener setting'
+        Write-Host ' [5] Check the chosen build details'
+        Write-Host ' [6] Advanced: use a different release feed'
+        Write-Host ' [7] Restore the default folder, build, and no-opener setting'
         Write-Host ' [Q] Quit'
         Write-Host ''
         $choice = Read-Host 'Choice, or Enter to install'
@@ -430,16 +689,17 @@ try {
             continue
         }
         switch -Regex ($choice) {
-            '^2$' { $rememberedTarget = Set-InstallDirectory $rememberedTarget; Read-Host 'Press Enter to continue' | Out-Null; continue }
-            '^3$' { $rememberedTag = Set-ReleaseFeed $rememberedTag; Read-Host 'Press Enter to continue' | Out-Null; continue }
+            '^2$' { $rememberedTag = Select-InstallBuild $rememberedTag; Read-Host 'Press Enter to continue' | Out-Null; continue }
+            '^3$' { $rememberedTarget = Set-InstallDirectory $rememberedTarget; Read-Host 'Press Enter to continue' | Out-Null; continue }
             '^4$' { $rememberedFolderOpener = Set-FolderOpener $rememberedFolderOpener; Read-Host 'Press Enter to continue' | Out-Null; continue }
             '^5$' { Show-FeedDetails $rememberedTag; Read-Host 'Press Enter to continue' | Out-Null; continue }
-            '^6$' {
+            '^6$' { $rememberedTag = Set-ReleaseFeed $rememberedTag; Read-Host 'Press Enter to continue' | Out-Null; continue }
+            '^7$' {
                 $rememberedTarget = $DefaultTargetDirectory
                 $rememberedTag = $DefaultReleaseTag
                 $rememberedFolderOpener = ''
-                Remove-Item -LiteralPath $TargetStateFile, $ReleaseStateFile, $FolderOpenerStateFile -Force -ErrorAction SilentlyContinue
-                Write-Host 'Restored the default folder, feed, and no-opener setting.' -ForegroundColor Green
+                Remove-Item -LiteralPath $TargetStateFile, $ReleaseStateFile, $BuildChoiceStateFile, $FolderOpenerStateFile -Force -ErrorAction SilentlyContinue
+                Write-Host 'Restored the default folder, build, and no-opener setting.' -ForegroundColor Green
                 Read-Host 'Press Enter to continue' | Out-Null
                 continue
             }

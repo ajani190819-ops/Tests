@@ -1,5 +1,7 @@
 # Get-Latest-SpatialHUD.ps1
 #
+# SpatialHUD-Helper-Version: 1
+#
 # Downloads the newest successful Spatial HUD build to this Windows account's
 # Downloads folder. It keeps one predictable jar name and removes only older
 # Spatial HUD jars after the new download has passed a basic jar-file check.

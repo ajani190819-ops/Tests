@@ -26,16 +26,40 @@ For `C:\Users\kamau`, that resolves to the requested
 directly there. It does **not** open any folder afterward by default, and there
 is no manual "From file" step in Modrinth.
 
-The menu remembers its folder, release feed, and optional folder opener under
+The menu remembers its folder, chosen build, and optional folder opener under
 `%LOCALAPPDATA%\SpatialHudUpdater`, and lets you:
 
+- **choose the build** — listed as **main first, then the five most recently
+  built branches**, with **[A]** for every branch that has a published build,
+  **[T]** to type one branch name, and **[R]** for the newest build on any
+  branch;
 - change the profile's `mods` folder at any time;
-- choose a different published GitHub build/release feed after validating it;
 - leave the post-install folder opener disabled (the default), or ask it to
   auto-detect **OneCommander** / save a custom file-manager `.exe`;
-- inspect the current JAR name, build time, and size; and
-- restore the default F5W folder, `spatial-hud-latest` feed, and no-opener
-  setting.
+- inspect the chosen build's release, JAR name, build time, and size; and
+- restore the default F5W folder, newest-build choice, and no-opener setting.
+
+Pick the build whose behavior you want to test, then install it:
+
+```text
+ [1] Install or update Spatial HUD now
+ [2] Choose the build - main or one of the newest branches
+ [3] Change the Modrinth mods folder
+ [4] Configure optional folder opener (OneCommander / none)
+ [5] Check the chosen build details
+ [6] Advanced: use a different release feed
+ [7] Restore the default folder, build, and no-opener setting
+ [Q] Quit
+```
+
+**One-time note (2026-10-08):** if your saved `Update-SpatialHUD.bat` is older
+than this build picker, replace that file once with the current copy from
+<https://raw.githubusercontent.com/ajani190819-ops/Tests/main/spatial-hud-template-26.3/Update-SpatialHUD.bat>
+(or from the `arena/...` branch you are testing). Older copies still install the
+newest build correctly, but they show the older menu. After this one
+replacement, the file keeps working on its own: it reads the newer of its two
+helper copies by a version marker, so it survives a merge without any further
+download.
 
 When a OneCommander path is configured, the updater opens the profile's `mods`
 folder in OneCommander after a successful install. It never invokes Windows
@@ -50,13 +74,15 @@ or move fails, it restores any copies already moved out of the way.
 
 Close Minecraft before updating so Windows cannot hold the old JAR open.
 
-The build selector is intentionally based on **published build/release feeds**,
-not a fake source-branch download: Minecraft JARs are compiled artifacts, while
-a Git branch only contains source. The default `spatial-hud-latest` feed is
-updated by the successful GitHub Actions build from this branch. When a
-branch-specific build is published as its own release feed, choose it through
-**[3]** (or enter that published tag); a raw branch is never mislabeled as an
-installable JAR.
+The build selector is intentionally based on **published builds**, not a fake
+source-branch download: a Minecraft JAR is a compiled artifact, while a Git
+branch only contains source. The default `spatial-hud-latest` feed always holds
+the newest successful build on any branch; each branch that GitHub builds also
+gets its own release named `spatial-hud-build-<branch>` (for example
+`spatial-hud-build-arena-b4016c28-tests`), which is what the picker lists. A
+branch therefore only appears once its own build has succeeded — a branch with
+no published build is never offered as an installable JAR. `main` appears after
+main itself has been built.
 
 The batch file temporarily refreshes its maintained PowerShell helper from
 GitHub before each run, then deletes that temporary helper. Its
