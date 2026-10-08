@@ -45,7 +45,9 @@
   Orientation, and HUD Contents—with detailed contextual tooltips. The panel
   carries an actual top-edge method marker: green for Classic Affine, blue for
   Captured Projective Mesh, and red for World-Space Texture. Texture methods
-  capture that marker with the rest of the panel.
+  capture that marker with the rest of the panel. GitHub Actions run
+  `37713731571` compiled and published `b1c9600` with JDK 25; the rolling JAR
+  was updated at 2026-10-08 01:36 UTC.
 
 ### Direct Modrinth updater
 

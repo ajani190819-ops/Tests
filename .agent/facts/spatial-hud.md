@@ -2,8 +2,8 @@
 
 - Status: three named renderer methods compile; all F5W runtime results remain
   pending.
-- Last verified: 2026-10-08 CI build `37711539940` for shader-startup fix
-  `036ca35`; no Method 3 runtime result exists yet.
+- Last verified: 2026-10-08 CI build `37713731571` for configuration/method
+  marker update `b1c9600`; no Method 3 runtime result exists yet.
 - Read when: changing Spatial HUD code, its updater, or F5W compatibility.
 
 ## Source and release
