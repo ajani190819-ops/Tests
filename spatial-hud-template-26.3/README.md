@@ -88,24 +88,25 @@ chooses a renderer:
    previous-frame texture, avoiding global GUI redirection while the current
    GUI is captured.
 
-Every method draws its short colour marker at the panel's upper-left edge. The
-marker is part of the captured texture in Methods 2 and 3, so it follows the
+Every method draws a **full-width, eight-pixel colour band** inside the panel's
+source rectangle: green for Method 1, blue for Method 2, and red for Method 3.
+The band is part of the captured texture in Methods 2 and 3, so it follows the
 same mesh or world plane rather than becoming a separate screen overlay.
 
 The **Panel Positioning & Orientation** controls are shared by all three
-methods and model a real waist-height lectern rather than a card that follows
-camera pitch:
+methods and model a real waist-height **flat Minecraft-map surface** rather
+than a card that follows camera pitch:
 
 - **Forward Distance**, **Horizontal Offset**, and **Vertical Offset** place
   the panel around the player. The default vertical offset is waist-high.
-- **Minimum Look-Down Angle** defaults to **30°**. Below that downward pitch,
-  Spatial HUD suppresses its selected roots and does no texture capture, mesh
-  upload, or world-plane extraction. Looking up therefore leaves no enlarged
-  HUD card on screen.
+- There is **no look-down-angle gate**. The selected roots and texture capture
+  remain active while any part of the finite, positive-depth panel intersects
+  the screen, and are culled only once the complete surface leaves the field of
+  view or passes behind the camera.
 - **Panel Width** controls physical size.
-- **Primary Lectern Tilt — Left ↔ Right Axis** defaults to **45°**. Positive
-  tilt moves the far/top edge away; this deliberately produces a tapered far
-  edge at the 30° viewing threshold in Methods 2 and 3.
+- **Primary Flat-Map Tilt — Left ↔ Right Axis** defaults to **85°**, producing
+  a near-horizontal surface that reads like a Minecraft map viewed from above.
+  Lower it when a deliberately steep paper-like angle is preferred.
 - **Fine Tilt Offset** uses that same left-to-right axis; **Turn — Up Axis**
   angles the panel left/right; **Roll — Panel-Normal Axis** raises the right
   edge for a deliberate slant. Their in-game tooltips define each positive
@@ -113,20 +114,22 @@ camera pitch:
 
 Method 1 retains a stable native-HUD affine approximation at that same physical
 location, so it cannot taper individual pixels. Method 2 applies genuine
-per-pixel projective taper through its mesh. Method 3 is a true world quad;
-Methods 1 and 2 are camera-yaw anchored, while Method 3 exposes its anchor as a
-separate setting so it can instead remain fixed to player-body yaw.
+per-pixel projective perspective through its mesh. Method 3 is a true world
+quad and samples the same lower-HUD source rectangle rather than a full-window
+texture; Methods 1 and 2 are camera-yaw anchored, while Method 3 exposes its
+anchor as a separate setting so it can instead remain fixed to player-body yaw.
 
 ### Companion-mod baseline
 
-AppleSkin and Detail Armor Bar Reconstructed are captured before the legacy
-native-layout safeguard. Their injected pixels therefore stay with the vanilla
+AppleSkin and Detail Armor Bar Reconstructed are captured before the optional
+native-layout fallback. Their injected pixels therefore stay with the vanilla
 hearts, hunger, armor, and air roots in both texture methods. Classic Affine
-retains its native companion fallback. The supplied F5W
-modpack also includes Bedrock Hotbar, Immersive Hotbar, DualBar, Armor
-Indicator, Status Effect Bars, Mount Opacity, Durability Warner HUD, Async
-Hotbars, and Spatial GUI; these are tracked as bottom-HUD compatibility
-candidates rather than being globally intercepted.
+also transforms those status roots by default. Enable **Keep Companion Bars
+Native in Method 1** only when a companion mod visibly produces detached or
+duplicated decorations. The supplied F5W modpack also includes Bedrock Hotbar,
+Immersive Hotbar, DualBar, Armor Indicator, Status Effect Bars, Mount Opacity,
+Durability Warner HUD, Async Hotbars, and Spatial GUI; these are tracked as
+bottom-HUD compatibility candidates rather than being globally intercepted.
 
 See [`COMPATIBILITY.md`](COMPATIBILITY.md) for the test order and the exact
 compatibility boundary. No normal Screen, minimap, chat, debug/FPS text, or
@@ -181,7 +184,7 @@ explanation tab plus three focused settings sections:
   gameplay boundary, method selector, and the Classic-only companion-bar
   safeguard.
 - **Panel Positioning & Orientation** keeps every geometric control together:
-  distance, size, offsets, three-axis rotation, the look-down gate, and the
+  distance, size, offsets, three-axis rotation, the flat-map tilt, and the
   Method 3 anchor and terrain-occlusion choices. The Method 3-only tooltips
   explicitly say when a setting is ignored by the other two methods.
 - **HUD Contents** chooses which lower-HUD roots Spatial HUD owns.

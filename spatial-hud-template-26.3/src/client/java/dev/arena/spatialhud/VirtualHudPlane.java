@@ -3,20 +3,22 @@ package dev.arena.spatialhud;
 import net.minecraft.client.Minecraft;
 
 /**
- * One camera-yaw-local waist-height lectern shared by the captured HUD texture
- * and the safe affine fallback. The experimental mesh consumes the full
- * projective mapping; the public HUD API can consume only its centre tangent.
+ * One camera-yaw-local, waist-height flat map shared by the captured HUD
+ * texture and the safe affine fallback. The experimental mesh consumes the
+ * full projective mapping; the public HUD API can consume only its centre
+ * tangent.
  *
  * <p>The plane stays in front as the player turns horizontally but never rotates
- * with camera pitch to remain visible. Its default 45° primary tilt puts the
- * far/top edge farther away, so the captured mesh has a visibly tapered edge
- * at the default 30° look-down threshold. If the physical corners leave the
- * viewport or pass behind the camera, the whole selected panel is suppressed
- * rather than clamped into a screen-filling card.</p>
+ * with camera pitch to remain visible. Its near-horizontal default resembles a
+ * Minecraft map laid flat in front of the player. No arbitrary look-down angle
+ * controls visibility: if the physical corners intersect the viewport and are
+ * in front of the camera, the panel is rendered; otherwise it is culled.</p>
  */
 final class VirtualHudPlane {
 	static final float SOURCE_HALF_WIDTH = 112.0f;
-	static final float SOURCE_TOP_FROM_BOTTOM = 128.0f;
+	// This deliberately reaches well above the hotbar: status bars, XP, held
+	// item names, and common modded lower-HUD additions share the same surface.
+	static final float SOURCE_TOP_FROM_BOTTOM = 184.0f;
 	static final float SOURCE_BOTTOM_BELOW_SCREEN = 4.0f;
 
 	record Point(float x, float y) {
@@ -132,7 +134,7 @@ final class VirtualHudPlane {
 	 * Converts a source pixel to the panel's camera-space physical position.
 	 * Local X is panel left/right, local Y is panel bottom/top, and local Z is
 	 * the panel normal. Roll is deliberately applied first around that normal:
-	 * positive roll raises the right edge before yaw/tilt place the lectern.
+	 * positive roll raises the right edge before yaw/tilt place the map surface.
 	 */
 	private Projection projectPhysicalPoint(float sourceX, float sourceY) {
 		float u = (sourceX - sourceLeft) / sourceWidth;
@@ -147,33 +149,38 @@ final class VirtualHudPlane {
 		float roll = radians(clamp(cfg.virtualRoll, -45, 45));
 		float rolledX = localX * cos(roll) - localY * sin(roll);
 		float rolledY = localX * sin(roll) + localY * cos(roll);
-		return projectCameraYawLectern(rolledX, rolledY, localZ);
+		return projectCameraYawMap(rolledX, rolledY, localZ);
 	}
 
 	/**
-	 * Methods 1 and 2 use a camera-yaw lectern. Horizontal turns keep it in
+	 * Methods 1 and 2 use a camera-yaw map surface. Horizontal turns keep it in
 	 * front, but camera pitch only observes the fixed waist-height plane—it
 	 * never rotates the panel to keep it on-screen.
 	 */
-	private Projection projectCameraYawLectern(float localX, float localY, float localZ) {
+	private Projection projectCameraYawMap(float localX, float localY, float localZ) {
 		float planeYaw = radians(clamp(cfg.virtualYaw, -80, 80));
 		// Keep this local up-axis turn identical to WorldSpaceHudRenderer:
 		// positive turn moves the right edge farther forward.
 		float yawX = localX * cos(planeYaw) - localZ * sin(planeYaw);
 		float yawZ = localX * sin(planeYaw) + localZ * cos(planeYaw);
 
-		// This is a literal lectern tilt around the panel's left-to-right axis.
-		// Positive tilt places the far/top edge farther away, which gives the
-		// captured mesh a real narrow far edge at ordinary downward views.
+		// This is a literal flat-map tilt around the panel's left-to-right axis.
+		// Positive tilt places the far/top edge farther away. A near-horizontal
+		// map remains a real plane—Method 2 still applies depth per mesh vertex.
 		float planeTilt = radians(clamp(
-				cfg.virtualFaceOnLookDownPitch + cfg.virtualPitch, -80, 80));
+				cfg.virtualFaceOnLookDownPitch + cfg.virtualPitch, -89, 89));
 		float planeY = localY * cos(planeTilt) - yawZ * sin(planeTilt);
 		float planeZ = localY * sin(planeTilt) + yawZ * cos(planeTilt);
 
 		float bodyX = (float) cfg.virtualOffsetX + yawX;
 		float bodyY = (float) cfg.virtualOffsetY + planeY;
 		float bodyZ = (float) Math.max(0.10, cfg.distance) + planeZ;
-		float cameraPitch = radians(clamp(SpatialHud.pitch, -80, 89));
+		// Read the live camera pitch here rather than using the prior frame's HUD
+		// extraction sample. Viewport culling and texture activation therefore
+		// change at the same instant the finite map crosses the screen edge.
+		Minecraft mc = Minecraft.getInstance();
+		float livePitch = mc.player == null ? SpatialHud.pitch : mc.player.getXRot();
+		float cameraPitch = radians(clamp(livePitch, -80, 89));
 		float cameraY = bodyY * cos(cameraPitch) + bodyZ * sin(cameraPitch);
 		float depth = -bodyY * sin(cameraPitch) + bodyZ * cos(cameraPitch);
 		return new Projection(bodyX, cameraY, depth);

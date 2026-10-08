@@ -25,11 +25,11 @@ final class SpatialHudElement implements HudElement {
 			vanilla.extractRenderState(graphics, deltaTracker);
 			return;
 		}
-		// Enabled Spatial HUD owns these selected roots. When the physical
-		// lectern is above/below the viewport, suppress them rather than falling
-		// back to a flat vanilla HUD; the panel should be invisible until the
-		// player looks down at its real waist-height position.
-		if (!SpatialHud.isLecternVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
+		// Enabled Spatial HUD owns these selected roots. When the finite physical
+		// map surface is outside the viewport, suppress them rather than falling
+		// back to a flat vanilla HUD. There is no artificial look-down threshold:
+		// any visible piece of the surface keeps its selected roots live.
+		if (!SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
 			return;
 		}
 		if (!cfg.showElement(id)) {
@@ -71,8 +71,8 @@ final class SpatialHudElement implements HudElement {
 	/**
 	 * Safe performance fallback. Fabric exposes only an affine GUI pose, so it
 	 * samples the centre tangent of the same {@link VirtualHudPlane} that the
-	 * experimental mesh uses. It honours the camera-yaw waist-height lectern
-	 * pose and hard look-down gate, but cannot bend individual icon pixels.
+	 * experimental mesh uses. It follows the camera-yaw waist-height map pose
+	 * and physical viewport culling, but cannot bend individual icon pixels.
 	 */
 	static void applySpatialPose(GuiGraphicsExtractor graphics, SpatialHudConfig cfg, Identifier elementId) {
 		VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, graphics.guiWidth(), graphics.guiHeight());

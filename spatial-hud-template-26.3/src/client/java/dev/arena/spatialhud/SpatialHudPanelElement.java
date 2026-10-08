@@ -7,7 +7,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
- * An optional translucent backing panel and a compact method-colour stripe
+ * An optional translucent backing panel and a full-width method-colour band
  * beneath the spatial strip. It is also the single per-frame camera-pose
  * update point, before wrapped HUD elements read the shared pose.
  */
@@ -22,10 +22,10 @@ final class SpatialHudPanelElement implements HudElement {
 		// before HOTBAR and gives every selected root one camera pitch value.
 		SpatialHud.updateViewPose();
 
-		// A raised/level camera should see no spatial panel at all—not a clamped
-		// projection stretched across the screen. The wrapped HUD roots make this
-		// same check and remain suppressed for this frame.
-		if (!SpatialHud.isLecternVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
+		// Do not clamp a partially invalid projection into a screen-filling card.
+		// The wrapped HUD roots make the same finite-surface viewport check; a
+		// level camera may still show a genuine lower edge when it is in view.
+		if (!SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
 			return;
 		}
 
@@ -36,8 +36,8 @@ final class SpatialHudPanelElement implements HudElement {
 		ExperimentalHudCapture.beginFrame(graphics);
 
 		SpatialHudConfig cfg = SpatialHudConfig.get();
-		// In the texture modes, both the optional backing and short coloured mode
-		// stripe are part of the same source texture as hotbar/status pixels. They
+		// In the texture modes, both the optional backing and wide coloured mode
+		// band are part of the same source texture as hotbar/status pixels. They
 		// must not also draw here, or an affine duplicate would diverge from the
 		// true projective/world surface.
 		if (ExperimentalHudCapture.capturePanelDecorations(cfg)) {
@@ -59,14 +59,14 @@ final class SpatialHudPanelElement implements HudElement {
 		try {
 			SpatialHudElement.applySpatialPose(graphics, cfg);
 			if (cfg.showPanel) {
-				graphics.fill(x0 - 6, y0 - 4, x1 + 6, y1 + 4, 0x80101018);
-				graphics.fill(x0 - 6, y0 - 4, x1 + 6, y0, 0x5038384A);
+				graphics.fill(x0 - 6, y0 - 8, x1 + 6, y1 + 4, 0x80101018);
+				graphics.fill(x0 - 6, y0 - 8, x1 + 6, y0, 0x5038384A);
 			}
-			// A compact top-edge stripe stays with the panel pose. Green identifies
-			// stable Method 1, blue Method 2's captured mesh, and red Method 3's
-			// physical world texture.
-			graphics.fill(x0 - 6, y0 - 4, Math.min(x1 + 6, x0 + 20), y0,
-					cfg.modeIndicatorColor());
+			// A deliberately full-width, 8px mode band stays inside the physical
+			// source envelope, so the texture methods sample the exact same marker.
+			// Green is Method 1's affine fallback, blue is Method 2's projective
+			// mesh, and red is Method 3's world-space texture.
+			graphics.fill(x0, y0, x1, y0 + 8, cfg.modeIndicatorColor());
 		} catch (Throwable t) {
 			SpatialHud.safeDisable(t);
 		} finally {

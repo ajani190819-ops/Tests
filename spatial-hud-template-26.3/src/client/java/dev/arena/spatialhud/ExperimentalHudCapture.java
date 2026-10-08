@@ -87,7 +87,7 @@ public final class ExperimentalHudCapture {
 		frameCapturedHotbar = false;
 
 		if (!SpatialHud.isTextureCaptureActive() || sessionFallback
-				|| !SpatialHud.isLecternVisibleInGui(sourceGraphics.guiWidth(), sourceGraphics.guiHeight())) {
+				|| !SpatialHud.isPhysicalPanelVisibleInGui(sourceGraphics.guiWidth(), sourceGraphics.guiHeight())) {
 			return;
 		}
 
@@ -144,8 +144,8 @@ public final class ExperimentalHudCapture {
 	 * Draw the optional backing and the active-method indicator into the same
 	 * isolated source texture as the vanilla roots. The green/blue/red marker is
 	 * part of the captured surface in both texture methods, never an unrelated
-	 * GUI overlay. It remains visible as a compact identity marker even when the
-	 * player hides the backing panel.
+	 * GUI overlay. It remains visible as a full-width identity band even when
+	 * the player hides the backing panel.
 	 */
 	static boolean capturePanelDecorations(SpatialHudConfig cfg) {
 		if (!isFrameActive()) {
@@ -153,19 +153,22 @@ public final class ExperimentalHudCapture {
 		}
 		try {
 			VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
-			int left = (int) Math.floor(plane.sourceLeft() - 6.0f);
-			int right = (int) Math.ceil(plane.sourceRight() + 6.0f);
-			int top = (int) Math.floor(plane.sourceTop() - 4.0f);
-			int bottom = (int) Math.ceil(plane.sourceBottom() + 4.0f);
+			// Draw only inside the source rectangle sampled by Methods 2 and 3.
+			// Painting a margin outside it would make an indicator disappear during
+			// the texture presentation even though it appeared in Method 1.
+			int left = (int) Math.floor(plane.sourceLeft());
+			int right = (int) Math.ceil(plane.sourceRight());
+			int top = (int) Math.floor(plane.sourceTop());
+			int bottom = (int) Math.ceil(plane.sourceBottom());
 			if (cfg.showPanel) {
 				capturedGraphics.fill(left, top, right, bottom, 0x80101018);
-				capturedGraphics.fill(left, top, right, top + 4, 0x5038384A);
+				capturedGraphics.fill(left, top, right, top + 8, 0x5038384A);
 			}
-			// A short top-edge stripe: green = Method 1, blue = Method 2,
-			// red = Method 3. Keep it small so it identifies a mode without
-			// competing with selected HUD pixels.
-			capturedGraphics.fill(left, top, Math.min(right, left + 26), top + 4,
-					cfg.modeIndicatorColor());
+			// A full-width, 8px top band is a deliberately obvious live method
+			// indicator: green = affine, blue = projective mesh, red = world quad.
+			// It lives in this texture, so it receives exactly the same perspective
+			// and world-depth treatment as the selected HUD pixels.
+			capturedGraphics.fill(left, top, right, top + 8, cfg.modeIndicatorColor());
 			frameHasContent = true;
 			return true;
 		} catch (Throwable t) {

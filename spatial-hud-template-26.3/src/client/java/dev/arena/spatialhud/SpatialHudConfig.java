@@ -44,7 +44,7 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("guide")
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
-	// registerAndLoad writes it as 16 after checking the values.
+	// registerAndLoad writes it as 17 after checking the values.
 	public int configVersion = 0;
 
 	/*
@@ -108,7 +108,7 @@ public final class SpatialHudConfig implements ConfigData {
 	}
 
 	/**
-	 * A small, always-present panel-edge marker makes the active renderer
+	 * A broad, always-present panel-edge band makes the active renderer
 	 * unmistakable in screenshots and while switching methods. Its pixels enter
 	 * the same capture texture as the HUD in Methods 2 and 3, rather than being
 	 * drawn as an unrelated overlay.
@@ -165,21 +165,19 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public double virtualOffsetY = -0.72;
 
-	/** Fine adjustment on the same left-to-right axis as the primary lectern tilt. */
+	/** Fine adjustment on the same left-to-right axis as the primary map tilt. */
 	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
 	public int virtualPitch = 0;
 
 	/**
-	 * A hard early-out keeps the physical panel completely absent until the
-	 * player looks downward toward its waist-height location. This avoids both
-	 * off-screen geometry work and the old upward-looking screen-fill behavior.
+	 * Retained exclusively to read old JSON. Visibility is now controlled by
+	 * the physical panel's depth and viewport intersection, never by an angle.
 	 */
 	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 80)
-	public int minimumLookDownPitch = 30;
+	@ConfigEntry.Gui.Excluded
+	public int minimumLookDownPitch = 0;
 
 	/** Retained only so v1.2 config files still load; it is no longer read. */
 	@ConfigEntry.Category("positioning")
@@ -187,13 +185,14 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean virtualTiltWithLook = false;
 
 	/**
-	 * Main lectern tilt around the panel's left-to-right axis. A larger positive
-	 * value moves the far/top edge away, producing the desired paper taper.
+	 * Main map-surface tilt around the panel's left-to-right axis. A near-90°
+	 * value makes a flat Minecraft-map-like surface readable from above, while
+	 * still allowing a deliberate angled-paper view when reduced.
 	 */
 	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 5, max = 80)
-	public int virtualFaceOnLookDownPitch = 45;
+	@ConfigEntry.BoundedDiscrete(min = 5, max = 89)
+	public int virtualFaceOnLookDownPitch = 85;
 
 	/** Retained for v1.4 JSON compatibility; fixed-plane perspective ignores it. */
 	@ConfigEntry.Category("positioning")
@@ -305,14 +304,13 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean rotateWithSway = true;
 
 	/**
-	 * Safe affine fallback only: AppleSkin and Detail Armor Bar Reconstructed
-	 * inject decoration into vanilla status-bar methods. Keep those complete
-	 * roots native there to avoid detached companion pixels. Experimental
-	 * capture deliberately takes the complete injected group instead.
+	 * Compatibility fallback for a companion status-bar mod. Off by default so
+	 * health, armor, food, and air travel with the spatial panel in every method.
+	 * Turn it on only if a companion mod renders detached duplicate decorations.
 	 */
 	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Tooltip
-	public boolean preserveCompanionStatusLayout = true;
+	public boolean preserveCompanionStatusLayout = false;
 
 	@ConfigEntry.Category("contents")
 	@ConfigEntry.Gui.Tooltip
@@ -398,7 +396,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Migrates legacy JSON fields to the current named rendering methods. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 16) {
+		if (cfg.configVersion >= 17) {
 			return;
 		}
 
@@ -516,19 +514,31 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 
 		if (cfg.configVersion < 16) {
-			// Restore an actual waist-height lectern rather than an always-visible
-			// screen card. Retune only the former shipped zero-trim 30° default;
-			// deliberate tilt/yaw changes remain the player's choice.
+			// v1.6 restored the fixed physical surface. Keep this old migration so
+			// files that skip directly from an earlier version remain well formed.
 			boolean formerDefaultTilt = cfg.virtualFaceOnLookDownPitch == 30
 					&& cfg.virtualPitch == 0 && cfg.virtualYaw == 0;
 			if (formerDefaultTilt) {
 				cfg.virtualFaceOnLookDownPitch = 45;
 			}
 			cfg.virtualRoll = 0;
-			cfg.minimumLookDownPitch = 30;
 		}
 
-		cfg.configVersion = 16;
+		if (cfg.configVersion < 17) {
+			// v1.7 replaces the hard look-down gate with actual viewport/depth
+			// culling, makes the default a flat map-like surface, and carries all
+			// status roots with Method 1 unless a user explicitly needs the legacy
+			// companion-mod compatibility fallback.
+			boolean priorShippedDefault = cfg.virtualFaceOnLookDownPitch == 45
+					&& cfg.virtualPitch == 0 && cfg.virtualYaw == 0 && cfg.virtualRoll == 0;
+			if (priorShippedDefault) {
+				cfg.virtualFaceOnLookDownPitch = 85;
+			}
+			cfg.minimumLookDownPitch = 0;
+			cfg.preserveCompanionStatusLayout = false;
+		}
+
+		cfg.configVersion = 17;
 		save();
 	}
 

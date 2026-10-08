@@ -142,29 +142,13 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/**
-	 * A physical desk panel should not be transformed into a giant off-screen
-	 * card while the camera is level or raised. This inexpensive gate runs before
-	 * any private capture, mesh upload, or world-plane extraction.
+	 * Keeps selected vanilla HUD roots hidden only when their finite physical
+	 * map-like panel is actually outside the viewport. There is deliberately no
+	 * fixed look-pitch cutoff: if any part of the panel is in the player's field
+	 * of view, it stays live; if it is outside, no selected-HUD rendering occurs.
 	 */
-	static boolean isLecternLookDownEligible() {
-		Minecraft mc = Minecraft.getInstance();
-		if (mc.player == null) {
-			return false;
-		}
-		int configured = SpatialHudConfig.get().minimumLookDownPitch;
-		int threshold = Math.max(0, Math.min(80, configured));
-		return mc.player.getXRot() >= threshold;
-	}
-
-	/**
-	 * Keeps selected vanilla HUD roots hidden unless the finite physical panel
-	 * actually intersects the GUI viewport. This is intentionally distinct from
-	 * disabled mode: disabled delegates to vanilla, while an off-screen lectern
-	 * has no visible panel at all.
-	 */
-	static boolean isLecternVisibleInGui(int guiWidth, int guiHeight) {
-		return isLecternLookDownEligible()
-				&& VirtualHudPlane.forGui(SpatialHudConfig.get(), guiWidth, guiHeight).intersectsViewport();
+	static boolean isPhysicalPanelVisibleInGui(int guiWidth, int guiHeight) {
+		return VirtualHudPlane.forGui(SpatialHudConfig.get(), guiWidth, guiHeight).intersectsViewport();
 	}
 
 	/**
@@ -175,9 +159,10 @@ public class SpatialHud implements ClientModInitializer {
 	static boolean isTextureCaptureActive() {
 		Minecraft mc = Minecraft.getInstance();
 		return isGameplayHudActive()
-					&& isLecternLookDownEligible()
 					&& SpatialHudConfig.get().capturesTexture()
-					&& mc.gui.screen() == null;
+					&& mc.gui.screen() == null
+					&& isPhysicalPanelVisibleInGui(
+							mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
 	}
 
 	/** True only for the third renderer: a captured texture on a world-space quad. */

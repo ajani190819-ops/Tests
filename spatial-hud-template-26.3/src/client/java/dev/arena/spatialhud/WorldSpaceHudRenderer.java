@@ -115,7 +115,7 @@ public final class WorldSpaceHudRenderer {
 		float width = clamp((float) cfg.planeWidth, 0.10f, 6.0f);
 		float height = width * (VirtualHudPlane.SOURCE_TOP_FROM_BOTTOM
 				+ VirtualHudPlane.SOURCE_BOTTOM_BELOW_SCREEN) / (VirtualHudPlane.SOURCE_HALF_WIDTH * 2.0f);
-		float pitch = radians(clamp(cfg.virtualFaceOnLookDownPitch + cfg.virtualPitch, -80, 80));
+		float pitch = radians(clamp(cfg.virtualFaceOnLookDownPitch + cfg.virtualPitch, -89, 89));
 		// This top vector is the world equivalent of VirtualHudPlane's fixed
 		// horizon-space pitch: the upper edge shifts farther forward.
 		float topX = panelForwardX * sin(pitch);
@@ -147,7 +147,14 @@ public final class WorldSpaceHudRenderer {
 		Point topLeft = point(centerX - rolledRightX * halfWidth + rolledTopX * halfHeight,
 				centerY - rolledRightY * halfWidth + rolledTopY * halfHeight,
 				centerZ - rolledRightZ * halfWidth + rolledTopZ * halfHeight);
+		// The isolated capture target is full-window sized. Method 3 must sample
+		// only the selected lower-HUD source rectangle, just like Method 2, rather
+		// than shrinking that rectangle into the bottom of an otherwise blank quad.
+		VirtualHudPlane source = VirtualHudPlane.forGui(cfg,
+				mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
 		planeState = new PlaneState(bottomLeft, bottomRight, topRight, topLeft,
+				source.textureU(source.sourceLeft()), source.textureU(source.sourceRight()),
+				source.textureV(source.sourceTop()), source.textureV(source.sourceBottom()),
 				cfg.worldSpaceOccludeBehindWorld);
 	}
 
@@ -203,17 +210,17 @@ public final class WorldSpaceHudRenderer {
 		if (occludeBehindWorld) {
 			// ENTITY_TRANSLUCENT uses UV0, overlay UV1, lightmap UV2, and a normal.
 			// Full-bright keeps the HUD legible on the depth-tested world plane.
-			addEntityVertex(vertices, matrix, state.bottomLeft(), 0.0f, 1.0f);
-			addEntityVertex(vertices, matrix, state.bottomRight(), 1.0f, 1.0f);
-			addEntityVertex(vertices, matrix, state.topRight(), 1.0f, 0.0f);
-			addEntityVertex(vertices, matrix, state.topLeft(), 0.0f, 0.0f);
+			addEntityVertex(vertices, matrix, state.bottomLeft(), state.uLeft(), state.vBottom());
+			addEntityVertex(vertices, matrix, state.bottomRight(), state.uRight(), state.vBottom());
+			addEntityVertex(vertices, matrix, state.topRight(), state.uRight(), state.vTop());
+			addEntityVertex(vertices, matrix, state.topLeft(), state.uLeft(), state.vTop());
 		} else {
 			// GUI_TEXTURED is a vanilla no-depth texture pipeline, with the same
 			// simple position/color/UV layout used by the GUI mesh renderer.
-			addGuiVertex(vertices, matrix, state.bottomLeft(), 0.0f, 1.0f);
-			addGuiVertex(vertices, matrix, state.bottomRight(), 1.0f, 1.0f);
-			addGuiVertex(vertices, matrix, state.topRight(), 1.0f, 0.0f);
-			addGuiVertex(vertices, matrix, state.topLeft(), 0.0f, 0.0f);
+			addGuiVertex(vertices, matrix, state.bottomLeft(), state.uLeft(), state.vBottom());
+			addGuiVertex(vertices, matrix, state.bottomRight(), state.uRight(), state.vBottom());
+			addGuiVertex(vertices, matrix, state.topRight(), state.uRight(), state.vTop());
+			addGuiVertex(vertices, matrix, state.topLeft(), state.uLeft(), state.vTop());
 		}
 	}
 
@@ -278,6 +285,7 @@ public final class WorldSpaceHudRenderer {
 	}
 
 	private record PlaneState(Point bottomLeft, Point bottomRight, Point topRight, Point topLeft,
+						  float uLeft, float uRight, float vTop, float vBottom,
 						  boolean occludeBehindWorld) {
 	}
 
