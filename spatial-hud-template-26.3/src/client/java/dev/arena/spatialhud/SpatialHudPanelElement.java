@@ -19,6 +19,11 @@ final class SpatialHudPanelElement implements HudElement {
 		}
 
 		SpatialHudConfig cfg = SpatialHudConfig.get();
+		if (cfg.usesPolygonTest()) {
+			// Keep the four configured corners visibly responsive even before the
+			// captured HUD mesh composites at the end of the GUI render pass.
+			PolygonTestRenderer.drawGuide(graphics, cfg);
+		}
 
 		// Run even when the backing is hidden: this is registered immediately
 		// before HOTBAR and gives every selected root one camera pitch value.

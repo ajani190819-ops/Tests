@@ -1,5 +1,7 @@
 package dev.arena.spatialhud;
 
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+
 /**
  * Geometry for Method 4's purple four-corner diagnostic. Unlike the normal
  * virtual plane, this quad lives directly in GUI coordinates: changing one
@@ -7,7 +9,31 @@ package dev.arena.spatialhud;
  * HUD texture.
  */
 final class PolygonTestRenderer {
+	private static final int GUIDE_EDGE_COLOR = 0xFFFFD6FF;
+	private static final int GUIDE_HANDLE_COLOR = 0xFFC75CFF;
+	private static final int GUIDE_HANDLE_RADIUS = 5;
+
 	private PolygonTestRenderer() {
+	}
+
+	/**
+	 * Direct GUI-space outline used as a fail-visible guide. The captured HUD
+	 * mesh is composited later over this same outline, but this guide still moves
+	 * with every slider if a driver/mod blocks private texture capture.
+	 */
+	static void drawGuide(GuiGraphicsExtractor graphics, SpatialHudConfig cfg) {
+		Quad quad = quad(cfg, graphics.guiWidth(), graphics.guiHeight());
+		Point[] corners = {quad.topLeft(), quad.topRight(), quad.bottomRight(), quad.bottomLeft()};
+		for (int index = 0; index < corners.length; index++) {
+			drawEdge(graphics, corners[index], corners[(index + 1) % corners.length]);
+		}
+		for (Point corner : corners) {
+			int x = Math.round(corner.x());
+			int y = Math.round(corner.y());
+			graphics.fill(x - GUIDE_HANDLE_RADIUS, y - GUIDE_HANDLE_RADIUS,
+					x + GUIDE_HANDLE_RADIUS + 1, y + GUIDE_HANDLE_RADIUS + 1, GUIDE_HANDLE_COLOR);
+			graphics.fill(x - 2, y - 2, x + 3, y + 3, GUIDE_EDGE_COLOR);
+		}
 	}
 
 	static Quad quad(SpatialHudConfig cfg, int guiWidth, int guiHeight) {
@@ -16,6 +42,23 @@ final class PolygonTestRenderer {
 				point(cfg.polygonTopRightXPercent, cfg.polygonTopRightYPercent, guiWidth, guiHeight),
 				point(cfg.polygonBottomRightXPercent, cfg.polygonBottomRightYPercent, guiWidth, guiHeight),
 				point(cfg.polygonBottomLeftXPercent, cfg.polygonBottomLeftYPercent, guiWidth, guiHeight));
+	}
+
+	private static void drawEdge(GuiGraphicsExtractor graphics, Point from, Point to) {
+		float deltaX = to.x() - from.x();
+		float deltaY = to.y() - from.y();
+		float length = (float) Math.hypot(deltaX, deltaY);
+		if (length < 0.1f) {
+			return;
+		}
+		graphics.pose().pushMatrix();
+		try {
+			graphics.pose().translate(from.x(), from.y());
+			graphics.pose().rotateAbout((float) Math.atan2(deltaY, deltaX), 0.0f, 0.0f);
+			graphics.fill(0, -1, (int) Math.ceil(length), 2, GUIDE_EDGE_COLOR);
+		} finally {
+			graphics.pose().popMatrix();
+		}
 	}
 
 	private static Point point(int xPercent, int yPercent, int guiWidth, int guiHeight) {

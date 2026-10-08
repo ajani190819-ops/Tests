@@ -68,6 +68,7 @@ public final class ExperimentalHudCapture {
 	private static boolean frameCapturedHotbar;
 	private static boolean loggedHotbarExtraction;
 	private static boolean loggedMissingHotbar;
+	private static boolean loggedPolygonComposite;
 	/** Becomes true after a completed capture can be drawn by Method 3 next frame. */
 	private static boolean worldTextureReady;
 	private static boolean sessionFallback;
@@ -270,6 +271,10 @@ public final class ExperimentalHudCapture {
 					worldTextureReady = true;
 				} else if (cfg.usesPolygonTest()) {
 					worldTextureReady = false;
+					if (!loggedPolygonComposite) {
+						loggedPolygonComposite = true;
+						SpatialHud.LOGGER.info("Spatial HUD Method 4 is mapping the captured lower HUD to its four purple GUI corners.");
+					}
 					compositePolygonTestMesh(cfg);
 				} else {
 					// Both screen-space choices are mandatory texture meshes. Their
