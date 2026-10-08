@@ -344,11 +344,6 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("polygon")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
-	public int polygonPitchResponsePercent = 100;
-
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
 	public int polygonTopLeftXPercent = 30;
 
 	@ConfigEntry.Category("polygon")
@@ -680,7 +675,6 @@ public final class SpatialHudConfig implements ConfigData {
 			// Purple Method 4 now has one visible test surface, whose configured
 			// corners respond continuously to look pitch by default.
 			cfg.polygonFollowCameraPitch = true;
-			cfg.polygonPitchResponsePercent = 100;
 		}
 
 		cfg.configVersion = 20;

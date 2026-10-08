@@ -121,12 +121,11 @@ three modes:
    hotbar, bars, experience, and held-item text all bend with the quad you
    position. There is never a second dark rectangle left at the bottom of the
    screen. Its tab exposes one X/Y percentage pair per handle. At level view
-   those saved positions are exact; optional live pitch response then tilts the
-   whole surface like a flat card in a 3D renderer — looking down turns the
-   far/top edge away from you, so it narrows while the near/bottom edge widens,
-   at the same field-of-view perspective the world uses — and the warped HUD
-   follows every tilt. Because the texture is mapped through a true plane
-   projection, straight HUD lines stay straight on the surface.
+   those saved positions are exact at level view. The surface is then a physical
+   sheet held in front of you: it stays put as you turn, and as you look up or
+   down the perspective changes just as a real sheet of paper would. Crouching
+   moves it too, because it is anchored to the ground. Straight HUD lines stay
+   straight on the surface.
    It maps the bottom of the strip where the HUD actually draws, and it stays
    active regardless of the physical panel's position because its target is
    placed by four GUI-space handles rather than by the world-plane geometry.
@@ -240,11 +239,9 @@ explanation tab plus four focused settings sections:
 - **Purple Polygon Test** provides eight percentage sliders—X and Y for each
   top-left, top-right, bottom-right, and bottom-left handle. They affect only
   Method 4, and they set the four corners that the captured lower HUD is warped
-  onto. **Follow Camera Pitch** tilts the surface like a 3D card as you look up
-  or down, and **Pitch Response Strength** scales how much of the look angle
-  becomes that tilt; disable pitch following for a perfectly fixed target. The
-  tilt stops at 70°, so the card flattens at extreme angles but never collapses
-  into a line. **Show Backing Panel** controls
+  onto. **Follow Camera Pitch** makes the surface behave like a physical sheet
+  held in front of you, as described above; turn it off for a perfectly fixed
+  target. Head pitch is limited to 70°; beyond that the sheet stops following. **Show Backing Panel** controls
   Method 4's translucent purple interior; the purple border and corner handles
   always remain. Anything another mod draws higher than the bottom of the strip
   stays outside the quad.

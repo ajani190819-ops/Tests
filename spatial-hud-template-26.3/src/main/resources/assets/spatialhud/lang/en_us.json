@@ -87,7 +87,5 @@
   "text.autoconfig.spatialhud.option.showHeldItemName": "Held Item Name",
   "text.autoconfig.spatialhud.option.showHeldItemName.@Tooltip": "Include the transient selected-item name above the lower HUD panel. Disable it if a tooltip or inventory mod already provides a preferred held-item label.",
   "text.autoconfig.spatialhud.option.polygonFollowCameraPitch": "Follow Camera Pitch",
-  "text.autoconfig.spatialhud.option.polygonFollowCameraPitch.@Tooltip": "Purple test only. Tilt the purple four-corner surface, and the captured HUD mapped onto it, like a flat card in a 3D renderer. The card pitches about its own left-to-right axis: looking down turns its top edge away from you, so that far edge narrows while the near edge widens, using the same field-of-view perspective as the world. At level view the saved corner percentages are used exactly. Disable this to keep the quad fixed.",
-  "text.autoconfig.spatialhud.option.polygonPitchResponsePercent": "Pitch Response Strength",
-  "text.autoconfig.spatialhud.option.polygonPitchResponsePercent.@Tooltip": "Purple test only. How much of your camera pitch becomes that 3D card tilt: 100 turns the full look angle into it, 50 uses half, and 0 leaves the quad fixed. The tilt stops at 70 degrees, so the surface flattens but never collapses into a line."
+  "text.autoconfig.spatialhud.option.polygonFollowCameraPitch.@Tooltip": "Purple test only. The purple surface is a physical sheet held in front of you. It stays in place as you turn and as you look up or down, so your head movement changes its perspective the way a real sheet would. Crouching also moves it, because it is anchored to the ground. Tilt is limited to 70 degrees. Turn this off to keep the quad fixed on screen."
 }

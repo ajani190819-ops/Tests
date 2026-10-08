@@ -79,25 +79,17 @@
   identity; `SpatialHudGameRendererMixin` runs the composite after the normal
   GUI pass and closes Method 3's buffer on shutdown.
 - Method 4 geometry lives in `PolygonTestRenderer`. `quad(cfg, guiWidth,
-  guiHeight)` is the single definition used by both the capture mesh and the
-  plain fallback guide, so the warped HUD and the outline always share the four
-  corners and the live pitch response (`respondToPitch`, driven by
-  `SpatialHud.pitch` via `polygonFollowCameraPitch` /
-  `polygonPitchResponsePercent`).
-- Method 4's pitch response is a real plane projection, not a screen pinch: the
-  card pitches about its own left-to-right axis and each corner is divided by
-  its own depth (`w = 1 - dy*sin(angle)/focal`), so looking down genuinely
-  narrows the far/top edge and widens the near/bottom edge. `focal` is
-  `VirtualHudPlane.focalLengthFor(guiHeight)` — the same FOV-derived value
-  Methods 1-3 project with, so the perspective matches the world at any FOV or
-  GUI scale. Level pitch returns the saved corners exactly; the tilt is clamped
-  to 70 degrees and the divide floor is 0.15 (a normal card's worst case is
-  about 0.34, so the floor only guards pathological corner sets).
+  guiHeight)` is the one definition shared by the capture mesh and the fallback
+  guide. With `polygonFollowCameraPitch`, it projects the saved corners as a
+  physical sheet fixed to the player's feet and head yaw; head pitch and eye
+  height move it (`respondToPitch`/`sheetCorner`). Constants there:
+  `REFERENCE_EYE_HEIGHT` 1.62, `SHEET_DISTANCE` 2.0, `MAX_TILT_DEGREES` 70,
+  `MIN_DEPTH_FRACTION` 0.25. The old `polygonPitchResponsePercent` setting was
+  removed.
 - `PolygonTestRenderer.Quad` stores the square-to-quad homography and maps the
   captured texture through it, so straight HUD lines stay straight on the
-  surface (the earlier bilinear mapping bowed them). Crossed or collapsed
-  handles cannot define a homography and fall back to bilinear so a stress-test
-  corner set still renders.
+  surface. Crossed or collapsed handles cannot define a homography and fall
+  back to bilinear.
 - Method 4 draws its own purple identity into the captured texture: a
   translucent interior painted before the vanilla roots extract (so the HUD
   pixels stay readable), then a 3px border and four inward corner handles on

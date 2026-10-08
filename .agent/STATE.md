@@ -46,13 +46,10 @@
   keeping the pitch response. Method 4 therefore captures the selected lower
   HUD again and warps it onto the four configured corners. The plain outline is
   now only the fallback used when the capture is not running.
-- Pitch response is shared and now a real plane projection: the card pitches
-  about its own left-to-right axis with a per-corner perspective divide
-  (`focal` from the player's FOV), so looking down narrows the far edge and
-  widens the near edge; the tilt clamps at 70° and the interior mapping is the
-  square-to-quad homography, so straight HUD lines stay straight.
-  `PolygonTestRenderer.quad(...)` is still the single quad definition shared by
-  the capture mesh and the fallback guide.
+- Pitch response is a physical sheet: fixed to feet and head yaw, head pitch
+  and eye height move it, `SHEET_DISTANCE` 2.0, tilt limited to 70 degrees.
+  `polygonPitchResponsePercent` was removed. `PolygonTestRenderer.quad(...)` is
+  still the single quad definition shared by the capture and the fallback.
 - Method 4 maps only the bottom `POLYGON_SOURCE_HEIGHT` (72) GUI pixels of the
   strip, clamped to the real GUI, not the plane's 184px source rectangle.
   Mapping the taller rectangle puts the HUD in the quad's bottom quarter under

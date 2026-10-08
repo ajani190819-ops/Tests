@@ -1,5 +1,6 @@
 package dev.arena.spatialhud;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
@@ -7,35 +8,37 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * plane, this quad lives directly in GUI coordinates: changing one configured
  * percentage moves exactly one destination corner of the captured HUD texture.
  *
- * <p>Two parts of it are deliberately treated as real projection rather than as
- * a screen-space pinch:</p>
- *
- * <ul>
- *   <li>the camera pitch response pitches the quad like a flat card in a 3D
- *       renderer, using the same perspective divide the world uses, so looking
- *       down genuinely narrows the far edge and widens the near edge;</li>
- *   <li>the interior mapping is the homography between the source rectangle and
- *       the four corners, so straight HUD lines stay straight on the surface
- *       instead of bowing.</li>
- * </ul>
+ * <p>The pitch response is a physical sheet, not a screen-space effect. The
+ * saved corners are the sheet as seen from a standing eye looking straight
+ * ahead. The sheet then stays put in the world: anchored to the player's feet
+ * and to head yaw, so turning left and right keeps it in front of you, while
+ * head pitch and crouching move it exactly as a real sheet held in place would
+ * move. The interior mapping is the homography of that plane, so straight HUD
+ * lines stay straight.
  */
 final class PolygonTestRenderer {
 	private static final int GUIDE_EDGE_COLOR = 0xFFFFD6FF;
 	private static final int GUIDE_HANDLE_COLOR = 0xFFC75CFF;
 	private static final int GUIDE_HANDLE_RADIUS = 5;
+	/** Standing eye height above the feet, in blocks. */
+	private static final float REFERENCE_EYE_HEIGHT = 1.62f;
 	/**
-	 * How far the card may pitch away from the screen. Past this the surface is
-	 * nearly edge-on and its projection would collapse into a line, so the
-	 * response stops here and stays readable at any camera pitch.
+	 * Distance from the player to the sheet, in blocks. Head rotation alone does
+	 * not depend on it; it sets how far the sheet moves on screen when you crouch,
+	 * because crouching moves your eye but not the sheet.
 	 */
-	private static final float MAX_PITCH_TILT_DEGREES = 70.0f;
+	private static final float SHEET_DISTANCE = 2.0f;
 	/**
-	 * Floor for the perspective divide. A normal card on screen never reaches it
-	 * (the worst case is about 0.34 at the 70 degree limit); it only stops a
-	 * pathological corner set, much taller than the screen, from dividing by
-	 * nearly zero at the vanishing line.
+	 * Largest head pitch the sheet responds to, in degrees. Beyond this the
+	 * sheet's lower edge would swing past the eye and the picture would blow up.
 	 */
-	private static final float MIN_PERSPECTIVE_W = 0.15f;
+	private static final float MAX_TILT_DEGREES = 70.0f;
+	/**
+	 * Smallest depth allowed for a sheet corner, as a fraction of the sheet
+	 * distance. This keeps a corner from reaching the eye at extreme tilts.
+	 */
+	private static final float MIN_DEPTH_FRACTION = 0.25f;
+
 
 	private PolygonTestRenderer() {
 	}
@@ -76,58 +79,52 @@ final class PolygonTestRenderer {
 	}
 
 	/**
-	 * Pitches the quad about its own left-to-right axis, the way a 3D renderer
-	 * moves a flat card: positive Minecraft pitch looks down, which tips the top
-	 * (far) edge away from the camera. The far edge then narrows and the near
-	 * edge widens because every corner is divided by its own depth, rather than
-	 * both edges being scaled by invented constants.
-	 *
-	 * <p>At level view (pitch zero) the eight saved values are used exactly, and
-	 * a response strength of zero freezes the card completely. The card centre
-	 * stays where it was configured, so the handles keep placing the surface.</p>
+	 * Projects the saved corners as a physical sheet. The sheet is fixed relative
+	 * to the feet and head yaw, so only head pitch and eye height change the
+	 * picture. At level pitch with a standing eye, the saved corners are returned
+	 * exactly.
 	 */
 	private static Quad respondToPitch(Quad base, SpatialHudConfig cfg, int guiWidth, int guiHeight) {
-		float response = clamp(cfg.polygonPitchResponsePercent, 0, 100) / 100.0f;
-		float degrees = clamp(SpatialHud.pitch, -90.0f, 90.0f) * response;
-		float angle = clamp(degrees, -MAX_PITCH_TILT_DEGREES, MAX_PITCH_TILT_DEGREES);
-		if (Math.abs(angle) < 0.0001f) {
+		float pitch = clamp(SpatialHud.pitch, -MAX_TILT_DEGREES, MAX_TILT_DEGREES);
+		float eyeOffset = currentEyeHeight() - REFERENCE_EYE_HEIGHT;
+		if (Math.abs(pitch) < 0.0001f && Math.abs(eyeOffset) < 0.0001f) {
 			return base;
 		}
 
-		float radians = (float) Math.toRadians(angle);
+		float radians = (float) Math.toRadians(pitch);
 		float sine = (float) Math.sin(radians);
 		float cosine = (float) Math.cos(radians);
-		// The projection's focal length comes from the player's own field of
-		// view, so the tilt matches the perspective of the world on screen.
+		// Same focal length as Methods 1-3, so perspective matches the world at
+		// the player's own field of view.
 		float focal = VirtualHudPlane.focalLengthFor(guiHeight);
-		float screenCentreX = guiWidth * 0.5f;
-		float screenCentreY = guiHeight * 0.5f;
-		float cardCentreY = (base.topLeft().y() + base.topRight().y()
-				+ base.bottomRight().y() + base.bottomLeft().y()) / 4.0f;
-
+		float centreX = guiWidth * 0.5f;
+		float centreY = guiHeight * 0.5f;
 		return new Quad(
-				pitchPoint(base.topLeft(), screenCentreX, screenCentreY, cardCentreY, sine, cosine, focal),
-				pitchPoint(base.topRight(), screenCentreX, screenCentreY, cardCentreY, sine, cosine, focal),
-				pitchPoint(base.bottomRight(), screenCentreX, screenCentreY, cardCentreY, sine, cosine, focal),
-				pitchPoint(base.bottomLeft(), screenCentreX, screenCentreY, cardCentreY, sine, cosine, focal));
+				sheetCorner(base.topLeft(), centreX, centreY, focal, sine, cosine, eyeOffset),
+				sheetCorner(base.topRight(), centreX, centreY, focal, sine, cosine, eyeOffset),
+				sheetCorner(base.bottomRight(), centreX, centreY, focal, sine, cosine, eyeOffset),
+				sheetCorner(base.bottomLeft(), centreX, centreY, focal, sine, cosine, eyeOffset));
 	}
 
 	/**
-	 * One corner through the card's projection. {@code dy} is the corner's
-	 * distance from the card's own tilting axis, so a corner above the axis
-	 * moves behind the screen plane (a divide greater than one: it shrinks and
-	 * pulls toward the axis) while the edge below it comes forward, grows, and
-	 * pushes away from the axis. Corners are intentionally not clamped to the
-	 * viewport: a genuinely tilted surface may reach past the screen edge, and
-	 * clamping would flatten the perspective the mode exists to show.
+	 * One saved corner through the physical sheet. The screen point is first
+	 * placed on the sheet at the reference eye, then the eye's current height
+	 * is applied so crouching moves the sheet relative to you. Finally the
+	 * camera's pitch projects it back to the screen.
 	 */
-	private static Point pitchPoint(Point corner, float screenCentreX, float screenCentreY,
-			float cardCentreY, float sine, float cosine, float focal) {
-		float dy = corner.y() - cardCentreY;
-		float w = Math.max(MIN_PERSPECTIVE_W, 1.0f - (dy * sine) / focal);
-		float x = screenCentreX + (corner.x() - screenCentreX) / w;
-		float y = screenCentreY + (cardCentreY - screenCentreY + dy * cosine) / w;
-		return new Point(x, y);
+	private static Point sheetCorner(Point screen, float centreX, float centreY, float focal,
+			float sine, float cosine, float eyeOffset) {
+		float distance = SHEET_DISTANCE;
+		float x = (screen.x() - centreX) * distance / focal;
+		float y = -(screen.y() - centreY) * distance / focal - eyeOffset;
+		float depth = Math.max(distance * cosine - y * sine, MIN_DEPTH_FRACTION * distance);
+		float height = y * cosine + distance * sine;
+		return new Point(centreX + focal * x / depth, centreY - focal * height / depth);
+	}
+
+	private static float currentEyeHeight() {
+		Minecraft minecraft = Minecraft.getInstance();
+		return minecraft.player != null ? minecraft.player.getEyeHeight() : REFERENCE_EYE_HEIGHT;
 	}
 
 	private static void drawEdge(GuiGraphicsExtractor graphics, Point from, Point to) {

@@ -77,52 +77,49 @@ mode again, not the outline-only diagnostic that the previous session shipped.
   can cover whatever else is there (for example the crosshair region). Methods
   1–3 have the same property over their own area.
 
-### Pitch response — a real plane projection
+### Pitch response — a physical sheet (Method 4)
 
-Method 4 uses the eight saved percentage values exactly when the view pitch is
-level. By default it then pitches the surface about its own left-to-right axis,
-the way a 3D renderer moves a flat card:
+The saved corners are the sheet as seen from a standing eye looking straight
+ahead. `PolygonTestRenderer.respondToPitch(...)` then keeps the sheet fixed in
+the world, not on screen:
 
-- looking **down** tips the far/top edge away from the camera, so that edge
-  narrows while the near/bottom edge widens and the surface foreshortens;
-- looking **up** reverses the motion.
+- anchored to the player's **feet** and to **head yaw**, so turning keeps it
+  in front of you;
+- head **pitch** (`SpatialHud.pitch`, degrees, positive = looking down) rotates
+  only the camera, so the perspective changes as a real sheet would;
+- the eye's **current height** is applied, so crouching moves the sheet on
+  screen; the sheet does not follow the eye.
 
-This is a genuine perspective divide per corner, not the previous invented
-pinch. For a corner at `dy` pixels from the card's own centre line:
+Per corner, with `d = SHEET_DISTANCE` (2.0 blocks), `f` the FOV focal length
+from `VirtualHudPlane.focalLengthFor(guiHeight)`, and `eyeOffset = currentEye -
+REFERENCE_EYE_HEIGHT` (1.62):
 
 ```text
-w  = 1 - dy * sin(angle) / focal
-x' = screenCentreX + (x - screenCentreX) / w
-y' = screenCentreY + (cardCentreY - screenCentreY + dy * cos(angle)) / w
+x = (sx - cx) * d / f
+y = -(sy - cy) * d / f - eyeOffset
+depth  = max(d*cos(p) - y*sin(p), 0.25*d)
+height = y*cos(p) + d*sin(p)
+sx' = cx + f*x/depth,  sy' = cy - f*height/depth
 ```
 
-`focal` comes from the player's field of view
-(`VirtualHudPlane.focalLengthFor(guiHeight)`, the same value Methods 1–3 use),
-so the tilt matches the world's perspective at any FOV or GUI scale. The card's
-centre stays where the handles put it, so placement is unaffected. The tilt is
-clamped to 70°, which keeps the surface readable instead of collapsing to a
-line at a straight-down look, and the divide has a `0.15` floor that only a
-corner set far taller than the screen can reach.
+Hard-coded values, all in `PolygonTestRenderer`: `REFERENCE_EYE_HEIGHT = 1.62`,
+`SHEET_DISTANCE = 2.0`, `MAX_TILT_DEGREES = 70`, `MIN_DEPTH_FRACTION = 0.25`.
+The distance does not change the picture for head rotation alone; it only sets
+how far crouching moves the sheet on screen (larger means less movement).
 
-The interior mapping is now also projective: `PolygonTestRenderer.Quad` holds
-the square-to-quad homography, so straight HUD lines stay straight on the
-tilted surface. The previous bilinear interpolation bowed them. Deliberately
-crossed or collapsed handles cannot define a homography, and fall back to the
-old bilinear surface so a stress-test configuration still draws.
+Consequences you should expect:
 
-Controls in `SpatialHudConfig`: `polygonFollowCameraPitch` (default `true`) and
-`polygonPitchResponsePercent` (bounded `0`–`100`, default `100`, which scales
-the look angle before the clamp). `PolygonTestRenderer.respondToPitch(...)` reads
-the per-frame `SpatialHud.pitch`, and `SpatialHudPanelElement` calls
-`SpatialHud.updateViewPose()` before drawing, so the value is current-frame
-rather than one frame stale. Both the capture mesh and the fallback guide call
-the same `quad(...)`, which is why the texture, border, and handles tilt
-together.
+- looking **up** sharply swings the sheet's lower edge toward the player; the
+  saved quad sits below the view centre, so this is strong at around -40 deg;
+- the **Pitch Response Strength** setting was removed; the physical model has
+  no strength to scale.
 
-**Verified by numeric simulation, not in game:** at level pitch the corners are
-returned exactly; the far edge narrows and the near edge widens as pitch
-increases; the mapping stays finite and un-inverted across −90°…+90° at every
-response strength; and a straight source line stays straight.
+The interior mapping is the projective `PolygonTestRenderer.Quad` homography,
+so straight HUD lines stay straight on the sheet.
+
+**Verified by numeric simulation, not in game:** level pitch with a standing
+eye returns the saved corners exactly; pitch returns to the same corners; the
+image is finite and not inverted for -90..90 deg, both stand and crouch.
 
 ## Updater: choosing a build (added 2026-10-08)
 
