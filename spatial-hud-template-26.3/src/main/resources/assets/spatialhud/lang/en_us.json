@@ -1,15 +1,18 @@
 {
   "key.spatialhud.open_config": "Open Spatial HUD Settings",
   "key.spatialhud.toggle": "Toggle Spatial HUD",
+  "key.spatialhud.select_method_1": "Spatial HUD — Select Method 1 (Balanced Green Warp)",
+  "key.spatialhud.select_method_2": "Spatial HUD — Select Method 2 (Strong Blue Warp)",
+  "key.spatialhud.select_method_3": "Spatial HUD — Select Method 3 (Red World Map)",
 
   "text.autoconfig.spatialhud.title": "Spatial HUD",
   "text.autoconfig.spatialhud.category.guide": "Method Guide — Read This First",
-  "text.autoconfig.spatialhud.category.setup": "Setup & Render Method",
+  "text.autoconfig.spatialhud.category.setup": "Setup",
   "text.autoconfig.spatialhud.category.positioning": "Panel Positioning & Orientation",
   "text.autoconfig.spatialhud.category.contents": "HUD Contents",
 
   "text.autoconfig.spatialhud.option.guideOverview.title": "How to picture Spatial HUD",
-  "text.autoconfig.spatialhud.option.guideOverview.body": "Imagine the selected lower HUD as a flat Minecraft map resting at waist height in front of you. Its default near-horizontal surface is readable from above. It is not controlled by a look-down-angle switch: it stays active whenever any part of the real panel is in the screen and is culled only once the complete surface leaves the field of view or passes behind the camera. Every method now captures and warps the complete selected lower HUD—there is no flat non-warp option. Every method includes the enabled health, armor, hunger, air, experience, held-item, mount, and hotbar roots. The broad green, blue, or red band identifies the selected method.",
+  "text.autoconfig.spatialhud.option.guideOverview.body": "Imagine the selected lower HUD as a flat Minecraft map resting at waist height in front of you. Its default near-horizontal surface is readable from above. It is not controlled by a look-down-angle switch: it stays active whenever any part of the real panel is in the screen and is culled only once the complete surface leaves the field of view or passes behind the camera. Every method now captures and warps the complete selected lower HUD—there is no flat non-warp option. Press F6, F7, or F8 to select Method 1, 2, or 3 instantly; rebind them in Minecraft Controls if they conflict. The full-width green, blue, or red band and a brief action-bar message confirm the active choice. Every method includes the enabled health, armor, hunger, air, experience, held-item, mount, and hotbar roots.",
   "text.autoconfig.spatialhud.option.guideClassicAffine.title": "Method 1 — Green — Balanced Captured Warp",
   "text.autoconfig.spatialhud.option.guideClassicAffine.body": "Green is a required captured-texture mesh, not the old unwarped root-by-root path. It applies a balanced forced perspective warp to every selected pixel, including health and status bars, while retaining a map-like readable shape. Use it when you want real distortion without the stronger blue exaggeration. The wide green band is a live confirmation that this method is selected.",
   "text.autoconfig.spatialhud.option.guideCapturedMesh.title": "Method 2 — Blue — Strong Captured Projective Warp",

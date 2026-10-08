@@ -339,34 +339,35 @@ public final class ExperimentalHudCapture {
 	 * tied to finished capture pixels while vertex depth changes across the
 	 * entire strip, so a single heart or hotbar slot itself becomes trapezoidal.
 	 *
-	 * <p>The two mesh methods intentionally blend/extrapolate away from the
-	 * centre's affine tangent. Therefore the visible difference is not dependent
-	 * on a subtle camera angle: green is a balanced forced warp and blue is a
-	 * deliberately strong forced warp.</p>
+	 * <p>The two mesh methods deliberately add a far-edge pinch to the real
+	 * physical projection. This pulls the top two corners together and widens
+	 * the bottom edge, making a proper flat-map trapezoid instead of a vague
+	 * independent X/Y stretch.</p>
 	 */
 	private static void addWarpMesh(VertexConsumer vertices, SpatialHudConfig cfg) {
 		VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
-		VirtualHudPlane.WarpBasis warpBasis = plane.createWarpBasis();
-		float warpStrength = cfg.meshWarpStrength();
+		float topEdgeWidth = cfg.meshTopEdgeWidthMultiplier();
+		float bottomEdgeWidth = cfg.meshBottomEdgeWidthMultiplier();
 		for (int row = 0; row < MESH_ROWS; row++) {
 			float v0 = row / (float) MESH_ROWS;
 			float v1 = (row + 1) / (float) MESH_ROWS;
 			for (int column = 0; column < MESH_COLUMNS; column++) {
 				float u0 = column / (float) MESH_COLUMNS;
 				float u1 = (column + 1) / (float) MESH_COLUMNS;
-				addWarpVertex(vertices, plane, warpBasis, u0, v0, warpStrength);
-				addWarpVertex(vertices, plane, warpBasis, u1, v0, warpStrength);
-				addWarpVertex(vertices, plane, warpBasis, u1, v1, warpStrength);
-				addWarpVertex(vertices, plane, warpBasis, u0, v1, warpStrength);
+				addWarpVertex(vertices, plane, u0, v0, topEdgeWidth, bottomEdgeWidth);
+				addWarpVertex(vertices, plane, u1, v0, topEdgeWidth, bottomEdgeWidth);
+				addWarpVertex(vertices, plane, u1, v1, topEdgeWidth, bottomEdgeWidth);
+				addWarpVertex(vertices, plane, u0, v1, topEdgeWidth, bottomEdgeWidth);
 			}
 		}
 	}
 
-	private static void addWarpVertex(VertexConsumer vertices, VirtualHudPlane plane,
-			VirtualHudPlane.WarpBasis warpBasis, float u, float v, float warpStrength) {
+	private static void addWarpVertex(VertexConsumer vertices, VirtualHudPlane plane, float u, float v,
+			float topEdgeWidth, float bottomEdgeWidth) {
 		float sourceX = lerp(plane.sourceLeft(), plane.sourceRight(), u);
 		float sourceY = lerp(plane.sourceTop(), plane.sourceBottom(), v);
-		VirtualHudPlane.Point destination = plane.projectWarped(sourceX, sourceY, warpStrength, warpBasis);
+		VirtualHudPlane.Point destination = plane.projectWarped(sourceX, sourceY,
+				topEdgeWidth, bottomEdgeWidth);
 		vertices.addVertex(IDENTITY, destination.x(), destination.y(), 0.0f)
 				.setUv(plane.textureU(sourceX), plane.textureV(sourceY))
 				.setColor(255, 255, 255, 255);

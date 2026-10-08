@@ -91,11 +91,12 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean onlyDuringGameplay = true;
 
 	/**
-	 * The one top-level rendering choice. The method controls the implementation,
-	 * not which HUD parts are visible; those controls remain in HUD Contents.
+	 * Persisted direct-key selection. It is intentionally hidden from Cloth
+	 * Config: bind Method 1, 2, and 3 under Minecraft Controls to choose it.
+	 * HUD-content controls remain separately available in HUD Contents.
 	 */
 	@ConfigEntry.Category("setup")
-	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.Gui.Excluded
 	// Perspective capture is the baseline: every selectable method now carries
 	// the complete lower-HUD texture rather than silently defaulting to a flat
 	// root-by-root presentation.
@@ -396,12 +397,17 @@ public final class SpatialHudConfig implements ConfigData {
 	}
 
 	/**
-	 * Method 1 is still the more balanced green presentation, but it is no
-	 * longer a flat affine fallback. Method 2 deliberately exaggerates the
-	 * finite-plane projection so a mode change is obvious at a glance.
+	 * Extra horizontal far-edge pinch layered on the real plane projection.
+	 * This deliberately moves the two top corners toward one another, producing
+	 * the unmistakable map-like trapezoid that a general X/Y distortion lacks.
 	 */
-	float meshWarpStrength() {
-		return renderMethod == RenderMethod.CLASSIC_AFFINE ? 1.25f : 2.10f;
+	float meshTopEdgeWidthMultiplier() {
+		return renderMethod == RenderMethod.CLASSIC_AFFINE ? 0.80f : 0.46f;
+	}
+
+	/** Matching near-edge widening for the same forced trapezoid. */
+	float meshBottomEdgeWidthMultiplier() {
+		return renderMethod == RenderMethod.CLASSIC_AFFINE ? 1.10f : 1.22f;
 	}
 
 	/** Whether the captured texture is presented by the real world renderer. */

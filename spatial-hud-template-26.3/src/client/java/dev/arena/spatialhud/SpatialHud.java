@@ -14,6 +14,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
 import java.util.List;
@@ -33,6 +34,9 @@ public class SpatialHud implements ClientModInitializer {
 
 	private static KeyMapping openConfigKey;
 	private static KeyMapping toggleHudKey;
+	private static KeyMapping selectMethodOneKey;
+	private static KeyMapping selectMethodTwoKey;
+	private static KeyMapping selectMethodThreeKey;
 	private static boolean enabled;
 
 	// These two mods add their visual details by injecting inside vanilla's
@@ -91,6 +95,14 @@ public class SpatialHud implements ClientModInitializer {
 				InputConstants.UNKNOWN.getValue(),
 				KeyMapping.Category.MISC));
 
+		// Render mode is deliberately selected through these direct Controls-menu
+		// bindings rather than a persistent config dropdown. F6/F7/F8 avoid the
+		// hotbar number keys while providing an immediate 1/2/3 selection; users
+		// can rebind any conflict in the normal Minecraft Controls screen.
+		selectMethodOneKey = registerMethodKey("key.spatialhud.select_method_1", SDLScancode.SDL_SCANCODE_F6);
+		selectMethodTwoKey = registerMethodKey("key.spatialhud.select_method_2", SDLScancode.SDL_SCANCODE_F7);
+		selectMethodThreeKey = registerMethodKey("key.spatialhud.select_method_3", SDLScancode.SDL_SCANCODE_F8);
+
 		for (Identifier id : STRIP_ELEMENTS) {
 			HudElementRegistry.replaceElement(id, vanilla -> new SpatialHudElement(id, vanilla));
 		}
@@ -118,12 +130,47 @@ public class SpatialHud implements ClientModInitializer {
 				}
 			}
 
+			while (selectMethodOneKey.consumeClick()) {
+				selectRenderMethod(client, SpatialHudConfig.RenderMethod.CLASSIC_AFFINE, 1,
+						"green balanced trapezoid warp");
+			}
+			while (selectMethodTwoKey.consumeClick()) {
+				selectRenderMethod(client, SpatialHudConfig.RenderMethod.CAPTURED_MESH, 2,
+						"blue strong trapezoid warp");
+			}
+			while (selectMethodThreeKey.consumeClick()) {
+				selectRenderMethod(client, SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE, 3,
+						"red real world map");
+			}
+
 			if (client.player == null) {
 				resetSway();
 			}
 		});
 
-		LOGGER.info("Spatial HUD render-method build initialized. Press H to open settings; use Mod Menu as an alternative.");
+		LOGGER.info("Spatial HUD forced-warp build initialized. Press H for the read-only guide; bind direct Method 1/2/3 keys in Controls.");
+	}
+
+	private static KeyMapping registerMethodKey(String translationKey, int defaultScancode) {
+		return KeyMappingHelper.registerKeyMapping(new KeyMapping(
+				translationKey,
+				InputConstants.Type.KEYBOARD,
+				defaultScancode,
+				KeyMapping.Category.MISC));
+	}
+
+	private static void selectRenderMethod(Minecraft client, SpatialHudConfig.RenderMethod method,
+			int number, String description) {
+		SpatialHudConfig cfg = SpatialHudConfig.get();
+		if (cfg.renderMethod != method) {
+			cfg.renderMethod = method;
+			SpatialHudConfig.save();
+		}
+		LOGGER.info("Spatial HUD Method {} selected: {}.", number, description);
+		if (client.player != null) {
+			client.player.displayClientMessage(Component.literal(
+					"Spatial HUD — Method " + number + ": " + description), true);
+		}
 	}
 
 	public static boolean isEnabled() {

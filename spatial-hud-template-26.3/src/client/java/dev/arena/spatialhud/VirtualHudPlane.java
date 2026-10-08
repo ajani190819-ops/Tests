@@ -24,10 +24,6 @@ final class VirtualHudPlane {
 	record Point(float x, float y) {
 	}
 
-	/** Cached centre tangent used to force an obvious mesh-only perspective warp. */
-	record WarpBasis(Point centre, Point xTangent, Point yTangent) {
-	}
-
 	private final SpatialHudConfig cfg;
 	private final int guiWidth;
 	private final int guiHeight;
@@ -104,31 +100,21 @@ final class VirtualHudPlane {
 		return toScreenPoint(projectPhysicalPoint(sourceX, sourceY));
 	}
 
-	/** Builds one affine centre tangent for a complete forced-warp mesh frame. */
-	WarpBasis createWarpBasis() {
-		Point centre = project(sourceCenterX, sourceCenterY);
-		return new WarpBasis(centre, project(sourceCenterX + 1.0f, sourceCenterY),
-				project(sourceCenterX, sourceCenterY + 1.0f));
-	}
-
 	/**
-	 * Project a texture-mesh vertex with a deliberately non-zero perspective
-	 * component. Strength 0 is the old single affine tangent, 1 is the physical
-	 * projection, and strengths above 1 exaggerate the real far-edge taper.
+	 * Project a texture-mesh vertex as a readable flat map trapezoid. The real
+	 * 3D projection supplies its depth and vertical placement. An additional
+	 * width multiplier then pinches the far/top row and widens the near/bottom
+	 * row around that row's centre—explicitly bringing the top two corners closer
+	 * together rather than merely stretching pixels along the X/Y axes.
 	 */
-	Point projectWarped(float sourceX, float sourceY, float strength, WarpBasis basis) {
+	Point projectWarped(float sourceX, float sourceY, float topEdgeWidth,
+			float bottomEdgeWidth) {
 		Point physical = project(sourceX, sourceY);
-		float deltaX = sourceX - sourceCenterX;
-		float deltaY = sourceY - sourceCenterY;
-		Point centre = basis.centre();
-		Point xTangent = basis.xTangent();
-		Point yTangent = basis.yTangent();
-		float affineX = centre.x() + deltaX * (xTangent.x() - centre.x())
-				+ deltaY * (yTangent.x() - centre.x());
-		float affineY = centre.y() + deltaX * (xTangent.y() - centre.y())
-				+ deltaY * (yTangent.y() - centre.y());
-		return new Point(affineX + (physical.x() - affineX) * strength,
-				affineY + (physical.y() - affineY) * strength);
+		Point rowCentre = project(sourceCenterX, sourceY);
+		float v = (sourceY - sourceTop) / sourceHeight;
+		float widthMultiplier = lerp(topEdgeWidth, bottomEdgeWidth, v);
+		return new Point(rowCentre.x() + (physical.x() - rowCentre.x()) * widthMultiplier,
+				physical.y());
 	}
 
 	/**

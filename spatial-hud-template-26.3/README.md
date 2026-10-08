@@ -68,8 +68,8 @@ you specifically want a Downloads copy instead of a direct Modrinth install.
 ## Render methods and placement
 
 Spatial HUD treats the selected bottom strip as one panel at a player-relative
-location. **Render Method** is now the first setting and is the only place that
-chooses a renderer:
+location. Bind the three direct method-selection actions in **Minecraft
+Controls** to choose its renderer instantly:
 
 1. **Balanced Captured Warp (green marker)** — captures the selected gameplay
    lower HUD into a private texture and applies a balanced forced projective
@@ -112,19 +112,22 @@ than a card that follows camera pitch:
 
 Methods 1 and 2 both apply genuine per-pixel projective perspective through
 captured meshes: Method 1 is balanced; Method 2 is deliberately stronger and
-the default. Method 3 is a true world quad and samples the same lower-HUD
-source rectangle rather than a full-window texture; Methods 1 and 2 are
-camera-yaw anchored, while Method 3 exposes its anchor as a separate setting so
-it can instead remain fixed to player-body yaw.
+the default. Both explicitly pinch the far/top row horizontally and widen the
+near/bottom row, so their top two corners move toward each other as a proper
+map trapezoid rather than merely stretching in independent X/Y directions.
+Method 3 is a true world quad and samples the same lower-HUD source rectangle
+rather than a full-window texture; Methods 1 and 2 are camera-yaw anchored,
+while Method 3 exposes its anchor as a separate setting so it can instead
+remain fixed to player-body yaw.
 
 ### Companion-mod baseline
 
 AppleSkin and Detail Armor Bar Reconstructed are captured before the optional
 native-layout fallback. Their injected pixels therefore stay with the vanilla
-hearts, hunger, armor, and air roots in both texture methods. Classic Affine
-also transforms those status roots by default. Enable **Keep Companion Bars
-Native in Method 1** only when a companion mod visibly produces detached or
-duplicated decorations. The supplied F5W modpack also includes Bedrock Hotbar,
+hearts, hunger, armor, and air roots in every captured method. The green
+balanced mesh also transforms those status roots by default. Enable **Keep
+Companion Bars Native in Method 1** only when a companion mod visibly produces
+detached or duplicated decorations. The supplied F5W modpack also includes Bedrock Hotbar,
 Immersive Hotbar, DualBar, Armor Indicator, Status Effect Bars, Mount Opacity,
 Durability Warner HUD, Async Hotbars, and Spatial GUI; these are tracked as
 bottom-HUD compatibility candidates rather than being globally intercepted.
@@ -175,9 +178,9 @@ explanation tab plus three focused settings sections:
 - **Method Guide — Read This First** is a plain-language, read-only comparison
   of the green stable path, blue true projective mesh, and red real world panel.
   It contains no settings and is never saved into the configuration file.
-- **Setup & Render Method** combines the enable switch, panel visibility,
-  gameplay boundary, method selector, and the Classic-only companion-bar
-  safeguard.
+- **Setup** combines the enable switch, panel visibility, gameplay boundary,
+  and companion-bar safeguard. Method selection is intentionally not a config
+  field; use the three direct keybindings listed below.
 - **Panel Positioning & Orientation** keeps every geometric control together:
   distance, size, offsets, three-axis rotation, the flat-map tilt, and the
   Method 3 anchor and terrain-occlusion choices. The Method 3-only tooltips
@@ -189,6 +192,10 @@ Minecraft Controls contains:
 - **Open Spatial HUD Settings** — defaults to **H** and can be rebound.
 - **Toggle Spatial HUD** — unbound by default, so you can assign a rapid
   test key without replacing a modpack binding.
+- **Spatial HUD — Select Method 1 / 2 / 3** — default to **F6 / F7 / F8**,
+  avoiding the hotbar number keys. Rebind any conflict in Controls. Each press
+  shows the chosen green balanced warp, blue strong warp, or red world-map mode
+  in the action bar.
 
 ## Requirements
 
