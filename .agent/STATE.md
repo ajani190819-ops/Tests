@@ -29,8 +29,14 @@
   angles. Method 3 is intentionally configurable per the user's selection.
 - H opens settings; a separate unbound Toggle Spatial HUD action remains in
   Minecraft Controls.
-- GitHub Actions run `37708052786` compiled and published `d2308fb` with JDK
-  25; the rolling JAR was updated at 2026-10-08 00:30 UTC. A local Gradle build
+- The supplied `latest.log` did not show a title-screen launch crash: it
+  reached and ran a world, but its startup message was from an older Spatial HUD
+  JAR and it logged Cloth Config trying to make a GUI for `SpatialHudConfig`'s
+  private static singleton. `d6aae3a` excludes those runtime fields and keeps
+  all Method 3 GPU pipeline/buffer allocation lazy, so Method 1/2 startup no
+  longer initializes an unused world render pass.
+- GitHub Actions run `37709400728` compiled and published `d6aae3a` with JDK
+  25; the rolling JAR was updated at 2026-10-08 00:45 UTC. A local Gradle build
   is unavailable because this sandbox has no Java runtime; static
   JSON/reference/whitespace contracts passed locally.
 
@@ -59,17 +65,21 @@
 
 ## Next action
 
-1. Install the rolling JAR updated at 2026-10-08 00:30 UTC in F5W. Verify H
-   opens settings without toggling and that Render Method presents all three
+1. Install the rolling JAR updated at 2026-10-08 00:45 UTC in F5W, replacing
+   every older `spatial-hud` JAR. On startup, search `latest.log` for
+   `Spatial HUD render-method build initialized`; without that exact line, the
+   current artifact is not the JAR Fabric loaded.
+2. Verify H opens the config without a `No GUI provider registered for field
+   ... SpatialHudConfig.instance` error. Confirm Render Method has all three
    named choices with descriptions.
-2. Test Method 1 as the baseline. Test Method 2 at 30° down and a grazing
+3. Test Method 1 as the baseline. Test Method 2 at 30° down and a grazing
    view: backing and hotbar must form one trapezoid without flicker or body-yaw
    rotation.
-3. Test Method 3 separately with Camera Yaw, then Player Body, and with
+4. Test Method 3 separately with Camera Yaw, then Player Body, and with
    Occlude Behind World both enabled and disabled. It will show the previous
    completed frame by design; record any persistent loss/flicker or depth
    failure.
-4. For both texture methods, record hotbar slots/items, status bars, AppleSkin,
+5. For both texture methods, record hotbar slots/items, status bars, AppleSkin,
    Detail Armor, XP, and held-item text separately; check the log for a
    hotbar-root capture message and any capture failure latch.
 

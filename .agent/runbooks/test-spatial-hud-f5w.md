@@ -1,14 +1,15 @@
 # Test Spatial HUD in F5W
 
 - Status: current test procedure.
-- Last verified: 2026-10-08 CI build `37708052786`; all F5W method results remain pending.
+- Last verified: 2026-10-08 CI build `37709400728`; all F5W method results remain pending.
 - Read when: requesting or evaluating an F5W runtime test.
 
 ## Before starting
 
 1. Close Minecraft.
 2. Install the current rolling Spatial HUD JAR in the F5W profile. Remove or
-   replace older copies so Fabric does not load the wrong artifact.
+   replace older copies so Fabric does not load the wrong artifact. Confirm the
+   new `latest.log` contains `Spatial HUD render-method build initialized`.
 3. Keep the normal F5W renderer and HUD-mod stack enabled. Do not disable Iris
    or companion HUD mods unless the test is explicitly an isolation test.
 

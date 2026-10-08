@@ -2,8 +2,8 @@
 
 - Status: three named renderer methods compile; all F5W runtime results remain
   pending.
-- Last verified: 2026-10-08 CI build `37708052786` for `d2308fb`; no Method 3
-  runtime result exists yet.
+- Last verified: 2026-10-08 CI build `37709400728` for startup isolation fix
+  `d6aae3a`; no Method 3 runtime result exists yet.
 - Read when: changing Spatial HUD code, its updater, or F5W compatibility.
 
 ## Source and release
@@ -35,7 +35,12 @@
 - `WorldSpaceHudRenderer.java` extracts a physical Method 3 quad during level
   extraction and draws the previous completed private texture after translucent
   terrain. `worldSpaceAnchor` selects Camera Yaw or Player Body; depth texture
-  attachment is selected by `worldSpaceOccludeBehindWorld`.
+  attachment is selected by `worldSpaceOccludeBehindWorld`. Its custom pipeline
+  and GPU buffer are lazy: Method 1/2 startup never creates them.
+- `SpatialHudConfig.instance` and `registered` are explicitly excluded from
+  Cloth Config. The supplied F5W log showed Cloth Config trying to expose the
+  private `instance` singleton as a setting; that GUI-provider error is fixed
+  in `d6aae3a`.
 - `SpatialHudGameRendererMixin.java` completes the private capture after the
   normal `GuiRenderer` call and closes Method 3's GPU buffer on shutdown.
 - `SpatialHudGuiRendererMixin.java` redirects only the private captured
