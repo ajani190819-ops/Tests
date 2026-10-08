@@ -3,9 +3,19 @@
   "key.spatialhud.toggle": "Toggle Spatial HUD",
 
   "text.autoconfig.spatialhud.title": "Spatial HUD",
+  "text.autoconfig.spatialhud.category.guide": "Method Guide — Read This First",
   "text.autoconfig.spatialhud.category.setup": "Setup & Render Method",
   "text.autoconfig.spatialhud.category.positioning": "Panel Positioning & Orientation",
   "text.autoconfig.spatialhud.category.contents": "HUD Contents",
+
+  "text.autoconfig.spatialhud.option.guideOverview.title": "How to picture Spatial HUD",
+  "text.autoconfig.spatialhud.option.guideOverview.body": "Imagine the selected lower HUD as a small sheet of paper resting on a waist-high lectern directly in front of you. It is intentionally hidden until you look down at it; it should not stretch up across your screen while you look level or upward. The Minimum Look-Down Angle controls when Spatial HUD starts doing work. Panel Positioning & Orientation controls where that paper sits and how it is tilted. The three methods below show the same selected HUD information in different ways.",
+  "text.autoconfig.spatialhud.option.guideClassicAffine.title": "Method 1 — Green — Classic Affine: safest choice",
+  "text.autoconfig.spatialhud.option.guideClassicAffine.body": "Choose this when you want the best chance of compatibility with a large modpack. It uses Minecraft's normal HUD drawing path and moves the selected roots to the same physical lectern position. It still hides when you are not looking down. Its trade-off is important: Minecraft's normal HUD API can rotate and scale a group, but cannot squeeze every individual icon, letter, or slot into a true paper-shaped trapezoid. Green is the stable baseline, not the strongest perspective effect.",
+  "text.autoconfig.spatialhud.option.guideCapturedMesh.title": "Method 2 — Blue — Captured Projective Mesh: real paper perspective",
+  "text.autoconfig.spatialhud.option.guideCapturedMesh.body": "Choose this when you want the clear tapered-paper look. Spatial HUD first makes a private picture of only the selected lower HUD, then maps that picture across a dense mesh. Because every part of that picture shares one physical surface, the blue marker, backing, hotbar slots, icons, bars, and text all narrow together at the farther edge. It does not capture your inventory, chat, menus, minimap, debug text, or unrelated mod screens. This is the mode to compare against green when checking that the far/top edge actually tapers.",
+  "text.autoconfig.spatialhud.option.guideWorldSpace.title": "Method 3 — Red — World-Space Texture: a real in-world panel",
+  "text.autoconfig.spatialhud.option.guideWorldSpace.body": "Choose this when you want the panel to exist as a real textured surface in the Minecraft world. It uses the same selected lower-HUD picture as blue Method 2, but puts it on a physical quad instead of a GUI-space mesh. That means normal game perspective handles the taper. You can decide whether it follows Camera Yaw or Player Body direction, and whether blocks hide it. It intentionally shows the last completed HUD picture, so a one-frame delay is normal; persistent flicker or missing texture is not.",
 
   "text.autoconfig.spatialhud.option.enabled": "Enable Spatial HUD",
   "text.autoconfig.spatialhud.option.enabled.@Tooltip": "Master switch for Spatial HUD. When disabled, every wrapped vanilla HUD root is immediately delegated back to Minecraft without a pose transform, private capture, or world-space draw. The separate Toggle Spatial HUD keybinding changes this same switch for quick comparison.",

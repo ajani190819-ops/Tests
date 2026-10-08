@@ -171,16 +171,19 @@ let a companion mod own a part if two mods draw it twice.
 ## Configuration
 
 Open **Mod Menu → Spatial HUD → Configure** or press **H**. The underlying
-configuration file is `config/spatialhud.json`. The screen has three focused
-sections rather than separate implementation tabs:
+configuration file is `config/spatialhud.json`. The screen has one read-only
+explanation tab plus three focused settings sections:
 
+- **Method Guide — Read This First** is a plain-language, read-only comparison
+  of the green stable path, blue true projective mesh, and red real world panel.
+  It contains no settings and is never saved into the configuration file.
 - **Setup & Render Method** combines the enable switch, panel visibility,
   gameplay boundary, method selector, and the Classic-only companion-bar
   safeguard.
 - **Panel Positioning & Orientation** keeps every geometric control together:
-  distance, size, offsets, face-on angle, pitch/yaw, and the Method 3 anchor
-  and terrain-occlusion choices. The Method 3-only tooltips explicitly say when
-  a setting is ignored by the other two methods.
+  distance, size, offsets, three-axis rotation, the look-down gate, and the
+  Method 3 anchor and terrain-occlusion choices. The Method 3-only tooltips
+  explicitly say when a setting is ignored by the other two methods.
 - **HUD Contents** chooses which lower-HUD roots Spatial HUD owns.
 
 Minecraft Controls contains:

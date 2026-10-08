@@ -5,8 +5,29 @@ import me.shedaniel.autoconfig.ConfigData;
 import me.shedaniel.autoconfig.annotation.Config;
 import me.shedaniel.autoconfig.annotation.ConfigEntry;
 import me.shedaniel.autoconfig.serializer.GsonConfigSerializer;
+import me.shedaniel.clothconfig2.api.AbstractConfigListEntry;
+import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.util.List;
+
+/**
+ * Marks a transient field as a display-only card in the Method Guide tab.
+ * The dedicated AutoConfig provider below renders static wrapped text instead
+ * of an editable configuration widget, so guide prose never becomes saved
+ * player configuration.
+ */
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.FIELD)
+@interface MethodGuideText {
+	int color() default -1;
+}
 
 /**
  * The in-game Cloth Config definition for Spatial HUD.
@@ -19,19 +40,44 @@ import net.minecraft.resources.Identifier;
 @Config(name = "spatialhud")
 public final class SpatialHudConfig implements ConfigData {
 	/** Incremented when a safe default migration is needed. */
+	@ConfigEntry.Category("guide")
 	@ConfigEntry.Gui.Excluded
 	// Starts at 0 so a v0.3 file, which has no version field, is detected.
 	// registerAndLoad writes it as 16 after checking the values.
 	public int configVersion = 0;
+
+	/*
+	 * Display-only cards. They are transient so Gson never saves them, and the
+	 * MethodGuideText provider turns them into wrapped prose rather than inputs.
+	 * Declaring them first also puts the plain-language guide first in Cloth
+	 * Config's category bar.
+	 */
+	@ConfigEntry.Category("guide")
+	@MethodGuideText
+	public transient String guideOverview = "";
+
+	@ConfigEntry.Category("guide")
+	@MethodGuideText(color = 0xFF38C172)
+	public transient String guideClassicAffine = "";
+
+	@ConfigEntry.Category("guide")
+	@MethodGuideText(color = 0xFF469AEF)
+	public transient String guideCapturedMesh = "";
+
+	@ConfigEntry.Category("guide")
+	@MethodGuideText(color = 0xFFEF5350)
+	public transient String guideWorldSpace = "";
 
 	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Tooltip
 	public boolean enabled = true;
 
 	// Earlier affine-only settings retained solely for old JSON files.
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public boolean autoScaleByFov = true;
 
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int fovBaseline = 70;
 
@@ -89,18 +135,23 @@ public final class SpatialHudConfig implements ConfigData {
 	 * virtual plane is always present now; migration translates placement into
 	 * the explicit X/Y/Z controls below instead of keeping a look-down reveal.
 	 */
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public double height = 0.85;
 
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public boolean revealWhenLookingDown = false;
 
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public int revealStartPitch = 18;
 
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public int revealFullPitch = 48;
 
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public int hiddenBelowScreenPixels = 105;
 
@@ -130,6 +181,7 @@ public final class SpatialHudConfig implements ConfigData {
 	public int minimumLookDownPitch = 30;
 
 	/** Retained only so v1.2 config files still load; it is no longer read. */
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public boolean virtualTiltWithLook = false;
 
@@ -143,6 +195,7 @@ public final class SpatialHudConfig implements ConfigData {
 	public int virtualFaceOnLookDownPitch = 45;
 
 	/** Retained for v1.4 JSON compatibility; fixed-plane perspective ignores it. */
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public int virtualHorizonPerspectivePitch = 80;
 
@@ -179,9 +232,11 @@ public final class SpatialHudConfig implements ConfigData {
 
 	// Legacy alternatives remain readable from JSON but are not part of the
 	// supported hologram model. The migration selects CAMERA_YAW.
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public VirtualAnchorMode virtualAnchorMode = VirtualAnchorMode.CAMERA_YAW;
 
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public double virtualWorldParallaxStrength = 0.35;
 
@@ -197,21 +252,27 @@ public final class SpatialHudConfig implements ConfigData {
 	 * virtual plane and captured mesh supersede them; hiding them prevents two
 	 * competing placement models in Mod Menu.
 	 */
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public boolean lookDownPlaneTilt = false;
 
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public int planeFaceOnPitch = 72;
 
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public int planeHorizonHeightPercent = 18;
 
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public boolean taperBackingPlate = true;
 
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public int planeHorizonFarEdgeWidthPercent = 42;
 
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public boolean projectiveIconScaling = true;
 
@@ -219,21 +280,26 @@ public final class SpatialHudConfig implements ConfigData {
 	 * Legacy switch retained to migrate pre-v1.5 JSON files. Render Method is
 	 * now the only visible selector and any failure returns to Classic Affine.
 	 */
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public boolean experimentalCaptureWarp = false;
 
 	/** Reserved for a later cylindrical mesh mode; normal hologram mode is flat. */
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public int experimentalCaptureCurvaturePercent = 0;
 
 	// Legacy motion fields retained for saved configurations. The supported
 	// Camera Yaw hologram uses the player's current view directly.
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public double sway = 0.35;
 
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public int swayResponseMs = 85;
 
+	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public boolean rotateWithSway = true;
 
@@ -269,15 +335,38 @@ public final class SpatialHudConfig implements ConfigData {
 
 	// AutoConfig reflects fields when constructing Cloth Config. These are runtime
 	// singletons, never settings; excluding them prevents a config-screen error.
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	private static SpatialHudConfig instance;
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	private static boolean registered;
+
+	/**
+	 * Converts the four transient guide anchors into wrapped, read-only Cloth
+	 * Config text entries. This avoids fake booleans or editable strings in a
+	 * tab whose only job is explaining the renderer choices.
+	 */
+	private static void registerMethodGuideTextProvider() {
+		AutoConfig.getGuiRegistry(SpatialHudConfig.class).registerAnnotationProvider(
+				(i18n, field, config, defaults, registry) -> {
+					MethodGuideText card = field.getAnnotation(MethodGuideText.class);
+					ConfigEntryBuilder entries = ConfigEntryBuilder.create();
+					return List.<AbstractConfigListEntry>of(
+							entries.startTextDescription(Component.translatable(i18n + ".title"))
+									.setColor(card.color())
+									.build(),
+							entries.startTextDescription(Component.translatable(i18n + ".body"))
+									.build());
+				},
+				MethodGuideText.class);
+	}
 
 	/** Register once early in client startup, then load the saved configuration. */
 	public static SpatialHudConfig registerAndLoad() {
 		if (!registered) {
 			AutoConfig.register(SpatialHudConfig.class, GsonConfigSerializer::new);
+			registerMethodGuideTextProvider();
 			registered = true;
 			instance = AutoConfig.getConfigHolder(SpatialHudConfig.class).getConfig();
 			migrateV03Defaults(instance);

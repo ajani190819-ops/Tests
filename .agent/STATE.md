@@ -50,14 +50,13 @@
   GPU buffer lazy. GitHub Actions run `37711539940` compiled and published
   `036ca35` with JDK 25; the rolling JAR was updated at 2026-10-08 01:10 UTC.
   A local Gradle build is unavailable because this sandbox has no Java runtime.
-- The configuration/UI follows the user's simplification request: Cloth Config
-  is reduced to three sections—Setup & Render Method, Panel Positioning &
-  Orientation, and HUD Contents—with detailed contextual tooltips. The panel
-  carries an actual top-edge method marker: green for Classic Affine, blue for
-  Captured Projective Mesh, and red for World-Space Texture. Texture methods
-  capture that marker with the rest of the panel. GitHub Actions run
-  `37713731571` compiled and published `b1c9600` with JDK 25; the rolling JAR
-  was updated at 2026-10-08 01:36 UTC.
+- The configuration/UI has a read-only **Method Guide — Read This First** tab
+  ahead of its three settings sections—Setup & Render Method, Panel Positioning
+  & Orientation, and HUD Contents. The guide uses plain-language cards to
+  explain the green Classic Affine, blue Captured Projective Mesh, and red
+  World-Space Texture choices; it contains no editable values and is transient,
+  so it is never saved to config. The panel carries the same green/blue/red
+  top-edge marker, and texture methods capture that marker with the panel.
 
 ### Direct Modrinth updater
 

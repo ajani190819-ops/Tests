@@ -19,10 +19,12 @@
 ## Test setup
 
 1. Press H and verify that it opens Spatial HUD settings without changing HUD
-   enabled state. Confirm there are exactly three focused sections—**Setup &
-   Render Method**, **Panel Positioning & Orientation**, and **HUD Contents**—
-   and that all placement controls are together in the middle section. Confirm
-   all three named methods have readable contextual descriptions.
+   enabled state. Confirm **Method Guide — Read This First** is a read-only tab
+   with plain-language, wrapped cards for green Method 1, blue Method 2, and
+   red Method 3. Confirm its content has no editable field or saved setting.
+   The remaining three sections are **Setup & Render Method**, **Panel
+   Positioning & Orientation**, and **HUD Contents**; all placement controls
+   remain together in the middle section.
 2. Start with `Minimum Look-Down Angle` at 30, `Primary Lectern Tilt — Left ↔
    Right Axis` at 45, `Fine Tilt Offset` at 0, `Turn — Up Axis` at 0, and
    `Roll — Panel-Normal Axis` at 0. The positive direction and affected axis
