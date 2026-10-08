@@ -1,6 +1,7 @@
 package dev.arena.spatialhud;
 
 import me.shedaniel.autoconfig.AutoConfig;
+import me.shedaniel.autoconfig.AutoConfigClient;
 import me.shedaniel.autoconfig.ConfigData;
 import me.shedaniel.autoconfig.annotation.Config;
 import me.shedaniel.autoconfig.annotation.ConfigEntry;
@@ -348,7 +349,7 @@ public final class SpatialHudConfig implements ConfigData {
 	 * tab whose only job is explaining the renderer choices.
 	 */
 	private static void registerMethodGuideTextProvider() {
-		AutoConfig.getGuiRegistry(SpatialHudConfig.class).registerAnnotationProvider(
+		AutoConfigClient.getGuiRegistry(SpatialHudConfig.class).registerAnnotationProvider(
 				(i18n, field, config, defaults, registry) -> {
 					MethodGuideText card = field.getAnnotation(MethodGuideText.class);
 					ConfigEntryBuilder entries = ConfigEntryBuilder.create();
