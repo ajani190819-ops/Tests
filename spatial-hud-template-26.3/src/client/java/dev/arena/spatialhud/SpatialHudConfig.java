@@ -388,7 +388,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	// Player-relative placement in block units. The default is in front of the
 	// player at waist height rather than fixed in screen/camera space.
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	public double distance = 1.25;
@@ -398,39 +398,39 @@ public final class SpatialHudConfig implements ConfigData {
 	 * virtual plane is always present now; migration translates placement into
 	 * the explicit X/Y/Z controls below instead of keeping a look-down reveal.
 	 */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public double height = 0.85;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public boolean revealWhenLookingDown = false;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int revealStartPitch = 18;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int revealFullPitch = 48;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int hiddenBelowScreenPixels = 105;
 
 	/** Player-local placement: +X right, +Y up, and +Z forward. */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	public double virtualOffsetX = 0.0;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	public double virtualOffsetY = -0.72;
 
 	/** Fine adjustment on the same left-to-right axis as the primary map tilt. */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
@@ -440,12 +440,12 @@ public final class SpatialHudConfig implements ConfigData {
 	 * Retained exclusively to read old JSON. Visibility is now controlled by
 	 * the physical panel's depth and viewport intersection, never by an angle.
 	 */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int minimumLookDownPitch = 0;
 
 	/** Retained only so v1.2 config files still load; it is no longer read. */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public boolean virtualTiltWithLook = false;
 
@@ -454,19 +454,19 @@ public final class SpatialHudConfig implements ConfigData {
 	 * value makes a flat Minecraft-map-like surface readable from above, while
 	 * still allowing a deliberate angled-paper view when reduced.
 	 */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 5, max = 89)
 	public int virtualFaceOnLookDownPitch = 85;
 
 	/** Retained for v1.4 JSON compatibility; fixed-plane perspective ignores it. */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int virtualHorizonPerspectivePitch = 80;
 
 	/** Turn around the player-local/world-up axis. Positive values turn right. */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = -80, max = 80)
@@ -476,19 +476,19 @@ public final class SpatialHudConfig implements ConfigData {
 	 * Roll around the panel normal. Positive values raise the panel's right
 	 * edge; keep zero for a normal readable desk surface.
 	 */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
 	public int virtualRoll = 0;
 
 	/** These controls affect only Render Method: World-Space Texture. */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	public WorldSpaceAnchor worldSpaceAnchor = WorldSpaceAnchor.CAMERA_YAW;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	public boolean worldSpaceOccludeBehindWorld = true;
@@ -522,11 +522,11 @@ public final class SpatialHudConfig implements ConfigData {
 
 	// Legacy alternatives remain readable from JSON but are not part of the
 	// supported hologram model. The migration selects CAMERA_YAW.
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public VirtualAnchorMode virtualAnchorMode = VirtualAnchorMode.CAMERA_YAW;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public double virtualWorldParallaxStrength = 0.35;
 
@@ -542,27 +542,27 @@ public final class SpatialHudConfig implements ConfigData {
 	 * virtual plane and captured mesh supersede them; hiding them prevents two
 	 * competing placement models in Mod Menu.
 	 */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public boolean lookDownPlaneTilt = false;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int planeFaceOnPitch = 72;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int planeHorizonHeightPercent = 18;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public boolean taperBackingPlate = true;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int planeHorizonFarEdgeWidthPercent = 42;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public boolean projectiveIconScaling = true;
 
@@ -575,50 +575,59 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean experimentalCaptureWarp = false;
 
 	/** Reserved for a later cylindrical mesh mode; normal hologram mode is flat. */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int experimentalCaptureCurvaturePercent = 0;
 
 	// Legacy motion fields retained for saved configurations. The supported
 	// Camera Yaw hologram uses the player's current view directly.
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public double sway = 0.35;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int swayResponseMs = 85;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public boolean rotateWithSway = true;
 
 	// Legacy corner controls from the GUI-layer warp that Method 4 used before
 	// v22. They stay in the JSON so older files still load, but nothing reads them.
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public boolean polygonFollowCameraPitch = true;
 
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int polygonTopLeftXPercent = 30;
 
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int polygonTopLeftYPercent = 35;
 
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int polygonTopRightXPercent = 70;
 
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int polygonTopRightYPercent = 35;
 
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int polygonBottomRightXPercent = 80;
 
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int polygonBottomRightYPercent = 70;
 
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int polygonBottomLeftXPercent = 20;
 
+	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
 	public int polygonBottomLeftYPercent = 70;
 

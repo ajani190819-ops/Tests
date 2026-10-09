@@ -270,14 +270,18 @@ final class WorldSpaceSolidQuad {
 	}
 
 	/**
-	 * The model transform for panel geometry: camera-relative, with an eye-space
-	 * correction applied after the view rotation. The eye correction cancels the
-	 * head bob (world pass) or matches the HUD projection to the world FOV (hand pass).
-	 * Identity correction gives the plain camera-relative transform.
+	 * The model transform for panel geometry. The modelview already holds the real
+	 * view rotation {@code viewRotation} (camera mods included), so the panel is put
+	 * into eye space with the steady rotation {@code steadyRotation} instead. The eye
+	 * correction is applied in eye space after that: it cancels the head bob (world
+	 * pass) or matches the HUD projection to the world FOV (hand pass).
+	 * With no camera mod, steadyRotation equals viewRotation and the correction is
+	 * identity, which gives the plain camera-relative transform.
 	 */
-	static PoseStack.Pose cameraPose(Vec3 camera, Matrix4fc eyeCorrection, Matrix4fc viewRotation) {
+	static PoseStack.Pose cameraPose(Vec3 camera, Matrix4fc eyeCorrection, Matrix4fc steadyRotation,
+			Matrix4fc viewRotation) {
 		Matrix4f inverseView = new Matrix4f(viewRotation).invert();
-		Matrix4f model = new Matrix4f(inverseView).mul(eyeCorrection).mul(viewRotation)
+		Matrix4f model = new Matrix4f(inverseView).mul(eyeCorrection).mul(steadyRotation)
 				.translate((float) -camera.x, (float) -camera.y, (float) -camera.z);
 		PoseStack toCamera = new PoseStack();
 		toCamera.mulPose(model);

@@ -3,6 +3,7 @@
   "package": "dev.arena.spatialhud.mixin",
   "compatibilityLevel": "JAVA_25",
   "client": [
+    "GameRendererBobAccessor",
     "SpatialHudGuiRendererMixin",
     "SpatialHudGameRendererMixin"
   ],

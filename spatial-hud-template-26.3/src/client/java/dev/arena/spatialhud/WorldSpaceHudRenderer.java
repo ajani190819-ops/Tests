@@ -23,15 +23,15 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.StagedVertexBuffer;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import com.mojang.math.Axis;
-import net.minecraft.client.Options;
-import net.minecraft.client.renderer.state.level.CameraEntityRenderState;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import dev.arena.spatialhud.mixin.GameRendererBobAccessor;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
-import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Matrix4fStack;
+import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 
@@ -118,7 +118,8 @@ public final class WorldSpaceHudRenderer {
 			CameraRenderState cs = context.levelState().cameraRenderState;
 			// The world pass projection carries the head bob. Cancel it, so the panel
 			// stays still while you run. The sprint FOV and your FOV still apply.
-			PoseStack.Pose pose = WorldSpaceSolidQuad.cameraPose(cs.pos, inverseHeadBob(cs), cs.viewRotationMatrix);
+			PoseStack.Pose pose = WorldSpaceSolidQuad.cameraPose(cs.pos, inverseHeadBob(cs),
+					steadyViewRotation(cs), cs.viewRotationMatrix);
 			// Drawn later, over the hand, by drawOverHand.
 			if (state.overHand()) {
 				return;
@@ -535,48 +536,54 @@ public final class WorldSpaceHudRenderer {
 	}
 
 	/**
-	 * The inverse of the head bob vanilla puts on the world projection. Mirrors
-	 * GameRenderer.bobHurt and bobView, in the same order. Identity on any failure,
-	 * so the panel just bobs as vanilla does.
+	 * The inverse of the head bob on the world projection. It calls vanilla's own
+	 * bobHurt and bobView through an accessor, so a mod's extra bob (such as a camera
+	 * roll) is included. Identity on any failure, so the panel just bobs as vanilla does.
 	 */
 	private static Matrix4f inverseHeadBob(CameraRenderState cs) {
 		try {
+			Minecraft mc = Minecraft.getInstance();
+			GameRendererBobAccessor accessor = (GameRendererBobAccessor) mc.gameRenderer;
 			PoseStack bob = new PoseStack();
-			CameraEntityRenderState e = cs.entityRenderState;
-			Options options = Minecraft.getInstance().options;
-			if (e.isLiving) {
-				if (e.isDeadOrDying) {
-					float duration = Math.min(e.deathTime, 20.0F);
-					bob.rotateDegrees(Axis.ZP, 40.0F - 8000.0F / (duration + 200.0F));
-				}
-				float hurt = e.hurtTime;
-				if (hurt >= 0.0F) {
-					hurt /= e.hurtDuration;
-					hurt = Mth.sin(hurt * hurt * hurt * hurt * (float) Math.PI);
-					float rr = e.hurtDir;
-					bob.rotateDegrees(Axis.YP, -rr);
-					float tilt = (float) (-hurt * 14.0 * options.damageTiltStrength().get());
-					bob.rotateDegrees(Axis.ZP, tilt);
-					bob.rotateDegrees(Axis.YP, rr);
-				}
+			accessor.spatialhud$bobHurt(cs, bob);
+			if (mc.options.bobView().get()) {
+				accessor.spatialhud$bobView(cs, bob);
 			}
-			if (options.bobView().get() && e.isPlayer) {
-				float walk = e.backwardsInterpolatedWalkDistance;
-				float amount = e.bob;
-				bob.translate(
-						Mth.sin(walk * (float) Math.PI) * amount * 0.5F,
-						-Math.abs(Mth.cos(walk * (float) Math.PI) * amount),
-						0.0F);
-				bob.rotateDegrees(Axis.ZP, Mth.sin(walk * (float) Math.PI) * amount * 3.0F);
-				bob.rotateDegrees(Axis.XP, Math.abs(Mth.cos(walk * (float) Math.PI - 0.2F) * amount) * 5.0F);
-			}
-			Matrix4f inverse = new Matrix4f(bob.last().pose());
-			if (!inverse.isFinite()) {
-				return new Matrix4f();
-			}
-			return inverse.invert();
+			Matrix4f inverse = new Matrix4f(bob.last().pose()).invert();
+			return inverse.isFinite() ? inverse : new Matrix4f();
 		} catch (Throwable t) {
 			return new Matrix4f();
+		}
+	}
+
+	/**
+	 * The view rotation with no camera-mod tilt: the camera entity's own view angles,
+	 * as vanilla sets them (front view mirrored). Camera mods such as CameraOverhaul
+	 * change the camera's rotation, so the panel keeps this steady rotation and
+	 * stays where it is on screen. Falls back to the real rotation on any failure or
+	 * while sleeping.
+	 */
+	private static Matrix4f steadyViewRotation(CameraRenderState cs) {
+		try {
+			Minecraft mc = Minecraft.getInstance();
+			Entity camera = mc.getCameraEntity();
+			if (camera == null || (camera instanceof LivingEntity living && living.isSleeping())) {
+				return new Matrix4f(cs.viewRotationMatrix);
+			}
+			float yaw = camera.getViewYRot(cs.cameraEntityPartialTicks);
+			float pitch = camera.getViewXRot(cs.cameraEntityPartialTicks);
+			if (mc.options.getCameraType().isMirrored()) {
+				yaw += 180.0F;
+				pitch = -pitch;
+			}
+			// The same rotation Camera.setRotation builds, then inverted as the view matrix is.
+			Quaternionf rotation = new Quaternionf().rotationYXZ(
+					(float) Math.PI - yaw * (float) (Math.PI / 180.0),
+					-pitch * (float) (Math.PI / 180.0), 0.0F);
+			Matrix4f steady = new Matrix4f().rotation(rotation.conjugate(new Quaternionf()));
+			return steady.isFinite() ? steady : new Matrix4f(cs.viewRotationMatrix);
+		} catch (Throwable t) {
+			return new Matrix4f(cs.viewRotationMatrix);
 		}
 	}
 
@@ -614,7 +621,8 @@ public final class WorldSpaceHudRenderer {
 		Matrix4f viewRotation = cs.viewRotationMatrix;
 		// The hand pass projection uses the fixed hudFov. Scale the panel so it
 		// matches the world FOV (your FOV option, and the sprint zoom), not 70.
-		PoseStack.Pose pose = WorldSpaceSolidQuad.cameraPose(cs.pos, fovCorrection(cs), viewRotation);
+		PoseStack.Pose pose = WorldSpaceSolidQuad.cameraPose(cs.pos, fovCorrection(cs),
+				steadyViewRotation(cs), viewRotation);
 		Matrix4fStack modelView = RenderSystem.getModelViewStack();
 		modelView.pushMatrix().mul(viewRotation);
 		try {
