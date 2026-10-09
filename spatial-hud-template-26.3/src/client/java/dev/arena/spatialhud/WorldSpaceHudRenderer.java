@@ -81,12 +81,12 @@ public final class WorldSpaceHudRenderer {
 	 * Reads player and configuration state during level extraction, then stores
 	 * four immutable world points for the later GPU drawing phase.
 	 */
-	private static void extractPlane(LevelExtractionContext ignored) {
+	private static void extractPlane(LevelExtractionContext context) {
 		planeDraw = null;
 		planePipeline = null;
 		try {
 			computePlaneState();
-			stagePlaneGeometry();
+			stagePlaneGeometry(context.levelState().cameraRenderState.pos);
 		} catch (Throwable t) {
 			planeState = null;
 			ExperimentalHudCapture.worldTextureFailed(t);
@@ -261,7 +261,7 @@ public final class WorldSpaceHudRenderer {
 	 * render pass is open. The vertices are relative to the camera, so the
 	 * draw in the level pass needs no pose stack.
 	 */
-	private static void stagePlaneGeometry() {
+	private static void stagePlaneGeometry(Vec3 camera) {
 		PlaneState state = planeState;
 		if (state == null) {
 			return;
@@ -277,7 +277,6 @@ public final class WorldSpaceHudRenderer {
 		if (format == null || primitive != PrimitiveTopology.QUADS) {
 			throw new IllegalStateException("world-space HUD pipeline does not expose textured QUADS");
 		}
-		Vec3 camera = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
 		StagedVertexBuffer buffer = buffer();
 		bufferUsedThisFrame = true;
 		StagedVertexBuffer.Draw draw = buffer.appendDraw(format, primitive,
