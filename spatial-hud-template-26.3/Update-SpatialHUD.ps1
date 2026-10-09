@@ -305,9 +305,13 @@ function Select-InstallBuild {
     else {
         Write-Host ' main: no published build yet'
     }
+    # Numbers must match $rows, the list the typed choice is checked against.
+    # main takes [1] only when it has a build, so the branches start at [1]
+    # when it does not.
+    $firstBranchNumber = $rows.Count - $listed.Count + 1
     for ($position = 0; $position -lt $listed.Count; $position++) {
         $item = $listed[$position]
-        Write-Host (" [{0}] {1} - {2} - {3:N1} KB" -f ($position + 2), $item.Branch, (Format-BuildAge $item.UpdatedAt), ($item.Size / 1KB))
+        Write-Host (" [{0}] {1} - {2} - {3:N1} KB" -f ($firstBranchNumber + $position), $item.Branch, (Format-BuildAge $item.UpdatedAt), ($item.Size / 1KB))
     }
     if ($rows.Count -lt 1) {
         # Never leave an empty list looking broken: say why it is empty and

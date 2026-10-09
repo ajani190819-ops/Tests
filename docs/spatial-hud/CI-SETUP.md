@@ -38,8 +38,9 @@
 1. Double-click your copy of `Update-SpatialHUD.bat`. It fetches the current
    PowerShell helper from GitHub on each run, so the menu stays up to date.
 2. At **Choose the build to install**, pick the number beside
-   `arena/b4016c28-tests` in the list. `[1]` is `main`, followed by the five most
-   recently built branches. Use `[A]` to see every branch with a published build,
+   `arena/b4016c28-tests` in the list. `main` is listed first when it has a
+   published build, then the five most recently built branches. Numbers are
+   shown beside each row, and you type the number shown. Use `[A]` to see every branch with a published build,
    or `[T]` to type a branch name. Press Enter or `[M]` to keep the current choice.
 3. At **Modrinth mods folder**, press Enter to keep the remembered folder, or paste
    another one.
