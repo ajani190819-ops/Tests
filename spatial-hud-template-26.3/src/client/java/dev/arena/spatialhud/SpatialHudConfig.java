@@ -436,6 +436,17 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public int horizontalPanelPictureOffset = 0;
 
+	/**
+	 * Half-width, in GUI pixels from the centre of the hotbar, of the band the
+	 * purple panel samples while Slot Cycling is shown. The cycle slots sit about
+	 * 91 to 167 pixels out, so 172 holds them all. Lower it to narrow the panel,
+	 * which cuts off the outermost cycle slots.
+	 */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.BoundedDiscrete(min = 112, max = 200)
+	@ConfigEntry.Gui.Tooltip
+	public int slotCyclingHalfWidth = 172;
+
 	// Legacy corner controls from the GUI-layer warp that Method 4 used before
 	// v22. They stay in the JSON so older files still load, but nothing reads them.
 	@ConfigEntry.Gui.Excluded

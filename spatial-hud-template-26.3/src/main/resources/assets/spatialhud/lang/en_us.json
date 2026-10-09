@@ -102,5 +102,7 @@
   "text.autoconfig.spatialhud.option.showSlotCycling": "Hotbar Slot Cycling Display",
   "text.autoconfig.spatialhud.option.showSlotCycling.@Tooltip": "Include Hotbar Slot Cycling's side display (the cycle slots beside the hotbar) in the Method 4 panel. The panel widens to hold it, so the hotbar appears slightly smaller. Turn off to keep the narrower picture.",
   "text.autoconfig.spatialhud.option.horizontalPanelPictureOffset": "Picture Offset (%)",
-  "text.autoconfig.spatialhud.option.horizontalPanelPictureOffset.@Tooltip": "Moves the HUD picture inside the purple panel. Positive moves it up and leaves a strip of fill under the hotbar. Negative moves it down, toward the bottom border. 0 is the default placement."
+  "text.autoconfig.spatialhud.option.horizontalPanelPictureOffset.@Tooltip": "Moves the HUD picture inside the purple panel. Positive moves it up and leaves a strip of fill under the hotbar. Negative moves it down, toward the bottom border. 0 is the default placement.",
+  "text.autoconfig.spatialhud.option.slotCyclingHalfWidth": "Slot Cycling Width (px from centre)",
+  "text.autoconfig.spatialhud.option.slotCyclingHalfWidth.@Tooltip": "How far the purple panel reaches from the centre of the hotbar, in GUI pixels, when Hotbar Slot Cycling Display is on. The default, 172, holds every cycle slot. Lower it to make the panel narrower, which cuts off the outer cycle slots. Has no effect when that display is off."
 }

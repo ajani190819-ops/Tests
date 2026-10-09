@@ -109,7 +109,11 @@
   stops the band (`bandDisabled`) and logs an error. Nothing rethrows into the render frame.
 - Picture offset (`horizontalPanelPictureOffset`, percent, default 0; positive moves the picture up): the band sits above a fill strip of that gap (was a fixed 0.10 of panel
   height) so the hotbar's bottom row is not against the border. The panel is taller
-  by `panelHeightScale()` so the band keeps its aspect. Band UVs are unchanged.
+  by `panelHeightScale(gap)` so the band keeps its aspect. Band UVs are unchanged.
+- Slot cycling width (`slotCyclingHalfWidth`, GUI px from centre, default 172, range 112..200):
+  `purpleSourceRect` uses it as the band half-width while Slot Cycling is shown. The
+  panel widens with the band, and the UVs follow it. Clamped in code too. The hotbar's
+  own half-width (112) is the floor.
 - Hypothesis (water, now reported fixed): the occluded band's depth write hid translucent
   water behind the panel. Open mode is the fix path.
 - Crash `Missing elements in vertex` (report 03:01:50, `crash-2026-10-09_03.01.50-client.txt`):

@@ -41,10 +41,10 @@ public final class ExperimentalHudCapture {
 	/**
 	 * Half-width, in GUI pixels, of the strip Method 4 samples: the hotbar with
 	 * its offhand slot. Slot Cycling's cycle slots reach about 170 pixels from
-	 * the centre, so with that option on the band widens to hold them.
+	 * the centre, so with that option on the band widens to hold them (see
+	 * {@link SpatialHudConfig#slotCyclingHalfWidth}).
 	 */
 	private static final float PURPLE_HALF_WIDTH = 112.0f;
-	private static final float PURPLE_SLOT_CYCLING_HALF_WIDTH = 172.0f;
 	// Height, in GUI pixels above the bottom of the screen, of the strip band
 	// the purple horizontal panel frames: hotbar, status bars, experience level,
 	// and held-item text all draw inside it.
@@ -229,7 +229,9 @@ public final class ExperimentalHudCapture {
 	static SourceRect purpleSourceRect(SpatialHudConfig cfg, int guiWidth, int guiHeight) {
 		VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
 		float centerX = (plane.sourceLeft() + plane.sourceRight()) * 0.5f;
-		float halfWidth = cfg.showSlotCycling ? PURPLE_SLOT_CYCLING_HALF_WIDTH : PURPLE_HALF_WIDTH;
+		// Clamped here as well as in the config range: a hand-edited file must not crop the hotbar.
+		float slotCyclingHalf = Math.max(PURPLE_HALF_WIDTH, Math.min(200.0f, cfg.slotCyclingHalfWidth));
+		float halfWidth = cfg.showSlotCycling ? slotCyclingHalf : PURPLE_HALF_WIDTH;
 		int left = (int) Math.floor(Math.max(0.0f, centerX - halfWidth));
 		int right = (int) Math.ceil(Math.min(guiWidth, centerX + halfWidth));
 		int bottom = (int) Math.ceil(Math.min(guiHeight, plane.sourceBottom()));
