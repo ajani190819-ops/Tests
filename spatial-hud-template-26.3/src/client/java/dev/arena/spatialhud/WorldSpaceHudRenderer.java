@@ -214,7 +214,10 @@ public final class WorldSpaceHudRenderer {
 	private static PlaneState purplePanelState(LocalPlayer player, SpatialHudConfig cfg,
 			int guiWidth, int guiHeight) {
 		ExperimentalHudCapture.SourceRect band = ExperimentalHudCapture.purpleSourceRect(cfg, guiWidth, guiHeight);
-		float bodyYaw = radians(player.yBodyRot);
+		// Method 4's own heading setting: body heading by default, or the camera's
+		// horizontal view when the config says so.
+		float bodyYaw = radians(cfg.horizontalPanelAnchor == SpatialHudConfig.HorizontalPanelAnchor.CAMERA_YAW
+				? player.getYRot() : player.yBodyRot);
 		float rightX = cos(bodyYaw);
 		float rightZ = sin(bodyYaw);
 		float forwardX = -sin(bodyYaw);

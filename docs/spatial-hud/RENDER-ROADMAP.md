@@ -85,7 +85,7 @@ must look like a flat sheet in the world, not a flat sticker on the screen.
 - Height moves it up and down.
 - Angle 90 is flat, and face-on when looking straight down. Lower angles tilt
   the near edge toward you.
-- The panel does not move when you turn your head (it follows the body yaw).
+- Heading: with `horizontalPanelAnchor` = Player Body (the default), turning your head does not move the panel. With Camera Yaw, it turns with your horizontal view. Method 3 has its own setting (`worldSpaceAnchor`).
 
 **Output:** a short table of tested values, written into this file.
 

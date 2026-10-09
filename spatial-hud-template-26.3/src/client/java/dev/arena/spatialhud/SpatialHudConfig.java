@@ -220,6 +220,14 @@ public final class SpatialHudConfig implements ConfigData {
 		PLAYER_BODY
 	}
 
+	/** Which heading Method 4 follows. Only the purple panel reads this. */
+	public enum HorizontalPanelAnchor {
+		/** Turns with the camera's horizontal view. */
+		CAMERA_YAW,
+		/** Keeps the panel at body heading, so turning your head does not move it. */
+		PLAYER_BODY
+	}
+
 	// Legacy alternatives remain readable from JSON but are not part of the
 	// supported hologram model. The migration selects CAMERA_YAW.
 	@ConfigEntry.Category("positioning")
@@ -310,6 +318,15 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 20, max = 90)
 	public int horizontalPanelAngle = 90;
+
+	/**
+	 * Which heading Method 4 turns with. Player Body keeps the panel at body
+	 * heading, so turning your head does not move it. Camera Yaw turns the panel
+	 * with your horizontal view. Method 3 has its own setting above.
+	 */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public HorizontalPanelAnchor horizontalPanelAnchor = HorizontalPanelAnchor.PLAYER_BODY;
 
 	// Legacy corner controls from the GUI-layer warp that Method 4 used before
 	// v22. They stay in the JSON so older files still load, but nothing reads them.

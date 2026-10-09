@@ -66,5 +66,9 @@
   "text.autoconfig.spatialhud.option.horizontalPanelHeight": "Panel Height Above Feet",
   "text.autoconfig.spatialhud.option.horizontalPanelHeight.@Tooltip": "Height of the purple panel above your feet, in blocks. Your eyes are about 1.6 blocks up, so a value near 0.9 puts the panel at waist height and easy to see when you look down.",
   "text.autoconfig.spatialhud.option.horizontalPanelAngle": "Panel Angle",
-  "text.autoconfig.spatialhud.option.horizontalPanelAngle.@Tooltip": "The look-down angle at which the purple panel faces you square-on. 90 lies it flat, so it is face-on when you look straight down. Smaller values tilt its near edge toward you, so it faces you from a shallower look-down angle."
+  "text.autoconfig.spatialhud.option.horizontalPanelAngle.@Tooltip": "The look-down angle at which the purple panel faces you square-on. 90 lies it flat, so it is face-on when you look straight down. Smaller values tilt its near edge toward you, so it faces you from a shallower look-down angle.",
+  "text.autoconfig.spatialhud.option.horizontalPanelAnchor": "Method 4 Heading",
+  "text.autoconfig.spatialhud.option.horizontalPanelAnchor.@Tooltip": "Applies only to Method 4, the purple horizontal panel. Player Body keeps it at body heading, so turning your head does not move it. Camera Yaw turns it with your horizontal view.",
+  "text.autoconfig.spatialhud.enum.horizontalPanelAnchor.CAMERA_YAW": "Camera Yaw — follows horizontal view",
+  "text.autoconfig.spatialhud.enum.horizontalPanelAnchor.PLAYER_BODY": "Player Body — follows body heading"
 }
