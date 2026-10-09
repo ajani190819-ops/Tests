@@ -113,6 +113,7 @@ public final class WorldSpaceHudRenderer {
 			Vec3 topLeft = new Vec3(state.topLeft().x(), state.topLeft().y(), state.topLeft().z());
 			WorldSpaceSolidQuad.submitPanel(context.submitNodeCollector(), camera,
 					SpatialHudConfig.get().horizontalPanelFill,
+					SpatialHudConfig.get().horizontalPanelBorder,
 					bottomLeft, bottomRight, topRight, topLeft);
 			// Roadmap stage 3: the captured HUD, only once a frame of it exists.
 			if (ExperimentalHudCapture.worldTextureView() != null) {
@@ -289,8 +290,10 @@ public final class WorldSpaceHudRenderer {
 		Vec3 targetFeet = player.getPosition(partialTick);
 		updateWiggle(cfg, targetYaw, targetFeet, cfg.horizontalPanelHeight);
 		float bodyYaw = wiggleYaw;
-		float rightX = cos(bodyYaw);
-		float rightZ = sin(bodyYaw);
+		// The panel's right is the player's right. Minecraft's forward is (-sin, cos),
+		// so the right is (-cos, -sin). The old sign mirrored the picture.
+		float rightX = -cos(bodyYaw);
+		float rightZ = -sin(bodyYaw);
 		float forwardX = -sin(bodyYaw);
 		float forwardZ = cos(bodyYaw);
 

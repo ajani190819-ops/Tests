@@ -73,6 +73,8 @@
   "text.autoconfig.spatialhud.enum.horizontalPanelAnchor.PLAYER_BODY": "Player Body — follows body heading",
   "text.autoconfig.spatialhud.option.horizontalPanelFill": "Show Purple Fill",
   "text.autoconfig.spatialhud.option.horizontalPanelFill.@Tooltip": "Draws the purple fill inside the Method 4 panel. Turn it off to see only the white border ring.",
+  "text.autoconfig.spatialhud.option.horizontalPanelBorder": "Show Panel Border",
+  "text.autoconfig.spatialhud.option.horizontalPanelBorder.@Tooltip": "Draws the white border ring around the Method 4 panel. Turn it off to see only the HUD picture.",
   "text.autoconfig.spatialhud.option.panelWiggle": "Panel Wiggle (lag and catch up)",
   "text.autoconfig.spatialhud.option.panelWiggle.@Tooltip": "Lets the purple panel lag behind your movement and catch up, instead of snapping. Choose which parts move with a lag below.",
   "text.autoconfig.spatialhud.option.panelWiggleSeconds": "Wiggle Catch-Up Time (seconds)",

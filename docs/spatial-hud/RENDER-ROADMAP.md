@@ -127,6 +127,8 @@ must look like a flat sheet in the world, not a flat sticker on the screen.
 
 **Wiggle split (`c921efd` and later):** heading and height share `panelWiggleSeconds` (default 0.2). Position has its own `panelWigglePositionSeconds` (default 0.1, set by the user). The wiggle is on by default (`panelWiggle = true`).
 
+**Stage 3, test 3 (screenshot `2887e86`):** the band now shows, the right way up. Two faults. (1) Mirrored left to right: health is on the right and food on the left. The panel's right vector was the player's left. This build fixes it. (2) A blue block covers part of the hotbar. It may be the fill drawn in front of the band, or a world block between the player and the panel. The test is to turn Show Purple Fill off: if the blue block goes, it is the fill. Also added `horizontalPanelBorder` (Show Panel Border, default on) so the outline can be turned off.
+
 **Panel wiggle (config, default on since this build):** the panel can lag behind and catch up. The catch-up time is `panelWiggleSeconds` (default 0.2). Each part is ticked separately: heading (default on), position, and height. The lag is exponential smoothing, so the panel eases in without overshoot. A teleport over 4 blocks snaps the panel.
 
 **Sprint-turn note (camera yaw):** the user saw the panel look slightly off only while sprinting and turning, in Camera Yaw mode. The panel reads its heading and feet position at the frame's partial tick. The corners are then drawn with an offset from `cameraRenderState.pos`. A mismatch between those two sources would show up only while moving. Not confirmed; needs a log or measurement.

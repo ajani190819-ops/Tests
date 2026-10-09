@@ -70,7 +70,7 @@ final class WorldSpaceSolidQuad {
 	 * top-right, top-left. The panel is a parallelogram, so each point inside it is
 	 * found by interpolating along the two edges.
 	 */
-	static void submitPanel(SubmitNodeCollector collector, Vec3 camera, boolean showFill,
+	static void submitPanel(SubmitNodeCollector collector, Vec3 camera, boolean showFill, boolean showBorder,
 			Vec3 bottomLeft, Vec3 bottomRight, Vec3 topRight, Vec3 topLeft) {
 		PoseStack.Pose pose = cameraPose(camera);
 		float f = BORDER_FRACTION;
@@ -79,6 +79,9 @@ final class WorldSpaceSolidQuad {
 		if (showFill) {
 			submitRect(collector, pose, COLOR, bottomLeft, bottomRight, topRight, topLeft,
 					f, inner, f, inner);
+		}
+		if (!showBorder) {
+			return;
 		}
 		// Border ring: bottom, top, left and right strips.
 		submitRect(collector, pose, BORDER_COLOR, bottomLeft, bottomRight, topRight, topLeft,
