@@ -66,7 +66,10 @@ public final class WorldSpaceHudRenderer {
 		}
 		initialized = true;
 		LevelExtractionEvents.END_EXTRACTION.register(WorldSpaceHudRenderer::extractPlane);
-		LevelRenderEvents.AFTER_TRANSLUCENT_TERRAIN.register(WorldSpaceHudRenderer::renderPlane);
+		WorldSpaceSolidQuad.register();
+		// Roadmap stage 0: submit the quad to the level's own collector instead of
+		// opening a render pass inside the translucent pass, which the game refuses.
+		LevelRenderEvents.COLLECT_SUBMITS.register(WorldSpaceHudRenderer::submitPlane);
 	}
 
 	private static StagedVertexBuffer buffer() {
@@ -82,11 +85,30 @@ public final class WorldSpaceHudRenderer {
 	 * four immutable world points for the later GPU drawing phase.
 	 */
 	private static void extractPlane(LevelExtractionContext context) {
-		planeDraw = null;
-		planePipeline = null;
 		try {
 			computePlaneState();
-			stagePlaneGeometry(context.levelState().cameraRenderState.pos);
+		} catch (Throwable t) {
+			planeState = null;
+			ExperimentalHudCapture.worldTextureFailed(t);
+		}
+	}
+
+	/**
+	 * Roadmap stage 0. Submits the selected plane as one solid quad. Only Method 4
+	 * is drawn for now, following the roadmap order.
+	 */
+	private static void submitPlane(LevelRenderContext context) {
+		PlaneState state = planeState;
+		if (state == null || !SpatialHudConfig.get().usesPurplePanel()) {
+			return;
+		}
+		try {
+			Vec3 camera = context.levelState().cameraRenderState.pos;
+			WorldSpaceSolidQuad.submit(context.submitNodeCollector(), camera,
+					new Vec3(state.bottomLeft().x(), state.bottomLeft().y(), state.bottomLeft().z()),
+					new Vec3(state.bottomRight().x(), state.bottomRight().y(), state.bottomRight().z()),
+					new Vec3(state.topRight().x(), state.topRight().y(), state.topRight().z()),
+					new Vec3(state.topLeft().x(), state.topLeft().y(), state.topLeft().z()));
 		} catch (Throwable t) {
 			planeState = null;
 			ExperimentalHudCapture.worldTextureFailed(t);

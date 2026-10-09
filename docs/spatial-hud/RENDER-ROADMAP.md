@@ -48,6 +48,8 @@ route that the game accepts.
 3. **Draw after the level, in the GUI phase.** This is always pass-free, but it
    is not depth-tested against the world, so it cannot be occluded. Last resort.
 
+**Status (build after `d809115`):** route 1 is implemented. `WorldSpaceSolidQuad` submits the Method 4 corners with `context.submitNodeCollector().submitCustom(SubmitRenderPhases.SOLID, ...)` in `LevelRenderEvents.COLLECT_SUBMITS`, and draws them with `RenderTypes.debugFilledBox()`. The API calls follow Fabric's own test mods (`FeatureRendererTest`, `LecternRendererMixin`), checked at Fabric tag `0.162.0+26.3`. Only `new PoseStack()` was not seen in those tests, so CI is the check for it. The old `AFTER_TRANSLUCENT_TERRAIN` draw is no longer registered. Only Method 4 is drawn.
+
 **Acceptance:**
 - A solid quad is visible at the Method 4 spot.
 - `latest.log` has no `Close the existing render pass` line for that draw.
