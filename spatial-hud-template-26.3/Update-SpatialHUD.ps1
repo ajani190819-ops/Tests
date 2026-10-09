@@ -5,7 +5,7 @@
 # This one helper covers everything: installing into the Modrinth mods folder,
 # picking a build, and saving a copy to Downloads (the former separate downloader).
 #
-# SpatialHUD-Helper-Version: 4
+# SpatialHUD-Helper-Version: 5
 #
 # Default target: %APPDATA%\ModrinthApp\profiles\F5W\mods
 # The target, chosen build, and optional folder opener are remembered under
