@@ -96,9 +96,9 @@ public final class WorldSpaceHudRenderer {
 	}
 
 	/**
-	 * Roadmap stages 0 and 1. Submits the Method 4 panel: a purple fill with a white
-	 * border, both as solid quads. Only Method 4 is drawn for now, following the
-	 * roadmap order.
+	 * Roadmap stages 0 to 3. Submits the Method 4 panel: the purple fill (when
+	 * enabled), the captured HUD band on top of it, and the white border. Only
+	 * Method 4 is drawn for now, following the roadmap order.
 	 */
 	private static void submitPlane(LevelRenderContext context) {
 		PlaneState state = planeState;
@@ -107,12 +107,20 @@ public final class WorldSpaceHudRenderer {
 		}
 		try {
 			Vec3 camera = context.levelState().cameraRenderState.pos;
+			Vec3 bottomLeft = new Vec3(state.bottomLeft().x(), state.bottomLeft().y(), state.bottomLeft().z());
+			Vec3 bottomRight = new Vec3(state.bottomRight().x(), state.bottomRight().y(), state.bottomRight().z());
+			Vec3 topRight = new Vec3(state.topRight().x(), state.topRight().y(), state.topRight().z());
+			Vec3 topLeft = new Vec3(state.topLeft().x(), state.topLeft().y(), state.topLeft().z());
 			WorldSpaceSolidQuad.submitPanel(context.submitNodeCollector(), camera,
 					SpatialHudConfig.get().horizontalPanelFill,
-					new Vec3(state.bottomLeft().x(), state.bottomLeft().y(), state.bottomLeft().z()),
-					new Vec3(state.bottomRight().x(), state.bottomRight().y(), state.bottomRight().z()),
-					new Vec3(state.topRight().x(), state.topRight().y(), state.topRight().z()),
-					new Vec3(state.topLeft().x(), state.topLeft().y(), state.topLeft().z()));
+					bottomLeft, bottomRight, topRight, topLeft);
+			// Roadmap stage 3: the captured HUD, only once a frame of it exists.
+			if (ExperimentalHudCapture.worldTextureView() != null) {
+				CapturedHudTexture.register();
+				WorldSpaceSolidQuad.submitCapturedBand(context.submitNodeCollector(), camera,
+						state.uLeft(), state.uRight(), state.vTop(), state.vBottom(),
+						bottomLeft, bottomRight, topRight, topLeft);
+			}
 		} catch (Throwable t) {
 			planeState = null;
 			ExperimentalHudCapture.worldTextureFailed(t);
