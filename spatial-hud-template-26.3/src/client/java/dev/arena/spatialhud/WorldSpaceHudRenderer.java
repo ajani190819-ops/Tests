@@ -26,6 +26,7 @@ import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
+import org.joml.Matrix4fStack;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 
@@ -530,11 +531,17 @@ public final class WorldSpaceHudRenderer {
 	 * panel is open (no depth test), so nothing in the world hides it. Any failure
 	 * is caught, and the panel stops drawing through the normal error path.
 	 */
-	public static void drawOverHand(RenderTarget target, Vec3 camera) {
+	public static void drawOverHand(RenderTarget target, Matrix4f viewRotation, Vec3 camera) {
 		PlaneState state = planeState;
 		if (state == null || !state.overHand() || !SpatialHudConfig.get().usesPurplePanel()) {
 			return;
 		}
+		// The hand pass has the camera's rotation on the model-view stack, and that
+		// is popped before this runs. Without it the panel would stay fixed in the
+		// screen and show only when you look straight ahead. Apply it here, the same
+		// way the hand pass does.
+		Matrix4fStack modelView = RenderSystem.getModelViewStack();
+		modelView.pushMatrix().mul(viewRotation);
 		try {
 			SpatialHudConfig cfg = SpatialHudConfig.get();
 			WorldSpaceSolidQuad.Shape shape = state.shape();
@@ -564,6 +571,8 @@ public final class WorldSpaceHudRenderer {
 		} catch (Throwable t) {
 			planeState = null;
 			ExperimentalHudCapture.worldTextureFailed(t);
+		} finally {
+			modelView.popMatrix();
 		}
 	}
 
