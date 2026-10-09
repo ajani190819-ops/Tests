@@ -46,6 +46,8 @@ public final class WorldSpaceHudRenderer {
 	 * the entity snippet declared sampler uniforms the shader did not provide.
 	 */
 	private static StagedVertexBuffer buffer;
+	/** True once renderPlane has used the buffer this frame, so endFrame has work. */
+	private static boolean bufferUsedThisFrame;
 	private static final Vector4f WHITE = new Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
 	private static final Vector3f ZERO = new Vector3f();
 	private static final Matrix4f IDENTITY = new Matrix4f();
@@ -241,27 +243,43 @@ public final class WorldSpaceHudRenderer {
 			}
 
 			StagedVertexBuffer buffer = buffer();
+			bufferUsedThisFrame = true;
 			StagedVertexBuffer.Draw draw = buffer.appendDraw(format, primitive,
 					RenderSystem.getProjectionType().vertexSorting());
+			PoseStack matrices = context.poseStack();
+			Vec3 camera = context.levelState().cameraRenderState.pos;
+			matrices.pushPose();
 			try {
-				PoseStack matrices = context.poseStack();
-				Vec3 camera = context.levelState().cameraRenderState.pos;
-				matrices.pushPose();
-				try {
-					matrices.translate(-camera.x, -camera.y, -camera.z);
-					addQuad(buffer.getVertexBuilder(draw), matrices.last().pose(), state,
-							state.occludeBehindWorld());
-				} finally {
-					matrices.popPose();
-				}
-				buffer.upload();
-				StagedVertexBuffer.ExecuteInfo info = buffer.getExecuteInfo(draw);
-				if (info != null) {
-					drawToLevelTarget(info, pipeline, texture, state.occludeBehindWorld());
-				}
+				matrices.translate(-camera.x, -camera.y, -camera.z);
+				addQuad(buffer.getVertexBuilder(draw), matrices.last().pose(), state,
+						state.occludeBehindWorld());
 			} finally {
-				buffer.endFrame();
+				matrices.popPose();
 			}
+			buffer.upload();
+			StagedVertexBuffer.ExecuteInfo info = buffer.getExecuteInfo(draw);
+			if (info != null) {
+				drawToLevelTarget(info, pipeline, texture, state.occludeBehindWorld());
+			}
+		} catch (Throwable t) {
+			ExperimentalHudCapture.worldTextureFailed(t);
+		}
+	}
+
+	/**
+	 * Closes the staged buffer's frame. It must not run inside renderPlane:
+	 * that callback is inside the level's translucent render pass, and the
+	 * buffer's end-of-frame fence is refused while a pass is open. The
+	 * GameRenderer hook calls this after the level pass has finished, the same
+	 * point where the capture composite already ends its own frame.
+	 */
+	public static void endFrame() {
+		if (!bufferUsedThisFrame || buffer == null) {
+			return;
+		}
+		bufferUsedThisFrame = false;
+		try {
+			buffer.endFrame();
 		} catch (Throwable t) {
 			ExperimentalHudCapture.worldTextureFailed(t);
 		}

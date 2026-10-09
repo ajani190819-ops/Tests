@@ -83,6 +83,14 @@
 
 ## Failure behavior
 
+- **Never end a frame's buffer inside a level render pass.** The user's log
+  (2026-10-09, `spatial-hud-template-26.3/latest.log` on the branch) showed both
+  methods failing with `Close the existing render pass before performing
+  additional commands`, thrown by `StagedVertexBuffer.endFrame()` called from
+  `renderPlane`, which runs inside `AFTER_TRANSLUCENT_TERRAIN`. The fix moves the
+  call to `WorldSpaceHudRenderer.endFrame()`, invoked from the GameRenderer hook
+  after `GuiRenderer.render()`, the same point where the capture composite ends
+  its own frame. Not yet confirmed in game.
 - A capture error calls `ExperimentalHudCapture.fallback(...)`. It latches a
   session fallback, keeps the selected method, and logs the stage. Changing method
   retries the capture in the same session. `hasCaptureFailed()` reports the latch.

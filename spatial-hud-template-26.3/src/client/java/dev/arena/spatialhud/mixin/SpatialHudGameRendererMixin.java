@@ -23,6 +23,9 @@ abstract class SpatialHudGameRendererMixin {
 					shift = At.Shift.AFTER))
 	private void spatialhud$drawSelectedBottomHudCapture(CallbackInfo ci) {
 		dev.arena.spatialhud.ExperimentalHudCapture.renderAndComposite();
+		// The world-space quad was drawn during the level pass; ending its
+		// buffer frame has to wait until that pass has closed, which is here.
+		dev.arena.spatialhud.WorldSpaceHudRenderer.endFrame();
 	}
 
 	@Inject(method = "close", at = @At("RETURN"))
