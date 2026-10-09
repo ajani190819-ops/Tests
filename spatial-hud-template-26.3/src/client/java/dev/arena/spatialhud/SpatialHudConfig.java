@@ -224,7 +224,7 @@ public final class SpatialHudConfig implements ConfigData {
 	public enum PanelPreset {
 		/** Anchored to your feet, using the distance and height sliders. */
 		WAIST,
-		/** Locked to the camera, close to your face. Keeps the wiggle. */
+		/** Locked to the camera's view: square to you, a set distance ahead and height above the view centre. */
 		FACE,
 		/** The first custom preset. */
 		CUSTOM_ONE,

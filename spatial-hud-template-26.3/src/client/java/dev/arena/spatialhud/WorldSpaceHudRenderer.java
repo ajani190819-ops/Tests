@@ -15,6 +15,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -402,39 +403,74 @@ public final class WorldSpaceHudRenderer {
 		float forwardX = -sin(bodyYaw);
 		float forwardZ = cos(bodyYaw);
 
-		float distance = (float) Math.max(0.10, placement.distance());
-		float centerX = (float) shownX + forwardX * distance;
-		float centerY = (float) shownY + (float) shownHeight;
-		float centerZ = (float) shownZ + forwardZ * distance;
-
-		// The panel is exactly the sampled band, so its aspect matches the HUD.
 		float width = clamp((float) cfg.planeWidth, 0.10f, 6.0f);
 		// The band keeps its aspect, plus any fill strip under it (picture offset).
 		float gap = WorldSpaceSolidQuad.bandGap(cfg);
 		float height = width * (band.bottom() - band.top()) / (float) (band.right() - band.left())
 				* WorldSpaceSolidQuad.panelHeightScale(gap);
-		float lookDown = radians(clamp(cfg.horizontalPanelAngle, 20, 90));
-		// Unit vector along the panel's height, lying in the plane that faces
-		// the player at the chosen look-down angle. At 90 it is the forward
-		// direction, so the panel is exactly horizontal (normal along Y).
-		float topX = forwardX * sin(lookDown);
-		float topY = cos(lookDown);
-		float topZ = forwardZ * sin(lookDown);
-
 		float halfWidth = width * 0.5f;
 		float halfHeight = height * 0.5f;
-		Point bottomLeft = point(centerX - rightX * halfWidth - topX * halfHeight,
-				centerY - topY * halfHeight,
-				centerZ - rightZ * halfWidth - topZ * halfHeight);
-		Point bottomRight = point(centerX + rightX * halfWidth - topX * halfHeight,
-				centerY - topY * halfHeight,
-				centerZ + rightZ * halfWidth - topZ * halfHeight);
-		Point topRight = point(centerX + rightX * halfWidth + topX * halfHeight,
-				centerY + topY * halfHeight,
-				centerZ + rightZ * halfWidth + topZ * halfHeight);
-		Point topLeft = point(centerX - rightX * halfWidth + topX * halfHeight,
-				centerY + topY * halfHeight,
-				centerZ - rightZ * halfWidth + topZ * halfHeight);
+		Point bottomLeft;
+		Point bottomRight;
+		Point topRight;
+		Point topLeft;
+		if (placement.attachToCamera()) {
+			// View-locked (Face and camera-attached presets). The panel stands square to
+			// the camera's view, a fixed distance ahead and height above the camera, so
+			// it keeps its place in the viewport as you look around. Only the anchor moves
+			// it through the world, and that anchor takes the wiggle lag.
+			Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
+			org.joml.Vector3fc look = camera.forwardVector();
+			org.joml.Vector3fc up = camera.upVector();
+			// leftVector() points to the camera's left, so its negation is the right.
+			org.joml.Vector3fc left = camera.leftVector();
+			float dist = (float) Math.max(0.10, placement.distance());
+			float upHeight = (float) shownHeight;
+			float cx = (float) shownX + look.x() * dist + up.x() * upHeight;
+			float cy = (float) shownY + look.y() * dist + up.y() * upHeight;
+			float cz = (float) shownZ + look.z() * dist + up.z() * upHeight;
+			float rx = -left.x();
+			float ry = -left.y();
+			float rz = -left.z();
+			bottomLeft = point(cx - rx * halfWidth - up.x() * halfHeight,
+					cy - ry * halfWidth - up.y() * halfHeight,
+					cz - rz * halfWidth - up.z() * halfHeight);
+			bottomRight = point(cx + rx * halfWidth - up.x() * halfHeight,
+					cy + ry * halfWidth - up.y() * halfHeight,
+					cz + rz * halfWidth - up.z() * halfHeight);
+			topRight = point(cx + rx * halfWidth + up.x() * halfHeight,
+					cy + ry * halfWidth + up.y() * halfHeight,
+					cz + rz * halfWidth + up.z() * halfHeight);
+			topLeft = point(cx - rx * halfWidth + up.x() * halfHeight,
+					cy - ry * halfWidth + up.y() * halfHeight,
+					cz - rz * halfWidth + up.z() * halfHeight);
+		} else {
+			// Feet-anchored (Waist and the custom feet presets): a flat sheet at the
+			// heading, at a set distance and height, tilted by the angle setting.
+			float distance = (float) Math.max(0.10, placement.distance());
+			float centerX = (float) shownX + forwardX * distance;
+			float centerY = (float) shownY + (float) shownHeight;
+			float centerZ = (float) shownZ + forwardZ * distance;
+			float lookDown = radians(clamp(cfg.horizontalPanelAngle, 20, 90));
+			// Unit vector along the panel's height, lying in the plane that faces
+			// the player at the chosen look-down angle. At 90 it is the forward
+			// direction, so the panel is exactly horizontal (normal along Y).
+			float topX = forwardX * sin(lookDown);
+			float topY = cos(lookDown);
+			float topZ = forwardZ * sin(lookDown);
+			bottomLeft = point(centerX - rightX * halfWidth - topX * halfHeight,
+					centerY - topY * halfHeight,
+					centerZ - rightZ * halfWidth - topZ * halfHeight);
+			bottomRight = point(centerX + rightX * halfWidth - topX * halfHeight,
+					centerY - topY * halfHeight,
+					centerZ + rightZ * halfWidth - topZ * halfHeight);
+			topRight = point(centerX + rightX * halfWidth + topX * halfHeight,
+					centerY + topY * halfHeight,
+					centerZ + rightZ * halfWidth + topZ * halfHeight);
+			topLeft = point(centerX - rightX * halfWidth + topX * halfHeight,
+					centerY + topY * halfHeight,
+					centerZ - rightZ * halfWidth + topZ * halfHeight);
+		}
 		// Occlusion is the player's choice. On, blocks and mobs in front of the
 		// panel hide it. In third person, the exception lets the player's own body
 		// stop hiding it (see SpatialHudConfig).

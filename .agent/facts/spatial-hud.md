@@ -111,8 +111,8 @@
 - Placement presets (`horizontalPanelPreset`: WAIST, FACE, CUSTOM_ONE, CUSTOM_TWO):
   `panelPlacement(cfg)` returns `attachToCamera`, `distance`, `height`.
   - WAIST: feet anchor, `horizontalPanelDistance` and `horizontalPanelHeight`. Heading comes from `horizontalPanelAnchor`. Unchanged from before.
-  - FACE: camera anchor (`mainCamera().position()`), `horizontalPanelFaceDistance` and `horizontalPanelFaceHeight` (relative to camera). Heading is camera yaw.
-  - CUSTOM_ONE/TWO: their own distance and height, plus an `AttachToCamera` flag.
+  - FACE: view-locked. Camera anchor (`mainCamera().position()`), then `forwardVector()`, `upVector()` and `-leftVector()` from the camera basis. Centre = anchor + forward x distance + up x height, so the panel stays square to the view and keeps its place on screen as you look around. Only the anchor position takes the wiggle lag; the orientation does not. The angle setting does not apply.
+  - CUSTOM_ONE/TWO: their own distance and height, plus an `AttachToCamera` flag. Attach to Camera on uses the same view-locked path as Face.
   The anchor point goes through the same wiggle as the feet, so the lag applies. Presets are config-only. Saving and loading presets is roadmap work.
 - Shoulder camera (`horizontalPanelFollowShoulderCamera`, default on): the feet-anchored target is moved sideways by the camera's lateral offset from the eye, measured along the panel's own right. The shift goes through the wiggle. With position wiggle off, it snaps. Only shifts when the camera is off the eye, so first person is unaffected. Not verified in-game. Depends on the shoulder mod moving the real camera position, not just the view matrix.
 - Slot cycling width (`slotCyclingHalfWidth`, GUI px from centre, default 172, range 112..200):
