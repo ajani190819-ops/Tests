@@ -84,6 +84,10 @@ must look like a flat sheet in the world, not a flat sticker on the screen.
 
 **Status (2026-10-09):** stage 1 is passed. This stage needs no code change: the four settings above and the heading option (`horizontalPanelAnchor`) already exist in the build. The work is the game test below, then the table. If a value does not behave as described, record it here before any code change.
 
+**Result: passed** (user report, 2026-10-09). Distance, height, angle and heading all work as described.
+
+**Known issue (open):** while walking, the panel stutters and jitters forward and back, at a lower rate than the rest of the game (the user sees 50–200 FPS, but the panel moves slowly). It is smooth when standing still. Cause, from the code: Method 4 reads `player.position()`, `yBodyRot` and `getYRot()` (`WorldSpaceHudRenderer.purplePanelState`). Those change once per game tick (20 per second). The camera uses values interpolated to each frame. Planned fix: interpolate the panel's position and heading with the frame's partial tick, as the camera does. This is a fix to an accepted stage, so it goes in its own build before stage 3.
+
 **Test (one value at a time, the others at default):** set each value, look at the panel from about 3 blocks away, and note the result.
 
 | Setting | Value tried | Result |
