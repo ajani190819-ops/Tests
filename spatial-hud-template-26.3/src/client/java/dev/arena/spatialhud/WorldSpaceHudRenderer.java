@@ -86,7 +86,9 @@ public final class WorldSpaceHudRenderer {
 	 */
 	private static void extractPlane(LevelExtractionContext context) {
 		try {
-			computePlaneState();
+			// The frame's partial tick, so the panel moves between game ticks as the
+			// camera does instead of stepping 20 times a second.
+			computePlaneState(context.deltaTracker().getGameTimeDeltaPartialTick(false));
 		} catch (Throwable t) {
 			planeState = null;
 			ExperimentalHudCapture.worldTextureFailed(t);
@@ -117,7 +119,7 @@ public final class WorldSpaceHudRenderer {
 		}
 	}
 
-	private static void computePlaneState() {
+	private static void computePlaneState(float partialTick) {
 		if (!SpatialHud.isWorldSpaceTextureActive()) {
 			planeState = null;
 			return;
@@ -132,7 +134,7 @@ public final class WorldSpaceHudRenderer {
 
 		SpatialHudConfig cfg = SpatialHudConfig.get();
 		if (cfg.usesPurplePanel()) {
-			planeState = purplePanelState(player, cfg,
+			planeState = purplePanelState(player, cfg, partialTick,
 					mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
 			return;
 		}
@@ -213,20 +215,22 @@ public final class WorldSpaceHudRenderer {
 	 * angle sets the look-down pitch at which the panel faces you square-on:
 	 * 90 lies it flat, and smaller angles tilt its near edge toward you.
 	 */
-	private static PlaneState purplePanelState(LocalPlayer player, SpatialHudConfig cfg,
+	private static PlaneState purplePanelState(LocalPlayer player, SpatialHudConfig cfg, float partialTick,
 			int guiWidth, int guiHeight) {
 		ExperimentalHudCapture.SourceRect band = ExperimentalHudCapture.purpleSourceRect(cfg, guiWidth, guiHeight);
 		// Method 4's own heading setting: body heading by default, or the camera's
 		// horizontal view when the config says so.
-		float bodyYaw = radians(cfg.horizontalPanelAnchor == SpatialHudConfig.HorizontalPanelAnchor.CAMERA_YAW
-				? player.getYRot() : player.yBodyRot);
+		// Interpolated to the partial tick, like the camera, so it turns smoothly.
+		float bodyYaw = cfg.horizontalPanelAnchor == SpatialHudConfig.HorizontalPanelAnchor.CAMERA_YAW
+				? radians(player.getViewYRot(partialTick))
+				: radians(net.minecraft.util.Mth.rotLerp(partialTick, player.yBodyRotO, player.yBodyRot));
 		float rightX = cos(bodyYaw);
 		float rightZ = sin(bodyYaw);
 		float forwardX = -sin(bodyYaw);
 		float forwardZ = cos(bodyYaw);
 
 		float distance = (float) Math.max(0.10, cfg.horizontalPanelDistance);
-		Vec3 feet = player.position();
+		Vec3 feet = player.getPosition(partialTick);
 		float centerX = (float) feet.x + forwardX * distance;
 		float centerY = (float) feet.y + (float) cfg.horizontalPanelHeight;
 		float centerZ = (float) feet.z + forwardZ * distance;
