@@ -91,17 +91,27 @@
   returns early for Method 4, so the backing and the 3 px purple edge stripes are
   gone. The purple fill and white border are world geometry. Method 3 still draws
   its backing (`showPanel`) and border into the texture.
-- Method 4 depth modes (`horizontalPanelOcclusion`, `horizontalPanelThirdPersonException`)
-  are NOT active yet. Both panel pieces are always depth-tested: the fill uses
-  `RenderTypes.debugFilledBox()` and the band `RenderTypes.entityTranslucent(id, false)`,
-  and the band writes depth. The open (no depth test) path needs a render type
-  this Minecraft version has not confirmed. `RenderTypes.gui()` and
-  `RenderTypes.guiTextured(...)` are absent from the 1.21.11 yarn `RenderLayers`
-  class, so they were removed. They were the likely cause of build 37896058030
-  failing (not confirmed: the job log was not downloadable). Candidates to check: `textSeeThrough` and
-  `textBackgroundSeeThrough`, but they use different vertex formats, so the writers
-  must change too. Hypothesis, unverified: the band's depth write hides translucent
-  water behind the panel. Test with a real screenshot before changing it.
+- Method 4 depth modes (`horizontalPanelOcclusion`, `horizontalPanelThirdPersonException`).
+  Occluded (default): the fill is `RenderTypes.debugFilledBox()` (depth test, no write),
+  and the band is `RenderTypes.entityTranslucent(id, false)` (depth test and write).
+  Open (occlusion off, or third person with the exception): the band uses
+  `RenderTypes.textSeeThrough(id)` (no depth test or write, pipeline
+  `pipeline/text_see_through`, vertex layout position, UV, colour, light). Solid
+  rects (fill and border) use `textSeeThrough` on a 1x1 white texture
+  (`SolidColorTexture`), tinted by the vertex colour. Verified in the 26.x source
+  (mc-dataminning/build-changes, `RenderTypes.java` and `RenderPipelines.java`).
+  `RenderTypes.gui()` and `RenderTypes.guiTextured(...)` do not exist in 26.x.
+  Writers set every element of their layout (light is set even on layouts without
+  it, as vanilla glyph code does), so a vertex cannot be left incomplete.
+- Fail-safe: `WorldSpaceSolidQuad.openPathReady()` creates the white texture once.
+  If that fails, or an open draw throws, `disableOpenPath` logs one warning and
+  the panel draws occluded for the rest of the session. An occluded draw that throws
+  stops the band (`bandDisabled`) and logs an error. Nothing rethrows into the render frame.
+- Bottom gap: the band sits above a fill strip of `BAND_BOTTOM_GAP` (0.10 of panel
+  height) so the hotbar's bottom row is not against the border. The panel is taller
+  by `panelHeightScale()` so the band keeps its aspect. Band UVs are unchanged.
+- Hypothesis (water, now reported fixed): the occluded band's depth write hid translucent
+  water behind the panel. Open mode is the fix path.
 - Crash `Missing elements in vertex` (report 03:01:50, `crash-2026-10-09_03.01.50-client.txt`):
   caused by `TexturedRenderer.vertex` picking a different vertex layout from the
   `open` flag while the buffer was always `entityTranslucent`. Turning occlusion

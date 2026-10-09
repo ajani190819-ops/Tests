@@ -378,7 +378,9 @@ public final class WorldSpaceHudRenderer {
 
 		// The panel is exactly the sampled band, so its aspect matches the HUD.
 		float width = clamp((float) cfg.planeWidth, 0.10f, 6.0f);
-		float height = width * (band.bottom() - band.top()) / (float) (band.right() - band.left());
+		// The band keeps its aspect, plus the fill strip under it (see BAND_BOTTOM_GAP).
+		float height = width * (band.bottom() - band.top()) / (float) (band.right() - band.left())
+				* WorldSpaceSolidQuad.panelHeightScale();
 		float lookDown = radians(clamp(cfg.horizontalPanelAngle, 20, 90));
 		// Unit vector along the panel's height, lying in the plane that faces
 		// the player at the chosen look-down angle. At 90 it is the forward
@@ -407,6 +409,10 @@ public final class WorldSpaceHudRenderer {
 		boolean firstPerson = Minecraft.getInstance().options.getCameraType().isFirstPerson();
 		boolean occlude = cfg.horizontalPanelOcclusion
 				&& !(cfg.horizontalPanelThirdPersonException && !firstPerson);
+		// Occlusion off needs the see-through path. If it cannot run, draw occluded.
+		if (!occlude && !WorldSpaceSolidQuad.openPathReady()) {
+			occlude = true;
+		}
 		return new PlaneState(bottomLeft, bottomRight, topRight, topLeft,
 				band.left() / (float) guiWidth, band.right() / (float) guiWidth,
 				// The capture texture is stored bottom-up, but GUI coordinates run

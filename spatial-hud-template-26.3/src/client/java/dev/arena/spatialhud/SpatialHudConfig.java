@@ -417,9 +417,10 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean horizontalPanelOcclusion = true;
 
 	/**
-	 * In third person, your own body is not allowed to hide the panel. Not
-	 * active yet: it needs the open (no depth test) render path, which is not
-	 * confirmed for this Minecraft version.
+	 * In third person, the panel ignores blocks and mobs, including your own body,
+	 * so it stays visible from behind you. Applies only while occlusion is on.
+	 * Note: this is broader than the body alone. The depth buffer cannot exempt
+	 * just the player's model.
 	 */
 	@ConfigEntry.Category("purple")
 	@ConfigEntry.Gui.Tooltip
