@@ -106,6 +106,7 @@ public final class WorldSpaceHudRenderer {
 		try {
 			Vec3 camera = context.levelState().cameraRenderState.pos;
 			WorldSpaceSolidQuad.submitPanel(context.submitNodeCollector(), camera,
+					SpatialHudConfig.get().horizontalPanelFill,
 					new Vec3(state.bottomLeft().x(), state.bottomLeft().y(), state.bottomLeft().z()),
 					new Vec3(state.bottomRight().x(), state.bottomRight().y(), state.bottomRight().z()),
 					new Vec3(state.topRight().x(), state.topRight().y(), state.topRight().z()),

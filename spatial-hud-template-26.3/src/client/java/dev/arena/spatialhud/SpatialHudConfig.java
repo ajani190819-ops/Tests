@@ -328,6 +328,14 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public HorizontalPanelAnchor horizontalPanelAnchor = HorizontalPanelAnchor.PLAYER_BODY;
 
+	/**
+	 * Whether Method 4 draws its purple fill. Off leaves only the white border
+	 * ring, so the panel's outline can be seen against the world without the fill.
+	 */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelFill = true;
+
 	// Legacy corner controls from the GUI-layer warp that Method 4 used before
 	// v22. They stay in the JSON so older files still load, but nothing reads them.
 	@ConfigEntry.Gui.Excluded

@@ -54,12 +54,12 @@ final class WorldSpaceSolidQuad {
 	}
 
 	/**
-	 * Submits the panel: the purple fill, then the white border ring. The corners
+	 * Submits the panel: the purple fill (when enabled), then the white border ring. The corners
 	 * are absolute world coordinates, given in the order bottom-left, bottom-right,
 	 * top-right, top-left. The panel is a parallelogram, so each point inside it is
 	 * found by interpolating along the two edges.
 	 */
-	static void submitPanel(SubmitNodeCollector collector, Vec3 camera,
+	static void submitPanel(SubmitNodeCollector collector, Vec3 camera, boolean showFill,
 			Vec3 bottomLeft, Vec3 bottomRight, Vec3 topRight, Vec3 topLeft) {
 		PoseStack toCamera = new PoseStack();
 		toCamera.translate(-camera.x, -camera.y, -camera.z);
@@ -67,9 +67,11 @@ final class WorldSpaceSolidQuad {
 
 		float f = BORDER_FRACTION;
 		float inner = 1.0f - f;
-		// Fill: the inner rectangle only.
-		submitRect(collector, pose, COLOR, bottomLeft, bottomRight, topRight, topLeft,
-				f, inner, f, inner);
+		// Fill: the inner rectangle only, and only when the config allows it.
+		if (showFill) {
+			submitRect(collector, pose, COLOR, bottomLeft, bottomRight, topRight, topLeft,
+					f, inner, f, inner);
+		}
 		// Border ring: bottom, top, left and right strips.
 		submitRect(collector, pose, BORDER_COLOR, bottomLeft, bottomRight, topRight, topLeft,
 				0f, 1f, 0f, f);

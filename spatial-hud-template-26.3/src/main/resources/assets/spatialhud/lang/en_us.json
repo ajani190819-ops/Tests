@@ -70,5 +70,7 @@
   "text.autoconfig.spatialhud.option.horizontalPanelAnchor": "Method 4 Heading",
   "text.autoconfig.spatialhud.option.horizontalPanelAnchor.@Tooltip": "Applies only to Method 4, the purple horizontal panel. Player Body keeps it at body heading, so turning your head does not move it. Camera Yaw turns it with your horizontal view.",
   "text.autoconfig.spatialhud.enum.horizontalPanelAnchor.CAMERA_YAW": "Camera Yaw — follows horizontal view",
-  "text.autoconfig.spatialhud.enum.horizontalPanelAnchor.PLAYER_BODY": "Player Body — follows body heading"
+  "text.autoconfig.spatialhud.enum.horizontalPanelAnchor.PLAYER_BODY": "Player Body — follows body heading",
+  "text.autoconfig.spatialhud.option.horizontalPanelFill": "Show Purple Fill",
+  "text.autoconfig.spatialhud.option.horizontalPanelFill.@Tooltip": "Draws the purple fill inside the Method 4 panel. Turn it off to see only the white border ring."
 }
