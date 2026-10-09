@@ -496,12 +496,13 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/**
 	 * Moves the HUD picture inside the purple panel, in percent of the panel's
-	 * height. -3 is the tuned default. -20 was seen to cut off more of the hotbar.
+	 * height. Negative and positive values move it in opposite directions. The
+	 * default is -4. -3 was the position confirmed in game.
 	 */
 	@ConfigEntry.Category("purple")
-	@ConfigEntry.BoundedDiscrete(min = -3, max = 20)
+	@ConfigEntry.BoundedDiscrete(min = -10, max = 10)
 	@ConfigEntry.Gui.Tooltip
-	public int horizontalPanelPictureOffset = -3;
+	public int horizontalPanelPictureOffset = -4;
 
 	/**
 	 * Half-width, in GUI pixels from the centre of the hotbar, of the band the

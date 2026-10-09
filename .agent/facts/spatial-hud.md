@@ -107,7 +107,7 @@
   If that fails, or an open draw throws, `disableOpenPath` logs one warning and
   the panel draws occluded for the rest of the session. An occluded draw that throws
   stops the band (`bandDisabled`) and logs an error. Nothing rethrows into the render frame.
-- Picture offset (`horizontalPanelPictureOffset`, percent, default -3, range -3..20): the band's bottom edge moves by that gap, and the panel is taller by `panelHeightScale(gap)` so the band keeps its aspect. Band UVs are unchanged. The user confirmed -3 is the right position. -20 cut off more of the hotbar.
+- Picture offset (`horizontalPanelPictureOffset`, percent, default -4, range -10..10; -3 was the confirmed position): the band's bottom edge moves by that gap, and the panel is taller by `panelHeightScale(gap)` so the band keeps its aspect. Band UVs are unchanged. The user confirmed -3 is the right position. -20 cut off more of the hotbar. The range was widened to -10..10 at the user's request.
 - Placement presets (`horizontalPanelPreset`: WAIST, FACE, CUSTOM_ONE, CUSTOM_TWO):
   `panelPlacement(cfg)` returns `attachToCamera`, `distance`, `height`.
   - WAIST: feet anchor, `horizontalPanelDistance` and `horizontalPanelHeight`. Heading comes from `horizontalPanelAnchor`. Unchanged from before.
