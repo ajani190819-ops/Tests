@@ -114,6 +114,7 @@ public final class WorldSpaceHudRenderer {
 			WorldSpaceSolidQuad.submitPanel(context.submitNodeCollector(), camera,
 					SpatialHudConfig.get().horizontalPanelFill,
 					SpatialHudConfig.get().horizontalPanelBorder,
+					SpatialHudConfig.get().horizontalPanelHideEdges,
 					bottomLeft, bottomRight, topRight, topLeft);
 			// Roadmap stage 3: the captured HUD, only once a frame of it exists.
 			if (ExperimentalHudCapture.worldTextureView() != null) {

@@ -71,14 +71,18 @@ final class WorldSpaceSolidQuad {
 	 * found by interpolating along the two edges.
 	 */
 	static void submitPanel(SubmitNodeCollector collector, Vec3 camera, boolean showFill, boolean showBorder,
-			Vec3 bottomLeft, Vec3 bottomRight, Vec3 topRight, Vec3 topLeft) {
+			boolean hideEdges, Vec3 bottomLeft, Vec3 bottomRight, Vec3 topRight, Vec3 topLeft) {
 		PoseStack.Pose pose = cameraPose(camera);
 		float f = BORDER_FRACTION;
 		float inner = 1.0f - f;
 		// Fill: the inner rectangle only, and only when the config allows it.
 		if (showFill) {
+			// With Hide Edge Lines, the fill reaches half a border width under the ring,
+			// so no purple shows where the fill meets the ring.
+			float fillInset = hideEdges ? f * 0.5f : f;
+			float fillInner = 1.0f - fillInset;
 			submitRect(collector, pose, COLOR, bottomLeft, bottomRight, topRight, topLeft,
-					f, inner, f, inner);
+					fillInset, fillInner, fillInset, fillInner);
 		}
 		if (!showBorder) {
 			return;

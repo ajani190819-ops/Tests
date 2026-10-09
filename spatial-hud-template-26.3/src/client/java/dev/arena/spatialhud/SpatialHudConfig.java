@@ -341,6 +341,11 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public boolean horizontalPanelBorder = true;
 
+	/** Makes the purple fill run under the border ring, so no purple line shows at the ring's edge. */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelHideEdges = true;
+
 	/**
 	 * Lets the Method 4 panel lag behind your movement and catch up, instead of
 	 * snapping. Only the parts ticked below move with a lag.
