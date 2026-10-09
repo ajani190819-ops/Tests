@@ -10,93 +10,67 @@ GitHub Actions builds every change and replaces the jar at this fixed link:
 **Download (always the newest successful build):**
 https://github.com/ajani190819-ops/Tests/releases/download/spatial-hud-latest/spatial-hud-1.0.0.jar
 
-### Windows: one-click Modrinth install / update
+### Windows: one-click install into Modrinth
 
-For the simplest route, save [`Update-SpatialHUD.bat`](Update-SpatialHUD.bat)
-to your computer once, then double-click it whenever you want an update. On
-its first run, it already targets the supplied F5W Modrinth profile:
+Save [`Update-SpatialHUD.bat`](Update-SpatialHUD.bat) once, then double-click it
+whenever you want the newest build. It is the Spatial HUD **installer**: one
+file, the same shape as `Orca-Plugins.bat`. It installs into your F5W Modrinth
+profile:
 
 ```text
 %APPDATA%\ModrinthApp\profiles\F5W\mods
 ```
 
-For `C:\Users\kamau`, that resolves to the requested
-`C:\Users\kamau\AppData\Roaming\ModrinthApp\profiles\F5W\mods`. Press
-**Enter** (or choose **1**) to install the newest successful Spatial HUD build
-directly there. It does **not** open any folder afterward by default, and there
-is no manual "From file" step in Modrinth.
-
-The menu remembers its folder, chosen build, and optional folder opener under
-`%LOCALAPPDATA%\SpatialHudUpdater`, and lets you:
-
-- **choose the build** — listed as **main first, then the five most recently
-  built branches**, with **[A]** for every branch that has a published build,
-  **[T]** to type one branch name, and **[R]** for the newest build on any
-  branch;
-- change the profile's `mods` folder at any time;
-- leave the post-install folder opener disabled (the default), or ask it to
-  auto-detect **OneCommander** / save a custom file-manager `.exe`;
-- inspect the chosen build's release, JAR name, build time, and size; and
-- restore the default F5W folder, newest-build choice, and no-opener setting.
-
-Pick the build whose behavior you want to test, then install it:
+Press **Enter** to install. The menu:
 
 ```text
  [1] Install or update Spatial HUD now
- [2] Choose the build - main or one of the newest branches
+ [2] Choose the build - main or one of the five newest branches
  [3] Change the Modrinth mods folder
- [4] Configure optional folder opener (OneCommander / none)
- [5] Check the chosen build details
- [6] Advanced: use a different release feed
- [7] Restore the default folder, build, and no-opener setting
+ [4] Forget my choices - newest build and the default folder
  [Q] Quit
 ```
 
-**Where to get it:** download this one file and keep it anywhere convenient
-(for example your Desktop):
+Each install runs in three steps:
+
+1. **Download and check.** The jar is downloaded from GitHub. Its size must match
+   what GitHub reported, and it must be the Spatial HUD mod (its
+   `fabric.mod.json` id is `spatialhud`). Nothing on your computer changes until
+   this passes.
+2. **Swap the jar.** Your old `spatial-hud-*.jar` moves to
+   `%LOCALAPPDATA%\SpatialHudUpdater\backup`, and the new jar is copied in. If
+   the copy fails, the old jar is put back. Spatial GUI and other mods are not
+   touched.
+3. **Save your choices.** The build and folder are remembered only after steps 1
+   and 2 succeed, so a branch name that does not work is never remembered.
+
+Close Minecraft before installing, so Windows cannot hold the old jar open.
+
+**Choosing a build (option 2).** The list is built from GitHub's published
+builds: `main` first, then the five most recently built branches. Each row has a
+number; type the number shown. **[L]** installs the newest build from any
+branch, and **[T]** lets you type a branch name. A branch appears only after its
+own build has succeeded.
+
+**Updating the installer itself.** On each run it looks for a newer copy of
+itself on the session branch. If it finds one, that copy runs the update, and
+your saved file keeps working on its own. `--no-self-update` turns this off.
+
+**Where to get it:**
 <https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/b4016c28-tests/spatial-hud-template-26.3/Update-SpatialHUD.bat>
-Double-click it to run. Do not use the copy on `main` until the branch has been
-merged there; that copy still fetches an older menu.
+Save it anywhere convenient (for example your Desktop) and double-click it.
+Until this branch is merged, use that link; the copy on `main` is stale.
 
-**One-time note (2026-10-08):** if your saved `Update-SpatialHUD.bat` is older
-than this build picker, replace it once with the copy above. Older copies still install the
-newest build correctly, but they show the older menu — the quick check is the
-**`Build:`** row in the menu header, which only the current updater shows. After this one
-replacement, the file keeps working on its own: it reads the newer of its two
-helper copies by a version marker, so it survives a merge without any further
-download.
+**Old copies.** If your saved copy shows **[4] Configure optional folder opener**
+or **[7] Restore**, it is an older installer. Download it again from the link
+above. Windows may show an "Unknown Publisher" prompt the first time: that is
+expected for a downloaded `.bat`.
 
-When a OneCommander path is configured, the updater opens the profile's `mods`
-folder in OneCommander after a successful install. It never invokes Windows
-Explorer. If OneCommander is installed in an unusual portable or Microsoft
-Store location, choose **[4]** and paste the full path to `OneCommander.exe`.
-
-It downloads and verifies the replacement before touching the profile, then
-identifies old copies through their own `fabric.mod.json` mod id (`spatialhud`),
-not just their filenames. It replaces every old Spatial HUD copy it finds and
-leaves Spatial GUI and every unrelated mod alone. If the download, validation,
-or move fails, it restores any copies already moved out of the way.
-
-Close Minecraft before updating so Windows cannot hold the old JAR open.
-
-The build selector is intentionally based on **published builds**, not a fake
-source-branch download: a Minecraft JAR is a compiled artifact, while a Git
-branch only contains source. The default `spatial-hud-latest` feed always holds
-the newest successful build on any branch; each branch that GitHub builds also
-gets its own release named `spatial-hud-build-<branch>` (for example
-`spatial-hud-build-arena-b4016c28-tests`), which is what the picker lists. A
-branch therefore only appears once its own build has succeeded — a branch with
-no published build is never offered as an installable JAR. `main` appears after
-main itself has been built.
-
-The batch file temporarily refreshes its maintained PowerShell helper from
-GitHub before each run, then deletes that temporary helper. Its
-ExecutionPolicy bypass applies only to that updater process and does not change
-the computer's permanent policy.
-
-This is the only updater you need. Option **[D]** in its menu saves the chosen
-build to your Downloads folder instead of the mods folder, for when you want to
-add it yourself through Modrinth's "From file".
+Builds come from GitHub releases. The rolling `spatial-hud-latest` release
+always holds the newest successful build of any branch; each branch gets its own
+`spatial-hud-build-<branch>` release (for example
+`spatial-hud-build-arena-b4016c28-tests`), which is what option 2 lists. The
+repository must stay public, because the installer downloads without a login.
 
 ## Render methods and placement
 

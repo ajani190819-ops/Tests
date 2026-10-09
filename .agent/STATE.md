@@ -25,11 +25,10 @@
 - **Not compiled here.** This sandbox has no `javac` or JDK. The Java files parse
   with tree-sitter, and `en_us.json` validates (68 keys). CI on push is the compile
   check. The last CI runs that succeeded predate the Method 4 edits.
-- **Updater**: `spatial-hud-template-26.3/Update-SpatialHUD.bat` is the only
-  updater. `Get-Latest-SpatialHUD.bat` was deleted with the user's approval. The
-  `.bat` reads the branch's helper (version 4) and must be used from
-  `arena/b4016c28-tests` until the branch merges. `main`'s copy is stale.
-  Not yet confirmed that the updater lists the branch or installs on Windows.
+- **Installer**: `spatial-hud-template-26.3/Update-SpatialHUD.bat` is the only
+  installer, one file (no `.ps1` helper any more). It must be re-downloaded once
+  from `arena/b4016c28-tests`; older saved copies are stale. Windows run not yet
+  confirmed. `tests/test_spatialhud_installer.py` checks the static contract.
 - **Manual workflow dispatch is unavailable** (HTTP 403 from this sandbox). A push
   to the branch is how a build starts.
 

@@ -21,24 +21,30 @@
   asset timestamp.
 - Full owner process: `docs/spatial-hud/CI-SETUP.md`.
 
-## Updater
+## Installer
 
-- `Update-SpatialHUD.bat` is the only updater (`Get-Latest-SpatialHUD.bat` was
-  deleted; the user runs the game only through Modrinth). On each run it fetches
-  `Update-SpatialHUD.ps1` from `main` and from the session branch, and keeps the
-  copy with the higher `SpatialHUD-Helper-Version` marker. `main`'s `.bat` is stale
-  until this branch merges: it fetches an old helper from another branch.
-- The helper reads `/releases?per_page=100` and lists `spatial-hud-build-*`:
-  `[1]` is main, then the five most recently built branches. `[A]` lists every
-  branch with a published build, `[T]` takes a typed branch name, `[R]` takes the
-  newest build from any branch, `[D]` saves a copy to Downloads without changing
-  mods, and `[M]`/Enter keeps the current choice.
-- Remembered state lives in `%LOCALAPPDATA%\SpatialHudUpdater`. The mods folder
-  defaults to `%APPDATA%\ModrinthApp\profiles\F5W\mods`.
-- Install safety: download to a temp folder, verify the file is a Spatial HUD jar
-  through its `fabric.mod.json` id, move old copies aside, and delete the backups
-  only after the new jar is in place.
-- Not verified on Windows. No PowerShell in the agent sandbox.
+- `Update-SpatialHUD.bat` is the only installer. It is one file, modelled on
+  `Orca-Plugins.bat`: menu, build picker, folder picker, download check, and
+  install all live in it. There is no second helper file.
+- Version: `rem UPDATER_VERSION <n> end`, mirrored in `set "UPDATER_VERSION=<n>"`.
+  Self-update hands over only to a copy with a higher number.
+- Build list: `GET /repos/{repo}/releases?per_page=100`, filtered to tags starting
+  `spatial-hud-build-`. Branch name = `Branch:` line in the release body, or the
+  tag suffix. Menu: `[1]` is main, then the five most recently built branches.
+  Number = position in that same list. `[L]` is the newest build of any branch,
+  `[T]` takes a typed branch name, `[4]` forgets the choices.
+- Release tag: `spatial-hud-build-` plus the branch with `/` replaced by `-`,
+  which matches the workflow's `SAFE="${REF//\//-}"`. Newest any-branch build:
+  `spatial-hud-latest`. Asset name: `spatial-hud-1.0.0.jar`.
+- Remembered state lives in `%LOCALAPPDATA%\SpatialHudUpdater`
+  (`build.txt`, `mods-folder.txt`). It is written only after an install succeeds.
+  The mods folder defaults to `%APPDATA%\ModrinthApp\profiles\F5W\mods`.
+- Install safety: download to `%TEMP%`, check size and the Fabric mod id
+  `spatialhud`, move old `spatial-hud-*.jar` to the backup folder, copy the new jar
+  in, and put the old one back if the copy fails.
+- Removed from the earlier installer, on purpose: the OneCommander folder opener,
+  the save-to-Downloads option, the release details view, and the alternative
+  release feed. Say so if you want any of them back.
 
 ## Rendering design
 

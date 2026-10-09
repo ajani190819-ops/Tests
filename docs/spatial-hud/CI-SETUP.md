@@ -20,32 +20,30 @@
      `spatial-hud-build-arena-b4016c28-tests`. The updater's build picker lists
      these.
 
-## Where the updater comes from
+## Where the installer comes from
 
-- The updater is one file, `Update-SpatialHUD.bat`, in `spatial-hud-template-26.3/`
+- The installer is one file, `Update-SpatialHUD.bat`, in `spatial-hud-template-26.3/`
   on branch `arena/b4016c28-tests`. Download it once from:
   `https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/b4016c28-tests/spatial-hud-template-26.3/Update-SpatialHUD.bat`
-- It fetches its PowerShell helper from GitHub on each run, from both `main` and
-  this branch, and uses the newer one. Nothing else needs downloading.
-- The jar is downloaded from the GitHub release and installed into the Modrinth
-  profile's mods folder, `%APPDATA%\ModrinthApp\profiles\F5W\mods`, unless you
-  choose another folder. Old copies are backed up, then replaced.
+- It has no second file to fetch. On each run it checks whether this branch has a
+  newer copy of itself (by its `rem UPDATER_VERSION` marker) and runs that copy
+  for the update.
+- The jar is downloaded from the GitHub release, checked, and installed into the
+  Modrinth profile's mods folder, `%APPDATA%\ModrinthApp\profiles\F5W\mods`,
+  unless you choose another folder. The old jar is moved to a backup folder
+  first.
 - Use the copy from this branch until the branch merges to `main`. The copy on
-  `main` is stale: it fetches an older helper.
+  `main` is stale.
 
 ## How the PC gets a branch build
 
-1. Double-click your copy of `Update-SpatialHUD.bat`. It fetches the current
-   PowerShell helper from GitHub on each run, so the menu stays up to date.
-2. At **Choose the build to install**, pick the number beside
-   `arena/b4016c28-tests` in the list. `main` is listed first when it has a
-   published build, then the five most recently built branches. Numbers are
-   shown beside each row, and you type the number shown. Use `[A]` to see every branch with a published build,
-   or `[T]` to type a branch name. Press Enter or `[M]` to keep the current choice.
-3. At **Modrinth mods folder**, press Enter to keep the remembered folder, or paste
-   another one.
-4. The updater checks the build, backs up the old jar, and replaces it. Then start
-   the game from Modrinth.
+1. Double-click your copy of `Update-SpatialHUD.bat`.
+2. Press **2** to choose the build. The list shows `main` first when it has a
+   published build, then the five most recently built branches. Type the number
+   shown beside `arena/b4016c28-tests`. Or press **T** and type the branch name.
+3. The installer downloads the build and checks it, then replaces the jar in the
+   mods folder. Start the game from Modrinth.
+4. To go back to the newest build, press **4** in the menu.
 
 ## Limits
 

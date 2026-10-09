@@ -137,9 +137,9 @@ docs/
                             COMPATIBILITY.md (F5W compatibility matrix)
   modpack-audit-v2.md       the 2026-10-07 modpack audit report
 spatial-hud-template-26.3/  THE Spatial HUD mod (Fabric, MC 26.3). Its own
-                            README is the user guide; Update-SpatialHUD.bat /
-                            .ps1 is the Modrinth updater (kept here, because
-                            saved copies fetch these paths from main).
+                            README is the user guide; Update-SpatialHUD.bat is
+                            the Modrinth installer, one file (kept here, because
+                            saved copies fetch this path from the branch).
 apps/
   arena-link-windows/       unrelated Windows app; self-contained
 plugins/
