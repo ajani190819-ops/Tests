@@ -116,7 +116,7 @@ public class SpatialHud implements ClientModInitializer {
 			}
 			while (selectMethodFourKey.consumeClick()) {
 				selectRenderMethod(SpatialHudConfig.RenderMethod.POLYGON_TEST, 4,
-						"purple GUI 2.5D approximation");
+						"purple horizontal panel");
 			}
 
 			if (client.player == null) {
@@ -174,12 +174,11 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/**
-	 * All four methods present the captured texture, so they share one stricter
-	 * boundary than a plain HUD transform: they are gameplay-only even if a user
-	 * turns off the normal Gameplay Only preference. This keeps the private
-	 * capture separate from every screen. Method 4 is additionally exempt from
-	 * the physical-plane viewport test, because its target is placed by four
-	 * GUI-space handles instead of by the virtual plane.
+	 * Both panel methods present the captured texture, so they share one
+	 * stricter boundary than a plain HUD transform: they are gameplay-only even
+	 * if a user turns off the normal Gameplay Only preference. This keeps the
+	 * private capture separate from every screen. Only Method 3 is culled by the
+	 * physical-plane viewport test. Method 4 is placed by its own feet anchor.
 	 */
 	static boolean isTextureCaptureActive() {
 		Minecraft mc = Minecraft.getInstance();
@@ -187,13 +186,13 @@ public class SpatialHud implements ClientModInitializer {
 		return isGameplayHudActive()
 					&& cfg.capturesTexture()
 					&& mc.gui.screen() == null
-					&& (cfg.usesPolygonTest() || isPhysicalPanelVisibleInGui(
+					&& (cfg.usesPurplePanel() || isPhysicalPanelVisibleInGui(
 							mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight()));
 	}
 
-	/** True only for the third renderer: a captured texture on a world-space quad. */
+	/** Both panel methods draw the captured texture on a world-space quad. */
 	static boolean isWorldSpaceTextureActive() {
-		return isTextureCaptureActive() && SpatialHudConfig.get().usesWorldSpaceTexture();
+		return isTextureCaptureActive();
 	}
 
 	/** Samples the current camera pitch once before the selected HUD roots extract. */

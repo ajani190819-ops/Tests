@@ -26,10 +26,10 @@ final class SpatialHudElement implements HudElement {
 			vanilla.extractRenderState(graphics, deltaTracker);
 			return;
 		}
-		// Method 4 bypasses physical-map viewport culling because its target quad
-		// is placed by four GUI-space handles. Method 3 keeps viewport culling: a
-		// panel that is out of view draws no HUD at all, by design.
-		if (!cfg.usesPolygonTest()
+		// Method 4 bypasses physical-map viewport culling: it is placed by its own
+		// feet anchor. Method 3 keeps viewport culling: a panel that is out of
+		// view draws no HUD at all, by design.
+		if (!cfg.usesPurplePanel()
 				&& !SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
 			return;
 		}

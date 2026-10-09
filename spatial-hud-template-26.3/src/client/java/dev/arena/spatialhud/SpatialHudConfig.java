@@ -107,7 +107,7 @@ public final class SpatialHudConfig implements ConfigData {
 	public enum RenderMethod {
 		/** Method 3: the captured HUD on a real, flat, client-side world panel. */
 		WORLD_SPACE_TEXTURE,
-		/** Method 4: the purple GUI 2.5D approximation with four corner handles. */
+		/** Method 4: the purple horizontal panel, anchored to the player's feet. */
 		POLYGON_TEST
 	}
 
@@ -294,53 +294,50 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean rotateWithSway = true;
 
 	/**
-	 * Purple test-mode controls. Values are percentages of the current GUI
-	 * viewport, so the four handles remain meaningful at every resolution.
-	 * Keep corners in top-left, top-right, bottom-right, bottom-left order for a
-	 * normal convex map surface; deliberate crossing is useful for stress tests.
+	 * Purple Method 4 placement. The panel is a flat sheet in the world, anchored
+	 * to your feet and body heading, so turning your head does not move it. It
+	 * lies flat when the angle is 90, and tilts toward you for smaller angles.
 	 */
-	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Category("purple")
 	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelDistance = 1.25;
+
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelHeight = 0.9;
+
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 20, max = 90)
+	public int horizontalPanelAngle = 90;
+
+	// Legacy corner controls from the GUI-layer warp that Method 4 used before
+	// v22. They stay in the JSON so older files still load, but nothing reads them.
+	@ConfigEntry.Gui.Excluded
 	public boolean polygonFollowCameraPitch = true;
 
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	@ConfigEntry.Gui.Excluded
 	public int polygonTopLeftXPercent = 30;
 
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	@ConfigEntry.Gui.Excluded
 	public int polygonTopLeftYPercent = 35;
 
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	@ConfigEntry.Gui.Excluded
 	public int polygonTopRightXPercent = 70;
 
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	@ConfigEntry.Gui.Excluded
 	public int polygonTopRightYPercent = 35;
 
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	@ConfigEntry.Gui.Excluded
 	public int polygonBottomRightXPercent = 80;
 
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	@ConfigEntry.Gui.Excluded
 	public int polygonBottomRightYPercent = 70;
 
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	@ConfigEntry.Gui.Excluded
 	public int polygonBottomLeftXPercent = 20;
 
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	@ConfigEntry.Gui.Excluded
 	public int polygonBottomLeftYPercent = 70;
 
 	@ConfigEntry.Category("contents")
@@ -432,31 +429,25 @@ public final class SpatialHudConfig implements ConfigData {
 	}
 
 	/**
-	 * Every mode presents the selected lower HUD through the one private
-	 * captured texture: Method 3 draws it on a world panel and
-	 * Method 4 warps it onto the four configured purple GUI corners. Capture is
-	 * therefore always required while Spatial HUD is enabled.
+	 * Both panel methods present the selected lower HUD through the one private
+	 * captured texture, drawn on a world-space quad. Capture is therefore always
+	 * required while Spatial HUD is enabled.
 	 */
 	boolean capturesTexture() {
 		return true;
 	}
 
 	/**
-	 * Method 4 warps the captured lower HUD onto the one editable GUI-space
-	 * quad whose four corners the player positions by percentage.
+	 * Method 4: the purple horizontal panel (saved as POLYGON_TEST, a name kept
+	 * so existing files still load).
 	 */
-	boolean usesPolygonTest() {
+	boolean usesPurplePanel() {
 		return selectedRenderMethod() == RenderMethod.POLYGON_TEST;
 	}
 
-	/** Whether the captured texture is presented by the real world renderer. */
-	boolean usesWorldSpaceTexture() {
-		return selectedRenderMethod() == RenderMethod.WORLD_SPACE_TEXTURE;
-	}
-
-	/** Migrates legacy JSON fields to the current named rendering methods. */
+		/** Migrates legacy JSON fields to the current named rendering methods. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 21) {
+		if (cfg.configVersion >= 22) {
 			return;
 		}
 
@@ -602,7 +593,7 @@ public final class SpatialHudConfig implements ConfigData {
 		if (cfg.configVersion < 19) {
 			// v1.9 replaces the enum-dropdown dependency with a visible 1–4 slider.
 			// Translate the already-saved enum once so the old chosen mode remains
-			// selected while the new purple polygon test becomes available.
+			// selected while the purple Method 4 panel becomes available.
 			// An enum name removed in v21 loads as null; the v21 step fixes it.
 			if (cfg.renderMethod != null) {
 				cfg.selectRenderMethod(cfg.renderMethod);
@@ -623,7 +614,9 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.selectRenderMethod(cfg.selectedRenderMethod());
 		}
 
-		cfg.configVersion = 21;
+		// v22: Method 4 became a purple horizontal world panel. Its settings are
+		// new fields, so older files receive the defaults automatically.
+		cfg.configVersion = 22;
 		save();
 	}
 

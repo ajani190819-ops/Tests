@@ -4,7 +4,7 @@
 - Last commit that still had them active: `5bab133`. Every removed line can
   also be read with `git show 5bab133:<path>`.
 - Why: the owner asked to keep only Method 3 (a real, flat, client-side panel
-  in the world) and Method 4 (the purple 2.5D approximation in the GUI layer).
+  in the world) and Method 4 (the purple 2.5D approximation in the GUI layer, since replaced by the flat purple horizontal panel that reuses Method 3's capture).
 
 ## What Method 1 and Method 2 were
 

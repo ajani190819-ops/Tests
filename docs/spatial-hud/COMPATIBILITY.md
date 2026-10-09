@@ -8,14 +8,16 @@ been certified yet.
 ## Rendering contract
 
 Spatial HUD has two presentations (Method 3 and Method 4). Both use the same
-private capture, and neither redirects Minecraft's normal GUI renderer:
+private capture and the same world quad, and neither redirects Minecraft's
+normal GUI renderer:
 
 1. **Method 3 — real 3D panel:** only the selected vanilla bottom-HUD roots,
    their injected pixels, and the purple panel border are extracted into a
    private `GuiRenderState`, rendered to a private target, and drawn on a flat
    client-side world panel.
-2. **Method 4 — purple 2.5D panel:** the same private capture, warped onto four
-   GUI-space corners.
+2. **Method 4 — purple horizontal panel:** the same private capture, drawn on a
+   flat world panel that lies horizontally, anchored to the player's feet. Its
+   visibility depends on the look-down angle.
 
 No `Screen`, chat, minimap, debug text, boss bar, crosshair, or separately
 registered overlay is captured. If the capture fails, the vanilla HUD is shown
@@ -25,11 +27,11 @@ and a small red square appears beside the hotbar; the selected method is kept.
 
 | Tier | Components | Required result before advancing |
 | --- | --- | --- |
-| 0 | Vanilla Fabric 26.3, Fabric API, Cloth Config, Mod Menu | Every selected root is a visibly deformed portion of the same trapezoid; no screen-open capture. |
-| 1 | AppleSkin + Detail Armor Bar Reconstructed | Injected saturation/food and custom armor pixels remain attached to their vanilla bars inside the captured mesh. |
+| 0 | Vanilla Fabric 26.3, Fabric API, Cloth Config, Mod Menu | Every selected root appears on the panel in its vanilla position relative to the others; no screen-open capture. |
+| 1 | AppleSkin + Detail Armor Bar Reconstructed | Injected saturation/food and custom armor pixels remain attached to their vanilla bars inside the captured panel. |
 | 2 | Bedrock Hotbar, Immersive Hotbar, DualBar, Armor Indicator, Status Effect Bars, Mount Opacity, Durability Warner HUD, Async Hotbars | No duplicate selected root, clipping, detached decoration, or lost tooltip; document an owner/visibility switch when two mods intentionally own the same root. |
 | 3 | Spatial GUI, Inventory Profiles Next, Jade, OptiGUI, REI/JEI-style screens, Xaero's Minimap/World Map | Opening any normal/modded screen and all unrelated overlays stay outside the target. |
-| 4 | Sodium, Iris, Nvidium, ImmediatelyFast, BadOptimizations, ModernFix, Entity Culling, More Culling | Capture target and mesh remain stable under the profile's renderer/performance stack. |
+| 4 | Sodium, Iris, Nvidium, ImmediatelyFast, BadOptimizations, ModernFix, Entity Culling, More Culling | Capture target and panel remain stable under the profile's renderer/performance stack. |
 
 Method 3 (the real 3D panel) is the world-rendered mode. Its tier results are
 recorded per exact JAR version.

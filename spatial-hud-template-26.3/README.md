@@ -52,10 +52,14 @@ Pick the build whose behavior you want to test, then install it:
  [Q] Quit
 ```
 
+**Where to get it:** download this one file and keep it anywhere convenient
+(for example your Desktop):
+<https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/b4016c28-tests/spatial-hud-template-26.3/Update-SpatialHUD.bat>
+Double-click it to run. Do not use the copy on `main` until the branch has been
+merged there; that copy still fetches an older menu.
+
 **One-time note (2026-10-08):** if your saved `Update-SpatialHUD.bat` is older
-than this build picker, replace that file once with the current copy from
-<https://raw.githubusercontent.com/ajani190819-ops/Tests/main/spatial-hud-template-26.3/Update-SpatialHUD.bat>
-(or from the `arena/...` branch you are testing). Older copies still install the
+than this build picker, replace it once with the copy above. Older copies still install the
 newest build correctly, but they show the older menu — the quick check is the
 **`Build:`** row in the menu header, which only the current updater shows. After this one
 replacement, the file keeps working on its own: it reads the newer of its two
@@ -92,8 +96,7 @@ the computer's permanent policy.
 
 This is the only updater you need. Option **[D]** in its menu saves the chosen
 build to your Downloads folder instead of the mods folder, for when you want to
-add it yourself through Modrinth's "From file". (The old
-[`Get-Latest-SpatialHUD.bat`](Get-Latest-SpatialHUD.bat) now just points here.)
+add it yourself through Modrinth's "From file".
 
 ## Render methods and placement
 
@@ -110,11 +113,14 @@ the Setup config tab, or with the direct keys **F8** (Method 3) and **F9**
    face it square-on. The default is 85°, so the panel is close to flat.
    Its purple border frames the captured HUD, and it is lifted onto the world
    surface with that HUD.
-4. **Purple 2.5D Panel (Method 4)** — the same captured HUD warped onto one
-   purple four-corner surface that is drawn in the normal GUI layer. It only
-   looks like a 3D sheet: its corners move with your look pitch, but it is not
-   an object in the world. Each corner is set in the **Purple Polygon Test**
-   tab. Its border and four corner handles are part of the captured texture.
+4. **Purple Horizontal Panel (Method 4)** — the same captured HUD drawn on a
+   purple panel that lies flat in the game world, like a sheet on a table in
+   front of you. It is anchored to your feet and to your body heading, so it
+   stays put when you turn your head, and you see it when you look down. Set its
+   **Panel Distance**, **Panel Height Above Feet**, and **Panel Angle** in the
+   **Purple Horizontal Panel** tab. An angle of 90 lies it flat, so it is
+   face-on when you look straight down. Smaller angles tilt its near edge toward
+   you. Its purple border is part of the captured texture.
 
 **Failure indicator.** If the capture fails, the untouched vanilla HUD is shown
 in place of the panel, and a small red square appears just outside the hotbar's
@@ -158,10 +164,10 @@ separately registered overlay enters the capture target.
 
 ### Compatibility boundary
 
-**Real 3D Panel** and the **Purple 2.5D Panel** both use the same two narrowly
-scoped renderer hooks solely for their private bottom-HUD renderer; normal GUI
-renderers never meet their identity check. The Real 3D Panel additionally
-submits only that finished private texture to the level render pass. With
+**Real 3D Panel** and the **Purple Horizontal Panel** both use the same two
+narrowly scoped renderer hooks solely for their private bottom-HUD renderer;
+normal GUI renderers never meet their identity check. Both panels submit only
+that finished private texture to the level render pass. With
 **Gameplay Only** enabled (the default), both methods bypass private capture
 whenever another screen is open. That includes:
 
@@ -196,23 +202,20 @@ configuration file is `config/spatialhud.json`. The screen has one read-only
 explanation tab plus four focused settings sections:
 
 - **Method Guide — Read This First** is a plain-language, read-only comparison
-  of the real 3D panel (Method 3) and the purple 2.5D panel (Method 4). It contains no settings and is never saved into
-  the configuration file.
+  of the real 3D panel (Method 3) and the purple horizontal panel (Method 4). It
+  contains no settings and is never saved into the configuration file.
 - **Setup** combines the enable switch, panel visibility, gameplay boundary,
   and the **Render Mode Slider** (3 or 4).
 - **Panel Positioning & Orientation** keeps Method 3's geometric controls together:
   distance, size, offsets, three-axis rotation, the flat-map tilt, and the
   Method 3 anchor and terrain-occlusion choices. The Method 3-only tooltips
   explicitly say when a setting is ignored by the other two methods.
-- **Purple Polygon Test** provides eight percentage sliders—X and Y for each
-  top-left, top-right, bottom-right, and bottom-left handle. They affect only
-  Method 4, and they set the four corners that the captured lower HUD is warped
-  onto. **Follow Camera Pitch** makes the surface behave like a physical sheet
-  held in front of you, as described above; turn it off for a perfectly fixed
-  target. Head pitch is limited to 70°; beyond that the sheet stops following. **Show Backing Panel** controls
-  Method 4's translucent purple interior; the purple border and corner handles
-  always remain. Anything another mod draws higher than the bottom of the strip
-  stays outside the quad.
+- **Purple Horizontal Panel** holds the three Method 4 placement controls:
+  **Panel Distance**, **Panel Height Above Feet**, and **Panel Angle**. They
+  affect only Method 4. **Show Backing Panel** controls the translucent purple
+  interior of both panels; the purple border always remains.
+  Method 4 samples the full captured strip, the same source as Method 3, so
+  anything another mod draws in that strip is included.
 - **HUD Contents** chooses which lower-HUD roots Spatial HUD owns.
 
 Minecraft Controls contains:

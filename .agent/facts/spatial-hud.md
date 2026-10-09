@@ -1,8 +1,9 @@
 # Spatial HUD facts
 
-- Status: confirmed in source 2026-10-08. Two shipped methods (3 and 4). Not
-  compiled or run in this sandbox; CI on push is the only compile check.
-- Last verified: 2026-10-08 (source re-read after Methods 1 and 2 were removed).
+- Status: confirmed in source 2026-10-08. Two shipped methods (3 and 4). Method 4
+  horizontal panel implemented 2026-10-08. Not compiled or run in this sandbox; CI on
+  push is the only compile check.
+- Last verified: 2026-10-08 (source re-read after the Method 4 horizontal panel).
 - Read when: changing Spatial HUD code, its updater, or F5W compatibility.
 
 ## Source and release
@@ -22,10 +23,11 @@
 
 ## Updater
 
-- `Update-SpatialHUD.bat` is the only updater. On each run it fetches
+- `Update-SpatialHUD.bat` is the only updater (`Get-Latest-SpatialHUD.bat` was
+  deleted; the user runs the game only through Modrinth). On each run it fetches
   `Update-SpatialHUD.ps1` from `main` and from the session branch, and keeps the
-  copy with the higher `SpatialHUD-Helper-Version` marker.
-  `Get-Latest-SpatialHUD.bat` is a redirect. Its helper is deleted.
+  copy with the higher `SpatialHUD-Helper-Version` marker. `main`'s `.bat` is stale
+  until this branch merges: it fetches an old helper from another branch.
 - The helper reads `/releases?per_page=100` and lists `spatial-hud-build-*`:
   `[1]` is main, then the five most recently built branches. `[A]` lists every
   branch with a published build, `[T]` takes a typed branch name, `[R]` takes the
@@ -42,41 +44,42 @@
 
 - The only visible selector is the Setup **Render Mode Slider**
   (`renderModePicker`, 3–4). **F8** selects Method 3 and **F9** selects Method 4.
-  Config version is 21. `renderMethod` is hidden and defaults to
-  `WORLD_SPACE_TEXTURE`. The v21 step clamps the picker to 3–4.
-  - `WORLD_SPACE_TEXTURE` (Method 3, "Real 3D Panel"): the captured lower HUD on
-    a flat world-space quad, with a 3 px purple border.
-  - `POLYGON_TEST` (Method 4, "Purple 2.5D Panel"): the captured lower HUD
-    warped onto four percentage-positioned GUI corners, pitch-responsive.
+  Config version is 22. `renderMethod` is hidden and defaults to
+  `WORLD_SPACE_TEXTURE`. The v22 step clamps the picker to 3–4.
+  - `WORLD_SPACE_TEXTURE` (Method 3, "Real 3D Panel"): the captured lower HUD on a
+    flat, world-anchored quad, with a 3 px purple border.
+  - `POLYGON_TEST` (Method 4, "Purple Horizontal Panel"; the enum name is kept
+    because it is saved in configs): a flat world panel with its normal along Y,
+    carrying the purple border and the captured HUD. Its look-down pitch makes it
+    face you square-on at `horizontalPanelAngle` 90 (looking straight down). A
+    shallower look-down pitch tilts it.
 - Both methods use one private capture. `ExperimentalHudCapture` owns a private
   `GuiRenderState`, `GuiRenderer`, and `TextureTarget`, fed only by the wrapped
   `SpatialHudElement` roots. `SpatialHudGuiRendererMixin` redirects only that
   renderer, by object identity. `SpatialHudGameRendererMixin` runs the composite
   after the normal GUI pass.
-- Method 3 geometry: `VirtualHudPlane` (camera-yaw map surface, waist height,
-  no pitch follow). `WorldSpaceHudRenderer` draws the quad. Its tilt is
+- Method 3 geometry: `VirtualHudPlane` (camera-yaw map surface, waist height, no
+  pitch follow) plus the shared `WorldSpaceHudRenderer` quad. Its tilt is
   `topY = cos(pitch)`, `topZ = forward·sin(pitch)`. Method 3 has viewport culling.
-  The world-space anchor (Camera Yaw or Player Body) and terrain occlusion apply
-  to Method 3 only.
-- Method 4 geometry lives in `PolygonTestRenderer`. `quad(cfg, guiWidth,
-  guiHeight)` is the one definition shared by the capture and the warp. With
-  `polygonFollowCameraPitch`, the corners are projected as a physical sheet fixed
-  to the player's feet and head yaw. Constants: `REFERENCE_EYE_HEIGHT` 1.62,
-  `SHEET_DISTANCE` 2.0, `MAX_TILT_DEGREES` 70, `MIN_DEPTH_FRACTION` 0.25.
-  `PolygonTestRenderer.Quad` stores the square-to-quad homography, so straight HUD
-  lines stay straight. Crossed or collapsed handles fall back to bilinear.
-- Method 4 samples only the bottom `ExperimentalHudCapture.POLYGON_SOURCE_HEIGHT`
-  (72) GUI pixels of the strip, not the plane's 184px source rectangle. The taller
-  rectangle would put the HUD in the bottom quarter of the quad.
-- Method 4 draws its purple interior into the captured texture before the vanilla
-  roots extract. It then draws the 3 px border and four corner handles on top.
-  `Show Backing Panel` controls the interior tint only.
-- **Method 4 geometry change pending.** The user has specified a horizontal panel
-  (normal along Y) carrying the purple border and HUD, world-anchored to the
-  player with configurable distance, height, and angle. Visible at a shallow look-down
-  pitch, face-on when looking straight down. Not implemented; confirm before changing.
+  The world-space anchor (Camera Yaw or Player Body) and terrain occlusion apply to
+  Method 3 only.
+- Method 4 geometry lives in `WorldSpaceHudRenderer.purplePanelState`. It reuses
+  the same capture texture and quad. Anchor = feet, `yBodyRot` heading. Centre =
+  feet + forward × `horizontalPanelDistance` at y = feet + `horizontalPanelHeight`.
+  Look-down angle A (20–90): in-plane up `u = sin(A)·forward + cos(A)·up`, normal
+  `n = −cos(A)·forward + sin(A)·up`. Width = `planeWidth`, height matches the
+  sampled band. Always depth-tested. No culling.
+- Method 4 samples only the band from `ExperimentalHudCapture.purpleSourceRect`:
+  the full strip width, bottom `PURPLE_SOURCE_HEIGHT` (72) GUI pixels, clamped to
+  the real GUI. The same rectangle sets the border and the quad's UVs. A taller
+  rectangle would put the HUD in a small strip under empty purple.
+- Method 4 capture draws its purple interior (when `showPanel` is on) and the 3 px
+  border into the captured texture (`capturePanelDecorations`, one shared branch).
+  `Show Backing Panel` controls only the interior tint.
 - `SpatialHudConfig.instance` and `registered` are excluded from Cloth Config. The
   read-only **Method Guide — Read This First** tab is transient and never saved.
+- Legacy `polygon*Percent` and `polygonFollowCameraPitch` fields are kept only as
+  `@Gui.Excluded` so old configs still load.
 
 ## Failure behavior
 
@@ -87,7 +90,8 @@
   capture is not running, so the player keeps a HUD.
 - `SpatialHudPanelElement` draws a red 8×8 square at `(guiWidth/2 − 100,
   guiHeight − 31)` when `hasCaptureFailed()`. It sits just above the hotbar's
-  top-left corner. Outline `0xFF3A0000`, fill `0xFFE53935`.
+  top-left corner. Outline `0xFF3A0000`, fill `0xFFE53935`. On failure, Method 4
+  shows the vanilla HUD and the red marker only, with no purple outline.
 
 ## Compatibility
 

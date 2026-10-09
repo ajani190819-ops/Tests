@@ -7,39 +7,39 @@
 ## Where things stand
 
 - **Spatial HUD ships two methods only**: Method 3 (Real 3D Panel) and Method 4
-  (Purple 2.5D Panel). Methods 1 and 2 are archived in
+  (Purple Horizontal Panel). Methods 1 and 2 are archived in
   `archive/spatial-hud-methods-1-2/` with a vetted record and source snapshot.
   Decision: `.agent/decisions/0002-methods-3-and-4-only.md`.
+- **Method 4 is implemented** as a flat world panel with its normal along Y. It
+  reuses Method 3's capture texture and quad, and frames the bottom 72 GUI pixels
+  of the strip. Distance, height, and angle are configurable (`horizontalPanel*`,
+  category `purple`). Not yet run in game.
 - **Failure behaviour**: a capture failure shows the vanilla HUD plus a small red
-  square above the hotbar's top-left corner. There is no affine fallback, and
-  the Method 4 outline is no longer drawn on failure.
+  square above the hotbar's top-left corner. There is no affine fallback, and no
+  purple outline on failure.
 - **Repo reorganised** (staged `git mv`): logs to `.agent/evidence/logs/`, the v0
   draft and demo mod and reference jar to `archive/`, the Orca audit and the
   Spatial HUD CI and compatibility docs to `docs/`, the handoff to
   `.agent/history/`, and the Electron app to `apps/arena-link-windows/`. The
   references were fixed in the same change.
-- **Not compiled.** This sandbox has no `javac` or JDK. The Java files parse with
-  tree-sitter, and the lang JSON validates (80 keys). CI on push is the compile
-  check.
-- **Updater**: `Update-SpatialHUD.bat` is the only updater. Its build picker lists
-  `main` and the five most recently built branches. The branch build exists:
-  workflow runs `37864958183` and `37865568690` succeeded, and release
-  `spatial-hud-build-arena-b4016c28-tests` holds `spatial-hud-1.0.0.jar`. Not yet
-  confirmed that the updater on the PC lists it.
+- **Not compiled here.** This sandbox has no `javac` or JDK. The Java files parse
+  with tree-sitter, and `en_us.json` validates (68 keys). CI on push is the compile
+  check. The last CI runs that succeeded predate the Method 4 edits.
+- **Updater**: `spatial-hud-template-26.3/Update-SpatialHUD.bat` is the only
+  updater. `Get-Latest-SpatialHUD.bat` was deleted with the user's approval. The
+  `.bat` reads the branch's helper (version 4) and must be used from
+  `arena/b4016c28-tests` until the branch merges. `main`'s copy is stale.
+  Not yet confirmed that the updater lists the branch or installs on Windows.
 - **Manual workflow dispatch is unavailable** (HTTP 403 from this sandbox). A push
   to the branch is how a build starts.
 
 ## Open questions for the user
 
-1. **Method 4 geometry**: the agreed spec is a horizontal panel (normal along Y)
-   with the purple border and HUD inside, world-anchored to the player with
-   configurable distance, height, and angle, visible at a shallow look-down pitch.
-   It is not implemented. Confirm before changing it.
-2. Which render mode the slider was on in the last test, and whether the HUD was
-   visible in game.
-3. From `spatialhud.json`: the values of `renderMethod` and `enabled`.
-4. Delete `Get-Latest-SpatialHUD.bat` in the mod folder? It is a deprecated
-   redirect, kept until confirmed.
+1. Which render mode the slider was on in the last test (probably 4), and whether
+   the HUD was visible in game.
+2. From `spatialhud.json`: the values of `renderMethod` and `enabled`.
+3. Whether the updater on the PC lists `arena/b4016c28-tests` and installs the
+   branch build.
 
 ## Non-negotiable constraints
 
@@ -55,10 +55,9 @@
 
 ## Next action
 
-1. Commit and push the session branch (after fetch and rebase), which starts a
-   build the updater can pick up.
-2. Ask the user the open questions above. Do not change Method 4 geometry until
-   the user confirms.
+1. Commit and push the session branch (after fetch and rebase). The push starts a
+   build, and the updater can then install the branch build.
+2. Ask the user the open questions above.
 3. Owner runs the F5W test in `.agent/runbooks/test-spatial-hud-f5w.md`, using the
    branch build, and sends `latest.log` from that session.
 

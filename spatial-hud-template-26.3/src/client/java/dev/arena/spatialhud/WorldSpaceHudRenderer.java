@@ -30,8 +30,9 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 
 /**
- * Method 3: presents the completed selected-HUD texture on a quad in the
- * rendered level rather than compositing it in GUI coordinates.
+ * Both purple panel methods present the completed selected-HUD texture on a
+ * quad in the rendered level rather than compositing it in GUI coordinates.
+ * Method 3 is the camera-yaw flat map; Method 4 is the purple horizontal panel.
  *
  * <p>The current frame's HUD is captured after level drawing, so the level
  * event intentionally presents the completed texture from the preceding frame.
@@ -89,6 +90,12 @@ public final class WorldSpaceHudRenderer {
 		}
 
 		SpatialHudConfig cfg = SpatialHudConfig.get();
+		if (cfg.usesPurplePanel()) {
+			planeState = purplePanelState(player, cfg,
+					mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
+			return;
+		}
+
 		float anchorYaw = cfg.worldSpaceAnchor == SpatialHudConfig.WorldSpaceAnchor.PLAYER_BODY
 				? player.yBodyRot
 				: player.getYRot();
@@ -156,6 +163,61 @@ public final class WorldSpaceHudRenderer {
 				source.textureU(source.sourceLeft()), source.textureU(source.sourceRight()),
 				source.textureV(source.sourceTop()), source.textureV(source.sourceBottom()),
 				cfg.worldSpaceOccludeBehindWorld);
+	}
+
+	/**
+	 * Method 4: a purple horizontal panel anchored to the player's feet and body
+	 * heading, so turning the head does not move it. Its bottom edge (the
+	 * hotbar side) is nearest the player and its top edge points away. The
+	 * angle sets the look-down pitch at which the panel faces you square-on:
+	 * 90 lies it flat, and smaller angles tilt its near edge toward you.
+	 */
+	private static PlaneState purplePanelState(LocalPlayer player, SpatialHudConfig cfg,
+			int guiWidth, int guiHeight) {
+		ExperimentalHudCapture.SourceRect band = ExperimentalHudCapture.purpleSourceRect(cfg, guiWidth, guiHeight);
+		float bodyYaw = radians(player.yBodyRot);
+		float rightX = cos(bodyYaw);
+		float rightZ = sin(bodyYaw);
+		float forwardX = -sin(bodyYaw);
+		float forwardZ = cos(bodyYaw);
+
+		float distance = (float) Math.max(0.10, cfg.horizontalPanelDistance);
+		Vec3 feet = player.position();
+		float centerX = (float) feet.x + forwardX * distance;
+		float centerY = (float) feet.y + (float) cfg.horizontalPanelHeight;
+		float centerZ = (float) feet.z + forwardZ * distance;
+
+		// The panel is exactly the sampled band, so its aspect matches the HUD.
+		float width = clamp((float) cfg.planeWidth, 0.10f, 6.0f);
+		float height = width * (band.bottom() - band.top()) / (float) (band.right() - band.left());
+		float lookDown = radians(clamp(cfg.horizontalPanelAngle, 20, 90));
+		// Unit vector along the panel's height, lying in the plane that faces
+		// the player at the chosen look-down angle. At 90 it is the forward
+		// direction, so the panel is exactly horizontal (normal along Y).
+		float topX = forwardX * sin(lookDown);
+		float topY = cos(lookDown);
+		float topZ = forwardZ * sin(lookDown);
+
+		float halfWidth = width * 0.5f;
+		float halfHeight = height * 0.5f;
+		Point bottomLeft = point(centerX - rightX * halfWidth - topX * halfHeight,
+				centerY - topY * halfHeight,
+				centerZ - rightZ * halfWidth - topZ * halfHeight);
+		Point bottomRight = point(centerX + rightX * halfWidth - topX * halfHeight,
+				centerY - topY * halfHeight,
+				centerZ + rightZ * halfWidth - topZ * halfHeight);
+		Point topRight = point(centerX + rightX * halfWidth + topX * halfHeight,
+				centerY + topY * halfHeight,
+				centerZ + rightZ * halfWidth + topZ * halfHeight);
+		Point topLeft = point(centerX - rightX * halfWidth + topX * halfHeight,
+				centerY + topY * halfHeight,
+				centerZ - rightZ * halfWidth + topZ * halfHeight);
+		// Always depth-tested: a flat sheet in the world must not show through
+		// walls or terrain.
+		return new PlaneState(bottomLeft, bottomRight, topRight, topLeft,
+				band.left() / (float) guiWidth, band.right() / (float) guiWidth,
+				band.top() / (float) guiHeight, band.bottom() / (float) guiHeight,
+				true);
 	}
 
 	private static void renderPlane(LevelRenderContext context) {

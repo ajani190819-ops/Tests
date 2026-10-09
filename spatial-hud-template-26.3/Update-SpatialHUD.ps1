@@ -3,7 +3,7 @@
 # Maintained by Update-SpatialHUD.bat. The batch file is the only file a player
 # needs to keep; it refreshes this helper from GitHub before every run.
 # This one helper covers everything: installing into the Modrinth mods folder,
-# picking a build, and saving a copy to Downloads (the old Get-Latest flow).
+# picking a build, and saving a copy to Downloads (the former separate downloader).
 #
 # SpatialHUD-Helper-Version: 4
 #

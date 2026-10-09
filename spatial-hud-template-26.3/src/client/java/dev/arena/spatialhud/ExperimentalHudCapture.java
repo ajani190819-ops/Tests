@@ -3,32 +3,18 @@ package dev.arena.spatialhud;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.renderpearl.api.GpuFormat;
-import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
-import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
-import com.mojang.renderpearl.api.pipeline.RenderPipeline;
-import com.mojang.renderpearl.api.textures.AddressMode;
-import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
-import com.mojang.renderpearl.api.vertex.VertexFormat;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.render.GuiRenderer;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.renderer.StagedVertexBuffer;
-import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import net.minecraft.resources.Identifier;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
 import org.joml.Vector4f;
 
 import java.util.List;
-import java.util.Optional;
-import java.util.OptionalDouble;
 
 /**
  * Experimental, identity-scoped capture path for the vanilla bottom HUD.
@@ -48,25 +34,14 @@ import java.util.OptionalDouble;
  */
 public final class ExperimentalHudCapture {
 	private static final String TARGET_NAME = "Spatial HUD experimental bottom-strip capture";
-	// Dense enough that per-icon deformation stays smooth on the purple quad.
-	private static final int MESH_COLUMNS = 32;
-	private static final int MESH_ROWS = 24;
-	private static final RenderPipeline WARP_PIPELINE = RenderPipelines.GUI_TEXTURED;
-	private static final StagedVertexBuffer WARP_BUFFER = new StagedVertexBuffer(
-			() -> "Spatial HUD experimental warp mesh", RenderType.SMALL_BUFFER_SIZE);
-	// Method 4's purple identity colours. The interior is deliberately
-	// translucent so the warped HUD stays readable on top of it.
-	private static final int POLYGON_BACKING_COLOR = 0x7031004D;
-	private static final int POLYGON_EDGE_COLOR = 0xFFC75CFF;
-	private static final int POLYGON_HANDLE_COLOR = 0xFFFFD6FF;
-	private static final int POLYGON_HANDLE_INNER_COLOR = 0xFF6C1D8B;
+	// The purple identity of both panel methods. The interior is deliberately
+	// translucent so the captured HUD stays readable on top of it.
+	private static final int PURPLE_BACKING_COLOR = 0x7031004D;
+	private static final int PURPLE_EDGE_COLOR = 0xFFC75CFF;
 	// Height, in GUI pixels above the bottom of the screen, of the strip band
-	// that Method 4 warps onto its quad: hotbar, status bars, experience level,
-	// and held-item text.
-	private static final int POLYGON_SOURCE_HEIGHT = 72;
-	private static final Matrix4f IDENTITY = new Matrix4f();
-	private static final Vector3f ZERO = new Vector3f();
-	private static final Vector4f WHITE = new Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
+	// the purple horizontal panel frames: hotbar, status bars, experience level,
+	// and held-item text all draw inside it.
+	private static final int PURPLE_SOURCE_HEIGHT = 72;
 
 	private static GuiRenderState capturedState;
 	private static GuiRenderer capturedRenderer;
@@ -77,7 +52,6 @@ public final class ExperimentalHudCapture {
 	private static boolean frameCapturedHotbar;
 	private static boolean loggedHotbarExtraction;
 	private static boolean loggedMissingHotbar;
-	private static boolean loggedPolygonComposite;
 	/** Becomes true after a completed capture can be drawn by Method 3 next frame. */
 	private static boolean worldTextureReady;
 	private static boolean sessionFallback;
@@ -109,7 +83,7 @@ public final class ExperimentalHudCapture {
 		}
 
 		if (!SpatialHud.isTextureCaptureActive() || sessionFallback
-				|| (!SpatialHudConfig.get().usesPolygonTest()
+				|| (!SpatialHudConfig.get().usesPurplePanel()
 						&& !SpatialHud.isPhysicalPanelVisibleInGui(sourceGraphics.guiWidth(), sourceGraphics.guiHeight()))) {
 			return;
 		}
@@ -126,12 +100,6 @@ public final class ExperimentalHudCapture {
 			// mouse state from leaking into this selected-only render state.
 			capturedGraphics = new GuiGraphicsExtractor(Minecraft.getInstance(), capturedState, -1, -1);
 			frameActive = true;
-			if (SpatialHudConfig.get().usesPolygonTest()) {
-				// Method 4's purple interior is painted before any vanilla root
-				// extracts, so the captured hotbar, bars, icons and text stay
-				// readable on top of it instead of being tinted by it.
-				capturePolygonBackdrop();
-			}
 		} catch (Throwable t) {
 			fallback(t, "preparing the selected bottom-HUD capture");
 		}
@@ -177,57 +145,46 @@ public final class ExperimentalHudCapture {
 		}
 	}
 
-	/**
-	 * Draw the active mode's own identity decorations into the same isolated
-	 * source texture as the vanilla roots: the purple border (plus the optional
-	 * tint) for Method 3, or the purple border and four corner handles for
-	 * Method 4. All of them are part of the captured surface, never an
-	 * unrelated GUI overlay.
+						/**
+	 * Draws the purple identity into the same isolated source texture as the
+	 * vanilla roots: a translucent interior (controlled by Show Backing Panel)
+	 * and a 3 px border, both on the captured source rectangle. Both panel
+	 * methods use it, so the border is lifted onto the panel with the HUD
+	 * pixels. It runs before the vanilla roots extract, so the HUD stays
+	 * readable on top of the interior.
 	 */
 	static boolean capturePanelDecorations(SpatialHudConfig cfg) {
 		if (!isFrameActive()) {
 			return false;
 		}
 		try {
-			VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
-			// Draw only inside the source rectangle sampled by the other methods.
-			// Painting a margin outside it would make an indicator disappear during
-			// the texture presentation even though it appeared in the earlier method.
-			int left = (int) Math.floor(plane.sourceLeft());
-			int right = (int) Math.ceil(plane.sourceRight());
-			int top = (int) Math.floor(plane.sourceTop());
-			int bottom = (int) Math.ceil(plane.sourceBottom());
-			if (cfg.usesPolygonTest()) {
-				// Method 4's purple border and four corner handles are captured
-				// together with the hotbar/status roots. The polygon composite
-				// maps these same pixels onto the four GUI-space control points,
-				// so the visible outline lands exactly on the configured corners
-				// and follows the live pitch response with the rest of the quad.
-				SourceRect polygon = polygonSourceRect(cfg);
-				int edgeLeft = polygon.left();
-				int edgeTop = polygon.top();
-				int edgeRight = polygon.right();
-				int edgeBottom = polygon.bottom();
-				capturedGraphics.fill(edgeLeft, edgeTop, edgeRight, edgeTop + 3, POLYGON_EDGE_COLOR);
-				capturedGraphics.fill(edgeLeft, edgeBottom - 3, edgeRight, edgeBottom, POLYGON_EDGE_COLOR);
-				capturedGraphics.fill(edgeLeft, edgeTop, edgeLeft + 3, edgeBottom, POLYGON_EDGE_COLOR);
-				capturedGraphics.fill(edgeRight - 3, edgeTop, edgeRight, edgeBottom, POLYGON_EDGE_COLOR);
-				drawPolygonHandle(edgeLeft, edgeTop, 1, 1);
-				drawPolygonHandle(edgeRight, edgeTop, -1, 1);
-				drawPolygonHandle(edgeRight, edgeBottom, -1, -1);
-				drawPolygonHandle(edgeLeft, edgeBottom, 1, -1);
+			// Draw only inside the source rectangle the world panel samples.
+			// Painting a margin outside it would make the border disappear
+			// once the texture is placed on the panel.
+			int left;
+			int right;
+			int top;
+			int bottom;
+			if (cfg.usesPurplePanel()) {
+				SourceRect band = purpleSourceRect(cfg, guiWidth, guiHeight);
+				left = band.left();
+				right = band.right();
+				top = band.top();
+				bottom = band.bottom();
 			} else {
-				// Method 3 uses the same purple identity as Method 4, painted into the
-				// captured source rectangle so it is lifted onto the world panel with
-				// the HUD pixels. Show Backing Panel controls only the interior tint.
-				if (cfg.showPanel) {
-					capturedGraphics.fill(left, top, right, bottom, POLYGON_BACKING_COLOR);
-				}
-				capturedGraphics.fill(left, top, right, top + 3, POLYGON_EDGE_COLOR);
-				capturedGraphics.fill(left, bottom - 3, right, bottom, POLYGON_EDGE_COLOR);
-				capturedGraphics.fill(left, top, left + 3, bottom, POLYGON_EDGE_COLOR);
-				capturedGraphics.fill(right - 3, top, right, bottom, POLYGON_EDGE_COLOR);
+				VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
+				left = (int) Math.floor(plane.sourceLeft());
+				right = (int) Math.ceil(plane.sourceRight());
+				top = (int) Math.floor(plane.sourceTop());
+				bottom = (int) Math.ceil(plane.sourceBottom());
 			}
+			if (cfg.showPanel) {
+				capturedGraphics.fill(left, top, right, bottom, PURPLE_BACKING_COLOR);
+			}
+			capturedGraphics.fill(left, top, right, top + 3, PURPLE_EDGE_COLOR);
+			capturedGraphics.fill(left, bottom - 3, right, bottom, PURPLE_EDGE_COLOR);
+			capturedGraphics.fill(left, top, left + 3, bottom, PURPLE_EDGE_COLOR);
+			capturedGraphics.fill(right - 3, top, right, bottom, PURPLE_EDGE_COLOR);
 			frameHasContent = true;
 			return true;
 		} catch (Throwable t) {
@@ -236,57 +193,25 @@ public final class ExperimentalHudCapture {
 		}
 	}
 
-	/** Draws an inward-facing 10px source marker that lands on a quad corner. */
-	private static void drawPolygonHandle(int cornerX, int cornerY, int xDirection, int yDirection) {
-		int x0 = xDirection > 0 ? cornerX : cornerX - 10;
-		int y0 = yDirection > 0 ? cornerY : cornerY - 10;
-		capturedGraphics.fill(x0, y0, x0 + 10, y0 + 10, POLYGON_HANDLE_COLOR);
-		capturedGraphics.fill(x0 + 2, y0 + 2, x0 + 8, y0 + 8, POLYGON_HANDLE_INNER_COLOR);
-	}
-
 	/**
-	 * Method 4's translucent purple interior. It is painted before the selected
-	 * roots so the captured pixels stay readable on top of it. The border and
-	 * corner handles are added afterwards by {@link #capturePanelDecorations},
-	 * and the whole rectangle is mapped onto the configured corners, so the
-	 * pitch response moves this surface with the rest of the quad.
+	 * The strip the purple horizontal panel samples and frames: the full width of
+	 * the captured strip, but only its bottom {@link #PURPLE_SOURCE_HEIGHT} GUI
+	 * pixels. Those pixels hold the HUD, so the panel is filled by it rather than
+	 * showing it in a small band under empty purple. The bottom edge is clamped
+	 * to the real GUI, because the strip samples a few pixels below the screen
+	 * that would otherwise arrive transparent.
 	 */
-	private static void capturePolygonBackdrop() {
-		// Whatever the other settings are, the quad itself is the control
-		// surface for Method 4, so the frame always has visible content.
-		frameHasContent = true;
-		SpatialHudConfig cfg = SpatialHudConfig.get();
-		if (!cfg.showPanel) {
-			// Show Backing Panel owns the interior tint here exactly as it owns
-			// the backing of the other methods. The border and handles remain.
-			return;
-		}
-		SourceRect rect = polygonSourceRect(cfg);
-		capturedGraphics.fill(rect.left(), rect.top(), rect.right(), rect.bottom(), POLYGON_BACKING_COLOR);
-	}
-
-	/**
-	 * The source band Method 4 maps onto the four corners: the full width of the
-	 * captured strip, but only its bottom {@link #POLYGON_SOURCE_HEIGHT} GUI
-	 * pixels. That is where the hotbar, status bars, experience and held-item
-	 * text actually draw, so the quad fills with HUD instead of showing the
-	 * hotbar in its bottom quarter under mostly empty purple.
-	 *
-	 * <p>The bottom edge is clamped to the real GUI because the plane
-	 * deliberately samples a few pixels below the screen: that line is clipped
-	 * away, and its pixels arrive transparent.</p>
-	 */
-	private static SourceRect polygonSourceRect(SpatialHudConfig cfg) {
+	static SourceRect purpleSourceRect(SpatialHudConfig cfg, int guiWidth, int guiHeight) {
 		VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
 		int left = (int) Math.floor(Math.max(0.0f, plane.sourceLeft()));
 		int right = (int) Math.ceil(Math.min(guiWidth, plane.sourceRight()));
 		int bottom = (int) Math.ceil(Math.min(guiHeight, plane.sourceBottom()));
-		int top = Math.max(0, bottom - POLYGON_SOURCE_HEIGHT);
+		int top = Math.max(0, bottom - PURPLE_SOURCE_HEIGHT);
 		return new SourceRect(left, top, right, bottom);
 	}
 
-	/** Inclusive-exclusive GUI pixel bounds of the painted capture surface. */
-	private record SourceRect(int left, int top, int right, int bottom) {
+	/** Inclusive-exclusive GUI pixel bounds of a sampled panel band. */
+	record SourceRect(int left, int top, int right, int bottom) {
 	}
 
 	/** The GuiRenderer mixin uses this strict identity check for target routing. */
@@ -320,9 +245,9 @@ public final class ExperimentalHudCapture {
 	/**
 	 * Invoked immediately before Minecraft draws its normal GUI renderer. By
 	 * then the Fabric HUD wrappers have extracted only the selected roots. Draw
-	 * those roots to our texture, then composite a tessellated projective mesh
-	 * onto the main GUI target. It is not a world renderer and it never changes
-	 * any projection state.
+	 * those roots to our private texture. The world-space renderer then draws
+	 * that texture for both panel methods. Nothing is drawn on the GUI here and
+	 * no projection state changes.
 	 */
 	public static void renderAndComposite() {
 		if (!frameActive || !frameHasContent || sessionFallback) {
@@ -339,21 +264,9 @@ public final class ExperimentalHudCapture {
 				capturedRenderer.render();
 				capturedRenderer.endFrame();
 
-				SpatialHudConfig cfg = SpatialHudConfig.get();
-				if (cfg.selectedRenderMethod() == SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE) {
-					// Level rendering happens before GUI extraction. The world renderer
-					// intentionally draws this finished texture on the next frame.
-					worldTextureReady = true;
-				} else if (cfg.usesPolygonTest()) {
-					worldTextureReady = false;
-					if (!loggedPolygonComposite) {
-						loggedPolygonComposite = true;
-						SpatialHud.LOGGER.info("Spatial HUD Method 4 is mapping the captured lower HUD to its four purple GUI corners.");
-					}
-					compositePolygonTestMesh(cfg);
-				} else {
-					worldTextureReady = false;
-				}
+				// Level rendering happens before GUI extraction. The world renderer
+				// intentionally draws this finished texture on the next frame.
+				worldTextureReady = true;
 			} catch (Throwable t) {
 			fallback(t, "rendering the selected bottom-HUD texture");
 		} finally {
@@ -403,97 +316,6 @@ public final class ExperimentalHudCapture {
 		}
 	}
 
-	/**
-	 * Method 4 uses the exact same isolated lower-HUD texture as the regular
-	 * mesh path, but maps its source rectangle to four user-controlled GUI
-	 * points. A dense grid preserves continuous item/icon/text deformation while
-	 * allowing a normal trapezoid or any deliberate corner stress case.
-	 */
-	private static void compositePolygonTestMesh(SpatialHudConfig cfg) {
-		if (capturedTarget == null || capturedTarget.getColorTextureView() == null) {
-			throw new IllegalStateException("polygon test capture texture view is unavailable");
-		}
-		GpuTextureView texture = capturedTarget.getColorTextureView();
-		VertexFormat format = WARP_PIPELINE.getVertexFormatBinding(0);
-		PrimitiveTopology primitive = WARP_PIPELINE.getPrimitiveTopology();
-		if (format == null || primitive != PrimitiveTopology.QUADS) {
-			throw new IllegalStateException("polygon test pipeline does not expose textured QUADS");
-		}
-
-		StagedVertexBuffer.Draw draw = WARP_BUFFER.appendDraw(format, primitive, null);
-		try {
-			VertexConsumer vertices = WARP_BUFFER.getVertexBuilder(draw);
-			addPolygonTestMesh(vertices, cfg);
-			WARP_BUFFER.upload();
-			StagedVertexBuffer.ExecuteInfo info = WARP_BUFFER.getExecuteInfo(draw);
-			if (info == null) {
-				throw new IllegalStateException("GPU rejected the four-corner polygon mesh");
-			}
-			drawToMainTarget(info, texture);
-		} finally {
-			WARP_BUFFER.endFrame();
-		}
-	}
-
-	private static void addPolygonTestMesh(VertexConsumer vertices, SpatialHudConfig cfg) {
-		VirtualHudPlane source = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
-		PolygonTestRenderer.Quad target = PolygonTestRenderer.quad(cfg, guiWidth, guiHeight);
-		// Sample exactly the band that carries the painted purple border and the
-		// HUD pixels, so the configured corners land on painted source and the
-		// whole quad fills with the warped strip.
-		SourceRect painted = polygonSourceRect(cfg);
-		for (int row = 0; row < MESH_ROWS; row++) {
-			float v0 = row / (float) MESH_ROWS;
-			float v1 = (row + 1) / (float) MESH_ROWS;
-			for (int column = 0; column < MESH_COLUMNS; column++) {
-				float u0 = column / (float) MESH_COLUMNS;
-				float u1 = (column + 1) / (float) MESH_COLUMNS;
-				addPolygonTestVertex(vertices, source, painted, target, u0, v0);
-				addPolygonTestVertex(vertices, source, painted, target, u1, v0);
-				addPolygonTestVertex(vertices, source, painted, target, u1, v1);
-				addPolygonTestVertex(vertices, source, painted, target, u0, v1);
-			}
-		}
-	}
-
-	private static void addPolygonTestVertex(VertexConsumer vertices, VirtualHudPlane source,
-			SourceRect painted, PolygonTestRenderer.Quad target, float u, float v) {
-		float sourceX = lerp(painted.left(), painted.right(), u);
-		float sourceY = lerp(painted.top(), painted.bottom(), v);
-		PolygonTestRenderer.Point destination = target.project(u, v);
-		vertices.addVertex(IDENTITY, destination.x(), destination.y(), 0.0f)
-				.setUv(source.textureU(sourceX), source.textureV(sourceY))
-				.setColor(255, 255, 255, 255);
-	}
-
-	private static void drawToMainTarget(StagedVertexBuffer.ExecuteInfo info, GpuTextureView texture) {
-		RenderTarget mainTarget = Minecraft.getInstance().gameRenderer.mainRenderTarget();
-		GpuTextureView output = mainTarget.getColorTextureView();
-		if (output == null) {
-			throw new IllegalStateException("main GUI target has no color texture view");
-		}
-		GpuBufferSlice transforms = RenderSystem.getDynamicUniforms().writeTransform(IDENTITY, WHITE, ZERO, IDENTITY);
-		try (var pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
-				() -> "Spatial HUD experimental projective composite",
-				output,
-				Optional.empty(),
-				null,
-				OptionalDouble.empty())) {
-			pass.setPipeline(RenderSystem.getCompiledPipeline(WARP_PIPELINE));
-			RenderSystem.bindDefaultUniforms(pass);
-			pass.setUniform("DynamicTransforms", transforms);
-			pass.setUniform("Sampler0", texture, RenderSystem.getSamplerCache().getSampler(
-					AddressMode.CLAMP_TO_EDGE,
-					AddressMode.CLAMP_TO_EDGE,
-					FilterMode.NEAREST,
-					FilterMode.NEAREST,
-					false));
-			pass.setVertexBuffer(0, info.vertexBuffer().slice());
-			pass.setIndexBuffer(info.indexBuffer(), info.indexType());
-			pass.drawIndexed(info.indexCount(), 1, info.firstIndex(), info.baseVertex(), 0);
-		}
-	}
-
 	private static void fallback(Throwable error, String stage) {
 		if (sessionFallback) {
 			return;
@@ -509,10 +331,6 @@ public final class ExperimentalHudCapture {
 		// A restart—or deliberately choosing a different method—will retry it.
 		SpatialHud.LOGGER.error("Spatial HUD texture capture failed while {}. Requested {} remains selected; the vanilla HUD is shown with a red indicator. Choose another method or restart to retry.",
 				stage, failedMethod, error);
-	}
-
-	private static float lerp(float from, float to, float amount) {
-		return from + (to - from) * amount;
 	}
 
 	@FunctionalInterface

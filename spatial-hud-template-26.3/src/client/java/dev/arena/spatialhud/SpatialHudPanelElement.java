@@ -6,14 +6,14 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
- * Starts the private capture for the active mode and draws the purple panel
- * decorations inside that capture. It is also the single per-frame camera-pose
- * update point, before wrapped HUD elements read the shared pose, and it draws
- * the red failure indicator when the capture has latched a failure.
+ * Starts the private capture for the active panel method and draws the purple
+ * identity into it. It is also the single per-frame camera-pose update point,
+ * before wrapped HUD elements read the shared pose, and it draws the red
+ * failure indicator when the capture has latched a failure.
  *
- * <p>Methods 3 and 4 both use this private texture. Their purple border (and,
- * for Method 4, the four corner handles) is captured with the selected vanilla
- * roots, so the surface and the HUD move together.</p>
+ * <p>Both panel methods use this private texture. The purple border is
+ * captured with the selected vanilla roots, so the panel and the HUD move
+ * together.</p>
  */
 final class SpatialHudPanelElement implements HudElement {
 	@Override
@@ -32,24 +32,10 @@ final class SpatialHudPanelElement implements HudElement {
 			drawFailureIndicator(graphics);
 		}
 
-		if (cfg.usesPolygonTest()) {
-			// Method 4 textures the selected lower HUD into the four purple GUI
-			// corners, so the private capture has to start here - before the
-			// wrapped vanilla roots extract below. The purple interior, border and
-			// corner handles belong to that same texture.
-			// If the capture is unavailable or failed, nothing is drawn here:
-			// SpatialHudElement shows the untouched vanilla HUD and the red marker
-			// above reports the failure.
-			ExperimentalHudCapture.beginFrame(graphics);
-			if (ExperimentalHudCapture.isFrameActive()) {
-				ExperimentalHudCapture.capturePanelDecorations(cfg);
-			}
-			return;
-		}
-
-		// Method 3: the panel is viewport-culled like the rest of the physical
-		// plane. When it is out of view, nothing is drawn.
-		if (!SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
+		// Method 3 is viewport-culled like the rest of its physical plane. When
+		// it is out of view, nothing is drawn. Method 4 is never culled here.
+		if (!cfg.usesPurplePanel()
+				&& !SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
 			return;
 		}
 

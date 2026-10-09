@@ -1,9 +1,8 @@
 # Test Spatial HUD in F5W
 
 - Status: current procedure, rewritten 2026-10-08 for the two shipped methods
-  (3 and 4). Methods 1 and 2 are archived. The Method 4 horizontal-panel
-  change is agreed but **not yet implemented**; the Method 4 checks below
-  describe the current code.
+  (3 and 4). Methods 1 and 2 are archived. Method 4 is the purple horizontal
+  panel (implemented 2026-10-08, not yet run in game).
 - Read when: requesting or evaluating an F5W runtime test.
 
 ## Before starting
@@ -24,7 +23,7 @@
 2. Check **Method Guide — Read This First**: read-only cards for Methods 3 and
    4, no editable field, nothing saved from it.
 3. Check the sections: **Setup**, **Panel Positioning & Orientation** (Method 3),
-   **Purple Polygon Test** (Method 4), **HUD Contents**.
+   **Purple Horizontal Panel (Method 4)**, **HUD Contents**.
 4. Use **F8** for Method 3 and **F9** for Method 4, or the **Render Mode
    Slider** (3 or 4).
 
@@ -38,21 +37,21 @@ Record each result separately by mode.
 | all | Capture failure | The vanilla HUD stays visible and a red square appears just above the hotbar's top-left corner. Nothing else is drawn in its place. |
 | 3 | World quad | The plane stays in front while looking left/right (Camera Yaw) or stays at body heading (Player Body); **Occlude Behind World** on/off hides/shows it behind a block. One completed-frame delay is expected; persistent loss or flicker is not. |
 | 3 | Border | The purple border is 3 px wide and surrounds the captured HUD. |
-| 4 | Content | The captured hotbar, hearts/hunger/armor/air, XP bar and level, and held-item text are all warped into the purple quad. Nothing else from the screen appears inside it. |
-| 4 | Single surface | Nothing is drawn at the normal vanilla HUD position — no second dark rectangle anywhere on screen while the mode is enabled. |
-| 4 | Border and handles | The purple border and the four corner handles sit exactly on the four configured corners and deform with them. |
-| 4 | Pitch response | Stays put as you turn. Looking up or down changes its perspective. Crouching moves it, because it is ground-anchored. **Follow Camera Pitch = off** freezes the quad on screen. |
-| 4 | Corners | Move each of the eight percentages and confirm exactly that corner moves. |
-| 4 | Companion pixels | AppleSkin and Detail Armor pixels appear inside the quad with their vanilla root. |
-| 4 | Backing switch | **Show Backing Panel** off leaves the purple border and handles with a see-through interior; the HUD pixels stay readable with it on. |
+| 4 | Content | The captured hotbar, hearts/hunger/armor/air, XP bar and level, and held-item text lie flat inside the purple panel. Nothing else from the screen appears inside it. |
+| 4 | Single surface | Nothing is drawn at the normal vanilla HUD position while the mode is enabled (except the vanilla HUD if capture has failed). |
+| 4 | Orientation | At a shallow look-down pitch the panel is visible. Looking straight down (pitch 90) it faces you square-on. Pitching down reveals it. |
+| 4 | Placement | **Distance**, **Height**, and **Angle** each move or tilt the panel as described in their tooltips. The angle is clamped to 20–90. |
+| 4 | Anchor | Turning the head does not move it. Walking and crouching move it with the feet. |
+| 4 | Border | The 3 px purple border surrounds the HUD inside the panel. |
+| 4 | Companion pixels | AppleSkin and Detail Armor pixels appear inside the panel with their vanilla root. |
+| 4 | Backing switch | **Show Backing Panel** off leaves the purple border with a see-through interior; the HUD pixels stay readable with it on. |
 
 ## Axis to note, not a pass/fail
 
-- The Method 4 quad is composited over the GUI inside its four corners, so it
-  can draw over whatever else is there (for example the crosshair region).
-  Record this if it bothers you.
+- The Method 4 panel is depth-tested, so terrain can hide it. Record whether the
+  placement feels right at your usual distance.
 - A modded bar drawn higher than 72 GUI pixels above the bottom of the screen
-  stays outside the quad. Record which bars are missing.
+  stays outside the panel. Record which bars are missing.
 
 ## Report format
 

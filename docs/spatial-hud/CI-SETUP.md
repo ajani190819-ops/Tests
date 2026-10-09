@@ -1,8 +1,9 @@
 # How Spatial HUD builds reach your PC
 
-- Status: **working** as of 2026-10-09. The one-time workflow paste is already on
-  the working branch (commit `605ecf6`, owner). Runs `37864958183` and
-  `37865568690` built this branch successfully.
+- Status: **working** as of 2026-10-08. The workflow is on the working branch
+  (commit `605ecf6`, owner). Runs `37864958183`, `37865568690`, and `37870443194`
+  built this branch successfully. Those runs predate the Method 4 horizontal
+  panel, so the next push produces the first build with it.
 
 ## What happens on a push
 
@@ -18,6 +19,19 @@
    - `spatial-hud-build-<branch>` — one per branch, for example
      `spatial-hud-build-arena-b4016c28-tests`. The updater's build picker lists
      these.
+
+## Where the updater comes from
+
+- The updater is one file, `Update-SpatialHUD.bat`, in `spatial-hud-template-26.3/`
+  on branch `arena/b4016c28-tests`. Download it once from:
+  `https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/b4016c28-tests/spatial-hud-template-26.3/Update-SpatialHUD.bat`
+- It fetches its PowerShell helper from GitHub on each run, from both `main` and
+  this branch, and uses the newer one. Nothing else needs downloading.
+- The jar is downloaded from the GitHub release and installed into the Modrinth
+  profile's mods folder, `%APPDATA%\ModrinthApp\profiles\F5W\mods`, unless you
+  choose another folder. Old copies are backed up, then replaced.
+- Use the copy from this branch until the branch merges to `main`. The copy on
+  `main` is stale: it fetches an older helper.
 
 ## How the PC gets a branch build
 
