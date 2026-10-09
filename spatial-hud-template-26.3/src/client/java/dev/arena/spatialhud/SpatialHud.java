@@ -165,18 +165,16 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/**
-	 * Both panel methods present the captured texture, so they share one
-	 * stricter boundary than a plain HUD transform: they are gameplay-only even
-	 * if a user turns off the normal Gameplay Only preference. This keeps the
-	 * private capture separate from every screen. Only Method 3 is culled by the
-	 * physical-plane viewport test. Method 4 is placed by its own feet anchor.
+	 * Both panel methods present the captured texture. The Gameplay Only
+	 * preference is the single gate: with it on, nothing draws over a screen;
+	 * with it off, the capture also runs over screens. Only Method 3 is culled by
+	 * the physical-plane viewport test. Method 4 is placed by its own feet anchor.
 	 */
 	static boolean isTextureCaptureActive() {
 		Minecraft mc = Minecraft.getInstance();
 		SpatialHudConfig cfg = SpatialHudConfig.get();
 		return isGameplayHudActive()
 					&& cfg.capturesTexture()
-					&& mc.gui.screen() == null
 					&& (cfg.usesPurplePanel() || isPhysicalPanelVisibleInGui(
 							mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight()));
 	}

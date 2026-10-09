@@ -55,7 +55,7 @@
   still load, and their code still compiles. The F8 and F9 keys were removed, as the
   user asked for config-only switching. Config version is still 22.
 - Every config field must have a `@ConfigEntry.Category` that has a title key. Cloth creates a tab for each field's category, even when the field is excluded, so a field with no category gives an untitled `default` tab, and an all-excluded category gives a blank tab. The legacy `positioning` fields and `polygon*` fields are now in `setup`. Config tabs (Cloth Config category ids, in order): `guide`, `setup` (Enabled,
-  Only During Gameplay), `presets` (Panel Preset, then each preset's distance, height and Panel Width),
+  Only During Gameplay; it is the single gate for the purple panel texture too, so turning it off also shows the panel over screens), `presets` (Panel Preset, then each preset's distance, height and Panel Width),
   `panel` (Heading, Angle, Shoulder Camera, fill, border, edges,
   occlusion, third-person exception), `wiggle` (all `panelWiggle*`), `contents` (HUD
   contents, Picture Offset, Slot Cycling Width). Field declaration order sets tab order.

@@ -14,7 +14,7 @@
   "text.autoconfig.spatialhud.option.showPanel": "Show Backing Panel",
   "text.autoconfig.spatialhud.option.showPanel.@Tooltip": "Method 3 only. Draws the subtle translucent backing behind the selected lower-HUD surface, in the same private texture as the icons and text, so it receives the same world-space deformation. Method 4 has no backing: its purple fill is controlled by Show Purple Fill.",
   "text.autoconfig.spatialhud.option.onlyDuringGameplay": "Gameplay Only",
-  "text.autoconfig.spatialhud.option.onlyDuringGameplay.@Tooltip": "Keep the spatial presentation out of inventories, chat, pause menus, Mod Menu, and other screens. This is recommended for normal play. Texture methods enforce the same screen-open boundary even if this option is turned off, because they intentionally capture gameplay HUD roots only.",
+  "text.autoconfig.spatialhud.option.onlyDuringGameplay.@Tooltip": "Keep the spatial presentation out of inventories, chat, pause menus, Mod Menu, and other screens. This is recommended for normal play. Turn it off to show the panel and HUD over those screens as well.",
   "text.autoconfig.spatialhud.option.renderModePicker": "Render Mode Slider",
   "text.autoconfig.spatialhud.option.renderModePicker.@Tooltip": "Move this slider to choose the active panel: 3 is the real 3D world-space flat map, 4 is the purple horizontal panel anchored to your feet.",
   "text.autoconfig.spatialhud.option.renderMethod": "Legacy Render Method (hidden)",
