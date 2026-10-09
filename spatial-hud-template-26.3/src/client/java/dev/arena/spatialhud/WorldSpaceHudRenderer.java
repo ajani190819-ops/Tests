@@ -53,6 +53,9 @@ public final class WorldSpaceHudRenderer {
 	private static final Matrix4f IDENTITY = new Matrix4f();
 	private static boolean initialized;
 	private static PlaneState planeState;
+	/** Vertices already uploaded during extraction, drawn later in the level pass. */
+	private static StagedVertexBuffer.ExecuteInfo planeDraw;
+	private static RenderPipeline planePipeline;
 
 	private WorldSpaceHudRenderer() {
 	}
@@ -79,6 +82,18 @@ public final class WorldSpaceHudRenderer {
 	 * four immutable world points for the later GPU drawing phase.
 	 */
 	private static void extractPlane(LevelExtractionContext ignored) {
+		planeDraw = null;
+		planePipeline = null;
+		try {
+			computePlaneState();
+			stagePlaneGeometry();
+		} catch (Throwable t) {
+			planeState = null;
+			ExperimentalHudCapture.worldTextureFailed(t);
+		}
+	}
+
+	private static void computePlaneState() {
 		if (!SpatialHud.isWorldSpaceTextureActive()) {
 			planeState = null;
 			return;
@@ -223,47 +238,55 @@ public final class WorldSpaceHudRenderer {
 	}
 
 	private static void renderPlane(LevelRenderContext context) {
+		StagedVertexBuffer.ExecuteInfo info = planeDraw;
+		RenderPipeline pipeline = planePipeline;
 		PlaneState state = planeState;
+		planeDraw = null;
+		planePipeline = null;
 		GpuTextureView texture = ExperimentalHudCapture.worldTextureView();
-		if (state == null || texture == null) {
+		if (info == null || pipeline == null || state == null || texture == null) {
 			return;
 		}
-
 		try {
-			// Both are vanilla precompiled pipelines. ENTITY_TRANSLUCENT uses the
-			// depth texture; GUI_TEXTURED deliberately does not, so it appears
-			// through terrain without needing a custom shader definition.
-			RenderPipeline pipeline = state.occludeBehindWorld()
-					? RenderPipelines.ENTITY_TRANSLUCENT
-					: RenderPipelines.GUI_TEXTURED;
-			VertexFormat format = pipeline.getVertexFormatBinding(0);
-			PrimitiveTopology primitive = pipeline.getPrimitiveTopology();
-			if (format == null || primitive != PrimitiveTopology.QUADS) {
-				throw new IllegalStateException("world-space HUD pipeline does not expose textured QUADS");
-			}
-
-			StagedVertexBuffer buffer = buffer();
-			bufferUsedThisFrame = true;
-			StagedVertexBuffer.Draw draw = buffer.appendDraw(format, primitive,
-					RenderSystem.getProjectionType().vertexSorting());
-			PoseStack matrices = context.poseStack();
-			Vec3 camera = context.levelState().cameraRenderState.pos;
-			matrices.pushPose();
-			try {
-				matrices.translate(-camera.x, -camera.y, -camera.z);
-				addQuad(buffer.getVertexBuilder(draw), matrices.last().pose(), state,
-						state.occludeBehindWorld());
-			} finally {
-				matrices.popPose();
-			}
-			buffer.upload();
-			StagedVertexBuffer.ExecuteInfo info = buffer.getExecuteInfo(draw);
-			if (info != null) {
-				drawToLevelTarget(info, pipeline, texture, state.occludeBehindWorld());
-			}
+			// Only the draw happens here. The vertices were uploaded during
+			// extraction, because an upload inside this translucent pass is refused.
+			drawToLevelTarget(info, pipeline, texture, state.occludeBehindWorld());
 		} catch (Throwable t) {
 			ExperimentalHudCapture.worldTextureFailed(t);
 		}
+	}
+
+	/**
+	 * Writes the quad's vertices to the GPU buffer during extraction, when no
+	 * render pass is open. The vertices are relative to the camera, so the
+	 * draw in the level pass needs no pose stack.
+	 */
+	private static void stagePlaneGeometry() {
+		PlaneState state = planeState;
+		if (state == null) {
+			return;
+		}
+		if (ExperimentalHudCapture.worldTextureView() == null) {
+			return;
+		}
+		RenderPipeline pipeline = state.occludeBehindWorld()
+				? RenderPipelines.ENTITY_TRANSLUCENT
+				: RenderPipelines.GUI_TEXTURED;
+		VertexFormat format = pipeline.getVertexFormatBinding(0);
+		PrimitiveTopology primitive = pipeline.getPrimitiveTopology();
+		if (format == null || primitive != PrimitiveTopology.QUADS) {
+			throw new IllegalStateException("world-space HUD pipeline does not expose textured QUADS");
+		}
+		Vec3 camera = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+		StagedVertexBuffer buffer = buffer();
+		bufferUsedThisFrame = true;
+		StagedVertexBuffer.Draw draw = buffer.appendDraw(format, primitive,
+				RenderSystem.getProjectionType().vertexSorting());
+		Matrix4f toCamera = new Matrix4f().translation((float) -camera.x, (float) -camera.y, (float) -camera.z);
+		addQuad(buffer.getVertexBuilder(draw), toCamera, state, state.occludeBehindWorld());
+		buffer.upload();
+		planeDraw = buffer.getExecuteInfo(draw);
+		planePipeline = pipeline;
 	}
 
 	/**

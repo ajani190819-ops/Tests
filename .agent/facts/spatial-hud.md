@@ -83,6 +83,13 @@
 
 ## Failure behavior
 
+- **Upload and draw are split.** The new log (`ea11ba5`, 2026-10-08 22:27) showed
+  the next failure: `StagedVertexBuffer.upload()` inside `renderPlane` also throws
+  `Close the existing render pass`. Only the draw is allowed inside the level pass.
+  So the vertices are now staged in `stagePlaneGeometry()` during extraction
+  (`END_EXTRACTION`, no pass open), and `renderPlane` only draws the staged
+  `ExecuteInfo`. `WorldSpaceHudRenderer.endFrame()` still runs after the GUI pass.
+  Not yet confirmed in game.
 - **Never end a frame's buffer inside a level render pass.** The user's log
   (2026-10-09, `spatial-hud-template-26.3/latest.log` on the branch) showed both
   methods failing with `Close the existing render pass before performing
