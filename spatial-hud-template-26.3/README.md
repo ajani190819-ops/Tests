@@ -123,9 +123,10 @@ the Setup config tab, or with the direct keys **F8** (Method 3) and **F9**
    you. Its purple border is part of the captured texture.
 
 **Failure indicator.** If the capture fails, the untouched vanilla HUD is shown
-in place of the panel, and a small red square appears just outside the hotbar's
-top-left corner. The selected method is kept, so restarting the game or picking
-the method again retries it.
+in place of the panel, and a small square appears just outside the hotbar's
+top-left corner: **red** if Method 3 failed, **purple** if Method 4 failed. The
+selected method is kept, so restarting the game or picking the method again
+retries it.
 
 The **Panel Positioning & Orientation** controls belong to Method 3. They model
 a waist-height flat surface, not a card that follows camera pitch:

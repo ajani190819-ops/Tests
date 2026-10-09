@@ -88,10 +88,12 @@
   retries the capture in the same session. `hasCaptureFailed()` reports the latch.
 - `SpatialHudElement` draws the untouched vanilla root whenever the private
   capture is not running, so the player keeps a HUD.
-- `SpatialHudPanelElement` draws a red 8×8 square at `(guiWidth/2 − 100,
+- `SpatialHudPanelElement` draws an 8×8 square at `(guiWidth/2 − 100,
   guiHeight − 31)` when `hasCaptureFailed()`. It sits just above the hotbar's
-  top-left corner. Outline `0xFF3A0000`, fill `0xFFE53935`. On failure, Method 4
-  shows the vanilla HUD and the red marker only, with no purple outline.
+  top-left corner. Red (outline `0xFF3A0000`, fill `0xFFE53935`) when the failed
+  method was Method 3; purple (outline `0xFF2A0A3D`, fill `0xFFC75CFF`) when it
+  was Method 4. The colour comes from `ExperimentalHudCapture.failedMethod()`.
+  On failure, the vanilla HUD is shown and the marker only; no purple outline.
 
 ## Compatibility
 

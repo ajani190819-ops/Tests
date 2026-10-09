@@ -113,6 +113,11 @@ public final class ExperimentalHudCapture {
 		return sessionFallback;
 	}
 
+	/** The method whose capture failed, or null when nothing has failed. */
+	static SpatialHudConfig.RenderMethod failedMethod() {
+		return sessionFallback ? failedMethod : null;
+	}
+
 	/** True only while the current gameplay HUD frame is collecting a texture. */
 	static boolean isFrameActive() {
 		return frameActive && !sessionFallback;

@@ -34,7 +34,7 @@ Record each result separately by mode.
 | Mode | Check | Pass condition |
 |---|---|---|
 | all | Scope | Menus, chat, inventory, minimap, debug text, and unrelated mod GUIs are untouched. Only the selected lower HUD is captured. |
-| all | Capture failure | The vanilla HUD stays visible and a red square appears just above the hotbar's top-left corner. Nothing else is drawn in its place. |
+| all | Capture failure | The vanilla HUD stays visible and a square appears just above the hotbar's top-left corner: red for Method 3, purple for Method 4. Nothing else is drawn in its place. |
 | 3 | World quad | The plane stays in front while looking left/right (Camera Yaw) or stays at body heading (Player Body); **Occlude Behind World** on/off hides/shows it behind a block. One completed-frame delay is expected; persistent loss or flicker is not. |
 | 3 | Border | The purple border is 3 px wide and surrounds the captured HUD. |
 | 4 | Content | The captured hotbar, hearts/hunger/armor/air, XP bar and level, and held-item text lie flat inside the purple panel. Nothing else from the screen appears inside it. |
