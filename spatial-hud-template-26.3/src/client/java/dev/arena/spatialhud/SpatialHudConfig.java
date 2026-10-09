@@ -379,6 +379,52 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public boolean panelWiggleHeight = false;
 
+	/**
+	 * How much of the heading lag is shown, as a percentage. 100 shows the full
+	 * lag; 0 keeps the panel's turn locked to your body. The lag is scaled, not
+	 * re-timed, so it still never overshoots.
+	 */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int panelWiggleHeadingStrength = 100;
+
+	/**
+	 * How much of the position (and height, when ticked) lag is shown, as a
+	 * percentage. 50 halves how far the panel trails behind you.
+	 */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int panelWigglePositionStrength = 50;
+
+	/**
+	 * The most the position lag may pull the panel away from its true place, in
+	 * blocks. Larger lag is clamped to this distance, so sprinting cannot pull
+	 * the panel far away.
+	 */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public double panelWigglePositionMaxBlocks = 0.25;
+
+	/**
+	 * Whether blocks and entities between you and the Method 4 panel hide it.
+	 * Off draws the panel over everything, and also keeps water and other
+	 * translucent world surfaces showing through it correctly.
+	 */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelOcclusion = true;
+
+	/**
+	 * In third person, your own body is not allowed to hide the panel. While
+	 * this is on, third person draws the panel without the world depth test, so
+	 * blocks and mobs do not hide it there either.
+	 */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelThirdPersonException = true;
+
 	// Legacy corner controls from the GUI-layer warp that Method 4 used before
 	// v22. They stay in the JSON so older files still load, but nothing reads them.
 	@ConfigEntry.Gui.Excluded
@@ -427,6 +473,11 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("contents")
 	@ConfigEntry.Gui.Tooltip
 	public boolean showHeldItemName = true;
+
+	/** Hotbar Slot Cycling's side display (the cycle slots beside the hotbar). Method 4 widens its picture to hold it. */
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.Gui.Tooltip
+	public boolean showSlotCycling = true;
 
 	// AutoConfig reflects fields when constructing Cloth Config. These are runtime
 	// singletons, never settings; excluding them prevents a config-screen error.
@@ -703,6 +754,9 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 		if (id.equals(VanillaHudElements.HELD_ITEM_TOOLTIP)) {
 			return showHeldItemName;
+		}
+		if (id.equals(SpatialHud.SLOT_CYCLING_ELEMENT)) {
+			return showSlotCycling;
 		}
 		return showBars; // armor / health / food / air
 	}

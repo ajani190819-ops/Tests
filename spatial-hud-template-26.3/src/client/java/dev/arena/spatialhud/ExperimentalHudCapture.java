@@ -38,6 +38,13 @@ public final class ExperimentalHudCapture {
 	// translucent so the captured HUD stays readable on top of it.
 	private static final int PURPLE_BACKING_COLOR = 0x7031004D;
 	private static final int PURPLE_EDGE_COLOR = 0xFFC75CFF;
+	/**
+	 * Half-width, in GUI pixels, of the strip Method 4 samples: the hotbar with
+	 * its offhand slot. Slot Cycling's cycle slots reach about 170 pixels from
+	 * the centre, so with that option on the band widens to hold them.
+	 */
+	private static final float PURPLE_HALF_WIDTH = 112.0f;
+	private static final float PURPLE_SLOT_CYCLING_HALF_WIDTH = 172.0f;
 	// Height, in GUI pixels above the bottom of the screen, of the strip band
 	// the purple horizontal panel frames: hotbar, status bars, experience level,
 	// and held-item text all draw inside it.
@@ -52,6 +59,7 @@ public final class ExperimentalHudCapture {
 	private static boolean frameCapturedHotbar;
 	private static boolean loggedHotbarExtraction;
 	private static boolean loggedMissingHotbar;
+	private static boolean loggedSlotCycling;
 	/** Becomes true after a completed capture can be drawn by Method 3 next frame. */
 	private static boolean worldTextureReady;
 	private static boolean sessionFallback;
@@ -135,6 +143,10 @@ public final class ExperimentalHudCapture {
 
 		try {
 			root.extract(capturedGraphics, deltaTracker);
+			if (id.equals(SpatialHud.SLOT_CYCLING_ELEMENT) && !loggedSlotCycling) {
+				loggedSlotCycling = true;
+				SpatialHud.LOGGER.info("Spatial HUD captured Hotbar Slot Cycling's cycle slots into the panel texture.");
+			}
 			if (id.equals(VanillaHudElements.HOTBAR)) {
 				frameCapturedHotbar = true;
 				if (!loggedHotbarExtraction) {
@@ -151,16 +163,24 @@ public final class ExperimentalHudCapture {
 	}
 
 						/**
-	 * Draws the purple identity into the same isolated source texture as the
-	 * vanilla roots: a translucent interior (controlled by Show Backing Panel)
-	 * and a 3 px border, both on the captured source rectangle. Both panel
-	 * methods use it, so the border is lifted onto the panel with the HUD
-	 * pixels. It runs before the vanilla roots extract, so the HUD stays
-	 * readable on top of the interior.
+	 * Method 3 only: draws its purple identity into the same isolated source
+	 * texture as the vanilla roots, a translucent interior (controlled by Show
+	 * Backing Panel) and a 3 px border, on the captured source rectangle, so the
+	 * border is lifted onto the panel with the HUD pixels. It runs before the
+	 * vanilla roots extract, so the HUD stays readable on top of the interior.
+	 * Method 4 draws nothing here: its purple fill and white border are world
+	 * geometry, and the texture holds only HUD pixels.
 	 */
 	static boolean capturePanelDecorations(SpatialHudConfig cfg) {
 		if (!isFrameActive()) {
 			return false;
+		}
+		// Method 4 keeps its purple out of the texture. The world panel has the
+		// fill and the white border, and the texture holds only the HUD pixels,
+		// so no purple backing or edge stripe can show around the picture.
+		if (cfg.usesPurplePanel()) {
+			frameHasContent = true;
+			return true;
 		}
 		try {
 			// Draw only inside the source rectangle the world panel samples.
@@ -208,8 +228,10 @@ public final class ExperimentalHudCapture {
 	 */
 	static SourceRect purpleSourceRect(SpatialHudConfig cfg, int guiWidth, int guiHeight) {
 		VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
-		int left = (int) Math.floor(Math.max(0.0f, plane.sourceLeft()));
-		int right = (int) Math.ceil(Math.min(guiWidth, plane.sourceRight()));
+		float centerX = (plane.sourceLeft() + plane.sourceRight()) * 0.5f;
+		float halfWidth = cfg.showSlotCycling ? PURPLE_SLOT_CYCLING_HALF_WIDTH : PURPLE_HALF_WIDTH;
+		int left = (int) Math.floor(Math.max(0.0f, centerX - halfWidth));
+		int right = (int) Math.ceil(Math.min(guiWidth, centerX + halfWidth));
 		int bottom = (int) Math.ceil(Math.min(guiHeight, plane.sourceBottom()));
 		int top = Math.max(0, bottom - PURPLE_SOURCE_HEIGHT);
 		return new SourceRect(left, top, right, bottom);

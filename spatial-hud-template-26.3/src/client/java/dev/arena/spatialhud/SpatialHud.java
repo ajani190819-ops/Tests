@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -38,6 +39,13 @@ public class SpatialHud implements ClientModInitializer {
 	// The panel samples camera pitch once before every selected HUD extraction,
 	// so the backing and all captured roots share one mesh pose for that frame.
 	static float pitch;
+
+	/**
+	 * Hotbar Slot Cycling's cycle-slot display. It is attached after the hotbar
+	 * by that mod's own client setup, so it is wrapped once the client starts.
+	 */
+	static final Identifier SLOT_CYCLING_ELEMENT =
+			Identifier.fromNamespaceAndPath("hotbarslotcycling", "cycling_slots");
 
 	/** The vanilla elements that make up the bottom HUD strip. */
 	private static final List<Identifier> STRIP_ELEMENTS = List.of(
@@ -86,6 +94,8 @@ public class SpatialHud implements ClientModInitializer {
 			HudElementRegistry.replaceElement(id, vanilla -> new SpatialHudElement(id, vanilla));
 		}
 
+		ClientLifecycleEvents.CLIENT_STARTED.register(client -> wrapSlotCycling());
+
 		// The panel is extracted before HOTBAR. It also marks the start of our
 		// render-frame update, eliminating the old 20 Hz (tick-only) sway.
 		HudElementRegistry.attachElementBefore(
@@ -125,6 +135,24 @@ public class SpatialHud implements ClientModInitializer {
 		});
 
 		LOGGER.info("Spatial HUD initialized. Press H for the read-only guide; direct keys: F8 = Method 3, F9 = Method 4.");
+	}
+
+	/**
+	 * Wraps the slot cycler's element so its cycle slots are captured with the
+	 * hotbar. Skipped when that mod is not installed. If the replacement fails,
+	 * its slots stay on the vanilla HUD, outside the panel.
+	 */
+	private static void wrapSlotCycling() {
+		if (!FabricLoader.getInstance().isModLoaded("hotbarslotcycling")) {
+			return;
+		}
+		try {
+			HudElementRegistry.replaceElement(SLOT_CYCLING_ELEMENT,
+					vanilla -> new SpatialHudElement(SLOT_CYCLING_ELEMENT, vanilla));
+			LOGGER.info("Spatial HUD registered Hotbar Slot Cycling's cycle slots for the panel capture.");
+		} catch (Throwable t) {
+			LOGGER.error("Spatial HUD could not register Hotbar Slot Cycling's cycle slots; they stay on the vanilla HUD.", t);
+		}
 	}
 
 	private static KeyMapping registerMethodKey(String translationKey, int defaultScancode) {

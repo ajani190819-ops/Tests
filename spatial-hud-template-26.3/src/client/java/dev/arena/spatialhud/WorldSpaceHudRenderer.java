@@ -88,7 +88,10 @@ public final class WorldSpaceHudRenderer {
 		try {
 			// The frame's partial tick, so the panel moves between game ticks as the
 			// camera does instead of stepping 20 times a second.
-			computePlaneState(context.deltaTracker().getGameTimeDeltaPartialTick(false));
+			// The game-time delta drives the wiggle, so its catch-up runs on the same
+			// clock as the camera. Wall-clock time made the lag change frame to frame.
+			computePlaneState(context.deltaTracker().getGameTimeDeltaPartialTick(false),
+					context.deltaTracker().getGameTimeDeltaTicks() / 20.0);
 		} catch (Throwable t) {
 			planeState = null;
 			ExperimentalHudCapture.worldTextureFailed(t);
@@ -111,15 +114,17 @@ public final class WorldSpaceHudRenderer {
 			Vec3 bottomRight = new Vec3(state.bottomRight().x(), state.bottomRight().y(), state.bottomRight().z());
 			Vec3 topRight = new Vec3(state.topRight().x(), state.topRight().y(), state.topRight().z());
 			Vec3 topLeft = new Vec3(state.topLeft().x(), state.topLeft().y(), state.topLeft().z());
+			boolean open = !state.occludeBehindWorld();
 			WorldSpaceSolidQuad.submitPanel(context.submitNodeCollector(), camera,
 					SpatialHudConfig.get().horizontalPanelFill,
 					SpatialHudConfig.get().horizontalPanelBorder,
 					SpatialHudConfig.get().horizontalPanelHideEdges,
+					open,
 					bottomLeft, bottomRight, topRight, topLeft);
 			// Roadmap stage 3: the captured HUD, only once a frame of it exists.
 			if (ExperimentalHudCapture.worldTextureView() != null) {
 				CapturedHudTexture.register();
-				WorldSpaceSolidQuad.submitCapturedBand(context.submitNodeCollector(), camera,
+				WorldSpaceSolidQuad.submitCapturedBand(context.submitNodeCollector(), camera, open,
 						state.uLeft(), state.uRight(), state.vTop(), state.vBottom(),
 						bottomLeft, bottomRight, topRight, topLeft);
 			}
@@ -129,7 +134,7 @@ public final class WorldSpaceHudRenderer {
 		}
 	}
 
-	private static void computePlaneState(float partialTick) {
+	private static void computePlaneState(float partialTick, double deltaSeconds) {
 		if (!SpatialHud.isWorldSpaceTextureActive()) {
 			planeState = null;
 			return;
@@ -144,7 +149,7 @@ public final class WorldSpaceHudRenderer {
 
 		SpatialHudConfig cfg = SpatialHudConfig.get();
 		if (cfg.usesPurplePanel()) {
-			planeState = purplePanelState(player, cfg, partialTick,
+			planeState = purplePanelState(player, cfg, partialTick, deltaSeconds,
 					mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
 			return;
 		}
@@ -225,46 +230,93 @@ public final class WorldSpaceHudRenderer {
 	 * angle sets the look-down pitch at which the panel faces you square-on:
 	 * 90 lies it flat, and smaller angles tilt its near edge toward you.
 	 */
-	/** Smoothed Method 4 placement for the wiggle option. Updated once per frame. */
+	/**
+	 * Smoothed Method 4 placement for the wiggle option. The {@code wiggle*} fields
+	 * are the lagging state, updated once per frame. The {@code shown*} fields are
+	 * what is drawn: the lag scaled by the strength settings, and the position lag
+	 * clamped to {@code panelWigglePositionMaxBlocks}.
+	 */
 	private static float wiggleYaw;
 	private static double wiggleX;
 	private static double wiggleY;
 	private static double wiggleZ;
 	private static double wiggleHeight;
 	private static boolean wiggleReady;
-	private static long wiggleLastNanos;
+	private static float shownYaw;
+	private static double shownX;
+	private static double shownY;
+	private static double shownZ;
+	private static double shownHeight;
 
 	/**
-	 * Moves the smoothed placement toward the player's current placement. Each part
-	 * ticked in the config eases toward its target with a time constant of
-	 * {@code panelWiggleSeconds}, so the panel lags and then catches up. Parts not
-	 * ticked, and every part when the wiggle is off, follow the target exactly.
+	 * Moves the lagging state toward the player's current placement, then works
+	 * out what to draw. Each part ticked in the config eases toward its target
+	 * with a time constant of its catch-up setting. Parts not ticked, and every
+	 * part when the wiggle is off, follow the target exactly.
+	 *
+	 * <p>Easing is exponential in game time, so the same catch-up time gives the
+	 * same lag at any frame rate. The step is capped, so a long hitch cannot
+	 * sweep the panel. Nothing overshoots.</p>
 	 */
-	private static void updateWiggle(SpatialHudConfig cfg, float targetYaw, Vec3 targetFeet, double targetHeight) {
-		long now = System.nanoTime();
-		double dt = wiggleLastNanos == 0 ? 0.0 : Math.min(0.1, Math.max(0.0, (now - wiggleLastNanos) / 1.0e9));
-		wiggleLastNanos = now;
+	private static void updateWiggle(SpatialHudConfig cfg, float targetYaw, Vec3 targetFeet, double targetHeight,
+			double deltaSeconds) {
 		double jump = Math.hypot(targetFeet.x - wiggleX, targetFeet.z - wiggleZ);
-		if (!wiggleReady || !cfg.panelWiggle || dt <= 0.0 || jump > 4.0) {
-			// A teleport or a first frame snaps, so the panel never sweeps across the map.
+		if (!wiggleReady || !cfg.panelWiggle || jump > 4.0) {
+			// A teleport, a first frame, or the wiggle being off snaps, so the panel
+			// never sweeps across the map.
 			wiggleYaw = targetYaw;
 			wiggleX = targetFeet.x;
 			wiggleY = targetFeet.y;
 			wiggleZ = targetFeet.z;
 			wiggleHeight = targetHeight;
 			wiggleReady = true;
-			return;
+		} else if (deltaSeconds > 0.0) {
+			// Heading and height share one catch-up time; position has its own.
+			// A frozen game (delta 0) holds the lag where it is.
+			double step = Math.min(0.1, deltaSeconds);
+			double alphaTurn = 1.0 - Math.exp(-step / clampedSeconds(cfg.panelWiggleSeconds));
+			double alphaPosition = 1.0 - Math.exp(-step / clampedSeconds(cfg.panelWigglePositionSeconds));
+			wiggleYaw = cfg.panelWiggleHeading
+					? wiggleYaw + wrapRadians(targetYaw - wiggleYaw) * (float) alphaTurn
+					: targetYaw;
+			wiggleX = cfg.panelWigglePosition ? wiggleX + (targetFeet.x - wiggleX) * alphaPosition : targetFeet.x;
+			wiggleY = cfg.panelWigglePosition ? wiggleY + (targetFeet.y - wiggleY) * alphaPosition : targetFeet.y;
+			wiggleZ = cfg.panelWigglePosition ? wiggleZ + (targetFeet.z - wiggleZ) * alphaPosition : targetFeet.z;
+			wiggleHeight = cfg.panelWiggleHeight
+					? wiggleHeight + (targetHeight - wiggleHeight) * alphaTurn
+					: targetHeight;
 		}
-		// Heading and height share one catch-up time; position has its own.
-		double alphaTurn = 1.0 - Math.exp(-dt / Math.max(0.05, Math.min(1.0, cfg.panelWiggleSeconds)));
-		double alphaPosition = 1.0 - Math.exp(-dt / Math.max(0.05, Math.min(1.0, cfg.panelWigglePositionSeconds)));
-		wiggleYaw = cfg.panelWiggleHeading
-				? wiggleYaw + wrapRadians(targetYaw - wiggleYaw) * (float) alphaTurn
-				: targetYaw;
-		wiggleX = cfg.panelWigglePosition ? wiggleX + (targetFeet.x - wiggleX) * alphaPosition : targetFeet.x;
-		wiggleY = cfg.panelWigglePosition ? wiggleY + (targetFeet.y - wiggleY) * alphaPosition : targetFeet.y;
-		wiggleZ = cfg.panelWigglePosition ? wiggleZ + (targetFeet.z - wiggleZ) * alphaPosition : targetFeet.z;
-		wiggleHeight = cfg.panelWiggleHeight ? wiggleHeight + (targetHeight - wiggleHeight) * alphaTurn : targetHeight;
+
+		// What is drawn: scale each lag by its strength. Scaling keeps the same
+		// direction and never overshoots the target.
+		double headingScale = clamp(cfg.panelWiggleHeadingStrength, 0, 100) / 100.0;
+		double positionScale = clamp(cfg.panelWigglePositionStrength, 0, 100) / 100.0;
+		shownYaw = targetYaw + wrapRadians(wiggleYaw - targetYaw) * (float) headingScale;
+
+		double dx = (wiggleX - targetFeet.x) * positionScale;
+		double dy = (wiggleY - targetFeet.y) * positionScale;
+		double dz = (wiggleZ - targetFeet.z) * positionScale;
+		double maxBlocks = clamp(cfg.panelWigglePositionMaxBlocks, 0.05, 1.0);
+		double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+		if (length > maxBlocks) {
+			double clampScale = maxBlocks / length;
+			dx *= clampScale;
+			dy *= clampScale;
+			dz *= clampScale;
+		}
+		shownX = targetFeet.x + dx;
+		shownY = targetFeet.y + dy;
+		shownZ = targetFeet.z + dz;
+		shownHeight = targetHeight + (wiggleHeight - targetHeight) * positionScale;
+	}
+
+	/** A catch-up time in seconds, kept between 0.02 and 1.0 so it is always finite and never zero. */
+	private static double clampedSeconds(double seconds) {
+		return Math.max(0.02, Math.min(1.0, seconds));
+	}
+
+	private static double clamp(double value, double min, double max) {
+		return value < min ? min : Math.min(value, max);
 	}
 
 	/** Wraps an angle to the range minus pi to pi, so the shortest turn is used. */
@@ -280,7 +332,7 @@ public final class WorldSpaceHudRenderer {
 	}
 
 	private static PlaneState purplePanelState(LocalPlayer player, SpatialHudConfig cfg, float partialTick,
-			int guiWidth, int guiHeight) {
+			double deltaSeconds, int guiWidth, int guiHeight) {
 		ExperimentalHudCapture.SourceRect band = ExperimentalHudCapture.purpleSourceRect(cfg, guiWidth, guiHeight);
 		// Method 4's own heading setting: body heading by default, or the camera's
 		// horizontal view when the config says so.
@@ -289,8 +341,8 @@ public final class WorldSpaceHudRenderer {
 				? radians(player.getViewYRot(partialTick))
 				: radians(net.minecraft.util.Mth.rotLerp(partialTick, player.yBodyRotO, player.yBodyRot));
 		Vec3 targetFeet = player.getPosition(partialTick);
-		updateWiggle(cfg, targetYaw, targetFeet, cfg.horizontalPanelHeight);
-		float bodyYaw = wiggleYaw;
+		updateWiggle(cfg, targetYaw, targetFeet, cfg.horizontalPanelHeight, deltaSeconds);
+		float bodyYaw = shownYaw;
 		// The panel's right is the player's right. Minecraft's forward is (-sin, cos),
 		// so the right is (-cos, -sin). The old sign mirrored the picture.
 		float rightX = -cos(bodyYaw);
@@ -299,9 +351,9 @@ public final class WorldSpaceHudRenderer {
 		float forwardZ = cos(bodyYaw);
 
 		float distance = (float) Math.max(0.10, cfg.horizontalPanelDistance);
-		float centerX = (float) wiggleX + forwardX * distance;
-		float centerY = (float) wiggleY + (float) wiggleHeight;
-		float centerZ = (float) wiggleZ + forwardZ * distance;
+		float centerX = (float) shownX + forwardX * distance;
+		float centerY = (float) shownY + (float) shownHeight;
+		float centerZ = (float) shownZ + forwardZ * distance;
 
 		// The panel is exactly the sampled band, so its aspect matches the HUD.
 		float width = clamp((float) cfg.planeWidth, 0.10f, 6.0f);
@@ -328,14 +380,18 @@ public final class WorldSpaceHudRenderer {
 		Point topLeft = point(centerX - rightX * halfWidth + topX * halfHeight,
 				centerY + topY * halfHeight,
 				centerZ - rightZ * halfWidth + topZ * halfHeight);
-		// Always depth-tested: a flat sheet in the world must not show through
-		// walls or terrain.
+		// Occlusion is the player's choice. On, blocks and mobs in front of the
+		// panel hide it. In third person, the exception lets the player's own body
+		// stop hiding it (see SpatialHudConfig).
+		boolean firstPerson = Minecraft.getInstance().options.getCameraType().isFirstPerson();
+		boolean occlude = cfg.horizontalPanelOcclusion
+				&& !(cfg.horizontalPanelThirdPersonException && !firstPerson);
 		return new PlaneState(bottomLeft, bottomRight, topRight, topLeft,
 				band.left() / (float) guiWidth, band.right() / (float) guiWidth,
 				// The capture texture is stored bottom-up, but GUI coordinates run
 				// top-down, so the vertical texture axis is flipped here.
 				1.0f - band.top() / (float) guiHeight, 1.0f - band.bottom() / (float) guiHeight,
-				true);
+				occlude);
 	}
 
 	private static void renderPlane(LevelRenderContext context) {

@@ -187,8 +187,8 @@ explanation tab plus four focused settings sections:
   explicitly say when a setting is ignored by the other two methods.
 - **Purple Horizontal Panel** holds the three Method 4 placement controls:
   **Panel Distance**, **Panel Height Above Feet**, and **Panel Angle**. They
-  affect only Method 4. **Show Backing Panel** controls the translucent purple
-  interior of both panels; the purple border always remains.
+  affect only Method 4. **Show Backing Panel** is Method 3's translucent purple
+  interior; Method 4 has no backing, and its fill is **Show Purple Fill**.
   Method 4 samples the full captured strip, the same source as Method 3, so
   anything another mod draws in that strip is included.
 - **HUD Contents** chooses which lower-HUD roots Spatial HUD owns.

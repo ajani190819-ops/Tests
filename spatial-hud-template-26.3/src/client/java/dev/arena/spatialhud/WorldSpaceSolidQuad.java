@@ -24,13 +24,19 @@ import java.util.List;
  *
  * <p>Three layers, from back to front, all in the same plane:</p>
  * <ol>
- * <li>The purple fill, inset inside the border (depth-tested, solid phase).</li>
+ * <li>The purple fill, inset inside the border (solid phase).</li>
  * <li>The captured HUD band, inset the same amount and lifted a tiny step toward
- * the viewer so it never fights the fill (depth-tested, translucent phase).</li>
- * <li>The white border ring around both (depth-tested, solid phase).</li>
+ * the viewer so it never fights the fill (translucent phase).</li>
+ * <li>The white border ring around both (solid phase).</li>
  * </ol>
  * <p>The border and fill never overlap, so they cannot z-fight. The band is
  * lifted by {@link #CAPTURE_LIFT}, which is far smaller than the panel.</p>
+ *
+ * <p>Each layer comes in two depth modes. <em>Occluded</em> is depth-tested, so
+ * blocks and mobs in front of the panel hide it. <em>Open</em> has no depth test
+ * and no depth write: the panel draws over the world and leaves the depth
+ * buffer alone, so translucent surfaces such as water behind it are not hidden.
+ * The caller chooses the mode for each frame.</p>
  */
 final class WorldSpaceSolidQuad {
 	/** Opaque purple, the same as the Method 4 failure marker. */
@@ -46,8 +52,12 @@ final class WorldSpaceSolidQuad {
 
 	private static final FeatureRendererType<QuadSubmit> TYPE =
 			FeatureRendererType.create("spatialhud_solid_quad");
+	private static final FeatureRendererType<QuadSubmit> OPEN_TYPE =
+			FeatureRendererType.create("spatialhud_solid_quad_open");
 	private static final FeatureRendererType<TexturedSubmit> TEXTURED_TYPE =
 			FeatureRendererType.create("spatialhud_captured_band");
+	private static final FeatureRendererType<TexturedSubmit> OPEN_TEXTURED_TYPE =
+			FeatureRendererType.create("spatialhud_captured_band_open");
 	private static boolean registered;
 	private static boolean loggedBandDraw;
 
@@ -60,8 +70,10 @@ final class WorldSpaceSolidQuad {
 			return;
 		}
 		registered = true;
-		FeatureRendererRegistry.register(TYPE, Renderer::new);
-		FeatureRendererRegistry.register(TEXTURED_TYPE, TexturedRenderer::new);
+		FeatureRendererRegistry.register(TYPE, () -> new Renderer(false));
+		FeatureRendererRegistry.register(OPEN_TYPE, () -> new Renderer(true));
+		FeatureRendererRegistry.register(TEXTURED_TYPE, () -> new TexturedRenderer(false));
+		FeatureRendererRegistry.register(OPEN_TEXTURED_TYPE, () -> new TexturedRenderer(true));
 	}
 
 	/**
@@ -71,7 +83,7 @@ final class WorldSpaceSolidQuad {
 	 * found by interpolating along the two edges.
 	 */
 	static void submitPanel(SubmitNodeCollector collector, Vec3 camera, boolean showFill, boolean showBorder,
-			boolean hideEdges, Vec3 bottomLeft, Vec3 bottomRight, Vec3 topRight, Vec3 topLeft) {
+			boolean hideEdges, boolean open, Vec3 bottomLeft, Vec3 bottomRight, Vec3 topRight, Vec3 topLeft) {
 		PoseStack.Pose pose = cameraPose(camera);
 		float f = BORDER_FRACTION;
 		float inner = 1.0f - f;
@@ -81,20 +93,20 @@ final class WorldSpaceSolidQuad {
 			// so no purple shows where the fill meets the ring.
 			float fillInset = hideEdges ? f * 0.5f : f;
 			float fillInner = 1.0f - fillInset;
-			submitRect(collector, pose, COLOR, bottomLeft, bottomRight, topRight, topLeft,
+			submitRect(collector, pose, COLOR, open, bottomLeft, bottomRight, topRight, topLeft,
 					fillInset, fillInner, fillInset, fillInner);
 		}
 		if (!showBorder) {
 			return;
 		}
 		// Border ring: bottom, top, left and right strips.
-		submitRect(collector, pose, BORDER_COLOR, bottomLeft, bottomRight, topRight, topLeft,
+		submitRect(collector, pose, BORDER_COLOR, open, bottomLeft, bottomRight, topRight, topLeft,
 				0f, 1f, 0f, f);
-		submitRect(collector, pose, BORDER_COLOR, bottomLeft, bottomRight, topRight, topLeft,
+		submitRect(collector, pose, BORDER_COLOR, open, bottomLeft, bottomRight, topRight, topLeft,
 				0f, 1f, inner, 1f);
-		submitRect(collector, pose, BORDER_COLOR, bottomLeft, bottomRight, topRight, topLeft,
+		submitRect(collector, pose, BORDER_COLOR, open, bottomLeft, bottomRight, topRight, topLeft,
 				0f, f, f, inner);
-		submitRect(collector, pose, BORDER_COLOR, bottomLeft, bottomRight, topRight, topLeft,
+		submitRect(collector, pose, BORDER_COLOR, open, bottomLeft, bottomRight, topRight, topLeft,
 				inner, 1f, f, inner);
 	}
 
@@ -104,7 +116,7 @@ final class WorldSpaceSolidQuad {
 	 * {@code uLeft}–{@code uRight} across, and {@code vBottom} (the hotbar side) to
 	 * {@code vTop} up the panel.
 	 */
-	static void submitCapturedBand(SubmitNodeCollector collector, Vec3 camera,
+	static void submitCapturedBand(SubmitNodeCollector collector, Vec3 camera, boolean open,
 			float uLeft, float uRight, float vTop, float vBottom,
 			Vec3 bottomLeft, Vec3 bottomRight, Vec3 topRight, Vec3 topLeft) {
 		PoseStack.Pose pose = cameraPose(camera);
@@ -123,7 +135,7 @@ final class WorldSpaceSolidQuad {
 
 		float f = BORDER_FRACTION;
 		float inner = 1.0f - f;
-		submitCapturedRect(collector, pose, normal, lift, bottomLeft, bottomRight, topLeft,
+		submitCapturedRect(collector, pose, normal, lift, open, bottomLeft, bottomRight, topLeft,
 				f, inner, f, inner, uLeft, uRight, vBottom, vTop);
 	}
 
@@ -134,7 +146,7 @@ final class WorldSpaceSolidQuad {
 	 * {@code vTop} up.
 	 */
 	private static void submitCapturedRect(SubmitNodeCollector collector, PoseStack.Pose pose,
-			Vec3 normal, Vec3 lift, Vec3 bottomLeft, Vec3 bottomRight, Vec3 topLeft,
+			Vec3 normal, Vec3 lift, boolean open, Vec3 bottomLeft, Vec3 bottomRight, Vec3 topLeft,
 			float s0, float s1, float t0, float t1,
 			float uLeft, float uRight, float vBottom, float vTop) {
 		Vec3 p00 = offset(at(bottomLeft, bottomRight, topLeft, s0, t0), lift);
@@ -145,7 +157,7 @@ final class WorldSpaceSolidQuad {
 		float u1 = lerp(uLeft, uRight, s1);
 		float v0 = lerp(vBottom, vTop, t0);
 		float v1 = lerp(vBottom, vTop, t1);
-		collector.submitCustom(SubmitRenderPhases.TRANSLUCENT_CUSTOM_GEOMETRY, new TexturedSubmit(pose, normal,
+		collector.submitCustom(SubmitRenderPhases.TRANSLUCENT_CUSTOM_GEOMETRY, new TexturedSubmit(pose, normal, open,
 				new Corner(p00, u0, v0), new Corner(p10, u1, v0),
 				new Corner(p11, u1, v1), new Corner(p01, u0, v1)));
 	}
@@ -154,10 +166,10 @@ final class WorldSpaceSolidQuad {
 	 * Submits one rectangle given in panel coordinates. Both ranges run from 0 to 1
 	 * across the panel: s along the bottom edge, t up the side.
 	 */
-	private static void submitRect(SubmitNodeCollector collector, PoseStack.Pose pose, int color,
+	private static void submitRect(SubmitNodeCollector collector, PoseStack.Pose pose, int color, boolean open,
 			Vec3 bottomLeft, Vec3 bottomRight, Vec3 topRight, Vec3 topLeft,
 			float s0, float s1, float t0, float t1) {
-		collector.submitCustom(SubmitRenderPhases.SOLID, new QuadSubmit(pose, color,
+		collector.submitCustom(SubmitRenderPhases.SOLID, new QuadSubmit(pose, color, open,
 				at(bottomLeft, bottomRight, topLeft, s0, t0),
 				at(bottomLeft, bottomRight, topLeft, s1, t0),
 				at(bottomLeft, bottomRight, topLeft, s1, t1),
@@ -199,11 +211,11 @@ final class WorldSpaceSolidQuad {
 	}
 
 	/** One quad waiting to be drawn in the SOLID phase. */
-	record QuadSubmit(PoseStack.Pose pose, int color, Vec3 bottomLeft, Vec3 bottomRight,
+	record QuadSubmit(PoseStack.Pose pose, int color, boolean open, Vec3 bottomLeft, Vec3 bottomRight,
 			Vec3 topRight, Vec3 topLeft) implements SubmitNode {
 		@Override
 		public FeatureRendererType<? extends SubmitNode> featureType() {
-			return TYPE;
+			return open ? OPEN_TYPE : TYPE;
 		}
 	}
 
@@ -212,21 +224,29 @@ final class WorldSpaceSolidQuad {
 	}
 
 	/** One textured quad waiting to be drawn in the translucent phase. */
-	record TexturedSubmit(PoseStack.Pose pose, Vec3 normal, Corner c0, Corner c1, Corner c2, Corner c3)
+	record TexturedSubmit(PoseStack.Pose pose, Vec3 normal, boolean open, Corner c0, Corner c1, Corner c2, Corner c3)
 			implements SubmitNode {
 		@Override
 		public FeatureRendererType<? extends SubmitNode> featureType() {
-			return TEXTURED_TYPE;
+			return open ? OPEN_TEXTURED_TYPE : TEXTURED_TYPE;
 		}
 	}
 
 	private static final class Renderer extends RenderTypeFeatureRenderer<QuadSubmit> {
+		private final boolean open;
+
+		Renderer(boolean open) {
+			this.open = open;
+		}
+
 		@Override
 		protected void buildGroup(FeatureFrameContext context, List<QuadSubmit> submits) {
 			if (submits.isEmpty()) {
 				return;
 			}
-			VertexConsumer buffer = getVertexBuilder(RenderTypes.debugFilledBox());
+			// Occluded uses the depth-tested debug fill. Open uses the GUI colour
+			// pipeline, which has neither a depth test nor a depth write.
+			VertexConsumer buffer = getVertexBuilder(open ? RenderTypes.gui() : RenderTypes.debugFilledBox());
 			for (QuadSubmit submit : submits) {
 				vertex(buffer, submit, submit.bottomLeft());
 				vertex(buffer, submit, submit.bottomRight());
@@ -242,6 +262,12 @@ final class WorldSpaceSolidQuad {
 	}
 
 	private static final class TexturedRenderer extends RenderTypeFeatureRenderer<TexturedSubmit> {
+		private final boolean open;
+
+		TexturedRenderer(boolean open) {
+			this.open = open;
+		}
+
 		@Override
 		protected void buildGroup(FeatureFrameContext context, List<TexturedSubmit> submits) {
 			if (submits.isEmpty()) {
@@ -249,11 +275,15 @@ final class WorldSpaceSolidQuad {
 			}
 			if (!loggedBandDraw) {
 				loggedBandDraw = true;
-				SpatialHud.LOGGER.info("Spatial HUD stage 3: drawing the captured HUD band ({} quad(s)).", submits.size());
+				SpatialHud.LOGGER.info("Spatial HUD stage 3: drawing the captured HUD band ({} quad(s), {}).",
+						submits.size(), open ? "open" : "occluded");
 			}
 			// No outline: the HUD band should not glow when the player is outlined.
-			VertexConsumer buffer = getVertexBuilder(
-					RenderTypes.entityTranslucent(CapturedHudTexture.ID, false));
+			// Occluded uses the entity pipeline (depth-tested, writes depth). Open
+			// uses the GUI textured pipeline, which does neither.
+			VertexConsumer buffer = getVertexBuilder(open
+					? RenderTypes.guiTextured(CapturedHudTexture.ID)
+					: RenderTypes.entityTranslucent(CapturedHudTexture.ID, false));
 			for (TexturedSubmit submit : submits) {
 				vertex(buffer, submit, submit.c0());
 				vertex(buffer, submit, submit.c1());
@@ -262,9 +292,16 @@ final class WorldSpaceSolidQuad {
 			}
 		}
 
-		private static void vertex(VertexConsumer buffer, TexturedSubmit submit, Corner corner) {
-			Vec3 n = submit.normal();
+		private void vertex(VertexConsumer buffer, TexturedSubmit submit, Corner corner) {
 			Vec3 p = corner.point();
+			if (open) {
+				// POSITION_COLOR_TEXTURE: the GUI format has no light, overlay, or normal.
+				buffer.addVertex(submit.pose(), (float) p.x, (float) p.y, (float) p.z)
+						.setColor(0xFFFFFFFF)
+						.setUv(corner.u(), corner.v());
+				return;
+			}
+			Vec3 n = submit.normal();
 			buffer.addVertex(submit.pose(), (float) p.x, (float) p.y, (float) p.z)
 					.setColor(0xFFFFFFFF)
 					.setUv(corner.u(), corner.v())

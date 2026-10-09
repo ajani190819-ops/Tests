@@ -76,12 +76,29 @@
   `n = −cos(A)·forward + sin(A)·up`. Width = `planeWidth`, height matches the
   sampled band. Always depth-tested. No culling.
 - Method 4 samples only the band from `ExperimentalHudCapture.purpleSourceRect`:
-  the full strip width, bottom `PURPLE_SOURCE_HEIGHT` (72) GUI pixels, clamped to
-  the real GUI. The same rectangle sets the border and the quad's UVs. A taller
-  rectangle would put the HUD in a small strip under empty purple.
-- Method 4 capture draws its purple interior (when `showPanel` is on) and the 3 px
-  border into the captured texture (`capturePanelDecorations`, one shared branch).
-  `Show Backing Panel` controls only the interior tint.
+  bottom `PURPLE_SOURCE_HEIGHT` (72) GUI pixels, clamped to the real GUI, and
+  horizontally the centre ± 112 GUI px (hotbar plus offhand). With **Show Slot
+  Cycling** on (`showSlotCycling`, default on) it is ± 172 px, so Hotbar Slot
+  Cycling's side display (`hotbarslotcycling:cycling_slots`) sits inside it. A
+  taller rectangle would put the HUD in a small strip under empty purple.
+  Because the panel's width is fixed (`planeWidth`), a wider band makes the
+  hotbar appear smaller.
+- Hotbar Slot Cycling attaches its element after HOTBAR (Puzzles Lib calls
+  `HudElementRegistry.attachElementAfter`). `SpatialHud` wraps it with
+  `replaceElement` in `ClientLifecycleEvents.CLIENT_STARTED`, the only point where
+  it is guaranteed to exist. The wrap is not yet confirmed in game.
+- Method 4 capture draws nothing purple into the texture. `capturePanelDecorations`
+  returns early for Method 4, so the backing and the 3 px purple edge stripes are
+  gone. The purple fill and white border are world geometry. Method 3 still draws
+  its backing (`showPanel`) and border into the texture.
+- Method 4 depth modes (`horizontalPanelOcclusion`, default on). Occluded uses
+  `ENTITY_TRANSLUCENT` for the band and `debugFilledBox` for the fill and border.
+  Both are depth-tested, and the band writes depth. Open uses the GUI pipelines
+  (`RenderTypes.guiTextured` and `RenderTypes.gui`), which have no depth test.
+  Hypothesis, not confirmed: the band's depth write hides translucent water behind
+  the panel, so the water looks clear and untextured. The Open mode is the test.
+  A third-person exception (`horizontalPanelThirdPersonException`, default on)
+  uses Open in third person, so the player's own body does not hide the panel.
 - `SpatialHudConfig.instance` and `registered` are excluded from Cloth Config. The
   read-only **Method Guide — Read This First** tab is transient and never saved.
 - Legacy `polygon*Percent` and `polygonFollowCameraPitch` fields are kept only as

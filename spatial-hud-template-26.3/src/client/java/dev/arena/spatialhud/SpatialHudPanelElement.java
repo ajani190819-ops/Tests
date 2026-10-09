@@ -12,9 +12,10 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * indicator when the capture has latched a failure. The indicator is red for
  * Method 3 and purple for Method 4, so the failing method shows at a glance.
  *
- * <p>Both panel methods use this private texture. The purple border is
- * captured with the selected vanilla roots, so the panel and the HUD move
- * together.</p>
+ * <p>Both panel methods use this private texture. Method 3 draws its purple
+ * border into the texture with the selected vanilla roots. Method 4 keeps its
+ * purple out of the texture, so the purple fill and white border are world
+ * geometry and the texture holds only HUD pixels.</p>
  */
 final class SpatialHudPanelElement implements HudElement {
 	// Failure indicator colours: red for Method 3, purple for Method 4.
