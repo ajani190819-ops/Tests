@@ -91,14 +91,17 @@
   returns early for Method 4, so the backing and the 3 px purple edge stripes are
   gone. The purple fill and white border are world geometry. Method 3 still draws
   its backing (`showPanel`) and border into the texture.
-- Method 4 depth modes (`horizontalPanelOcclusion`, default on). Occluded uses
-  `ENTITY_TRANSLUCENT` for the band and `debugFilledBox` for the fill and border.
-  Both are depth-tested, and the band writes depth. Open uses the GUI pipelines
-  (`RenderTypes.guiTextured` and `RenderTypes.gui`), which have no depth test.
-  Hypothesis, not confirmed: the band's depth write hides translucent water behind
-  the panel, so the water looks clear and untextured. The Open mode is the test.
-  A third-person exception (`horizontalPanelThirdPersonException`, default on)
-  uses Open in third person, so the player's own body does not hide the panel.
+- Method 4 depth modes (`horizontalPanelOcclusion`, `horizontalPanelThirdPersonException`)
+  are NOT active yet. Both panel pieces are always depth-tested: the fill uses
+  `RenderTypes.debugFilledBox()` and the band `RenderTypes.entityTranslucent(id, false)`,
+  and the band writes depth. The open (no depth test) path needs a render type
+  this Minecraft version has not confirmed. `RenderTypes.gui()` and
+  `RenderTypes.guiTextured(...)` are absent from the 1.21.11 yarn `RenderLayers`
+  class, so they were removed. They were the likely cause of build 37896058030
+  failing (not confirmed: the job log was not downloadable). Candidates to check: `textSeeThrough` and
+  `textBackgroundSeeThrough`, but they use different vertex formats, so the writers
+  must change too. Hypothesis, unverified: the band's depth write hides translucent
+  water behind the panel. Test with a real screenshot before changing it.
 - `SpatialHudConfig.instance` and `registered` are excluded from Cloth Config. The
   read-only **Method Guide — Read This First** tab is transient and never saved.
 - Legacy `polygon*Percent` and `polygonFollowCameraPitch` fields are kept only as

@@ -88,10 +88,7 @@ public final class WorldSpaceHudRenderer {
 		try {
 			// The frame's partial tick, so the panel moves between game ticks as the
 			// camera does instead of stepping 20 times a second.
-			// The game-time delta drives the wiggle, so its catch-up runs on the same
-			// clock as the camera. Wall-clock time made the lag change frame to frame.
-			computePlaneState(context.deltaTracker().getGameTimeDeltaPartialTick(false),
-					context.deltaTracker().getGameTimeDeltaTicks() / 20.0);
+			computePlaneState(context.deltaTracker().getGameTimeDeltaPartialTick(false));
 		} catch (Throwable t) {
 			planeState = null;
 			ExperimentalHudCapture.worldTextureFailed(t);
@@ -134,7 +131,7 @@ public final class WorldSpaceHudRenderer {
 		}
 	}
 
-	private static void computePlaneState(float partialTick, double deltaSeconds) {
+	private static void computePlaneState(float partialTick) {
 		if (!SpatialHud.isWorldSpaceTextureActive()) {
 			planeState = null;
 			return;
@@ -149,7 +146,7 @@ public final class WorldSpaceHudRenderer {
 
 		SpatialHudConfig cfg = SpatialHudConfig.get();
 		if (cfg.usesPurplePanel()) {
-			planeState = purplePanelState(player, cfg, partialTick, deltaSeconds,
+			planeState = purplePanelState(player, cfg, partialTick,
 					mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
 			return;
 		}
@@ -242,6 +239,9 @@ public final class WorldSpaceHudRenderer {
 	private static double wiggleZ;
 	private static double wiggleHeight;
 	private static boolean wiggleReady;
+	/** The game time (level ticks plus partial tick) at the last wiggle update. */
+	private static double wiggleGameTicks;
+	private static boolean wiggleHasTime;
 	private static float shownYaw;
 	private static double shownX;
 	private static double shownY;
@@ -261,9 +261,10 @@ public final class WorldSpaceHudRenderer {
 	private static void updateWiggle(SpatialHudConfig cfg, float targetYaw, Vec3 targetFeet, double targetHeight,
 			double deltaSeconds) {
 		double jump = Math.hypot(targetFeet.x - wiggleX, targetFeet.z - wiggleZ);
-		if (!wiggleReady || !cfg.panelWiggle || jump > 4.0) {
-			// A teleport, a first frame, or the wiggle being off snaps, so the panel
-			// never sweeps across the map.
+		if (!wiggleReady || !cfg.panelWiggle || jump > 4.0 || deltaSeconds < 0.0) {
+			// A teleport, a first frame, a new world, a long gap while the panel was
+			// hidden, or the wiggle being off snaps, so the panel never sweeps across
+			// the map (deltaSeconds is -1 for these gap cases).
 			wiggleYaw = targetYaw;
 			wiggleX = targetFeet.x;
 			wiggleY = targetFeet.y;
@@ -310,6 +311,22 @@ public final class WorldSpaceHudRenderer {
 		shownHeight = targetHeight + (wiggleHeight - targetHeight) * positionScale;
 	}
 
+	/**
+	 * Seconds of game time since the last wiggle update, from the level's tick
+	 * counter plus the partial tick. Game time pauses with the game, so a frozen
+	 * game gives 0 and the lag holds. Returns -1 for a new world or a gap longer
+	 * than a quarter second, which tells the wiggle to snap.
+	 */
+	private static double wiggleDeltaSeconds(double gameTicks) {
+		double delta = wiggleHasTime ? gameTicks - wiggleGameTicks : -1.0;
+		wiggleGameTicks = gameTicks;
+		wiggleHasTime = true;
+		if (delta < 0.0 || delta > 5.0) {
+			return -1.0;
+		}
+		return delta / 20.0;
+	}
+
 	/** A catch-up time in seconds, kept between 0.02 and 1.0 so it is always finite and never zero. */
 	private static double clampedSeconds(double seconds) {
 		return Math.max(0.02, Math.min(1.0, seconds));
@@ -332,7 +349,7 @@ public final class WorldSpaceHudRenderer {
 	}
 
 	private static PlaneState purplePanelState(LocalPlayer player, SpatialHudConfig cfg, float partialTick,
-			double deltaSeconds, int guiWidth, int guiHeight) {
+			int guiWidth, int guiHeight) {
 		ExperimentalHudCapture.SourceRect band = ExperimentalHudCapture.purpleSourceRect(cfg, guiWidth, guiHeight);
 		// Method 4's own heading setting: body heading by default, or the camera's
 		// horizontal view when the config says so.
@@ -341,7 +358,11 @@ public final class WorldSpaceHudRenderer {
 				? radians(player.getViewYRot(partialTick))
 				: radians(net.minecraft.util.Mth.rotLerp(partialTick, player.yBodyRotO, player.yBodyRot));
 		Vec3 targetFeet = player.getPosition(partialTick);
-		updateWiggle(cfg, targetYaw, targetFeet, cfg.horizontalPanelHeight, deltaSeconds);
+		// The wiggle runs on game time, the same clock as the camera's partial tick.
+		// Wall-clock time made the lag uneven from frame to frame.
+		// Cast before adding: a float would lose precision after a few hours of play.
+		double gameTicks = (double) Minecraft.getInstance().level.getGameTime() + partialTick;
+		updateWiggle(cfg, targetYaw, targetFeet, cfg.horizontalPanelHeight, wiggleDeltaSeconds(gameTicks));
 		float bodyYaw = shownYaw;
 		// The panel's right is the player's right. Minecraft's forward is (-sin, cos),
 		// so the right is (-cos, -sin). The old sign mirrored the picture.

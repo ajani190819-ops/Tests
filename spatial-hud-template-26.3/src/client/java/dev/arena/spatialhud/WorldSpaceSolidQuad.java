@@ -244,9 +244,10 @@ final class WorldSpaceSolidQuad {
 			if (submits.isEmpty()) {
 				return;
 			}
-			// Occluded uses the depth-tested debug fill. Open uses the GUI colour
-			// pipeline, which has neither a depth test nor a depth write.
-			VertexConsumer buffer = getVertexBuilder(open ? RenderTypes.gui() : RenderTypes.debugFilledBox());
+			// Both depth modes use the depth-tested debug fill for now. The open
+			// (no depth test, no depth write) render type is not confirmed for this
+			// Minecraft version, so the open flag does not change the fill yet.
+			VertexConsumer buffer = getVertexBuilder(RenderTypes.debugFilledBox());
 			for (QuadSubmit submit : submits) {
 				vertex(buffer, submit, submit.bottomLeft());
 				vertex(buffer, submit, submit.bottomRight());
@@ -275,15 +276,14 @@ final class WorldSpaceSolidQuad {
 			}
 			if (!loggedBandDraw) {
 				loggedBandDraw = true;
-				SpatialHud.LOGGER.info("Spatial HUD stage 3: drawing the captured HUD band ({} quad(s), {}).",
-						submits.size(), open ? "open" : "occluded");
+				SpatialHud.LOGGER.info("Spatial HUD stage 3: drawing the captured HUD band ({} quad(s), depth-tested; open requested={}).",
+						submits.size(), open);
 			}
 			// No outline: the HUD band should not glow when the player is outlined.
-			// Occluded uses the entity pipeline (depth-tested, writes depth). Open
-			// uses the GUI textured pipeline, which does neither.
-			VertexConsumer buffer = getVertexBuilder(open
-					? RenderTypes.guiTextured(CapturedHudTexture.ID)
-					: RenderTypes.entityTranslucent(CapturedHudTexture.ID, false));
+			// Both depth modes use the entity pipeline (depth-tested, writes depth) for
+			// now. The open (no depth) textured render type is not confirmed for this
+			// Minecraft version, so the open flag does not change the band yet.
+			VertexConsumer buffer = getVertexBuilder(RenderTypes.entityTranslucent(CapturedHudTexture.ID, false));
 			for (TexturedSubmit submit : submits) {
 				vertex(buffer, submit, submit.c0());
 				vertex(buffer, submit, submit.c1());
