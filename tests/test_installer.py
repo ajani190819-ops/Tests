@@ -3,7 +3,7 @@
 
     python3 test_installer.py
 
-Orca-Plugins.bat is the ONE updater file in the repository: menu, build
+Orca-Plugins.bat is the ONE Orca updater file at the repository root: menu, build
 picker, OrcaSlicer folder picker, remembered choices, and install engine all
 live in it. The old two-file split (chooser + updater engine) ended at
 2.0.0, and at 2.1.0 the old filenames were removed from the repository

@@ -104,7 +104,7 @@ performance.
 
 ```
 Orca-Plugins.bat            THE ONE FILE A USER DOWNLOADS, the whole updater
-                            since 2.0.0, and the ONLY .bat in the repository
+                            since 2.0.0, and the ONLY .bat at the repository root
                             since 2.1.0: the menu, the build picker (main or
                             the five newest test branches), the OrcaSlicer
                             folder picker, the remembered choices, the
@@ -187,8 +187,10 @@ you forget, and it is the safety net for exactly this.
    `*.bat -text` in `.gitattributes` keeps git from re-normalizing it. Never
    edit it with tools that convert line endings (Python `Path.write_text`
    does — use binary mode). After editing, assert the CRLF count. It is the
-   only .bat in the repository; `tests/test_installer.py` fails if a second
-   top-level .bat appears.
+   only .bat at the repository root; `tests/test_installer.py` fails if a second
+   top-level .bat appears. Installers in other folders are allowed (see the
+   Spatial HUD entry below). Every installer .bat keeps CRLF, pinned by `*.bat -text`,
+   and each has its own static test.
 3. **Version bumps take edits in lockstep.** Update the plugin's PEP 723
    `# version = "..."` header, its module-level `PLUGIN_VERSION`, the catalogue
    entry, and the .bat fallback row. For Unlayered Infill also update
@@ -354,9 +356,14 @@ line per check. Use it instead of running six test files by hand.
 ## 6. Glossary (extend as needed)
 
 * **catalogue** — `plugins.json`: the list of plugins the updater can install.
+* **Spatial HUD installer** — `spatial-hud-template-26.3/Update-SpatialHUD.bat`:
+  one file, the same shape as `Orca-Plugins.bat` (menu, build picker, folder
+  picker, download check, install, self-update). It lives in its own folder, so
+  the top-level rule above does not cover it. Its static test is
+  `tests/test_spatialhud_installer.py`.
 * **updater** — `Orca-Plugins.bat`. Double-clickable Windows script; menu,
   build picker, folder picker and install engine in one file since 2.0.0,
-  and the only .bat in the repository since 2.1.0 (the old chooser/updater
+  and the only .bat at the repository root since 2.1.0 (the old chooser/updater
   filenames were removed then; copies already on disk keep working).
 * **PEP 723 header** — the `# /// script` comment block at the top of a
   plugin file; carries the plugin's name/version/dependencies.

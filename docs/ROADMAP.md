@@ -2,7 +2,7 @@
 
 This document is the plan, not a release promise. There are **two** shipped
 plugins: Wave Overhangs **0.0.33** and Unlayered Infill **0.4.2**, with the
-unified updater **2.1.0** (`Orca-Plugins.bat`, the only .bat in the
+unified updater **2.1.0** (`Orca-Plugins.bat`, the only top-level .bat in the
 repository), on the session test branch. Package and capability names remain permanently `Wave Overhangs` and
 `Unlayered Infill`.
 

@@ -77,7 +77,7 @@ without a working launcher.
 Up to updater 2.0.x the repository also carried `Update-Orca-Plugins.bat`
 (the old install engine) and `Choose-Orca-Plugin-Version.bat` (the old
 version picker) as forwarders. From **updater 2.1.0 they are gone**: the
-repository shows exactly one updater file, `Orca-Plugins.bat`, which does
+repository shows exactly one Orca updater file, `Orca-Plugins.bat`, which does
 all of it.
 
 A copy of an old file still sitting in your Downloads folder is not
@@ -382,7 +382,7 @@ above applies rather than claiming success.
 
 | Path | What it is |
 | --- | --- |
-| `Orca-Plugins.bat` | **the one file you download, and the only updater .bat in the repository.** The menu, the build picker, the OrcaSlicer folder picker, the remembered choices and the whole install engine — one file since updater 2.0.0; the old two filenames were removed at 2.1.0 |
+| `Orca-Plugins.bat` | **the one file you download, and the only Orca updater .bat at the repository root.** The menu, the build picker, the OrcaSlicer folder picker, the remembered choices and the whole install engine — one file since updater 2.0.0; the old two filenames were removed at 2.1.0 |
 | `plugins/` | **the two plugins that ship.** One entry `.py` per folder, each with its own README and changelog |
 | `plugins.json` | the catalogue the launcher reads |
 | `tools/` | the standalone post-processing tool, plus the sync/check scripts |
