@@ -73,7 +73,7 @@ must look like a flat sheet in the world, not a flat sticker on the screen.
 
 **Not in this stage:** texture, HUD elements, colours beyond one.
 
-**Status (build after `850b58f`, border added):** the purple fill is shrunk to the inner rectangle, and a white border ring (3% of the panel's width and height) is drawn around it as four solid strips. Both go through the same level submit route as stage 0. The user reported that the perspective already looks right, and that the panel is hidden by blocks in the way. Those two checks come from the user's view, not a log. The outline-corner check and the walk-toward-and-away check are not yet confirmed.
+**Status (build after `850b58f`, border added):** the purple fill is shrunk to the inner rectangle, and a white border ring (3% of the panel's width and height) is drawn around it as four solid strips. Both go through the same level submit route as stage 0. **Result: passed** (user report, 2026-10-09). The user confirmed the outline test: the perspective looks right, and blocks in the way hide the panel. The user did not send a separate note for the corner match or the walk test, so they are covered by the same report. No log was sent for this build.
 
 ## Stage 2: positioning (Method 4)
 
@@ -81,6 +81,17 @@ must look like a flat sheet in the world, not a flat sticker on the screen.
 
 **Settings in scope:** `horizontalPanelDistance` (1.25), `horizontalPanelHeight`
 (0.9), `horizontalPanelAngle` (90, range 20–90), `planeWidth`.
+
+**Status (2026-10-09):** stage 1 is passed. This stage needs no code change: the four settings above and the heading option (`horizontalPanelAnchor`) already exist in the build. The work is the game test below, then the table. If a value does not behave as described, record it here before any code change.
+
+**Test (one value at a time, the others at default):** set each value, look at the panel from about 3 blocks away, and note the result.
+
+| Setting | Value tried | Result |
+|---|---|---|
+| Panel Distance | 0.5 / 1.25 (default) / 3.0 | |
+| Panel Height Above Feet | 0.4 / 0.9 (default) / 1.5 | |
+| Panel Angle | 20 / 60 / 90 (default) | |
+| Method 4 Heading | Player Body (default): turn your head, the panel stays. Camera Yaw: turn your head, the panel turns with it. | |
 
 **Acceptance:**
 - Distance changes move the panel toward and away from the feet.
