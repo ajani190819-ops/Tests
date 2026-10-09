@@ -13,6 +13,8 @@ import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 
 import java.util.List;
 
@@ -171,9 +173,8 @@ final class WorldSpaceSolidQuad {
 	 * Submits the purple fill (when enabled) and the white border ring, on the given
 	 * shape. Curved shapes are drawn as strips, so the edges follow the arc.
 	 */
-	static void submitPanel(SubmitNodeCollector collector, Vec3 camera, boolean showFill, boolean showBorder,
+	static void submitPanel(SubmitNodeCollector collector, PoseStack.Pose pose, boolean showFill, boolean showBorder,
 			boolean hideEdges, boolean open, Shape shape) {
-		PoseStack.Pose pose = cameraPose(camera);
 		float f = BORDER_FRACTION;
 		float inner = 1.0f - f;
 		// Fill: the inner rectangle only, and only when the config allows it.
@@ -199,9 +200,8 @@ final class WorldSpaceSolidQuad {
 	 * bottom. The texture coordinates span the whole band: {@code uLeft}–{@code uRight}
 	 * across, and {@code vBottom} (the hotbar side) to {@code vTop} up the panel.
 	 */
-	static void submitCapturedBand(SubmitNodeCollector collector, Vec3 camera, boolean open, float gap,
+	static void submitCapturedBand(SubmitNodeCollector collector, PoseStack.Pose pose, boolean open, float gap,
 			float uLeft, float uRight, float vTop, float vBottom, Shape shape) {
-		PoseStack.Pose pose = cameraPose(camera);
 		// The band is lifted toward the viewer along the panel's normal.
 		Vec3 normal = shape.normal();
 		Vec3 lift = new Vec3(normal.x * CAPTURE_LIFT, normal.y * CAPTURE_LIFT, normal.z * CAPTURE_LIFT);
@@ -269,9 +269,18 @@ final class WorldSpaceSolidQuad {
 		}
 	}
 
-	private static PoseStack.Pose cameraPose(Vec3 camera) {
+	/**
+	 * The model transform for panel geometry: camera-relative, with an eye-space
+	 * correction applied after the view rotation. The eye correction cancels the
+	 * head bob (world pass) or matches the HUD projection to the world FOV (hand pass).
+	 * Identity correction gives the plain camera-relative transform.
+	 */
+	static PoseStack.Pose cameraPose(Vec3 camera, Matrix4fc eyeCorrection, Matrix4fc viewRotation) {
+		Matrix4f inverseView = new Matrix4f(viewRotation).invert();
+		Matrix4f model = new Matrix4f(inverseView).mul(eyeCorrection).mul(viewRotation)
+				.translate((float) -camera.x, (float) -camera.y, (float) -camera.z);
 		PoseStack toCamera = new PoseStack();
-		toCamera.translate(-camera.x, -camera.y, -camera.z);
+		toCamera.mulPose(model);
 		return toCamera.last().copy();
 	}
 

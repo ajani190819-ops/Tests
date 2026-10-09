@@ -46,8 +46,7 @@ abstract class SpatialHudGameRendererMixin {
 	@Inject(method = "render3dHud", at = @At("RETURN"))
 	private void spatialhud$drawPanelOverHand(CameraRenderState cameraState, PlayerRenderState playerState,
 			OptionsRenderState optionsState, boolean consistentDepthRequired, CallbackInfo ci) {
-		dev.arena.spatialhud.WorldSpaceHudRenderer.drawOverHand(this.mainRenderTarget,
-				cameraState.viewRotationMatrix, cameraState.pos);
+		dev.arena.spatialhud.WorldSpaceHudRenderer.drawOverHand(this.mainRenderTarget, cameraState);
 	}
 
 	@Inject(method = "close", at = @At("RETURN"))

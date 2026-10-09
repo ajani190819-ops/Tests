@@ -23,6 +23,11 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.StagedVertexBuffer;
 import net.minecraft.client.renderer.rendertype.RenderType;
+import com.mojang.math.Axis;
+import net.minecraft.client.Options;
+import net.minecraft.client.renderer.state.level.CameraEntityRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -110,14 +115,17 @@ public final class WorldSpaceHudRenderer {
 			return;
 		}
 		try {
-			Vec3 camera = context.levelState().cameraRenderState.pos;
+			CameraRenderState cs = context.levelState().cameraRenderState;
+			// The world pass projection carries the head bob. Cancel it, so the panel
+			// stays still while you run. The sprint FOV and your FOV still apply.
+			PoseStack.Pose pose = WorldSpaceSolidQuad.cameraPose(cs.pos, inverseHeadBob(cs), cs.viewRotationMatrix);
 			// Drawn later, over the hand, by drawOverHand.
 			if (state.overHand()) {
 				return;
 			}
 			WorldSpaceSolidQuad.Shape shape = state.shape();
 			boolean open = !state.occludeBehindWorld();
-			WorldSpaceSolidQuad.submitPanel(context.submitNodeCollector(), camera,
+			WorldSpaceSolidQuad.submitPanel(context.submitNodeCollector(), pose,
 					SpatialHudConfig.get().horizontalPanelFill,
 					SpatialHudConfig.get().horizontalPanelBorder,
 					SpatialHudConfig.get().horizontalPanelHideEdges,
@@ -125,7 +133,7 @@ public final class WorldSpaceHudRenderer {
 			// Roadmap stage 3: the captured HUD, only once a frame of it exists.
 			if (ExperimentalHudCapture.worldTextureView() != null) {
 				CapturedHudTexture.register();
-				WorldSpaceSolidQuad.submitCapturedBand(context.submitNodeCollector(), camera, open,
+				WorldSpaceSolidQuad.submitCapturedBand(context.submitNodeCollector(), pose, open,
 						WorldSpaceSolidQuad.bandGap(SpatialHudConfig.get()),
 						state.uLeft(), state.uRight(), state.vTop(), state.vBottom(), shape);
 			}
@@ -527,12 +535,74 @@ public final class WorldSpaceHudRenderer {
 	}
 
 	/**
+	 * The inverse of the head bob vanilla puts on the world projection. Mirrors
+	 * GameRenderer.bobHurt and bobView, in the same order. Identity on any failure,
+	 * so the panel just bobs as vanilla does.
+	 */
+	private static Matrix4f inverseHeadBob(CameraRenderState cs) {
+		try {
+			PoseStack bob = new PoseStack();
+			CameraEntityRenderState e = cs.entityRenderState;
+			Options options = Minecraft.getInstance().options;
+			if (e.isLiving) {
+				if (e.isDeadOrDying) {
+					float duration = Math.min(e.deathTime, 20.0F);
+					bob.rotateDegrees(Axis.ZP, 40.0F - 8000.0F / (duration + 200.0F));
+				}
+				float hurt = e.hurtTime;
+				if (hurt >= 0.0F) {
+					hurt /= e.hurtDuration;
+					hurt = Mth.sin(hurt * hurt * hurt * hurt * (float) Math.PI);
+					float rr = e.hurtDir;
+					bob.rotateDegrees(Axis.YP, -rr);
+					float tilt = (float) (-hurt * 14.0 * options.damageTiltStrength().get());
+					bob.rotateDegrees(Axis.ZP, tilt);
+					bob.rotateDegrees(Axis.YP, rr);
+				}
+			}
+			if (options.bobView().get() && e.isPlayer) {
+				float walk = e.backwardsInterpolatedWalkDistance;
+				float amount = e.bob;
+				bob.translate(
+						Mth.sin(walk * (float) Math.PI) * amount * 0.5F,
+						-Math.abs(Mth.cos(walk * (float) Math.PI) * amount),
+						0.0F);
+				bob.rotateDegrees(Axis.ZP, Mth.sin(walk * (float) Math.PI) * amount * 3.0F);
+				bob.rotateDegrees(Axis.XP, Math.abs(Mth.cos(walk * (float) Math.PI - 0.2F) * amount) * 5.0F);
+			}
+			Matrix4f inverse = new Matrix4f(bob.last().pose());
+			if (!inverse.isFinite()) {
+				return new Matrix4f();
+			}
+			return inverse.invert();
+		} catch (Throwable t) {
+			return new Matrix4f();
+		}
+	}
+
+	/**
+	 * Scale in eye space that turns the HUD projection (fixed hudFov) into the world
+	 * projection, so the hand-pass panel is the same size and place as in the world.
+	 * Both projections share the aspect ratio, so one factor, from the vertical
+	 * focal length, does both axes. Identity on any failure.
+	 */
+	private static Matrix4f fovCorrection(CameraRenderState cs) {
+		float worldFocal = cs.projectionMatrix.m11();
+		double hudFocal = 1.0 / Math.tan(Math.toRadians(cs.hudFov) * 0.5);
+		double scale = worldFocal / hudFocal;
+		if (!(scale > 0.0) || !Double.isFinite(scale)) {
+			scale = 1.0;
+		}
+		return new Matrix4f().scaling((float) scale, (float) scale, 1.0f);
+	}
+
+	/**
 	 * Draws the purple panel over the first-person hand, body and particles. Called
 	 * from the mixin on the GameRenderer's 3D HUD pass, after the hand is drawn. The
 	 * panel is open (no depth test), so nothing in the world hides it. Any failure
 	 * is caught, and the panel stops drawing through the normal error path.
 	 */
-	public static void drawOverHand(RenderTarget target, Matrix4f viewRotation, Vec3 camera) {
+	public static void drawOverHand(RenderTarget target, CameraRenderState cs) {
 		PlaneState state = planeState;
 		if (state == null || !state.overHand() || !SpatialHudConfig.get().usesPurplePanel()) {
 			return;
@@ -541,18 +611,22 @@ public final class WorldSpaceHudRenderer {
 		// is popped before this runs. Without it the panel would stay fixed in the
 		// screen and show only when you look straight ahead. Apply it here, the same
 		// way the hand pass does.
+		Matrix4f viewRotation = cs.viewRotationMatrix;
+		// The hand pass projection uses the fixed hudFov. Scale the panel so it
+		// matches the world FOV (your FOV option, and the sprint zoom), not 70.
+		PoseStack.Pose pose = WorldSpaceSolidQuad.cameraPose(cs.pos, fovCorrection(cs), viewRotation);
 		Matrix4fStack modelView = RenderSystem.getModelViewStack();
 		modelView.pushMatrix().mul(viewRotation);
 		try {
 			SpatialHudConfig cfg = SpatialHudConfig.get();
 			WorldSpaceSolidQuad.Shape shape = state.shape();
 			SubmitNodeStorage storage = new SubmitNodeStorage();
-			WorldSpaceSolidQuad.submitPanel(storage, camera,
+			WorldSpaceSolidQuad.submitPanel(storage, pose,
 					cfg.horizontalPanelFill, cfg.horizontalPanelBorder, cfg.horizontalPanelHideEdges,
 					true, shape);
 			if (ExperimentalHudCapture.worldTextureView() != null) {
 				CapturedHudTexture.register();
-				WorldSpaceSolidQuad.submitCapturedBand(storage, camera, true,
+				WorldSpaceSolidQuad.submitCapturedBand(storage, pose, true,
 						WorldSpaceSolidQuad.bandGap(cfg),
 						state.uLeft(), state.uRight(), state.vTop(), state.vBottom(), shape);
 			}
