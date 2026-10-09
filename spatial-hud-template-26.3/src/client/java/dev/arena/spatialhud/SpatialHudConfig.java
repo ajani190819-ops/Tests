@@ -127,6 +127,11 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public double horizontalPanelHeight = 0.9;
 
+	/** Width of the purple panel, in blocks, while the Waist preset is active. The height follows the HUD's proportions. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelWaistWidth = 1.45;
+
 	/** Face preset: how far in front of the camera the panel sits, in blocks. */
 	@ConfigEntry.Category("presets")
 	@ConfigEntry.Gui.Tooltip
@@ -137,6 +142,11 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public double horizontalPanelFaceHeight = -0.3;
 
+	/** Width of the purple panel, in blocks, while the Face preset is active. The height follows the HUD's proportions. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelFaceWidth = 1.45;
+
 	/** Custom preset 1: distance in front of its anchor, in blocks. */
 	@ConfigEntry.Category("presets")
 	@ConfigEntry.Gui.Tooltip
@@ -146,6 +156,11 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("presets")
 	@ConfigEntry.Gui.Tooltip
 	public double horizontalPanelCustomOneHeight = 0.6;
+
+	/** Width of the purple panel, in blocks, while the Custom 1 preset is active. The height follows the HUD's proportions. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomOneWidth = 1.45;
 
 	/** Custom preset 1: anchor the panel to the camera instead of your feet. */
 	@ConfigEntry.Category("presets")
@@ -162,15 +177,33 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public double horizontalPanelCustomTwoHeight = 0.9;
 
+	/** Width of the purple panel, in blocks, while the Custom 2 preset is active. The height follows the HUD's proportions. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomTwoWidth = 1.45;
+
 	/** Custom preset 2: anchor the panel to the camera instead of your feet. */
 	@ConfigEntry.Category("presets")
 	@ConfigEntry.Gui.Tooltip
 	public boolean horizontalPanelCustomTwoAttachToCamera = false;
 
-	/** Width of the purple panel, in blocks. Also sets the Method 4 panel's width. */
+	/**
+	 * Legacy shared width. Old files copy it into each preset's width once (see
+	 * migrateV03Defaults). Nothing reads it for the purple panel now.
+	 */
 	@ConfigEntry.Category("panel")
-	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.Gui.Excluded
 	public double planeWidth = 1.45;
+
+	/** The panel width for the active preset. */
+	double horizontalPanelWidth() {
+		return switch (horizontalPanelPreset) {
+			case FACE -> horizontalPanelFaceWidth;
+			case CUSTOM_ONE -> horizontalPanelCustomOneWidth;
+			case CUSTOM_TWO -> horizontalPanelCustomTwoWidth;
+			default -> horizontalPanelWaistWidth;
+		};
+	}
 
 
 	/**
@@ -674,7 +707,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 		/** Migrates legacy JSON fields to the current named rendering methods. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 22) {
+		if (cfg.configVersion >= 23) {
 			return;
 		}
 
@@ -841,9 +874,18 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.selectRenderMethod(cfg.selectedRenderMethod());
 		}
 
+		if (cfg.configVersion < 23) {
+			// v2.3: the panel width is set per preset. Carry the saved shared width into
+			// every preset, so an existing HUD keeps its size until it is changed.
+			cfg.horizontalPanelWaistWidth = cfg.planeWidth;
+			cfg.horizontalPanelFaceWidth = cfg.planeWidth;
+			cfg.horizontalPanelCustomOneWidth = cfg.planeWidth;
+			cfg.horizontalPanelCustomTwoWidth = cfg.planeWidth;
+		}
+
 		// v22: Method 4 became a purple horizontal world panel. Its settings are
 		// new fields, so older files receive the defaults automatically.
-		cfg.configVersion = 22;
+		cfg.configVersion = 23;
 		save();
 	}
 

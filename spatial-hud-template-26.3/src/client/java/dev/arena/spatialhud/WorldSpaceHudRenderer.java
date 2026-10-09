@@ -426,7 +426,7 @@ public final class WorldSpaceHudRenderer {
 		float forwardX = -sin(bodyYaw);
 		float forwardZ = cos(bodyYaw);
 
-		float width = clamp((float) cfg.planeWidth, 0.10f, 6.0f);
+		float width = clamp((float) cfg.horizontalPanelWidth(), 0.10f, 6.0f);
 		// The band keeps its aspect, plus any fill strip under it (picture offset).
 		float gap = WorldSpaceSolidQuad.bandGap(cfg);
 		float height = width * (band.bottom() - band.top()) / (float) (band.right() - band.left())

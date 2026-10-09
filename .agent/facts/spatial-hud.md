@@ -55,8 +55,8 @@
   still load, and their code still compiles. The F8 and F9 keys were removed, as the
   user asked for config-only switching. Config version is still 22.
 - Config tabs (Cloth Config category ids, in order): `guide`, `setup` (Enabled,
-  Only During Gameplay), `presets` (Panel Preset, Waist, Face, Custom 1, Custom 2),
-  `panel` (Panel Width, Heading, Angle, Shoulder Camera, fill, border, edges,
+  Only During Gameplay), `presets` (Panel Preset, then each preset's distance, height and Panel Width),
+  `panel` (Heading, Angle, Shoulder Camera, fill, border, edges,
   occlusion, third-person exception), `wiggle` (all `panelWiggle*`), `contents` (HUD
   contents, Picture Offset, Slot Cycling Width). Field declaration order sets tab order.
   - `WORLD_SPACE_TEXTURE` (Method 3, "Real 3D Panel"): the captured lower HUD on a
@@ -80,16 +80,16 @@
   the same capture texture and quad. Anchor = feet, `yBodyRot` heading. Centre =
   feet + forward × `horizontalPanelDistance` at y = feet + `horizontalPanelHeight`.
   Look-down angle A (20–90): in-plane up `u = sin(A)·forward + cos(A)·up`, normal
-  `n = −cos(A)·forward + sin(A)·up`. Width = `planeWidth`, height matches the
-  sampled band. Always depth-tested. No culling.
+  `n = −cos(A)·forward + sin(A)·up`. Width = `horizontalPanelWidth()`, the active preset's own width, and height matches the
+  sampled band. `planeWidth` is legacy: hidden, read only by the shelved Method 3, and copied into each preset's width by the v23 migration. Always depth-tested. No culling.
 - Method 4 samples only the band from `ExperimentalHudCapture.purpleSourceRect`:
   bottom `PURPLE_SOURCE_HEIGHT` (72) GUI pixels, clamped to the real GUI, and
   horizontally the centre ± 112 GUI px (hotbar plus offhand). With **Show Slot
   Cycling** on (`showSlotCycling`, default on) it is ± 172 px, so Hotbar Slot
   Cycling's side display (`hotbarslotcycling:cycling_slots`) sits inside it. A
   taller rectangle would put the HUD in a small strip under empty purple.
-  Because the panel's width is fixed (`planeWidth`), a wider band makes the
-  hotbar appear smaller.
+  Because the panel's width is set per preset (`horizontalPanelWidth()`), a wider band makes the
+  hotbar appear smaller. Each preset has its own width, so a larger or smaller HUD can be kept per preset.
 - Hotbar Slot Cycling attaches its element after HOTBAR (Puzzles Lib calls
   `HudElementRegistry.attachElementAfter`). `SpatialHud` wraps it with
   `replaceElement` in `ClientLifecycleEvents.CLIENT_STARTED`, the only point where
