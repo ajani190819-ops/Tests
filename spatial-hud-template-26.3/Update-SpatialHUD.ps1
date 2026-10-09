@@ -5,7 +5,7 @@
 # This one helper covers everything: installing into the Modrinth mods folder,
 # picking a build, and saving a copy to Downloads (the former separate downloader).
 #
-# SpatialHUD-Helper-Version: 5
+# SpatialHUD-Helper-Version: 6
 #
 # Default target: %APPDATA%\ModrinthApp\profiles\F5W\mods
 # The target, chosen build, and optional folder opener are remembered under
@@ -60,7 +60,7 @@ function Test-ReleaseTag {
     param([string]$Tag)
 
     if ([string]::IsNullOrWhiteSpace($Tag) -or $Tag -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') {
-        throw 'The release tag may contain only letters, numbers, dots, underscores, and hyphens.'
+        throw "The release tag '$Tag' may contain only letters, numbers, dots, underscores, and hyphens."
     }
 }
 
@@ -335,8 +335,18 @@ function Select-InstallBuild {
     if ($choice.Trim() -match '^\d+$') {
         $number = [int]$choice.Trim()
         if ($number -ge 1 -and $number -le $rows.Count) {
-            $picked = $rows[$number - 1]
-            return Remember-BuildChoice $picked.Tag $picked.Branch
+            # Copy the two fields into plain strings first, then save inside a
+            # guard, so a bad value is reported here instead of ending the run.
+            $pickedTag = [string]$rows[$number - 1].Tag
+            $pickedBranch = [string]$rows[$number - 1].Branch
+            try {
+                return Remember-BuildChoice $pickedTag $pickedBranch
+            }
+            catch {
+                Write-Host "That build could not be saved: $($_.Exception.Message)" -ForegroundColor Yellow
+                Write-Host "Build tag read from the list: [$pickedTag]" -ForegroundColor Yellow
+                return $CurrentTag
+            }
         }
         Write-Host 'That build number is not in the list. The current choice was kept.' -ForegroundColor Yellow
         return $CurrentTag
