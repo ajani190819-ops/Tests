@@ -2,7 +2,9 @@ name: Build Spatial HUD
 
 on:
   push:
-    branches: [arena/c83497e6-tests]
+    # Every session gets a new arena/<id>-tests branch name, so match the whole
+    # family (plus main) instead of one hardcoded branch that stops matching.
+    branches: [main, 'arena/*-tests']
     paths:
       - 'spatial-hud-template-26.3/**'
       - '.github/workflows/build-spatial-hud.yml'
@@ -34,17 +36,47 @@ jobs:
           chmod +x gradlew
           ./gradlew build --no-daemon
 
-      - name: Publish jar to rolling release
+      - name: Publish the jar to the rolling release and to this branch's build
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           rm -f build/libs/*-sources.jar
+          JAR="$(ls build/libs/spatial-hud-*.jar 2>/dev/null | head -n 1 || true)"
+          if [ -z "$JAR" ] || [ ! -f "$JAR" ]; then
+            echo "No Spatial HUD jar was produced in build/libs; nothing published." >&2
+            exit 1
+          fi
+          REF="$GITHUB_REF_NAME"
+          SAFE="${REF//\//-}"
+          STAMP="$(date -u +%Y-%m-%dT%H:%MZ)"
+          echo "Branch $REF (asset suffix $SAFE), commit ${GITHUB_SHA:0:7}"
+
+          # 1. The rolling release. Its asset name stays spatial-hud-1.0.0.jar,
+          #    so the plain download link and older updater copies keep working.
           if ! gh release view spatial-hud-latest > /dev/null 2>&1; then
             gh release create spatial-hud-latest \
               --target "$GITHUB_SHA" \
               --title "Spatial HUD — latest build" \
-              --notes "Automated build from commit ${GITHUB_SHA::7}. Minecraft 26.3, Fabric." \
+              --notes "Automated build." \
               --prerelease
           fi
-          gh release upload spatial-hud-latest build/libs/spatial-hud-*.jar --clobber
+          gh release upload spatial-hud-latest "$JAR" --clobber
+          gh release edit spatial-hud-latest \
+            --notes "Newest build: $REF at commit ${GITHUB_SHA:0:7} ($STAMP)."
+
+          # 2. One release per branch, so the updater's build picker can offer a
+          #    real choice: main first, then the newest branches.
+          BUILD_TAG="spatial-hud-build-$SAFE"
+          if ! gh release view "$BUILD_TAG" > /dev/null 2>&1; then
+            gh release create "$BUILD_TAG" \
+              --target "$GITHUB_SHA" \
+              --title "Spatial HUD — $REF" \
+              --notes "Automated build." \
+              --prerelease
+          fi
+          gh release upload "$BUILD_TAG" "$JAR" --clobber
+          gh release edit "$BUILD_TAG" \
+            --title "Spatial HUD — $REF" \
+            --notes "$(printf 'Automated Spatial HUD build.\nBranch: %s\nCommit: %s\nBuilt: %s\n' "$REF" "${GITHUB_SHA:0:7}" "$STAMP")"
