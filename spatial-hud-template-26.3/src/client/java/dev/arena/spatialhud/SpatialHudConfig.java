@@ -355,7 +355,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** How long the position takes to catch up, in seconds. Set separately, so position can lag more or less. */
 	@ConfigEntry.Category("purple")
 	@ConfigEntry.Gui.Tooltip
-	public double panelWigglePositionSeconds = 0.2;
+	public double panelWigglePositionSeconds = 0.1;
 
 	@ConfigEntry.Category("purple")
 	@ConfigEntry.Gui.Tooltip

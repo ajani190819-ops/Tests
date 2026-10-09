@@ -125,7 +125,7 @@ must look like a flat sheet in the world, not a flat sticker on the screen.
 
 **Stage 3, test 2 (`latest.log` in `3e1e4aa`):** the band is drawn. The log has `Spatial HUD stage 3: drawing the captured HUD band (1 quad(s))` at 02:05:54. The band is still not visible, with shaders off. So the submit route works, and the problem is the picture the band samples. Likely cause: the capture is stored bottom-up but GUI coordinates run top-down. The old mapping (`v = y / guiHeight`) sampled the top of the captured image, which is empty above the hotbar. The build flips the vertical axis (`v = 1 - y / guiHeight`). If the band is still empty, the fallbacks are: (1) draw the band as a solid colour, to separate placement from picture; (2) copy the capture into a texture we own before drawing; (3) draw it without depth test, which loses wall hiding.
 
-**Wiggle split (`c921efd` and later):** heading and height share `panelWiggleSeconds` (default 0.2). Position has its own `panelWigglePositionSeconds` (default 0.2). The wiggle is on by default (`panelWiggle = true`).
+**Wiggle split (`c921efd` and later):** heading and height share `panelWiggleSeconds` (default 0.2). Position has its own `panelWigglePositionSeconds` (default 0.1, set by the user). The wiggle is on by default (`panelWiggle = true`).
 
 **Panel wiggle (config, default on since this build):** the panel can lag behind and catch up. The catch-up time is `panelWiggleSeconds` (default 0.2). Each part is ticked separately: heading (default on), position, and height. The lag is exponential smoothing, so the panel eases in without overshoot. A teleport over 4 blocks snaps the panel.
 
