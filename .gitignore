@@ -28,6 +28,6 @@ __pycache__/
 
 # Arena Link is a packaged Electron desktop app. Keep local dependencies,
 # installers, and any accidental local environment file out of Git.
-/arena-link-windows/node_modules/
-/arena-link-windows/dist/
-/arena-link-windows/.env
+/apps/arena-link-windows/node_modules/
+/apps/arena-link-windows/dist/
+/apps/arena-link-windows/.env

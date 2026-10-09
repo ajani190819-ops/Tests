@@ -127,23 +127,37 @@ MEMORY.md                   short redirect to the preserved legacy handoff
   decisions/                accepted design constraints and their reasons
   runbooks/                 repeatable agent test/release procedures
   history/                  dated context; do not load by default
+  evidence/logs/            supplied Minecraft logs and crash reports
 README.md                   human-facing front door / tour
 docs/
   ORCA-PLUGIN-FACTS.md      OrcaSlicer plugin-system facts (do not re-derive)
   ROADMAP.md                what's planned and every open question
   reference/                supplied OrcaSlicer wiki/PDF reference snapshots
+  spatial-hud/              Spatial HUD: CI-SETUP.md (how builds reach the PC),
+                            COMPATIBILITY.md (F5W compatibility matrix)
+  modpack-audit-v2.md       the 2026-10-07 modpack audit report
+spatial-hud-template-26.3/  THE Spatial HUD mod (Fabric, MC 26.3). Its own
+                            README is the user guide; Update-SpatialHUD.bat /
+                            .ps1 is the Modrinth updater (kept here, because
+                            saved copies fetch these paths from main).
+apps/
+  arena-link-windows/       unrelated Windows app; self-contained
 plugins/
   wave-overhangs/           OrcaSlicer pipeline plugin: support-free steep overhangs
   unlayered-infill/         OrcaSlicer pipeline plugin: non-planar interlocking infill
 archive/                    NOT shipped: work kept for reference, with its own
                             README explaining why and how to revive it.
-                            wave-overhangs-geometry/ lives here (archived 2026-10-02)
+                            wave-overhangs-geometry/ lives here (archived 2026-10-02).
+                            spatial-hud-methods-1-2/ (archived 2026-10-08),
+                            spatial-hud-v0-draft/, modpack-demo-mod/,
+                            spatial-gui-reference/ — see archive/README.md
 tools/
   nonplanar-infill-tool/    standalone double-click tool (the predecessor of the
                             unlayered-infill plugin; kept as reference, GPL-3.0)
   sync_engine.py            copy the shared engine between its two homes (--check)
   sync_changelog.py         push the newest release notes into the plugin files
 keyboard-lighting/          unrelated personal project; DO NOT reorganize or "fix" it
+test-prints/                the owner's current hand-test prints (G-code inputs)
 tests/
   fake_orca.py              minimal stand-in for Orca's `orca` module
   fixtures/                 supplied STL and captured real G-code regression input

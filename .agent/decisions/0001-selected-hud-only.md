@@ -1,7 +1,7 @@
 # 0001 — Capture only the selected lower HUD
 
 - Status: accepted.
-- Last verified: 2026-10-07.
+- Last verified: 2026-10-08.
 - Read when: changing the Spatial HUD render path.
 
 ## Decision
@@ -21,5 +21,6 @@ screens. The user explicitly rejected restoring that behavior.
 - Never capture unrelated screens, menus, chat, maps, debug overlays, or
   arbitrary mod GUIs.
 - The capture redirect must remain private and object-identity scoped.
-- Keep the affine safe mode as the default until experimental compatibility is
-  proven in the F5W profile.
+- On a capture failure, show the vanilla HUD and a small red marker. The
+  affine fallback was removed on 2026-10-08 with Methods 1 and 2 (see
+  `0002-methods-3-and-4-only.md`).

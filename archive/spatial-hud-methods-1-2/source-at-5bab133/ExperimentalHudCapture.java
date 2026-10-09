@@ -41,14 +41,15 @@ import java.util.OptionalDouble;
  * object identity. Normal screens, chat, minimaps, debug text, and every
  * other GUI renderer therefore retain their original target and draw call.</p>
  *
- * <p>Texture capture is the required baseline for both presentation methods
- * (3 and 4). A GPU error latches a fallback for the current session: the
- * vanilla HUD is shown with a red indicator, and the selected method is kept,
- * so a restart or choosing the method again retries.</p>
+ * <p>Texture capture is the required baseline for all three presentation
+ * methods. A GPU error still latches a safe affine display for the current
+ * session, but it never rewrites the player's selected method: a restart or
+ * selecting another method retries the requested captured path.</p>
  */
 public final class ExperimentalHudCapture {
 	private static final String TARGET_NAME = "Spatial HUD experimental bottom-strip capture";
-	// Dense enough that per-icon deformation stays smooth on the purple quad.
+	// Dense enough that curvature and per-icon projective deformation do not
+	// reveal the old root-by-root affine seams.
 	private static final int MESH_COLUMNS = 32;
 	private static final int MESH_ROWS = 24;
 	private static final RenderPipeline WARP_PIPELINE = RenderPipelines.GUI_TEXTURED;
@@ -137,14 +138,6 @@ public final class ExperimentalHudCapture {
 		}
 	}
 
-	/**
-	 * True after a capture error for the currently requested method. Drives the
-	 * small red indicator; the vanilla HUD is shown in its place.
-	 */
-	static boolean hasCaptureFailed() {
-		return sessionFallback;
-	}
-
 	/** True only while the current gameplay HUD frame is collecting a texture. */
 	static boolean isFrameActive() {
 		return frameActive && !sessionFallback;
@@ -152,7 +145,7 @@ public final class ExperimentalHudCapture {
 
 	/**
 	 * Extract one already-selected vanilla root into the private state. Returns
-	 * false after an error so the caller can draw the vanilla root for
+	 * false after an error so the caller can use the released affine path for
 	 * its current root rather than losing a future HUD frame.
 	 */
 	static boolean capture(Identifier id, HudRootRenderer root, DeltaTracker deltaTracker) {
@@ -179,10 +172,11 @@ public final class ExperimentalHudCapture {
 
 	/**
 	 * Draw the active mode's own identity decorations into the same isolated
-	 * source texture as the vanilla roots: the purple border (plus the optional
-	 * tint) for Method 3, or the purple border and four corner handles for
-	 * Method 4. All of them are part of the captured surface, never an
-	 * unrelated GUI overlay.
+	 * source texture as the vanilla roots: the optional backing and the
+	 * full-width method band for Methods 1-3, or the purple border and four
+	 * corner handles for Method 4. All of them are part of the captured
+	 * surface, never an unrelated GUI overlay, and the band stays visible even
+	 * when the player hides the backing panel.
 	 */
 	static boolean capturePanelDecorations(SpatialHudConfig cfg) {
 		if (!isFrameActive()) {
@@ -192,7 +186,7 @@ public final class ExperimentalHudCapture {
 			VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
 			// Draw only inside the source rectangle sampled by the other methods.
 			// Painting a margin outside it would make an indicator disappear during
-			// the texture presentation even though it appeared in the earlier method.
+			// the texture presentation even though it appeared in Method 1.
 			int left = (int) Math.floor(plane.sourceLeft());
 			int right = (int) Math.ceil(plane.sourceRight());
 			int top = (int) Math.floor(plane.sourceTop());
@@ -217,16 +211,15 @@ public final class ExperimentalHudCapture {
 				drawPolygonHandle(edgeRight, edgeBottom, -1, -1);
 				drawPolygonHandle(edgeLeft, edgeBottom, 1, -1);
 			} else {
-				// Method 3 uses the same purple identity as Method 4, painted into the
-				// captured source rectangle so it is lifted onto the world panel with
-				// the HUD pixels. Show Backing Panel controls only the interior tint.
 				if (cfg.showPanel) {
-					capturedGraphics.fill(left, top, right, bottom, POLYGON_BACKING_COLOR);
+					capturedGraphics.fill(left, top, right, bottom, 0x80101018);
+					capturedGraphics.fill(left, top, right, top + 8, 0x5038384A);
 				}
-				capturedGraphics.fill(left, top, right, top + 3, POLYGON_EDGE_COLOR);
-				capturedGraphics.fill(left, bottom - 3, right, bottom, POLYGON_EDGE_COLOR);
-				capturedGraphics.fill(left, top, left + 3, bottom, POLYGON_EDGE_COLOR);
-				capturedGraphics.fill(right - 3, top, right, bottom, POLYGON_EDGE_COLOR);
+				// A full-width, 8px top band is a deliberately obvious live method
+				// indicator: green = affine, blue = projective mesh, red = world quad.
+				// It lives in this texture, so it receives exactly the same perspective
+				// and world-depth treatment as the selected HUD pixels.
+				capturedGraphics.fill(left, top, right, top + 8, cfg.modeIndicatorColor());
 			}
 			frameHasContent = true;
 			return true;
@@ -352,7 +345,11 @@ public final class ExperimentalHudCapture {
 					}
 					compositePolygonTestMesh(cfg);
 				} else {
+					// Both screen-space choices are mandatory texture meshes. Their
+					// different warp strengths make green and blue visibly different
+					// without ever falling back to a root-by-root flat card.
 					worldTextureReady = false;
+					compositeProjectiveMesh(cfg);
 				}
 			} catch (Throwable t) {
 			fallback(t, "rendering the selected bottom-HUD texture");
@@ -404,6 +401,39 @@ public final class ExperimentalHudCapture {
 	}
 
 	/**
+	 * Builds a grid rather than one affine rectangle. Each cell is textured from
+	 * the finished HUD texture, so all pixels inside a hotbar slot, icon, bar,
+	 * or tooltip are genuinely warped by the trapezoidal/projective surface.
+	 * Extra columns make optional cylindrical curvature smooth without affecting
+	 * the safe default mode (whose curvature value is zero).
+	 */
+	private static void compositeProjectiveMesh(SpatialHudConfig cfg) {
+		if (capturedTarget == null || capturedTarget.getColorTextureView() == null) {
+			throw new IllegalStateException("bottom-HUD capture texture view is unavailable");
+		}
+		GpuTextureView texture = capturedTarget.getColorTextureView();
+		VertexFormat format = WARP_PIPELINE.getVertexFormatBinding(0);
+		PrimitiveTopology primitive = WARP_PIPELINE.getPrimitiveTopology();
+		if (format == null || primitive != PrimitiveTopology.QUADS) {
+			throw new IllegalStateException("GUI textured pipeline does not expose QUADS");
+		}
+
+		StagedVertexBuffer.Draw draw = WARP_BUFFER.appendDraw(format, primitive, null);
+		try {
+			VertexConsumer vertices = WARP_BUFFER.getVertexBuilder(draw);
+			addWarpMesh(vertices, cfg);
+			WARP_BUFFER.upload();
+			StagedVertexBuffer.ExecuteInfo info = WARP_BUFFER.getExecuteInfo(draw);
+			if (info == null) {
+				throw new IllegalStateException("GPU rejected the bottom-HUD warp mesh");
+			}
+			drawToMainTarget(info, texture);
+		} finally {
+			WARP_BUFFER.endFrame();
+		}
+	}
+
+	/**
 	 * Method 4 uses the exact same isolated lower-HUD texture as the regular
 	 * mesh path, but maps its source rectangle to four user-controlled GUI
 	 * points. A dense grid preserves continuous item/icon/text deformation while
@@ -433,6 +463,46 @@ public final class ExperimentalHudCapture {
 		} finally {
 			WARP_BUFFER.endFrame();
 		}
+	}
+
+	/**
+	 * Every cell uses the one {@link VirtualHudPlane} projection. This is the
+	 * critical distinction from the former root-scale approximation: UVs stay
+	 * tied to finished capture pixels while vertex depth changes across the
+	 * entire strip, so a single heart or hotbar slot itself becomes trapezoidal.
+	 *
+	 * <p>The two mesh methods deliberately add a far-edge pinch to the real
+	 * physical projection. This pulls the top two corners together and widens
+	 * the bottom edge, making a proper flat-map trapezoid instead of a vague
+	 * independent X/Y stretch.</p>
+	 */
+	private static void addWarpMesh(VertexConsumer vertices, SpatialHudConfig cfg) {
+		VirtualHudPlane plane = VirtualHudPlane.forGui(cfg, guiWidth, guiHeight);
+		float topEdgeWidth = cfg.meshTopEdgeWidthMultiplier();
+		float bottomEdgeWidth = cfg.meshBottomEdgeWidthMultiplier();
+		for (int row = 0; row < MESH_ROWS; row++) {
+			float v0 = row / (float) MESH_ROWS;
+			float v1 = (row + 1) / (float) MESH_ROWS;
+			for (int column = 0; column < MESH_COLUMNS; column++) {
+				float u0 = column / (float) MESH_COLUMNS;
+				float u1 = (column + 1) / (float) MESH_COLUMNS;
+				addWarpVertex(vertices, plane, u0, v0, topEdgeWidth, bottomEdgeWidth);
+				addWarpVertex(vertices, plane, u1, v0, topEdgeWidth, bottomEdgeWidth);
+				addWarpVertex(vertices, plane, u1, v1, topEdgeWidth, bottomEdgeWidth);
+				addWarpVertex(vertices, plane, u0, v1, topEdgeWidth, bottomEdgeWidth);
+			}
+		}
+	}
+
+	private static void addWarpVertex(VertexConsumer vertices, VirtualHudPlane plane, float u, float v,
+			float topEdgeWidth, float bottomEdgeWidth) {
+		float sourceX = lerp(plane.sourceLeft(), plane.sourceRight(), u);
+		float sourceY = lerp(plane.sourceTop(), plane.sourceBottom(), v);
+		VirtualHudPlane.Point destination = plane.projectWarped(sourceX, sourceY,
+				topEdgeWidth, bottomEdgeWidth);
+		vertices.addVertex(IDENTITY, destination.x(), destination.y(), 0.0f)
+				.setUv(plane.textureU(sourceX), plane.textureV(sourceY))
+				.setColor(255, 255, 255, 255);
 	}
 
 	private static void addPolygonTestMesh(VertexConsumer vertices, SpatialHudConfig cfg) {
@@ -504,10 +574,10 @@ public final class ExperimentalHudCapture {
 		worldTextureReady = false;
 		capturedGraphics = null;
 		failedMethod = SpatialHudConfig.get().selectedRenderMethod();
-		// Keep the selected method intact so the failure is never mistaken for a
-		// different renderer.
+		// Keep the selected method intact. Rewriting it to the old affine mode
+		// made a user-requested mesh/world method appear to ignore its selector.
 		// A restart—or deliberately choosing a different method—will retry it.
-		SpatialHud.LOGGER.error("Spatial HUD texture capture failed while {}. Requested {} remains selected; the vanilla HUD is shown with a red indicator. Choose another method or restart to retry.",
+		SpatialHud.LOGGER.error("Spatial HUD forced texture warp failed while {}. Requested {} remains selected; choose another method or restart to retry. A safe affine display is used only for this session.",
 				stage, failedMethod, error);
 	}
 

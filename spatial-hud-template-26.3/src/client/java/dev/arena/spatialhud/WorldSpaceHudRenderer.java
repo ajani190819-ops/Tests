@@ -148,7 +148,7 @@ public final class WorldSpaceHudRenderer {
 				centerY - rolledRightY * halfWidth + rolledTopY * halfHeight,
 				centerZ - rolledRightZ * halfWidth + rolledTopZ * halfHeight);
 		// The isolated capture target is full-window sized. Method 3 must sample
-		// only the selected lower-HUD source rectangle, just like Method 2, rather
+		// only the selected lower-HUD source rectangle, rather
 		// than shrinking that rectangle into the bottom of an otherwise blank quad.
 		VirtualHudPlane source = VirtualHudPlane.forGui(cfg,
 				mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());

@@ -50,7 +50,7 @@ On Windows, install:
 ## Run locally
 
 ```powershell
-cd arena-link-windows
+cd apps/arena-link-windows
 npm install
 npm start
 ```

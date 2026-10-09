@@ -3,8 +3,10 @@ package dev.arena.spatialhud;
 import net.minecraft.client.Minecraft;
 
 /**
- * One camera-yaw-local, waist-height flat map used by the Method 3 world
- * panel. Its projection maps the captured texture onto the plane.
+ * One camera-yaw-local, waist-height flat map shared by the captured HUD
+ * texture and the safe affine fallback. The experimental mesh consumes the
+ * full projective mapping; the public HUD API can consume only its centre
+ * tangent.
  *
  * <p>The plane stays in front as the player turns horizontally but never rotates
  * with camera pitch to remain visible. Its near-horizontal default resembles a
@@ -56,7 +58,7 @@ final class VirtualHudPlane {
 
 	/**
 	 * The camera's focal length in GUI pixels, derived from the player's field
-	 * of view. Method 3's plane and Method 4's pitched card both project through
+	 * of view. Method 2's mesh and Method 4's pitched card both project through
 	 * this one value, so all of Spatial HUD's perspective matches the world and
 	 * the FOV setting instead of using invented screen fractions.
 	 */
@@ -105,6 +107,23 @@ final class VirtualHudPlane {
 	 */
 	Point project(float sourceX, float sourceY) {
 		return toScreenPoint(projectPhysicalPoint(sourceX, sourceY));
+	}
+
+	/**
+	 * Project a texture-mesh vertex as a readable flat map trapezoid. The real
+	 * 3D projection supplies its depth and vertical placement. An additional
+	 * width multiplier then pinches the far/top row and widens the near/bottom
+	 * row around that row's centre—explicitly bringing the top two corners closer
+	 * together rather than merely stretching pixels along the X/Y axes.
+	 */
+	Point projectWarped(float sourceX, float sourceY, float topEdgeWidth,
+			float bottomEdgeWidth) {
+		Point physical = project(sourceX, sourceY);
+		Point rowCentre = project(sourceCenterX, sourceY);
+		float v = (sourceY - sourceTop) / sourceHeight;
+		float widthMultiplier = lerp(topEdgeWidth, bottomEdgeWidth, v);
+		return new Point(rowCentre.x() + (physical.x() - rowCentre.x()) * widthMultiplier,
+				physical.y());
 	}
 
 	/**
@@ -160,7 +179,7 @@ final class VirtualHudPlane {
 	}
 
 	/**
-	 * Method 3 uses a camera-yaw map surface. Horizontal turns keep it in
+	 * Methods 1 and 2 use a camera-yaw map surface. Horizontal turns keep it in
 	 * front, but camera pitch only observes the fixed waist-height plane—it
 	 * never rotates the panel to keep it on-screen.
 	 */
@@ -173,7 +192,7 @@ final class VirtualHudPlane {
 
 		// This is a literal flat-map tilt around the panel's left-to-right axis.
 		// Positive tilt places the far/top edge farther away. A near-horizontal
-		// map remains a real plane, so its perspective is the world's own.
+		// map remains a real plane—Method 2 still applies depth per mesh vertex.
 		float planeTilt = radians(clamp(
 				cfg.virtualFaceOnLookDownPitch + cfg.virtualPitch, -89, 89));
 		float planeY = localY * cos(planeTilt) - yawZ * sin(planeTilt);
@@ -206,6 +225,10 @@ final class VirtualHudPlane {
 	private record Projection(float x, float y, float depth) {
 	}
 
+	Point projectAt(float u, float v) {
+		return project(lerp(sourceLeft, sourceRight, u), lerp(sourceTop, sourceBottom, v));
+	}
+
 	float textureU(float sourceX) {
 		return sourceX / guiWidth;
 	}
@@ -218,6 +241,10 @@ final class VirtualHudPlane {
 		float amount = clamp(cfg.experimentalCaptureCurvaturePercent / 100.0f, 0.0f, 1.0f);
 		float x = u * 2.0f - 1.0f;
 		return x * x * amount * planeWidth * 0.25f;
+	}
+
+	private static float lerp(float from, float to, float amount) {
+		return from + (to - from) * amount;
 	}
 
 	private static float radians(float degrees) {

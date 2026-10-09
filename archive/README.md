@@ -87,3 +87,14 @@ what was learned from it.
 
 The fixture the automated tests *do* use is `tests/fixtures/Cube^2_3m53s.gcode`
 and it has not moved.
+
+## Other archived items (2026-10-08 reorganisation)
+
+- `spatial-hud-methods-1-2/` — Spatial HUD Methods 1 and 2 (green affine,
+  blue mesh), with a source snapshot and the list of what was removed.
+- `spatial-hud-v0-draft/` — the original yarn-era Spatial HUD draft. Superseded
+  by `spatial-hud-template-26.3/`, and it does not build.
+- `modpack-demo-mod/` — a small demo Fabric mod (a HUD and a key binding). No
+  build or script refers to it.
+- `spatial-gui-reference/` — a prebuilt jar of the separate Spatial GUI mod,
+  kept for reference only. Spatial HUD's config screen shares its design.

@@ -4,140 +4,70 @@
 - Session branch: `arena/b4016c28-tests`
 - Read when: starting any task in this repository.
 
-## Active work
+## Where things stand
 
-### Spatial HUD updater — a real build picker
+- **Spatial HUD ships two methods only**: Method 3 (Real 3D Panel) and Method 4
+  (Purple 2.5D Panel). Methods 1 and 2 are archived in
+  `archive/spatial-hud-methods-1-2/` with a vetted record and source snapshot.
+  Decision: `.agent/decisions/0002-methods-3-and-4-only.md`.
+- **Failure behaviour**: a capture failure shows the vanilla HUD plus a small red
+  square above the hotbar's top-left corner. There is no affine fallback, and
+  the Method 4 outline is no longer drawn on failure.
+- **Repo reorganised** (staged `git mv`): logs to `.agent/evidence/logs/`, the v0
+  draft and demo mod and reference jar to `archive/`, the Orca audit and the
+  Spatial HUD CI and compatibility docs to `docs/`, the handoff to
+  `.agent/history/`, and the Electron app to `apps/arena-link-windows/`. The
+  references were fixed in the same change.
+- **Not compiled.** This sandbox has no `javac` or JDK. The Java files parse with
+  tree-sitter, and the lang JSON validates (80 keys). CI on push is the compile
+  check.
+- **Updater**: `Update-SpatialHUD.bat` is the only updater. Its build picker lists
+  `main` and the five most recently built branches. The branch build exists:
+  workflow runs `37864958183` and `37865568690` succeeded, and release
+  `spatial-hud-build-arena-b4016c28-tests` holds `spatial-hud-1.0.0.jar`. Not yet
+  confirmed that the updater on the PC lists it.
+- **Manual workflow dispatch is unavailable** (HTTP 403 from this sandbox). A push
+  to the branch is how a build starts.
 
-- Status: implemented and pushed; **needs two owner actions** (see below).
-  Cannot be verified from here: no Windows, no PowerShell, no JDK.
-- The owner asked to pick a branch build in the updater, not only the newest
-  build. GitHub Actions now publishes one release per branch
-  (`spatial-hud-build-<branch>`, e.g. `spatial-hud-build-arena-b4016c28-tests`,
-  and `spatial-hud-build-main`), each holding that branch's newest jar under the
-  stable asset name; the rolling `spatial-hud-latest` jar is unchanged so the
-  plain download link and older updater copies keep working.
-- `Update-SpatialHUD.ps1` (helper, version marker 2) fetches
-  `/releases?per_page=100` once and lists `spatial-hud-build-*`: **main first,
-  then the five most recently built branches**, with [A] all, [T] type a branch
-  name, [R] newest build any branch, [M]/Enter keep. A listed branch always has
-  a published jar; the choice is remembered in `build-choice.txt` (tag + branch)
-  and re-verified with the release API before it is saved.
-- `Update-SpatialHUD.bat` now tries two helper URLs (`main`, then this session's
-  branch) and runs the copy with the higher `SpatialHUD-Helper-Version` marker,
-  falling back to the plain `main` fetch if that fails. That is why one
-  re-download of the .bat is needed now and never again.
-- **Owner actions** (both in `PASTE-ME-CI-SETUP.md`): (1) paste the updated
-  `.github/workflows/build-spatial-hud.yml` on this branch — the agent
-  connection cannot touch workflow files, and the current file still triggers
-  only for the previous session's branch; (2) replace the saved
-  `Update-SpatialHUD.bat` once with the current copy.
-- Verified here: the publish shell block was executed locally with a stubbed
-  `gh` (fresh build, re-build, and no-jar paths); the workflow YAML parses; the
-  live release API returns the fields the picker reads. Not verified: the
-  PowerShell helper and the .bat (no PowerShell/Windows available).
+## Open questions for the user
 
-### Spatial HUD — Method 4 textures the captured HUD into the purple quad
-
-- Status: implemented and pushed (`4f7162f`). **Not built and not tested at
-  runtime.** The agent's GitHub connection has no `workflows` or Actions
-  permission, so it could neither change the workflow trigger nor dispatch a
-  run; the jar does not exist yet.
-- The owner asked for the four-corner purple surface to carry the HUD itself,
-  keeping the pitch response. Method 4 therefore captures the selected lower
-  HUD again and warps it onto the four configured corners. The plain outline is
-  now only the fallback used when the capture is not running.
-- Pitch response is a physical sheet: fixed to feet and head yaw, head pitch
-  and eye height move it, `SHEET_DISTANCE` 2.0, tilt limited to 70 degrees.
-  `polygonPitchResponsePercent` was removed. `PolygonTestRenderer.quad(...)` is
-  still the single quad definition shared by the capture and the fallback.
-- Method 4 maps only the bottom `POLYGON_SOURCE_HEIGHT` (72) GUI pixels of the
-  strip, clamped to the real GUI, not the plane's 184px source rectangle.
-  Mapping the taller rectangle puts the HUD in the quad's bottom quarter under
-  mostly empty purple, and its below-screen bottom edge is clipped away and
-  transparent.
-- A capture failure no longer hides the HUD: `SpatialHudElement` draws the
-  untouched vanilla root whenever the private capture is not running.
-- Blocked on the owner: the same workflow paste builds it, then install the
-  jar in the F5W profile and report per
-  `.agent/runbooks/test-spatial-hud-f5w.md`.
-
-### Spatial HUD — standing model (re-read from the source 2026-10-08)
-
-- One visible mode control: the Setup **Render Mode Slider**
-  (`renderModePicker`, 1–4). Config migration is version 20.
-  - 1 green = captured lower HUD through a balanced GUI-space mesh.
-    (`CLASSIC_AFFINE` is only the enum name; it is not a flat fallback.)
-  - 2 blue = the same capture through the stronger 32×24 mesh (default).
-  - 3 red = the same capture on a level quad, one completed frame behind.
-  - 4 purple = the same capture warped onto four percentage-positioned GUI
-    corners, pitch-responsive.
-- All four modes use the one private capture. `ExperimentalHudCapture` owns a
-  private `GuiRenderState`, `GuiRenderer`, and `TextureTarget`, fed only by the
-  wrapped `SpatialHudElement` roots; the two mixins identify that private
-  renderer by object identity. No screen, chat, map, debug text, or unrelated
-  mod GUI enters it (decision 0001).
-- There is **no look-down-angle gate** in the current code.
-  `VirtualHudPlane.intersectsViewport()` culls the physical panel only when it
-  leaves the viewport or passes behind the camera; `minimumLookDownPitch`
-  survives as an unused field that migration forces to 0. Method 4 is exempt
-  from the viewport test because four GUI-space handles place its target.
-- `SpatialHudConfig.get().enabled` is the only live enable state. **H** opens
-  settings and never changes it; **Toggle Spatial HUD** is unbound by default;
-  **F6/F7/F8** are direct keys for methods 1–3.
-- A capture error latches a session fallback (`failedMethod`), keeps the
-  selected method in the config, and logs the failing stage.
-
-### Direct Modrinth updater
-
-- Status: implemented, including the branch build picker described above.
-- Defaults to `%APPDATA%\ModrinthApp\profiles\F5W\mods` and remembers the
-  folder, the chosen build, and the optional folder opener under
-  `%LOCALAPPDATA%\SpatialHudUpdater`. The picker offers `main` plus the five
-  most recently built branches, and only lists branches with a published jar.
+1. **Method 4 geometry**: the agreed spec is a horizontal panel (normal along Y)
+   with the purple border and HUD inside, world-anchored to the player with
+   configurable distance, height, and angle, visible at a shallow look-down pitch.
+   It is not implemented. Confirm before changing it.
+2. Which render mode the slider was on in the last test, and whether the HUD was
+   visible in game.
+3. From `spatialhud.json`: the values of `renderMethod` and `enabled`.
+4. Delete `Get-Latest-SpatialHUD.bat` in the mod folder? It is a deprecated
+   redirect, kept until confirmed.
 
 ## Non-negotiable constraints
 
 - Capture only the selected lower HUD. Never cancel or broadly reroute GUI
-  rendering; the capture redirect stays private and object-identity scoped.
-- Do not claim F5W, Iris, AppleSkin, or Detail Armor compatibility without a
-  real test result.
-- AppleSkin and Detail Armor Bar Reconstructed pixels belong in the same
-  capture as their vanilla root.
-- Keep all work on the branch this session was handed; push only there.
+  rendering. The capture redirect stays private and object-identity scoped
+  (decision 0001).
+- Do not claim F5W, Iris, AppleSkin, or Detail Armor compatibility without a real
+  test result.
+- AppleSkin and Detail Armor Bar Reconstructed pixels belong in the same capture as
+  their vanilla root.
+- Work on `arena/b4016c28-tests` only. Before any push, `git fetch origin` and
+  rebase. Never force-push.
 
 ## Next action
 
-1. Owner: apply both actions in `PASTE-ME-CI-SETUP.md` (paste the workflow on
-   this branch; replace the saved `Update-SpatialHUD.bat`).
-2. Owner: in the updater, choose option **2**, pick
-   `arena/b4016c28-tests`, then option **1** to install it into the F5W profile
-   (remove any older `spatial-hud` jar first).
-3. Owner: test Method 4 as `.agent/runbooks/test-spatial-hud-f5w.md` describes
-   — the captured hotbar/bars/XP/held-item text warped into the four purple
-   corners, border and handles on those corners, the whole surface following
-   camera pitch, nothing left at the vanilla HUD position, and the vanilla HUD
-   (not an empty outline) if the capture fails.
-4. Owner: send `latest.log` plus a screenshot from that exact session, and say
-   whether the build menu showed the branch you picked.
-5. If the owner pasted the workflow file (action 1), the branch now has one
-   commit the sandbox does not: `git fetch origin` and rebase before pushing
-   again, or the push is rejected as non-fast-forward. The pasted file also
-   means the local `.github/workflows/` copy is now out of date in the sandbox;
-   never try to push that path.
+1. Commit and push the session branch (after fetch and rebase), which starts a
+   build the updater can pick up.
+2. Ask the user the open questions above. Do not change Method 4 geometry until
+   the user confirms.
+3. Owner runs the F5W test in `.agent/runbooks/test-spatial-hud-f5w.md`, using the
+   branch build, and sends `latest.log` from that session.
 
-## Evidence
+## Evidence and reference
 
-- Supplied F5W log: `latest.log` (earlier session, not this change).
-- Compatibility plan: `spatial-hud-template-26.3/COMPATIBILITY.md`.
-- Source root: `spatial-hud-template-26.3/`.
+- Logs: `.agent/evidence/logs/` (`latest.log` = `l2atest.txt` at commit `c8ccc42`;
+  crash report from 2026-10-08).
 - Technical summary: `.agent/facts/spatial-hud.md`.
-- Continuity note: `spatial-hud-template-26.3/AGENT_HANDOFF.md`.
-- Build instructions for the owner: `PASTE-ME-CI-SETUP.md`.
-
-## Single updater (2026-10-08, latest)
-
-- `Update-SpatialHUD.bat` is the only updater to download. Its helper
-  (`Update-SpatialHUD.ps1`, version 3) covers Modrinth install, the build picker
-  and option [D], a Downloads copy of the chosen build.
-- `Get-Latest-SpatialHUD.bat` is a redirect; its `.ps1` is deleted.
-- Not tested: PowerShell and the `.bat` in Windows (no Windows here).
+- Runbook: `.agent/runbooks/test-spatial-hud-f5w.md`.
+- Build and updater process: `docs/spatial-hud/CI-SETUP.md`.
+- Compatibility matrix: `docs/spatial-hud/COMPATIBILITY.md`.
+- Source root: `spatial-hud-template-26.3/`.

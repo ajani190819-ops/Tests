@@ -58,6 +58,14 @@ public final class SpatialHudConfig implements ConfigData {
 	public transient String guideOverview = "";
 
 	@ConfigEntry.Category("guide")
+	@MethodGuideText(color = 0xFF38C172)
+	public transient String guideClassicAffine = "";
+
+	@ConfigEntry.Category("guide")
+	@MethodGuideText(color = 0xFF469AEF)
+	public transient String guideCapturedMesh = "";
+
+	@ConfigEntry.Category("guide")
 	@MethodGuideText(color = 0xFFEF5350)
 	public transient String guideWorldSpace = "";
 
@@ -87,28 +95,49 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean onlyDuringGameplay = true;
 
 	/**
-	 * Visible render-mode selector: 3 = real world-space panel, 4 = purple GUI
-	 * approximation. Cloth Config renders this as a bounded slider. The value is
-	 * read live, so saving the config takes effect on the next HUD frame.
+	 * Visible, deliberately simple 1–4 selector. Cloth Config renders this as a
+	 * bounded slider, which avoids relying on an enum dropdown in a large
+	 * modpack's config UI. The value is read live, so saving the config takes
+	 * effect immediately on the next HUD frame.
 	 */
 	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 3, max = 4)
-	public int renderModePicker = 3;
+	@ConfigEntry.BoundedDiscrete(min = 1, max = 4)
+	public int renderModePicker = 2;
 
 	/**
-	 * Legacy JSON/keybinding storage. The slider above is the visible control;
-	 * this enum is kept so existing files and F8/F9 stay in step with it.
+	 * Legacy JSON/keybinding storage. The public slider above is the one visible
+	 * config control; this enum is retained so existing files and F6/F7/F8 keep
+	 * working without a destructive format change.
 	 */
 	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
-	public RenderMethod renderMethod = RenderMethod.WORLD_SPACE_TEXTURE;
+	public RenderMethod renderMethod = RenderMethod.CAPTURED_MESH;
 
 	public enum RenderMethod {
-		/** Method 3: the captured HUD on a real, flat, client-side world panel. */
+		/** Captured texture with a balanced, always-on projective mesh warp. */
+		CLASSIC_AFFINE,
+		/** Captured texture with an intentionally strong projective mesh warp. */
+		CAPTURED_MESH,
+		/** Captured texture drawn on a real plane in the rendered world. */
 		WORLD_SPACE_TEXTURE,
-		/** Method 4: the purple GUI 2.5D approximation with four corner handles. */
+		/** Purple GUI test surface with four independently positioned corners. */
 		POLYGON_TEST
+	}
+
+	/**
+	 * A broad, always-present panel-edge band makes the active renderer
+	 * unmistakable in screenshots and while switching methods. Its pixels enter
+	 * the same capture texture as the HUD in Methods 2 and 3, rather than being
+	 * drawn as an unrelated overlay.
+	 */
+	int modeIndicatorColor() {
+		return switch (selectedRenderMethod()) {
+			case CLASSIC_AFFINE -> 0xE038C172; // green: balanced forced mesh warp
+			case CAPTURED_MESH -> 0xE0469AEF; // blue: strong forced mesh warp
+			case WORLD_SPACE_TEXTURE -> 0xE0EF5350; // red: physical world texture
+			case POLYGON_TEST -> 0xE0C75CFF; // purple: independently shaped test quad
+		};
 	}
 
 	// Player-relative placement in block units. The default is in front of the
@@ -268,7 +297,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/**
 	 * Legacy switch retained to migrate pre-v1.5 JSON files. Render Method is
-	 * now the only visible selector. A capture failure shows the vanilla HUD.
+	 * now the only visible selector and any failure returns to Classic Affine.
 	 */
 	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
@@ -292,6 +321,15 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("positioning")
 	@ConfigEntry.Gui.Excluded
 	public boolean rotateWithSway = true;
+
+	/**
+	 * Compatibility fallback for a companion status-bar mod. Off by default so
+	 * health, armor, food, and air travel with the spatial panel in every method.
+	 * Turn it on only if a companion mod renders detached duplicate decorations.
+	 */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Tooltip
+	public boolean preserveCompanionStatusLayout = false;
 
 	/**
 	 * Purple test-mode controls. Values are percentages of the current GUI
@@ -414,9 +452,11 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 	}
 
-	/** Maps the visible 3–4 slider to the one active renderer. */
+	/** Maps the visible 1–4 slider to the one active renderer. */
 	RenderMethod selectedRenderMethod() {
-		return switch (Math.max(3, Math.min(4, renderModePicker))) {
+		return switch (Math.max(1, Math.min(4, renderModePicker))) {
+			case 1 -> RenderMethod.CLASSIC_AFFINE;
+			case 2 -> RenderMethod.CAPTURED_MESH;
 			case 3 -> RenderMethod.WORLD_SPACE_TEXTURE;
 			default -> RenderMethod.POLYGON_TEST;
 		};
@@ -426,6 +466,8 @@ public final class SpatialHudConfig implements ConfigData {
 	void selectRenderMethod(RenderMethod method) {
 		renderMethod = method;
 		renderModePicker = switch (method) {
+			case CLASSIC_AFFINE -> 1;
+			case CAPTURED_MESH -> 2;
 			case WORLD_SPACE_TEXTURE -> 3;
 			case POLYGON_TEST -> 4;
 		};
@@ -433,7 +475,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/**
 	 * Every mode presents the selected lower HUD through the one private
-	 * captured texture: Method 3 draws it on a world panel and
+	 * captured texture: Methods 1-3 draw it on their own physical surfaces and
 	 * Method 4 warps it onto the four configured purple GUI corners. Capture is
 	 * therefore always required while Spatial HUD is enabled.
 	 */
@@ -449,6 +491,20 @@ public final class SpatialHudConfig implements ConfigData {
 		return selectedRenderMethod() == RenderMethod.POLYGON_TEST;
 	}
 
+	/**
+	 * Extra horizontal far-edge pinch layered on the real plane projection.
+	 * This deliberately moves the two top corners toward one another, producing
+	 * the unmistakable map-like trapezoid that a general X/Y distortion lacks.
+	 */
+	float meshTopEdgeWidthMultiplier() {
+		return selectedRenderMethod() == RenderMethod.CLASSIC_AFFINE ? 0.80f : 0.46f;
+	}
+
+	/** Matching near-edge widening for the same forced trapezoid. */
+	float meshBottomEdgeWidthMultiplier() {
+		return selectedRenderMethod() == RenderMethod.CLASSIC_AFFINE ? 1.10f : 1.22f;
+	}
+
 	/** Whether the captured texture is presented by the real world renderer. */
 	boolean usesWorldSpaceTexture() {
 		return selectedRenderMethod() == RenderMethod.WORLD_SPACE_TEXTURE;
@@ -456,7 +512,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Migrates legacy JSON fields to the current named rendering methods. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 21) {
+		if (cfg.configVersion >= 20) {
 			return;
 		}
 
@@ -468,6 +524,12 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.revealFullPitch = 48;
 			cfg.hiddenBelowScreenPixels = 105;
 			cfg.onlyDuringGameplay = true;
+		}
+
+		if (cfg.configVersion < 4) {
+			// This is deliberately narrow and applies only when a corresponding
+			// companion mod is actually loaded.
+			cfg.preserveCompanionStatusLayout = true;
 		}
 
 		if (cfg.configVersion < 5) {
@@ -558,9 +620,11 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 
 		if (cfg.configVersion < 15) {
-			// Any value written here is translated again by the v21 step at
-			// the end of this migration.
-			cfg.renderMethod = RenderMethod.WORLD_SPACE_TEXTURE;
+			// Preserve an explicit earlier capture choice. New installations stay on
+			// the original stable affine path until the player picks a method.
+			cfg.renderMethod = cfg.experimentalCaptureWarp
+					? RenderMethod.CAPTURED_MESH
+					: RenderMethod.CLASSIC_AFFINE;
 			cfg.worldSpaceAnchor = WorldSpaceAnchor.CAMERA_YAW;
 			cfg.worldSpaceOccludeBehindWorld = true;
 		}
@@ -587,6 +651,7 @@ public final class SpatialHudConfig implements ConfigData {
 				cfg.virtualFaceOnLookDownPitch = 85;
 			}
 			cfg.minimumLookDownPitch = 0;
+			cfg.preserveCompanionStatusLayout = false;
 		}
 
 		if (cfg.configVersion < 18) {
@@ -595,7 +660,7 @@ public final class SpatialHudConfig implements ConfigData {
 			// could appear to do nothing in a heavily modded HUD stack. Start at
 			// the unmistakably stronger blue mesh; users can still pick green or
 			// red explicitly afterwards.
-			cfg.renderMethod = RenderMethod.WORLD_SPACE_TEXTURE;
+			cfg.renderMethod = RenderMethod.CAPTURED_MESH;
 			cfg.experimentalCaptureWarp = true;
 		}
 
@@ -603,10 +668,7 @@ public final class SpatialHudConfig implements ConfigData {
 			// v1.9 replaces the enum-dropdown dependency with a visible 1–4 slider.
 			// Translate the already-saved enum once so the old chosen mode remains
 			// selected while the new purple polygon test becomes available.
-			// An enum name removed in v21 loads as null; the v21 step fixes it.
-			if (cfg.renderMethod != null) {
-				cfg.selectRenderMethod(cfg.renderMethod);
-			}
+			cfg.selectRenderMethod(cfg.renderMethod);
 		}
 
 		if (cfg.configVersion < 20) {
@@ -615,15 +677,7 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.polygonFollowCameraPitch = true;
 		}
 
-		if (cfg.configVersion < 21) {
-			// v2.0 keeps only Method 3 (real world-space panel) and Method 4
-			// (purple GUI approximation). Old slider values 1 and 2 were the
-			// archived affine and mesh methods, so they move to Method 3.
-			cfg.renderModePicker = Math.max(3, Math.min(4, cfg.renderModePicker));
-			cfg.selectRenderMethod(cfg.selectedRenderMethod());
-		}
-
-		cfg.configVersion = 21;
+		cfg.configVersion = 20;
 		save();
 	}
 

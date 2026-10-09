@@ -94,7 +94,7 @@ final class PolygonTestRenderer {
 		float radians = (float) Math.toRadians(pitch);
 		float sine = (float) Math.sin(radians);
 		float cosine = (float) Math.cos(radians);
-		// Same focal length as Methods 1-3, so perspective matches the world at
+		// Same focal length as Method 3, so perspective matches the world at
 		// the player's own field of view.
 		float focal = VirtualHudPlane.focalLengthFor(guiHeight);
 		float centreX = guiWidth * 0.5f;

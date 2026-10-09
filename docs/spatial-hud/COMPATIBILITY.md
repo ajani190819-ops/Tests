@@ -7,19 +7,19 @@ been certified yet.
 
 ## Rendering contract
 
-Spatial HUD has two deliberately separate paths:
+Spatial HUD has two presentations (Method 3 and Method 4). Both use the same
+private capture, and neither redirects Minecraft's normal GUI renderer:
 
-1. **Safe affine fallback (default):** Fabric HUD-element wrappers only. It
-   never redirects Minecraft's normal GUI renderer. AppleSkin and Detail Armor
-   status roots remain native here when the compatibility switch is enabled.
-2. **Captured projective mesh (experimental):** only the selected vanilla
-   bottom-HUD roots plus their injected pixels and Spatial HUD backing are
-   extracted into a private `GuiRenderState`, rendered to a private target, and
-   mapped through the virtual-plane mesh. No `Screen`, chat, minimap, debug
-   text, boss bar, crosshair, or separately registered overlay is captured.
+1. **Method 3 — real 3D panel:** only the selected vanilla bottom-HUD roots,
+   their injected pixels, and the purple panel border are extracted into a
+   private `GuiRenderState`, rendered to a private target, and drawn on a flat
+   client-side world panel.
+2. **Method 4 — purple 2.5D panel:** the same private capture, warped onto four
+   GUI-space corners.
 
-An error latches the experiment off and returns to safe affine mode for the
-current client session.
+No `Screen`, chat, minimap, debug text, boss bar, crosshair, or separately
+registered overlay is captured. If the capture fails, the vanilla HUD is shown
+and a small red square appears beside the hotbar; the selected method is kept.
 
 ## Test order
 
@@ -31,8 +31,8 @@ current client session.
 | 3 | Spatial GUI, Inventory Profiles Next, Jade, OptiGUI, REI/JEI-style screens, Xaero's Minimap/World Map | Opening any normal/modded screen and all unrelated overlays stay outside the target. |
 | 4 | Sodium, Iris, Nvidium, ImmediatelyFast, BadOptimizations, ModernFix, Entity Culling, More Culling | Capture target and mesh remain stable under the profile's renderer/performance stack. |
 
-A true world-rendered quality mode remains out of scope until tiers 0–4 are
-reproducible with exact JAR versions.
+Method 3 (the real 3D panel) is the world-rendered mode. Its tier results are
+recorded per exact JAR version.
 
 ## F5W profile candidates
 
@@ -86,11 +86,11 @@ exercises non-vanilla render scheduling, texture state, and performance paths.
 
 For each test case, record the exact mod versions and capture:
 
-1. level view with the safe path;
-2. the same view with captured-mesh mode enabled;
+1. level view with Method 4 selected;
+2. the same view with Method 3 selected;
 3. a close-up of hotbar, health/food/armor, XP, and held-item label;
 4. one screen-open view proving regular GUI is untouched; and
-5. `latest.log` if the experimental path falls back.
+5. the Minecraft log (`latest.log`) if the red failure indicator appears.
 
 The supplied project list is sufficient to start the audit. Exact versions can
 be added later from Modrinth when a candidate reaches certification.

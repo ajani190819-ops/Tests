@@ -14,9 +14,12 @@ or unrelated product documentation by default.
 | Task | Read |
 |---|---|
 | Spatial HUD rendering, F5W, or its updater | `.agent/facts/spatial-hud.md` |
-| Getting a Spatial HUD build (agent cannot touch workflows) | `PASTE-ME-CI-SETUP.md` |
+| Getting a Spatial HUD build or branch build to the PC | `docs/spatial-hud/CI-SETUP.md` |
 | Testing Spatial HUD in F5W | `.agent/runbooks/test-spatial-hud-f5w.md` |
 | Any change that might capture or affect other GUIs | `.agent/decisions/0001-selected-hud-only.md` |
+| Which Spatial HUD methods exist (only 3 and 4) | `.agent/decisions/0002-methods-3-and-4-only.md` |
+| Spatial HUD compatibility matrix | `docs/spatial-hud/COMPATIBILITY.md` |
+| Removed Methods 1 and 2 | `archive/spatial-hud-methods-1-2/README.md` |
 | OrcaSlicer plugin behavior | `docs/ORCA-PLUGIN-FACTS.md` |
 | Orca plugin plans or open work | `docs/ROADMAP.md` |
 | Orca plugin release | `AGENTS.md` §5 and §5a, then the relevant plugin changelog |
@@ -25,8 +28,9 @@ or unrelated product documentation by default.
 
 ## Evidence and history
 
-- `latest.log` is the supplied F5W evidence. Search it; do not load it in
-  full unless the task needs a log detail.
+- `.agent/evidence/logs/latest.log` is the supplied F5W evidence (copy of
+  `l2atest.txt`). Search it; do not load it in full unless the task needs a
+  log detail. Crash reports are in the same folder.
 - `.agent/history/legacy-memory-through-2026-10-07.md` preserves the former
   large `MEMORY.md`. Read it only to recover older Orca work or a dated detail.
 - Git history is the source for exact old implementation changes and commits.
