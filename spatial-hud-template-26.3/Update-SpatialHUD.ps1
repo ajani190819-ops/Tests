@@ -5,7 +5,7 @@
 # This one helper covers everything: installing into the Modrinth mods folder,
 # picking a build, and saving a copy to Downloads (the old Get-Latest flow).
 #
-# SpatialHUD-Helper-Version: 3
+# SpatialHUD-Helper-Version: 4
 #
 # Default target: %APPDATA%\ModrinthApp\profiles\F5W\mods
 # The target, chosen build, and optional folder opener are remembered under
@@ -726,8 +726,12 @@ try {
 
         if ([string]::IsNullOrWhiteSpace($choice) -or $choice -eq '1') {
             Install-SpatialHud $rememberedTarget $rememberedTag $rememberedFolderOpener
-            Read-Host 'Press Enter to return to the menu' | Out-Null
-            continue
+            # Installed: nothing is left to do, so the updater closes. A short
+            # pause keeps the result readable. Failures never reach this line.
+            Write-Host ''
+            Write-Host 'Spatial HUD installed. Closing in 3 seconds...' -ForegroundColor Green
+            Start-Sleep -Seconds 3
+            exit 0
         }
         switch -Regex ($choice) {
             '^2$' { $rememberedTag = Select-InstallBuild $rememberedTag; Read-Host 'Press Enter to continue' | Out-Null; continue }

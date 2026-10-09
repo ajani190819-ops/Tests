@@ -38,7 +38,7 @@ set "RESULT=%ERRORLEVEL%"
 del /f /q "%SPATIALHUD_UPDATER_PS%" >nul 2>&1
 
 if not "%RESULT%"=="0" goto :update_failed
-goto :done
+exit /b 0
 
 :helper_failed
 del /f /q "%SPATIALHUD_UPDATER_PS%" >nul 2>&1
