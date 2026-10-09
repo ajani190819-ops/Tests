@@ -107,24 +107,19 @@ public final class WorldSpaceHudRenderer {
 		}
 		try {
 			Vec3 camera = context.levelState().cameraRenderState.pos;
-			Vec3 bottomLeft = new Vec3(state.bottomLeft().x(), state.bottomLeft().y(), state.bottomLeft().z());
-			Vec3 bottomRight = new Vec3(state.bottomRight().x(), state.bottomRight().y(), state.bottomRight().z());
-			Vec3 topRight = new Vec3(state.topRight().x(), state.topRight().y(), state.topRight().z());
-			Vec3 topLeft = new Vec3(state.topLeft().x(), state.topLeft().y(), state.topLeft().z());
+			WorldSpaceSolidQuad.Shape shape = state.shape();
 			boolean open = !state.occludeBehindWorld();
 			WorldSpaceSolidQuad.submitPanel(context.submitNodeCollector(), camera,
 					SpatialHudConfig.get().horizontalPanelFill,
 					SpatialHudConfig.get().horizontalPanelBorder,
 					SpatialHudConfig.get().horizontalPanelHideEdges,
-					open,
-					bottomLeft, bottomRight, topRight, topLeft);
+					open, shape);
 			// Roadmap stage 3: the captured HUD, only once a frame of it exists.
 			if (ExperimentalHudCapture.worldTextureView() != null) {
 				CapturedHudTexture.register();
 				WorldSpaceSolidQuad.submitCapturedBand(context.submitNodeCollector(), camera, open,
 						WorldSpaceSolidQuad.bandGap(SpatialHudConfig.get()),
-						state.uLeft(), state.uRight(), state.vTop(), state.vBottom(),
-						bottomLeft, bottomRight, topRight, topLeft);
+						state.uLeft(), state.uRight(), state.vTop(), state.vBottom(), shape);
 			}
 		} catch (Throwable t) {
 			planeState = null;
@@ -218,7 +213,9 @@ public final class WorldSpaceHudRenderer {
 		planeState = new PlaneState(bottomLeft, bottomRight, topRight, topLeft,
 				source.textureU(source.sourceLeft()), source.textureU(source.sourceRight()),
 				source.textureV(source.sourceTop()), source.textureV(source.sourceBottom()),
-				cfg.worldSpaceOccludeBehindWorld);
+				cfg.worldSpaceOccludeBehindWorld,
+				WorldSpaceSolidQuad.Shape.of(toVec(bottomLeft), toVec(bottomRight), toVec(topLeft), 0.0,
+						player.getEyePosition(partialTick)));
 	}
 
 	/**
@@ -501,12 +498,17 @@ public final class WorldSpaceHudRenderer {
 		if (!occlude && !WorldSpaceSolidQuad.openPathReady()) {
 			occlude = true;
 		}
-		return new PlaneState(bottomLeft, bottomRight, topRight, topLeft,
+		// Curve: bend the flat panel around the viewer. The arc keeps the flat width.
+		double curveRadians = Math.toRadians(clamp(cfg.horizontalPanelCurveDegrees, 0, 180));
+		WorldSpaceSolidQuad.Shape shape = WorldSpaceSolidQuad.Shape.of(
+				toVec(bottomLeft), toVec(bottomRight), toVec(topLeft), curveRadians, cameraPos);
+		return new PlaneState(toPoint(shape.at(0f, 0f)), toPoint(shape.at(1f, 0f)),
+				toPoint(shape.at(1f, 1f)), toPoint(shape.at(0f, 1f)),
 				band.left() / (float) guiWidth, band.right() / (float) guiWidth,
 				// The capture texture is stored bottom-up, but GUI coordinates run
 				// top-down, so the vertical texture axis is flipped here.
 				1.0f - band.top() / (float) guiHeight, 1.0f - band.bottom() / (float) guiHeight,
-				occlude);
+				occlude, shape);
 	}
 
 	private static void renderPlane(LevelRenderContext context) {
@@ -660,11 +662,19 @@ public final class WorldSpaceHudRenderer {
 
 	private record PlaneState(Point bottomLeft, Point bottomRight, Point topRight, Point topLeft,
 						  float uLeft, float uRight, float vTop, float vBottom,
-						  boolean occludeBehindWorld) {
+						  boolean occludeBehindWorld, WorldSpaceSolidQuad.Shape shape) {
 	}
 
 	private static Point point(float x, float y, float z) {
 		return new Point(x, y, z);
+	}
+
+	private static Vec3 toVec(Point p) {
+		return new Vec3(p.x(), p.y(), p.z());
+	}
+
+	private static Point toPoint(Vec3 v) {
+		return new Point((float) v.x, (float) v.y, (float) v.z);
 	}
 
 	private static float radians(float degrees) {

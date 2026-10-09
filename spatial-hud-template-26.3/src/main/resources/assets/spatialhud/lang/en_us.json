@@ -59,6 +59,8 @@
   "text.autoconfig.spatialhud.option.horizontalPanelDistance.@Tooltip": "Waist preset only. How far in front of your feet the centre of the purple panel sits, in blocks. Larger values move it further away from you.",
   "text.autoconfig.spatialhud.option.horizontalPanelHeight": "Waist: Height Above Feet",
   "text.autoconfig.spatialhud.option.horizontalPanelHeight.@Tooltip": "Waist preset only. Height of the purple panel above your feet, in blocks. Your eyes are about 1.6 blocks up, so values near 0.9 put it at about waist height.",
+  "text.autoconfig.spatialhud.option.horizontalPanelCurveDegrees": "Panel Curve (degrees)",
+  "text.autoconfig.spatialhud.option.horizontalPanelCurveDegrees.@Tooltip": "Bends the purple panel around you, like a curved gaming monitor. 0 is flat. Up to 120 degrees. The panel keeps its width along the curve. Applies to all presets.",
   "text.autoconfig.spatialhud.option.horizontalPanelAngle": "Feet Panel Angle",
   "text.autoconfig.spatialhud.option.horizontalPanelAngle.@Tooltip": "The look-down angle at which the purple panel faces you square-on. 90 lies it flat, so it faces the sky. Smaller angles tilt its near edge toward you. Applies to feet-anchored presets only (Waist and Custom with Attach to Camera off). Face and camera-attached presets always stay square to your view.",
   "text.autoconfig.spatialhud.option.horizontalPanelAnchor": "Heading",

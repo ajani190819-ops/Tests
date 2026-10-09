@@ -129,14 +129,50 @@ final class WorldSpaceSolidQuad {
 		return side / (side - gap);
 	}
 
+	/** Strips per rectangle when the panel is curved. Each strip is a flat quad. */
+	static final int CURVE_SEGMENTS = 16;
+
 	/**
-	 * Submits the purple fill (when enabled) and the white border ring. The corners
-	 * are absolute world coordinates, given in the order bottom-left, bottom-right,
-	 * top-right, top-left. The panel is a parallelogram, so each point inside it is
-	 * found by interpolating along the two edges.
+	 * The panel's shape: flat base corners and an optional arc. The radius is zero
+	 * for a flat panel. When curved, the panel bends around the viewer like a curved
+	 * monitor: vertical edges stay straight, and the arc length equals the flat width.
+	 * {@code normal} points toward the viewer.
+	 */
+	record Shape(Vec3 bottomLeft, Vec3 bottomRight, Vec3 topLeft, double radius, Vec3 normal) {
+		static Shape of(Vec3 bottomLeft, Vec3 bottomRight, Vec3 topLeft, double radians, Vec3 viewer) {
+			Vec3 normal = facing(bottomLeft, bottomRight, topLeft, viewer);
+			double width = length(sub(bottomRight, bottomLeft));
+			if (radians <= 1.0e-4 || width < 1.0e-6) {
+				return new Shape(bottomLeft, bottomRight, topLeft, 0.0, normal);
+			}
+			return new Shape(bottomLeft, bottomRight, topLeft, width / radians, normal);
+		}
+
+		/** The point at (s, t): s across the bottom edge, t up the side, 0 to 1. */
+		Vec3 at(float s, float t) {
+			Vec3 across = sub(bottomRight, bottomLeft);
+			Vec3 up = sub(topLeft, bottomLeft);
+			if (radius <= 0.0) {
+				return add(bottomLeft, mul(across, s), mul(up, t));
+			}
+			double width = length(across);
+			double height = length(up);
+			// Angle from the centre line, so the arc spans the flat width.
+			double alpha = (s - 0.5) * width / radius;
+			Vec3 centre = add(bottomLeft, mul(across, 0.5), mul(up, 0.5));
+			Vec3 pivot = add(centre, mul(normal, radius));
+			Vec3 arc = add(mul(mul(across, 1.0 / width), radius * Math.sin(alpha)),
+					mul(normal, -radius * Math.cos(alpha)));
+			return add(pivot, arc, mul(mul(up, 1.0 / height), (t - 0.5) * height));
+		}
+	}
+
+	/**
+	 * Submits the purple fill (when enabled) and the white border ring, on the given
+	 * shape. Curved shapes are drawn as strips, so the edges follow the arc.
 	 */
 	static void submitPanel(SubmitNodeCollector collector, Vec3 camera, boolean showFill, boolean showBorder,
-			boolean hideEdges, boolean open, Vec3 bottomLeft, Vec3 bottomRight, Vec3 topRight, Vec3 topLeft) {
+			boolean hideEdges, boolean open, Shape shape) {
 		PoseStack.Pose pose = cameraPose(camera);
 		float f = BORDER_FRACTION;
 		float inner = 1.0f - f;
@@ -146,17 +182,16 @@ final class WorldSpaceSolidQuad {
 			// so no purple shows where the fill meets the ring.
 			float fillInset = hideEdges ? f * 0.5f : f;
 			float fillInner = 1.0f - fillInset;
-			submitRect(collector, pose, COLOR, open, bottomLeft, bottomRight, topRight, topLeft,
-					fillInset, fillInner, fillInset, fillInner);
+			submitRect(collector, pose, COLOR, open, shape, fillInset, fillInner, fillInset, fillInner);
 		}
 		if (!showBorder) {
 			return;
 		}
 		// Border ring: bottom, top, left and right strips.
-		submitRect(collector, pose, BORDER_COLOR, open, bottomLeft, bottomRight, topRight, topLeft, 0f, 1f, 0f, f);
-		submitRect(collector, pose, BORDER_COLOR, open, bottomLeft, bottomRight, topRight, topLeft, 0f, 1f, inner, 1f);
-		submitRect(collector, pose, BORDER_COLOR, open, bottomLeft, bottomRight, topRight, topLeft, 0f, f, f, inner);
-		submitRect(collector, pose, BORDER_COLOR, open, bottomLeft, bottomRight, topRight, topLeft, inner, 1f, f, inner);
+		submitRect(collector, pose, BORDER_COLOR, open, shape, 0f, 1f, 0f, f);
+		submitRect(collector, pose, BORDER_COLOR, open, shape, 0f, 1f, inner, 1f);
+		submitRect(collector, pose, BORDER_COLOR, open, shape, 0f, f, f, inner);
+		submitRect(collector, pose, BORDER_COLOR, open, shape, inner, 1f, f, inner);
 	}
 
 	/**
@@ -165,27 +200,17 @@ final class WorldSpaceSolidQuad {
 	 * across, and {@code vBottom} (the hotbar side) to {@code vTop} up the panel.
 	 */
 	static void submitCapturedBand(SubmitNodeCollector collector, Vec3 camera, boolean open, float gap,
-			float uLeft, float uRight, float vTop, float vBottom,
-			Vec3 bottomLeft, Vec3 bottomRight, Vec3 topRight, Vec3 topLeft) {
+			float uLeft, float uRight, float vTop, float vBottom, Shape shape) {
 		PoseStack.Pose pose = cameraPose(camera);
-		// Normal of the panel, turned to face the viewer, so the band is lifted
-		// toward them and lit consistently.
-		Vec3 across = new Vec3(bottomRight.x - bottomLeft.x, bottomRight.y - bottomLeft.y, bottomRight.z - bottomLeft.z);
-		Vec3 up = new Vec3(topLeft.x - bottomLeft.x, topLeft.y - bottomLeft.y, topLeft.z - bottomLeft.z);
-		Vec3 normal = normalize(cross(across, up));
-		double toViewer = (camera.x - bottomLeft.x) * normal.x
-				+ (camera.y - bottomLeft.y) * normal.y
-				+ (camera.z - bottomLeft.z) * normal.z;
-		if (toViewer < 0) {
-			normal = new Vec3(-normal.x, -normal.y, -normal.z);
-		}
+		// The band is lifted toward the viewer along the panel's normal.
+		Vec3 normal = shape.normal();
 		Vec3 lift = new Vec3(normal.x * CAPTURE_LIFT, normal.y * CAPTURE_LIFT, normal.z * CAPTURE_LIFT);
 
 		float f = BORDER_FRACTION;
 		float inner = 1.0f - f;
 		// Band: inside the border on the sides and top; above the fill strip at the bottom.
 		float bandBottom = f + gap;
-		submitCapturedRect(collector, pose, normal, lift, open, bottomLeft, bottomRight, topLeft,
+		submitCapturedRect(collector, pose, normal, lift, open, shape,
 				f, inner, bandBottom, inner, uLeft, uRight, vBottom, vTop);
 	}
 
@@ -196,21 +221,26 @@ final class WorldSpaceSolidQuad {
 	 * {@code vTop} up.
 	 */
 	private static void submitCapturedRect(SubmitNodeCollector collector, PoseStack.Pose pose,
-			Vec3 normal, Vec3 lift, boolean open, Vec3 bottomLeft, Vec3 bottomRight, Vec3 topLeft,
+			Vec3 normal, Vec3 lift, boolean open, Shape shape,
 			float s0, float s1, float t0, float t1,
 			float uLeft, float uRight, float vBottom, float vTop) {
-		Vec3 p00 = offset(at(bottomLeft, bottomRight, topLeft, s0, t0), lift);
-		Vec3 p10 = offset(at(bottomLeft, bottomRight, topLeft, s1, t0), lift);
-		Vec3 p11 = offset(at(bottomLeft, bottomRight, topLeft, s1, t1), lift);
-		Vec3 p01 = offset(at(bottomLeft, bottomRight, topLeft, s0, t1), lift);
-		float u0 = lerp(uLeft, uRight, s0);
-		float u1 = lerp(uLeft, uRight, s1);
-		float v0 = lerp(vBottom, vTop, t0);
-		float v1 = lerp(vBottom, vTop, t1);
 		Mode mode = open ? Mode.BAND_OPEN : Mode.BAND_OCCLUDED;
-		collector.submitCustom(SubmitRenderPhases.TRANSLUCENT_CUSTOM_GEOMETRY, new TexturedSubmit(mode, pose, normal, WHITE,
-				new Corner(p00, u0, v0), new Corner(p10, u1, v0),
-				new Corner(p11, u1, v1), new Corner(p01, u0, v1)));
+		int segments = shape.radius() > 0 ? CURVE_SEGMENTS : 1;
+		for (int k = 0; k < segments; k++) {
+			float a = lerp(s0, s1, k / (float) segments);
+			float b = lerp(s0, s1, (k + 1) / (float) segments);
+			Vec3 p00 = offset(shape.at(a, t0), lift);
+			Vec3 p10 = offset(shape.at(b, t0), lift);
+			Vec3 p11 = offset(shape.at(b, t1), lift);
+			Vec3 p01 = offset(shape.at(a, t1), lift);
+			float u0 = lerp(uLeft, uRight, a);
+			float u1 = lerp(uLeft, uRight, b);
+			float v0 = lerp(vBottom, vTop, t0);
+			float v1 = lerp(vBottom, vTop, t1);
+			collector.submitCustom(SubmitRenderPhases.TRANSLUCENT_CUSTOM_GEOMETRY, new TexturedSubmit(mode, pose, normal, WHITE,
+					new Corner(p00, u0, v0), new Corner(p10, u1, v0),
+					new Corner(p11, u1, v1), new Corner(p01, u0, v1)));
+		}
 	}
 
 	/**
@@ -219,19 +249,23 @@ final class WorldSpaceSolidQuad {
 	 * occluded; with the white texture, tinted by {@code color}, when open.
 	 */
 	private static void submitRect(SubmitNodeCollector collector, PoseStack.Pose pose, int color, boolean open,
-			Vec3 bottomLeft, Vec3 bottomRight, Vec3 topRight, Vec3 topLeft,
-			float s0, float s1, float t0, float t1) {
-		Vec3 p00 = at(bottomLeft, bottomRight, topLeft, s0, t0);
-		Vec3 p10 = at(bottomLeft, bottomRight, topLeft, s1, t0);
-		Vec3 p11 = at(bottomLeft, bottomRight, topLeft, s1, t1);
-		Vec3 p01 = at(bottomLeft, bottomRight, topLeft, s0, t1);
-		if (open) {
-			// The white texel is 1x1, so every corner samples the same colour.
-			collector.submitCustom(SubmitRenderPhases.SOLID, new TexturedSubmit(Mode.RECT_OPEN, pose, new Vec3(0, 1, 0), color,
-					new Corner(p00, 0f, 0f), new Corner(p10, 0f, 0f),
-					new Corner(p11, 0f, 0f), new Corner(p01, 0f, 0f)));
-		} else {
-			collector.submitCustom(SubmitRenderPhases.SOLID, new QuadSubmit(pose, color, p00, p10, p11, p01));
+			Shape shape, float s0, float s1, float t0, float t1) {
+		int segments = shape.radius() > 0 ? CURVE_SEGMENTS : 1;
+		for (int k = 0; k < segments; k++) {
+			float a = lerp(s0, s1, k / (float) segments);
+			float b = lerp(s0, s1, (k + 1) / (float) segments);
+			Vec3 p00 = shape.at(a, t0);
+			Vec3 p10 = shape.at(b, t0);
+			Vec3 p11 = shape.at(b, t1);
+			Vec3 p01 = shape.at(a, t1);
+			if (open) {
+				// The white texel is 1x1, so every corner samples the same colour.
+				collector.submitCustom(SubmitRenderPhases.SOLID, new TexturedSubmit(Mode.RECT_OPEN, pose, new Vec3(0, 1, 0), color,
+						new Corner(p00, 0f, 0f), new Corner(p10, 0f, 0f),
+						new Corner(p11, 0f, 0f), new Corner(p01, 0f, 0f)));
+			} else {
+				collector.submitCustom(SubmitRenderPhases.SOLID, new QuadSubmit(pose, color, p00, p10, p11, p01));
+			}
 		}
 	}
 
@@ -241,12 +275,38 @@ final class WorldSpaceSolidQuad {
 		return toCamera.last().copy();
 	}
 
-	/** The point at (s, t) on the panel: bottom-left plus s along the bottom and t up. */
-	private static Vec3 at(Vec3 bottomLeft, Vec3 bottomRight, Vec3 topLeft, float s, float t) {
-		return new Vec3(
-				bottomLeft.x + (bottomRight.x - bottomLeft.x) * s + (topLeft.x - bottomLeft.x) * t,
-				bottomLeft.y + (bottomRight.y - bottomLeft.y) * s + (topLeft.y - bottomLeft.y) * t,
-				bottomLeft.z + (bottomRight.z - bottomLeft.z) * s + (topLeft.z - bottomLeft.z) * t);
+	private static Vec3 add(Vec3 a, Vec3 b) {
+		return new Vec3(a.x + b.x, a.y + b.y, a.z + b.z);
+	}
+
+	private static Vec3 add(Vec3 a, Vec3 b, Vec3 c) {
+		return add(add(a, b), c);
+	}
+
+	private static Vec3 sub(Vec3 a, Vec3 b) {
+		return new Vec3(a.x - b.x, a.y - b.y, a.z - b.z);
+	}
+
+	private static Vec3 mul(Vec3 v, double k) {
+		return new Vec3(v.x * k, v.y * k, v.z * k);
+	}
+
+	private static double dot(Vec3 a, Vec3 b) {
+		return a.x * b.x + a.y * b.y + a.z * b.z;
+	}
+
+	private static double length(Vec3 v) {
+		return Math.sqrt(dot(v, v));
+	}
+
+	/** Unit normal of the flat panel, turned to face the viewer. */
+	private static Vec3 facing(Vec3 bottomLeft, Vec3 bottomRight, Vec3 topLeft, Vec3 viewer) {
+		Vec3 n = normalize(cross(sub(bottomRight, bottomLeft), sub(topLeft, bottomLeft)));
+		Vec3 centre = add(bottomLeft, mul(sub(bottomRight, bottomLeft), 0.5), mul(sub(topLeft, bottomLeft), 0.5));
+		if (dot(n, sub(viewer, centre)) < 0) {
+			n = mul(n, -1.0);
+		}
+		return n;
 	}
 
 	private static Vec3 offset(Vec3 point, Vec3 by) {

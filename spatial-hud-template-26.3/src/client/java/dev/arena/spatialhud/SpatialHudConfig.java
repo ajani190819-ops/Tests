@@ -188,6 +188,16 @@ public final class SpatialHudConfig implements ConfigData {
 	public int horizontalPanelAngle = 90;
 
 	/**
+	 * Curves the purple panel around you, like a curved gaming monitor. 0 keeps it
+	 * flat. The panel keeps its width along the curve, so higher values shorten its
+	 * straight-line span. Applies to every preset.
+	 */
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 120)
+	@ConfigEntry.Gui.Tooltip
+	public int horizontalPanelCurveDegrees = 0;
+
+	/**
 	 * Over-the-shoulder cameras sit beside the player, so the body can hide the
 	 * feet-anchored panel. On, the panel moves sideways by the camera's offset
 	 * from your eye, so the camera has a clear view of it. Has no effect when the
