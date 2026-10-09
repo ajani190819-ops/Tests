@@ -48,10 +48,17 @@
 
 ## Rendering design
 
-- The only visible selector is the Setup **Render Mode Slider**
-  (`renderModePicker`, 3–4). **F8** selects Method 3 and **F9** selects Method 4.
-  Config version is 22. `renderMethod` is hidden and defaults to
-  `WORLD_SPACE_TEXTURE`. The v22 step clamps the picker to 3–4.
+- Method 4 (the purple panel) is the only active method. `selectedRenderMethod()`
+  always returns `POLYGON_TEST`. Method 3 is shelved: its settings (`renderModePicker`,
+  `distance`, `virtual*`, `worldSpace*`, `showPanel`, the Method 3 guide card, and the
+  flat-map tilt) are `@ConfigEntry.Gui.Excluded`. They stay in the JSON so old files
+  still load, and their code still compiles. The F8 and F9 keys were removed, as the
+  user asked for config-only switching. Config version is still 22.
+- Config tabs (Cloth Config category ids, in order): `guide`, `setup` (Enabled,
+  Only During Gameplay), `presets` (Panel Preset, Waist, Face, Custom 1, Custom 2),
+  `panel` (Panel Width, Heading, Angle, Shoulder Camera, fill, border, edges,
+  occlusion, third-person exception), `wiggle` (all `panelWiggle*`), `contents` (HUD
+  contents, Picture Offset, Slot Cycling Width). Field declaration order sets tab order.
   - `WORLD_SPACE_TEXTURE` (Method 3, "Real 3D Panel"): the captured lower HUD on a
     flat, world-anchored quad, with a 3 px purple border.
   - `POLYGON_TEST` (Method 4, "Purple Horizontal Panel"; the enum name is kept

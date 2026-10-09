@@ -58,10 +58,6 @@ public final class SpatialHudConfig implements ConfigData {
 	public transient String guideOverview = "";
 
 	@ConfigEntry.Category("guide")
-	@MethodGuideText(color = 0xFFEF5350)
-	public transient String guideWorldSpace = "";
-
-	@ConfigEntry.Category("guide")
 	@MethodGuideText(color = 0xFFC75CFF)
 	public transient String guidePolygonTest = "";
 
@@ -79,6 +75,7 @@ public final class SpatialHudConfig implements ConfigData {
 	public int fovBaseline = 70;
 
 	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	public boolean showPanel = true;
 
@@ -87,12 +84,12 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean onlyDuringGameplay = true;
 
 	/**
-	 * Visible render-mode selector: 3 = real world-space panel, 4 = purple GUI
-	 * approximation. Cloth Config renders this as a bounded slider. The value is
-	 * read live, so saving the config takes effect on the next HUD frame.
+	 * Method 3 selector (3 = real world-space panel, 4 = purple panel). Hidden
+	 * while Method 3 is shelved: the purple panel is always the active method, and
+	 * this value is ignored. Kept so old files still load.
 	 */
 	@ConfigEntry.Category("setup")
-	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.BoundedDiscrete(min = 3, max = 4)
 	public int renderModePicker = 3;
 
@@ -111,15 +108,245 @@ public final class SpatialHudConfig implements ConfigData {
 		POLYGON_TEST
 	}
 
+	/**
+	 * Where Method 4 places the panel. Waist uses the distance and height below and
+	 * the body heading setting. Face and the two custom presets are locked to the
+	 * camera or the feet, as their own settings say. Each preset keeps the wiggle.
+	 */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public PanelPreset horizontalPanelPreset = PanelPreset.WAIST;
+
+	/** Purple Method 4 placement. Waist preset: a flat sheet anchored to your feet and body heading. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelDistance = 1.25;
+
+	/** Height of the Waist panel above your feet. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelHeight = 0.9;
+
+	/** Face preset: how far in front of the camera the panel sits, in blocks. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelFaceDistance = 0.6;
+
+	/** Face preset: height of the panel relative to the camera, in blocks. Negative is below the camera. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelFaceHeight = -0.3;
+
+	/** Custom preset 1: distance in front of its anchor, in blocks. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomOneDistance = 1.0;
+
+	/** Custom preset 1: height relative to its anchor, in blocks. For feet anchors this is above your feet. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomOneHeight = 0.6;
+
+	/** Custom preset 1: anchor the panel to the camera instead of your feet. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelCustomOneAttachToCamera = false;
+
+	/** Custom preset 2: distance in front of its anchor, in blocks. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomTwoDistance = 1.25;
+
+	/** Custom preset 2: height relative to its anchor, in blocks. For feet anchors this is above your feet. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomTwoHeight = 0.9;
+
+	/** Custom preset 2: anchor the panel to the camera instead of your feet. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelCustomTwoAttachToCamera = false;
+
+	/** Width of the purple panel, in blocks. Also sets the Method 4 panel's width. */
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.Gui.Tooltip
+	public double planeWidth = 1.45;
+
+
+	/**
+	 * Which heading Method 4 turns with. Player Body keeps the panel at body
+	 * heading, so turning your head does not move it. Camera Yaw turns the panel
+	 * with your horizontal view. Method 3 has its own setting above.
+	 */
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.Gui.Tooltip
+	public HorizontalPanelAnchor horizontalPanelAnchor = HorizontalPanelAnchor.PLAYER_BODY;
+
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 20, max = 90)
+	public int horizontalPanelAngle = 90;
+
+	/**
+	 * Over-the-shoulder cameras sit beside the player, so the body can hide the
+	 * feet-anchored panel. On, the panel moves sideways by the camera's offset
+	 * from your eye, so the camera has a clear view of it. Has no effect when the
+	 * camera sits at your eye, and no effect on the camera-anchored presets.
+	 */
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelFollowShoulderCamera = true;
+
+	/**
+	 * Whether Method 4 draws its purple fill. Off leaves only the white border
+	 * ring, so the panel's outline can be seen against the world without the fill.
+	 */
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelFill = true;
+
+	/** Whether Method 4 draws the white border ring. Off leaves just the HUD picture (and the fill, if on). */
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelBorder = true;
+
+	/** Makes the purple fill run under the border ring, so no purple line shows at the ring's edge. */
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelHideEdges = true;
+
+	/**
+	 * Whether blocks and entities between you and the Method 4 panel hide it.
+	 * Off draws the panel over everything, and also keeps water and other
+	 * translucent world surfaces showing through it correctly.
+	 */
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelOcclusion = true;
+
+	/**
+	 * In third person, the panel ignores blocks and mobs, including your own body,
+	 * so it stays visible from behind you. Applies only while occlusion is on.
+	 * Note: this is broader than the body alone. The depth buffer cannot exempt
+	 * just the player's model.
+	 */
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelThirdPersonException = true;
+
+	/**
+	 * Lets the Method 4 panel lag behind your movement and catch up, instead of
+	 * snapping. Only the parts ticked below move with a lag.
+	 */
+	@ConfigEntry.Category("wiggle")
+	@ConfigEntry.Gui.Tooltip
+	public boolean panelWiggle = true;
+
+	/**
+	 * How long the heading and height take to catch up, in seconds. About 63% of
+	 * the way in one catch-up time.
+	 */
+	@ConfigEntry.Category("wiggle")
+	@ConfigEntry.Gui.Tooltip
+	public double panelWiggleSeconds = 0.2;
+
+	/** How long the position takes to catch up, in seconds. Set separately, so position can lag more or less. */
+	@ConfigEntry.Category("wiggle")
+	@ConfigEntry.Gui.Tooltip
+	public double panelWigglePositionSeconds = 0.1;
+
+	@ConfigEntry.Category("wiggle")
+	@ConfigEntry.Gui.Tooltip
+	public boolean panelWiggleHeading = true;
+
+	/**
+	 * How much of the heading lag is shown, as a percentage. 100 shows the full
+	 * lag; 0 keeps the panel's turn locked to your body. The lag is scaled, not
+	 * re-timed, so it still never overshoots.
+	 */
+	@ConfigEntry.Category("wiggle")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int panelWiggleHeadingStrength = 100;
+
+	@ConfigEntry.Category("wiggle")
+	@ConfigEntry.Gui.Tooltip
+	public boolean panelWigglePosition = false;
+
+	/**
+	 * How much of the position (and height, when ticked) lag is shown, as a
+	 * percentage. 50 halves how far the panel trails behind you.
+	 */
+	@ConfigEntry.Category("wiggle")
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+	public int panelWigglePositionStrength = 50;
+
+	/**
+	 * The most the position lag may pull the panel away from its true place, in
+	 * blocks. Larger lag is clamped to this distance, so sprinting cannot pull
+	 * the panel far away.
+	 */
+	@ConfigEntry.Category("wiggle")
+	@ConfigEntry.Gui.Tooltip
+	public double panelWigglePositionMaxBlocks = 0.25;
+
+	@ConfigEntry.Category("wiggle")
+	@ConfigEntry.Gui.Tooltip
+	public boolean panelWiggleHeight = false;
+
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.Gui.Tooltip
+	public boolean showHotbar = true;
+
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.Gui.Tooltip
+	public boolean showBars = true;
+
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.Gui.Tooltip
+	public boolean showXp = true;
+
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.Gui.Tooltip
+	public boolean showMountBars = true;
+
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.Gui.Tooltip
+	public boolean showHeldItemName = true;
+
+	/** Hotbar Slot Cycling's side display (the cycle slots beside the hotbar). Method 4 widens its picture to hold it. */
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.Gui.Tooltip
+	public boolean showSlotCycling = true;
+
+	/**
+	 * Moves the HUD picture inside the purple panel, in percent of the panel's
+	 * height. Negative and positive values move it in opposite directions. The
+	 * default is -4. -3 was the position confirmed in game.
+	 */
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.BoundedDiscrete(min = -10, max = 10)
+	@ConfigEntry.Gui.Tooltip
+	public int horizontalPanelPictureOffset = -4;
+
+	/**
+	 * Half-width, in GUI pixels from the centre of the hotbar, of the band the
+	 * purple panel samples while Slot Cycling is shown. The cycle slots sit about
+	 * 91 to 167 pixels out, so 172 holds them all. Lower it to narrow the panel,
+	 * which cuts off the outermost cycle slots.
+	 */
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.BoundedDiscrete(min = 112, max = 200)
+	@ConfigEntry.Gui.Tooltip
+	public int slotCyclingHalfWidth = 172;
+
 	// Player-relative placement in block units. The default is in front of the
 	// player at waist height rather than fixed in screen/camera space.
 	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	public double distance = 1.25;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Tooltip
-	public double planeWidth = 1.45;
 
 	/**
 	 * Legacy fields remain in old JSON files but are no longer exposed. The
@@ -148,15 +375,18 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Player-local placement: +X right, +Y up, and +Z forward. */
 	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	public double virtualOffsetX = 0.0;
 
 	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	public double virtualOffsetY = -0.72;
 
 	/** Fine adjustment on the same left-to-right axis as the primary map tilt. */
 	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
 	public int virtualPitch = 0;
@@ -180,6 +410,7 @@ public final class SpatialHudConfig implements ConfigData {
 	 * still allowing a deliberate angled-paper view when reduced.
 	 */
 	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 5, max = 89)
 	public int virtualFaceOnLookDownPitch = 85;
@@ -191,6 +422,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Turn around the player-local/world-up axis. Positive values turn right. */
 	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = -80, max = 80)
 	public int virtualYaw = 0;
@@ -200,16 +432,19 @@ public final class SpatialHudConfig implements ConfigData {
 	 * edge; keep zero for a normal readable desk surface.
 	 */
 	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
 	public int virtualRoll = 0;
 
 	/** These controls affect only Render Method: World-Space Texture. */
 	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	public WorldSpaceAnchor worldSpaceAnchor = WorldSpaceAnchor.CAMERA_YAW;
 
 	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	public boolean worldSpaceOccludeBehindWorld = true;
 
@@ -313,208 +548,6 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Excluded
 	public boolean rotateWithSway = true;
 
-	/**
-	 * Where Method 4 places the panel. Waist uses the distance and height below and
-	 * the body heading setting. Face and the two custom presets are locked to the
-	 * camera or the feet, as their own settings say. Each preset keeps the wiggle.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public PanelPreset horizontalPanelPreset = PanelPreset.WAIST;
-
-	/** Purple Method 4 placement. Waist preset: a flat sheet anchored to your feet and body heading. */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public double horizontalPanelDistance = 1.25;
-
-	/** Height of the Waist panel above your feet. */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public double horizontalPanelHeight = 0.9;
-
-	/** Face preset: how far in front of the camera the panel sits, in blocks. */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public double horizontalPanelFaceDistance = 0.6;
-
-	/** Face preset: height of the panel relative to the camera, in blocks. Negative is below the camera. */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public double horizontalPanelFaceHeight = -0.3;
-
-	/** Custom preset 1: distance in front of its anchor, in blocks. */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public double horizontalPanelCustomOneDistance = 1.0;
-
-	/** Custom preset 1: height relative to its anchor, in blocks. For feet anchors this is above your feet. */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public double horizontalPanelCustomOneHeight = 0.6;
-
-	/** Custom preset 1: anchor the panel to the camera instead of your feet. */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public boolean horizontalPanelCustomOneAttachToCamera = false;
-
-	/** Custom preset 2: distance in front of its anchor, in blocks. */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public double horizontalPanelCustomTwoDistance = 1.25;
-
-	/** Custom preset 2: height relative to its anchor, in blocks. For feet anchors this is above your feet. */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public double horizontalPanelCustomTwoHeight = 0.9;
-
-	/** Custom preset 2: anchor the panel to the camera instead of your feet. */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public boolean horizontalPanelCustomTwoAttachToCamera = false;
-
-	/**
-	 * Over-the-shoulder cameras sit beside the player, so the body can hide the
-	 * feet-anchored panel. On, the panel moves sideways by the camera's offset
-	 * from your eye, so the camera has a clear view of it. Has no effect when the
-	 * camera sits at your eye, and no effect on the camera-anchored presets.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public boolean horizontalPanelFollowShoulderCamera = true;
-
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 20, max = 90)
-	public int horizontalPanelAngle = 90;
-
-	/**
-	 * Which heading Method 4 turns with. Player Body keeps the panel at body
-	 * heading, so turning your head does not move it. Camera Yaw turns the panel
-	 * with your horizontal view. Method 3 has its own setting above.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public HorizontalPanelAnchor horizontalPanelAnchor = HorizontalPanelAnchor.PLAYER_BODY;
-
-	/**
-	 * Whether Method 4 draws its purple fill. Off leaves only the white border
-	 * ring, so the panel's outline can be seen against the world without the fill.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public boolean horizontalPanelFill = true;
-
-	/** Whether Method 4 draws the white border ring. Off leaves just the HUD picture (and the fill, if on). */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public boolean horizontalPanelBorder = true;
-
-	/** Makes the purple fill run under the border ring, so no purple line shows at the ring's edge. */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public boolean horizontalPanelHideEdges = true;
-
-	/**
-	 * Lets the Method 4 panel lag behind your movement and catch up, instead of
-	 * snapping. Only the parts ticked below move with a lag.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public boolean panelWiggle = true;
-
-	/**
-	 * How long the heading and height take to catch up, in seconds. About 63% of
-	 * the way in one catch-up time.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public double panelWiggleSeconds = 0.2;
-
-	/** How long the position takes to catch up, in seconds. Set separately, so position can lag more or less. */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public double panelWigglePositionSeconds = 0.1;
-
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public boolean panelWiggleHeading = true;
-
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public boolean panelWigglePosition = false;
-
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public boolean panelWiggleHeight = false;
-
-	/**
-	 * How much of the heading lag is shown, as a percentage. 100 shows the full
-	 * lag; 0 keeps the panel's turn locked to your body. The lag is scaled, not
-	 * re-timed, so it still never overshoots.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
-	public int panelWiggleHeadingStrength = 100;
-
-	/**
-	 * How much of the position (and height, when ticked) lag is shown, as a
-	 * percentage. 50 halves how far the panel trails behind you.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
-	public int panelWigglePositionStrength = 50;
-
-	/**
-	 * The most the position lag may pull the panel away from its true place, in
-	 * blocks. Larger lag is clamped to this distance, so sprinting cannot pull
-	 * the panel far away.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public double panelWigglePositionMaxBlocks = 0.25;
-
-	/**
-	 * Whether blocks and entities between you and the Method 4 panel hide it.
-	 * Off draws the panel over everything, and also keeps water and other
-	 * translucent world surfaces showing through it correctly.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public boolean horizontalPanelOcclusion = true;
-
-	/**
-	 * In third person, the panel ignores blocks and mobs, including your own body,
-	 * so it stays visible from behind you. Applies only while occlusion is on.
-	 * Note: this is broader than the body alone. The depth buffer cannot exempt
-	 * just the player's model.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.Gui.Tooltip
-	public boolean horizontalPanelThirdPersonException = true;
-
-	/**
-	 * Moves the HUD picture inside the purple panel, in percent of the panel's
-	 * height. Negative and positive values move it in opposite directions. The
-	 * default is -4. -3 was the position confirmed in game.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.BoundedDiscrete(min = -10, max = 10)
-	@ConfigEntry.Gui.Tooltip
-	public int horizontalPanelPictureOffset = -4;
-
-	/**
-	 * Half-width, in GUI pixels from the centre of the hotbar, of the band the
-	 * purple panel samples while Slot Cycling is shown. The cycle slots sit about
-	 * 91 to 167 pixels out, so 172 holds them all. Lower it to narrow the panel,
-	 * which cuts off the outermost cycle slots.
-	 */
-	@ConfigEntry.Category("purple")
-	@ConfigEntry.BoundedDiscrete(min = 112, max = 200)
-	@ConfigEntry.Gui.Tooltip
-	public int slotCyclingHalfWidth = 172;
-
 	// Legacy corner controls from the GUI-layer warp that Method 4 used before
 	// v22. They stay in the JSON so older files still load, but nothing reads them.
 	@ConfigEntry.Gui.Excluded
@@ -543,31 +576,6 @@ public final class SpatialHudConfig implements ConfigData {
 
 	@ConfigEntry.Gui.Excluded
 	public int polygonBottomLeftYPercent = 70;
-
-	@ConfigEntry.Category("contents")
-	@ConfigEntry.Gui.Tooltip
-	public boolean showHotbar = true;
-
-	@ConfigEntry.Category("contents")
-	@ConfigEntry.Gui.Tooltip
-	public boolean showBars = true;
-
-	@ConfigEntry.Category("contents")
-	@ConfigEntry.Gui.Tooltip
-	public boolean showXp = true;
-
-	@ConfigEntry.Category("contents")
-	@ConfigEntry.Gui.Tooltip
-	public boolean showMountBars = true;
-
-	@ConfigEntry.Category("contents")
-	@ConfigEntry.Gui.Tooltip
-	public boolean showHeldItemName = true;
-
-	/** Hotbar Slot Cycling's side display (the cycle slots beside the hotbar). Method 4 widens its picture to hold it. */
-	@ConfigEntry.Category("contents")
-	@ConfigEntry.Gui.Tooltip
-	public boolean showSlotCycling = true;
 
 	// AutoConfig reflects fields when constructing Cloth Config. These are runtime
 	// singletons, never settings; excluding them prevents a config-screen error.
@@ -622,10 +630,8 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Maps the visible 3–4 slider to the one active renderer. */
 	RenderMethod selectedRenderMethod() {
-		return switch (Math.max(3, Math.min(4, renderModePicker))) {
-			case 3 -> RenderMethod.WORLD_SPACE_TEXTURE;
-			default -> RenderMethod.POLYGON_TEST;
-		};
+		// The purple panel is the only active method while Method 3 is shelved.
+		return RenderMethod.POLYGON_TEST;
 	}
 
 	/** Synchronizes direct key selection with the visible slider and old JSON field. */

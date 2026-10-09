@@ -33,8 +33,6 @@ public class SpatialHud implements ClientModInitializer {
 
 	private static KeyMapping openConfigKey;
 	private static KeyMapping toggleHudKey;
-	private static KeyMapping selectMethodThreeKey;
-	private static KeyMapping selectMethodFourKey;
 
 	// The panel samples camera pitch once before every selected HUD extraction,
 	// so the backing and all captured roots share one mesh pose for that frame.
@@ -83,13 +81,6 @@ public class SpatialHud implements ClientModInitializer {
 				InputConstants.UNKNOWN.getValue(),
 				KeyMapping.Category.MISC));
 
-		// Render mode is deliberately selected through these direct Controls-menu
-		// bindings rather than a persistent config dropdown. F8/F9 avoid the
-		// hotbar number keys while providing an immediate Method 3 or 4 selection;
-		// users can rebind any conflict in the normal Minecraft Controls screen.
-		selectMethodThreeKey = registerMethodKey("key.spatialhud.select_method_3", SDLScancode.SDL_SCANCODE_F8);
-		selectMethodFourKey = registerMethodKey("key.spatialhud.select_method_4", SDLScancode.SDL_SCANCODE_F9);
-
 		for (Identifier id : STRIP_ELEMENTS) {
 			HudElementRegistry.replaceElement(id, vanilla -> new SpatialHudElement(id, vanilla));
 		}
@@ -120,21 +111,12 @@ public class SpatialHud implements ClientModInitializer {
 				LOGGER.info("Spatial HUD toggled {}.", toggleConfig.enabled ? "on" : "off");
 			}
 
-			while (selectMethodThreeKey.consumeClick()) {
-				selectRenderMethod(SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE, 3,
-						"real 3D world-space panel");
-			}
-			while (selectMethodFourKey.consumeClick()) {
-				selectRenderMethod(SpatialHudConfig.RenderMethod.POLYGON_TEST, 4,
-						"purple horizontal panel");
-			}
-
 			if (client.player == null) {
 				resetSway();
 			}
 		});
 
-		LOGGER.info("Spatial HUD initialized. Press H for the read-only guide; direct keys: F8 = Method 3, F9 = Method 4.");
+		LOGGER.info("Spatial HUD initialized. Press H for the settings and guide.");
 	}
 
 	/**
@@ -153,25 +135,6 @@ public class SpatialHud implements ClientModInitializer {
 		} catch (Throwable t) {
 			LOGGER.error("Spatial HUD could not register Hotbar Slot Cycling's cycle slots; they stay on the vanilla HUD.", t);
 		}
-	}
-
-	private static KeyMapping registerMethodKey(String translationKey, int defaultScancode) {
-		return KeyMappingHelper.registerKeyMapping(new KeyMapping(
-				translationKey,
-				InputConstants.Type.KEYBOARD,
-				defaultScancode,
-				KeyMapping.Category.MISC));
-	}
-
-	private static void selectRenderMethod(SpatialHudConfig.RenderMethod method, int number,
-			String description) {
-		SpatialHudConfig cfg = SpatialHudConfig.get();
-		if (cfg.selectedRenderMethod() != method) {
-			cfg.selectRenderMethod(method);
-			SpatialHudConfig.save();
-		}
-		// Logging gives modpack troubleshooting an exact trace of direct key use.
-		LOGGER.info("Spatial HUD Method {} selected: {}.", number, description);
 	}
 
 	/** The config instance is the sole live source of truth for the Enable toggle. */
