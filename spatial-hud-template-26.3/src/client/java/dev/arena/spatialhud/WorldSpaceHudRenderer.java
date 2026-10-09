@@ -501,17 +501,18 @@ public final class WorldSpaceHudRenderer {
 		// panel hide it. Body exclusion (both views) lets the player's own body,
 		// hand, armour and particles stop hiding it, and blocks and mobs stop too
 		// (see SpatialHudConfig).
-		boolean firstPerson = Minecraft.getInstance().options.getCameraType().isFirstPerson();
 		boolean occlude = cfg.horizontalPanelOcclusion
 				&& !cfg.horizontalPanelThirdPersonException;
 		// Occlusion off needs the see-through path. If it cannot run, draw occluded.
 		if (!occlude && !WorldSpaceSolidQuad.openPathReady()) {
 			occlude = true;
 		}
-		// In first person the hand is drawn after the world with its own depth, so
-		// a panel drawn in the world pass would sit under it. Such a panel is drawn
-		// over the hand instead (see drawOverHand). Third person has no hand.
-		boolean overHand = firstPerson && !occlude;
+		// An open panel (occlusion off, or body exclusion) is drawn over the hand
+		// instead, in drawOverHand, in both views. The world pass applies the head
+		// bob and the sprint FOV to its projection, which made the open panel wobble
+		// while running. The hand pass projection has neither. In first person this
+		// is also what keeps the hand from covering the panel.
+		boolean overHand = !occlude;
 		// Curve: bend the flat panel around the viewer. The arc keeps the flat width.
 		double curveRadians = Math.toRadians(clamp(cfg.horizontalPanelCurveDegrees, 0, 180));
 		WorldSpaceSolidQuad.Shape shape = WorldSpaceSolidQuad.Shape.of(
