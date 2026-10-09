@@ -370,7 +370,7 @@ public final class SpatialHudConfig implements ConfigData {
 	/** Custom preset 2: anchor the panel to the camera instead of your feet. */
 	@ConfigEntry.Category("purple")
 	@ConfigEntry.Gui.Tooltip
-	public boolean horizontalPanelCustomTwoAttachToCamera = true;
+	public boolean horizontalPanelCustomTwoAttachToCamera = false;
 
 	/**
 	 * Over-the-shoulder cameras sit beside the player, so the body can hide the
