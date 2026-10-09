@@ -342,12 +342,20 @@ public final class SpatialHudConfig implements ConfigData {
 	 */
 	@ConfigEntry.Category("purple")
 	@ConfigEntry.Gui.Tooltip
-	public boolean panelWiggle = false;
+	public boolean panelWiggle = true;
 
-	/** How long the panel takes to catch up, in seconds. Roughly 63% of the way in one catch-up time. */
+	/**
+	 * How long the heading and height take to catch up, in seconds. About 63% of
+	 * the way in one catch-up time.
+	 */
 	@ConfigEntry.Category("purple")
 	@ConfigEntry.Gui.Tooltip
 	public double panelWiggleSeconds = 0.2;
+
+	/** How long the position takes to catch up, in seconds. Set separately, so position can lag more or less. */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public double panelWigglePositionSeconds = 0.2;
 
 	@ConfigEntry.Category("purple")
 	@ConfigEntry.Gui.Tooltip

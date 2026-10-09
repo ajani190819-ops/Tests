@@ -253,15 +253,16 @@ public final class WorldSpaceHudRenderer {
 			wiggleReady = true;
 			return;
 		}
-		double tau = Math.max(0.05, Math.min(1.0, cfg.panelWiggleSeconds));
-		double alpha = 1.0 - Math.exp(-dt / tau);
+		// Heading and height share one catch-up time; position has its own.
+		double alphaTurn = 1.0 - Math.exp(-dt / Math.max(0.05, Math.min(1.0, cfg.panelWiggleSeconds)));
+		double alphaPosition = 1.0 - Math.exp(-dt / Math.max(0.05, Math.min(1.0, cfg.panelWigglePositionSeconds)));
 		wiggleYaw = cfg.panelWiggleHeading
-				? wiggleYaw + wrapRadians(targetYaw - wiggleYaw) * (float) alpha
+				? wiggleYaw + wrapRadians(targetYaw - wiggleYaw) * (float) alphaTurn
 				: targetYaw;
-		wiggleX = cfg.panelWigglePosition ? wiggleX + (targetFeet.x - wiggleX) * alpha : targetFeet.x;
-		wiggleY = cfg.panelWigglePosition ? wiggleY + (targetFeet.y - wiggleY) * alpha : targetFeet.y;
-		wiggleZ = cfg.panelWigglePosition ? wiggleZ + (targetFeet.z - wiggleZ) * alpha : targetFeet.z;
-		wiggleHeight = cfg.panelWiggleHeight ? wiggleHeight + (targetHeight - wiggleHeight) * alpha : targetHeight;
+		wiggleX = cfg.panelWigglePosition ? wiggleX + (targetFeet.x - wiggleX) * alphaPosition : targetFeet.x;
+		wiggleY = cfg.panelWigglePosition ? wiggleY + (targetFeet.y - wiggleY) * alphaPosition : targetFeet.y;
+		wiggleZ = cfg.panelWigglePosition ? wiggleZ + (targetFeet.z - wiggleZ) * alphaPosition : targetFeet.z;
+		wiggleHeight = cfg.panelWiggleHeight ? wiggleHeight + (targetHeight - wiggleHeight) * alphaTurn : targetHeight;
 	}
 
 	/** Wraps an angle to the range minus pi to pi, so the shortest turn is used. */
@@ -327,7 +328,9 @@ public final class WorldSpaceHudRenderer {
 		// walls or terrain.
 		return new PlaneState(bottomLeft, bottomRight, topRight, topLeft,
 				band.left() / (float) guiWidth, band.right() / (float) guiWidth,
-				band.top() / (float) guiHeight, band.bottom() / (float) guiHeight,
+				// The capture texture is stored bottom-up, but GUI coordinates run
+				// top-down, so the vertical texture axis is flipped here.
+				1.0f - band.top() / (float) guiHeight, 1.0f - band.bottom() / (float) guiHeight,
 				true);
 	}
 
