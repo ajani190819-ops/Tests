@@ -122,6 +122,7 @@ public final class WorldSpaceHudRenderer {
 			if (ExperimentalHudCapture.worldTextureView() != null) {
 				CapturedHudTexture.register();
 				WorldSpaceSolidQuad.submitCapturedBand(context.submitNodeCollector(), camera, open,
+						WorldSpaceSolidQuad.bandGap(SpatialHudConfig.get()),
 						state.uLeft(), state.uRight(), state.vTop(), state.vBottom(),
 						bottomLeft, bottomRight, topRight, topLeft);
 			}
@@ -378,9 +379,10 @@ public final class WorldSpaceHudRenderer {
 
 		// The panel is exactly the sampled band, so its aspect matches the HUD.
 		float width = clamp((float) cfg.planeWidth, 0.10f, 6.0f);
-		// The band keeps its aspect, plus the fill strip under it (see BAND_BOTTOM_GAP).
+		// The band keeps its aspect, plus any fill strip under it (picture offset).
+		float gap = WorldSpaceSolidQuad.bandGap(cfg);
 		float height = width * (band.bottom() - band.top()) / (float) (band.right() - band.left())
-				* WorldSpaceSolidQuad.panelHeightScale();
+				* WorldSpaceSolidQuad.panelHeightScale(gap);
 		float lookDown = radians(clamp(cfg.horizontalPanelAngle, 20, 90));
 		// Unit vector along the panel's height, lying in the plane that faces
 		// the player at the chosen look-down angle. At 90 it is the forward

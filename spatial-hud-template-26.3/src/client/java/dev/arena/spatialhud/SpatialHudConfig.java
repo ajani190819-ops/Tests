@@ -426,6 +426,16 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public boolean horizontalPanelThirdPersonException = true;
 
+	/**
+	 * Moves the HUD picture inside the purple panel, in percent of the panel's
+	 * height. Positive moves it up, leaving a strip of fill under the hotbar.
+	 * Negative moves it down, toward the bottom border. 0 is the default placement.
+	 */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.BoundedDiscrete(min = -3, max = 20)
+	@ConfigEntry.Gui.Tooltip
+	public int horizontalPanelPictureOffset = 0;
+
 	// Legacy corner controls from the GUI-layer warp that Method 4 used before
 	// v22. They stay in the JSON so older files still load, but nothing reads them.
 	@ConfigEntry.Gui.Excluded

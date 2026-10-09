@@ -107,7 +107,7 @@
   If that fails, or an open draw throws, `disableOpenPath` logs one warning and
   the panel draws occluded for the rest of the session. An occluded draw that throws
   stops the band (`bandDisabled`) and logs an error. Nothing rethrows into the render frame.
-- Bottom gap: the band sits above a fill strip of `BAND_BOTTOM_GAP` (0.10 of panel
+- Picture offset (`horizontalPanelPictureOffset`, percent, default 0; positive moves the picture up): the band sits above a fill strip of that gap (was a fixed 0.10 of panel
   height) so the hotbar's bottom row is not against the border. The panel is taller
   by `panelHeightScale()` so the band keeps its aspect. Band UVs are unchanged.
 - Hypothesis (water, now reported fixed): the occluded band's depth write hid translucent

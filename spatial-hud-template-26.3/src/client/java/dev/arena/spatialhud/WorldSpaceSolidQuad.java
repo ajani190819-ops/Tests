@@ -43,11 +43,12 @@ final class WorldSpaceSolidQuad {
 	/** Border width as a fraction of the panel's width and height. */
 	static final float BORDER_FRACTION = 0.03f;
 	/**
-	 * Fill strip between the bottom border and the bottom of the captured band, as
-	 * a fraction of the panel height. It moves the HUD picture up in the panel, so
-	 * the hotbar's bottom row is clear of the border.
+	 * Picture offset from the config, as a fraction of the panel height. Positive
+	 * leaves a fill strip under the captured band (moves the picture up).
 	 */
-	static final float BAND_BOTTOM_GAP = 0.10f;
+	static float bandGap(SpatialHudConfig cfg) {
+		return cfg.horizontalPanelPictureOffset / 100.0f;
+	}
 	/** How far the captured band sits toward the viewer, in blocks. */
 	static final float CAPTURE_LIFT = 0.004f;
 
@@ -123,9 +124,9 @@ final class WorldSpaceSolidQuad {
 	}
 
 	/** Height of the panel relative to its band, so the band keeps its aspect with the gap added. */
-	static float panelHeightScale() {
+	static float panelHeightScale(float gap) {
 		float side = 1.0f - 2.0f * BORDER_FRACTION;
-		return side / (side - BAND_BOTTOM_GAP);
+		return side / (side - gap);
 	}
 
 	/**
@@ -163,7 +164,7 @@ final class WorldSpaceSolidQuad {
 	 * bottom. The texture coordinates span the whole band: {@code uLeft}–{@code uRight}
 	 * across, and {@code vBottom} (the hotbar side) to {@code vTop} up the panel.
 	 */
-	static void submitCapturedBand(SubmitNodeCollector collector, Vec3 camera, boolean open,
+	static void submitCapturedBand(SubmitNodeCollector collector, Vec3 camera, boolean open, float gap,
 			float uLeft, float uRight, float vTop, float vBottom,
 			Vec3 bottomLeft, Vec3 bottomRight, Vec3 topRight, Vec3 topLeft) {
 		PoseStack.Pose pose = cameraPose(camera);
@@ -183,7 +184,7 @@ final class WorldSpaceSolidQuad {
 		float f = BORDER_FRACTION;
 		float inner = 1.0f - f;
 		// Band: inside the border on the sides and top; above the fill strip at the bottom.
-		float bandBottom = f + BAND_BOTTOM_GAP;
+		float bandBottom = f + gap;
 		submitCapturedRect(collector, pose, normal, lift, open, bottomLeft, bottomRight, topLeft,
 				f, inner, bandBottom, inner, uLeft, uRight, vBottom, vTop);
 	}

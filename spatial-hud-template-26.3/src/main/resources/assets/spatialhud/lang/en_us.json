@@ -100,5 +100,7 @@
   "text.autoconfig.spatialhud.option.panelWigglePositionMaxBlocks": "Position Wiggle Max Offset (blocks)",
   "text.autoconfig.spatialhud.option.panelWigglePositionMaxBlocks.@Tooltip": "The furthest the position lag may pull the panel away from its true place, in blocks. Caps how far it can trail when you sprint.",
   "text.autoconfig.spatialhud.option.showSlotCycling": "Hotbar Slot Cycling Display",
-  "text.autoconfig.spatialhud.option.showSlotCycling.@Tooltip": "Include Hotbar Slot Cycling's side display (the cycle slots beside the hotbar) in the Method 4 panel. The panel widens to hold it, so the hotbar appears slightly smaller. Turn off to keep the narrower picture."
+  "text.autoconfig.spatialhud.option.showSlotCycling.@Tooltip": "Include Hotbar Slot Cycling's side display (the cycle slots beside the hotbar) in the Method 4 panel. The panel widens to hold it, so the hotbar appears slightly smaller. Turn off to keep the narrower picture.",
+  "text.autoconfig.spatialhud.option.horizontalPanelPictureOffset": "Picture Offset (%)",
+  "text.autoconfig.spatialhud.option.horizontalPanelPictureOffset.@Tooltip": "Moves the HUD picture inside the purple panel. Positive moves it up and leaves a strip of fill under the hotbar. Negative moves it down, toward the bottom border. 0 is the default placement."
 }
