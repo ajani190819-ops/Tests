@@ -29,6 +29,9 @@
   installer, one file (no `.ps1` helper any more). It must be re-downloaded once
   from `arena/b4016c28-tests`; older saved copies are stale. Windows run not yet
   confirmed. `tests/test_spatialhud_installer.py` checks the static contract.
+- **Render roadmap**: `docs/spatial-hud/RENDER-ROADMAP.md` is the step-by-step plan
+  for getting Methods 3 and 4 to draw: stage 0 (a draw that works), then the outline,
+  positioning, texture, and HUD element mapping. The current blocker is the draw.
 - **Manual workflow dispatch is unavailable** (HTTP 403 from this sandbox). A push
   to the branch is how a build starts.
 

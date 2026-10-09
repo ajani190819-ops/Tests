@@ -1,0 +1,154 @@
+# Spatial HUD render roadmap: Method 3 and Method 4
+
+Status: **planning.** Written 2026-10-09. Nothing in this file is verified in the
+game yet, except where a log is named.
+
+## Why this is step by step
+
+Both methods fail at the same point today: the world-space draw in
+`WorldSpaceHudRenderer.renderPlane` throws `Close the existing render pass before
+performing additional commands` (`.agent/evidence/logs/latest.log`, 22:27:24).
+Until a draw succeeds, nothing downstream can be seen, so each stage below is one
+build, one game test, and one log. A stage is done only when its acceptance
+check passes in the game.
+
+Method 4 (purple horizontal panel) goes first, because its geometry is the
+simplest: a flat sheet at a fixed point near the feet. Method 3 follows with the
+same steps.
+
+## What exists today
+
+| Piece | Where | State |
+|---|---|---|
+| HUD capture into a private texture | `ExperimentalHudCapture` | Works. The log says the hotbar root was extracted into its texture. |
+| Corner geometry, Method 3 | `WorldSpaceHudRenderer.computePlaneState` | Written. Not seen in game. |
+| Corner geometry, Method 4 | `WorldSpaceHudRenderer.purplePanelState` | Written. Not seen in game. |
+| Vertex staging during extraction | `WorldSpaceHudRenderer.extractPlane` / `stagePlaneGeometry` | Written. Built by CI (`7b7e0f2`). Not confirmed in game. |
+| Draw in the level pass | `WorldSpaceHudRenderer.renderPlane` / `drawToLevelTarget` | **Blocked.** `drawToLevelTarget` opens its own render pass inside the same callback where the upload failed, so it is likely refused the same way. Unconfirmed. |
+| Failure marker | `SpatialHudPanelElement.drawFailureIndicator` | Works. Red for Method 3, purple for Method 4. |
+
+## Stage 0: prove that anything can be drawn in the world
+
+**Goal:** one plain coloured quad appears in the world at the Method 4 spot. No
+capture texture yet.
+
+**Why first:** the render pass refusal is the single blocker. Stage 0 finds a
+route that the game accepts.
+
+**Routes to try, in order:**
+
+1. **Submit through the level** (preferred). Fabric passes a
+   `SubmitNodeCollector` in `LevelRenderContext.submitNodeCollector()`. Geometry
+   submitted there is drawn inside the level's own passes, so no extra render pass
+   is opened. Exact Minecraft 26.3 method names and render types must be checked
+   against the compiled jar. The CI build is the compile check.
+2. **Keep the current draw, but only outside the level pass.** Try a later event
+   such as `LevelRenderEvents.END_MAIN`. The Fabric docs say END_MAIN is "at the
+   end of the main render pass", so this is unconfirmed.
+3. **Draw after the level, in the GUI phase.** This is always pass-free, but it
+   is not depth-tested against the world, so it cannot be occluded. Last resort.
+
+**Acceptance:**
+- A solid quad is visible at the Method 4 spot.
+- `latest.log` has no `Close the existing render pass` line for that draw.
+- F8 and F9 still switch methods, and the vanilla HUD still shows when the
+  capture is off.
+
+**Log to send:** `latest.log` after one F9 press.
+
+## Stage 1: an outline with correct perspective (Method 4 first)
+
+**Goal:** a thin border drawn along the four corners of the Method 4 panel. It
+must look like a flat sheet in the world, not a flat sticker on the screen.
+
+**Acceptance:**
+- The four outline corners land on the four corners that `purplePanelState`
+  computes. Check by standing still and comparing against a fixed block.
+- Walk toward and away from the panel: the outline scales with distance.
+- Look straight down: the outline looks like a square (face-on). Look at a
+  shallow angle: it foreshortens, with the far edge shorter.
+- Put a block between the player and the panel: the outline is hidden behind it.
+
+**Not in this stage:** texture, HUD elements, colours beyond one.
+
+## Stage 2: positioning (Method 4)
+
+**Goal:** the panel sits where the config says.
+
+**Settings in scope:** `horizontalPanelDistance` (1.25), `horizontalPanelHeight`
+(0.9), `horizontalPanelAngle` (90, range 20–90), `planeWidth`.
+
+**Acceptance:**
+- Distance changes move the panel toward and away from the feet.
+- Height moves it up and down.
+- Angle 90 is flat, and face-on when looking straight down. Lower angles tilt
+  the near edge toward you.
+- The panel does not move when you turn your head (it follows the body yaw).
+
+**Output:** a short table of tested values, written into this file.
+
+## Stage 3: put the capture on the outline (Method 4)
+
+**Goal:** the captured bottom 72 px band of the HUD fills the outline.
+
+**Acceptance:**
+- The band fills the outline with no stretching. The aspect matches `purpleSourceRect`.
+- The hotbar is readable from normal play distance.
+- Turning the head does not change the picture.
+
+**Depends on:** Stage 0 (a draw that works). The capture itself already works.
+
+## Stage 4: map HUD elements onto the panel
+
+**Goal:** each HUD element (hotbar, health, hunger, armour, air, experience, held
+item name) can be placed on the panel on its own.
+
+**Steps:**
+1. Measure the captured band in a screenshot. Record each element's pixel box.
+2. Draw one element at a time with a fixed box. Confirm each one lands in the
+   right place.
+3. Add config to show or hide each element.
+
+**Acceptance:** each element appears in its own region, and turning it off hides
+only that element.
+
+## Stage 5: Method 3 (the real flat plane, with the same steps)
+
+Repeat stages 1–4 for `computePlaneState`. The differences: Method 3 is anchored to
+the eye or the body (`worldSpaceAnchor`), uses `virtualYaw`, `virtualPitch`,
+`virtualRoll`, and the offsets, and samples the full capture envelope
+(`VirtualHudPlane.forGui`). Its acceptance checks are the same, with its own
+config names.
+
+## Stage 6: hardening
+
+- Remove the diagnostic-only code paths once the draw is stable.
+- Keep the failure indicator and the vanilla fallback.
+- Check frame cost (one buffer upload per frame).
+- Update `docs/spatial-hud/CI-SETUP.md`, `.agent/facts/spatial-hud.md`, and the
+  README with the final behaviour.
+
+## Working rules for every stage
+
+1. One stage per build. Do not start the next stage until the user confirms the
+   acceptance check.
+2. Each build is installed with `Update-SpatialHUD.bat`. The user sends
+   `latest.log` after each game test. The latest log must come from the build
+   under test; check the build time against the log time.
+3. Every log line that matters is quoted in the stage's notes, not paraphrased.
+4. A stage that fails is recorded here with the log line, before the next attempt.
+
+## Open decisions
+
+- **Stage 0 route:** route 1 (submit through the level) is preferred. Route 2 or 3
+  if route 1 cannot be made to compile against 26.3.
+- **Start method:** Method 4 first, as planned above, unless you want Method 3 first.
+- **Outline style:** one solid colour per method (purple for Method 4), or a
+  single neutral colour for testing.
+
+## Log history
+
+| Date | Build | Result | Log |
+|---|---|---|---|
+| 2026-10-08 22:26 EDT (2026-10-09 02:26 UTC) | Probably `fd365ba` (built 02:09 UTC, 51,041 B). Not confirmed. | Both methods fail at the draw: `IllegalStateException: Close the existing render pass`, thrown from `StagedVertexBuffer.upload` inside `renderPlane`. | `.agent/evidence/logs/latest.log` (22:27:24) |
+| After 2026-10-09 02:46 UTC | Installed by the new installer. Probably `3708186` or later. Not confirmed. | The updater worked. No game log from that build has been sent. | — |
