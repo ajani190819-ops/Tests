@@ -15,7 +15,6 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
-import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -236,6 +235,9 @@ public final class WorldSpaceHudRenderer {
 	 * clamped to {@code panelWigglePositionMaxBlocks}.
 	 */
 	private static float wiggleYaw;
+	/** The view's look-down pitch, lagged the same way as the heading. Used by view-locked presets. */
+	private static float wigglePitch;
+	private static float shownPitch;
 	private static double wiggleX;
 	private static double wiggleY;
 	private static double wiggleZ;
@@ -260,14 +262,15 @@ public final class WorldSpaceHudRenderer {
 	 * same lag at any frame rate. The step is capped, so a long hitch cannot
 	 * sweep the panel. Nothing overshoots.</p>
 	 */
-	private static void updateWiggle(SpatialHudConfig cfg, float targetYaw, Vec3 targetFeet, double targetHeight,
-			double deltaSeconds) {
+	private static void updateWiggle(SpatialHudConfig cfg, float targetYaw, float targetPitch, Vec3 targetFeet,
+			double targetHeight, double deltaSeconds) {
 		double jump = Math.hypot(targetFeet.x - wiggleX, targetFeet.z - wiggleZ);
 		if (!wiggleReady || !cfg.panelWiggle || jump > 4.0 || deltaSeconds < 0.0) {
 			// A teleport, a first frame, a new world, a long gap while the panel was
 			// hidden, or the wiggle being off snaps, so the panel never sweeps across
 			// the map (deltaSeconds is -1 for these gap cases).
 			wiggleYaw = targetYaw;
+			wigglePitch = targetPitch;
 			wiggleX = targetFeet.x;
 			wiggleY = targetFeet.y;
 			wiggleZ = targetFeet.z;
@@ -282,6 +285,10 @@ public final class WorldSpaceHudRenderer {
 			wiggleYaw = cfg.panelWiggleHeading
 					? wiggleYaw + wrapRadians(targetYaw - wiggleYaw) * (float) alphaTurn
 					: targetYaw;
+			// Pitch lags with the heading, so tilting your view swings the panel too.
+			wigglePitch = cfg.panelWiggleHeading
+					? wigglePitch + (targetPitch - wigglePitch) * (float) alphaTurn
+					: targetPitch;
 			wiggleX = cfg.panelWigglePosition ? wiggleX + (targetFeet.x - wiggleX) * alphaPosition : targetFeet.x;
 			wiggleY = cfg.panelWigglePosition ? wiggleY + (targetFeet.y - wiggleY) * alphaPosition : targetFeet.y;
 			wiggleZ = cfg.panelWigglePosition ? wiggleZ + (targetFeet.z - wiggleZ) * alphaPosition : targetFeet.z;
@@ -295,6 +302,7 @@ public final class WorldSpaceHudRenderer {
 		double headingScale = clamp(cfg.panelWiggleHeadingStrength, 0, 100) / 100.0;
 		double positionScale = clamp(cfg.panelWigglePositionStrength, 0, 100) / 100.0;
 		shownYaw = targetYaw + wrapRadians(wiggleYaw - targetYaw) * (float) headingScale;
+		shownPitch = targetPitch + (wigglePitch - targetPitch) * (float) headingScale;
 
 		double dx = (wiggleX - targetFeet.x) * positionScale;
 		double dy = (wiggleY - targetFeet.y) * positionScale;
@@ -394,7 +402,8 @@ public final class WorldSpaceHudRenderer {
 		// Wall-clock time made the lag uneven from frame to frame.
 		// Cast before adding: a float would lose precision after a few hours of play.
 		double gameTicks = (double) Minecraft.getInstance().level.getGameTime() + partialTick;
-		updateWiggle(cfg, targetYaw, targetFeet, placement.height(), wiggleDeltaSeconds(gameTicks));
+		float targetPitch = radians(player.getViewXRot(partialTick));
+		updateWiggle(cfg, targetYaw, targetPitch, targetFeet, placement.height(), wiggleDeltaSeconds(gameTicks));
 		float bodyYaw = shownYaw;
 		// The panel's right is the player's right. Minecraft's forward is (-sin, cos),
 		// so the right is (-cos, -sin). The old sign mirrored the picture.
@@ -416,34 +425,45 @@ public final class WorldSpaceHudRenderer {
 		Point topLeft;
 		if (placement.attachToCamera()) {
 			// View-locked (Face and camera-attached presets). The panel stands square to
-			// the camera's view, a fixed distance ahead and height above the camera, so
-			// it keeps its place in the viewport as you look around. Only the anchor moves
-			// it through the world, and that anchor takes the wiggle lag.
-			Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
-			org.joml.Vector3fc look = camera.forwardVector();
-			org.joml.Vector3fc up = camera.upVector();
-			// leftVector() points to the camera's left, so its negation is the right.
-			org.joml.Vector3fc left = camera.leftVector();
+			// the view, a fixed distance ahead and height above the view centre, so it
+			// keeps its place on screen as you look around. The view direction is built
+			// from the lagged yaw and pitch, so with the wiggle on, the panel swings
+			// behind your turns and tilts a little, and the anchor lags your movement.
+			// Matches Minecraft's view vector, with no roll: forward, then right, then
+			// up = right x forward.
+			float cosPitch = (float) Math.cos(shownPitch);
+			float sinPitch = (float) Math.sin(shownPitch);
+			float cosYaw = (float) Math.cos(shownYaw);
+			float sinYaw = (float) Math.sin(shownYaw);
+			float fx = -sinYaw * cosPitch;
+			float fy = -sinPitch;
+			float fz = cosYaw * cosPitch;
+			float rx = -cosYaw;
+			float ry = 0.0f;
+			float rz = -sinYaw;
+			float ux = ry * fz - rz * fy;
+			float uy = rz * fx - rx * fz;
+			float uz = rx * fy - ry * fx;
+			float lookX = fx;
+			float lookY = fy;
+			float lookZ = fz;
 			float dist = (float) Math.max(0.10, placement.distance());
 			float upHeight = (float) shownHeight;
-			float cx = (float) shownX + look.x() * dist + up.x() * upHeight;
-			float cy = (float) shownY + look.y() * dist + up.y() * upHeight;
-			float cz = (float) shownZ + look.z() * dist + up.z() * upHeight;
-			float rx = -left.x();
-			float ry = -left.y();
-			float rz = -left.z();
-			bottomLeft = point(cx - rx * halfWidth - up.x() * halfHeight,
-					cy - ry * halfWidth - up.y() * halfHeight,
-					cz - rz * halfWidth - up.z() * halfHeight);
-			bottomRight = point(cx + rx * halfWidth - up.x() * halfHeight,
-					cy + ry * halfWidth - up.y() * halfHeight,
-					cz + rz * halfWidth - up.z() * halfHeight);
-			topRight = point(cx + rx * halfWidth + up.x() * halfHeight,
-					cy + ry * halfWidth + up.y() * halfHeight,
-					cz + rz * halfWidth + up.z() * halfHeight);
-			topLeft = point(cx - rx * halfWidth + up.x() * halfHeight,
-					cy - ry * halfWidth + up.y() * halfHeight,
-					cz - rz * halfWidth + up.z() * halfHeight);
+			float cx = (float) shownX + lookX * dist + ux * upHeight;
+			float cy = (float) shownY + lookY * dist + uy * upHeight;
+			float cz = (float) shownZ + lookZ * dist + uz * upHeight;
+			bottomLeft = point(cx - rx * halfWidth - ux * halfHeight,
+					cy - ry * halfWidth - uy * halfHeight,
+					cz - rz * halfWidth - uz * halfHeight);
+			bottomRight = point(cx + rx * halfWidth - ux * halfHeight,
+					cy + ry * halfWidth - uy * halfHeight,
+					cz + rz * halfWidth - uz * halfHeight);
+			topRight = point(cx + rx * halfWidth + ux * halfHeight,
+					cy + ry * halfWidth + uy * halfHeight,
+					cz + rz * halfWidth + uz * halfHeight);
+			topLeft = point(cx - rx * halfWidth + ux * halfHeight,
+					cy - ry * halfWidth + uy * halfHeight,
+					cz - rz * halfWidth + uz * halfHeight);
 		} else {
 			// Feet-anchored (Waist and the custom feet presets): a flat sheet at the
 			// heading, at a set distance and height, tilted by the angle setting.
