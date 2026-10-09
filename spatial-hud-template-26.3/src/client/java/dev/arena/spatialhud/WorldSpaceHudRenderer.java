@@ -94,8 +94,9 @@ public final class WorldSpaceHudRenderer {
 	}
 
 	/**
-	 * Roadmap stage 0. Submits the selected plane as one solid quad. Only Method 4
-	 * is drawn for now, following the roadmap order.
+	 * Roadmap stages 0 and 1. Submits the Method 4 panel: a purple fill with a white
+	 * border, both as solid quads. Only Method 4 is drawn for now, following the
+	 * roadmap order.
 	 */
 	private static void submitPlane(LevelRenderContext context) {
 		PlaneState state = planeState;
@@ -104,7 +105,7 @@ public final class WorldSpaceHudRenderer {
 		}
 		try {
 			Vec3 camera = context.levelState().cameraRenderState.pos;
-			WorldSpaceSolidQuad.submit(context.submitNodeCollector(), camera,
+			WorldSpaceSolidQuad.submitPanel(context.submitNodeCollector(), camera,
 					new Vec3(state.bottomLeft().x(), state.bottomLeft().y(), state.bottomLeft().z()),
 					new Vec3(state.bottomRight().x(), state.bottomRight().y(), state.bottomRight().z()),
 					new Vec3(state.topRight().x(), state.topRight().y(), state.topRight().z()),

@@ -73,6 +73,8 @@ must look like a flat sheet in the world, not a flat sticker on the screen.
 
 **Not in this stage:** texture, HUD elements, colours beyond one.
 
+**Status (build after `850b58f`, border added):** the purple fill is shrunk to the inner rectangle, and a white border ring (3% of the panel's width and height) is drawn around it as four solid strips. Both go through the same level submit route as stage 0. The user reported that the perspective already looks right, and that the panel is hidden by blocks in the way. Those two checks come from the user's view, not a log. The outline-corner check and the walk-toward-and-away check are not yet confirmed.
+
 ## Stage 2: positioning (Method 4)
 
 **Goal:** the panel sits where the config says.
