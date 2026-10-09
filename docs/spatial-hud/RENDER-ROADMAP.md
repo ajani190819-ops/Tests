@@ -176,4 +176,5 @@ config names.
 | Date | Build | Result | Log |
 |---|---|---|---|
 | 2026-10-08 22:26 EDT (2026-10-09 02:26 UTC) | Probably `fd365ba` (built 02:09 UTC, 51,041 B). Not confirmed. | Both methods fail at the draw: `IllegalStateException: Close the existing render pass`, thrown from `StagedVertexBuffer.upload` inside `renderPlane`. | `.agent/evidence/logs/latest.log` (22:27:24) |
+| 2026-10-09 01:28 EDT (`latest.log`, sent in `fb6f736`) | Not confirmed. Fill toggle works, so this is `dc689ab` or later; the stage 3 build (`947967e`) is not confirmed. | The panel and border show. The captured HUD does not show. No error from the textured draw. Capture extracted the hotbar root (01:29:11). Iris logs `Missing program minecraft:pipeline/debug_filled_box in override list` at 01:29:11, from the SOLID draw path. | `.agent/evidence/logs/latest.log` |
 | After 2026-10-09 02:46 UTC | Installed by the new installer. Probably `3708186` or later. Not confirmed. | The updater worked. No game log from that build has been sent. | — |
