@@ -2529,3 +2529,60 @@ java.lang.Throwable
 [02:21:15] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
 [02:21:15] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
 [02:21:15] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[02:25:56] [Render thread/INFO]: Session resumed
+[02:26:01] [Server thread/INFO]: Player SillyEnderer standing on air - force-sending blocks below
+[02:26:06] [Server thread/INFO]: Saving and pausing game...
+[02:26:06] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[02:26:06] [Render thread/INFO]: Session paused
+[02:26:06] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[02:26:06] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[02:26:08] [Render thread/ERROR]: Invalid mod icon for icon source aitk: assets/icon.png
+[02:26:08] [Render thread/WARN]: Warning! Mod aitk has a broken icon, loading default icon
+[02:26:09] [Render thread/INFO]: Session resumed
+[02:26:10] [Render thread/INFO]: Session paused
+[02:26:10] [Server thread/INFO]: Saving and pausing game...
+[02:26:10] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[02:26:10] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[02:26:10] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[02:26:14] [Render thread/INFO]: Session resumed
+[02:26:17] [Server thread/INFO]: Saving and pausing game...
+[02:26:17] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[02:26:17] [Render thread/INFO]: Session paused
+[02:26:17] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[02:26:17] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[02:26:43] [Render thread/INFO]: Session resumed
+[02:27:03] [Render thread/INFO]: Session paused
+[02:27:03] [Server thread/INFO]: Saving and pausing game...
+[02:27:03] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[02:27:03] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[02:27:03] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[02:27:08] [Render thread/INFO]: Xaero hud session finalized.
+[02:27:08] [Render thread/INFO]: Finalizing world map session...
+[02:27:08] [Thread-17/INFO]: World map force-cleaned!
+[02:27:08] [Netty Local IO #1/INFO]: [STDOUT]: [Ding Mod] World Saved & Exited Dinged!
+[02:27:08] [Server thread/INFO]: SillyEnderer lost connection: Disconnected
+[02:27:08] [Server thread/INFO]: System chat: SillyEnderer left the game
+[02:27:08] [Server thread/INFO]: Stopping singleplayer server as player logged out
+[02:27:08] [Render thread/INFO]: World map session finalized.
+[02:27:08] [Render thread/INFO]: [FastQuit] Disconnected "New World" from the client.
+[02:27:08] [Render thread/INFO]: Stopping worker threads
+[02:27:08] [Server thread/INFO]: Server stopping, waiting for ChestTracker saves...
+[02:27:08] [Server thread/INFO]: Stopping server
+[02:27:08] [Server thread/INFO]: Saving players
+[02:27:08] [Server thread/INFO]: Saving worlds
+[02:27:08] [Render thread/INFO]: [ETF]: emissive suffixes loaded: [_e]
+[02:27:08] [Render thread/INFO]: [ETF]: emissive suffixes loaded: [_e]
+[02:27:08] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[02:27:08] [Render thread/INFO]: [FullscreenFix] Game started
+[02:27:08] [Render thread/INFO]: Session ended
+[02:27:08] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[02:27:08] [Server thread/INFO]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[02:27:08] [Server thread/INFO]: TimelessLib Stopped for Server
+[02:27:08] [Server thread/INFO]: Dispatching unloading event for config opentogether-server.toml
+[02:27:08] [Server thread/INFO]: Dispatching unloading event for config pickupnotifier-server.toml
+[02:27:08] [Server thread/INFO]: [FastQuit] Finished saving "New World" (0s)
+[02:27:09] [CullThread/INFO]: [STDOUT]: Shutting down culling task!
+[02:27:09] [Render thread/INFO]: Stopping!
+[02:27:09] [Render thread/INFO]: [ETF]: emissive suffixes loaded: [_e]
+[02:27:09] [Render thread/INFO]: [FastQuit] Exiting FastQuit.
+[02:27:10] [Render thread/INFO]: Discarded config watch service
