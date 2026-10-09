@@ -102,6 +102,11 @@
   `textBackgroundSeeThrough`, but they use different vertex formats, so the writers
   must change too. Hypothesis, unverified: the band's depth write hides translucent
   water behind the panel. Test with a real screenshot before changing it.
+- Crash `Missing elements in vertex` (report 03:01:50, `crash-2026-10-09_03.01.50-client.txt`):
+  caused by `TexturedRenderer.vertex` picking a different vertex layout from the
+  `open` flag while the buffer was always `entityTranslucent`. Turning occlusion
+  off (open = true) hit it. Fixed: the writer now always uses the entity layout.
+  Rule: a vertex writer must match the format of the buffer it writes to.
 - `SpatialHudConfig.instance` and `registered` are excluded from Cloth Config. The
   read-only **Method Guide — Read This First** tab is transient and never saved.
 - Legacy `polygon*Percent` and `polygonFollowCameraPitch` fields are kept only as

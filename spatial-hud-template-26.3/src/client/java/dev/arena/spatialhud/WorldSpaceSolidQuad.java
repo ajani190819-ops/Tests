@@ -293,14 +293,10 @@ final class WorldSpaceSolidQuad {
 		}
 
 		private void vertex(VertexConsumer buffer, TexturedSubmit submit, Corner corner) {
+			// Must match the buffer's format (entity translucent: position, colour,
+			// UV, overlay, light, normal). An open flag that picks a different format
+			// here crashes with "Missing elements in vertex".
 			Vec3 p = corner.point();
-			if (open) {
-				// POSITION_COLOR_TEXTURE: the GUI format has no light, overlay, or normal.
-				buffer.addVertex(submit.pose(), (float) p.x, (float) p.y, (float) p.z)
-						.setColor(0xFFFFFFFF)
-						.setUv(corner.u(), corner.v());
-				return;
-			}
 			Vec3 n = submit.normal();
 			buffer.addVertex(submit.pose(), (float) p.x, (float) p.y, (float) p.z)
 					.setColor(0xFFFFFFFF)
