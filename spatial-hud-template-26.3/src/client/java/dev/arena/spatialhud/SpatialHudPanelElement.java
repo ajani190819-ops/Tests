@@ -26,6 +26,8 @@ final class SpatialHudPanelElement implements HudElement {
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
+		// One-time log of the HUD registry, for finding other mods' elements. Never throws.
+		SpatialHudDiagnostics.dumpOnce();
 		if (!SpatialHud.isGameplayHudActive()) {
 			return;
 		}

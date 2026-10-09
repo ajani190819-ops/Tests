@@ -186,3 +186,5 @@
 - User setup guide: `spatial-hud-template-26.3/README.md`.
 - F5W test runbook: `.agent/runbooks/test-spatial-hud-f5w.md`.
 - Build and updater process: `docs/spatial-hud/CI-SETUP.md`.
+
+- Diagnostic (`SpatialHudDiagnostics`): once per session, the first panel frame logs every HUD root and its layer IDs from Fabric's internal `HudElementRegistryImpl.ROOT_ELEMENTS` (read only, wrapped in catch Throwable). Use it to find other mods' elements (e.g. dualbar's locator arrows, the minimap). Look for `Spatial HUD diagnostic:` in latest.log. Sodium Extra's FPS is drawn from a mixin at the end of `Gui.extractRenderState` and has no element ID.
