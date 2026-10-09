@@ -107,9 +107,14 @@
   If that fails, or an open draw throws, `disableOpenPath` logs one warning and
   the panel draws occluded for the rest of the session. An occluded draw that throws
   stops the band (`bandDisabled`) and logs an error. Nothing rethrows into the render frame.
-- Picture offset (`horizontalPanelPictureOffset`, percent, default 0; positive moves the picture up): the band sits above a fill strip of that gap (was a fixed 0.10 of panel
-  height) so the hotbar's bottom row is not against the border. The panel is taller
-  by `panelHeightScale(gap)` so the band keeps its aspect. Band UVs are unchanged.
+- Picture offset (`horizontalPanelPictureOffset`, percent, default 3, range 0..20): the band sits above a fill strip of that gap, so the hotbar's bottom row is not against the border. The panel is taller by `panelHeightScale(gap)` so the band keeps its aspect. Band UVs are unchanged. The user tested 3 as correct. Negative values (-20 when edited into the JSON) cut off more.
+- Placement presets (`horizontalPanelPreset`: WAIST, FACE, CUSTOM_ONE, CUSTOM_TWO):
+  `panelPlacement(cfg)` returns `attachToCamera`, `distance`, `height`.
+  - WAIST: feet anchor, `horizontalPanelDistance` and `horizontalPanelHeight`. Heading comes from `horizontalPanelAnchor`. Unchanged from before.
+  - FACE: camera anchor (`mainCamera().position()`), `horizontalPanelFaceDistance` and `horizontalPanelFaceHeight` (relative to camera). Heading is camera yaw.
+  - CUSTOM_ONE/TWO: their own distance and height, plus an `AttachToCamera` flag.
+  The anchor point goes through the same wiggle as the feet, so the lag applies. Presets are config-only. Saving and loading presets is roadmap work.
+- Shoulder camera (`horizontalPanelFollowShoulderCamera`, default on): the feet-anchored target is moved sideways by the camera's lateral offset from the eye, measured along the panel's own right. The shift goes through the wiggle. With position wiggle off, it snaps. Only shifts when the camera is off the eye, so first person is unaffected. Not verified in-game. Depends on the shoulder mod moving the real camera position, not just the view matrix.
 - Slot cycling width (`slotCyclingHalfWidth`, GUI px from centre, default 172, range 112..200):
   `purpleSourceRect` uses it as the band half-width while Slot Cycling is shown. The
   panel widens with the band, and the UVs follow it. Clamped in code too. The hotbar's

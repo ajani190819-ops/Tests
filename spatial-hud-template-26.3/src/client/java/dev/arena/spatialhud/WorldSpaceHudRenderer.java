@@ -349,21 +349,51 @@ public final class WorldSpaceHudRenderer {
 		return a;
 	}
 
+	/** Where the purple panel hangs from, and how far and high it sits from there. */
+	private record PanelPlacement(boolean attachToCamera, double distance, double height) {
+	}
+
+	/** The placement for the chosen preset. Waist keeps the original feet-anchored sliders. */
+	private static PanelPlacement panelPlacement(SpatialHudConfig cfg) {
+		return switch (cfg.horizontalPanelPreset) {
+			case FACE -> new PanelPlacement(true, cfg.horizontalPanelFaceDistance, cfg.horizontalPanelFaceHeight);
+			case CUSTOM_ONE -> new PanelPlacement(cfg.horizontalPanelCustomOneAttachToCamera,
+					cfg.horizontalPanelCustomOneDistance, cfg.horizontalPanelCustomOneHeight);
+			case CUSTOM_TWO -> new PanelPlacement(cfg.horizontalPanelCustomTwoAttachToCamera,
+					cfg.horizontalPanelCustomTwoDistance, cfg.horizontalPanelCustomTwoHeight);
+			default -> new PanelPlacement(false, cfg.horizontalPanelDistance, cfg.horizontalPanelHeight);
+		};
+	}
+
 	private static PlaneState purplePanelState(LocalPlayer player, SpatialHudConfig cfg, float partialTick,
 			int guiWidth, int guiHeight) {
 		ExperimentalHudCapture.SourceRect band = ExperimentalHudCapture.purpleSourceRect(cfg, guiWidth, guiHeight);
-		// Method 4's own heading setting: body heading by default, or the camera's
-		// horizontal view when the config says so.
+		PanelPlacement placement = panelPlacement(cfg);
+		// Heading: the camera's view for camera-locked presets, otherwise the
+		// Method 4 heading setting (body heading by default).
 		// Interpolated to the partial tick, like the camera, so it turns smoothly.
-		float targetYaw = cfg.horizontalPanelAnchor == SpatialHudConfig.HorizontalPanelAnchor.CAMERA_YAW
+		Vec3 cameraPos = Minecraft.getInstance().gameRenderer.mainCamera().position();
+		float targetYaw = placement.attachToCamera()
+				|| cfg.horizontalPanelAnchor == SpatialHudConfig.HorizontalPanelAnchor.CAMERA_YAW
 				? radians(player.getViewYRot(partialTick))
 				: radians(net.minecraft.util.Mth.rotLerp(partialTick, player.yBodyRotO, player.yBodyRot));
-		Vec3 targetFeet = player.getPosition(partialTick);
+		// The point the panel hangs from: your feet, or the camera for camera-locked presets.
+		Vec3 targetFeet = placement.attachToCamera() ? cameraPos : player.getPosition(partialTick);
+		if (cfg.horizontalPanelFollowShoulderCamera && !placement.attachToCamera()) {
+			// Shoulder cameras sit beside the eye. Slide the feet anchor by the same
+			// sideways amount, in the panel's own right direction, so the body is not
+			// in the line of sight. Feeding this through the wiggle keeps it from snapping.
+			Vec3 eye = player.getEyePosition(partialTick);
+			double sideX = -Math.cos(targetYaw);
+			double sideZ = -Math.sin(targetYaw);
+			double lateral = (cameraPos.x - eye.x) * sideX + (cameraPos.z - eye.z) * sideZ;
+			targetFeet = targetFeet.add(sideX * lateral, 0.0, sideZ * lateral);
+		}
 		// The wiggle runs on game time, the same clock as the camera's partial tick.
 		// Wall-clock time made the lag uneven from frame to frame.
 		// Cast before adding: a float would lose precision after a few hours of play.
 		double gameTicks = (double) Minecraft.getInstance().level.getGameTime() + partialTick;
-		updateWiggle(cfg, targetYaw, targetFeet, cfg.horizontalPanelHeight, wiggleDeltaSeconds(gameTicks));
+		updateWiggle(cfg, targetYaw, targetFeet, placement.height(), wiggleDeltaSeconds(gameTicks));
 		float bodyYaw = shownYaw;
 		// The panel's right is the player's right. Minecraft's forward is (-sin, cos),
 		// so the right is (-cos, -sin). The old sign mirrored the picture.
@@ -372,7 +402,7 @@ public final class WorldSpaceHudRenderer {
 		float forwardX = -sin(bodyYaw);
 		float forwardZ = cos(bodyYaw);
 
-		float distance = (float) Math.max(0.10, cfg.horizontalPanelDistance);
+		float distance = (float) Math.max(0.10, placement.distance());
 		float centerX = (float) shownX + forwardX * distance;
 		float centerY = (float) shownY + (float) shownHeight;
 		float centerZ = (float) shownZ + forwardZ * distance;

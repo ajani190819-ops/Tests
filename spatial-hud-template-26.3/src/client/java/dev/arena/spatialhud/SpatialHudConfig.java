@@ -220,6 +220,18 @@ public final class SpatialHudConfig implements ConfigData {
 		PLAYER_BODY
 	}
 
+	/** Where Method 4 places its panel. Only the purple panel reads this. */
+	public enum PanelPreset {
+		/** Anchored to your feet, using the distance and height sliders. */
+		WAIST,
+		/** Locked to the camera, close to your face. Keeps the wiggle. */
+		FACE,
+		/** The first custom preset. */
+		CUSTOM_ONE,
+		/** The second custom preset. */
+		CUSTOM_TWO
+	}
+
 	/** Which heading Method 4 follows. Only the purple panel reads this. */
 	public enum HorizontalPanelAnchor {
 		/** Turns with the camera's horizontal view. */
@@ -302,17 +314,73 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean rotateWithSway = true;
 
 	/**
-	 * Purple Method 4 placement. The panel is a flat sheet in the world, anchored
-	 * to your feet and body heading, so turning your head does not move it. It
-	 * lies flat when the angle is 90, and tilts toward you for smaller angles.
+	 * Where Method 4 places the panel. Waist uses the distance and height below and
+	 * the body heading setting. Face and the two custom presets are locked to the
+	 * camera or the feet, as their own settings say. Each preset keeps the wiggle.
 	 */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public PanelPreset horizontalPanelPreset = PanelPreset.WAIST;
+
+	/** Purple Method 4 placement. Waist preset: a flat sheet anchored to your feet and body heading. */
 	@ConfigEntry.Category("purple")
 	@ConfigEntry.Gui.Tooltip
 	public double horizontalPanelDistance = 1.25;
 
+	/** Height of the Waist panel above your feet. */
 	@ConfigEntry.Category("purple")
 	@ConfigEntry.Gui.Tooltip
 	public double horizontalPanelHeight = 0.9;
+
+	/** Face preset: how far in front of the camera the panel sits, in blocks. */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelFaceDistance = 0.6;
+
+	/** Face preset: height of the panel relative to the camera, in blocks. Negative is below the camera. */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelFaceHeight = -0.3;
+
+	/** Custom preset 1: distance in front of its anchor, in blocks. */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomOneDistance = 1.0;
+
+	/** Custom preset 1: height relative to its anchor, in blocks. For feet anchors this is above your feet. */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomOneHeight = 0.6;
+
+	/** Custom preset 1: anchor the panel to the camera instead of your feet. */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelCustomOneAttachToCamera = false;
+
+	/** Custom preset 2: distance in front of its anchor, in blocks. */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomTwoDistance = 1.25;
+
+	/** Custom preset 2: height relative to its anchor, in blocks. For feet anchors this is above your feet. */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomTwoHeight = 0.9;
+
+	/** Custom preset 2: anchor the panel to the camera instead of your feet. */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelCustomTwoAttachToCamera = true;
+
+	/**
+	 * Over-the-shoulder cameras sit beside the player, so the body can hide the
+	 * feet-anchored panel. On, the panel moves sideways by the camera's offset
+	 * from your eye, so the camera has a clear view of it. Has no effect when the
+	 * camera sits at your eye, and no effect on the camera-anchored presets.
+	 */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelFollowShoulderCamera = true;
 
 	@ConfigEntry.Category("purple")
 	@ConfigEntry.Gui.Tooltip
@@ -428,13 +496,13 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/**
 	 * Moves the HUD picture inside the purple panel, in percent of the panel's
-	 * height. Positive moves it up, leaving a strip of fill under the hotbar.
-	 * Negative moves it down, toward the bottom border. 0 is the default placement.
+	 * height. 3 is the tuned default. Lower values, including negative ones, have
+	 * been seen to cut off more of the hotbar.
 	 */
 	@ConfigEntry.Category("purple")
-	@ConfigEntry.BoundedDiscrete(min = -3, max = 20)
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 20)
 	@ConfigEntry.Gui.Tooltip
-	public int horizontalPanelPictureOffset = 0;
+	public int horizontalPanelPictureOffset = 3;
 
 	/**
 	 * Half-width, in GUI pixels from the centre of the hotbar, of the band the
