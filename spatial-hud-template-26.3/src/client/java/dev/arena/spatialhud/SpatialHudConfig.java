@@ -336,6 +336,31 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public boolean horizontalPanelFill = true;
 
+	/**
+	 * Lets the Method 4 panel lag behind your movement and catch up, instead of
+	 * snapping. Only the parts ticked below move with a lag.
+	 */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public boolean panelWiggle = false;
+
+	/** How long the panel takes to catch up, in seconds. Roughly 63% of the way in one catch-up time. */
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public double panelWiggleSeconds = 0.2;
+
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public boolean panelWiggleHeading = true;
+
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public boolean panelWigglePosition = false;
+
+	@ConfigEntry.Category("purple")
+	@ConfigEntry.Gui.Tooltip
+	public boolean panelWiggleHeight = false;
+
 	// Legacy corner controls from the GUI-layer warp that Method 4 used before
 	// v22. They stay in the JSON so older files still load, but nothing reads them.
 	@ConfigEntry.Gui.Excluded

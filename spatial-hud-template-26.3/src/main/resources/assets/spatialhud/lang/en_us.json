@@ -72,5 +72,15 @@
   "text.autoconfig.spatialhud.enum.horizontalPanelAnchor.CAMERA_YAW": "Camera Yaw — follows horizontal view",
   "text.autoconfig.spatialhud.enum.horizontalPanelAnchor.PLAYER_BODY": "Player Body — follows body heading",
   "text.autoconfig.spatialhud.option.horizontalPanelFill": "Show Purple Fill",
-  "text.autoconfig.spatialhud.option.horizontalPanelFill.@Tooltip": "Draws the purple fill inside the Method 4 panel. Turn it off to see only the white border ring."
+  "text.autoconfig.spatialhud.option.horizontalPanelFill.@Tooltip": "Draws the purple fill inside the Method 4 panel. Turn it off to see only the white border ring.",
+  "text.autoconfig.spatialhud.option.panelWiggle": "Panel Wiggle (lag and catch up)",
+  "text.autoconfig.spatialhud.option.panelWiggle.@Tooltip": "Lets the purple panel lag behind your movement and catch up, instead of snapping. Choose which parts move with a lag below.",
+  "text.autoconfig.spatialhud.option.panelWiggleSeconds": "Wiggle Catch-Up Time (seconds)",
+  "text.autoconfig.spatialhud.option.panelWiggleSeconds.@Tooltip": "How long the panel takes to catch up. About 0.2 is a quick catch-up; larger values lag more.",
+  "text.autoconfig.spatialhud.option.panelWiggleHeading": "Wiggle Heading",
+  "text.autoconfig.spatialhud.option.panelWiggleHeading.@Tooltip": "Lag the panel's turn, so it swings behind your view when you turn.",
+  "text.autoconfig.spatialhud.option.panelWigglePosition": "Wiggle Position",
+  "text.autoconfig.spatialhud.option.panelWigglePosition.@Tooltip": "Lag the panel's position, so it trails behind when you walk or sprint.",
+  "text.autoconfig.spatialhud.option.panelWiggleHeight": "Wiggle Height",
+  "text.autoconfig.spatialhud.option.panelWiggleHeight.@Tooltip": "Lag the panel's height above your feet."
 }

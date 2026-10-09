@@ -223,25 +223,80 @@ public final class WorldSpaceHudRenderer {
 	 * angle sets the look-down pitch at which the panel faces you square-on:
 	 * 90 lies it flat, and smaller angles tilt its near edge toward you.
 	 */
+	/** Smoothed Method 4 placement for the wiggle option. Updated once per frame. */
+	private static float wiggleYaw;
+	private static double wiggleX;
+	private static double wiggleY;
+	private static double wiggleZ;
+	private static double wiggleHeight;
+	private static boolean wiggleReady;
+	private static long wiggleLastNanos;
+
+	/**
+	 * Moves the smoothed placement toward the player's current placement. Each part
+	 * ticked in the config eases toward its target with a time constant of
+	 * {@code panelWiggleSeconds}, so the panel lags and then catches up. Parts not
+	 * ticked, and every part when the wiggle is off, follow the target exactly.
+	 */
+	private static void updateWiggle(SpatialHudConfig cfg, float targetYaw, Vec3 targetFeet, double targetHeight) {
+		long now = System.nanoTime();
+		double dt = wiggleLastNanos == 0 ? 0.0 : Math.min(0.1, Math.max(0.0, (now - wiggleLastNanos) / 1.0e9));
+		wiggleLastNanos = now;
+		double jump = Math.hypot(targetFeet.x - wiggleX, targetFeet.z - wiggleZ);
+		if (!wiggleReady || !cfg.panelWiggle || dt <= 0.0 || jump > 4.0) {
+			// A teleport or a first frame snaps, so the panel never sweeps across the map.
+			wiggleYaw = targetYaw;
+			wiggleX = targetFeet.x;
+			wiggleY = targetFeet.y;
+			wiggleZ = targetFeet.z;
+			wiggleHeight = targetHeight;
+			wiggleReady = true;
+			return;
+		}
+		double tau = Math.max(0.05, Math.min(1.0, cfg.panelWiggleSeconds));
+		double alpha = 1.0 - Math.exp(-dt / tau);
+		wiggleYaw = cfg.panelWiggleHeading
+				? wiggleYaw + wrapRadians(targetYaw - wiggleYaw) * (float) alpha
+				: targetYaw;
+		wiggleX = cfg.panelWigglePosition ? wiggleX + (targetFeet.x - wiggleX) * alpha : targetFeet.x;
+		wiggleY = cfg.panelWigglePosition ? wiggleY + (targetFeet.y - wiggleY) * alpha : targetFeet.y;
+		wiggleZ = cfg.panelWigglePosition ? wiggleZ + (targetFeet.z - wiggleZ) * alpha : targetFeet.z;
+		wiggleHeight = cfg.panelWiggleHeight ? wiggleHeight + (targetHeight - wiggleHeight) * alpha : targetHeight;
+	}
+
+	/** Wraps an angle to the range minus pi to pi, so the shortest turn is used. */
+	private static float wrapRadians(float angle) {
+		float a = angle;
+		while (a > Math.PI) {
+			a -= (float) (2.0 * Math.PI);
+		}
+		while (a < -Math.PI) {
+			a += (float) (2.0 * Math.PI);
+		}
+		return a;
+	}
+
 	private static PlaneState purplePanelState(LocalPlayer player, SpatialHudConfig cfg, float partialTick,
 			int guiWidth, int guiHeight) {
 		ExperimentalHudCapture.SourceRect band = ExperimentalHudCapture.purpleSourceRect(cfg, guiWidth, guiHeight);
 		// Method 4's own heading setting: body heading by default, or the camera's
 		// horizontal view when the config says so.
 		// Interpolated to the partial tick, like the camera, so it turns smoothly.
-		float bodyYaw = cfg.horizontalPanelAnchor == SpatialHudConfig.HorizontalPanelAnchor.CAMERA_YAW
+		float targetYaw = cfg.horizontalPanelAnchor == SpatialHudConfig.HorizontalPanelAnchor.CAMERA_YAW
 				? radians(player.getViewYRot(partialTick))
 				: radians(net.minecraft.util.Mth.rotLerp(partialTick, player.yBodyRotO, player.yBodyRot));
+		Vec3 targetFeet = player.getPosition(partialTick);
+		updateWiggle(cfg, targetYaw, targetFeet, cfg.horizontalPanelHeight);
+		float bodyYaw = wiggleYaw;
 		float rightX = cos(bodyYaw);
 		float rightZ = sin(bodyYaw);
 		float forwardX = -sin(bodyYaw);
 		float forwardZ = cos(bodyYaw);
 
 		float distance = (float) Math.max(0.10, cfg.horizontalPanelDistance);
-		Vec3 feet = player.getPosition(partialTick);
-		float centerX = (float) feet.x + forwardX * distance;
-		float centerY = (float) feet.y + (float) cfg.horizontalPanelHeight;
-		float centerZ = (float) feet.z + forwardZ * distance;
+		float centerX = (float) wiggleX + forwardX * distance;
+		float centerY = (float) wiggleY + (float) wiggleHeight;
+		float centerZ = (float) wiggleZ + forwardZ * distance;
 
 		// The panel is exactly the sampled band, so its aspect matches the HUD.
 		float width = clamp((float) cfg.planeWidth, 0.10f, 6.0f);

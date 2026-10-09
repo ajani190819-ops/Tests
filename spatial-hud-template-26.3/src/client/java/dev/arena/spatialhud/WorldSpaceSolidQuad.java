@@ -49,6 +49,7 @@ final class WorldSpaceSolidQuad {
 	private static final FeatureRendererType<TexturedSubmit> TEXTURED_TYPE =
 			FeatureRendererType.create("spatialhud_captured_band");
 	private static boolean registered;
+	private static boolean loggedBandDraw;
 
 	private WorldSpaceSolidQuad() {
 	}
@@ -238,6 +239,10 @@ final class WorldSpaceSolidQuad {
 		protected void buildGroup(FeatureFrameContext context, List<TexturedSubmit> submits) {
 			if (submits.isEmpty()) {
 				return;
+			}
+			if (!loggedBandDraw) {
+				loggedBandDraw = true;
+				SpatialHud.LOGGER.info("Spatial HUD stage 3: drawing the captured HUD band ({} quad(s)).", submits.size());
 			}
 			// No outline: the HUD band should not glow when the player is outlined.
 			VertexConsumer buffer = getVertexBuilder(

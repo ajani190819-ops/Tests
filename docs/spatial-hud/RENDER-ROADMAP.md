@@ -121,6 +121,10 @@ must look like a flat sheet in the world, not a flat sticker on the screen.
 
 **Status (2026-10-09): built, not yet tested in game.** The captured HUD texture is registered under `spatialhud:captured_hud` (`CapturedHudTexture`, which reads the capture target's view each frame). It is drawn through the level's submit route as a textured quad, with `RenderTypes.entityTranslucent(id, false)` (depth-tested, translucent phase `TRANSLUCENT_CUSTOM_GEOMETRY`). The API came from `mc-dataminning/build-changes` (the 26.x `RenderTypes`, `RenderSetup`, `AbstractTexture`, and `VertexConsumer` sources). It sits inside the white border, over the purple fill, lifted 0.004 blocks toward the viewer. Open checks for the user's test: the picture may be upside down (the vertical mapping is unverified), and the band may look too bright or dark (full-bright lighting is set).
 
+**Stage 3 test result (2026-10-09, `latest.log` in `09be59b`):** the band did not show. The user's next test: shaders off, to see whether the shader pack hides it. The build adds a one-time log line, `Spatial HUD stage 3: drawing the captured HUD band`. If it is in the log, the band is submitted and drawn, and the problem is in the picture or the shader pack. If it is missing, the band is not being drawn at all.
+
+**Panel wiggle (config, default off):** the panel can lag behind and catch up. The catch-up time is `panelWiggleSeconds` (default 0.2). Each part is ticked separately: heading (default on), position, and height. The lag is exponential smoothing, so the panel eases in without overshoot. A teleport over 4 blocks snaps the panel.
+
 **Sprint-turn note (camera yaw):** the user saw the panel look slightly off only while sprinting and turning, in Camera Yaw mode. The panel reads its heading and feet position at the frame's partial tick. The corners are then drawn with an offset from `cameraRenderState.pos`. A mismatch between those two sources would show up only while moving. Not confirmed; needs a log or measurement.
 
 ## Stage 4: map HUD elements onto the panel
