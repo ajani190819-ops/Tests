@@ -1,5 +1,8 @@
 package dev.arena.spatialhud;
 
+import com.mojang.renderpearl.api.commands.RenderPass;
+import net.minecraft.client.renderer.SubmitNodeStorage;
+import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -107,6 +110,10 @@ public final class WorldSpaceHudRenderer {
 		}
 		try {
 			Vec3 camera = context.levelState().cameraRenderState.pos;
+			// Drawn later, over the hand, by drawOverHand.
+			if (state.overHand()) {
+				return;
+			}
 			WorldSpaceSolidQuad.Shape shape = state.shape();
 			boolean open = !state.occludeBehindWorld();
 			WorldSpaceSolidQuad.submitPanel(context.submitNodeCollector(), camera,
@@ -215,7 +222,8 @@ public final class WorldSpaceHudRenderer {
 				source.textureV(source.sourceTop()), source.textureV(source.sourceBottom()),
 				cfg.worldSpaceOccludeBehindWorld,
 				WorldSpaceSolidQuad.Shape.of(toVec(bottomLeft), toVec(bottomRight), toVec(topLeft), 0.0,
-						player.getEyePosition(partialTick)));
+						player.getEyePosition(partialTick)),
+				false);
 	}
 
 	/**
@@ -489,15 +497,20 @@ public final class WorldSpaceHudRenderer {
 					centerZ - rightZ * halfWidth + topZ * halfHeight);
 		}
 		// Occlusion is the player's choice. On, blocks and mobs in front of the
-		// panel hide it. In third person, the exception lets the player's own body
-		// stop hiding it (see SpatialHudConfig).
+		// panel hide it. Body exclusion (both views) lets the player's own body,
+		// hand, armour and particles stop hiding it, and blocks and mobs stop too
+		// (see SpatialHudConfig).
 		boolean firstPerson = Minecraft.getInstance().options.getCameraType().isFirstPerson();
 		boolean occlude = cfg.horizontalPanelOcclusion
-				&& !(cfg.horizontalPanelThirdPersonException && !firstPerson);
+				&& !cfg.horizontalPanelThirdPersonException;
 		// Occlusion off needs the see-through path. If it cannot run, draw occluded.
 		if (!occlude && !WorldSpaceSolidQuad.openPathReady()) {
 			occlude = true;
 		}
+		// In first person the hand is drawn after the world with its own depth, so
+		// a panel drawn in the world pass would sit under it. Such a panel is drawn
+		// over the hand instead (see drawOverHand). Third person has no hand.
+		boolean overHand = firstPerson && !occlude;
 		// Curve: bend the flat panel around the viewer. The arc keeps the flat width.
 		double curveRadians = Math.toRadians(clamp(cfg.horizontalPanelCurveDegrees, 0, 180));
 		WorldSpaceSolidQuad.Shape shape = WorldSpaceSolidQuad.Shape.of(
@@ -508,7 +521,50 @@ public final class WorldSpaceHudRenderer {
 				// The capture texture is stored bottom-up, but GUI coordinates run
 				// top-down, so the vertical texture axis is flipped here.
 				1.0f - band.top() / (float) guiHeight, 1.0f - band.bottom() / (float) guiHeight,
-				occlude, shape);
+				occlude, shape, overHand);
+	}
+
+	/**
+	 * Draws the purple panel over the first-person hand, body and particles. Called
+	 * from the mixin on the GameRenderer's 3D HUD pass, after the hand is drawn. The
+	 * panel is open (no depth test), so nothing in the world hides it. Any failure
+	 * is caught, and the panel stops drawing through the normal error path.
+	 */
+	public static void drawOverHand(RenderTarget target, Vec3 camera) {
+		PlaneState state = planeState;
+		if (state == null || !state.overHand() || !SpatialHudConfig.get().usesPurplePanel()) {
+			return;
+		}
+		try {
+			SpatialHudConfig cfg = SpatialHudConfig.get();
+			WorldSpaceSolidQuad.Shape shape = state.shape();
+			SubmitNodeStorage storage = new SubmitNodeStorage();
+			WorldSpaceSolidQuad.submitPanel(storage, camera,
+					cfg.horizontalPanelFill, cfg.horizontalPanelBorder, cfg.horizontalPanelHideEdges,
+					true, shape);
+			if (ExperimentalHudCapture.worldTextureView() != null) {
+				CapturedHudTexture.register();
+				WorldSpaceSolidQuad.submitCapturedBand(storage, camera, true,
+						WorldSpaceSolidQuad.bandGap(cfg),
+						state.uLeft(), state.uRight(), state.vTop(), state.vBottom(), shape);
+			}
+			try (FeatureRenderDispatcher.PreparedFrame frame = Minecraft.getInstance().gameRenderer
+					.featureRenderDispatcher().prepareFrame(storage)) {
+				if (!frame.isEmpty()) {
+					try (RenderPass renderPass = RenderSystem.getDevice()
+							.createCommandEncoder()
+							.createRenderPass(
+									() -> "Spatial HUD panel over hand", target.getColorTextureView(),
+									Optional.empty(), target.getDepthTextureView(), OptionalDouble.empty())) {
+						RenderSystem.bindDefaultUniforms(renderPass);
+						FeatureRenderDispatcher.renderAllFeatures(renderPass, frame);
+					}
+				}
+			}
+		} catch (Throwable t) {
+			planeState = null;
+			ExperimentalHudCapture.worldTextureFailed(t);
+		}
 	}
 
 	private static void renderPlane(LevelRenderContext context) {
@@ -662,7 +718,8 @@ public final class WorldSpaceHudRenderer {
 
 	private record PlaneState(Point bottomLeft, Point bottomRight, Point topRight, Point topLeft,
 						  float uLeft, float uRight, float vTop, float vBottom,
-						  boolean occludeBehindWorld, WorldSpaceSolidQuad.Shape shape) {
+						  boolean occludeBehindWorld, WorldSpaceSolidQuad.Shape shape,
+						  boolean overHand) {
 	}
 
 	private static Point point(float x, float y, float z) {

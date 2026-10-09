@@ -101,7 +101,8 @@
 - Method 4 depth modes (`horizontalPanelOcclusion`, `horizontalPanelThirdPersonException`).
   Occluded (default): the fill is `RenderTypes.debugFilledBox()` (depth test, no write),
   and the band is `RenderTypes.entityTranslucent(id, false)` (depth test and write).
-  Open (occlusion off, or third person with the exception): the band uses
+  Body exclusion (`horizontalPanelThirdPersonException`, now both views): blocks and mobs are ignored too, so the panel is open. In first person, the open panel (and occlusion off) is drawn by `WorldSpaceHudRenderer.drawOverHand` from the `GameRenderer.render3dHud` RETURN mixin, after the hand pass, with its own storage and a render pass on the main target. The world pass skips it (`PlaneState.overHand`). Third person keeps the open path in the world pass. Hand, armour and particles therefore sit under the panel in first person. Not verified in-game.
+  Open (occlusion off, or body exclusion): the band uses
   `RenderTypes.textSeeThrough(id)` (no depth test or write, pipeline
   `pipeline/text_see_through`, vertex layout position, UV, colour, light). Solid
   rects (fill and border) use `textSeeThrough` on a 1x1 white texture
