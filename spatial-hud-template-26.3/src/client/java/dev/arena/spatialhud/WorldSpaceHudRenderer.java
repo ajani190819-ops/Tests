@@ -336,6 +336,32 @@ public final class WorldSpaceHudRenderer {
 		shownHeight = targetHeight + (wiggleHeight - targetHeight) * positionScale;
 	}
 
+	/** Body heading as last eased, and the game time it was eased to. */
+	private static float bodyYawEased;
+	private static double bodyYawGameTicks;
+	private static boolean bodyYawReady;
+
+	/**
+	 * The body yaw only changes once per tick, in steps: while you strafe it turns
+	 * toward the movement direction. A panel that follows it directly judders at that
+	 * rate. This eases it per frame, with a short time constant, so the turn is smooth.
+	 * A frozen game holds it, and a gap longer than a quarter second snaps it.
+	 */
+	private static float smoothBodyYaw(float target, double gameTicks) {
+		double delta = bodyYawReady ? (gameTicks - bodyYawGameTicks) / 20.0 : -1.0;
+		bodyYawGameTicks = gameTicks;
+		if (!bodyYawReady || delta < 0.0 || delta > 0.25) {
+			bodyYawEased = target;
+			bodyYawReady = true;
+		} else if (delta > 0.0) {
+			double alpha = 1.0 - Math.exp(-Math.min(delta, 0.1) / BODY_YAW_EASE_SECONDS);
+			bodyYawEased += (float) (wrapRadians(target - bodyYawEased) * alpha);
+		}
+		return bodyYawEased;
+	}
+
+	private static final double BODY_YAW_EASE_SECONDS = 0.04;
+
 	/**
 	 * Seconds of game time since the last wiggle update, from the level's tick
 	 * counter plus the partial tick. Game time pauses with the game, so a frozen
@@ -397,10 +423,16 @@ public final class WorldSpaceHudRenderer {
 		// Method 4 heading setting (body heading by default).
 		// Interpolated to the partial tick, like the camera, so it turns smoothly.
 		Vec3 cameraPos = Minecraft.getInstance().gameRenderer.mainCamera().position();
-		float targetYaw = placement.attachToCamera()
-				|| cfg.horizontalPanelAnchor == SpatialHudConfig.HorizontalPanelAnchor.CAMERA_YAW
+		// Game time, the same clock as the camera's partial tick. Used for the heading
+		// easing below and for the wiggle. Cast before adding: a float would lose
+		// precision after a few hours of play.
+		double gameTicks = (double) Minecraft.getInstance().level.getGameTime() + partialTick;
+		boolean cameraHeading = placement.attachToCamera()
+				|| cfg.horizontalPanelAnchor == SpatialHudConfig.HorizontalPanelAnchor.CAMERA_YAW;
+		float targetYaw = cameraHeading
 				? radians(player.getViewYRot(partialTick))
-				: radians(net.minecraft.util.Mth.rotLerp(partialTick, player.yBodyRotO, player.yBodyRot));
+				: smoothBodyYaw(radians(net.minecraft.util.Mth.rotLerp(partialTick, player.yBodyRotO, player.yBodyRot)),
+						gameTicks);
 		// The point the panel hangs from: your feet, or the camera for camera-locked presets.
 		Vec3 targetFeet = placement.attachToCamera() ? cameraPos : player.getPosition(partialTick);
 		if (cfg.horizontalPanelFollowShoulderCamera && !placement.attachToCamera()) {
@@ -416,7 +448,6 @@ public final class WorldSpaceHudRenderer {
 		// The wiggle runs on game time, the same clock as the camera's partial tick.
 		// Wall-clock time made the lag uneven from frame to frame.
 		// Cast before adding: a float would lose precision after a few hours of play.
-		double gameTicks = (double) Minecraft.getInstance().level.getGameTime() + partialTick;
 		float targetPitch = radians(player.getViewXRot(partialTick));
 		updateWiggle(cfg, targetYaw, targetPitch, targetFeet, placement.height(), wiggleDeltaSeconds(gameTicks));
 		float bodyYaw = shownYaw;
