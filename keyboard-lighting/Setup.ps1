@@ -22,7 +22,17 @@ param(
 $ErrorActionPreference = 'Continue'
 
 $Here     = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Base     = if ($env:KEYBOARD_LIGHTING_BASE) { $env:KEYBOARD_LIGHTING_BASE } else { 'https://raw.githubusercontent.com/ajani190819-ops/Tests/main/keyboard-lighting' }
+$Base     = $env:KEYBOARD_LIGHTING_BASE
+if (-not $Base) {
+    try { [Net.ServicePointManager]::SecurityProtocol = 'Tls12' } catch { }
+    $Base = 'https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/e895b94f-tests/keyboard-lighting'
+    try {
+        $probe = Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/ajani190819-ops/Tests/main/project-hub/Setup.ps1' -Method Head -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
+        if ($probe.StatusCode -eq 200) {
+            $Base = 'https://raw.githubusercontent.com/ajani190819-ops/Tests/main/keyboard-lighting'
+        }
+    } catch { }
+}
 $TaskName = 'KeyboardLighting'
 $ExePath  = Join-Path $Here 'KeyboardLighting.exe'
 $TrayPs   = Join-Path $Here 'Tray.ps1'

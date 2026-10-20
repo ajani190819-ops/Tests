@@ -30,6 +30,8 @@ $CfgDir    = Join-Path $env:LOCALAPPDATA 'BluetoothGuard'
 $CfgFile   = Join-Path $CfgDir 'settings.json'
 $LockFile  = Join-Path $CfgDir 'running.lock'
 $ShowFile  = Join-Path $CfgDir 'show.flag'
+$ReadyFile = Join-Path $CfgDir 'window.ready'
+$CrashFile = Join-Path $CfgDir 'crash.log'
 $LogDir    = Join-Path $CfgDir 'logs'
 $LogFile   = Join-Path $LogDir 'guard.log'
 $RunKey    = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
@@ -83,7 +85,7 @@ function Stop-RunningGuard {
             if ($p -and -not $p.HasExited) { $p.Kill() }
         } catch { }
     }
-    foreach ($f in @($LockFile, $ShowFile)) {
+    foreach ($f in @($LockFile, $ShowFile, $ReadyFile)) {
         try { Remove-Item $f -Force -ErrorAction SilentlyContinue } catch { }
     }
 }
@@ -125,6 +127,8 @@ if ($Restart) {
     Stop-RunningGuard
 }
 
+try {
+
 if (Test-InstanceHealthy) {
     try { Set-Content -Path $ShowFile -Value ([DateTime]::UtcNow.Ticks) -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
     $deadline = [DateTime]::UtcNow.AddMilliseconds(1500)
@@ -133,7 +137,10 @@ if (Test-InstanceHealthy) {
         Start-Sleep -Milliseconds 75
         if (-not (Test-Path $ShowFile)) { $ack = $true; break }
     }
-    if ($ack) { return }
+    if ($ack) {
+        try { Set-Content -Path $ReadyFile -Value 'reused' -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
+        return
+    }
     Log 'hung instance detected - recovering' 'WARN'
     Stop-RunningGuard
 } elseif (Test-Path $LockFile) {
@@ -375,10 +382,9 @@ function Queue-BtWork([string]$Op, [uint64]$Address = 0, [string]$Kind = 'Audio'
 }
 
 # ---------------------------------------------------------------- UI construction
-$T   = [BtGuard.Theme]
-$Bg  = $T::Bg
-$Mut = $T::Muted
-$Txt = $T::Text
+$Bg  = [BtGuard.Theme]::Bg
+$Mut = [BtGuard.Theme]::Muted
+$Txt = [BtGuard.Theme]::Text
 
 $fontH1  = New-Object System.Drawing.Font('Segoe UI Semibold', 15, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
 $fontSub = New-Object System.Drawing.Font('Segoe UI Semibold', 10.25, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
@@ -443,7 +449,7 @@ $dotHero = New-Object System.Windows.Forms.Label
 $dotHero.Text      = [char]0x25CF
 $dotHero.Location  = New-Object System.Drawing.Point(16, 42)
 $dotHero.Size      = New-Object System.Drawing.Size(16, 18)
-$dotHero.ForeColor = $T::Good
+$dotHero.ForeColor = [BtGuard.Theme]::Good
 $dotHero.Font      = $fontSm
 $dotHero.BackColor = [System.Drawing.Color]::Transparent
 $cardHero.Controls.Add($dotHero)
@@ -506,7 +512,7 @@ $icon.Text    = 'Bluetooth Guard'
 $icon.Visible = $true
 
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
-$menu.BackColor       = $T::Panel2
+$menu.BackColor       = [BtGuard.Theme]::Panel2
 $menu.ForeColor       = $Txt
 $menu.Font            = $fontBd
 $menu.ShowImageMargin = $false
@@ -681,13 +687,13 @@ function Render-Devices($devices) {
         $lblState.BackColor = [System.Drawing.Color]::Transparent
         if ($snap.Connected -and -not $allow -and $inSess) {
             $lblState.Text      = 'Connected for this session (re-locks on disconnect)'
-            $lblState.ForeColor = $T::Warn
+            $lblState.ForeColor = [BtGuard.Theme]::Warn
         } elseif ($snap.Connected) {
             $lblState.Text      = 'Connected'
-            $lblState.ForeColor = $T::Good
+            $lblState.ForeColor = [BtGuard.Theme]::Good
         } elseif (-not $allow) {
             $lblState.Text      = 'Manual Only - auto-connect blocked (phone safe)'
-            $lblState.ForeColor = $T::Accent
+            $lblState.ForeColor = [BtGuard.Theme]::Accent
         } else {
             $lblState.Text      = 'Disconnected - allowed to auto-connect'
             $lblState.ForeColor = $Mut
@@ -717,7 +723,7 @@ function Render-Devices($devices) {
                 $script:SessionAllowed.Remove($mac)
                 $script:EnforcedIdle[$mac] = $true
                 $lblState.Text      = 'Manual Only - auto-connect blocked (phone safe)'
-                $lblState.ForeColor = $T::Accent
+                $lblState.ForeColor = [BtGuard.Theme]::Accent
                 Log ("blocked auto-connect: {0} ({1})" -f $name, $mac)
                 if ($script:Cfg.GuardEnabled) {
                     Queue-BtWork 'block' $addr $kind $name
@@ -736,7 +742,7 @@ function Render-Devices($devices) {
             $btn.Add_Click({
                 $btn.Text           = 'Disconnecting...'
                 $lblState.Text      = 'Disconnecting and locking auto-connect...'
-                $lblState.ForeColor = $T::Warn
+                $lblState.ForeColor = [BtGuard.Theme]::Warn
                 $script:SessionAllowed.Remove($mac)
                 $script:EnforcedIdle[$mac] = $true
                 Log ("manual disconnect: {0}" -f $name)
@@ -748,7 +754,7 @@ function Render-Devices($devices) {
             $btn.Add_Click({
                 $btn.Text           = 'Connecting...'
                 $lblState.Text      = 'Connecting for this session...'
-                $lblState.ForeColor = $T::Warn
+                $lblState.ForeColor = [BtGuard.Theme]::Warn
                 $script:SessionAllowed[$mac] = [DateTime]::UtcNow
                 $script:EnforcedIdle.Remove($mac)
                 Log ("session connect requested: {0}" -f $name)
@@ -815,10 +821,10 @@ $chkGuard.Add_CheckedChanged({
     $script:Cfg.GuardEnabled = [bool]$chkGuard.Checked
     Save-Cfg
     if ($script:Cfg.GuardEnabled) {
-        $dotHero.ForeColor = $T::Good
+        $dotHero.ForeColor = [BtGuard.Theme]::Good
         Enforce-Policies $script:StateSync.Snapshots $true
     } else {
-        $dotHero.ForeColor = $T::Warn
+        $dotHero.ForeColor = [BtGuard.Theme]::Warn
         $lblSummary.Text   = 'Guard paused - auto-connect blocking is temporarily disabled'
     }
 })
@@ -850,6 +856,7 @@ $form.Add_FormClosing({
 $form.Add_Shown({
     try { [BtGuard.Win]::RoundCorners($form.Handle) } catch { }
     try { [BtGuard.Win]::SetIcon($form.Handle, $AppIcon.Handle) } catch { }
+    try { Set-Content -Path $ReadyFile -Value $PID -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
 })
 
 try { [BtGuard.PowerEvents]::Start() } catch { }
@@ -890,13 +897,13 @@ $timer.Add_Tick({
             if (-not [bool]$e.AllowAutoConnect) { $blockedTotal++ }
         }
         if (-not $script:Cfg.GuardEnabled) {
-            $dotHero.ForeColor = $T::Warn
+            $dotHero.ForeColor = [BtGuard.Theme]::Warn
             $lblSummary.Text   = 'Guard paused - Windows may auto-connect any device'
         } elseif (-not $script:StateSync.RadioPresent) {
             $dotHero.ForeColor = $Mut
             $lblSummary.Text   = 'Bluetooth radio is off - watching for Bluetooth to turn on'
         } else {
-            $dotHero.ForeColor = $T::Good
+            $dotHero.ForeColor = [BtGuard.Theme]::Good
             $lblSummary.Text   = ('Guarding {0} paired device(s) - {1} set to Manual Only (phone safe)' -f $snaps.Count, $blockedTotal)
         }
 
@@ -931,7 +938,25 @@ try {
         })
 } catch { }
 
-if (-not $Silent) { Show-Window }
+if (-not $Silent) { Show-Window } else { try { Set-Content -Path $ReadyFile -Value $PID -Encoding ASCII -ErrorAction SilentlyContinue } catch { } }
 Log 'Bluetooth Guard ready'
 [System.Windows.Forms.Application]::Run()
 Quit-App
+
+} catch {
+    $report = @(
+        ('Bluetooth Guard crashed at {0}' -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')),
+        ('Error: {0}' -f $_.Exception.Message),
+        ('Where: {0}' -f $_.InvocationInfo.PositionMessage),
+        ('Stack: {0}' -f $_.ScriptStackTrace)
+    ) -join "`r`n`r`n"
+    try { Set-Content -Path $CrashFile -Value $report -Encoding UTF8 -ErrorAction SilentlyContinue } catch { }
+    try { Remove-Item $LockFile -Force -ErrorAction SilentlyContinue } catch { }
+    if (-not $Silent) {
+        try {
+            Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+            [void][System.Windows.Forms.MessageBox]::Show($report, 'Bluetooth Guard Error')
+        } catch { }
+    }
+    exit 1
+}

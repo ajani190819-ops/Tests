@@ -434,15 +434,21 @@ class WindowsDesktopAppsTests(unittest.TestCase):
     def test_bluetooth_guard_contracts(self):
         core = (ROOT / "bluetooth-guard" / "BluetoothCore.cs").read_text(encoding="utf-8")
         ps = (ROOT / "bluetooth-guard" / "BluetoothGuard.ps1").read_text(encoding="utf-8")
+        setup = (ROOT / "bluetooth-guard" / "Setup.ps1").read_text(encoding="utf-8")
         self.assertIn("IOCTL_BTH_DISCONNECT_DEVICE = 0x0041000C", core)
         self.assertIn("BluetoothSetServiceState", core)
         self.assertIn("BluetoothEnumerateInstalledServices", core)
         self.assertIn("CreateRunspace", ps)
         self.assertIn("SessionAllowed", ps)
+        self.assertNotIn("$T::", ps, "Never use $Var::Member in PowerShell UI code (breaks Command Mode)")
+        self.assertIn("window.ready", ps)
+        self.assertIn("crash.log", ps)
+        self.assertIn("window.ready", setup)
         self.assertTrue((ROOT / "bluetooth-guard" / "Setup.bat").exists())
 
     def test_project_hub_covers_all_five_projects(self):
         hub = (ROOT / "project-hub" / "ProjectHub.ps1").read_text(encoding="utf-8")
+        setup = (ROOT / "project-hub" / "Setup.ps1").read_text(encoding="utf-8")
         for expected in (
             "Keyboard Lighting",
             "Bluetooth Guard",
@@ -452,7 +458,26 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         ):
             self.assertIn(expected, hub)
         self.assertIn("CreateRunspace", hub)
+        self.assertNotIn("$T::", hub, "Never use $Var::Member in PowerShell UI code (breaks Command Mode)")
+        self.assertIn("window.ready", hub)
+        self.assertIn("crash.log", hub)
+        self.assertIn("window.ready", setup)
         self.assertTrue((ROOT / "project-hub" / "Setup.bat").exists())
+
+    def test_setup_bat_files_avoid_cmd_parenthesized_if_blocks(self):
+        for rel in (
+            "project-hub/Setup.bat",
+            "bluetooth-guard/Setup.bat",
+            "keyboard-lighting/Setup.bat",
+            "keyboard-lighting/Restart.bat",
+            "keyboard-lighting/Zones.bat",
+        ):
+            txt = (ROOT / rel).read_text(encoding="ascii")
+            for idx, line in enumerate(txt.splitlines(), 1):
+                self.assertFalse(
+                    line.rstrip().endswith("("),
+                    f"{rel}:{idx} uses a multiline cmd '(' block instead of flat goto labels",
+                )
 
 
 if __name__ == "__main__":

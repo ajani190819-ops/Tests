@@ -16,18 +16,19 @@ param(
     [switch]$Stop
 )
 
-$ErrorActionPreference = 'Continue'
+$ErrorActionPreference = 'Stop'
 
-$Here       = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoGuess  = Split-Path -Parent $Here
-$CfgDir     = Join-Path $env:LOCALAPPDATA 'ProjectHub'
-$CfgFile    = Join-Path $CfgDir 'settings.json'
-$LockFile   = Join-Path $CfgDir 'running.lock'
-$ShowFile   = Join-Path $CfgDir 'show.flag'
-$ProgramsDir= Join-Path $env:LOCALAPPDATA 'Programs\TestsSuite'
-$RepoOwner  = 'ajani190819-ops/Tests'
-$Branch     = if ($env:PROJECT_HUB_BRANCH) { $env:PROJECT_HUB_BRANCH } else { 'main' }
-$RawRoot    = "https://raw.githubusercontent.com/$RepoOwner/$Branch"
+$Here        = Split-Path -Parent $MyInvocation.MyCommand.Path
+$RepoGuess   = Split-Path -Parent $Here
+$CfgDir      = Join-Path $env:LOCALAPPDATA 'ProjectHub'
+$CfgFile     = Join-Path $CfgDir 'settings.json'
+$LockFile    = Join-Path $CfgDir 'running.lock'
+$ShowFile    = Join-Path $CfgDir 'show.flag'
+$ReadyFile   = Join-Path $CfgDir 'window.ready'
+$CrashFile   = Join-Path $CfgDir 'crash.log'
+$ProgramsDir = Join-Path $env:LOCALAPPDATA 'Programs\TestsSuite'
+$RepoOwner   = 'ajani190819-ops/Tests'
+$FallbackBr  = 'arena/e895b94f-tests'
 
 foreach ($d in @($CfgDir, $ProgramsDir)) {
     try { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Force -Path $d | Out-Null } } catch { }
@@ -66,11 +67,13 @@ if ($Stop) {
             if ($p -and -not $p.HasExited) { $p.Kill() }
         } catch { }
     }
-    foreach ($f in @($LockFile, $ShowFile)) {
+    foreach ($f in @($LockFile, $ShowFile, $ReadyFile)) {
         try { Remove-Item $f -Force -ErrorAction SilentlyContinue } catch { }
     }
     return
 }
+
+try {
 
 if ((Test-LockAlive $LockFile 10.0) -eq 'running') {
     try { Set-Content -Path $ShowFile -Value ([DateTime]::UtcNow.Ticks) -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
@@ -80,7 +83,10 @@ if ((Test-LockAlive $LockFile 10.0) -eq 'running') {
         Start-Sleep -Milliseconds 75
         if (-not (Test-Path $ShowFile)) { $ok = $true; break }
     }
-    if ($ok) { return }
+    if ($ok) {
+        try { Set-Content -Path $ReadyFile -Value 'reused' -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
+        return
+    }
 }
 try { Remove-Item $LockFile -Force -ErrorAction SilentlyContinue } catch { }
 
@@ -91,7 +97,7 @@ Update-Heartbeat
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+try { Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue } catch { }
 try {
     [System.Windows.Forms.Application]::SetUnhandledExceptionMode(
         [System.Windows.Forms.UnhandledExceptionMode]::CatchException)
@@ -125,7 +131,6 @@ function Resolve-DefaultFolder([string]$repoSub, [string]$markerFile, [string]$m
     if (Test-Path (Join-Path $sibling $markerFile)) { return $sibling }
     $managed = Join-Path $ProgramsDir $managedName
     if (Test-Path (Join-Path $managed $markerFile)) { return $managed }
-    # Check Scheduled Task working dir for Keyboard Lighting if installed elsewhere
     if ($managedName -eq 'KeyboardLighting') {
         try {
             $t = Get-ScheduledTask -TaskName 'KeyboardLighting' -ErrorAction SilentlyContinue
@@ -149,9 +154,10 @@ function Resolve-DefaultModsDir {
     return (Join-Path $env:APPDATA 'ModrinthApp\profiles\F5W\mods')
 }
 
+$PrefBranch = if ($env:PROJECT_HUB_BRANCH) { $env:PROJECT_HUB_BRANCH } else { '' }
+
 $script:Cfg = [pscustomobject]@{
     MinimizeToTray = $false
-    Branch         = $Branch
     Paths          = [pscustomobject]@{
         KeyboardLighting = (Resolve-DefaultFolder 'keyboard-lighting' 'Tray.ps1' 'KeyboardLighting')
         BluetoothGuard   = (Resolve-DefaultFolder 'bluetooth-guard' 'BluetoothGuard.ps1' 'BluetoothGuard')
@@ -246,6 +252,7 @@ $AppIcon = New-HubIcon
 # ---------------------------------------------------------------- remote state cache + worker
 $script:RemoteSync = [hashtable]::Synchronized(@{
     Checking      = $false
+    ActiveBranch  = ''
     LastChecked   = ''
     Error         = ''
     OrcaWaveVer   = ''
@@ -268,14 +275,38 @@ $script:WorkerRunspace.Open()
 $script:WorkerPs = [powershell]::Create()
 $script:WorkerPs.Runspace = $script:WorkerRunspace
 [void]$script:WorkerPs.AddScript({
-    param($Sync, $RepoSlug, $RawBase)
+    param($Sync, $RepoSlug, $PreferredBranch, $FallbackBranch)
+    $ErrorActionPreference = 'Continue'
     try { [Net.ServicePointManager]::SecurityProtocol = 'Tls12' } catch { }
+
+    $resolvedRawBase = ''
+    function Get-RawBase {
+        if ($script:resolvedRawBase) { return $script:resolvedRawBase }
+        $candidates = @()
+        if ($PreferredBranch) { $candidates += $PreferredBranch }
+        $candidates += 'main'
+        $candidates += $FallbackBranch
+        foreach ($br in $candidates) {
+            $testUrl = "https://raw.githubusercontent.com/$RepoSlug/$br/project-hub/Setup.ps1"
+            try {
+                $r = Invoke-WebRequest -Uri $testUrl -Method Head -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+                if ($r.StatusCode -eq 200) {
+                    $Sync.ActiveBranch = $br
+                    $script:resolvedRawBase = "https://raw.githubusercontent.com/$RepoSlug/$br"
+                    return $script:resolvedRawBase
+                }
+            } catch { }
+        }
+        $Sync.ActiveBranch = 'main'
+        $script:resolvedRawBase = "https://raw.githubusercontent.com/$RepoSlug/main"
+        return $script:resolvedRawBase
+    }
 
     function Download-CheckedFile([string]$url, [string]$dest) {
         $dir = Split-Path -Parent $dest
         if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
         $tmp = $dest + '.hubtmp'
-        Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing -TimeoutSec 25
+        Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing -TimeoutSec 25 -ErrorAction Stop
         $len = (Get-Item $tmp).Length
         if ($len -lt 16) {
             Remove-Item $tmp -Force -ErrorAction SilentlyContinue
@@ -304,11 +335,12 @@ $script:WorkerPs.Runspace = $script:WorkerRunspace
         $Sync.Checking = $true
         $Sync.Error    = ''
         try {
+            $RawBase = Get-RawBase
             if ($cmd.Op -eq 'check-remote') {
                 $Sync.ActionStatus = 'Checking GitHub for updates...'
                 $headers = @{ 'User-Agent' = 'Tests-ProjectHub' }
                 try {
-                    $manifest = Invoke-RestMethod -Headers $headers -Uri "$RawBase/plugins.json" -TimeoutSec 15
+                    $manifest = Invoke-RestMethod -Headers $headers -Uri "$RawBase/plugins.json" -TimeoutSec 15 -ErrorAction Stop
                     foreach ($pl in $manifest.plugins) {
                         if ($pl.id -eq 'wave-overhangs')   { $Sync.OrcaWaveVer   = [string]$pl.version }
                         if ($pl.id -eq 'unlayered-infill') { $Sync.OrcaInfillVer = [string]$pl.version }
@@ -316,31 +348,31 @@ $script:WorkerPs.Runspace = $script:WorkerRunspace
                 } catch { }
 
                 try {
-                    $batRaw = (Invoke-WebRequest -Headers $headers -Uri "$RawBase/Orca-Plugins.bat" -UseBasicParsing -TimeoutSec 15).Content
+                    $batRaw = (Invoke-WebRequest -Headers $headers -Uri "$RawBase/Orca-Plugins.bat" -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop).Content
                     if ($batRaw -match 'set "UPDATER_VERSION=([^"]+)"') { $Sync.OrcaBatVer = $Matches[1] }
                 } catch { }
 
                 try {
-                    $pkg = Invoke-RestMethod -Headers $headers -Uri "$RawBase/arena-link-windows/package.json" -TimeoutSec 15
+                    $pkg = Invoke-RestMethod -Headers $headers -Uri "$RawBase/arena-link-windows/package.json" -TimeoutSec 15 -ErrorAction Stop
                     if ($pkg.version) { $Sync.ArenaLinkVer = [string]$pkg.version }
                 } catch { }
 
                 try {
                     $kblTmp = Join-Path $env:TEMP 'hub_kbl_tray.tmp'
-                    Invoke-WebRequest -Headers $headers -Uri "$RawBase/keyboard-lighting/Tray.ps1" -OutFile $kblTmp -UseBasicParsing -TimeoutSec 15
+                    Invoke-WebRequest -Headers $headers -Uri "$RawBase/keyboard-lighting/Tray.ps1" -OutFile $kblTmp -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
                     $Sync.KblTrayHash = (Get-FileHash $kblTmp -Algorithm SHA256).Hash
                     Remove-Item $kblTmp -Force -ErrorAction SilentlyContinue
                 } catch { }
 
                 try {
                     $btgTmp = Join-Path $env:TEMP 'hub_btg_guard.tmp'
-                    Invoke-WebRequest -Headers $headers -Uri "$RawBase/bluetooth-guard/BluetoothGuard.ps1" -OutFile $btgTmp -UseBasicParsing -TimeoutSec 15
+                    Invoke-WebRequest -Headers $headers -Uri "$RawBase/bluetooth-guard/BluetoothGuard.ps1" -OutFile $btgTmp -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
                     $Sync.BtgGuardHash = (Get-FileHash $btgTmp -Algorithm SHA256).Hash
                     Remove-Item $btgTmp -Force -ErrorAction SilentlyContinue
                 } catch { }
 
                 try {
-                    $rel = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$RepoSlug/releases/tags/spatial-hud-latest" -TimeoutSec 15
+                    $rel = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$RepoSlug/releases/tags/spatial-hud-latest" -TimeoutSec 15 -ErrorAction Stop
                     $asset = @($rel.assets | Where-Object { $_.name -match '^spatial-hud-.*\.jar$' }) | Select-Object -First 1
                     if ($asset) {
                         $Sync.HudAssetName = [string]$asset.name
@@ -351,7 +383,7 @@ $script:WorkerPs.Runspace = $script:WorkerRunspace
                 } catch { }
 
                 $Sync.LastChecked  = (Get-Date).ToString('h:mm:ss tt')
-                $Sync.ActionStatus = ('Checked GitHub at {0}' -f $Sync.LastChecked)
+                $Sync.ActionStatus = ('Checked GitHub ({0}) at {1}' -f $Sync.ActiveBranch, $Sync.LastChecked)
             }
             elseif ($cmd.Op -eq 'install-kbl') {
                 $target = [string]$cmd.Target
@@ -361,7 +393,12 @@ $script:WorkerPs.Runspace = $script:WorkerRunspace
                 }
                 $setupBat = Join-Path $target 'Setup.bat'
                 if (Test-Path $setupBat) {
-                    Start-Process -FilePath $setupBat -WorkingDirectory $target
+                    $psi = New-Object System.Diagnostics.ProcessStartInfo
+                    $psi.FileName = $setupBat
+                    $psi.WorkingDirectory = $target
+                    $psi.UseShellExecute = $true
+                    $psi.EnvironmentVariables['KEYBOARD_LIGHTING_BASE'] = "$RawBase/keyboard-lighting"
+                    [void][System.Diagnostics.Process]::Start($psi)
                     $Sync.ActionStatus = 'Launched Keyboard Lighting Setup (approve Administrator prompt).'
                 }
             }
@@ -372,20 +409,21 @@ $script:WorkerPs.Runspace = $script:WorkerRunspace
                     Download-CheckedFile "$RawBase/bluetooth-guard/$f" (Join-Path $target $f)
                 }
                 $setupPs = Join-Path $target 'Setup.ps1'
-                powershell.exe -NoProfile -ExecutionPolicy Bypass -File $setupPs
-                $Sync.ActionStatus = 'Bluetooth Guard updated and running.'
+                $env:BLUETOOTH_GUARD_BASE = "$RawBase/bluetooth-guard"
+                powershell.exe -NoProfile -ExecutionPolicy Bypass -File $setupPs -QuietConsole
+                $Sync.ActionStatus = 'Bluetooth Guard installed, updated, and running.'
             }
             elseif ($cmd.Op -eq 'install-hud') {
                 $modsDir = [string]$cmd.Target
                 $Sync.ActionStatus = 'Downloading latest Spatial HUD JAR...'
                 $headers = @{ 'User-Agent' = 'Tests-ProjectHub' }
-                $rel = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$RepoSlug/releases/tags/spatial-hud-latest" -TimeoutSec 20
+                $rel = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$RepoSlug/releases/tags/spatial-hud-latest" -TimeoutSec 20 -ErrorAction Stop
                 $asset = @($rel.assets | Where-Object { $_.name -match '^spatial-hud-.*\.jar$' }) | Select-Object -First 1
                 if (-not $asset) { throw 'No Spatial HUD release JAR found on GitHub.' }
                 if (-not (Test-Path $modsDir)) { New-Item -ItemType Directory -Force -Path $modsDir | Out-Null }
                 $tmpJar = Join-Path $env:TEMP ('spatialhud_' + [Guid]::NewGuid().ToString('N') + '.jar')
-                Invoke-WebRequest -Headers $headers -Uri $asset.browser_download_url -OutFile $tmpJar -UseBasicParsing -TimeoutSec 45
-                Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+                Invoke-WebRequest -Headers $headers -Uri $asset.browser_download_url -OutFile $tmpJar -UseBasicParsing -TimeoutSec 45 -ErrorAction Stop
+                try { Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue } catch { }
                 $zip = [System.IO.Compression.ZipFile]::OpenRead($tmpJar)
                 $okMod = $false
                 try {
@@ -434,7 +472,7 @@ $script:WorkerPs.Runspace = $script:WorkerRunspace
         $Sync.Checking = $false
         $Sync.Dirty    = $true
     }
-}).AddArgument($script:RemoteSync).AddArgument($RepoOwner).AddArgument($RawRoot)
+}).AddArgument($script:RemoteSync).AddArgument($RepoOwner).AddArgument($PrefBranch).AddArgument($FallbackBr)
 $script:WorkerHandle = $script:WorkerPs.BeginInvoke()
 
 function Queue-HubWork($payload) {
@@ -442,10 +480,9 @@ function Queue-HubWork($payload) {
 }
 
 # ---------------------------------------------------------------- UI layout
-$T   = [HubUi.Theme]
-$Bg  = $T::Bg
-$Mut = $T::Muted
-$Txt = $T::Text
+$Bg  = [HubUi.Theme]::Bg
+$Mut = [HubUi.Theme]::Muted
+$Txt = [HubUi.Theme]::Text
 
 $fontH1   = New-Object System.Drawing.Font('Segoe UI Semibold', 15.5, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
 $fontCard = New-Object System.Drawing.Font('Segoe UI Semibold', 11.25, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
@@ -533,7 +570,7 @@ $hero.Controls.Add($chkTray)
 $y += 96 + 12
 
 # Reusable helper to construct uniform, clean project cards
-function New-ProjectCard([string]$title, [string]$subtitle, $stripeColor, [string[]]$buttonLabels) {
+function New-ProjectCard([string]$title, [string]$subtitle, [System.Drawing.Color]$stripeColor, [string[]]$buttonLabels) {
     $card = New-Object HubUi.Card
     $card.Location     = New-Object System.Drawing.Point($M, $script:y)
     $card.Size         = New-Object System.Drawing.Size($CW, 108)
@@ -584,11 +621,11 @@ function New-ProjectCard([string]$title, [string]$subtitle, $stripeColor, [strin
     return [pscustomobject]@{ Card = $card; Pill = $pill; Detail = $lblS; Buttons = $btns }
 }
 
-$uiKbl   = New-ProjectCard 'Keyboard Lighting' 'ROG Strix G16 per-zone keyboard & chassis light bar' $T::Accent   @('Open / Start', 'Restart / Unfreeze', 'Update / Repair', 'Open Folder')
-$uiBtg   = New-ProjectCard 'Bluetooth Guard'   'Prevents Windows stealing phone earbuds on boot/wake' $T::Accent2  @('Open / Start', 'Restart Guard', 'Install / Update', 'Open Folder')
-$uiHud   = New-ProjectCard 'Spatial HUD (Minecraft 26.3)' 'Waist-height lower HUD mod for Modrinth F5W' $T::Good     @('Install / Update', 'Pick Mods Folder', 'Open Mods Folder')
-$uiOrca  = New-ProjectCard 'OrcaSlicer Plugins' 'Wave Overhangs + Unlayered Infill + Orca-Plugins.bat' $T::Warn     @('Update Plugins', 'Open Updater Menu', 'Plugins Folder', 'Logs Folder')
-$uiArena = New-ProjectCard 'Arena Link Windows' 'Local Git repository bridge desktop app'              $T::Accent   @('Launch App', 'Sync Latest Files', 'Open Folder')
+$uiKbl   = New-ProjectCard 'Keyboard Lighting' 'ROG Strix G16 per-zone keyboard & chassis light bar' ([HubUi.Theme]::Accent)  @('Open / Start', 'Restart / Unfreeze', 'Update / Repair', 'Open Folder')
+$uiBtg   = New-ProjectCard 'Bluetooth Guard'   'Prevents Windows stealing phone earbuds on boot/wake' ([HubUi.Theme]::Accent2) @('Open / Start', 'Restart Guard', 'Install / Update', 'Open Folder')
+$uiHud   = New-ProjectCard 'Spatial HUD (Minecraft 26.3)' 'Waist-height lower HUD mod for Modrinth F5W' ([HubUi.Theme]::Good)    @('Install / Update', 'Pick Mods Folder', 'Open Mods Folder')
+$uiOrca  = New-ProjectCard 'OrcaSlicer Plugins' 'Wave Overhangs + Unlayered Infill + Orca-Plugins.bat' ([HubUi.Theme]::Warn)    @('Update Plugins', 'Open Updater Menu', 'Plugins Folder', 'Logs Folder')
+$uiArena = New-ProjectCard 'Arena Link Windows' 'Local Git repository bridge desktop app'              ([HubUi.Theme]::Accent)  @('Launch App', 'Sync Latest Files', 'Open Folder')
 
 # ---------------------------------------------------------------- card button actions
 # 1. Keyboard Lighting
@@ -728,6 +765,10 @@ $chkTray.Add_CheckedChanged({
 
 # ---------------------------------------------------------------- status refresh logic
 function Refresh-StatusCards {
+    $goodCol = [HubUi.Theme]::Good
+    $warnCol = [HubUi.Theme]::Warn
+    $badCol  = [HubUi.Theme]::Bad
+
     # 1. Keyboard Lighting
     $kblDir  = $script:Cfg.Paths.KeyboardLighting
     $kblTray = Join-Path $kblDir 'Tray.ps1'
@@ -743,11 +784,11 @@ function Refresh-StatusCards {
         $uiKbl.Detail.Text    = 'Click "Update / Repair" to download and set up Keyboard Lighting.'
     } elseif ($kblState -eq 'hung') {
         $uiKbl.Pill.Text      = 'Frozen - Click Restart'
-        $uiKbl.Pill.PillColor = $T::Bad
+        $uiKbl.Pill.PillColor = $badCol
         $uiKbl.Detail.Text    = 'Heartbeat stalled (>10s). Click "Restart / Unfreeze" to recover immediately.'
     } elseif ($kblState -eq 'running') {
         $uiKbl.Pill.Text      = if ($kblUpd) { 'Running - Update ready' } else { 'Running' }
-        $uiKbl.Pill.PillColor = if ($kblUpd) { $T::Warn } else { $T::Good }
+        $uiKbl.Pill.PillColor = if ($kblUpd) { $warnCol } else { $goodCol }
         $cfgJson = Join-Path $env:LOCALAPPDATA 'KeyboardLighting\panel.json'
         $summary = 'Active in system tray'
         if (Test-Path $cfgJson) {
@@ -759,7 +800,7 @@ function Refresh-StatusCards {
         $uiKbl.Detail.Text = $summary
     } else {
         $uiKbl.Pill.Text      = if ($kblUpd) { 'Update ready' } else { 'Stopped' }
-        $uiKbl.Pill.PillColor = if ($kblUpd) { $T::Warn } else { $Mut }
+        $uiKbl.Pill.PillColor = if ($kblUpd) { $warnCol } else { $Mut }
         $uiKbl.Detail.Text    = ('Installed at {0}' -f $kblDir)
     }
     $uiKbl.Pill.Invalidate()
@@ -793,11 +834,11 @@ function Refresh-StatusCards {
         }
         if ($btgState -eq 'running') {
             $uiBtg.Pill.Text      = if ($btgUpd) { 'Guarding - Update ready' } else { 'Guarding' }
-            $uiBtg.Pill.PillColor = if ($btgUpd) { $T::Warn } else { $T::Good }
+            $uiBtg.Pill.PillColor = if ($btgUpd) { $warnCol } else { $goodCol }
             $uiBtg.Detail.Text    = ('Active in tray  |  {0} of {1} paired device(s) set to Manual Only' -f $blocked, $total)
         } else {
             $uiBtg.Pill.Text      = if ($btgUpd) { 'Update ready' } else { 'Stopped' }
-            $uiBtg.Pill.PillColor = if ($btgUpd) { $T::Warn } else { $Mut }
+            $uiBtg.Pill.PillColor = if ($btgUpd) { $warnCol } else { $Mut }
             $uiBtg.Detail.Text    = ('{0} blocked rule(s) saved  |  Click "Open / Start" to guard Bluetooth' -f $blocked)
         }
     }
@@ -814,7 +855,7 @@ function Refresh-StatusCards {
         $remoteSize = [int64]$script:RemoteSync.HudAssetSize
         $needsUpd   = ($remoteSize -gt 0 -and $jar.Length -ne $remoteSize)
         $uiHud.Pill.Text      = if ($needsUpd) { 'Update available' } else { 'Installed' }
-        $uiHud.Pill.PillColor = if ($needsUpd) { $T::Warn } else { $T::Good }
+        $uiHud.Pill.PillColor = if ($needsUpd) { $warnCol } else { $goodCol }
         $uiHud.Detail.Text    = ('{0} ({1} KB) in {2}' -f $jar.Name, [Math]::Round($jar.Length / 1KB, 1), $modsDir)
     }
     $uiHud.Pill.Invalidate()
@@ -832,7 +873,7 @@ function Refresh-StatusCards {
     } else {
         $outdated = ($remWave -and $locWave -ne $remWave) -or ($remInfill -and $locInfill -ne $remInfill)
         $uiOrca.Pill.Text      = if ($outdated) { 'Update available' } else { 'Up to date' }
-        $uiOrca.Pill.PillColor = if ($outdated) { $T::Warn } else { $T::Good }
+        $uiOrca.Pill.PillColor = if ($outdated) { $warnCol } else { $goodCol }
         $uiOrca.Detail.Text    = ('Installed: Wave Overhangs {0}  |  Unlayered Infill {1}' -f $(if ($locWave) { $locWave } else { 'none' }), $(if ($locInfill) { $locInfill } else { 'none' }))
     }
     $uiOrca.Pill.Invalidate()
@@ -857,7 +898,7 @@ function Refresh-StatusCards {
         $remVer = $script:RemoteSync.ArenaLinkVer
         $upd    = ($remVer -and $remVer -ne $locVer)
         $uiArena.Pill.Text      = if ($upd) { "Update ($remVer)" } else { "v$locVer Ready" }
-        $uiArena.Pill.PillColor = if ($upd) { $T::Warn } else { $T::Good }
+        $uiArena.Pill.PillColor = if ($upd) { $warnCol } else { $goodCol }
         $uiArena.Detail.Text    = ('v{0}  |  {1} linked local Git repository(s)' -f $locVer, $linkedCnt)
     }
     $uiArena.Pill.Invalidate()
@@ -870,7 +911,7 @@ $icon.Text    = 'Project Hub'
 $icon.Visible = $true
 
 $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
-$trayMenu.BackColor       = $T::Panel2
+$trayMenu.BackColor       = [HubUi.Theme]::Panel2
 $trayMenu.ForeColor       = $Txt
 $trayMenu.Font            = $fontBd
 $trayMenu.ShowImageMargin = $false
@@ -932,6 +973,7 @@ $form.Add_FormClosing({
 $form.Add_Shown({
     try { [HubUi.Win]::RoundCorners($form.Handle) } catch { }
     try { [HubUi.Win]::SetIcon($form.Handle, $AppIcon.Handle) } catch { }
+    try { Set-Content -Path $ReadyFile -Value $PID -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
 })
 
 $tickCount = 0
@@ -968,6 +1010,29 @@ try {
 Refresh-StatusCards
 Queue-HubWork @{ Op = 'check-remote' }
 
-if (-not $Silent) { $form.Show(); [void]$form.Activate() }
+if (-not $Silent) {
+    $form.Show()
+    [void]$form.Activate()
+} else {
+    try { Set-Content -Path $ReadyFile -Value $PID -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
+}
 [System.Windows.Forms.Application]::Run()
 Quit-Hub
+
+} catch {
+    $report = @(
+        ('Project Hub crashed at {0}' -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')),
+        ('Error: {0}' -f $_.Exception.Message),
+        ('Where: {0}' -f $_.InvocationInfo.PositionMessage),
+        ('Stack: {0}' -f $_.ScriptStackTrace)
+    ) -join "`r`n`r`n"
+    try { Set-Content -Path $CrashFile -Value $report -Encoding UTF8 -ErrorAction SilentlyContinue } catch { }
+    try { Remove-Item $LockFile -Force -ErrorAction SilentlyContinue } catch { }
+    if (-not $Silent) {
+        try {
+            Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+            [void][System.Windows.Forms.MessageBox]::Show($report, 'Project Hub Error')
+        } catch { }
+    }
+    exit 1
+}
