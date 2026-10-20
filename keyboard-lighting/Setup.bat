@@ -20,7 +20,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FileP
 exit /b 0
 
 :run
-set "BASE=https://raw.githubusercontent.com/ajani190819-ops/HSEQB/arena/01a0a5d4-hseqb/keyboard-lighting"
+set "BASE=https://raw.githubusercontent.com/ajani190819-ops/Tests/main/keyboard-lighting"
 
 echo.
 echo   Getting the latest setup...

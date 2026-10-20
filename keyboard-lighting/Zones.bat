@@ -1,7 +1,7 @@
 @echo off
 REM Zone checker - work out which light is which, and correct it.
 setlocal
-set BASE=https://raw.githubusercontent.com/ajani190819-ops/HSEQB/arena/01a0a5d4-hseqb/keyboard-lighting
+set BASE=https://raw.githubusercontent.com/ajani190819-ops/Tests/main/keyboard-lighting
 
 net session >nul 2>&1
 if %errorlevel% neq 0 (

@@ -22,13 +22,13 @@ param(
 $ErrorActionPreference = 'Continue'
 
 $Here     = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Base     = 'https://raw.githubusercontent.com/ajani190819-ops/HSEQB/arena/01a0a5d4-hseqb/keyboard-lighting'
+$Base     = if ($env:KEYBOARD_LIGHTING_BASE) { $env:KEYBOARD_LIGHTING_BASE } else { 'https://raw.githubusercontent.com/ajani190819-ops/Tests/main/keyboard-lighting' }
 $TaskName = 'KeyboardLighting'
 $ExePath  = Join-Path $Here 'KeyboardLighting.exe'
 $TrayPs   = Join-Path $Here 'Tray.ps1'
 $Engine   = Join-Path $Here 'Aura-Background.ps1'
 
-$Files = @('Aura-Background.ps1', 'Tray.ps1', 'ui_controls.cs.txt', 'app.ico', 'Setup.ps1', 'Setup.bat', 'Zones.ps1', 'Zones.bat', 'MyEffect.ps1', 'README.md')
+$Files = @('Aura-Background.ps1', 'Tray.ps1', 'ui_controls.cs.txt', 'app.ico', 'Setup.ps1', 'Setup.bat', 'Restart.bat', 'Zones.ps1', 'Zones.bat', 'MyEffect.ps1', 'README.md')
 
 # --------------------------------------------------------------- output
 $script:Report   = New-Object System.Collections.ArrayList
@@ -107,6 +107,12 @@ if (-not $TestOnly) {
         $tmp  = Join-Path $env:TEMP ('kbl_' + $f)
         try {
             Invoke-WebRequest "$Base/$f" -OutFile $tmp -UseBasicParsing -TimeoutSec 25
+            $head = ''
+            try { $head = [string](Get-Content $tmp -TotalCount 3 -ErrorAction SilentlyContinue) } catch { }
+            if ((Get-Item $tmp).Length -lt 16 -or $head -match '(?i)^\s*<(?:!doctype|html)') {
+                Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+                throw 'Downloaded file was an HTML error page'
+            }
             $nh = (Get-FileHash $tmp -Algorithm SHA256).Hash
             $oh = ''
             if (Test-Path $dest) { $oh = (Get-FileHash $dest -Algorithm SHA256).Hash }

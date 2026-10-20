@@ -825,6 +825,38 @@ public static class Win {
   }
 }
 
+public static class PowerWatch {
+  static int _wakes = 0;
+  static bool _hooked = false;
+
+  public static void Start() {
+    if (_hooked) return;
+    _hooked = true;
+    try { Microsoft.Win32.SystemEvents.PowerModeChanged += OnPower; } catch { }
+    try { Microsoft.Win32.SystemEvents.SessionSwitch += OnSession; } catch { }
+  }
+
+  public static void Stop() {
+    if (!_hooked) return;
+    _hooked = false;
+    try { Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPower; } catch { }
+    try { Microsoft.Win32.SystemEvents.SessionSwitch -= OnSession; } catch { }
+  }
+
+  static void OnPower(object s, Microsoft.Win32.PowerModeChangedEventArgs e) {
+    if (e.Mode == Microsoft.Win32.PowerModes.Resume)
+      System.Threading.Interlocked.Increment(ref _wakes);
+  }
+
+  static void OnSession(object s, Microsoft.Win32.SessionSwitchEventArgs e) {
+    System.Threading.Interlocked.Increment(ref _wakes);
+  }
+
+  public static int ConsumeWakes() {
+    return System.Threading.Interlocked.Exchange(ref _wakes, 0);
+  }
+}
+
 
 // ---------------------------------------------------------------- tabs
 // A simple two-state segmented control. Clicking a segment raises

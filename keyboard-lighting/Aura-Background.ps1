@@ -166,6 +166,32 @@ if (-not ('HidNative' -as [type])) {
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
+
+public static class AuraPowerWatch {
+  static int _wakes = 0;
+  static bool _hooked = false;
+  public static void Start() {
+    if (_hooked) return;
+    _hooked = true;
+    try { Microsoft.Win32.SystemEvents.PowerModeChanged += OnPower; } catch { }
+    try { Microsoft.Win32.SystemEvents.SessionSwitch += OnSession; } catch { }
+  }
+  public static void Stop() {
+    if (!_hooked) return;
+    _hooked = false;
+    try { Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPower; } catch { }
+    try { Microsoft.Win32.SystemEvents.SessionSwitch -= OnSession; } catch { }
+  }
+  static void OnPower(object s, Microsoft.Win32.PowerModeChangedEventArgs e) {
+    if (e.Mode == Microsoft.Win32.PowerModes.Resume) Interlocked.Increment(ref _wakes);
+  }
+  static void OnSession(object s, Microsoft.Win32.SessionSwitchEventArgs e) {
+    Interlocked.Increment(ref _wakes);
+  }
+  public static int ConsumeWakes() { return Interlocked.Exchange(ref _wakes, 0); }
+}
+
 public static class HidNative {
   [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
   public static extern IntPtr CreateFileW(string path, uint access, uint share, IntPtr sa, uint disp, uint flags, IntPtr tmpl);
@@ -3682,24 +3708,13 @@ function Set-Live([int]$level) {
 # writes on its own, but this makes it immediate rather than ~8 frames
 # later, and covers the case where the device stops ACKing without
 # actually failing.
-$resumeOk  = $false
-$sessionOk = $false
+$resumeOk = $false
 try {
-    Register-ObjectEvent -InputObject ([Microsoft.Win32.SystemEvents]) `
-        -EventName PowerModeChanged -SourceIdentifier 'AuraPower' `
-        -ErrorAction Stop | Out-Null
+    [AuraPowerWatch]::Start()
     $resumeOk = $true
 } catch {
     Say "  Sleep/resume watch: unavailable." 'DarkGray'
 }
-# Lid close / lock / unlock often raises this when PowerModeChanged stays
-# silent, which is exactly the Modern Standby case.
-try {
-    Register-ObjectEvent -InputObject ([Microsoft.Win32.SystemEvents]) `
-        -EventName SessionSwitch -SourceIdentifier 'AuraSession' `
-        -ErrorAction Stop | Out-Null
-    $sessionOk = $true
-} catch { }
 
 # --- hardware backlight keys via ASUS ATK WMI ---
 $wmiOk = $false
@@ -3726,6 +3741,8 @@ $step = 125    # 8 steps across the full range, like the firmware
 # frozen on the keyboard.
 $stopFile = Join-Path $stateDir 'stop.flag'
 if (Test-Path $stopFile) { Remove-Item $stopFile -Force -ErrorAction SilentlyContinue }
+$enginePidFile = Join-Path $stateDir 'engine.pid'
+try { Set-Content -Path $enginePidFile -Value $PID -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
 
 # Take a handle to the owning app once, so the check in the loop is a cheap
 # flag read rather than a process lookup sixty times a second. If the owner
@@ -3811,26 +3828,11 @@ try {
             $eng.LateFrames = 0
             $eng.WriteFails = 0
         }
-        # --- resume from sleep / display wake ---
+        # --- resume from sleep / display wake / session switch ---
         if ($resumeOk) {
-            $pe = Get-Event -SourceIdentifier 'AuraPower' -ErrorAction SilentlyContinue
-            while ($pe) {
-                $mode = ''
-                try { $mode = [string]$pe.SourceEventArgs.Mode } catch { }
-                Remove-Event -EventIdentifier $pe.EventIdentifier -ErrorAction SilentlyContinue
-                if ($mode -eq 'Resume') {
-                    # Do not force a Reopen here: after Modern Standby the
-                    # handle is usually still valid and only ownership was
-                    # lost. ReAssert covers that; genuine disconnects are
-                    # still caught by failed writes in Push().
-                    #
-                    # No sleep. Sleeping here stalled the whole loop - the
-                    # theme and brightness files stop being read too - and
-                    # still only bought one attempt. Queue several instead.
-                    Write-Log 'resume - scheduling lighting repair'
-                    Schedule-Repair
-                }
-                $pe = Get-Event -SourceIdentifier 'AuraPower' -ErrorAction SilentlyContinue
+            if ([AuraPowerWatch]::ConsumeWakes() -gt 0) {
+                Write-Log 'wake/session event - scheduling lighting repair'
+                Schedule-Repair
             }
         }
 
@@ -3862,23 +3864,6 @@ try {
                     }
                 }
                 if ($b -ge 0) { $script:LastPct = $b }
-            }
-        }
-
-        # --- lock / unlock / lid ---
-        # Opening the lid often shows up here rather than as a power event,
-        # so this gets the same staggered repair.
-        if ($sessionOk) {
-            $se = Get-Event -SourceIdentifier 'AuraSession' -ErrorAction SilentlyContinue
-            $any = $false
-            while ($se) {
-                Remove-Event -EventIdentifier $se.EventIdentifier -ErrorAction SilentlyContinue
-                $any = $true
-                $se = Get-Event -SourceIdentifier 'AuraSession' -ErrorAction SilentlyContinue
-            }
-            if ($any) {
-                Write-Log 'session change - scheduling lighting repair'
-                Schedule-Repair
             }
         }
 
@@ -4120,9 +4105,8 @@ try {
     }
 }
 finally {
+    try { [AuraPowerWatch]::Stop() } catch { }
     Unregister-Event -SourceIdentifier 'AuraAtk' -ErrorAction SilentlyContinue
-    Unregister-Event -SourceIdentifier 'AuraPower' -ErrorAction SilentlyContinue
-    Unregister-Event -SourceIdentifier 'AuraSession' -ErrorAction SilentlyContinue
     Say ""
     switch ($OnExit) {
         'white'    { Say "  Stopping. Leaving the keyboard plain white." 'Yellow' }
@@ -4140,6 +4124,8 @@ finally {
     try {
         $ff = Join-Path $env:LOCALAPPDATA 'KeyboardLighting\frame.txt'
         if (Test-Path $ff) { Remove-Item $ff -Force -ErrorAction SilentlyContinue }
+        $ep = Join-Path $env:LOCALAPPDATA 'KeyboardLighting\engine.pid'
+        if (Test-Path $ep) { Remove-Item $ep -Force -ErrorAction SilentlyContinue }
     } catch { }
     # Only hand control back to the keyboard's own firmware when that is
     # what was asked for. Re-enabling autonomous mode makes the firmware

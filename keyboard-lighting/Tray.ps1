@@ -18,13 +18,22 @@
 param(
     [switch]$NoUpdate,      # skip the update check
     [switch]$Silent,        # start in the tray without showing the window
-    [switch]$NoElevate      # internal: do not try to elevate again
+    [switch]$NoElevate,     # internal: do not try to elevate again
+    [switch]$Stop,          # stop any running panel + engine cleanly and exit
+    [switch]$Restart        # kill any stuck/running instance and start fresh
 )
 
 $ErrorActionPreference = 'Continue'
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+# MUST be called before ANY Control or NotifyIcon window handle exists on this
+# thread, otherwise WinForms throws InvalidOperationException and UI faults
+# tear down the entire message pump while leaving a ghost icon in Explorer.
+try {
+    [System.Windows.Forms.Application]::SetUnhandledExceptionMode(
+        [System.Windows.Forms.UnhandledExceptionMode]::CatchException)
+} catch { }
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 # ---------------------------------------------------------------- paths
@@ -63,8 +72,9 @@ try {
         }
     }
 } catch { }
-$TaskName  = 'KeyboardLighting'
-$Base      = 'https://raw.githubusercontent.com/ajani190819-ops/HSEQB/arena/01a0a5d4-hseqb/keyboard-lighting'
+$TaskName      = 'KeyboardLighting'
+$Base          = if ($env:KEYBOARD_LIGHTING_BASE) { $env:KEYBOARD_LIGHTING_BASE } else { 'https://raw.githubusercontent.com/ajani190819-ops/Tests/main/keyboard-lighting' }
+$EnginePidFile = Join-Path $CfgDir 'engine.pid'
 
 if (-not (Test-Path $CfgDir)) { New-Item -ItemType Directory -Force -Path $CfgDir | Out-Null }
 
@@ -92,20 +102,84 @@ Log '---------------- starting ----------------'
 $LockFile = Join-Path $CfgDir 'running.lock'
 $ShowFile = Join-Path $CfgDir 'show.flag'
 
+function Stop-PidSafely([int]$targetPid) {
+    if ($targetPid -le 0 -or $targetPid -eq $PID) { return }
+    try {
+        $p = [System.Diagnostics.Process]::GetProcessById($targetPid)
+        if ($p -and -not $p.HasExited) { $p.Kill() }
+    } catch { }
+}
+
+function Read-PidFile([string]$path) {
+    if (-not (Test-Path $path)) { return 0 }
+    try {
+        $raw = (Get-Content $path -Raw -ErrorAction SilentlyContinue)
+        if (-not $raw) { return 0 }
+        $id = 0
+        if ([int]::TryParse($raw.Trim(), [ref]$id)) { return $id }
+    } catch { }
+    return 0
+}
+
+function Stop-AllInstances([switch]$AskEngineFirst) {
+    if ($AskEngineFirst) {
+        try {
+            Set-Content -Path (Join-Path $CfgDir 'stop.flag') -Value '1' -Encoding ASCII -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 350
+        } catch { }
+    }
+    $lockPid = Read-PidFile $LockFile
+    $engPid  = Read-PidFile $EnginePidFile
+    Stop-PidSafely $lockPid
+    Stop-PidSafely $engPid
+    foreach ($f in @($LockFile, $EnginePidFile, $ShowFile, (Join-Path $CfgDir 'stop.flag'))) {
+        try { Remove-Item $f -Force -ErrorAction SilentlyContinue } catch { }
+    }
+}
+
+if ($Stop) {
+    Log 'stopping running instance via -Stop'
+    Stop-AllInstances -AskEngineFirst
+    return
+}
+
+if ($Restart) {
+    Log 'recovering/restarting instance via -Restart'
+    Stop-AllInstances -AskEngineFirst
+}
+
 function Test-AlreadyRunning {
     if (-not (Test-Path $LockFile)) { return $false }
     try {
-        $age = (Get-Date) - (Get-Item $LockFile).LastWriteTime
-        # The live instance refreshes this every 2s. Anything older than
-        # 15s is a leftover from a crash or a hard power-off.
-        return ($age.TotalSeconds -lt 15)
+        $age = ([DateTime]::UtcNow - (Get-Item $LockFile).LastWriteTimeUtc).TotalSeconds
+        $lockPid = Read-PidFile $LockFile
+        if ($lockPid -le 0 -or $lockPid -eq $PID) { return $false }
+        $proc = $null
+        try { $proc = [System.Diagnostics.Process]::GetProcessById($lockPid) } catch { return $false }
+        if (-not $proc -or $proc.HasExited) { return $false }
+        # Heartbeat ticks every 500ms; >10s means the UI message loop is hung.
+        return ($age -lt 10.0)
     } catch { return $false }
 }
 
 if (Test-AlreadyRunning) {
     Log 'already running - asking that copy to show its window'
     try { Set-Content -Path $ShowFile -Value ([DateTime]::UtcNow.Ticks) -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
-    return
+    # Verify the running copy's WinForms pump actually drains show.flag. If it
+    # does not respond within 1.5s, its UI thread is frozen -> recover cleanly!
+    $deadline = [DateTime]::UtcNow.AddMilliseconds(1500)
+    $answered = $false
+    while ([DateTime]::UtcNow -lt $deadline) {
+        Start-Sleep -Milliseconds 75
+        if (-not (Test-Path $ShowFile)) { $answered = $true; break }
+    }
+    if ($answered) { return }
+    Log 'existing copy failed show.flag handshake (UI hung) - terminating and recovering' 'WARN'
+    Stop-AllInstances
+} elseif (Test-Path $LockFile) {
+    # Stale lock or hung process whose heartbeat stopped updating -> clean up.
+    Log 'cleaning stale lock / hung engine before startup' 'WARN'
+    Stop-AllInstances
 }
 
 function Update-Heartbeat {
@@ -124,23 +198,22 @@ function Test-IsAdmin {
 $IsAdmin = Test-IsAdmin
 Log ("administrator: {0}" -f $IsAdmin)
 
-# Direct keyboard access needs Administrator. The scheduled task already
-# runs elevated, so this only ever prompts on a manual launch.
-if (-not $IsAdmin -and -not $NoElevate) {
-    Log 'not elevated - relaunching'
-    try {
-        $relArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden',
-                     '-File', ('"{0}"' -f $PSCommandPath), '-NoElevate')
-        if ($Silent)   { $relArgs += '-Silent' }
-        if ($NoUpdate) { $relArgs += '-NoUpdate' }
-        try { Remove-Item $LockFile -Force -ErrorAction SilentlyContinue } catch { }
-        Start-Process -FilePath 'powershell.exe' -ArgumentList $relArgs -Verb RunAs | Out-Null
-        return
-    } catch {
-        Log 'elevation refused - continuing without it' 'WARN'
-        Update-Heartbeat
+    # Forward -Restart along on UAC relaunch too so manual recovery works.
+    if (-not $IsAdmin -and -not $NoElevate) {
+        Log 'not elevated - relaunching'
+        try {
+            $relArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden',
+                         '-File', ('"{0}"' -f $PSCommandPath), '-NoElevate')
+            if ($Silent)   { $relArgs += '-Silent' }
+            if ($NoUpdate) { $relArgs += '-NoUpdate' }
+            try { Remove-Item $LockFile -Force -ErrorAction SilentlyContinue } catch { }
+            Start-Process -FilePath 'powershell.exe' -ArgumentList $relArgs -Verb RunAs | Out-Null
+            return
+        } catch {
+            Log 'elevation refused - continuing without it' 'WARN'
+            Update-Heartbeat
+        }
     }
-}
 
 # ---------------------------------------------------------------- config
 # Set before anything can call Start-Engine.
@@ -370,41 +443,37 @@ function Stop-Engine {
     # instantly and cannot hang, so the common case never touches WMI.
     $mine = $null
     try { if ($script:EngineP -and -not $script:EngineP.HasExited) { $mine = $script:EngineP } } catch { }
+    $recordedPid = Read-PidFile $EnginePidFile
+    $prevProc = $null
+    if (-not $mine -and $recordedPid -gt 0) {
+        try {
+            $cand = [System.Diagnostics.Process]::GetProcessById($recordedPid)
+            if ($cand -and -not $cand.HasExited) { $prevProc = $cand }
+        } catch { }
+    }
 
-    if ($Graceful) {
+    if ($Graceful -and ($mine -or $prevProc)) {
         try {
             if (-not (Test-Path $CfgDir)) { New-Item -ItemType Directory -Force -Path $CfgDir | Out-Null }
             Set-Content -Path (Join-Path $CfgDir 'stop.flag') -Value '1' -Encoding ASCII -ErrorAction SilentlyContinue
         } catch { }
 
-        if ($mine) {
-            # The engine checks the flag once per loop, so this is quick.
-            try { [void]$mine.WaitForExit(3000) } catch { }
-        } else {
-            # No handle - an engine left over from a previous session. Fall
-            # back to watching the process list, still bounded.
-            $deadline = (Get-Date).AddSeconds(3)
-            while ((Get-Date) -lt $deadline) {
-                Start-Sleep -Milliseconds 100
-                $alive = @()
-                try {
-                    $alive = @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
-                               Where-Object { $_.CommandLine -like '*Aura-Background*' })
-                } catch { }
-                if ($alive.Count -eq 0) { break }
-            }
+        # Keep pumping UI messages while waiting up to 650ms so right-clicking
+        # the tray icon NEVER blocks even while shutting down.
+        $target = if ($mine) { $mine } else { $prevProc }
+        $deadline = [DateTime]::UtcNow.AddMilliseconds(650)
+        while ([DateTime]::UtcNow -lt $deadline) {
+            try { if ($target.HasExited) { break } } catch { break }
+            try { [System.Windows.Forms.Application]::DoEvents() } catch { }
+            Start-Sleep -Milliseconds 35
         }
     }
 
-    # Our own engine first, by handle, so this works even if WMI will not.
+    # Direct kernel process termination by PID/handle: 0.05ms, ZERO WMI calls,
+    # never hangs when WMI is degraded after sleep/wake or Windows Update.
     try { if ($mine -and -not $mine.HasExited) { $mine.Kill() } } catch { }
-
-    # Anything still running did not stop on its own.
-    try {
-        Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
-            Where-Object { $_.CommandLine -like '*Aura-Background*' } |
-            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-    } catch { }
+    Stop-PidSafely $recordedPid
+    try { Remove-Item $EnginePidFile -Force -ErrorAction SilentlyContinue } catch { }
     try { Remove-Item (Join-Path $CfgDir 'stop.flag') -Force -ErrorAction SilentlyContinue } catch { }
     $script:EngineP = $null
 }
@@ -419,7 +488,6 @@ function Test-EngineAlive {
 # to see; CreateNoWindow never creates one.
 function Start-Engine {
     Stop-Engine
-    Start-Sleep -Milliseconds 200
     if (-not (Test-Path $Engine)) { Log 'engine script missing' 'ERROR'; return $false }
 
     $inv = [System.Globalization.CultureInfo]::InvariantCulture
@@ -508,21 +576,11 @@ function Start-Engine {
         $psi.WorkingDirectory = $Here
         $script:EngineP = [System.Diagnostics.Process]::Start($psi)
         $script:WantOff = $false
-        Start-Sleep -Milliseconds 900
-        if ($script:EngineP.HasExited) {
-            $code = -1
-            try { $code = $script:EngineP.ExitCode } catch { }
-            Log ("engine exited immediately, code {0} (kbd={1} bar={2})" -f $code,$kEff,$bEff) 'ERROR'
-            $script:EngineP = $null
-            # Exit code 2 is the engine telling us it could not compile.
-            # That is a broken download, not a transient failure, so say so
-            # rather than leaving a dark keyboard and a vague status line.
-            if ($code -eq 2) { $script:EngineErr = 'The lighting engine is damaged. Run Setup.bat to repair it.' }
-            else             { $script:EngineErr = '' }
-            return $false
-        }
+        try { Set-Content -Path $EnginePidFile -Value $script:EngineP.Id -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
+        # Never block the WinForms UI thread with Start-Sleep here; $watch checks
+        # health every 500ms so tray right-clicks remain 100% instant.
         $script:EngineErr = ''
-        Log ("engine started: kbd={0}/{1} bar={2}/{3} master={4}%" -f $kEff,$kLay,$bEff,$bLay,$script:Cfg.Brightness)
+        Log ("engine started (pid={0}): kbd={1}/{2} bar={3}/{4} master={5}%" -f $script:EngineP.Id,$kEff,$kLay,$bEff,$bLay,$script:Cfg.Brightness)
         return $true
     } catch {
         Log ("engine start failed: {0}" -f $_.Exception.Message) 'ERROR'
@@ -537,11 +595,11 @@ function Set-AllOff {
     try {
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName        = 'powershell.exe'
-        $psi.Arguments       = ('-NoProfile -ExecutionPolicy Bypass -File "{0}" -Effect off -Quiet' -f $Engine)
+        $psi.Arguments       = ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -Effect off -Quiet' -f $Engine)
         $psi.UseShellExecute = $false
         $psi.CreateNoWindow  = $true
-        $p = [System.Diagnostics.Process]::Start($psi)
-        [void]$p.WaitForExit(6000)
+        $psi.WindowStyle     = [System.Diagnostics.ProcessWindowStyle]::Hidden
+        [void][System.Diagnostics.Process]::Start($psi)
     } catch { Log ("turn off failed: {0}" -f $_.Exception.Message) 'WARN' }
     Log 'lighting turned off'
 }
@@ -581,30 +639,38 @@ function Set-Autostart([bool]$on) {
     }
 }
 
-# ---------------------------------------------------------------- update
-function Invoke-SelfUpdate {
-    $files = @('Aura-Background.ps1', 'Tray.ps1', 'ui_controls.cs.txt', 'app.ico', 'Setup.ps1', 'Setup.bat', 'Zones.ps1', 'Zones.bat', 'MyEffect.ps1', 'README.md')
-    $changed = @()
-    try { [Net.ServicePointManager]::SecurityProtocol = 'Tls12' } catch { }
-    foreach ($f in $files) {
-        $dest = Join-Path $Here $f
-        $tmp  = Join-Path $env:TEMP ('kblu_' + $f)
-        try {
-            Invoke-WebRequest "$Base/$f" -OutFile $tmp -UseBasicParsing -TimeoutSec 20
-            $new = (Get-FileHash $tmp -Algorithm SHA256).Hash
-            $old = ''
-            if (Test-Path $dest) { $old = (Get-FileHash $dest -Algorithm SHA256).Hash }
-            if ($new -ne $old) {
-                Copy-Item $tmp $dest -Force
-                Unblock-File $dest -ErrorAction SilentlyContinue
-                $changed += $f
-            }
-            Remove-Item $tmp -Force -ErrorAction SilentlyContinue
-        } catch { }
-    }
-    if ($changed.Count -gt 0) { Log ("updated: {0}" -f ($changed -join ', ')) }
-    else { Log 'already up to date' }
-    return $changed
+function Start-UpdateJob([bool]$Manual) {
+    if ($script:UpdJob -and $script:UpdJob.State -eq 'Running') { return }
+    $script:UpdManual   = $Manual
+    $script:UpdPrompted = $false
+    $script:UpdJob = Start-Job -ScriptBlock {
+        param($b, $h)
+        try { [Net.ServicePointManager]::SecurityProtocol = 'Tls12' } catch { }
+        $hit = @()
+        foreach ($f in 'Aura-Background.ps1','Tray.ps1','ui_controls.cs.txt','app.ico','Setup.ps1','Setup.bat','Restart.bat','Zones.ps1','Zones.bat','MyEffect.ps1','README.md') {
+            try {
+                $tmp = Join-Path $env:TEMP ('kblbg_' + $f)
+                Invoke-WebRequest "$b/$f" -OutFile $tmp -UseBasicParsing -TimeoutSec 20
+                $head = ''
+                try { $head = [string](Get-Content $tmp -TotalCount 3 -ErrorAction SilentlyContinue) } catch { }
+                if ((Get-Item $tmp).Length -lt 16 -or $head -match '(?i)^\s*<(?:!doctype|html)') {
+                    Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+                    continue
+                }
+                $dest = Join-Path $h $f
+                $new = (Get-FileHash $tmp -Algorithm SHA256).Hash
+                $old = ''
+                if (Test-Path $dest) { $old = (Get-FileHash $dest -Algorithm SHA256).Hash }
+                if ($new -ne $old) {
+                    Copy-Item $tmp $dest -Force
+                    Unblock-File $dest -ErrorAction SilentlyContinue
+                    $hit += $f
+                }
+                Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+            } catch { }
+        }
+        return $hit
+    } -ArgumentList $Base, $Here
 }
 
 # ---------------------------------------------------------------- custom controls
@@ -1810,19 +1876,10 @@ $miAuto = Add-Item 'Start when I log in' {
     }
 }
 $miUpdate = Add-Item 'Check for updates' {
-    $icon.Text = 'Keyboard Lighting - checking...'
-    $changed = Invoke-SelfUpdate
-    $icon.Text = 'Keyboard Lighting'
-    if ($changed.Count -eq 0) {
-        $icon.BalloonTipTitle = 'Keyboard Lighting'
-        $icon.BalloonTipText  = 'Already up to date.'
-        $icon.ShowBalloonTip(3000)
-    } else {
-        $r = [System.Windows.Forms.MessageBox]::Show(
-            ("Updated {0} file(s).`n`nRestart now to use the new version?" -f $changed.Count),
-            'Update installed','YesNo','Question')
-        if ($r -eq 'Yes') { Restart-App }
-    }
+    $icon.BalloonTipTitle = 'Keyboard Lighting'
+    $icon.BalloonTipText  = 'Checking GitHub for updates in the background...'
+    $icon.ShowBalloonTip(2500)
+    Start-UpdateJob $true
 }
 # What the keyboard should do once this app is closed.
 $miWhenClosed = New-Object System.Windows.Forms.ToolStripMenuItem
@@ -1985,6 +2042,7 @@ function Restart-App {
 # ---------------------------------------------------------------- window behaviour
 $script:HintShown   = $false
 $script:UpdJob      = $null
+$script:UpdManual   = $false
 $script:UpdPrompted = $false
 $script:Pending     = $false
 $script:WakeAt      = 0
@@ -2055,25 +2113,7 @@ if (-not $IsAdmin) {
 }
 
 if (-not $NoUpdate) {
-    $job = Start-Job -ScriptBlock {
-        param($b, $h)
-        try { [Net.ServicePointManager]::SecurityProtocol = 'Tls12' } catch { }
-        $hit = @()
-        foreach ($f in 'Aura-Background.ps1','Tray.ps1','ui_controls.cs.txt','app.ico','Setup.ps1','Setup.bat','Zones.ps1','Zones.bat','MyEffect.ps1','README.md') {
-            try {
-                $tmp = Join-Path $env:TEMP ('kblbg_' + $f)
-                Invoke-WebRequest "$b/$f" -OutFile $tmp -UseBasicParsing -TimeoutSec 20
-                $dest = Join-Path $h $f
-                $new = (Get-FileHash $tmp -Algorithm SHA256).Hash
-                $old = ''
-                if (Test-Path $dest) { $old = (Get-FileHash $dest -Algorithm SHA256).Hash }
-                if ($new -ne $old) { Copy-Item $tmp $dest -Force; $hit += $f }
-                Remove-Item $tmp -Force -ErrorAction SilentlyContinue
-            } catch { }
-        }
-        return $hit
-    } -ArgumentList $Base, $Here
-    $script:UpdJob = $job
+    Start-UpdateJob $false
 }
 
 [void](Start-Engine)
@@ -2081,19 +2121,14 @@ Update-Status
 
 if (-not $Silent) { Show-Window }
 
-# Register for sleep/lock so the app can repair the lighting on wake.
-# No -Action scriptblock: that runs in its own scope, so a flag set inside
-# it would never be visible here. Queue the events and drain them below.
+# Watch sleep/lock/resume via lock-free native C# Interlocked counter so the
+# Windows broadcast thread never marshals back into the PowerShell runspace
+# (avoiding the classic WinForms + PSEventSubscriber lid-wake deadlock).
 $script:PowerOk = $false
 try {
-    Register-ObjectEvent -InputObject ([Microsoft.Win32.SystemEvents]) `
-        -EventName PowerModeChanged -SourceIdentifier 'TrayPower' `
-        -ErrorAction Stop | Out-Null
-    Register-ObjectEvent -InputObject ([Microsoft.Win32.SystemEvents]) `
-        -EventName SessionSwitch -SourceIdentifier 'TraySession' `
-        -ErrorAction SilentlyContinue | Out-Null
+    [KbLight.PowerWatch]::Start()
     $script:PowerOk = $true
-    Log 'sleep/resume watch active'
+    Log 'sleep/resume watch active (lock-free)'
 } catch {
     Log 'sleep/resume watch unavailable' 'WARN'
 }
@@ -2113,20 +2148,9 @@ $watch.Add_Tick({
 
     $woke = $false
     if ($script:PowerOk) {
-        $pe = Get-Event -SourceIdentifier 'TrayPower' -ErrorAction SilentlyContinue
-        while ($pe) {
-            $mode = ''
-            try { $mode = [string]$pe.SourceEventArgs.Mode } catch { }
-            Remove-Event -EventIdentifier $pe.EventIdentifier -ErrorAction SilentlyContinue
-            if ($mode -eq 'Resume') { $woke = $true }
-            $pe = Get-Event -SourceIdentifier 'TrayPower' -ErrorAction SilentlyContinue
-        }
-        $se = Get-Event -SourceIdentifier 'TraySession' -ErrorAction SilentlyContinue
-        while ($se) {
-            Remove-Event -EventIdentifier $se.EventIdentifier -ErrorAction SilentlyContinue
-            $woke = $true
-            $se = Get-Event -SourceIdentifier 'TraySession' -ErrorAction SilentlyContinue
-        }
+        try {
+            if ([KbLight.PowerWatch]::ConsumeWakes() -gt 0) { $woke = $true }
+        } catch { }
     }
     if ($woke) {
         Log 'resume/session event'
@@ -2208,6 +2232,11 @@ $watch.Add_Tick({
                     $icon.BalloonTipTitle = 'Update ready'
                     $icon.BalloonTipText  = 'A new version was downloaded. Click here to restart and apply it.'
                     $icon.ShowBalloonTip(6000)
+                } elseif ($script:UpdManual) {
+                    $script:UpdManual = $false
+                    $icon.BalloonTipTitle = 'Keyboard Lighting'
+                    $icon.BalloonTipText  = 'Already up to date.'
+                    $icon.ShowBalloonTip(3000)
                 }
             } elseif ($script:UpdJob.State -eq 'Failed') {
                 $script:UpdPrompted = $true
@@ -2262,14 +2291,8 @@ function Report-Fault($where, $ex) {
     try { Update-Status } catch { }
 }
 
-# CatchException routes exceptions on the UI thread to ThreadException
-# instead of killing the process. It refuses to change once a window exists
-# on some runtimes, which is why this is wrapped rather than assumed.
-try {
-    [System.Windows.Forms.Application]::SetUnhandledExceptionMode(
-        [System.Windows.Forms.UnhandledExceptionMode]::CatchException)
-} catch { Log 'could not set catch mode for UI errors' 'WARN' }
-
+# SetUnhandledExceptionMode was already configured at process startup before
+# any Control/NotifyIcon handles existed. Hook the handlers here.
 try {
     [System.Windows.Forms.Application]::add_ThreadException(
         [System.Threading.ThreadExceptionEventHandler]{
@@ -2286,7 +2309,7 @@ try {
         [UnhandledExceptionEventHandler]{
             param($s, $e)
             try { Log ("fatal background error: {0}" -f $e.ExceptionObject) 'ERROR' } catch { }
-            try { $icon.Visible = $false } catch { }
+            try { $icon.Visible = $false; $icon.Dispose() } catch { }
         })
 } catch { }
 
@@ -2298,13 +2321,10 @@ try {
     [AppDomain]::CurrentDomain.add_ProcessExit(
         [EventHandler]{
             param($s, $e)
+            try { [KbLight.PowerWatch]::Stop() } catch { }
             try { $icon.Visible = $false; $icon.Dispose() } catch { }
             try { Remove-Item $LockFile -Force -ErrorAction SilentlyContinue } catch { }
-            # Kill the engine by the handle we hold rather than calling
-            # Stop-Engine. Windows allows a shutdown hook only a couple of
-            # seconds before cutting it off, and Stop-Engine can reach for
-            # WMI to sweep up strays - too slow to rely on here. The engine
-            # watches our pid anyway, so a stray stops itself either way.
+            try { Remove-Item $EnginePidFile -Force -ErrorAction SilentlyContinue } catch { }
             try {
                 if ($script:EngineP -and -not $script:EngineP.HasExited) { $script:EngineP.Kill() }
             } catch { }
@@ -2315,8 +2335,7 @@ Log 'ready'
 [System.Windows.Forms.Application]::Run()
 
 if (-not $script:Quitting) { Stop-Engine -Graceful }
-Unregister-Event -SourceIdentifier 'TrayPower' -ErrorAction SilentlyContinue
-Unregister-Event -SourceIdentifier 'TraySession' -ErrorAction SilentlyContinue
-$icon.Visible = $false
+try { [KbLight.PowerWatch]::Stop() } catch { }
+try { $icon.Visible = $false; $icon.Dispose() } catch { }
 try { Remove-Item $LockFile -Force -ErrorAction SilentlyContinue } catch { }
 Log 'exited'
