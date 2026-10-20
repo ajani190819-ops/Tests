@@ -1,3 +1,15 @@
+## 2026-10-20 — settings recovery, updater hardening, CI, and cross-project fixes
+
+Wave Overhangs **0.0.51**, Unlayered Infill **0.4.10**, Orca updater **2.2.0**.
+
+* **OrcaSlicer plugins (`0.0.51` / `0.4.10`):** fixed settings auto-restore when Orca resets the Config panel to `{}` after an upgrade, fixed `restore_backup: true` so slicing mid-session restores settings immediately without restarting Orca, stopped `WaveOverhangsCheck` from recording factory-default snapshots into `settings_backups`, fixed string-boolean parsing (`"enabled": "false"`, `"wall_snap": "false"`), hardened `check_nozzle_clearance()` (inline comments, negative bed coordinates, `M82` retractions, accurate `1.25x` auto note), added `"auto"` flag support on the standalone CLI, and made G-code writes atomic.
+* **Windows updater (`Orca-Plugins.bat` 2.2.0):** cached immutable branch commit timestamps by SHA so repeated build-picker visits do not hit GitHub's 60/hour unauthenticated rate limit, filtered bookkeeping branches (`ci-reports`), rejected HTML error pages in `:download_check`, verified `TOOL_VERSION` before staging standalone `.py` tools, and prevented `:self_update` from downgrading newer local copies.
+* **Spatial HUD (`spatial-hud-template-26.3`):** interpolated player eye position and body/view yaw with `partialTick` in `WorldSpaceHudRenderer` to fix 20 Hz world-space HUD stutter, made `ExperimentalHudCapture`'s warp buffer lazy with full GPU buffer/target cleanup on shutdown, pointed `.bat` updaters at `main`, and added headless JUnit 5 tests.
+* **Arena Link (`arena-link-windows`):** fixed forgetting deleted/moved folders, kept missing folders visible with a working **Forget** button, supported 0-commit `git init` repos, fixed Windows `.cmd` tool detection for `claude`, locked Electron navigation/window-open handlers, corrected gateway privacy wording, and added `node:test` unit tests.
+* **Repository hygiene & CI:** added `.github/workflows/ci.yml` running `tools/check_all.py` + `arena-link-windows` tests on every push/PR, hardened `build-spatial-hud.yml`, scrubbed local user paths/usernames, archived superseded root clutter, updated `AGENTS.md` (including Step 0 prompt translation), and synchronized documentation versions automatically via `tools/bump_version.py`.
+
+---
+
 ## 2026-10-02 — settings survive an update by themselves, and the curved wall answered
 
 Wave Overhangs **0.0.50**, Unlayered Infill **0.4.9**.

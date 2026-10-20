@@ -27,7 +27,7 @@ Run `Orca-Plugins.bat` (repo root). It lands here:
 
 1. Restart OrcaSlicer (needs newer than 2.4.2, or a nightly).
 2. File → Plugins → confirm *Wave Overhangs* is enabled and its separate
-   Version column reads **0.0.26**. The package name is permanently
+   Version column reads **0.0.51**. The package name is permanently
    version-free.
 3. Process preset → Others → **Slicing Pipeline Plugin** → *Wave Overhangs*.
 4. Slice a part with a small overhang, then run the
@@ -260,6 +260,11 @@ are written as arcs, and should stay `false`.
 * `fan`: Wave fan setting from `0.0` to `1.0`; the default `1.0` means 100%.
 * `max_iterations`: safety limit on fronts in one region. It prevents geometry
   errors from creating an unbounded toolpath.
+* `auto_restore_settings`: `true` by default. Automatically restores your
+  remembered settings on the next slice if a plugin update resets the Config
+  panel to factory defaults.
+* `restore_backup`: `false` by default. Set to `true` and slice once to
+  manually restore your backed-up settings; resets itself back to `false`.
 
 ### Why a front can appear to start in an odd place
 

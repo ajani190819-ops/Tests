@@ -22,6 +22,15 @@ If the launcher previously installed
 Geometry for you, it will simply stop offering it; remove it from your process
 preset if you had selected it.
 
+## 0.0.51 — 2026-10-20
+
+* Fixes settings recovery when Orca clears the Config panel to `{}` after
+  an update, makes `restore_backup: true` work immediately mid-session, and
+  stops `Wave Overhangs - Settings guide & check` from writing factory
+  defaults over the settings backup history.
+* Honours JSON string booleans (`"enabled": "false"`, `"wall_snap": "false"`)
+  and writes rewritten G-code files atomically via a same-directory temp file.
+
 ## 0.0.50 — 2026-10-02
 
 * Settings now come back by themselves after an update. If the Config

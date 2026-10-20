@@ -293,6 +293,17 @@ with tempfile.TemporaryDirectory() as tmp:
               f"settings were not restored after a version change: "
               f"{recovered['amplitude']}")
 
+        # (a2) Orca wipes stored config to empty "{}" across a version upgrade
+        plugin.PLUGIN_VERSION = "9.9.11"
+        plugin._MIGRATED.clear()
+        auto_cap.set_config({})
+        auto_cap.migrate_config_if_needed()
+        recovered_empty = plugin._cfg(auto_cap)
+        check(recovered_empty["amplitude"] == "325%"
+              and recovered_empty["shape"] == "triangle",
+              f"settings were not restored when Orca wiped config to {{}}: "
+              f"{recovered_empty['amplitude']}")
+
         # (b) "Restore defaults" WITHOUT a version change must stick, or the
         #     button becomes impossible to use
         plugin._MIGRATED.clear()
@@ -303,8 +314,22 @@ with tempfile.TemporaryDirectory() as tmp:
               f"auto-restore overrode Restore defaults within one version: "
               f"{reset['amplitude']}")
 
+        # (b2) Manual restore_backup=True mid-session (after _MIGRATED already
+        #      recorded an earlier slice in this same Orca session) must restore
+        #      on the very next execute() without requiring an Orca restart.
+        mid_cap = fresh_cap()
+        mid_cap.set_config(plugin.annotated_defaults())
+        mid_cap.execute(fake_orca.Context(fake_orca.Step.posSlice))
+        mid_cap.set_config({**plugin.annotated_defaults(), "restore_backup": True})
+        mid_cap.execute(fake_orca.Context(fake_orca.Step.posSlice))
+        mid_restored = plugin._cfg(mid_cap)
+        check(mid_restored["amplitude"] == "325%"
+              and mid_restored["restore_backup"] is False,
+              f"mid-session restore_backup=True did not take effect on slice: "
+              f"{mid_restored}")
+
         # (c) and it can be switched off
-        plugin.PLUGIN_VERSION = "9.9.10"
+        plugin.PLUGIN_VERSION = "9.9.12"
         plugin._MIGRATED.clear()
         opted_out = plugin.annotated_defaults()
         opted_out["auto_restore_settings"] = False
@@ -643,6 +668,7 @@ with tempfile.TemporaryDirectory() as tmp:
     os.environ.pop("ORCA_PLUGIN_LOG_DIR", None)
     storage = tmp / "plugin-storage"
     storage.mkdir()
+    _prev_storage = os.environ.get("ORCA_PLUGIN_STORAGE_DIR")
     os.environ["ORCA_PLUGIN_STORAGE_DIR"] = str(storage)
     try:
         lp = pathlib.Path(plugin.log_path())
@@ -652,7 +678,10 @@ with tempfile.TemporaryDirectory() as tmp:
         check(pathlib.Path(plugin._state_path()).parent == storage,
               "state diagnostics must also use plugin storage by default")
     finally:
-        os.environ.pop("ORCA_PLUGIN_STORAGE_DIR", None)
+        if _prev_storage is None:
+            os.environ.pop("ORCA_PLUGIN_STORAGE_DIR", None)
+        else:
+            os.environ["ORCA_PLUGIN_STORAGE_DIR"] = _prev_storage
         os.environ["ORCA_PLUGIN_LOG_DIR"] = str(logs)
 
     # an unwritable log directory must not break the export
@@ -888,6 +917,13 @@ with tempfile.TemporaryDirectory() as tmp:
         result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))
         check(not result.ok and "dependency" in result.message.lower(),
               "Wave pipeline must refuse clearly rather than silently no-op without deps")
+
+        # JSON string "false" on enabled must disable cleanly even when deps are missing.
+        disabled_pipe = orca.REGISTERED[0]()
+        disabled_pipe.set_config({"enabled": "false"})
+        disabled_res = disabled_pipe.execute(fake_orca.Context(fake_orca.Step.posSlice))
+        check(disabled_res.ok and "disabled" in disabled_res.message.lower(),
+              f'Wave pipeline ignored string enabled="false": {disabled_res!r}')
 
 if failures:
     print(f"FAILED ({len(failures)})")

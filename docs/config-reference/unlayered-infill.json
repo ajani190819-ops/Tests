@@ -21,7 +21,7 @@
   "max_lift_mm": "auto",
   "_collision_check": "warn | refuse | off -- reports moves whose nozzle would pass under material already printed. refuse stops the export instead.",
   "collision_check": "warn",
-  "_nozzle_clearance": "'auto' or mm -- how close the nozzle may pass under printed material before collision_check counts it. auto is a quarter of the layer height.",
+  "_nozzle_clearance": "'auto' or mm -- how deep a move may key under printed material before collision_check warns. auto is 1.25x the layer height.",
   "nozzle_clearance": "auto",
   "_require_relative_e": "true | false -- refuse absolute-E G-code instead of corrupting it. Leave on, the fix is Printer Settings > Use relative E distances.",
   "require_relative_e": true,
