@@ -346,6 +346,25 @@ public final class ExperimentalHudCapture {
 		return warpBuffer;
 	}
 
+	private static void releaseGpuResource(Object resource, String fallbackMethod) {
+		if (resource == null) {
+			return;
+		}
+		if (resource instanceof AutoCloseable closeable) {
+			try {
+				closeable.close();
+				return;
+			} catch (Exception ignored) {
+			}
+		}
+		if (fallbackMethod != null) {
+			try {
+				resource.getClass().getMethod(fallbackMethod).invoke(resource);
+			} catch (Exception ignored) {
+			}
+		}
+	}
+
 	public static void close() {
 		frameActive = false;
 		frameHasContent = false;
@@ -357,12 +376,16 @@ public final class ExperimentalHudCapture {
 			warpBuffer = null;
 		}
 		if (capturedTarget != null) {
-			capturedTarget.destroyBuffers();
+			TextureTarget target = capturedTarget;
 			capturedTarget = null;
+			releaseGpuResource(target, "destroyBuffers");
+			releaseGpuResource(target.getColorTexture(), null);
+			releaseGpuResource(target.getDepthTexture(), null);
 		}
 		if (capturedRenderer != null) {
-			capturedRenderer.close();
+			GuiRenderer renderer = capturedRenderer;
 			capturedRenderer = null;
+			releaseGpuResource(renderer, "close");
 		}
 	}
 
