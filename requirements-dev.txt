@@ -1,0 +1,4 @@
+# Optional runtime dependencies required to exercise Wave Overhangs geometry tests
+# (tests/test_wave_gcode.py and tools/check_all.py --strict).
+numpy>=2.0
+shapely>=2.0

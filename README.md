@@ -7,8 +7,8 @@ that's a bug; open an issue.
 
 | Plugin | Version | What it does |
 | --- | --- | --- |
-| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.33 | replaces covered Bridge extrusion with support-anchored wave toolpaths whose ends land on the real wall and hole perimeters, optionally as G2/G3 arcs |
-| [Unlayered Infill](plugins/unlayered-infill/) | 0.4.2 | rewrites sparse infill onto a wave in Z so layers interlock instead of stacking as clean planes — now in both directions at once, with a choice of wave shape |
+| [Wave Overhangs](plugins/wave-overhangs/) | 0.0.51 | replaces covered Bridge extrusion with support-anchored wave toolpaths whose ends land on the real wall and hole perimeters, optionally as G2/G3 arcs |
+| [Unlayered Infill](plugins/unlayered-infill/) | 0.4.10 | rewrites sparse infill onto a wave in Z so layers interlock instead of stacking as clean planes — now in both directions at once, with a choice of wave shape |
 
 These are the versions in the current test branch. A plain `Orca-Plugins.bat`
 run installs released `main`; use menu item 2 to pick a test branch instead.
@@ -170,13 +170,13 @@ number into them can orphan a saved preset.
 | Where | What you see |
 | --- | --- |
 | File → Plugins, **Name** column | `Wave Overhangs` |
-| File → Plugins, **Version** column | `0.0.33` (Orca reads the PEP 723 header) |
-| The updater's output | `Wave Overhangs v0.0.33` |
-| **Settings guide & check**, first line | `Wave Overhangs v0.0.33 -- setup check` |
+| File → Plugins, **Version** column | `0.0.51` (Orca reads the PEP 723 header) |
+| The updater's output | `Wave Overhangs v0.0.51` |
+| **Settings guide & check**, first line | `Wave Overhangs v0.0.51 -- setup check` |
 
 The exported G-code is stamped too — search it for `; wave-overhangs v` or
 `; unlayered-infill v` to see which build produced the file. The same rule
-applies to `Unlayered Infill`; its current test-build version is `0.4.2`.
+applies to `Unlayered Infill`; its current test-build version is `0.4.10`.
 
 ## After installing
 
@@ -260,7 +260,7 @@ quietly. Here is where to look, in order:
    answer in almost every case: Orca prints the actual load error there. If
    the plugin is not in the list at all, go to step 3.
 2. **`Plugin Info` tab** — check the *installed version*. The current test
-   build reads **0.4.2** for Unlayered Infill and **0.0.33** for Wave
+   build reads **0.4.10** for Unlayered Infill and **0.0.51** for Wave
    Overhangs. Their permanent names are simply `Unlayered Infill` and `Wave
    Overhangs`; version numbers appear only in the separate Version column.
 3. **Is the folder right?** Each plugin needs its own folder holding exactly
@@ -322,7 +322,7 @@ the plugin versions so it is clear what was installed.
 After installing this final naming migration, reselect `Wave Overhangs` or
 `Unlayered Infill` once in **Process → Others → Slicing Pipeline Plugin**.
 Those exact version-free package/capability names will not change again. Use
-the Plugins dialog's separate Version column to confirm 0.0.33 / 0.4.2.
+the Plugins dialog's separate Version column to confirm 0.0.51 / 0.4.10.
 
 ## The log file — start here when something seems wrong
 

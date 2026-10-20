@@ -14,9 +14,12 @@ work is not lost and can be read or revived later.
 
 | Folder | What it is |
 | --- | --- |
-| [`wave-overhangs-geometry/`](wave-overhangs-geometry) | the retired third plugin, last at 0.1.4 |
+| [`wave-overhangs-geometry/`](wave-overhangs-geometry) | the retired third OrcaSlicer plugin, last at 0.1.4 |
 | [`tests/`](tests) | that plugin's regression test |
 | [`test-prints/`](test-prints) | real exports, models and logs from the owner's printer, kept as evidence |
+| [`spatial-hud-v0-draft/`](spatial-hud-v0-draft) | superseded initial draft of Spatial HUD (the canonical mod lives in `spatial-hud-template-26.3/`) |
+| [`modpack-demo-mod/`](modpack-demo-mod) | throwaway early Fabric HUD experiment kept for reference |
+| [`spatial-gui-reference/`](spatial-gui-reference) | upstream reference JAR used to compare Mod Menu / Cloth Config behavior |
 
 ---
 
