@@ -6,7 +6,8 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.js && node --check preload.js && node --check renderer/app.js",
+    "check": "node --check core.js && node --check main.js && node --check preload.js && node --check renderer/app.js",
+    "test": "npm run check && node --test",
     "dist:win": "electron-builder --win nsis portable"
   },
   "devDependencies": {
@@ -17,6 +18,7 @@
     "appId": "ai.arena.link",
     "productName": "Arena Link",
     "files": [
+      "core.js",
       "main.js",
       "preload.js",
       "renderer/**/*",

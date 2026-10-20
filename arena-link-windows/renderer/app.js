@@ -1,5 +1,6 @@
 const state = {
   repositories: new Map(),
+  missing: [],
   selectedRoot: null
 };
 
@@ -143,7 +144,8 @@ async function refreshRepositories() {
   try {
     const result = await window.arenaLink.listRepositories();
     state.repositories = new Map(result.repositories.map((repository) => [repository.root, repository]));
-    renderRepositoryList(result.missing);
+    state.missing = Array.isArray(result.missing) ? result.missing : [];
+    renderRepositoryList();
 
     if (state.selectedRoot && state.repositories.has(state.selectedRoot)) {
       renderRepositoryDetail(state.repositories.get(state.selectedRoot));
@@ -157,8 +159,8 @@ async function refreshRepositories() {
   }
 }
 
-function renderRepositoryList(missing) {
-  if (state.repositories.size === 0 && missing.length === 0) {
+function renderRepositoryList() {
+  if (state.repositories.size === 0 && state.missing.length === 0) {
     elements.list.innerHTML = '<p class="empty-state">No repositories have been approved yet.</p>';
     return;
   }
@@ -176,8 +178,15 @@ function renderRepositoryList(missing) {
       </div>`);
   }
 
-  for (const repository of missing) {
-    rows.push(`<div class="repository-row"><div class="repository-copy"><strong>${escapeHtml(repository.repository)}</strong><span>Unavailable: ${escapeHtml(repository.error)}</span></div></div>`);
+  for (const entry of state.missing) {
+    rows.push(`
+      <div class="repository-row">
+        <div class="repository-copy">
+          <strong>${escapeHtml(entry.repository)}</strong>
+          <span>Folder missing or unreadable: ${escapeHtml(entry.error)}</span>
+        </div>
+        <button class="button forget" data-forget="${escapeHtml(entry.repository)}">Forget</button>
+      </div>`);
   }
 
   elements.list.innerHTML = rows.join('');
@@ -201,7 +210,7 @@ function renderRepositoryList(missing) {
 async function selectRepository(root) {
   state.selectedRoot = root;
   elements.refreshSelected.disabled = false;
-  renderRepositoryList([]);
+  renderRepositoryList();
   await refreshSelectedRepository();
 }
 
@@ -211,7 +220,7 @@ async function refreshSelectedRepository() {
   try {
     const repository = await window.arenaLink.inspectRepository(state.selectedRoot);
     state.repositories.set(repository.root, repository);
-    renderRepositoryList([]);
+    renderRepositoryList();
     renderRepositoryDetail(repository);
   } catch (error) {
     showError(error);
