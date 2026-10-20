@@ -23,7 +23,8 @@ NODEPS = pathlib.Path("/tmp/nodeps")
 ARENA_LINK = ROOT / "arena-link-windows"
 
 TESTS = ["test_installer.py", "test_plugin_audit.py",
-         "test_post_script.py", "test_unlayered_waves.py", "test_wave_gcode.py"]
+         "test_post_script.py", "test_unlayered_waves.py",
+         "test_wave_gcode.py", "test_windows_apps.py"]
 # test_plugin_runtime.py asserts what the plugins do when numpy and shapely
 # are MISSING (the first-run dependency path), so it is only run in the
 # no-deps pass below. Running it with the deps installed reports failures

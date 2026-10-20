@@ -15,10 +15,21 @@ run installs released `main`; use menu item 2 to pick a test branch instead.
 
 Also here:
 
+* [`project-hub/`](project-hub/) — unified Windows desktop control center for
+  checking status, launching/unfreezing apps, and installing updates across
+  every project in this repository (`project-hub\Setup.bat`)
+* [`bluetooth-guard/`](bluetooth-guard/) — Windows Bluetooth auto-connect
+  blocker & quick-connect tray app so your laptop stops stealing audio from
+  your phone (`bluetooth-guard\Setup.bat`)
+* [`keyboard-lighting/`](keyboard-lighting/) — native per-zone RGB keyboard &
+  chassis light bar app for the ASUS ROG Strix G16 (`keyboard-lighting\Setup.bat`,
+  `keyboard-lighting\Restart.bat`)
+* [`spatial-hud-template-26.3/`](spatial-hud-template-26.3/) — Minecraft 26.3
+  Fabric mod placing the lower HUD in 3D world space + one-click Modrinth updater
+* [`arena-link-windows/`](arena-link-windows/) — local Git repository bridge
+  desktop app for Arena
 * [`tools/nonplanar-infill-tool/`](tools/nonplanar-infill-tool/) — standalone
   double-click G-code tool (the predecessor of the Unlayered Infill plugin)
-* [`keyboard-lighting/`](keyboard-lighting/) — unrelated personal project,
-  stored as-is
 * [`docs/`](docs/) — the roadmap, OrcaSlicer facts, and the reference PDFs
 * [`tests/fixtures/`](tests/fixtures/) — the supplied `Cube^2.STL` model and
   captured real Orca export used by the Wave regression test

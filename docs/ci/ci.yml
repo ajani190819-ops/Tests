@@ -35,5 +35,34 @@ jobs:
       - name: Install Python test dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Run full repository verification (Orca plugins, .bat contract, docs, Arena Link)
+      - name: Run full repository verification (Orca plugins, Windows apps, .bat contract, docs, Arena Link)
         run: python3 tools/check_all.py
+
+  windows-desktop-compile:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile C# sources with stock Windows Framework64 csc.exe & parse all PowerShell ASTs
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $csc = "$env:WinDir\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          foreach ($target in @(
+              'keyboard-lighting\ui_controls.cs.txt',
+              'bluetooth-guard\BluetoothCore.cs',
+              'project-hub\HubCore.cs'
+          )) {
+              $out = Join-Path $env:TEMP ([IO.Path]::GetFileNameWithoutExtension($target) + '.dll')
+              & $csc /nologo /target:library /optimize+ /r:System.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll "/out:$out" $target
+              if ($LASTEXITCODE -ne 0) { throw "csc failed on $target" }
+          }
+          foreach ($ps in Get-ChildItem -Recurse -Filter '*.ps1') {
+              $tokens = $null
+              $errors = $null
+              [void][System.Management.Automation.Language.Parser]::ParseFile($ps.FullName, [ref]$tokens, [ref]$errors)
+              if ($errors -and $errors.Count -gt 0) {
+                  throw ("PowerShell parse error in {0}: {1}" -f $ps.FullName, ($errors | Out-String))
+              }
+          }

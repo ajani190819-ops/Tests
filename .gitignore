@@ -16,7 +16,16 @@ __pycache__/
 !**/gradle-wrapper.jar
 !archive/**/*.jar
 
-# Desktop companion / Electron builds
+# Desktop companion / Electron & compiled Windows helper binaries
 node_modules/
 dist/
 out/
+keyboard-lighting/*.exe
+keyboard-lighting/*.dll
+bluetooth-guard/*.exe
+bluetooth-guard/*.dll
+project-hub/*.exe
+project-hub/*.dll
+*.new
+*.hubtmp
+
