@@ -1,25 +1,12 @@
-# Bluetooth Guard
+# Bluetooth Guard (`BluetoothGuard.exe`)
 
-Stops your Windows laptop from automatically connecting to your earbuds or headphones at startup, on wake, or when turning Bluetooth on — so your laptop stops hijacking audio away from your phone.
+Standalone native 64-bit Windows desktop & system-tray application (`BluetoothGuard.exe` — ~85 KB, zero console window, zero external runtime dependencies) that stops Windows from automatically connecting to your phone earbuds/headphones when your laptop boots, wakes from sleep, or turns Bluetooth on.
 
-## Install / Update
+## How to Use
 
-Double-click **`Setup.bat`** (no Administrator prompt needed).
-
-It builds **`BluetoothGuard.exe`**, adds **Desktop** and **Start Menu** shortcuts, sets it to start quietly when you sign in to Windows, and opens the control window.
-
-## How It Works
-
-Every paired Bluetooth device appears in a clean card with a single switch:
-
-* **Allow auto-connect ON** *(default for mice, keyboards, controllers, or dedicated PC headsets)* — behaves just like normal Windows Bluetooth.
-* **Allow auto-connect OFF (`Manual Only — Phone Safe`)** — keeps your earbuds paired in Windows, disables Windows auto-connect audio profiles while idle so Windows won't grab them away from your phone on boot or wake, and drops any unsolicited auto-connect immediately.
-* **One-Click `Connect Now` (Temporary Laptop Session):** Whenever you actually want your blocked earbuds connected to your laptop, click **Connect Now** in the window (or right-click the **Bluetooth Guard** system tray icon and click **Connect \<Your Earbuds\>**). As soon as you disconnect, put your earbuds back in their case, or close your laptop lid, Bluetooth Guard **automatically re-locks auto-connect** so your phone stays safe next time too.
-
-## Where Settings & Logs Live
-
-| Item | Path |
-|---|---|
-| Device preferences | `%LOCALAPPDATA%\BluetoothGuard\settings.json` |
-| Activity logs | `%LOCALAPPDATA%\BluetoothGuard\logs\guard.log` |
-| Startup entry | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\BluetoothGuard` |
+1. Download **`BluetoothGuard.exe`** (or click **Open / Start** on the **Bluetooth Guard** card inside **`ProjectHub.exe`**).
+2. Select your phone earbuds/headphones in the list and click **`Block Auto-Connect`**.
+   * Your pairing stays saved in Windows Settings — you never have to re-pair!
+   * Auto-connect profiles are disabled when idle (`BluetoothSetServiceState`), and any unwanted connection is dropped immediately (`IOCTL_BTH_DISCONNECT_DEVICE`).
+3. Whenever you *do* want to use those earbuds on your laptop, click **`Connect Now`** (either in the window or by right-clicking the system tray icon).
+   * Once you disconnect or put your PC to sleep, **Bluetooth Guard automatically re-locks auto-connect** so tomorrow's boot stays phone-safe.

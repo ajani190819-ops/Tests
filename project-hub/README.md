@@ -1,15 +1,30 @@
-# Project Hub
+# Project Hub (`ProjectHub.exe`)
 
-A clean, fast native Windows control center for checking live health, launching/unfreezing apps, and downloading updates across every project in this repository:
+Standalone native 64-bit Windows desktop application (`ProjectHub.exe` — ~101 KB, zero installer, zero console window, zero `.NET` / PowerShell dependency).
 
-* **Keyboard Lighting (`keyboard-lighting/`)** — Shows live running status + active effects (`Keys` / `Light bar`), detects hung heartbeats automatically, and lets you **Open**, **Restart / Unfreeze**, or **Update / Repair** in one click.
-* **Bluetooth Guard (`bluetooth-guard/`)** — Shows live guard status + how many paired earbuds/devices are protected from auto-connecting, with one-click **Open**, **Restart**, and **Install / Update**.
-* **Spatial HUD (`spatial-hud-template-26.3/`)** — Inspects your Modrinth `mods` folder (`%APPDATA%\ModrinthApp\profiles\F5W\mods` or a custom folder), checks GitHub's `spatial-hud-latest` release feed, and installs/updates the verified Fabric `.jar` in one click.
-* **OrcaSlicer Plugins (`Wave Overhangs` + `Unlayered Infill`)** — Compares installed plugin versions in `%APPDATA%\OrcaSlicer\plugins` against `plugins.json` on GitHub, updates plugins directly, or opens `Orca-Plugins.bat`.
-* **Arena Link (`arena-link-windows/`)** — Shows app version + linked local Git repository count from AppData and syncs/launches the desktop app.
+## How to Use
 
-## Install / Launch
+1. Download **`ProjectHub.exe`** (from GitHub Releases or `project-hub/ProjectHub.exe`) and place it anywhere (for example on your Desktop).
+2. Double-click **`ProjectHub.exe`**.
 
-Double-click **`project-hub\Setup.bat`** (no Administrator prompt needed).
+From inside **Project Hub**, you can view live status and one-click update or launch every project in this repository:
 
-It builds **`ProjectHub.exe`**, adds **Desktop** and **Start Menu** shortcuts, and opens the dashboard. You can even download just `project-hub\Setup.bat` into any empty folder on Windows and double-click it — it automatically downloads the rest of Project Hub and can install/update every other project straight from the UI.
+* **Bluetooth Guard (`BluetoothGuard.exe`)** — Install, update, start, or stop phone-earbud auto-connect protection in one click.
+* **Keyboard Lighting (`keyboard-lighting/`)** — Check running health, unfreeze/restart if hung, or download & apply updates.
+* **Spatial HUD (`spatial-hud-template-26.3/`)** — Pick your Modrinth `mods` folder and download/install the latest Fabric `.jar` directly.
+* **OrcaSlicer Plugins (`Wave Overhangs` + `Unlayered Infill`)** — Compare installed versions against GitHub (`plugins.json`) and install updates directly into OrcaSlicer without opening a terminal.
+* **Arena Link (`arena-link-windows/`)** — View linked Git folder count, launch the app, or sync source updates.
+* **Self-Update (`Update Hub`)** — Updates `ProjectHub.exe` in place from GitHub and automatically reopens.
+
+## Building from Source (`project-hub/src/`)
+
+Compiled cleanly with Clang/Zig targeting `x86_64-windows-gnu` (`-Wall -Wextra -Werror -Wl,--subsystem,windows`):
+
+```bash
+zig rc project-hub/src/hub.rc hub.res
+zig cc -target x86_64-windows-gnu -Os -s -Wall -Wextra -Werror \
+  -Wl,--subsystem,windows -municode \
+  project-hub/src/project_hub.c hub.res \
+  -luser32 -lgdi32 -lshell32 -lcomctl32 -lole32 -luuid -lwinhttp \
+  -o project-hub/ProjectHub.exe
+```

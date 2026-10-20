@@ -399,7 +399,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         ]
         for base in scan_dirs:
             for p in base.rglob("*"):
-                if not p.is_file() or p.suffix.lower() in (".ico", ".png", ".jar"):
+                if not p.is_file() or p.suffix.lower() in (".ico", ".png", ".jar", ".exe", ".res"):
                     continue
                 text = p.read_text(encoding="utf-8", errors="replace")
                 rel = str(p.relative_to(ROOT))
@@ -408,6 +408,63 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                     re.search(r"(?i)C:\\Users\\(?!Public\b|Default\b|<|\$)", text),
                     f"Hardcoded personal user path found in {rel}",
                 )
+
+    def test_native_windows_gui_executables_are_valid_x64_gui_pe_binaries(self):
+        import struct
+
+        allowed_prefixes = ("api-ms-win-crt-",)
+        allowed_dlls = {
+            "kernel32.dll",
+            "user32.dll",
+            "gdi32.dll",
+            "shell32.dll",
+            "comctl32.dll",
+            "advapi32.dll",
+            "ole32.dll",
+            "winhttp.dll",
+            "msvcrt.dll",
+        }
+        for rel in ("project-hub/ProjectHub.exe", "bluetooth-guard/BluetoothGuard.exe"):
+            exe = ROOT / rel
+            self.assertTrue(exe.exists(), f"Missing standalone native executable {rel}")
+            data = exe.read_bytes()
+            self.assertEqual(data[:2], b"MZ", f"{rel} missing MZ DOS header")
+            pe_off = struct.unpack_from("<I", data, 0x3C)[0]
+            self.assertEqual(data[pe_off : pe_off + 4], b"PE\x00\x00", f"{rel} missing PE signature")
+            machine, num_sections = struct.unpack_from("<HH", data, pe_off + 4)
+            self.assertEqual(machine, 0x8664, f"{rel} must target x86_64 Windows")
+            opt_off = pe_off + 24
+            subsystem = struct.unpack_from("<H", data, opt_off + 68)[0]
+            self.assertEqual(subsystem, 2, f"{rel} must use IMAGE_SUBSYSTEM_WINDOWS_GUI (no console window)")
+            self.assertIn(b"PerMonitorV2", data, f"{rel} must embed PerMonitorV2 DPI manifest")
+            self.assertIn(b"Microsoft.Windows.Common-Controls", data, f"{rel} must embed ComCtl32 v6 manifest")
+
+            imp_rva, _ = struct.unpack_from("<II", data, opt_off + 112 + 8)
+            sec_off = opt_off + struct.unpack_from("<H", data, pe_off + 20)[0]
+            sections = []
+            for i in range(num_sections):
+                s = data[sec_off + i * 40 : sec_off + (i + 1) * 40]
+                vsize, va, rsize, rptr = struct.unpack_from("<IIII", s, 8)
+                sections.append((va, max(vsize, rsize), rptr))
+
+            def rva_to_offset(rva):
+                for va, span, rptr in sections:
+                    if va <= rva < va + span:
+                        return rptr + (rva - va)
+                return None
+
+            off = rva_to_offset(imp_rva)
+            while off is not None:
+                ilt, _, _, name_rva, _ = struct.unpack_from("<IIIII", data, off)
+                if not ilt and not name_rva:
+                    break
+                noff = rva_to_offset(name_rva)
+                dll = data[noff : data.index(b"\x00", noff)].decode("ascii").lower()
+                self.assertTrue(
+                    dll in allowed_dlls or dll.startswith(allowed_prefixes),
+                    f"{rel} imports non-stock DLL {dll!r}",
+                )
+                off += 20
 
     def test_keyboard_lighting_reliability_contracts(self):
         tray = (ROOT / "keyboard-lighting" / "Tray.ps1").read_text(encoding="utf-8")

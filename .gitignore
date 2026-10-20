@@ -22,10 +22,10 @@ dist/
 out/
 keyboard-lighting/*.exe
 keyboard-lighting/*.dll
-bluetooth-guard/*.exe
 bluetooth-guard/*.dll
-project-hub/*.exe
 project-hub/*.dll
 *.new
+*.old
 *.hubtmp
+
 
