@@ -53,12 +53,11 @@ public final class ExperimentalHudCapture {
 	private static final int MESH_COLUMNS = 32;
 	private static final int MESH_ROWS = 24;
 	private static final RenderPipeline WARP_PIPELINE = RenderPipelines.GUI_TEXTURED;
-	private static final StagedVertexBuffer WARP_BUFFER = new StagedVertexBuffer(
-			() -> "Spatial HUD experimental warp mesh", RenderType.SMALL_BUFFER_SIZE);
 	private static final Matrix4f IDENTITY = new Matrix4f();
 	private static final Vector3f ZERO = new Vector3f();
 	private static final Vector4f WHITE = new Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
 
+	private static StagedVertexBuffer warpBuffer;
 	private static GuiRenderState capturedState;
 	private static GuiRenderer capturedRenderer;
 	private static GuiGraphicsExtractor capturedGraphics;
@@ -339,6 +338,34 @@ public final class ExperimentalHudCapture {
 	 * Extra columns make optional cylindrical curvature smooth without affecting
 	 * the safe default mode (whose curvature value is zero).
 	 */
+	private static StagedVertexBuffer warpBuffer() {
+		if (warpBuffer == null) {
+			warpBuffer = new StagedVertexBuffer(
+					() -> "Spatial HUD experimental warp mesh", RenderType.SMALL_BUFFER_SIZE);
+		}
+		return warpBuffer;
+	}
+
+	public static void close() {
+		frameActive = false;
+		frameHasContent = false;
+		worldTextureReady = false;
+		capturedGraphics = null;
+		capturedState = null;
+		if (warpBuffer != null) {
+			warpBuffer.close();
+			warpBuffer = null;
+		}
+		if (capturedTarget != null) {
+			capturedTarget.destroyBuffers();
+			capturedTarget = null;
+		}
+		if (capturedRenderer != null) {
+			capturedRenderer.close();
+			capturedRenderer = null;
+		}
+	}
+
 	private static void compositeProjectiveMesh(SpatialHudConfig cfg) {
 		if (capturedTarget == null || capturedTarget.getColorTextureView() == null) {
 			throw new IllegalStateException("bottom-HUD capture texture view is unavailable");
@@ -350,18 +377,19 @@ public final class ExperimentalHudCapture {
 			throw new IllegalStateException("GUI textured pipeline does not expose QUADS");
 		}
 
-		StagedVertexBuffer.Draw draw = WARP_BUFFER.appendDraw(format, primitive, null);
+		StagedVertexBuffer buffer = warpBuffer();
+		StagedVertexBuffer.Draw draw = buffer.appendDraw(format, primitive, null);
 		try {
-			VertexConsumer vertices = WARP_BUFFER.getVertexBuilder(draw);
+			VertexConsumer vertices = buffer.getVertexBuilder(draw);
 			addWarpMesh(vertices, cfg);
-			WARP_BUFFER.upload();
-			StagedVertexBuffer.ExecuteInfo info = WARP_BUFFER.getExecuteInfo(draw);
+			buffer.upload();
+			StagedVertexBuffer.ExecuteInfo info = buffer.getExecuteInfo(draw);
 			if (info == null) {
 				throw new IllegalStateException("GPU rejected the bottom-HUD warp mesh");
 			}
 			drawToMainTarget(info, texture);
 		} finally {
-			WARP_BUFFER.endFrame();
+			buffer.endFrame();
 		}
 	}
 
@@ -382,18 +410,19 @@ public final class ExperimentalHudCapture {
 			throw new IllegalStateException("polygon test pipeline does not expose textured QUADS");
 		}
 
-		StagedVertexBuffer.Draw draw = WARP_BUFFER.appendDraw(format, primitive, null);
+		StagedVertexBuffer buffer = warpBuffer();
+		StagedVertexBuffer.Draw draw = buffer.appendDraw(format, primitive, null);
 		try {
-			VertexConsumer vertices = WARP_BUFFER.getVertexBuilder(draw);
+			VertexConsumer vertices = buffer.getVertexBuilder(draw);
 			addPolygonTestMesh(vertices, cfg);
-			WARP_BUFFER.upload();
-			StagedVertexBuffer.ExecuteInfo info = WARP_BUFFER.getExecuteInfo(draw);
+			buffer.upload();
+			StagedVertexBuffer.ExecuteInfo info = buffer.getExecuteInfo(draw);
 			if (info == null) {
 				throw new IllegalStateException("GPU rejected the four-corner polygon mesh");
 			}
 			drawToMainTarget(info, texture);
 		} finally {
-			WARP_BUFFER.endFrame();
+			buffer.endFrame();
 		}
 	}
 

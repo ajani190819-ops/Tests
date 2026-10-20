@@ -7,7 +7,7 @@ rem newest successful Spatial HUD build directly into the remembered Modrinth
 rem profile mods folder. It refreshes its maintained PowerShell helper from
 rem GitHub before every run, so the menu and safety checks stay current.
 
-set "SPATIALHUD_UPDATER_URL=https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/c83497e6-tests/spatial-hud-template-26.3/Update-SpatialHUD.ps1"
+set "SPATIALHUD_UPDATER_URL=https://raw.githubusercontent.com/ajani190819-ops/Tests/main/spatial-hud-template-26.3/Update-SpatialHUD.ps1"
 set "SPATIALHUD_UPDATER_PS=%TEMP%\Update-SpatialHUD.ps1"
 set "RESULT=1"
 

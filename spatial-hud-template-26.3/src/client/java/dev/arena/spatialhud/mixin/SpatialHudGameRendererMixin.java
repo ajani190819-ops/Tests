@@ -27,6 +27,7 @@ abstract class SpatialHudGameRendererMixin {
 
 	@Inject(method = "close", at = @At("RETURN"))
 	private void spatialhud$closeWorldTextureBuffer(CallbackInfo ci) {
+		dev.arena.spatialhud.ExperimentalHudCapture.close();
 		dev.arena.spatialhud.WorldSpaceHudRenderer.close();
 	}
 }
