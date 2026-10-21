@@ -468,33 +468,52 @@ public class LampEngine {
   }
 
 
-  // Battery as a filling bar: green when full, red when nearly empty.
-  // While charging a bright head runs along the bar.
-  // Battery as a filling bar: green when full, red when nearly empty.
-  // While charging a bright head runs along the bar.
+  // Battery meter: a left-to-right fill across the zone, as you look at
+  // the laptop. The lit span IS the charge level, and the fill is a
+  // gradient that LEADS UP TO green at its head - so 75% charge glows a
+  // gradient ending in green three-quarters of the way across the board.
+  // As the battery tops up the whole gradient slides towards green as
+  // well, so a full battery reads as solid green. While charging a bright
+  // pulse runs along the fill like charge flowing in; below 15% on
+  // battery the fill breathes slowly instead of blinking hard.
   void DrawBattery(Zone gr) {
     int pct = (Sys != null) ? Sys.Battery : -1;
     bool chg = (Sys != null) && Sys.Charging;
     if (pct < 0) pct = 100;
+    if (pct > 100) pct = 100;
     double f = pct / 100.0;
-    double hr, hg, hb;
-    Hsv(120.0 * f, 1.0, 1.0, out hr, out hg, out hb);
-    double head = chg ? ((Now * 0.5) % 1.0) : -1.0;
+    if (f < 0.025) f = 0.025;   // keep a visible toe even at 2%
+    // Start hue slides up with charge: red when nearly empty, reaching
+    // solid green exactly at 100%.
+    double hueStart = 120.0 * Math.Max(0.0, 2.0 * f - 1.0);
+    double head = chg ? ((Now * 0.4) % 1.0) : -1.0;
     bool low = (!chg && f <= 0.15);
-    double blink = low ? (0.35 + 0.65 * (0.5 + 0.5 * Math.Sin(Now * 5.0))) : 1.0;
+    double breathe = low ? (0.55 + 0.45 * (0.5 + 0.5 * Math.Sin(Now * 2.2))) : 1.0;
     for (int i = 0; i < gr.N; i++) {
-      double u = PosOf(gr, i);
+      // Always the physical left-to-right axis, ignoring Mirror/Reverse:
+      // a battery meter must read as a level from where you sit, and a
+      // mirrored or reversed fill is unreadable as one.
+      double u = (gr.PosAcross != null && gr.PosAcross.Length == gr.N)
+               ? gr.PosAcross[i] : gr.Pos[i];
       double on;
       if (u <= f) on = 1.0;
-      else { double d = (u - f) / 0.05; on = (d < 1.0) ? (1.0 - d) : 0.0; }
+      else { double d = (u - f) / 0.06; on = (d < 1.0) ? (1.0 - d) : 0.0; }
+      double t = (u <= f) ? (u / f) : 1.0;
+      double hue = hueStart + (120.0 - hueStart) * t;
+      double hr, hg, hb;
+      Hsv(hue, 0.92, 1.0, out hr, out hg, out hb);
       double r = hr * on, g = hg * on, b = hb * on;
-      if (on < 0.02) { r = 6; g = 6; b = 6; }
+      // Green cap light right at the fill level, so the "leads up to
+      // green" end stays readable even on a 4-lamp keyboard zone.
+      double cap = Math.Exp(-Math.Abs(u - f) * 22.0);
+      r += 70 * cap; g += 150 * cap; b += 70 * cap;
       if (chg && head >= 0) {
         double d2 = Math.Abs(u - head * f);
-        double w = Math.Exp(-d2 * 20.0);
-        r += 255 * w * 0.8; g += 255 * w * 0.8; b += 200 * w * 0.8;
+        double w = Math.Exp(-d2 * 16.0);
+        r += 225 * w; g += 225 * w; b += 195 * w;
       }
-      SetZoneG(gr, i, r * blink, g * blink, b * blink);
+      if (on < 0.02) { r += 5; g += 6; b += 8; }
+      SetZoneG(gr, i, r * breathe, g * breathe, b * breathe);
     }
   }
 
@@ -602,7 +621,7 @@ public class LampEngine {
                   out La, out Aa, out Ba);
           ToOklab(gr.plR[i]*ng, gr.plG[i]*ng, gr.plB[i]*ng,
                   out Lb, out Ab, out Bb);
-          MixOklab(La, Aa, Ba, Lb, Ab, Bb, u0, out mr, out mg, out mb);
+          MixOklch(La, Aa, Ba, Lb, Ab, Bb, u0, out mr, out mg, out mb);
           fr2[i] = mr; fg2[i] = mg; fb2[i] = mb; fgain[i] = 1.0;
         }
         gr.oldR = fr2; gr.oldG = fg2; gr.oldB = fb2; gr.oldGain = fgain;
@@ -680,6 +699,45 @@ public class LampEngine {
   // bright enough turns pink rather than just dimmer. Instead keep the
   // lightness and the hue direction and ease the saturation back until it
   // fits, which is the smallest change that stays honest to the colour.
+  // Palette CHANGEOVER blend in OKLCh: lightness and chroma blended
+  // straight, hue taken along the short arc. A line blend in OKLab between
+  // opposite hues (red->green, orange->blue) passes through a washed-out
+  // near-grey midpoint at constant lightness - which on bright palettes is
+  // a visible pale/white flash every time a colour is changed. LCh keeps
+  // the saturation of the pair, so the changeover travels through the
+  // saturated colour between them (red->green goes through rich yellow)
+  // and reads as "the colours changed", never as a white blink.
+  static void MixOklch(double L1, double A1, double B1,
+                       double L2, double A2, double B2, double w,
+                       out double r, out double g, out double b) {
+    double c1 = Math.Sqrt(A1 * A1 + B1 * B1);
+    double c2 = Math.Sqrt(A2 * A2 + B2 * B2);
+    double h1 = Math.Atan2(B1, A1), h2 = Math.Atan2(B2, A2);
+    double dh = h2 - h1;
+    while (dh >  Math.PI) dh -= 2.0 * Math.PI;
+    while (dh < -Math.PI) dh += 2.0 * Math.PI;
+    double Lm = L1 + (L2 - L1) * w;
+    double Cm = c1 + (c2 - c1) * w;
+    double hm = h1 + dh * w;
+    double am = Cm * Math.Cos(hm), bm = Cm * Math.Sin(hm);
+    FromOklab(Lm, am, bm, out r, out g, out b);
+    if (r < -1e-9 || g < -1e-9 || b < -1e-9 ||
+        r > 1.000000001 || g > 1.000000001 || b > 1.000000001) {
+      double lo = 0.0, hi = 1.0;
+      for (int it = 0; it < 12; it++) {
+        double mid = (lo + hi) * 0.5;
+        FromOklab(Lm, am * mid, bm * mid, out r, out g, out b);
+        if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9 &&
+            r <= 1.000000001 && g <= 1.000000001 && b <= 1.000000001) lo = mid;
+        else hi = mid;
+      }
+      FromOklab(Lm, am * lo, bm * lo, out r, out g, out b);
+    }
+    if (r < 0) r = 0; else if (r > 1) r = 1;
+    if (g < 0) g = 0; else if (g > 1) g = 1;
+    if (b < 0) b = 0; else if (b > 1) b = 1;
+  }
+
   static void MixOklab(double L1, double A1, double B1,
                        double L2, double A2, double B2, double w,
                        out double r, out double g, out double b) {
@@ -758,7 +816,7 @@ public class LampEngine {
     double La, Aa, Ba, Lb, Ab, Bb, mr, mg, mb;
     ToOklab(o_r, o_g, o_b, out La, out Aa, out Ba);
     ToOklab(n_r, n_g, n_b, out Lb, out Ab, out Bb);
-    MixOklab(La, Aa, Ba, Lb, Ab, Bb, u, out mr, out mg, out mb);
+    MixOklch(La, Aa, Ba, Lb, Ab, Bb, u, out mr, out mg, out mb);
     r = ToSrgb(mr); g = ToSrgb(mg); b = ToSrgb(mb);
   }
 
@@ -3884,7 +3942,17 @@ try {
                     foreach ($thr in 20, 10, 5) {
                         if ($b -le $thr -and $script:LastPct -gt $thr) {
                             $eng.OverlayMode  = 1
-                            $eng.OverlayUntil = $now + 6.0
+                            $eng.OverlayUntil = $now + 5.0
+                        }
+                    }
+                }
+                # charging milestones: show the fill while it climbs past
+                # 80% and again when it reaches full
+                if ($ac -and $b -ge 0) {
+                    foreach ($thr in 80, 100) {
+                        if ($b -ge $thr -and $script:LastPct -lt $thr) {
+                            $eng.OverlayMode  = 1
+                            $eng.OverlayUntil = $now + 5.0
                         }
                     }
                 }
@@ -4147,7 +4215,7 @@ try {
             } catch { }
         }
 
-        Start-Sleep -Milliseconds 120
+        Start-Sleep -Milliseconds 70
     }
 }
 finally {

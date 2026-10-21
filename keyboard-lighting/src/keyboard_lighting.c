@@ -20,7 +20,7 @@
 #include <wchar.h>
 
 /* ============================================================================
- *  Keyboard Lighting - Native Win32 Suite App (v2.6.0)
+ *  Keyboard Lighting - Native Win32 Suite App (v2.6.1)
  *
  *  Matches the unified Soft Slate Suite UI & visual layout shared with
  *  ProjectHub.exe and BluetoothGuard.exe while preserving 100% config &
@@ -1033,8 +1033,15 @@ static BOOL SetKblAutostart(BOOL enable) {
 }
 
 static void ScheduleLiveApply(void) {
-    g_applyPending = TRUE;
-    g_applyAtTick  = GetTickCount64() + 120ULL;
+    /* Coalesce bursts but never hold a change back: once a change is queued
+     * it goes out within ~40ms even if more edits keep arriving (each flush
+     * re-queues the next one). The old code reset the deadline on every
+     * mouse move, so drags applied only after you STOPPED - which is what
+     * made the app feel laggy instead of real-time. */
+    if (!g_applyPending) {
+        g_applyPending = TRUE;
+        g_applyAtTick  = GetTickCount64() + 40ULL;
+    }
 }
 
 static void FlushLiveApply(void) {
@@ -1717,6 +1724,41 @@ static void OpenEffectPopup(HWND hwnd, RECT anchor) {
     DestroyMenu(hMenu);
 }
 
+/* ---- live-preview colour picker -------------------------------------
+ * The colour dialog now pushes every intermediate choice straight to the
+ * lights while it is still open (timer hook reading the dialog's live
+ * rgbResult). Choosing a colour is real-time: the keyboard follows the
+ * dialog as you browse. Cancel restores whatever was showing before. */
+static COLORREF g_pickOrig = 0;
+static COLORREF g_pickLast = 0;
+static int      g_pickIdx  = -1;
+static BOOL     g_pickLive = FALSE;
+
+static UINT_PTR CALLBACK ColorPickerHook(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_INITDIALOG) {
+        SetWindowLongPtrW(hDlg, GWLP_USERDATA, (LONG_PTR)lp); /* CHOOSECOLORW */
+        SetTimer(hDlg, 0x51C0, 70, NULL);
+        return 0;
+    }
+    if (msg == WM_TIMER && wp == 0x51C0) {
+        CHOOSECOLORW *cc = (CHOOSECOLORW *)GetWindowLongPtrW(hDlg, GWLP_USERDATA);
+        GroupCfg *cg = CurGroup();
+        if (cc && g_pickIdx >= 0 && g_pickIdx < cg->swatchCount) {
+            COLORREF c = cc->rgbResult & 0x00FFFFFF;
+            if (c != g_pickLast) {
+                g_pickLast = c;
+                cg->swatches[g_pickIdx] = c;
+                g_pickLive = TRUE;
+                SyncLinkedZone();
+                ScheduleLiveApply();
+                InvalidateRect(g_hwnd, NULL, FALSE);
+            }
+        }
+        return 0;
+    }
+    return 0;
+}
+
 static void PickSwatchColor(HWND hwnd, int idx) {
     GroupCfg *cg = CurGroup();
     if (idx < 0 || idx >= cg->swatchCount) return;
@@ -1727,15 +1769,28 @@ static void PickSwatchColor(HWND hwnd, int idx) {
     cc.hwndOwner    = hwnd;
     cc.rgbResult    = cg->swatches[idx];
     cc.lpCustColors = g_cfg.customColors;
-    cc.Flags        = CC_FULLOPEN | CC_RGBINIT | CC_ANYCOLOR;
+    cc.lpfnHook     = ColorPickerHook;
+    cc.Flags        = CC_FULLOPEN | CC_RGBINIT | CC_ANYCOLOR | CC_ENABLEHOOK;
+    g_pickOrig = cg->swatches[idx];
+    g_pickLast = cg->swatches[idx];
+    g_pickIdx  = idx;
+    g_pickLive = FALSE;
     if (ChooseColorW(&cc)) {
         cg->swatches[idx] = cc.rgbResult;
         SyncLinkedZone();
         FlushLiveApply();
         InvalidateRect(hwnd, NULL, FALSE);
     } else {
-        SavePanelCfg();
+        if (g_pickLive) {
+            cg->swatches[idx] = g_pickOrig;
+            SyncLinkedZone();
+            FlushLiveApply();
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else {
+            SavePanelCfg();
+        }
     }
+    g_pickIdx = -1;
 }
 
 static void RelaunchElevated(HWND hwnd) {
