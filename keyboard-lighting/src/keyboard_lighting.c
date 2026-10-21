@@ -1441,6 +1441,72 @@ static void SmoothRoundRect(uint32_t *px, int W, int H, const RECT *rc, float ra
     }
 }
 
+static void SmoothCircle(uint32_t *px, int W, int H, float cx, float cy, float radius,
+                         COLORREF fillCol, COLORREF borderCol, int clipTop, int clipBottom) {
+    if (radius <= 0.5f) return;
+    int iy0 = (int)floorf(cy - radius - 1.0f), iy1 = (int)ceilf(cy + radius + 1.0f);
+    int ix0 = (int)floorf(cx - radius - 1.0f), ix1 = (int)ceilf(cx + radius + 1.0f);
+    if (iy0 < clipTop) iy0 = clipTop;
+    if (iy1 > clipBottom) iy1 = clipBottom;
+    if (iy0 < 0) iy0 = 0;
+    if (iy1 > H) iy1 = H;
+    if (ix0 < 0) ix0 = 0;
+    if (ix1 > W) ix1 = W;
+
+    uint32_t fillP = PackRgb(fillCol), borderP = PackRgb(borderCol);
+    BOOL sameBorder = (fillP == borderP);
+
+    for (int y = iy0; y < iy1; y++) {
+        float dy = ((float)y + 0.5f) - cy;
+        uint32_t *row = px + (size_t)y * (size_t)W;
+        for (int x = ix0; x < ix1; x++) {
+            float dx = ((float)x + 0.5f) - cx;
+            float sd = sqrtf(dx * dx + dy * dy) - radius;
+            if (sd >= 0.5f) continue;
+
+            uint32_t c = fillP;
+            if (!sameBorder && sd > -1.6f) {
+                float ba = 1.0f - fabsf(sd + 0.5f);
+                if (ba > 0.0f) {
+                    int b256 = (int)(ba * 256.0f);
+                    c = BlendRgb(fillP, borderP, b256 > 256 ? 256 : b256);
+                }
+            }
+            if (sd <= -0.5f) row[x] = c;
+            else row[x] = BlendRgb(row[x], c, (int)((0.5f - sd) * 256.0f));
+        }
+    }
+}
+
+/* Thin annulus: the track that makes the Light Bar read as one closed loop. */
+static void SmoothRingTrack(uint32_t *px, int W, int H, float cx, float cy,
+                            float radius, float thick, COLORREF col,
+                            int clipTop, int clipBottom) {
+    if (radius <= 0.5f || thick <= 0.5f) return;
+    float outer = radius + thick * 0.5f;
+    int iy0 = (int)floorf(cy - outer - 1.0f), iy1 = (int)ceilf(cy + outer + 1.0f);
+    int ix0 = (int)floorf(cx - outer - 1.0f), ix1 = (int)ceilf(cx + outer + 1.0f);
+    if (iy0 < clipTop) iy0 = clipTop;
+    if (iy1 > clipBottom) iy1 = clipBottom;
+    if (iy0 < 0) iy0 = 0;
+    if (iy1 > H) iy1 = H;
+    if (ix0 < 0) ix0 = 0;
+    if (ix1 > W) ix1 = W;
+
+    uint32_t p = PackRgb(col);
+    for (int y = iy0; y < iy1; y++) {
+        float dy = ((float)y + 0.5f) - cy;
+        uint32_t *row = px + (size_t)y * (size_t)W;
+        for (int x = ix0; x < ix1; x++) {
+            float dx = ((float)x + 0.5f) - cx;
+            float sd = fabsf(sqrtf(dx * dx + dy * dy) - radius) - thick * 0.5f;
+            if (sd >= 0.5f) continue;
+            if (sd <= -0.5f) row[x] = p;
+            else row[x] = BlendRgb(row[x], p, (int)((0.5f - sd) * 256.0f));
+        }
+    }
+}
+
 /* Tri-Spoke Core Emblem - analytic sub-pixel SDF renderer, ported 1:1
    from tools/generate_suite_icons.py (trispoke_sdf_alpha + header
    gradient). The mark is drawn straight at cache resolution, so the
@@ -1754,7 +1820,7 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
     int listTop = headerH + S(12, dpi);
     int listBot = footerTop - S(2, dpi);
     int gap = S(12, dpi);
-    int hCard1 = S(138, dpi), hCard2 = S(118, dpi), hCard3 = S(118, dpi), hCard4 = S(148, dpi);
+    int hCard1 = S(180, dpi), hCard2 = S(118, dpi), hCard3 = S(118, dpi), hCard4 = S(148, dpi);
     g_contentH = hCard1 + hCard2 + hCard3 + hCard4 + gap * 3 + S(16, dpi);
     int maxSc = g_contentH - (listBot - listTop);
     if (maxSc < 0) maxSc = 0;
@@ -1806,8 +1872,11 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
     SetTextColor(mem, stCol);
     DrawTextW(mem, stTxt, -1, &pTxt, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
-    /* 4-Zone Keyboard + 12-Zone Light Bar Smooth Rounded Strip */
-    int stripY = c1.top + S(52, dpi), stripH = S(28, dpi);
+    /* 4-Zone Keyboard strip + 12-Zone Light Bar ring. The bar is a closed
+       loop on the real machine: its last lamp sits right next to its first,
+       so the preview draws it as a ring (clockwise from the top). The old
+       straight strip hid the seam and read the zones out of order. */
+    int stripY = c1.top + S(82, dpi), stripH = S(28, dpi);
     int innerW = CW - S(32, dpi);
     int splitGap = S(12, dpi);
     int kbdStripW = (innerW - splitGap) * 32 / 100;
@@ -1821,19 +1890,28 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
         RECT zr = { x0, stripY, x1, stripY + stripH };
         SmoothRoundRect(px, W, H, &zr, (float)S(6, dpi), g_liveCols[i], COL_BORDER, listTop, listBot);
     }
+
     int bn = g_liveBarN > 0 ? g_liveBarN : 12;
+    if (bn < 1) bn = 1;
     int barLeft = c1.left + S(16, dpi) + kbdStripW + splitGap;
+    float ringCx = (float)(barLeft + barStripW / 2);
+    float ringCy = (float)(c1.top + S(96, dpi));
+    float ringR  = (float)S(44, dpi);
+    float dotR   = (float)S(9, dpi);
+    SmoothRingTrack(px, W, H, ringCx, ringCy, ringR, (float)S(3, dpi),
+                    COL_BORDER, listTop, listBot);
     for (int i = 0; i < bn; i++) {
-        int x0 = barLeft + (barStripW * i) / bn;
-        int x1 = barLeft + (barStripW * (i + 1)) / bn - S(2, dpi);
-        RECT zr = { x0, stripY, x1, stripY + stripH };
-        SmoothRoundRect(px, W, H, &zr, (float)S(5, dpi), g_liveCols[kn + i], COL_BORDER, listTop, listBot);
+        double ang = -1.5707963267948966 + 6.283185307179586 * (double)i / (double)bn;
+        float dx = ringCx + ringR * (float)cos(ang);
+        float dy = ringCy + ringR * (float)sin(ang);
+        SmoothCircle(px, W, H, dx, dy, dotR,
+                     g_liveCols[kn + i], COL_BORDER, listTop, listBot);
     }
 
     /* Master Brightness Slider */
     wchar_t mbVal[16];
     _snwprintf(mbVal, 15, L"%d%%", g_cfg.masterBrightness);
-    RECT slMaster = { c1.left + S(16, dpi), c1.top + S(104, dpi), c1.right - S(16, dpi), c1.top + S(128, dpi) };
+    RECT slMaster = { c1.left + S(16, dpi), c1.top + S(152, dpi), c1.right - S(16, dpi), c1.top + S(176, dpi) };
     int iMas = g_hitCount; AddHit(slMaster, HIT_SLIDER_MASTER, 0);
     DrawSmoothSlider(mem, px, W, H, fBadge, fBadge, slMaster, L"Master Brightness (Fn F2 / F3)", mbVal,
                      (double)g_cfg.masterBrightness / 100.0,
