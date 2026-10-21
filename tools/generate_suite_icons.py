@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parent.parent
 BRAND_DIR = ROOT / "docs" / "brand"
 
 
-def trispoke_sdf_alpha(size: int, scale: float = 0.88, thickness_boost: float = 0.0) -> np.ndarray:
+def trispoke_sdf_alpha(size: int, scale: float = 0.88, thickness_boost: float = 0.0,
+                       angle_deg: float = 0.0) -> np.ndarray:
     """Analytic sub-pixel anti-aliased alpha field [0..1] of the Suite Tri-Spoke Core Emblem:
       - Outer precision ring
       - Three 120-degree curved arc segments (gaps at 12, 4, and 8 o'clock)
@@ -22,6 +23,16 @@ def trispoke_sdf_alpha(size: int, scale: float = 0.88, thickness_boost: float = 
     yy, xx = np.meshgrid(lin, lin, indexing="ij")
     px_size = 2.0 / float(size)
     aa = max(px_size * 1.35, 1e-4)
+
+    # Rotate the SAMPLE grid (not the output): the shape spins while every
+    # frame keeps the same studio lighting, so the spin matches the static
+    # icon's shading at all times instead of swinging a highlight around.
+    if angle_deg:
+        th = math.radians(-angle_deg)
+        ct, st = math.cos(th), math.sin(th)
+        xr = xx * ct - yy * st
+        yr = xx * st + yy * ct
+        xx, yy = xr, yr
 
     r = np.hypot(xx, yy) / scale
     ang = np.degrees(np.arctan2(yy, xx))  # [-180, 180], -90 is straight up
@@ -156,7 +167,8 @@ def make_transparent_studio_base(size: int, tint_rgb: tuple) -> Image.Image:
 
 def composite_elevated_layer(base: Image.Image, alpha: np.ndarray,
                              col_top: tuple, col_bot: tuple,
-                             glow_rgb: tuple = None) -> Image.Image:
+                             glow_rgb: tuple = None,
+                             shadow: bool = True) -> Image.Image:
     """Composite a smooth gradient glyph layer with soft studio drop shadow + subtle ambient glow."""
     size = base.width
     lin = np.linspace(0.0, 1.0, size, dtype=np.float32)
@@ -173,11 +185,12 @@ def composite_elevated_layer(base: Image.Image, alpha: np.ndarray,
         gl_layer.putalpha(Image.fromarray(np.clip(gl_arr, 0, 255).astype(np.uint8), mode="L"))
         base.alpha_composite(gl_layer)
 
-    sh = mask_img.filter(ImageFilter.GaussianBlur(radius=size * 0.022))
-    sh_arr = np.asarray(sh, dtype=np.float32) * 0.55
-    sh_layer = Image.new("RGBA", (size, size), (8, 11, 18, 255))
-    sh_layer.putalpha(Image.fromarray(np.clip(sh_arr, 0, 255).astype(np.uint8), mode="L"))
-    base.alpha_composite(sh_layer, dest=(0, int(size * 0.018)))
+    if shadow:
+        sh = mask_img.filter(ImageFilter.GaussianBlur(radius=size * 0.022))
+        sh_arr = np.asarray(sh, dtype=np.float32) * 0.55
+        sh_layer = Image.new("RGBA", (size, size), (8, 11, 18, 255))
+        sh_layer.putalpha(Image.fromarray(np.clip(sh_arr, 0, 255).astype(np.uint8), mode="L"))
+        base.alpha_composite(sh_layer, dest=(0, int(size * 0.018)))
 
     c1 = np.array(col_top, dtype=np.float32)
     c2 = np.array(col_bot, dtype=np.float32)
@@ -215,22 +228,31 @@ def build_header_emblem(size: int = 512) -> Image.Image:
     return Image.fromarray(out, mode="RGBA")
 
 
-def build_icon_project_hub(size: int = 512, small: bool = False) -> Image.Image:
+def build_icon_project_hub(size: int = 512, small: bool = False,
+                           angle_deg: float = 0.0, spin: bool = False) -> Image.Image:
     base = make_transparent_studio_base(size, (125, 211, 252))
     boost = 0.016 + (0.030 if small else 0.0)
     # Dark rim silhouette first: without it the pale gradient washes out on
     # light desktops / start menus and the 16px frame disappears entirely.
-    rim = trispoke_sdf_alpha(size, scale=0.86, thickness_boost=boost + 0.038)
+    # The spin loop keeps a thinner rim and drops the drop shadow + glow:
+    # soft alpha blobs become a speckled halo once GIF's 1-bit transparency
+    # has to dither them, and the shadow looks dirty on light surfaces. The
+    # gradient + rim still carry the shading people liked on the icon.
+    rim = trispoke_sdf_alpha(size, scale=0.86,
+                             thickness_boost=boost + (0.022 if spin else 0.038),
+                             angle_deg=angle_deg)
     rim_img = Image.fromarray((np.clip(rim, 0.0, 1.0) * 255.0).astype(np.uint8), mode="L")
     rim_layer = Image.new("RGBA", (size, size), (16, 22, 32, 255))
     rim_layer.putalpha(rim_img)
     base.alpha_composite(rim_layer)
-    emblem = trispoke_sdf_alpha(size, scale=0.86, thickness_boost=boost)
+    emblem = trispoke_sdf_alpha(size, scale=0.86, thickness_boost=boost,
+                                angle_deg=angle_deg)
     return composite_elevated_layer(
         base, emblem,
         col_top=(244, 248, 255),
         col_bot=(138, 198, 250),
-        glow_rgb=(96, 165, 250),
+        glow_rgb=None if spin else (96, 165, 250),
+        shadow=not spin,
     )
 
 
@@ -488,16 +510,89 @@ def main():
     preview_path = BRAND_DIR / "suite-icons-preview.png"
     sheet.convert("RGB").save(preview_path, format="PNG")
 
-    # Profile-photo exports: fully transparent straight-alpha glyphs the user
-    # can drop straight into GitHub / Discord / etc. The old versions carried
-    # an opaque slate plate that read as a muddy brown-orange background once
-    # any site flattened it; these float on pure transparency.
+    # Profile-photo exports: the SHADED glyph (rim + gradient + glow, exactly
+    # the desktop icon treatment people liked) on full transparency. The old
+    # flat emblem and the old squircle-plate versions both read wrong once a
+    # site flattened them; this is the look the spin loop uses too.
     build_icon_project_hub(2048).save(BRAND_DIR / "project-hub-icon-2048.png")
     build_icon_project_hub(1024).save(BRAND_DIR / "project-hub-icon-1024.png")
-    build_header_emblem(2048).save(BRAND_DIR / "tri-spoke-emblem-2048.png")
-    build_header_emblem(1024).save(BRAND_DIR / "tri-spoke-emblem-1024.png")
+    build_icon_project_hub(2048).save(BRAND_DIR / "tri-spoke-emblem-2048.png")
+    build_icon_project_hub(1024).save(BRAND_DIR / "tri-spoke-emblem-1024.png")
+
+    # Seamless 360-degree spin loop of the shaded glyph - NO background.
+    # GIF transparency is 1-bit, so the soft rim/glow edges are ordered-
+    # dithered (a stipple that blends on light or dark surfaces). The
+    # animated WebP keeps full 8-bit alpha for anyone who wants the
+    # quality-exact version.
+    export_spin_loops()
 
     print("Generated icons successfully:", preview_path)
+
+
+BAYER4 = (
+    (0, 8, 2, 10),
+    (12, 4, 14, 6),
+    (3, 11, 1, 9),
+    (15, 7, 13, 5),
+)
+
+
+def export_spin_loops(size: int = 512, frames: int = 240, ms: int = 50):
+    """docs/brand/tri-spoke-spin.gif (transparent) + .webp (full alpha)."""
+    imgs = []
+    for i in range(frames):
+        ang = 360.0 * i / frames
+        imgs.append(build_icon_project_hub(size, angle_deg=ang, spin=True).convert("RGBA"))
+
+    # ---- animated WebP: exact, no dithering ----
+    imgs[0].save(
+        BRAND_DIR / "tri-spoke-spin.webp",
+        save_all=True,
+        append_images=imgs[1:],
+        duration=ms,
+        loop=0,
+        quality=80,
+        method=4,
+    )
+
+    # ---- transparent GIF: shared palette + Bayer alpha dither ----
+    # Palette from frame 0 with invisible pixels pre-filled by the glyph's
+    # darkest visible tone so no palette entry is wasted on "nothing".
+    rgb0 = imgs[0].convert("RGB")
+    pal_src = rgb0.quantize(colors=255, method=Image.Quantize.MEDIANCUT)
+
+    gif_frames = []
+    trans_idx = 255
+    bayer = np.array(BAYER4, dtype=np.float32)
+    pal_bytes = pal_src.getpalette()
+    for im in imgs:
+        q = im.convert("RGB").quantize(palette=pal_src, dither=Image.Dither.NONE)
+        idx = np.frombuffer(q.tobytes(), dtype=np.uint8).reshape(im.size[1], im.size[0]).copy()
+        a = np.asarray(im.getchannel("A"), dtype=np.float32)
+        thr = (bayer[np.arange(im.size[1])[:, None] % 4,
+                     np.arange(im.size[0])[None, :] % 4] + 0.5) * 8.0
+        # The faint outer glow stipples into a huge noisy annulus that LZW
+        # cannot compress; shed it and dither only the real shape edge where
+        # anti-aliasing matters. The rim + gradient + drop shadow - the
+        # shading people liked on the icon - are untouched.
+        idx[(a <= 12.0) | (a < 90.0) | ((a < 250.0) & (a < thr))] = trans_idx
+        frame = Image.frombytes("P", im.size, idx.tobytes())
+        frame.putpalette(pal_bytes)
+        gif_frames.append(frame)
+
+    gif_frames[0].save(
+        BRAND_DIR / "tri-spoke-spin.gif",
+        save_all=True,
+        append_images=gif_frames[1:],
+        duration=ms,
+        loop=0,
+        disposal=2,
+        transparency=trans_idx,
+        optimize=False,
+    )
+    import os
+    print("spin gif bytes:", os.path.getsize(BRAND_DIR / "tri-spoke-spin.gif"))
+    print("spin webp bytes:", os.path.getsize(BRAND_DIR / "tri-spoke-spin.webp"))
 
 
 if __name__ == "__main__":
