@@ -256,7 +256,7 @@ public class Zone {
   public double Speed  = 1.0;
   public double Brightness = 1.0;   // this group's own slider, 0..1
   public double Master     = 1.0;   // master slider / Fn keys, 0..1
-  public bool   Mirror = false, Reverse = false, Equalise = true, Loop = false;
+  public bool   Mirror = false, Reverse = false, Equalise = true, Loop = false, SoftBlend = true;
   public bool   Enabled = true;
   public double Dir { get { return Reverse ? -1.0 : 1.0; } }
 
@@ -542,11 +542,22 @@ public class LampEngine {
     // (the all-off path, for one) that never touch PrepPaletteG, and a
     // null table would be a crash rather than a wrong colour.
     double br = gr.Brightness * gr.Master;
-    if (br < 0.999) {
-      BuildTables();
-      r = ToSrgb(ToLin(r) * br);
-      g = ToSrgb(ToLin(g) * br);
-      b = ToSrgb(ToLin(b) * br);
+    if (br <= 0.0005) {
+      fr[i] = 0.0; fg[i] = 0.0; fb[i] = 0.0;
+      er[i] = 0.0; eg[i] = 0.0; eb[i] = 0.0;
+      return;
+    }
+    if (br < 0.9995) {
+      // Direct hardware PWM dimming curve for human night/day perception:
+      // Previously ToSrgb(0.05) sent 65/255 (25.5% LED duty cycle!) at the
+      // bottom of the slider. This perceptual curve maps 100% -> 255/255,
+      // 50% -> ~66/255, 10% -> ~3.4/255, 4% -> ~1.0/255, 1% -> ~0.59/255,
+      // and 0% -> exact 0/255 blackout.
+      double ramp = (br < 0.01) ? (br / 0.01) : 1.0;
+      double gain = 0.0022 * ramp + 0.9978 * Math.Pow(br, 1.95);
+      r *= gain;
+      g *= gain;
+      b *= gain;
     }
     if (r < 0) r = 0; else if (r > 255) r = 255;
     if (g < 0) g = 0; else if (g > 255) g = 255;
@@ -802,9 +813,13 @@ public class LampEngine {
     // with a worst per-frame step of 7.7/255, still smooth.
     double nlamp = (double)gr.N;
     double trans;
-    if (nlamp >= 12.0) trans = 0.35;
-    else if (nlamp <= 4.0) trans = 0.50;
-    else trans = 0.50 + (0.35 - 0.50) * ((nlamp - 4.0) / 8.0);
+    if (gr.SoftBlend) {
+      trans = 0.92;
+    } else {
+      if (nlamp >= 12.0) trans = 0.24;
+      else if (nlamp <= 4.0) trans = 0.40;
+      else trans = 0.40 + (0.24 - 0.40) * ((nlamp - 4.0) / 8.0);
+    }
 
     // Lay the cycle out as: hold colour 0, fade, hold colour 1, fade, ...
     // Every fade is the same length; the holds are what the width sliders
@@ -914,8 +929,9 @@ public class LampEngine {
 
       int lf = gr.LiveFlags;
       if (lf >= 0) {
-        gr.Mirror  = (lf & 1) != 0;
-        gr.Reverse = (lf & 2) != 0;
+        gr.Mirror    = (lf & 1) != 0;
+        gr.Reverse   = (lf & 2) != 0;
+        gr.SoftBlend = (lf & 16) != 0;
         bool eq = (lf & 4) != 0;
         if (eq != gr.Equalise) { gr.Equalise = eq; repal = true; }
         bool lp = (lf & 8) != 0;
@@ -1185,9 +1201,11 @@ public class LampEngine {
       for (int s = 0; s < n; s++) {
         int i = first + s;
         int st = Interleaved ? s*4 : s;
-        int qr = Dither(fr[i], MaxR, ref er[i], dith);
-        int qg = Dither(fg[i], MaxG, ref eg[i], dith);
-        int qb = Dither(fb[i], MaxB, ref eb[i], dith);
+        double peak = Math.Max(fr[i], Math.Max(fg[i], fb[i]));
+        bool lampDith = (peak <= 0.0005) ? false : (dith || peak < 14.0);
+        int qr = Dither(fr[i], MaxR, ref er[i], lampDith);
+        int qg = Dither(fg[i], MaxG, ref eg[i], lampDith);
+        int qb = Dither(fb[i], MaxB, ref eb[i], lampDith);
         if (qr != pr[i] || qg != pg[i] || qb != pb[i]) changed = true;
         nr[i] = qr; ng[i] = qg; nb2[i] = qb;
         b[OffR + st] = (byte)qr;
@@ -3460,7 +3478,8 @@ Seed-Zone $zBar $barEff $barSpd $barBrt ($BarMirror.IsPresent) ($BarReverse.IsPr
 # A saved zone map is the user telling us the real shape of their hardware,
 # so it wins over the panel's Wrap-around box. This has to run after
 # Seed-Zone, which sets Loop from -BarLayout and would otherwise wipe it.
-if ($null -ne $zoneRingOverride) {
+# Only apply saved ring override when no explicit -BarLayout was requested
+if ($null -ne $zoneRingOverride -and -not $PSBoundParameters.ContainsKey('BarLayout')) {
     $zBar.Loop = $zoneRingOverride
     if ($zBar.Loop -and $zBar.PosLoop) { $zBar.Pos = $zBar.PosLoop } else { $zBar.Pos = $zBar.PosAcross }
     Say ("  Light bar ring: {0} (from your saved zone map)." -f $(if ($zBar.Loop) { 'on' } else { 'off' })) 'Yellow'
@@ -3682,6 +3701,9 @@ function Set-KbdBacklight([int]$level) {
 }
 
 $script:LiveLevel = [int]([Math]::Round($Master * 1000))
+# Last level the lights were on at, so the toggle key can come back to it
+# instead of always jumping to full.
+$script:LastOnLevel = if ($script:LiveLevel -gt 0) { $script:LiveLevel } else { 1000 }
 # Ignore whatever theme file is already on disk: the arguments we were
 # launched with already describe it. Only react to later writes.
 $script:ThemeStamp = 0
@@ -3735,7 +3757,10 @@ try {
 $script:TimingAt = [DateTime]::UtcNow.AddSeconds(5)
 $script:TimingDone = $false
 
-$step = 125    # 8 steps across the full range, like the firmware
+# Smooth master-brightness steps for the Fn F2 / F3 keys. 50/1000 = 5% per
+# press, so the keys sweep 0..100% in 20 fine steps - the same shape of
+# control as screen brightness - instead of the firmware's 4 coarse levels.
+$step = 50
 # The app asks us to stop by creating this file. Being killed outright
 # skips the cleanup below, which is what used to leave the last frame
 # frozen on the keyboard.
@@ -3907,14 +3932,32 @@ try {
                 try { $code = [int]$ev.SourceEventArgs.NewEvent.EventID } catch { }
                 Remove-Event -EventIdentifier $ev.EventIdentifier -ErrorAction SilentlyContinue
                 switch ($code) {
-                    0xC4 { Set-Live ($script:LiveLevel + $step) }
-                    0xC5 { Set-Live ($script:LiveLevel - $step) }
+                    0xC4 {
+                        Set-Live ($script:LiveLevel + $step)
+                        if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                    }
+                    0xC5 {
+                        Set-Live ($script:LiveLevel - $step)
+                        if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                    }
                     0xC7 {
-                        $nl = 0
-                        if ($script:LiveLevel -le 0) { $nl = 1000 }
-                        Set-Live $nl
+                        if ($script:LiveLevel -gt 0) {
+                            $script:LastOnLevel = $script:LiveLevel
+                            Set-Live 0
+                        } else {
+                            Set-Live $script:LastOnLevel
+                        }
                     }
                 }
+                # G-Helper and similar tools hear these same keys and step the
+                # EC's own 0..3 backlight gate - which gates EVERYTHING (its
+                # level 0 blacks the keyboard out under us) and is exactly the
+                # clashing the smooth master is meant to replace. Pin the gate
+                # back to full now, and again shortly after, so our software
+                # master stays the only brightness that moves.
+                [void](Set-KbdBacklight 3)
+                [void]$script:repairAt.Add([DateTime]::UtcNow.AddMilliseconds(200))
+                [void]$script:repairAt.Add([DateTime]::UtcNow.AddMilliseconds(600))
                 $ev = Get-Event -SourceIdentifier 'AuraAtk' -ErrorAction SilentlyContinue
             }
         }
@@ -4060,10 +4103,13 @@ try {
                         $rv = $blk.Reverse;  if ($null -eq $rv) { $rv = $root.Reverse }
                         $qv = $blk.Equalise; if ($null -eq $qv) { $qv = $root.Equalise }
                         $lv = $blk.Loop;     if ($null -eq $lv) { $lv = $root.Loop }
-                        if ([bool]$mv) { $fl = $fl -bor 1 }
-                        if ([bool]$rv) { $fl = $fl -bor 2 }
-                        if ([bool]$qv) { $fl = $fl -bor 4 }
-                        if ([bool]$lv) { $fl = $fl -bor 8 }
+                        $sbv = $root.Smooth; if ($null -ne $blk.SoftBlend) { $sbv = $blk.SoftBlend }
+                        if ($null -eq $sbv) { $sbv = $true }
+                        if ([bool]$mv)  { $fl = $fl -bor 1 }
+                        if ([bool]$rv)  { $fl = $fl -bor 2 }
+                        if ([bool]$qv)  { $fl = $fl -bor 4 }
+                        if ([bool]$lv)  { $fl = $fl -bor 8 }
+                        if ([bool]$sbv) { $fl = $fl -bor 16 }
                         $z.LiveFlags = $fl
 
                         $onv = $blk.On

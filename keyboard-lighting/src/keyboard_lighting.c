@@ -20,7 +20,7 @@
 #include <wchar.h>
 
 /* ============================================================================
- *  Keyboard Lighting - Native Win32 Suite App (v2.5.0)
+ *  Keyboard Lighting - Native Win32 Suite App (v2.6.0)
  *
  *  Matches the unified Soft Slate Suite UI & visual layout shared with
  *  ProjectHub.exe and BluetoothGuard.exe while preserving 100% config &
@@ -88,7 +88,7 @@ typedef struct {
 static const EffectDef kEffects[] = {
     { "Scrolling gradient",  "gradient",  "Smooth flowing multi-colour band across lamps",        1 },
     { "Rainbow",             "rainbow",   "Full spectrum wave (picks its own colours)",           0 },
-    { "Wave",                "wave",      " rhythmic travelling wave using your palette",          1 },
+    { "Wave",                "wave",      "A rhythmic travelling wave using your palette",         1 },
     { "Comet",               "comet",     "Bright head with glowing trailing tail",               1 },
     { "Scanner",             "scanner",   "Sweeps back and forth end-to-end",                     1 },
     { "Breathing",           "breathe",   "Gentle fade in and out across your palette",           1 },
@@ -107,7 +107,7 @@ static const EffectDef kEffects[] = {
     { "Screen mirror",       "ambient",   "Samples live colours from your display",               0 },
     { "Battery meter",       "battery",   "Shows charge level from green (full) to red",          0 },
     { "CPU meter",           "cpu",       "Reacts to live processor load",                        0 },
-    { "Clock",               "clock",     " shifts palette gently with the time of day",           0 }
+    { "Clock",               "clock",     "Shifts palette gently with the time of day",            0 }
 };
 #define EFFECT_COUNT ((int)(sizeof(kEffects) / sizeof(kEffects[0])))
 
@@ -115,7 +115,7 @@ typedef struct {
     BOOL     on;
     int      effectIdx;
     int      speed;        /* 1..50 -> 0.1x..5.0x */
-    int      brightness;   /* 5..100 */
+    int      brightness;   /* 0..100 (0 = full off) */
     BOOL     mirror;
     BOOL     reverse;
     BOOL     equalise;
@@ -126,7 +126,7 @@ typedef struct {
 } GroupCfg;
 
 typedef struct {
-    int      masterBrightness; /* 5..100 */
+    int      masterBrightness; /* 0..100 (0 = full off, driven by Fn F2/F3 too) */
     BOOL     overlay;
     BOOL     link;
     BOOL     smooth;
@@ -202,6 +202,11 @@ static int              g_liveKbdN     = 4;
 static int              g_liveBarN     = 12;
 static BOOL             g_hasLiveFrame = FALSE;
 static ULONGLONG        g_lastFrameTick = 0;
+
+/* Fn F2/F3 sync + on-screen brightness toast */
+static wchar_t          g_toastText[96] = L"";
+static ULONGLONG        g_toastAt       = 0;
+static ULONGLONG        g_lastFnPoll    = 0;
 
 /* Paths */
 static wchar_t          g_exePath[MAX_PATH];
@@ -438,7 +443,7 @@ static void ParseGroupJson(const char *src, const char *end, GroupCfg *g) {
     g->loop       = JsonBool(src, end, "Loop", g->loop);
     if (g->speed < 1) g->speed = 1;
     if (g->speed > 50) g->speed = 50;
-    if (g->brightness < 5) g->brightness = 5;
+    if (g->brightness < 0) g->brightness = 0;
     if (g->brightness > 100) g->brightness = 100;
 
     char eff[64] = "";
@@ -494,7 +499,7 @@ static void LoadPanelCfg(void) {
     const char *kbdPos = JsonVal(json, end, "Kbd");
     const char *topEnd = kbdPos ? kbdPos : end;
     g_cfg.masterBrightness = JsonInt(json, topEnd, "Brightness", 100);
-    if (g_cfg.masterBrightness < 5) g_cfg.masterBrightness = 5;
+    if (g_cfg.masterBrightness < 0) g_cfg.masterBrightness = 0;
     if (g_cfg.masterBrightness > 100) g_cfg.masterBrightness = 100;
     g_cfg.overlay = JsonBool(json, topEnd, "Overlay", g_cfg.overlay);
     g_cfg.link    = JsonBool(json, topEnd, "Link", g_cfg.link);
@@ -584,6 +589,76 @@ static void WriteLiveBrightness(void) {
     if (lvl > 1000) lvl = 1000;
     snprintf(buf, sizeof(buf), "%d\r\n", lvl);
     WriteAtomicUtf8(g_livePath, buf);
+}
+
+/* Mirror external master-brightness changes (Fn F2 / F3 pressed while this
+ * window is open or in tray) back into the panel. The engine owns the keys
+ * and writes live.txt; anything we did not just write ourselves is adopted
+ * here, so the slider, panel.json and the on-screen toast all follow along
+ * exactly like screen-brightness keys drive the system OSD. */
+static void ScheduleLiveApply(void);
+
+static void PollFnBrightness(void) {
+    ULONGLONG now = GetTickCount64();
+    if (now - g_lastFnPoll < 150ULL) return;
+    g_lastFnPoll = now;
+    DWORD len = 0;
+    char *txt = ReadFileUtf8(g_livePath, &len);
+    if (!txt) return;
+    int val = atoi(txt);
+    free(txt);
+    if (val < 0) val = 0;
+    if (val > 1000) val = 1000;
+    int pct = (val + 5) / 10;
+    if (pct == g_cfg.masterBrightness) return;
+    /* Value moved without the slider: a Fn key (or another panel) changed it. */
+    g_cfg.masterBrightness = pct;
+    if (pct <= 0)
+        _snwprintf(g_toastText, 95, L"Keyboard Lights  \x00B7  Off");
+    else
+        _snwprintf(g_toastText, 95, L"Keyboard Lights  \x00B7  %d%%", pct);
+    g_toastAt = now + 1400ULL;
+    SavePanelCfg();
+    ScheduleLiveApply();
+    InvalidateRect(g_hwnd, NULL, FALSE);
+}
+
+/* One-line plain-English explanation for every control, shown in the footer
+ * while the mouse is over it. This is the built-in manual: no settings are
+ * mysterious, even the subtle ones. */
+static const wchar_t *HelpForHit(int hitIdx) {
+    if (hitIdx < 0 || hitIdx >= g_hitCount) return NULL;
+    int kind = g_hits[hitIdx].kind;
+    switch (kind) {
+    case HIT_HDR_LIGHTS:    return L"Master on/off for every light. The Fn F2 / F3 brightness keys still work while off.";
+    case HIT_HDR_STARTUP:   return L"Launch Keyboard Lighting automatically when you sign in to Windows.";
+    case HIT_HDR_RESTART:   return L"Restart the lighting engine - use if the lights ever freeze or after an update.";
+    case HIT_SLIDER_MASTER: return L"Overall brightness of ALL lights, 0-100%. Same scale the Fn F2 / F3 keys move. 0% = full off.";
+    case HIT_TAB_KBD:
+    case HIT_TAB_BAR:       return L"Choose which zone the settings below edit. 'Link Zones' keeps both zones identical.";
+    case HIT_TOG_ZONE_ON:   return L"Turn just this zone (Keyboard / Light Bar) on or off without losing its pattern.";
+    case HIT_TOG_LINK:      return L"Link Zones: every change you make here is copied to the other zone automatically.";
+    case HIT_PICK_EFFECT:   return L"Pick the animation pattern. Each entry lists what it does in this bar.";
+    case HIT_SWATCH_ADD:    return L"Add another colour band to the palette (up to 8).";
+    case HIT_SWATCH_REM:    return L"Remove the last colour band from the palette.";
+    case HIT_SLIDER_SPEED:  return L"How fast the pattern moves: 0.1x (slow drift) to 5.0x (fast).";
+    case HIT_SLIDER_BRIGHT: return L"Brightness of just this zone, 0-100%. 0% = this zone dark. Multiplies with Master.";
+    case HIT_TOG_LOOP:      return L"Loop Travel: pattern circles the Light Bar ring. Off: it bounces back and forth.";
+    case HIT_TOG_EQ:        return L"Balance Colours: evens out palette brightness so no single colour dominates.";
+    case HIT_TOG_MIRROR:    return L"Mirror: the pattern runs out from the centre to both ends.";
+    case HIT_TOG_REVERSE:   return L"Reverse: the pattern travels in the opposite direction.";
+    case HIT_TOG_SMOOTH:    return L"Steady Colours: on = no shimmer at any level. Off = fine dithering for ultra-smooth dimming.";
+    case HIT_TOG_OVERLAY:   return L"Battery Alerts: briefly show battery status on the lights (restarts engine when toggled).";
+    case HIT_FOOT_ZONES:    return L"Open Zones Setup if patterns jump about - lets you fix which lamp is which.";
+    case HIT_FOOT_ELEVATE:  return L"Restart as Administrator to unlock direct USB RGB control of the ROG Strix G16.";
+    case HIT_FOOT_QUIT:     return L"Quit Keyboard Lighting and turn the lights off.";
+    default:
+        if (kind >= HIT_SWATCH_0 && kind < HIT_SWATCH_0 + 8)
+            return L"Click to pick this colour band with the Windows colour picker.";
+        if (kind >= HIT_WIDTH_0 && kind < HIT_WIDTH_0 + 8)
+            return L"Drag to widen or narrow how much of the strip this colour takes.";
+        return NULL;
+    }
 }
 
 static void FormatThemeBlock(const GroupCfg *g, const char *name, char *out, size_t cap) {
@@ -1384,8 +1459,8 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
     _snwprintf(mbVal, 15, L"%d%%", g_cfg.masterBrightness);
     RECT slMaster = { c1.left + S(16, dpi), c1.top + S(104, dpi), c1.right - S(16, dpi), c1.top + S(128, dpi) };
     int iMas = g_hitCount; AddHit(slMaster, HIT_SLIDER_MASTER, 0);
-    DrawSmoothSlider(mem, px, W, H, fBadge, fBadge, slMaster, L"Master Brightness (Fn Keys)", mbVal,
-                     (double)(g_cfg.masterBrightness - 5) / 95.0,
+    DrawSmoothSlider(mem, px, W, H, fBadge, fBadge, slMaster, L"Master Brightness (Fn F2 / F3)", mbVal,
+                     (double)g_cfg.masterBrightness / 100.0,
                      g_hoverIdx == iMas || g_dragKind == HIT_SLIDER_MASTER, dpi, listTop, listBot);
 
     y += hCard1 + gap;
@@ -1418,7 +1493,7 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
     int iZO = g_hitCount; AddHit(togZone, HIT_TOG_ZONE_ON, 0);
     DrawPillSwitch(mem, px, W, H, fBtn, togZone, L"Zone On", cg->on, g_hoverIdx == iZO, dpi, listTop, listBot);
     int iLK = g_hitCount; AddHit(togLink, HIT_TOG_LINK, 0);
-    DrawPillSwitch(mem, px, W, H, fBtn, togLink, L"Match Both", g_cfg.link, g_hoverIdx == iLK, dpi, listTop, listBot);
+    DrawPillSwitch(mem, px, W, H, fBtn, togLink, L"Link Zones", g_cfg.link, g_hoverIdx == iLK, dpi, listTop, listBot);
 
     RECT pickR = { c2.left + S(16, dpi), c2.top + S(58, dpi), c2.left + S(296, dpi), c2.top + S(98, dpi) };
     int iPk = g_hitCount; AddHit(pickR, HIT_PICK_EFFECT, 0);
@@ -1517,18 +1592,18 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
     RECT slBrt = { c4.right - S(16, dpi) - halfW, c4.top + S(32, dpi), c4.right - S(16, dpi), c4.top + S(56, dpi) };
     int iBrt = g_hitCount; AddHit(slBrt, HIT_SLIDER_BRIGHT, 0);
     DrawSmoothSlider(mem, px, W, H, fBadge, fBadge, slBrt, L"Zone Brightness", brtStr,
-                     (double)(cg->brightness - 5) / 95.0,
+                     (double)cg->brightness / 100.0,
                      g_hoverIdx == iBrt || g_dragKind == HIT_SLIDER_BRIGHT, dpi, listTop, listBot);
 
     int colW = (CW - S(48, dpi)) / 3;
     int r1Y = c4.top + S(66, dpi), r2Y = c4.top + S(104, dpi), thH = S(32, dpi);
     struct { int kind; const wchar_t *lbl; BOOL val; int row; int col; } opts[6] = {
-        { HIT_TOG_LOOP,    L"Wrap Around",     cg->loop,      0, 0 },
-        { HIT_TOG_EQ,      L"Even Brightness", cg->equalise,  0, 1 },
+        { HIT_TOG_LOOP,    L"Loop Travel",     cg->loop,      0, 0 },
+        { HIT_TOG_EQ,      L"Balance Colours", cg->equalise,  0, 1 },
         { HIT_TOG_MIRROR,  L"Mirror",          cg->mirror,    0, 2 },
         { HIT_TOG_REVERSE, L"Reverse",         cg->reverse,   1, 0 },
-        { HIT_TOG_SMOOTH,  L"Smooth Colour",   g_cfg.smooth,  1, 1 },
-        { HIT_TOG_OVERLAY, L"Charger Flash",   g_cfg.overlay, 1, 2 }
+        { HIT_TOG_SMOOTH,  L"Steady Colours",  g_cfg.smooth,  1, 1 },
+        { HIT_TOG_OVERLAY, L"Battery Alerts",  g_cfg.overlay, 1, 2 }
     };
     for (int o = 0; o < 6; o++) {
         int ox = c4.left + S(16, dpi) + opts[o].col * (colW + S(8, dpi));
@@ -1568,9 +1643,23 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
     SelectObject(mem, fSub);
     SetTextColor(mem, (!g_isAdmin) ? COL_WARN : COL_MUTED);
     RECT fTxt = { M + S(16, dpi), footerTop, rightLimit - S(8, dpi), H };
-    DrawTextW(mem, !g_isAdmin ? L"Click 'Run as Admin' to unlock direct ROG Strix G16 USB RGB control"
-                              : g_statusText,
+    const wchar_t *helpTxt = HelpForHit(g_hoverIdx);
+    DrawTextW(mem, (!g_isAdmin) ? L"Click 'Run as Admin' to unlock direct ROG Strix G16 USB RGB control"
+                                : (helpTxt ? helpTxt : g_statusText),
               -1, &fTxt, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+
+    /* Floating brightness toast (shown after Fn F2 / F3 presses) */
+    if (g_toastAt > GetTickCount64() && g_toastText[0]) {
+        SelectObject(mem, fBtn);
+        SIZE tsz = { 0, 0 };
+        GetTextExtentPoint32W(mem, g_toastText, (int)wcslen(g_toastText), &tsz);
+        int tW = tsz.cx + S(40, dpi), tH = S(34, dpi);
+        RECT toast = { (W - tW) / 2, footerTop - tH - S(14, dpi), (W + tW) / 2, footerTop - S(14, dpi) };
+        SmoothRoundRect(px, W, H, &toast, (float)tH * 0.5f, RGB(28, 33, 45), COL_ACCENT, 0, H);
+        SetTextColor(mem, COL_TEXT);
+        RECT tt = { toast.left + S(16, dpi), toast.top, toast.right - S(16, dpi), toast.bottom };
+        DrawTextW(mem, g_toastText, -1, &tt, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    }
 
     BitBlt(targetDc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
 
@@ -1594,7 +1683,7 @@ static void ApplySliderDrag(int kind, int idx, RECT r, int mouseX) {
 
     GroupCfg *cg = CurGroup();
     if (kind == HIT_SLIDER_MASTER) {
-        g_cfg.masterBrightness = 5 + (int)floor(t * 95.0 + 0.5);
+        g_cfg.masterBrightness = (int)floor(t * 100.0 + 0.5);
         WriteLiveBrightness();
         ScheduleLiveApply();
     } else if (kind == HIT_SLIDER_SPEED) {
@@ -1602,7 +1691,7 @@ static void ApplySliderDrag(int kind, int idx, RECT r, int mouseX) {
         SyncLinkedZone();
         ScheduleLiveApply();
     } else if (kind == HIT_SLIDER_BRIGHT) {
-        cg->brightness = 5 + (int)floor(t * 95.0 + 0.5);
+        cg->brightness = (int)floor(t * 100.0 + 0.5);
         SyncLinkedZone();
         ScheduleLiveApply();
     } else if (kind >= HIT_WIDTH_0 && kind < HIT_WIDTH_0 + 8 && idx >= 0 && idx < cg->swatchCount) {
@@ -1917,10 +2006,12 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (g_applyPending && GetTickCount64() >= g_applyAtTick) FlushLiveApply();
             if (IsWindowVisible(hwnd)) {
                 PollLivePreviewFrame();
+                PollFnBrightness();
                 InvalidateRect(hwnd, NULL, FALSE);
             }
         } else if (wp == 2) {
             WriteHeartbeat();
+            PollFnBrightness();
             if (FileExistsW(g_showPath)) {
                 DeleteFileW(g_showPath);
                 ShowWindow(hwnd, SW_SHOWNORMAL);

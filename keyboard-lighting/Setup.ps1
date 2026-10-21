@@ -422,12 +422,24 @@ if (-not (Test-Path $ghCfg) -and -not $ghRunning) {
             if ($null -ne $cfg.skip_aura) { $cfg.skip_aura = 1 }
             else { Add-Member -InputObject $cfg -MemberType NoteProperty -Name 'skip_aura' -Value 1 -Force }
 
+            # Keep G-Helper's own 4-step backlight gate pinned at full (3).
+            # Fn F2 / F3 now drive OUR smooth 0-100% brightness; if G-Helper
+            # steps this gate to 0 the keyboard goes black under us, so hold
+            # it at the top and let the app be the only brightness that moves.
+            foreach ($bk in 'keyboard_brightness', 'keyboard_brightness_ac') {
+                if ($null -ne $cfg.$bk) { $cfg.$bk = 3 }
+                else { Add-Member -InputObject $cfg -MemberType NoteProperty -Name $bk -Value 3 -Force }
+            }
+            if ($null -ne $cfg.max_brightness) { $cfg.max_brightness = 3 }
+            else { Add-Member -InputObject $cfg -MemberType NoteProperty -Name 'max_brightness' -Value 3 -Force }
+
             $dir = Split-Path -Parent $ghCfg
             if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
             if (Test-Path $ghCfg) { Copy-Item $ghCfg ($ghCfg + '.bak') -Force -ErrorAction SilentlyContinue }
             ($cfg | ConvertTo-Json -Depth 10) | Set-Content -Path $ghCfg -Encoding UTF8 -ErrorAction Stop
             Ok 'G-Helper set to leave the keyboard colours to us (skip_aura).'
             Info 'Everything else in G-Helper is untouched.'
+            Info 'Fn F2 / F3 now control this app''s brightness smoothly (0-100%), like screen brightness.'
 
             # G-Helper only reads this at startup, and it rewrites the file
             # when it exits, so it has to be restarted for this to hold.
@@ -599,6 +611,9 @@ if ($script:Problems.Count -eq 0) {
     Line '   The tray icon (bottom-right, may be under the ^ arrow):'
     Line '     double-click   open the control panel'
     Line '     right-click    menu'
+    Line ''
+    Line '   Fn F2 / F3 change lighting brightness smoothly (0-100%),'
+    Line '   in step with the Master Brightness slider in the app.'
     Line ''
     Line '   To pin it: Start menu, right-click "Keyboard Lighting",'
     Line '   then Pin to Start or Pin to taskbar.'

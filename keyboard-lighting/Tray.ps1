@@ -886,7 +886,7 @@ $cardMaster.Controls.Add($valMB)
 $trkMaster = New-Object KbLight.Slider
 $trkMaster.Location = New-Object System.Drawing.Point(16, 32)
 $trkMaster.Size     = New-Object System.Drawing.Size($IW, 28)
-$trkMaster.Minimum  = 5
+$trkMaster.Minimum  = 0
 $trkMaster.Maximum  = 100
 $trkMaster.Value    = 100
 $cardMaster.Controls.Add($trkMaster)
@@ -1014,7 +1014,7 @@ $cardSl.Controls.Add($valBright)
 $trkBright = New-Object KbLight.Slider
 $trkBright.Location = New-Object System.Drawing.Point(16, 80)
 $trkBright.Size     = New-Object System.Drawing.Size($IW, 28)
-$trkBright.Minimum  = 5
+$trkBright.Minimum  = 0
 $trkBright.Maximum  = 100
 $trkBright.Value    = 100
 $cardSl.Controls.Add($trkBright)
@@ -1504,7 +1504,7 @@ function Load-UiFromCfg {
     }
     $cboEffect.SetQuiet($idx)
     $trkSpeed.Value  = [Math]::Min(50,  [Math]::Max(1,  [int]$g.Speed))
-    $trkBright.Value = [Math]::Min(100, [Math]::Max(5,  [int]$g.Brightness))
+    $trkBright.Value = [Math]::Min(100, [Math]::Max(0,  [int]$g.Brightness))
     $chkMirror.SetQuiet([bool]$g.Mirror)
     $chkReverse.SetQuiet([bool]$g.Reverse)
     $chkEq.SetQuiet([bool]$g.Equalise)
@@ -2081,7 +2081,7 @@ $form.Add_Shown({
 
 # ---------------------------------------------------------------- load UI
 $script:Suppress = $true
-$trkMaster.Value = [Math]::Min(100, [Math]::Max(5, [int]$script:Cfg.Brightness))
+$trkMaster.Value = [Math]::Min(100, [Math]::Max(0, [int]$script:Cfg.Brightness))
 $valMB.Text      = ('{0}%' -f $trkMaster.Value)
 $chkLink.SetQuiet([bool]$script:Cfg.Link)
 $chkSmooth.SetQuiet([bool]$script:Cfg.Smooth)
