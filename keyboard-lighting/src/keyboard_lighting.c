@@ -51,6 +51,9 @@
 #define IDM_TRAY_FOLDER     207
 #define IDM_TRAY_QUIT       208
 #define IDM_EFF_BASE        400
+#define IDM_PRESET_BASE     500
+#define IDM_PRESET_REN      530
+#define IDM_PRESET_DEL      531
 
 /* Soft Slate Suite Palette (matches Project Hub, Bluetooth Guard & docs/UI_STYLE_GUIDE.md) */
 #define COL_BG              RGB(24, 27, 36)    /* #181B24 */
@@ -161,7 +164,9 @@ enum HitKind {
     HIT_TOG_OVERLAY,
     HIT_FOOT_ZONES,
     HIT_FOOT_ELEVATE,
-    HIT_FOOT_QUIT
+    HIT_FOOT_QUIT,
+    HIT_PRESET_SAVE,
+    HIT_PRESET_0 = 60       /* +0..11 */
 };
 
 typedef struct {
@@ -207,6 +212,8 @@ static ULONGLONG        g_lastFrameTick = 0;
 static wchar_t          g_toastText[96] = L"";
 static ULONGLONG        g_toastAt       = 0;
 static ULONGLONG        g_lastFnPoll    = 0;
+static ULONGLONG        g_fnLastApply   = 0;
+static int              g_lastOnLevel   = 100;
 
 /* Paths */
 static wchar_t          g_exePath[MAX_PATH];
@@ -221,6 +228,8 @@ static wchar_t          g_lockPath[MAX_PATH];
 static wchar_t          g_showPath[MAX_PATH];
 static wchar_t          g_engPidPath[MAX_PATH];
 static wchar_t          g_stopPath[MAX_PATH];
+static wchar_t          g_presetPath[MAX_PATH];
+static wchar_t          g_fnStampPath[MAX_PATH];
 static wchar_t          g_engineScript[MAX_PATH];
 static wchar_t          g_zonesBat[MAX_PATH];
 static wchar_t          g_statusText[256] = L"Starting ROG Strix G16 lighting engine...";
@@ -354,6 +363,29 @@ static GroupCfg *CurGroup(void) {
     return (g_tab == 1) ? &g_cfg.bar : &g_cfg.kbd;
 }
 
+static void InitGroupDefaults(GroupCfg *g, BOOL isBar) {
+    ZeroMemory(g, sizeof(*g));
+    g->on          = TRUE;
+    g->effectIdx   = isBar ? 1 : 0;   /* Bar: Rainbow, Kbd: Scrolling gradient */
+    g->speed       = 10;
+    g->brightness  = 100;
+    g->equalise    = TRUE;
+    g->loop        = isBar ? TRUE : FALSE;
+    g->swatchCount = isBar ? 2 : 6;
+    if (isBar) {
+        g->swatches[0] = RGB(0, 180, 255);
+        g->swatches[1] = RGB(255, 0, 102);
+    } else {
+        g->swatches[0] = RGB(255, 0, 0);
+        g->swatches[1] = RGB(255, 127, 0);
+        g->swatches[2] = RGB(255, 255, 0);
+        g->swatches[3] = RGB(0, 255, 0);
+        g->swatches[4] = RGB(0, 0, 255);
+        g->swatches[5] = RGB(139, 0, 255);
+    }
+    for (int i = 0; i < 8; i++) g->widths[i] = 1.0;
+}
+
 static void InitDefaultCfg(void) {
     ZeroMemory(&g_cfg, sizeof(g_cfg));
     g_cfg.masterBrightness = 100;
@@ -362,32 +394,8 @@ static void InitDefaultCfg(void) {
     g_cfg.smooth           = TRUE;
     strncpy(g_cfg.onExit, "off", sizeof(g_cfg.onExit) - 1);
     for (int i = 0; i < 16; i++) g_cfg.customColors[i] = RGB(255, 255, 255);
-
-    g_cfg.kbd.on          = TRUE;
-    g_cfg.kbd.effectIdx   = 0; /* Scrolling gradient */
-    g_cfg.kbd.speed       = 10;
-    g_cfg.kbd.brightness  = 100;
-    g_cfg.kbd.equalise    = TRUE;
-    g_cfg.kbd.loop        = FALSE;
-    g_cfg.kbd.swatchCount = 6;
-    g_cfg.kbd.swatches[0] = RGB(255, 0, 0);
-    g_cfg.kbd.swatches[1] = RGB(255, 127, 0);
-    g_cfg.kbd.swatches[2] = RGB(255, 255, 0);
-    g_cfg.kbd.swatches[3] = RGB(0, 255, 0);
-    g_cfg.kbd.swatches[4] = RGB(0, 0, 255);
-    g_cfg.kbd.swatches[5] = RGB(139, 0, 255);
-    for (int i = 0; i < 8; i++) g_cfg.kbd.widths[i] = 1.0;
-
-    g_cfg.bar.on          = TRUE;
-    g_cfg.bar.effectIdx   = 1; /* Rainbow */
-    g_cfg.bar.speed       = 10;
-    g_cfg.bar.brightness  = 100;
-    g_cfg.bar.equalise    = TRUE;
-    g_cfg.bar.loop        = TRUE;
-    g_cfg.bar.swatchCount = 2;
-    g_cfg.bar.swatches[0] = RGB(0, 180, 255);
-    g_cfg.bar.swatches[1] = RGB(255, 0, 102);
-    for (int i = 0; i < 8; i++) g_cfg.bar.widths[i] = 1.0;
+    InitGroupDefaults(&g_cfg.kbd, FALSE);
+    InitGroupDefaults(&g_cfg.bar, TRUE);
 }
 
 /* Lightweight parser preserving existing user panel.json settings */
@@ -517,7 +525,7 @@ static void LoadPanelCfg(void) {
     free(json);
 }
 
-static void FormatGroupPanelJson(const GroupCfg *g, char *out, size_t cap) {
+static void FormatGroupPanelJson(const GroupCfg *g, const char *key, char *out, size_t cap) {
     char swBuf[256] = "", wdBuf[256] = "";
     size_t so = 0, wo = 0;
     for (int i = 0; i < g->swatchCount; i++) {
@@ -539,7 +547,7 @@ static void FormatGroupPanelJson(const GroupCfg *g, char *out, size_t cap) {
         "    \"Swatches\": [ %s ],\r\n"
         "    \"Widths\": [ %s ]\r\n"
         "  }",
-        (g == &g_cfg.kbd) ? "Kbd" : "Bar",
+        key,
         g->on ? "true" : "false",
         kEffects[g->effectIdx].label,
         g->speed,
@@ -553,8 +561,8 @@ static void FormatGroupPanelJson(const GroupCfg *g, char *out, size_t cap) {
 
 static void SavePanelCfg(void) {
     char kJson[1024], bJson[1024], custBuf[512] = "", full[3200];
-    FormatGroupPanelJson(&g_cfg.kbd, kJson, sizeof(kJson));
-    FormatGroupPanelJson(&g_cfg.bar, bJson, sizeof(bJson));
+    FormatGroupPanelJson(&g_cfg.kbd, "Kbd", kJson, sizeof(kJson));
+    FormatGroupPanelJson(&g_cfg.bar, "Bar", bJson, sizeof(bJson));
     size_t co = 0;
     for (int i = 0; i < 16; i++) {
         if (g_cfg.customColors[i] != RGB(255, 255, 255)) {
@@ -652,13 +660,540 @@ static const wchar_t *HelpForHit(int hitIdx) {
     case HIT_FOOT_ZONES:    return L"Open Zones Setup if patterns jump about - lets you fix which lamp is which.";
     case HIT_FOOT_ELEVATE:  return L"Restart as Administrator to unlock direct USB RGB control of the ROG Strix G16.";
     case HIT_FOOT_QUIT:     return L"Quit Keyboard Lighting and turn the lights off.";
+    case HIT_PRESET_SAVE:   return L"Save the current colours and pattern as a named preset you can swap to any time.";
     default:
         if (kind >= HIT_SWATCH_0 && kind < HIT_SWATCH_0 + 8)
             return L"Click to pick this colour band with the Windows colour picker.";
         if (kind >= HIT_WIDTH_0 && kind < HIT_WIDTH_0 + 8)
             return L"Drag to widen or narrow how much of the strip this colour takes.";
+        if (kind >= HIT_PRESET_0 && kind < HIT_PRESET_0 + 12)
+            return L"Click to apply this saved pattern instantly. Right-click to rename or delete it.";
         return NULL;
     }
+}
+
+
+/* ============================================================================
+ *  Fn-stamp: one physical key press = one brightness step
+ *
+ *  The same Fn F2/F3 presses arrive on two doors: the ASUS input HID
+ *  stream (below) and the ATK WMI events the engine listens to. Whoever
+ *  gets there first stamps fnstamp.txt; the other path stands down.
+ * ============================================================================ */
+static ULONGLONG NowUnixMs(void) {
+    FILETIME ft;
+    GetSystemTimeAsFileTime(&ft);
+    ULARGE_INTEGER u;
+    u.LowPart = ft.dwLowDateTime;
+    u.HighPart = ft.dwHighDateTime;
+    return u.QuadPart / 10000ULL - 11644473600000ULL;
+}
+
+static BOOL FnStampFresh(void) {
+    DWORD len = 0;
+    char *txt = ReadFileUtf8(g_fnStampPath, &len);
+    if (!txt) return FALSE;
+    long long prev = atoll(txt);
+    free(txt);
+    return (prev > 0 && prev <= (long long)NowUnixMs() &&
+            ((long long)NowUnixMs() - prev) < 200);
+}
+
+static void FnStampWrite(void) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%llu\r\n", (unsigned long long)NowUnixMs());
+    WriteAtomicUtf8(g_fnStampPath, buf);
+}
+
+/* ============================================================================
+ *  ASUS input HID + EC backlight-gate lock  (hid.dll / setupapi.dll are
+ *  loaded dynamically so the PE keeps its stock-DLL import whitelist)
+ * ============================================================================ */
+typedef struct { USHORT Usage, UsagePage; USHORT InLen, OutLen, FeatLen; USHORT Reserved[59]; } KblHidCaps;
+typedef struct { ULONG Size; USHORT VendorId, ProductId, Version; } KblHidAttrs;
+
+typedef BOOL (WINAPI *PFN_HidD_GetPreparsedData)(HANDLE, PVOID *);
+typedef BOOL (WINAPI *PFN_HidD_FreePreparsedData)(PVOID);
+typedef LONG (WINAPI *PFN_HidP_GetCaps)(PVOID, KblHidCaps *);
+typedef BOOL (WINAPI *PFN_HidD_GetAttributes)(HANDLE, KblHidAttrs *);
+typedef BOOL (WINAPI *PFN_HidD_GetFeature)(HANDLE, PVOID, ULONG);
+typedef BOOL (WINAPI *PFN_HidD_SetFeature)(HANDLE, PVOID, ULONG);
+typedef PVOID (WINAPI *PFN_SetupDiGetClassDevsW)(const GUID *, PCWSTR, HWND, DWORD);
+typedef BOOL (WINAPI *PFN_SetupDiEnumDeviceInterfaces)(PVOID, PVOID, const GUID *, DWORD, PVOID);
+typedef BOOL (WINAPI *PFN_SetupDiGetDeviceInterfaceDetailW)(PVOID, PVOID, PVOID, DWORD, DWORD *, PVOID);
+typedef BOOL (WINAPI *PFN_SetupDiDestroyDeviceInfoList)(PVOID);
+
+static struct {
+    PFN_HidD_GetPreparsedData         GetPreparsed;
+    PFN_HidD_FreePreparsedData        FreePreparsed;
+    PFN_HidP_GetCaps                  GetCaps;
+    PFN_HidD_GetAttributes            GetAttributes;
+    PFN_HidD_GetFeature               GetFeature;
+    PFN_HidD_SetFeature               SetFeature;
+    PFN_SetupDiGetClassDevsW          GetClassDevs;
+    PFN_SetupDiEnumDeviceInterfaces   EnumIfaces;
+    PFN_SetupDiGetDeviceInterfaceDetailW GetIfDetail;
+    PFN_SetupDiDestroyDeviceInfoList  DestroyList;
+    BOOL ok;
+} g_hidApi;
+
+static const GUID kHidGuid = {
+    0x4d1e55b2, 0xf16f, 0x11cf, { 0x88, 0xcb, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30 }
+};
+
+static BOOL LoadHidApi(void) {
+    if (g_hidApi.ok) return TRUE;
+    HMODULE hid = LoadLibraryW(L"hid.dll");
+    HMODULE cfg = LoadLibraryW(L"setupapi.dll");
+    if (!hid || !cfg) return FALSE;
+    g_hidApi.GetPreparsed = (PFN_HidD_GetPreparsedData)(void *)GetProcAddress(hid, "HidD_GetPreparsedData");
+    g_hidApi.FreePreparsed = (PFN_HidD_FreePreparsedData)(void *)GetProcAddress(hid, "HidD_FreePreparsedData");
+    g_hidApi.GetCaps = (PFN_HidP_GetCaps)(void *)GetProcAddress(hid, "HidP_GetCaps");
+    g_hidApi.GetAttributes = (PFN_HidD_GetAttributes)(void *)GetProcAddress(hid, "HidD_GetAttributes");
+    g_hidApi.GetFeature = (PFN_HidD_GetFeature)(void *)GetProcAddress(hid, "HidD_GetFeature");
+    g_hidApi.SetFeature = (PFN_HidD_SetFeature)(void *)GetProcAddress(hid, "HidD_SetFeature");
+    g_hidApi.GetClassDevs = (PFN_SetupDiGetClassDevsW)(void *)GetProcAddress(cfg, "SetupDiGetClassDevsW");
+    g_hidApi.EnumIfaces = (PFN_SetupDiEnumDeviceInterfaces)(void *)GetProcAddress(cfg, "SetupDiEnumDeviceInterfaces");
+    g_hidApi.GetIfDetail = (PFN_SetupDiGetDeviceInterfaceDetailW)(void *)GetProcAddress(cfg, "SetupDiGetDeviceInterfaceDetailW");
+    g_hidApi.DestroyList = (PFN_SetupDiDestroyDeviceInfoList)(void *)GetProcAddress(cfg, "SetupDiDestroyDeviceInfoList");
+    g_hidApi.ok = (g_hidApi.GetPreparsed && g_hidApi.FreePreparsed && g_hidApi.GetCaps &&
+                   g_hidApi.GetAttributes && g_hidApi.GetFeature && g_hidApi.SetFeature &&
+                   g_hidApi.GetClassDevs && g_hidApi.EnumIfaces && g_hidApi.GetIfDetail &&
+                   g_hidApi.DestroyList);
+    return g_hidApi.ok;
+}
+
+#define MAX_KBL_HID 6
+static HANDLE    g_hidH[MAX_KBL_HID];
+static USHORT    g_hidInLen[MAX_KBL_HID];
+static USHORT    g_hidFeatLen[MAX_KBL_HID];
+static int       g_hidN = 0;
+static ULONGLONG g_pinAt[5];
+
+static void FlushLiveApply(void);
+static void StartEngine(void);
+static void FnApply(int dir);
+
+/* The EC keeps a 0..3 hardware backlight gate above our colours; its level
+ * 0 blacks the keyboard out no matter what we send. G-Helper's 4-step keys
+ * and its idle timer keep grabbing that gate. Lock it at full so the smooth
+ * 0-100% master always has the whole range underneath: G-Helper's own
+ * packet (0x5a 0xBA 0xC5 0xC4 level) is exactly how that gate is written. */
+static void PinGateAll(void) {
+    for (int i = 0; i < g_hidN; i++) {
+        unsigned char pkt[256];
+        USHORT fl = g_hidFeatLen[i];
+        if (fl < 5 || fl > 256) continue;
+        ZeroMemory(pkt, fl);
+        pkt[0] = 0x5a; pkt[1] = 0xBA; pkt[2] = 0xC5; pkt[3] = 0xC4; pkt[4] = 3;
+        g_hidApi.SetFeature(g_hidH[i], pkt, fl);
+    }
+}
+
+static void ScheduleGatePins(void) {
+    ULONGLONG now = GetTickCount64();
+    g_pinAt[0] = now;
+    g_pinAt[1] = now + 50;
+    g_pinAt[2] = now + 150;
+    g_pinAt[3] = now + 400;
+    g_pinAt[4] = now + 900;
+}
+
+static DWORD WINAPI HidListenProc(LPVOID param) {
+    int idx = (int)(intptr_t)param;
+    HANDLE h = g_hidH[idx];
+    USHORT inLen = g_hidInLen[idx];
+    if (inLen < 4 || inLen > 256) inLen = 64;
+    unsigned char buf[256];
+    for (;;) {
+        DWORD rd = 0;
+        if (!ReadFile(h, buf, inLen, &rd, NULL) || rd < 2) break;
+        if (buf[0] != 0x5a) continue;
+        int code = buf[1];
+        if (code == 0 || code == 236) continue;
+        if (code == 196)      FnApply(1);   /* Fn+F3 brighter */
+        else if (code == 197) FnApply(-1);  /* Fn+F2 dimmer   */
+        else if (code == 199) FnApply(0);   /* on/off toggle  */
+        /* Every one of these events may arrive with a G-Helper gate write
+         * riding along, so re-pin on a short ladder after any event. */
+        ScheduleGatePins();
+    }
+    return 0;
+}
+
+static void HidOpenAll(void) {
+    if (!LoadHidApi()) return;
+    PVOID info = g_hidApi.GetClassDevs(&kHidGuid, NULL, NULL, 0x12);
+    if (!info || info == (PVOID)(intptr_t)-1) return;
+    for (DWORD n = 0; n < 32 && g_hidN < MAX_KBL_HID; n++) {
+        unsigned char ifd[40];
+        ZeroMemory(ifd, sizeof(ifd));
+        *(DWORD *)ifd = 32;
+        CopyMemory(ifd + 4, &kHidGuid, 16);
+        if (!g_hidApi.EnumIfaces(info, NULL, &kHidGuid, n, ifd)) break;
+        unsigned char det[512];
+        ZeroMemory(det, sizeof(det));
+        *(DWORD *)det = 8;
+        DWORD need = 0;
+        if (!g_hidApi.GetIfDetail(info, ifd, det, sizeof(det), &need, NULL)) continue;
+        wchar_t *path = (wchar_t *)(det + 4);
+        HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE,
+                               FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                               OPEN_EXISTING, 0, NULL);
+        if (h == INVALID_HANDLE_VALUE) continue;
+        KblHidAttrs attr;
+        attr.Size = sizeof(attr);
+        if (!g_hidApi.GetAttributes(h, &attr) || attr.VendorId != 0x0B05) {
+            CloseHandle(h);
+            continue;
+        }
+        PVOID pp = NULL;
+        if (!g_hidApi.GetPreparsed(h, &pp)) { CloseHandle(h); continue; }
+        KblHidCaps caps;
+        ZeroMemory(&caps, sizeof(caps));
+        BOOL gotCaps = (g_hidApi.GetCaps(pp, &caps) == 0x00110000);
+        g_hidApi.FreePreparsed(pp);
+        if (!gotCaps || caps.FeatLen < 5) { CloseHandle(h); continue; }
+        USHORT fl = caps.FeatLen;
+        if (fl > 256) fl = 256;
+        unsigned char probe[256];
+        ZeroMemory(probe, fl);
+        probe[0] = 0x5a;
+        if (!g_hidApi.GetFeature(h, probe, fl)) {
+            /* Some firmware wants the init handshake before it will talk. */
+            ZeroMemory(probe, fl);
+            probe[0] = 0x5a;
+            memcpy(probe + 1, "ASUS Tech.Inc.", 14);
+            g_hidApi.SetFeature(h, probe, fl);
+            ZeroMemory(probe, fl);
+            probe[0] = 0x5a;
+            if (!g_hidApi.GetFeature(h, probe, fl)) { CloseHandle(h); continue; }
+        }
+        ZeroMemory(probe, fl);
+        probe[0] = 0x5a;
+        memcpy(probe + 1, "ASUS Tech.Inc.", 14);
+        g_hidApi.SetFeature(h, probe, fl);
+
+        g_hidH[g_hidN] = h;
+        g_hidInLen[g_hidN] = caps.InLen;
+        g_hidFeatLen[g_hidN] = caps.FeatLen;
+        HANDLE th = CreateThread(NULL, 0, HidListenProc, (LPVOID)(intptr_t)g_hidN, 0, NULL);
+        if (th) CloseHandle(th);
+        g_hidN++;
+    }
+    g_hidApi.DestroyList(info);
+}
+
+/* The smooth master step for Fn F2 / F3: 5% per press across 0-100%,
+ * exactly like screen-brightness keys, with the same on-screen toast the
+ * slider uses. 0% is a true blackout; the toggle returns to the last
+ * level instead of jumping to full. */
+static void FnApply(int dir) {
+    ULONGLONG now = GetTickCount64();
+    if (now - g_fnLastApply < 140ULL) return;   /* double-path duplicate */
+    if (FnStampFresh()) return;                 /* engine WMI path got there first */
+    g_fnLastApply = now;
+    FnStampWrite();
+
+    int m = g_cfg.masterBrightness;
+    if (dir == 0) {
+        if (m > 0) { g_lastOnLevel = m; m = 0; }
+        else m = (g_lastOnLevel > 0) ? g_lastOnLevel : 100;
+    } else {
+        m += dir * 5;
+        if (m > 100) m = 100;
+        if (m < 0) m = 0;
+        if (m > 0) g_lastOnLevel = m;
+    }
+    g_cfg.masterBrightness = m;
+    if (m <= 0)
+        wcsncpy(g_toastText, L"Keyboard Lights  \x00B7  Off", 95);
+    else
+        _snwprintf(g_toastText, 95, L"Keyboard Lights  \x00B7  %d%%", m);
+    g_toastAt = now + 1400ULL;
+    WriteLiveBrightness();
+    SavePanelCfg();
+    ScheduleLiveApply();
+    InvalidateRect(g_hwnd, NULL, FALSE);
+}
+
+/* ============================================================================
+ *  Named pattern presets: save the current look, swap back with one click
+ * ============================================================================ */
+#define MAX_PRESETS 12
+
+typedef struct {
+    char      name[48];
+    int       masterBrightness;
+    BOOL      overlay;
+    BOOL      link;
+    BOOL      smooth;
+    GroupCfg  kbd;
+    GroupCfg  bar;
+} Preset;
+
+static Preset g_presets[MAX_PRESETS];
+static int    g_presetCount    = 0;
+static int    g_presetMenuIdx  = -1;
+
+static void Utf8ToWide(const char *s, wchar_t *out, int cap) {
+    if (!MultiByteToWideChar(CP_UTF8, 0, s, -1, out, cap)) out[0] = 0;
+}
+
+static void WideToUtf8(const wchar_t *s, char *out, int cap) {
+    if (!WideCharToMultiByte(CP_UTF8, 0, s, -1, out, cap, NULL, NULL)) out[0] = 0;
+}
+
+static void EscapeJsonStr(const char *in, char *out, size_t cap) {
+    size_t o = 0;
+    for (; *in && o + 2 < cap; in++) {
+        unsigned char c = (unsigned char)*in;
+        if (c == '"' || c == '\\') { out[o++] = '\\'; out[o++] = (char)c; }
+        else if (c < 0x20) { out[o++] = ' '; }
+        else out[o++] = (char)c;
+    }
+    out[o] = 0;
+}
+
+static void SavePresets(void) {
+    static char full[30000];
+    size_t o = 0;
+    o += (size_t)snprintf(full + o, sizeof(full) - o, "{\r\n  \"Presets\": [\r\n");
+    for (int i = 0; i < g_presetCount; i++) {
+        const Preset *p = &g_presets[i];
+        char kJson[1024], bJson[1024], esc[96];
+        FormatGroupPanelJson(&p->kbd, "Kbd", kJson, sizeof(kJson));
+        FormatGroupPanelJson(&p->bar, "Bar", bJson, sizeof(bJson));
+        EscapeJsonStr(p->name, esc, sizeof(esc));
+        o += (size_t)snprintf(full + o, sizeof(full) - o,
+            "%s    {\r\n"
+            "      \"Name\": \"%s\",\r\n"
+            "      \"Brightness\": %d,\r\n"
+            "      \"Overlay\": %s,\r\n"
+            "      \"Link\": %s,\r\n"
+            "      \"Smooth\": %s,\r\n"
+            "%s,\r\n"
+            "%s\r\n"
+            "    }",
+            i ? ",\r\n" : "",
+            esc,
+            p->masterBrightness,
+            p->overlay ? "true" : "false",
+            p->link ? "true" : "false",
+            p->smooth ? "true" : "false",
+            kJson, bJson);
+    }
+    o += (size_t)snprintf(full + o, sizeof(full) - o, "\r\n  ]\r\n}\r\n");
+    WriteAtomicUtf8(g_presetPath, full);
+}
+
+static void LoadPresets(void) {
+    g_presetCount = 0;
+    DWORD len = 0;
+    char *json = ReadFileUtf8(g_presetPath, &len);
+    if (!json) return;
+    const char *end = json + len;
+    const char *arr = JsonVal(json, end, "Presets");
+    if (arr && *arr == '[') {
+        const char *q = arr + 1;
+        while (q < end && g_presetCount < MAX_PRESETS) {
+            while (q < end && (*q == ' ' || *q == '\t' || *q == '\r' ||
+                               *q == '\n' || *q == ',')) q++;
+            if (q >= end || *q != '{') break;
+            int depth = 0;
+            const char *scan = q;
+            const char *objEnd = NULL;
+            while (scan < end) {
+                if (*scan == '{') depth++;
+                else if (*scan == '}') {
+                    depth--;
+                    if (depth == 0) { objEnd = scan + 1; break; }
+                }
+                scan++;
+            }
+            if (!objEnd) break;
+            Preset *p = &g_presets[g_presetCount];
+            ZeroMemory(p, sizeof(*p));
+            strncpy(p->name, "Preset", sizeof(p->name) - 1);
+            JsonStr(q, objEnd, "Name", p->name, sizeof(p->name));
+            p->masterBrightness = JsonInt(q, objEnd, "Brightness", 100);
+            if (p->masterBrightness < 0) p->masterBrightness = 0;
+            if (p->masterBrightness > 100) p->masterBrightness = 100;
+            p->overlay = JsonBool(q, objEnd, "Overlay", TRUE);
+            p->link    = JsonBool(q, objEnd, "Link", FALSE);
+            p->smooth  = JsonBool(q, objEnd, "Smooth", TRUE);
+            InitGroupDefaults(&p->kbd, FALSE);
+            InitGroupDefaults(&p->bar, TRUE);
+            const char *kb = JsonVal(q, objEnd, "Kbd");
+            const char *bb = JsonVal(q, objEnd, "Bar");
+            if (kb) {
+                const char *kbEnd = (bb && bb > kb) ? bb : objEnd;
+                ParseGroupJson(kb, kbEnd, &p->kbd);
+            }
+            if (bb) ParseGroupJson(bb, objEnd, &p->bar);
+            g_presetCount++;
+            q = objEnd;
+        }
+    }
+    free(json);
+}
+
+static void ApplyPreset(int i) {
+    if (i < 0 || i >= g_presetCount) return;
+    Preset *p = &g_presets[i];
+    BOOL overlayChanged = (p->overlay != g_cfg.overlay);
+    g_cfg.masterBrightness = p->masterBrightness;
+    g_cfg.overlay = p->overlay;
+    g_cfg.link    = p->link;
+    g_cfg.smooth  = p->smooth;
+    g_cfg.kbd     = p->kbd;
+    g_cfg.bar     = p->bar;
+    wchar_t nm[48];
+    Utf8ToWide(p->name, nm, 47);
+    _snwprintf(g_toastText, 95, L"Pattern  \x00B7  %s", nm);
+    g_toastAt = GetTickCount64() + 1800ULL;
+    if (g_wantOff) {
+        StartEngine();
+    } else if (overlayChanged) {
+        FlushLiveApply();
+        StartEngine();          /* Battery Alerts is a launch flag */
+    } else {
+        FlushLiveApply();
+    }
+    InvalidateRect(g_hwnd, NULL, FALSE);
+}
+
+static void SaveCurrentPreset(const wchar_t *name) {
+    if (g_presetCount >= MAX_PRESETS) {
+        wcsncpy(g_toastText, L"Pattern list is full (12 max)", 95);
+        g_toastAt = GetTickCount64() + 1800ULL;
+        return;
+    }
+    Preset *p = &g_presets[g_presetCount];
+    ZeroMemory(p, sizeof(*p));
+    WideToUtf8(name, p->name, sizeof(p->name));
+    p->masterBrightness = g_cfg.masterBrightness;
+    p->overlay = g_cfg.overlay;
+    p->link    = g_cfg.link;
+    p->smooth  = g_cfg.smooth;
+    p->kbd     = g_cfg.kbd;
+    p->bar     = g_cfg.bar;
+    g_presetCount++;
+    SavePresets();
+    _snwprintf(g_toastText, 95, L"Saved  \x00B7  %s", name);
+    g_toastAt = GetTickCount64() + 1800ULL;
+}
+
+static void RenamePreset(int i, const wchar_t *name) {
+    if (i < 0 || i >= g_presetCount) return;
+    WideToUtf8(name, g_presets[i].name, sizeof(g_presets[i].name));
+    SavePresets();
+}
+
+static void DeletePreset(int i) {
+    if (i < 0 || i >= g_presetCount) return;
+    for (int k = i; k + 1 < g_presetCount; k++) g_presets[k] = g_presets[k + 1];
+    g_presetCount--;
+    SavePresets();
+}
+
+/* ============================================================================
+ *  Small dark modal text prompt (preset names)
+ * ============================================================================ */
+static HBRUSH g_promptBrush = NULL;
+static HWND   g_promptEdit  = NULL;
+static BOOL   g_promptDone  = FALSE;
+static BOOL   g_promptOk    = FALSE;
+static wchar_t g_promptInit[48];
+static wchar_t g_promptOut[48];
+
+static LRESULT CALLBACK PromptProc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    (void)l;
+    switch (m) {
+    case WM_CREATE:
+        g_promptEdit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", g_promptInit,
+                                       WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
+                                       18, 18, 344, 26, h, (HMENU)1, NULL, NULL);
+        CreateWindowW(L"BUTTON", L"Save", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+                      192, 58, 80, 28, h, (HMENU)2, NULL, NULL);
+        CreateWindowW(L"BUTTON", L"Cancel", WS_CHILD | WS_VISIBLE,
+                      282, 58, 80, 28, h, (HMENU)3, NULL, NULL);
+        return 0;
+    case WM_COMMAND:
+        if (LOWORD(w) == 2) {
+            GetWindowTextW(g_promptEdit, g_promptOut, 47);
+            g_promptOk = TRUE;
+            g_promptDone = TRUE;
+            DestroyWindow(h);
+        } else if (LOWORD(w) == 3) {
+            g_promptDone = TRUE;
+            DestroyWindow(h);
+        }
+        return 0;
+    case WM_CLOSE:
+        g_promptDone = TRUE;
+        DestroyWindow(h);
+        return 0;
+    case WM_CTLCOLORSTATIC:
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORBTN: {
+        HDC dc = (HDC)w;
+        SetTextColor(dc, COL_TEXT);
+        SetBkColor(dc, RGB(28, 33, 45));
+        return (LRESULT)g_promptBrush;
+    }
+    case WM_ERASEBKGND:
+        return 1;
+    }
+    return DefWindowProcW(h, m, w, l);
+}
+
+static BOOL PromptText(HWND owner, const wchar_t *title, const wchar_t *initial,
+                       wchar_t *out, int cap) {
+    static BOOL classReady = FALSE;
+    if (!g_promptBrush) g_promptBrush = CreateSolidBrush(RGB(28, 33, 45));
+    if (!classReady) {
+        WNDCLASSEXW wc;
+        ZeroMemory(&wc, sizeof(wc));
+        wc.cbSize        = sizeof(wc);
+        wc.lpfnWndProc   = PromptProc;
+        wc.hInstance     = GetModuleHandleW(NULL);
+        wc.hCursor       = LoadCursorW(NULL, IDC_ARROW);
+        wc.lpszClassName = L"TestsKeyboardLightingPromptWnd";
+        RegisterClassExW(&wc);
+        classReady = TRUE;
+    }
+    wcsncpy(g_promptInit, initial ? initial : L"", 47);
+    g_promptInit[47] = 0;
+    g_promptDone = FALSE;
+    g_promptOk   = FALSE;
+
+    RECT rc;
+    GetWindowRect(owner, &rc);
+    int w = S(400, GetWinDpi(owner)), hgt = S(130, GetWinDpi(owner));
+    int x = rc.left + ((rc.right - rc.left) - w) / 2;
+    int y = rc.top + ((rc.bottom - rc.top) - hgt) / 2;
+    HWND dlg = CreateWindowExW(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST,
+                               L"TestsKeyboardLightingPromptWnd", title,
+                               WS_POPUP | WS_CAPTION | WS_SYSMENU,
+                               x, y, w, hgt, owner, NULL, NULL, NULL);
+    if (!dlg) return FALSE;
+    EnableWindow(owner, FALSE);
+    ShowWindow(dlg, SW_SHOW);
+    SetForegroundWindow(dlg);
+    if (g_promptEdit) SetFocus(g_promptEdit);
+    MSG msg;
+    while (!g_promptDone && GetMessageW(&msg, NULL, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+    EnableWindow(owner, TRUE);
+    SetForegroundWindow(owner);
+    if (g_promptOk) {
+        wcsncpy(out, g_promptOut, cap - 1);
+        out[cap - 1] = 0;
+    }
+    return g_promptOk && out[0] != 0;
 }
 
 static void FormatThemeBlock(const GroupCfg *g, const char *name, char *out, size_t cap) {
@@ -1385,8 +1920,29 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
     int listTop = headerH + S(12, dpi);
     int listBot = footerTop - S(2, dpi);
     int gap = S(12, dpi);
+
+    /* Preset chips: measure for the Saved Patterns card height */
+    int chipH = S(30, dpi), chipGap = S(8, dpi), chipRows = 1, chipRowW = 0;
+    int chipMaxW = CW - S(32, dpi);
+    SelectObject(mem, fBtn);
+    for (int i = 0; i < g_presetCount; i++) {
+        wchar_t nm[48];
+        Utf8ToWide(g_presets[i].name, nm, 47);
+        SIZE sz = { 0, 0 };
+        GetTextExtentPoint32W(mem, nm, (int)wcslen(nm), &sz);
+        int w = sz.cx + S(26, dpi);
+        if (chipRowW > 0 && chipRowW + w > chipMaxW) { chipRows++; chipRowW = 0; }
+        chipRowW += w + chipGap;
+    }
+    {
+        SIZE sz = { 0, 0 };
+        GetTextExtentPoint32W(mem, L"+  Save Current", 15, &sz);
+        int w = sz.cx + S(26, dpi);
+        if (chipRowW > 0 && chipRowW + w > chipMaxW) { chipRows++; chipRowW = 0; }
+    }
+    int hCard0 = S(38, dpi) + chipRows * (chipH + chipGap) + S(8, dpi);
     int hCard1 = S(138, dpi), hCard2 = S(118, dpi), hCard3 = S(118, dpi), hCard4 = S(148, dpi);
-    g_contentH = hCard1 + hCard2 + hCard3 + hCard4 + gap * 3 + S(16, dpi);
+    g_contentH = hCard0 + hCard1 + hCard2 + hCard3 + hCard4 + gap * 4 + S(16, dpi);
     int maxSc = g_contentH - (listBot - listTop);
     if (maxSc < 0) maxSc = 0;
     if (g_scrollY > maxSc) g_scrollY = maxSc;
@@ -1398,6 +1954,61 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
     int y = listTop - g_scrollY;
     GroupCfg *cg = CurGroup();
     BOOL alive = IsEngineAlive();
+
+    /* ---- CARD 0: Saved Patterns (one-click named presets) ---- */
+    RECT c0 = { M, y, M + CW, y + hCard0 };
+    SmoothRoundRect(px, W, H, &c0, (float)S(14, dpi), COL_CARD, COL_BORDER, listTop, listBot);
+
+    SelectObject(mem, fCard);
+    SetTextColor(mem, COL_TEXT);
+    RECT c0Title = { c0.left + S(16, dpi), c0.top + S(8, dpi), c0.left + S(200, dpi), c0.top + S(30, dpi) };
+    DrawTextW(mem, L"Saved Patterns", -1, &c0Title, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+    SelectObject(mem, fSmall);
+    SetTextColor(mem, COL_MUTED);
+    RECT c0Sub = { c0.left + S(150, dpi), c0.top + S(8, dpi), c0.right - S(16, dpi), c0.top + S(30, dpi) };
+    DrawTextW(mem, L"Click a pattern to swap instantly  \x00B7  Right-click to rename or delete",
+              -1, &c0Sub, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+    int cx0 = c0.left + S(16, dpi), cy0 = c0.top + S(38, dpi), rowW0 = 0;
+    SelectObject(mem, fBadge);
+    for (int i = 0; i < g_presetCount; i++) {
+        wchar_t nm[48];
+        Utf8ToWide(g_presets[i].name, nm, 47);
+        SIZE sz = { 0, 0 };
+        GetTextExtentPoint32W(mem, nm, (int)wcslen(nm), &sz);
+        int w = sz.cx + S(26, dpi);
+        if (rowW0 > 0 && rowW0 + w > chipMaxW) {
+            rowW0 = 0;
+            cx0 = c0.left + S(16, dpi);
+            cy0 += chipH + chipGap;
+        }
+        RECT cr = { cx0, cy0, cx0 + w, cy0 + chipH };
+        int hC = g_hitCount; AddHit(cr, HIT_PRESET_0 + i, i);
+        SmoothRoundRect(px, W, H, &cr, (float)chipH * 0.5f,
+                        g_hoverIdx == hC ? COL_SEC_HOV : COL_SEC_BTN,
+                        g_hoverIdx == hC ? COL_HOVER_RIM : COL_BTN_BORDER, listTop, listBot);
+        SetTextColor(mem, COL_TEXT);
+        RECT ctr = { cr.left + S(13, dpi), cr.top, cr.right - S(13, dpi), cr.bottom };
+        DrawTextW(mem, nm, -1, &ctr, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+        cx0 += w + chipGap;
+        rowW0 += w + chipGap;
+    }
+    {
+        SIZE sz = { 0, 0 };
+        GetTextExtentPoint32W(mem, L"+  Save Current", 15, &sz);
+        int w = sz.cx + S(26, dpi);
+        if (rowW0 > 0 && rowW0 + w > chipMaxW) {
+            rowW0 = 0;
+            cx0 = c0.left + S(16, dpi);
+            cy0 += chipH + chipGap;
+        }
+        RECT sr2 = { cx0, cy0, cx0 + w, cy0 + chipH };
+        int hS = g_hitCount; AddHit(sr2, HIT_PRESET_SAVE, 0);
+        DrawSuiteBtn(mem, px, W, H, fBadge, sr2, L"+  Save Current", 0, g_hoverIdx == hS, dpi, listTop, listBot);
+    }
+
+    y += hCard0 + gap;
 
     /* ---- CARD 1: Live ROG Strix G16 Preview + Master Brightness ---- */
     RECT c1 = { M, y, M + CW, y + hCard1 };
@@ -1879,6 +2490,11 @@ static void HandleHitAction(HWND hwnd, int hitIdx) {
         g_cfg.overlay = !g_cfg.overlay;
         SavePanelCfg();
         if (!g_wantOff) StartEngine();
+    } else if (kind == HIT_PRESET_SAVE) {
+        wchar_t nm[48] = L"";
+        if (PromptText(hwnd, L"Save Current Pattern", L"", nm, 48)) SaveCurrentPreset(nm);
+    } else if (kind >= HIT_PRESET_0 && kind < HIT_PRESET_0 + MAX_PRESETS) {
+        ApplyPreset(idx);
     } else if (kind == HIT_FOOT_ZONES) {
         ShellExecuteW(hwnd, L"open", g_zonesBat, NULL, g_exeDir, SW_SHOWNORMAL);
     } else if (kind == HIT_FOOT_ELEVATE) {
@@ -1901,6 +2517,17 @@ static void ShowTrayContextMenu(HWND hwnd) {
     AppendMenuW(hMenu, MF_STRING | (g_cfg.kbd.on ? MF_CHECKED : 0), IDM_TRAY_KBD, L"Keyboard Zone Enabled");
     AppendMenuW(hMenu, MF_STRING | (g_cfg.bar.on ? MF_CHECKED : 0), IDM_TRAY_BAR, L"Light Bar Enabled");
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_RESTART, L"Restart Lighting Engine");
+    HMENU hPre = CreatePopupMenu();
+    if (g_presetCount == 0) {
+        AppendMenuW(hPre, MF_STRING | MF_GRAYED, 0, L"(none saved yet)");
+    } else {
+        for (int i = 0; i < g_presetCount; i++) {
+            wchar_t nm[48];
+            Utf8ToWide(g_presets[i].name, nm, 47);
+            AppendMenuW(hPre, MF_STRING, IDM_PRESET_BASE + i, nm);
+        }
+    }
+    AppendMenuW(hMenu, MF_POPUP, (UINT_PTR)hPre, L"Saved Patterns");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(hMenu, MF_STRING | (g_autostart ? MF_CHECKED : 0), IDM_TRAY_AUTOSTART, L"Start with Windows");
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_FOLDER, L"Open Program Folder");
@@ -2007,12 +2634,46 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
 
+    case WM_RBUTTONUP: {
+        POINT pt = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
+        for (int i = 0; i < g_hitCount; i++) {
+            if (g_hits[i].kind >= HIT_PRESET_0 &&
+                g_hits[i].kind < HIT_PRESET_0 + MAX_PRESETS &&
+                PtInRect(&g_hits[i].rect, pt)) {
+                g_presetMenuIdx = g_hits[i].index;
+                HMENU hm = CreatePopupMenu();
+                AppendMenuW(hm, MF_STRING, IDM_PRESET_REN, L"Rename Pattern");
+                AppendMenuW(hm, MF_STRING, IDM_PRESET_DEL, L"Delete Pattern");
+                ClientToScreen(hwnd, &pt);
+                SetForegroundWindow(hwnd);
+                TrackPopupMenu(hm, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+                DestroyMenu(hm);
+                return 0;
+            }
+        }
+        return 0;
+    }
+
     case WM_COMMAND: {
         int id = LOWORD(wp);
         if (id >= IDM_EFF_BASE && id < IDM_EFF_BASE + EFFECT_COUNT) {
             CurGroup()->effectIdx = id - IDM_EFF_BASE;
             SyncLinkedZone();
             FlushLiveApply();
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (id >= IDM_PRESET_BASE && id < IDM_PRESET_BASE + MAX_PRESETS) {
+            ApplyPreset(id - IDM_PRESET_BASE);
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (id == IDM_PRESET_REN && g_presetMenuIdx >= 0 &&
+                   g_presetMenuIdx < g_presetCount) {
+            wchar_t cur[48], nm[48];
+            Utf8ToWide(g_presets[g_presetMenuIdx].name, cur, 47);
+            if (PromptText(hwnd, L"Rename Pattern", cur, nm, 48))
+                RenamePreset(g_presetMenuIdx, nm);
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (id == IDM_PRESET_DEL && g_presetMenuIdx >= 0 &&
+                   g_presetMenuIdx < g_presetCount) {
+            DeletePreset(g_presetMenuIdx);
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (id == IDM_TRAY_OPEN) {
             ShowWindow(hwnd, SW_SHOWNORMAL);
@@ -2059,6 +2720,22 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_TIMER:
         if (wp == 1) {
             if (g_applyPending && GetTickCount64() >= g_applyAtTick) FlushLiveApply();
+            {
+                /* Re-pin ladder from Fn events + a slow continuous lock,
+                 * so G-Helper's 4-step gate can never hold the range. */
+                static ULONGLONG pinWatchAt = 0;
+                ULONGLONG nowP = GetTickCount64();
+                for (int k = 0; k < 5; k++) {
+                    if (g_pinAt[k] && nowP >= g_pinAt[k]) {
+                        g_pinAt[k] = 0;
+                        PinGateAll();
+                    }
+                }
+                if (nowP >= pinWatchAt) {
+                    pinWatchAt = nowP + 1500ULL;
+                    PinGateAll();
+                }
+            }
             if (IsWindowVisible(hwnd)) {
                 PollLivePreviewFrame();
                 PollFnBrightness();
@@ -2137,6 +2814,8 @@ static void InitKblPaths(void) {
     _snwprintf(g_showPath,   MAX_PATH, L"%s\\show.flag", g_cfgDir);
     _snwprintf(g_engPidPath, MAX_PATH, L"%s\\engine.pid", g_cfgDir);
     _snwprintf(g_stopPath,   MAX_PATH, L"%s\\stop.flag", g_cfgDir);
+    _snwprintf(g_presetPath, MAX_PATH, L"%s\\presets.json", g_cfgDir);
+    _snwprintf(g_fnStampPath, MAX_PATH, L"%s\\fnstamp.txt", g_cfgDir);
     _snwprintf(g_engineScript, MAX_PATH, L"%s\\Aura-Background.ps1", g_exeDir);
     _snwprintf(g_zonesBat,   MAX_PATH, L"%s\\Zones.bat", g_exeDir);
     if (!FileExistsW(g_zonesBat))
@@ -2192,6 +2871,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     /* Ensure any legacy Tray.ps1 process is cleanly closed before taking over */
     KillPidFromFile(g_lockPath);
     LoadPanelCfg();
+    LoadPresets();
     g_autostart = QueryAutostart();
     WriteHeartbeat();
     PollLivePreviewFrame();
@@ -2228,6 +2908,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     Shell_NotifyIconW(NIM_ADD, &g_nid);
 
     StartEngine();
+    HidOpenAll();
 
     if (!silent) {
         ShowWindow(g_hwnd, SW_SHOWNORMAL);

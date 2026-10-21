@@ -3682,9 +3682,10 @@ try {
     $logDir = Join-Path $stateDir 'logs'
     try { if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null } } catch { }
 }
-$engLog    = Join-Path $logDir 'engine.log'
-$liveFile  = Join-Path $stateDir 'live.txt'
-$themeFile = Join-Path $stateDir 'theme.json'
+$engLog     = Join-Path $logDir 'engine.log'
+$liveFile   = Join-Path $stateDir 'live.txt'
+$themeFile  = Join-Path $stateDir 'theme.json'
+$fnStampFile = Join-Path $stateDir 'fnstamp.txt'
 
 # Same shape as the panel's logger, including the trim: this file is
 # appended to for as long as the engine runs, and without a cap it would
@@ -3701,6 +3702,7 @@ function Write-Log($msg, $level = 'INFO') {
     } catch { }
 }
 $script:SysTick = 0
+$script:GateTick = 0
 $script:LastAc  = $null
 $script:LastPct = 100
 
@@ -3999,21 +4001,36 @@ try {
                 $code = 0
                 try { $code = [int]$ev.SourceEventArgs.NewEvent.EventID } catch { }
                 Remove-Event -EventIdentifier $ev.EventIdentifier -ErrorAction SilentlyContinue
-                switch ($code) {
-                    0xC4 {
-                        Set-Live ($script:LiveLevel + $step)
-                        if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
-                    }
-                    0xC5 {
-                        Set-Live ($script:LiveLevel - $step)
-                        if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
-                    }
-                    0xC7 {
-                        if ($script:LiveLevel -gt 0) {
-                            $script:LastOnLevel = $script:LiveLevel
-                            Set-Live 0
-                        } else {
-                            Set-Live $script:LastOnLevel
+                # One physical press must move the level exactly once. The
+                # same keys also arrive on the app's ASUS HID listener, so
+                # whoever gets there first stamps fnstamp.txt and the other
+                # path stands down instead of double-stepping.
+                $fnNow = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+                $fnDup = $false
+                if (Test-Path $fnStampFile) {
+                    try {
+                        $fnPrev = [long]((Get-Content $fnStampFile -Raw -ErrorAction Stop).Trim())
+                        if ($fnPrev -gt 0 -and ($fnNow - $fnPrev) -lt 200) { $fnDup = $true }
+                    } catch { }
+                }
+                if (-not $fnDup) {
+                    try { Set-Content -Path $fnStampFile -Value $fnNow -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
+                    switch ($code) {
+                        0xC4 {
+                            Set-Live ($script:LiveLevel + $step)
+                            if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                        }
+                        0xC5 {
+                            Set-Live ($script:LiveLevel - $step)
+                            if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                        }
+                        0xC7 {
+                            if ($script:LiveLevel -gt 0) {
+                                $script:LastOnLevel = $script:LiveLevel
+                                Set-Live 0
+                            } else {
+                                Set-Live $script:LastOnLevel
+                            }
                         }
                     }
                 }
@@ -4028,6 +4045,16 @@ try {
                 [void]$script:repairAt.Add([DateTime]::UtcNow.AddMilliseconds(600))
                 $ev = Get-Event -SourceIdentifier 'AuraAtk' -ErrorAction SilentlyContinue
             }
+        }
+
+        # Keep the EC 0..3 backlight gate pinned at full. G-Helper's 4-step
+        # keys and its idle-timeout timer can drop that gate at any moment,
+        # and the smooth master needs the whole range underneath at all
+        # times - so lock it on a slow cycle as well as on every Fn event.
+        $script:GateTick++
+        if ($script:GateTick -ge 25) {
+            $script:GateTick = 0
+            [void](Set-KbdBacklight 3)
         }
 
         # --- panel-written brightness file (kept: the Fn keys use it too) ---
