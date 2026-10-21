@@ -492,9 +492,15 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         core = (ROOT / "bluetooth-guard" / "BluetoothCore.cs").read_text(encoding="utf-8")
         ps = (ROOT / "bluetooth-guard" / "BluetoothGuard.ps1").read_text(encoding="utf-8")
         setup = (ROOT / "bluetooth-guard" / "Setup.ps1").read_text(encoding="utf-8")
+        native_c = (ROOT / "bluetooth-guard" / "src" / "bluetooth_guard.c").read_text(encoding="utf-8")
         self.assertIn("IOCTL_BTH_DISCONNECT_DEVICE = 0x0041000C", core)
         self.assertIn("BluetoothSetServiceState", core)
         self.assertIn("BluetoothEnumerateInstalledServices", core)
+        self.assertNotIn("BLUETOOTH_SERVICE_DISABLE", native_c)
+        self.assertIn("EnsureProfilesEnabled", native_c)
+        self.assertIn("KSPROPERTY_ONESHOT_RECONNECT", native_c)
+        self.assertIn("KSPROPERTY_ONESHOT_DISCONNECT", native_c)
+        self.assertIn("CheckForegroundManualIntent", native_c)
         self.assertIn("CreateRunspace", ps)
         self.assertIn("SessionAllowed", ps)
         self.assertNotIn("$T::", ps, "Never use $Var::Member in PowerShell UI code (breaks Command Mode)")
@@ -505,6 +511,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
 
     def test_project_hub_covers_all_five_projects(self):
         hub = (ROOT / "project-hub" / "ProjectHub.ps1").read_text(encoding="utf-8")
+        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
         setup = (ROOT / "project-hub" / "Setup.ps1").read_text(encoding="utf-8")
         for expected in (
             "Keyboard Lighting",
@@ -514,6 +521,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             "Arena Link",
         ):
             self.assertIn(expected, hub)
+            self.assertIn(expected, hub_c)
         self.assertIn("CreateRunspace", hub)
         self.assertNotIn("$T::", hub, "Never use $Var::Member in PowerShell UI code (breaks Command Mode)")
         self.assertIn("window.ready", hub)

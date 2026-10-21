@@ -4,14 +4,20 @@
 #ifndef _UNICODE
 #define _UNICODE 1
 #endif
+#define COBJMACROS
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <windowsx.h>
 #include <commctrl.h>
 #include <shellapi.h>
 #include <shlobj.h>
+#include <psapi.h>
+#include <mmdeviceapi.h>
+#include <devicetopology.h>
 #include <bluetoothapis.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <wchar.h>
 
 #define APP_TITLE           L"Bluetooth Guard"
@@ -19,19 +25,11 @@
 #define SHOW_EVENT_NAME     L"Local\\Tests_BluetoothGuard_ShowWindow"
 
 #define IOCTL_BTH_DISCONNECT_DEVICE 0x0041000Cu
+#define KSPROPERTY_ONESHOT_RECONNECT  0
+#define KSPROPERTY_ONESHOT_DISCONNECT 1
 
 #define WM_TRAYICON     (WM_APP + 1)
 #define WM_WORKER_DONE  (WM_APP + 2)
-
-#define ID_CHK_GUARD    101
-#define ID_CHK_STARTUP  102
-#define ID_LIST_DEVICES 103
-#define ID_BTN_ALLOW    104
-#define ID_BTN_BLOCK    105
-#define ID_BTN_CONNECT  106
-#define ID_BTN_DISCONN  107
-#define ID_BTN_REFRESH  108
-#define ID_BTN_QUIT     109
 
 #define IDM_TRAY_OPEN   200
 #define IDM_TRAY_PAUSE  201
@@ -39,41 +37,44 @@
 #define IDM_TRAY_DEV0   300
 
 #define MAX_DEVICES     64
+#define MAX_HITBOXES    192
 
-typedef HBLUETOOTH_RADIO_FIND  (WINAPI *PFN_BtFindFirstRadio)(const BLUETOOTH_FIND_RADIO_PARAMS *, HANDLE *);
-typedef BOOL                   (WINAPI *PFN_BtFindNextRadio)(HBLUETOOTH_RADIO_FIND, HANDLE *);
-typedef BOOL                   (WINAPI *PFN_BtFindRadioClose)(HBLUETOOTH_RADIO_FIND);
-typedef HBLUETOOTH_DEVICE_FIND (WINAPI *PFN_BtFindFirstDevice)(const BLUETOOTH_DEVICE_SEARCH_PARAMS *, BLUETOOTH_DEVICE_INFO *);
-typedef BOOL                   (WINAPI *PFN_BtFindNextDevice)(HBLUETOOTH_DEVICE_FIND, BLUETOOTH_DEVICE_INFO *);
-typedef BOOL                   (WINAPI *PFN_BtFindDeviceClose)(HBLUETOOTH_DEVICE_FIND);
-typedef DWORD                  (WINAPI *PFN_BtEnumServices)(HANDLE, const BLUETOOTH_DEVICE_INFO *, DWORD *, GUID *);
-typedef DWORD                  (WINAPI *PFN_BtSetServiceState)(HANDLE, const BLUETOOTH_DEVICE_INFO *, const GUID *, DWORD);
+/* Theme palette (matches Project Hub & Keyboard Lighting) */
+#define COL_BG          RGB(18, 20, 28)
+#define COL_CARD        RGB(27, 31, 44)
+#define COL_CARD_HOVER  RGB(32, 37, 52)
+#define COL_BORDER      RGB(44, 51, 70)
+#define COL_TEXT        RGB(240, 243, 250)
+#define COL_MUTED       RGB(142, 152, 178)
+#define COL_PRIMARY     RGB(37, 99, 235)
+#define COL_PRIMARY_HOV RGB(59, 130, 246)
+#define COL_SEC_BTN     RGB(38, 44, 62)
+#define COL_SEC_HOV     RGB(50, 58, 82)
+#define COL_DANGER      RGB(185, 28, 28)
+#define COL_DANGER_HOV  RGB(220, 38, 38)
+#define COL_GOOD        RGB(52, 211, 153)
+#define COL_GOOD_BG     RGB(22, 58, 48)
+#define COL_WARN        RGB(251, 191, 36)
+#define COL_WARN_BG     RGB(62, 50, 24)
+#define COL_ACCENT      RGB(96, 165, 250)
+#define COL_ACCENT_BG   RGB(26, 48, 78)
+#define COL_PILL_MUTED  RGB(36, 41, 56)
 
-static PFN_BtFindFirstRadio   pBtFindFirstRadio   = NULL;
-static PFN_BtFindNextRadio    pBtFindNextRadio    = NULL;
-static PFN_BtFindRadioClose   pBtFindRadioClose   = NULL;
-static PFN_BtFindFirstDevice  pBtFindFirstDevice  = NULL;
-static PFN_BtFindNextDevice   pBtFindNextDevice   = NULL;
-static PFN_BtFindDeviceClose  pBtFindDeviceClose  = NULL;
-static PFN_BtEnumServices     pBtEnumServices     = NULL;
-static PFN_BtSetServiceState  pBtSetServiceState  = NULL;
+enum HitKind {
+    HIT_NONE = 0,
+    HIT_TOGGLE_GUARD,
+    HIT_TOGGLE_STARTUP,
+    HIT_BTN_REFRESH,
+    HIT_BTN_QUIT,
+    HIT_DEV_AUTO_TOGGLE,
+    HIT_DEV_CONNECT_BTN
+};
 
-static BOOL InitBluetoothApis(void) {
-    HMODULE m = LoadLibraryW(L"BluetoothAPIs.dll");
-    if (!m) m = LoadLibraryW(L"bthprops.cpl");
-    if (!m) return FALSE;
-    pBtFindFirstRadio  = (PFN_BtFindFirstRadio)(void *)GetProcAddress(m, "BluetoothFindFirstRadio");
-    pBtFindNextRadio   = (PFN_BtFindNextRadio)(void *)GetProcAddress(m, "BluetoothFindNextRadio");
-    pBtFindRadioClose  = (PFN_BtFindRadioClose)(void *)GetProcAddress(m, "BluetoothFindRadioClose");
-    pBtFindFirstDevice = (PFN_BtFindFirstDevice)(void *)GetProcAddress(m, "BluetoothFindFirstDevice");
-    pBtFindNextDevice  = (PFN_BtFindNextDevice)(void *)GetProcAddress(m, "BluetoothFindNextDevice");
-    pBtFindDeviceClose = (PFN_BtFindDeviceClose)(void *)GetProcAddress(m, "BluetoothFindDeviceClose");
-    pBtEnumServices    = (PFN_BtEnumServices)(void *)GetProcAddress(m, "BluetoothEnumerateInstalledServices");
-    pBtSetServiceState = (PFN_BtSetServiceState)(void *)GetProcAddress(m, "BluetoothSetServiceState");
-    return (pBtFindFirstRadio && pBtFindNextRadio && pBtFindRadioClose &&
-            pBtFindFirstDevice && pBtFindNextDevice && pBtFindDeviceClose &&
-            pBtEnumServices && pBtSetServiceState);
-}
+typedef struct {
+    RECT rect;
+    int  kind;
+    int  index;
+} HitBox;
 
 typedef struct {
     ULONGLONG address;
@@ -84,67 +85,85 @@ typedef struct {
     BOOL      allowAuto;
     BOOL      sessionAllowed;
     BOOL      seenConnected;
-    BOOL      enforcedIdle;
+    BOOL      profilesRepaired;
     ULONGLONG sessionStartTick;
 } DeviceEntry;
 
 typedef struct {
-    int       op; /* 1 = block+disconnect, 2 = enable+connect */
+    int       op; /* 1 = disconnect now, 2 = connect now */
     ULONGLONG address;
+    wchar_t   mac[24];
     wchar_t   kind[16];
     wchar_t   name[128];
 } WorkItem;
+
+typedef HBLUETOOTH_RADIO_FIND  (WINAPI *PFN_BtFindFirstRadio)(const BLUETOOTH_FIND_RADIO_PARAMS *, HANDLE *);
+typedef BOOL                   (WINAPI *PFN_BtFindNextRadio)(HBLUETOOTH_RADIO_FIND, HANDLE *);
+typedef BOOL                   (WINAPI *PFN_BtFindRadioClose)(HBLUETOOTH_RADIO_FIND);
+typedef HBLUETOOTH_DEVICE_FIND (WINAPI *PFN_BtFindFirstDevice)(const BLUETOOTH_DEVICE_SEARCH_PARAMS *, BLUETOOTH_DEVICE_INFO *);
+typedef BOOL                   (WINAPI *PFN_BtFindNextDevice)(HBLUETOOTH_DEVICE_FIND, BLUETOOTH_DEVICE_INFO *);
+typedef BOOL                   (WINAPI *PFN_BtFindDeviceClose)(HBLUETOOTH_DEVICE_FIND);
+typedef DWORD                  (WINAPI *PFN_BtSetServiceState)(HANDLE, const BLUETOOTH_DEVICE_INFO *, const GUID *, DWORD);
+typedef UINT                   (WINAPI *PFN_GetDpiForWindow)(HWND);
+typedef HRESULT                (WINAPI *PFN_DwmSetWindowAttribute)(HWND, DWORD, LPCVOID, DWORD);
+
+static PFN_BtFindFirstRadio   pBtFindFirstRadio   = NULL;
+static PFN_BtFindNextRadio    pBtFindNextRadio    = NULL;
+static PFN_BtFindRadioClose   pBtFindRadioClose   = NULL;
+static PFN_BtFindFirstDevice  pBtFindFirstDevice  = NULL;
+static PFN_BtFindNextDevice   pBtFindNextDevice   = NULL;
+static PFN_BtFindDeviceClose  pBtFindDeviceClose  = NULL;
+static PFN_BtSetServiceState  pBtSetServiceState  = NULL;
 
 static const GUID kGuidAudioSink      = {0x0000110B, 0x0000, 0x1000, {0x80,0x00,0x00,0x80,0x5F,0x9B,0x34,0xFB}};
 static const GUID kGuidAvRemoteTarget = {0x0000110C, 0x0000, 0x1000, {0x80,0x00,0x00,0x80,0x5F,0x9B,0x34,0xFB}};
 static const GUID kGuidAvRemote       = {0x0000110E, 0x0000, 0x1000, {0x80,0x00,0x00,0x80,0x5F,0x9B,0x34,0xFB}};
 static const GUID kGuidHeadset        = {0x00001108, 0x0000, 0x1000, {0x80,0x00,0x00,0x80,0x5F,0x9B,0x34,0xFB}};
 static const GUID kGuidHandsfree      = {0x0000111E, 0x0000, 0x1000, {0x80,0x00,0x00,0x80,0x5F,0x9B,0x34,0xFB}};
-static const GUID kGuidGenericAudio   = {0x00001203, 0x0000, 0x1000, {0x80,0x00,0x00,0x80,0x5F,0x9B,0x34,0xFB}};
 static const GUID kGuidHid            = {0x00001124, 0x0000, 0x1000, {0x80,0x00,0x00,0x80,0x5F,0x9B,0x34,0xFB}};
 
-static HWND             g_hwnd      = NULL;
-static HWND             g_lblStatus = NULL;
-static HWND             g_lblHint   = NULL;
-static HWND             g_chkGuard  = NULL;
-static HWND             g_chkStart  = NULL;
-static HWND             g_list      = NULL;
-static HWND             g_btnAllow  = NULL;
-static HWND             g_btnBlock  = NULL;
-static HWND             g_btnConn   = NULL;
-static HWND             g_btnDisc   = NULL;
-static HWND             g_btnRef    = NULL;
-static HWND             g_btnQuit   = NULL;
-static HFONT            g_fontTitle = NULL;
-static HFONT            g_fontBody  = NULL;
-static HFONT            g_fontBold  = NULL;
-static HICON            g_appIcon   = NULL;
+/* Windows KSPROPSETID_BtAudio = {7FA06C40-B8F6-4C7E-8556-E8C33A12E54D} */
+static const GUID kKsPropSetBtAudio   = {0x7FA06C40, 0xB8F6, 0x4C7E, {0x85,0x56,0xE8,0xC3,0x3A,0x12,0xE5,0x4D}};
+static const CLSID kClsidMMDevEnum    = {0xBCDE0395, 0xE52F, 0x467C, {0x8E,0x3D,0xC4,0x57,0x92,0x91,0x69,0x2E}};
+static const IID   kIidIMMDevEnum     = {0xA95664D2, 0x9614, 0x4F35, {0xA7,0x46,0xDE,0x8D,0xB6,0x36,0x17,0xE6}};
+static const IID   kIidIDeviceTopo    = {0x2A07407E, 0x6497, 0x4A18, {0x97,0x87,0x32,0xF7,0x9B,0xD0,0xD9,0x8F}};
+static const IID   kIidIKsControl     = {0x28F54685, 0x06FD, 0x11D2, {0xB2,0x7A,0x00,0xA0,0xC9,0x22,0x31,0x96}};
+
+static HWND             g_hwnd       = NULL;
+static HICON            g_appIcon    = NULL;
 static NOTIFYICONDATAW  g_nid;
-static BOOL             g_quitting  = FALSE;
-static BOOL             g_guardOn   = TRUE;
-static BOOL             g_radioOn   = TRUE;
-static BOOL             g_trayHinted= FALSE;
-static HANDLE           g_showEvent = NULL;
+static BOOL             g_quitting   = FALSE;
+static BOOL             g_guardOn    = TRUE;
+static BOOL             g_autostart  = FALSE;
+static BOOL             g_radioOn    = TRUE;
+static BOOL             g_trayHinted = FALSE;
+static HANDLE           g_showEvent  = NULL;
 static CRITICAL_SECTION g_lock;
 
 static DeviceEntry      g_devices[MAX_DEVICES];
-static int              g_devCount  = 0;
+static int              g_devCount   = 0;
+
+static HitBox           g_hits[MAX_HITBOXES];
+static int              g_hitCount   = 0;
+static int              g_hoverIdx   = -1;
+static int              g_scrollY    = 0;
+static int              g_contentH   = 0;
+
+static ULONGLONG        g_manualGraceUntil = 0;
 
 static WorkItem         g_queue[64];
-static int              g_qHead     = 0;
-static int              g_qTail     = 0;
-static HANDLE           g_qSem      = NULL;
-static volatile LONG    g_workerRun = 1;
+static int              g_qHead      = 0;
+static int              g_qTail      = 0;
+static HANDLE           g_qSem       = NULL;
+static volatile LONG    g_workerRun  = 1;
 static wchar_t          g_cfgDir[MAX_PATH];
 static wchar_t          g_rulesPath[MAX_PATH];
 static wchar_t          g_lockPath[MAX_PATH];
 
-typedef UINT (WINAPI *PFN_GetDpiForWindow)(HWND);
-
-static int GetWindowDpi(HWND hwnd) {
-    HMODULE user32 = GetModuleHandleW(L"user32.dll");
-    if (user32) {
-        PFN_GetDpiForWindow fn = (PFN_GetDpiForWindow)(void *)GetProcAddress(user32, "GetDpiForWindow");
+static int GetWinDpi(HWND hwnd) {
+    HMODULE u32 = GetModuleHandleW(L"user32.dll");
+    if (u32) {
+        PFN_GetDpiForWindow fn = (PFN_GetDpiForWindow)(void *)GetProcAddress(u32, "GetDpiForWindow");
         if (fn && hwnd) {
             UINT d = fn(hwnd);
             if (d >= 96) return (int)d;
@@ -158,6 +177,37 @@ static int GetWindowDpi(HWND hwnd) {
 
 static int S(int px, int dpi) { return MulDiv(px, dpi, 96); }
 
+static void ApplyModernWindowFrame(HWND hwnd) {
+    HMODULE dwm = LoadLibraryW(L"dwmapi.dll");
+    if (!dwm) return;
+    PFN_DwmSetWindowAttribute setAttr =
+        (PFN_DwmSetWindowAttribute)(void *)GetProcAddress(dwm, "DwmSetWindowAttribute");
+    if (setAttr) {
+        BOOL dark = TRUE;
+        DWORD roundPref = 2; /* DWMWCP_ROUND */
+        COLORREF captionCol = COL_BG;
+        setAttr(hwnd, 20, &dark, sizeof(dark));
+        setAttr(hwnd, 33, &roundPref, sizeof(roundPref));
+        setAttr(hwnd, 35, &captionCol, sizeof(captionCol));
+    }
+    FreeLibrary(dwm);
+}
+
+static BOOL InitBluetoothApis(void) {
+    HMODULE m = LoadLibraryW(L"BluetoothAPIs.dll");
+    if (!m) m = LoadLibraryW(L"bthprops.cpl");
+    if (!m) return FALSE;
+    pBtFindFirstRadio  = (PFN_BtFindFirstRadio)(void *)GetProcAddress(m, "BluetoothFindFirstRadio");
+    pBtFindNextRadio   = (PFN_BtFindNextRadio)(void *)GetProcAddress(m, "BluetoothFindNextRadio");
+    pBtFindRadioClose  = (PFN_BtFindRadioClose)(void *)GetProcAddress(m, "BluetoothFindRadioClose");
+    pBtFindFirstDevice = (PFN_BtFindFirstDevice)(void *)GetProcAddress(m, "BluetoothFindFirstDevice");
+    pBtFindNextDevice  = (PFN_BtFindNextDevice)(void *)GetProcAddress(m, "BluetoothFindNextDevice");
+    pBtFindDeviceClose = (PFN_BtFindDeviceClose)(void *)GetProcAddress(m, "BluetoothFindDeviceClose");
+    pBtSetServiceState = (PFN_BtSetServiceState)(void *)GetProcAddress(m, "BluetoothSetServiceState");
+    return (pBtFindFirstRadio && pBtFindNextRadio && pBtFindRadioClose &&
+            pBtFindFirstDevice && pBtFindNextDevice && pBtFindDeviceClose && pBtSetServiceState);
+}
+
 static void FormatMac(ULONGLONG addr, wchar_t *out, size_t cap) {
     _snwprintf(out, cap, L"%02X:%02X:%02X:%02X:%02X:%02X",
         (unsigned)((addr >> 40) & 0xFF), (unsigned)((addr >> 32) & 0xFF),
@@ -166,40 +216,54 @@ static void FormatMac(ULONGLONG addr, wchar_t *out, size_t cap) {
     out[cap - 1] = L'\0';
 }
 
-static BOOL ContainsCaseInsensitive(const wchar_t *haystack, const wchar_t *needle) {
-    size_t nh = wcslen(haystack), nn = wcslen(needle);
+static void FormatCompactHex(ULONGLONG addr, wchar_t *out, size_t cap) {
+    _snwprintf(out, cap, L"%012llX", addr);
+    out[cap - 1] = L'\0';
+}
+
+static BOOL ContainsCI(const wchar_t *hay, const wchar_t *needle) {
+    size_t nh = wcslen(hay), nn = wcslen(needle);
     if (nn == 0 || nn > nh) return FALSE;
     for (size_t i = 0; i + nn <= nh; i++) {
-        if (_wcsnicmp(haystack + i, needle, nn) == 0) return TRUE;
+        if (_wcsnicmp(hay + i, needle, nn) == 0) return TRUE;
     }
     return FALSE;
+}
+
+/* Detect when the user is actively clicking inside Windows Settings or Windows 11 Quick Settings flyout */
+static void CheckForegroundManualIntent(void) {
+    HWND fg = GetForegroundWindow();
+    if (!fg) return;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(fg, &pid);
+    if (!pid) return;
+    HANDLE hp = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!hp) return;
+    wchar_t img[MAX_PATH] = L"";
+    DWORD sz = MAX_PATH;
+    if (QueryFullProcessImageNameW(hp, 0, img, &sz)) {
+        if (ContainsCI(img, L"SystemSettings.exe") ||
+            ContainsCI(img, L"ShellExperienceHost.exe")) {
+            /* User opened Windows Settings or Quick Settings panel — allow manual connects! */
+            g_manualGraceUntil = GetTickCount64() + 25000ULL;
+        }
+    }
+    CloseHandle(hp);
 }
 
 static void ClassifyDevice(ULONG cod, const wchar_t *name, wchar_t *out, size_t cap) {
     ULONG major = (cod >> 8) & 0x1F;
     BOOL audioSvc = ((cod & (1u << 21)) != 0) || (major == 0x04);
-    if (audioSvc ||
-        ContainsCaseInsensitive(name, L"airpod") ||
-        ContainsCaseInsensitive(name, L"buds") ||
-        ContainsCaseInsensitive(name, L"earbud") ||
-        ContainsCaseInsensitive(name, L"headphone") ||
-        ContainsCaseInsensitive(name, L"headset") ||
-        ContainsCaseInsensitive(name, L"sony") ||
-        ContainsCaseInsensitive(name, L"bose") ||
-        ContainsCaseInsensitive(name, L"beats") ||
-        ContainsCaseInsensitive(name, L"jbl") ||
-        ContainsCaseInsensitive(name, L"speaker") ||
-        ContainsCaseInsensitive(name, L"xm4") ||
-        ContainsCaseInsensitive(name, L"xm5") ||
-        ContainsCaseInsensitive(name, L"soundcore") ||
-        ContainsCaseInsensitive(name, L"sennheiser")) {
+    if (audioSvc || ContainsCI(name, L"airpod") || ContainsCI(name, L"buds") ||
+        ContainsCI(name, L"earbud") || ContainsCI(name, L"headphone") ||
+        ContainsCI(name, L"headset") || ContainsCI(name, L"sony") ||
+        ContainsCI(name, L"bose") || ContainsCI(name, L"beats") ||
+        ContainsCI(name, L"jbl") || ContainsCI(name, L"speaker") ||
+        ContainsCI(name, L"xm4") || ContainsCI(name, L"xm5") ||
+        ContainsCI(name, L"soundcore") || ContainsCI(name, L"sennheiser")) {
         wcsncpy(out, L"Audio", cap - 1);
-    } else if (major == 0x05 ||
-               ContainsCaseInsensitive(name, L"mouse") ||
-               ContainsCaseInsensitive(name, L"keyboard") ||
-               ContainsCaseInsensitive(name, L"controller") ||
-               ContainsCaseInsensitive(name, L"xbox") ||
-               ContainsCaseInsensitive(name, L"dualsense")) {
+    } else if (major == 0x05 || ContainsCI(name, L"mouse") || ContainsCI(name, L"keyboard") ||
+               ContainsCI(name, L"controller") || ContainsCI(name, L"xbox") || ContainsCI(name, L"dualsense")) {
         wcsncpy(out, L"Input", cap - 1);
     } else if (major == 0x02) {
         wcsncpy(out, L"Phone", cap - 1);
@@ -209,11 +273,156 @@ static void ClassifyDevice(ULONG cod, const wchar_t *name, wchar_t *out, size_t 
     out[cap - 1] = L'\0';
 }
 
+/* Keep Windows Bluetooth service profiles ENABLED so manual Connect in Windows Settings ALWAYS works! */
+static void EnsureProfilesEnabled(ULONGLONG address, const wchar_t *kind) {
+    if (!pBtSetServiceState) return;
+    BLUETOOTH_DEVICE_INFO bdi;
+    ZeroMemory(&bdi, sizeof(bdi));
+    bdi.dwSize = sizeof(bdi);
+    bdi.Address.ullLong = address;
+
+    if (_wcsicmp(kind, L"Input") == 0) {
+        pBtSetServiceState(NULL, &bdi, &kGuidHid, BLUETOOTH_SERVICE_ENABLE);
+    } else {
+        const GUID *audio[5] = {
+            &kGuidAudioSink, &kGuidHandsfree, &kGuidHeadset, &kGuidAvRemoteTarget, &kGuidAvRemote
+        };
+        for (int i = 0; i < 5; i++) {
+            pBtSetServiceState(NULL, &bdi, audio[i], BLUETOOTH_SERVICE_ENABLE);
+        }
+    }
+}
+
+/* Match endpoint adapter friendly name (covers HFP / LE Audio when PnP ID lacks classic hex MAC) */
+static BOOL EndpointMatchesName(IMMDevice *pDev, const wchar_t *devName) {
+    if (!pDev || !devName || !devName[0]) return FALSE;
+    static const PROPERTYKEY kPkeyDevIfaceFriendly = {
+        { 0x026e516e, 0xb814, 0x414b, { 0x83, 0xcd, 0x85, 0x6d, 0x6f, 0xef, 0x48, 0x22 } }, 2
+    };
+    IPropertyStore *pProps = NULL;
+    BOOL match = FALSE;
+    if (SUCCEEDED(pDev->lpVtbl->OpenPropertyStore(pDev, STGM_READ, &pProps)) && pProps) {
+        PROPVARIANT pv;
+        PropVariantInit(&pv);
+        if (SUCCEEDED(pProps->lpVtbl->GetValue(pProps, &kPkeyDevIfaceFriendly, &pv))) {
+            if (pv.vt == VT_LPWSTR && pv.pwszVal && _wcsicmp(pv.pwszVal, devName) == 0) {
+                match = TRUE;
+            }
+            PropVariantClear(&pv);
+        }
+        pProps->lpVtbl->Release(pProps);
+    }
+    return match;
+}
+
+/* Native Windows KSPROPERTY_ONESHOT_RECONNECT / DISCONNECT — exact API used by Windows 11 Settings! */
+static BOOL TriggerBtAudioKsProperty(ULONGLONG address, const wchar_t *devName, ULONG propId) {
+    wchar_t hexAddr[20];
+    FormatCompactHex(address, hexAddr, 20);
+
+    IMMDeviceEnumerator *pEnum = NULL;
+    HRESULT hr = CoCreateInstance(&kClsidMMDevEnum, NULL, CLSCTX_INPROC_SERVER,
+                                  &kIidIMMDevEnum, (void **)&pEnum);
+    if (FAILED(hr) || !pEnum) return FALSE;
+
+    IMMDeviceCollection *pCol = NULL;
+    BOOL triggered = FALSE;
+    if (SUCCEEDED(IMMDeviceEnumerator_EnumAudioEndpoints(
+            pEnum, eAll, DEVICE_STATE_ACTIVE | DEVICE_STATE_UNPLUGGED, &pCol)) && pCol) {
+        UINT count = 0;
+        IMMDeviceCollection_GetCount(pCol, &count);
+        for (UINT i = 0; i < count; i++) {
+            IMMDevice *pDev = NULL;
+            if (FAILED(IMMDeviceCollection_Item(pCol, i, &pDev)) || !pDev) continue;
+
+            IDeviceTopology *pTopo = NULL;
+            if (SUCCEEDED(IMMDevice_Activate(pDev, &kIidIDeviceTopo, CLSCTX_INPROC_SERVER,
+                                             NULL, (void **)&pTopo)) && pTopo) {
+                IConnector *pConnFrom = NULL;
+                if (SUCCEEDED(IDeviceTopology_GetConnector(pTopo, 0, &pConnFrom)) && pConnFrom) {
+                    IConnector *pConnTo = NULL;
+                    if (SUCCEEDED(IConnector_GetConnectedTo(pConnFrom, &pConnTo)) && pConnTo) {
+                        static const GUID kIidIPart = {
+                            0xae2de0e4, 0x5bca, 0x4f2d, { 0xaa, 0x46, 0x5d, 0x13, 0xf8, 0xfd, 0xb3, 0xa9 }
+                        };
+                        IPart *pPart = NULL;
+                        if (SUCCEEDED(IConnector_QueryInterface(pConnTo, &kIidIPart, (void **)&pPart)) && pPart) {
+                            IDeviceTopology *pPeerTopo = NULL;
+                            if (SUCCEEDED(IPart_GetTopologyObjects(pPart, &pPeerTopo)) && pPeerTopo) {
+                                LPWSTR devId = NULL;
+                                if (SUCCEEDED(IDeviceTopology_GetDeviceId(pPeerTopo, &devId)) && devId) {
+                                    if (ContainsCI(devId, hexAddr) || EndpointMatchesName(pDev, devName)) {
+                                        IKsControl *pKs = NULL;
+                                        if (SUCCEEDED(IDeviceTopology_QueryInterface(
+                                                pPeerTopo, &kIidIKsControl, (void **)&pKs)) && pKs) {
+                                            KSPROPERTY prop;
+                                            ZeroMemory(&prop, sizeof(prop));
+                                            prop.Set  = kKsPropSetBtAudio;
+                                            prop.Id   = propId;
+                                            prop.Flags = KSPROPERTY_TYPE_GET;
+                                            ULONG bytesRet = 0;
+                                            if (SUCCEEDED(IKsControl_KsProperty(
+                                                    pKs, &prop, sizeof(prop), NULL, 0, &bytesRet))) {
+                                                triggered = TRUE;
+                                            }
+                                            IKsControl_Release(pKs);
+                                        }
+                                    }
+                                    CoTaskMemFree(devId);
+                                }
+                                IDeviceTopology_Release(pPeerTopo);
+                            }
+                            IPart_Release(pPart);
+                        }
+                        IConnector_Release(pConnTo);
+                    }
+                    IConnector_Release(pConnFrom);
+                }
+                IDeviceTopology_Release(pTopo);
+            }
+            IMMDevice_Release(pDev);
+        }
+        IMMDeviceCollection_Release(pCol);
+    }
+    IMMDeviceEnumerator_Release(pEnum);
+    return triggered;
+}
+
+/* Disconnect active link cleanly WITHOUT disabling Bluetooth profiles! */
+static void DoDisconnectOnly(ULONGLONG address, const wchar_t *kind, const wchar_t *name) {
+    (void)kind;
+    TriggerBtAudioKsProperty(address, name, KSPROPERTY_ONESHOT_DISCONNECT);
+
+    if (!pBtFindFirstRadio) return;
+    BLUETOOTH_FIND_RADIO_PARAMS rp;
+    rp.dwSize = sizeof(rp);
+    HANDLE hRadio = NULL;
+    HBLUETOOTH_RADIO_FIND hFind = pBtFindFirstRadio(&rp, &hRadio);
+    if (hFind) {
+        do {
+            if (hRadio) {
+                ULONGLONG addr = address;
+                DWORD ret = 0;
+                DeviceIoControl(hRadio, IOCTL_BTH_DISCONNECT_DEVICE, &addr, sizeof(addr),
+                                NULL, 0, &ret, NULL);
+                CloseHandle(hRadio);
+                hRadio = NULL;
+            }
+        } while (pBtFindNextRadio(hFind, &hRadio));
+        pBtFindRadioClose(hFind);
+    }
+}
+
+/* Actively connect device right now! */
+static void DoConnectNow(ULONGLONG address, const wchar_t *kind, const wchar_t *name) {
+    EnsureProfilesEnabled(address, kind);
+    TriggerBtAudioKsProperty(address, name, KSPROPERTY_ONESHOT_RECONNECT);
+}
+
 static void InitPaths(void) {
     wchar_t localApp[MAX_PATH] = L"";
-    if (FAILED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, localApp))) {
+    if (FAILED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, localApp)))
         GetEnvironmentVariableW(L"LOCALAPPDATA", localApp, MAX_PATH);
-    }
     _snwprintf(g_cfgDir, MAX_PATH, L"%s\\BluetoothGuard", localApp);
     CreateDirectoryW(g_cfgDir, NULL);
     _snwprintf(g_rulesPath, MAX_PATH, L"%s\\rules.txt", g_cfgDir);
@@ -239,6 +448,34 @@ static void WriteHeartbeat(void) {
         WriteFile(hf, buf, (DWORD)len, &wr, NULL);
         CloseHandle(hf);
     }
+}
+
+static BOOL IsAutostartEnabled(void) {
+    HKEY hk = NULL;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                      0, KEY_READ, &hk) != ERROR_SUCCESS) return FALSE;
+    wchar_t val[512];
+    DWORD sz = sizeof(val), type = 0;
+    LONG rc = RegQueryValueExW(hk, L"BluetoothGuard", NULL, &type, (LPBYTE)val, &sz);
+    RegCloseKey(hk);
+    return (rc == ERROR_SUCCESS && sz > 4);
+}
+
+static void SetAutostart(BOOL enable) {
+    HKEY hk = NULL;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                      0, KEY_SET_VALUE, &hk) != ERROR_SUCCESS) return;
+    if (!enable) {
+        RegDeleteValueW(hk, L"BluetoothGuard");
+    } else {
+        wchar_t exe[MAX_PATH], cmd[MAX_PATH + 32];
+        GetModuleFileNameW(NULL, exe, MAX_PATH);
+        _snwprintf(cmd, MAX_PATH + 32, L"\"%s\" --silent", exe);
+        RegSetValueExW(hk, L"BluetoothGuard", 0, REG_SZ,
+                       (const BYTE *)cmd, (DWORD)((wcslen(cmd) + 1) * sizeof(wchar_t)));
+    }
+    RegCloseKey(hk);
+    g_autostart = enable;
 }
 
 static void SaveRules(void) {
@@ -271,18 +508,10 @@ static void LoadRules(void) {
             g_guardOn = (_wtoi(line + 6) != 0);
             continue;
         }
-        wchar_t *p1 = wcschr(line, L'|');
-        if (!p1) continue;
-        *p1++ = L'\0';
-        wchar_t *p2 = wcschr(p1, L'|');
-        if (!p2) continue;
-        *p2++ = L'\0';
-        wchar_t *p3 = wcschr(p2, L'|');
-        if (!p3) continue;
-        *p3++ = L'\0';
-        wchar_t *p4 = wcschr(p3, L'|');
-        if (!p4) continue;
-        *p4++ = L'\0';
+        wchar_t *p1 = wcschr(line, L'|'); if (!p1) continue; *p1++ = L'\0';
+        wchar_t *p2 = wcschr(p1, L'|');   if (!p2) continue; *p2++ = L'\0';
+        wchar_t *p3 = wcschr(p2, L'|');   if (!p3) continue; *p3++ = L'\0';
+        wchar_t *p4 = wcschr(p3, L'|');   if (!p4) continue; *p4++ = L'\0';
 
         if (g_devCount < MAX_DEVICES) {
             DeviceEntry *d = &g_devices[g_devCount++];
@@ -298,101 +527,14 @@ static void LoadRules(void) {
     fclose(fp);
 }
 
-static BOOL IsAutostartEnabled(void) {
-    HKEY hk = NULL;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-                      0, KEY_READ, &hk) != ERROR_SUCCESS) return FALSE;
-    wchar_t val[512];
-    DWORD sz = sizeof(val), type = 0;
-    LONG rc = RegQueryValueExW(hk, L"BluetoothGuard", NULL, &type, (LPBYTE)val, &sz);
-    RegCloseKey(hk);
-    return (rc == ERROR_SUCCESS && sz > 4);
-}
-
-static void SetAutostart(BOOL enable) {
-    HKEY hk = NULL;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-                      0, KEY_SET_VALUE, &hk) != ERROR_SUCCESS) return;
-    if (!enable) {
-        RegDeleteValueW(hk, L"BluetoothGuard");
-    } else {
-        wchar_t exe[MAX_PATH], cmd[MAX_PATH + 32];
-        GetModuleFileNameW(NULL, exe, MAX_PATH);
-        _snwprintf(cmd, MAX_PATH + 32, L"\"%s\" --silent", exe);
-        RegSetValueExW(hk, L"BluetoothGuard", 0, REG_SZ,
-                       (const BYTE *)cmd, (DWORD)((wcslen(cmd) + 1) * sizeof(wchar_t)));
-    }
-    RegCloseKey(hk);
-}
-
-static void DoBlockAndDisconnect(ULONGLONG address, const wchar_t *kind) {
-    if (!pBtSetServiceState) return;
-    BLUETOOTH_DEVICE_INFO bdi;
-    ZeroMemory(&bdi, sizeof(bdi));
-    bdi.dwSize = sizeof(bdi);
-    bdi.Address.ullLong = address;
-
-    GUID installed[16];
-    DWORD count = 16;
-    if (pBtEnumServices(NULL, &bdi, &count, installed) == ERROR_SUCCESS) {
-        for (DWORD i = 0; i < count && i < 16; i++) {
-            pBtSetServiceState(NULL, &bdi, &installed[i], BLUETOOTH_SERVICE_DISABLE);
-        }
-    }
-
-    const GUID *stdGuids[7] = {
-        &kGuidAudioSink, &kGuidHandsfree, &kGuidHeadset,
-        &kGuidAvRemoteTarget, &kGuidAvRemote, &kGuidGenericAudio, &kGuidHid
-    };
-    int limit = (_wcsicmp(kind, L"Input") == 0) ? 7 : 6;
-    for (int i = 0; i < limit; i++) {
-        pBtSetServiceState(NULL, &bdi, stdGuids[i], BLUETOOTH_SERVICE_DISABLE);
-    }
-
-    BLUETOOTH_FIND_RADIO_PARAMS rp;
-    rp.dwSize = sizeof(rp);
-    HANDLE hRadio = NULL;
-    HBLUETOOTH_RADIO_FIND hFind = pBtFindFirstRadio(&rp, &hRadio);
-    if (hFind) {
-        do {
-            if (hRadio) {
-                ULONGLONG addr = address;
-                DWORD ret = 0;
-                DeviceIoControl(hRadio, IOCTL_BTH_DISCONNECT_DEVICE, &addr, sizeof(addr),
-                                NULL, 0, &ret, NULL);
-                CloseHandle(hRadio);
-                hRadio = NULL;
-            }
-        } while (pBtFindNextRadio(hFind, &hRadio));
-        pBtFindRadioClose(hFind);
-    }
-}
-
-static void DoEnableAndConnect(ULONGLONG address, const wchar_t *kind) {
-    if (!pBtSetServiceState) return;
-    BLUETOOTH_DEVICE_INFO bdi;
-    ZeroMemory(&bdi, sizeof(bdi));
-    bdi.dwSize = sizeof(bdi);
-    bdi.Address.ullLong = address;
-
-    if (_wcsicmp(kind, L"Input") == 0) {
-        pBtSetServiceState(NULL, &bdi, &kGuidHid, BLUETOOTH_SERVICE_ENABLE);
-    } else {
-        const GUID *audio[5] = {
-            &kGuidAudioSink, &kGuidHandsfree, &kGuidHeadset, &kGuidAvRemoteTarget, &kGuidAvRemote
-        };
-        for (int i = 0; i < 5; i++) {
-            pBtSetServiceState(NULL, &bdi, audio[i], BLUETOOTH_SERVICE_ENABLE);
-        }
-    }
-}
-
-static void EnqueueWork(int op, ULONGLONG address, const wchar_t *kind, const wchar_t *name) {
+static void EnqueueWork(int op, ULONGLONG address, const wchar_t *mac,
+                        const wchar_t *kind, const wchar_t *name) {
     EnterCriticalSection(&g_lock);
     int next = (g_qTail + 1) % 64;
     if (next != g_qHead) {
         g_queue[g_qTail].op = op;
         g_queue[g_qTail].address = address;
+        wcsncpy(g_queue[g_qTail].mac, mac ? mac : L"", 23);
         wcsncpy(g_queue[g_qTail].kind, kind ? kind : L"Audio", 15);
         wcsncpy(g_queue[g_qTail].name, name ? name : L"", 127);
         g_qTail = next;
@@ -401,13 +543,18 @@ static void EnqueueWork(int op, ULONGLONG address, const wchar_t *kind, const wc
     LeaveCriticalSection(&g_lock);
 }
 
-static void PollPairedDevices(BOOL forceRelock) {
+static void PollPairedDevices(void) {
     if (!pBtFindFirstRadio || !pBtFindFirstDevice) {
         EnterCriticalSection(&g_lock);
         g_radioOn = FALSE;
         LeaveCriticalSection(&g_lock);
         return;
     }
+
+    CheckForegroundManualIntent();
+    ULONGLONG nowTick = GetTickCount64();
+    BOOL inWindowsManualUi = (nowTick < g_manualGraceUntil);
+
     BLUETOOTH_FIND_RADIO_PARAMS rp;
     rp.dwSize = sizeof(rp);
     HANDLE hRadio = NULL;
@@ -424,8 +571,6 @@ static void PollPairedDevices(BOOL forceRelock) {
     sp.fReturnAuthenticated = TRUE;
     sp.fReturnRemembered = TRUE;
     sp.fReturnConnected = TRUE;
-    sp.fReturnUnknown = FALSE;
-    sp.fIssueInquiry = FALSE;
 
     BLUETOOTH_DEVICE_INFO info;
     ZeroMemory(&info, sizeof(info));
@@ -460,31 +605,43 @@ static void PollPairedDevices(BOOL forceRelock) {
                     wcsncpy(d->kind, kind, 15);
                     d->connected = info.fConnected ? TRUE : FALSE;
 
+                    /* Always ensure profiles stay enabled so manual connect always works! */
+                    if (!d->profilesRepaired) {
+                        d->profilesRepaired = TRUE;
+                        ULONGLONG addrCopy = d->address;
+                        wchar_t kindCopy[16];
+                        wcsncpy(kindCopy, d->kind, 15); kindCopy[15] = L'\0';
+                        LeaveCriticalSection(&g_lock);
+                        EnsureProfilesEnabled(addrCopy, kindCopy);
+                        EnterCriticalSection(&g_lock);
+                    }
+
                     if (g_guardOn && !d->allowAuto) {
                         if (d->connected) {
+                            /* Approve manual session if user clicked Connect either in our UI OR in Windows Quick Settings / Settings! */
+                            if (inWindowsManualUi && !d->sessionAllowed) {
+                                d->sessionAllowed = TRUE;
+                                d->sessionStartTick = nowTick;
+                            }
                             if (d->sessionAllowed) {
                                 d->seenConnected = TRUE;
                             } else {
-                                d->enforcedIdle = TRUE;
+                                ULONGLONG addrCopy = d->address;
+                                wchar_t kindCopy[16], nameCopy[128];
+                                wcsncpy(kindCopy, d->kind, 15); kindCopy[15] = L'\0';
+                                wcsncpy(nameCopy, d->name, 127); nameCopy[127] = L'\0';
                                 LeaveCriticalSection(&g_lock);
-                                DoBlockAndDisconnect(d->address, d->kind);
+                                DoDisconnectOnly(addrCopy, kindCopy, nameCopy);
                                 EnterCriticalSection(&g_lock);
                                 d->connected = FALSE;
                             }
                         } else {
                             if (d->sessionAllowed) {
-                                ULONGLONG elapsed = GetTickCount64() - d->sessionStartTick;
-                                if (d->seenConnected || elapsed > 45000ULL) {
+                                ULONGLONG elapsed = nowTick - d->sessionStartTick;
+                                if (d->seenConnected || elapsed > 35000ULL) {
                                     d->sessionAllowed = FALSE;
                                     d->seenConnected = FALSE;
-                                    d->enforcedIdle = FALSE;
                                 }
-                            }
-                            if (!d->sessionAllowed && (forceRelock || !d->enforcedIdle)) {
-                                d->enforcedIdle = TRUE;
-                                LeaveCriticalSection(&g_lock);
-                                DoBlockAndDisconnect(d->address, d->kind);
-                                EnterCriticalSection(&g_lock);
                             }
                         }
                     }
@@ -500,12 +657,13 @@ static void PollPairedDevices(BOOL forceRelock) {
 
 static DWORD WINAPI WorkerThread(LPVOID unused) {
     (void)unused;
+    CoInitializeEx(NULL, COINIT_MULTITHREADED);
     while (InterlockedCompareExchange(&g_workerRun, 1, 1) == 1) {
-        DWORD w = WaitForSingleObject(g_qSem, 2200);
+        DWORD w = WaitForSingleObject(g_qSem, 1500);
         if (InterlockedCompareExchange(&g_workerRun, 1, 1) == 0) break;
 
         if (w == WAIT_OBJECT_0) {
-            while (1) {
+            for (;;) {
                 WorkItem item;
                 BOOL has = FALSE;
                 EnterCriticalSection(&g_lock);
@@ -516,146 +674,384 @@ static DWORD WINAPI WorkerThread(LPVOID unused) {
                 }
                 LeaveCriticalSection(&g_lock);
                 if (!has) break;
-                if (item.op == 1) DoBlockAndDisconnect(item.address, item.kind);
-                else if (item.op == 2) DoEnableAndConnect(item.address, item.kind);
+                if (item.op == 1) DoDisconnectOnly(item.address, item.kind, item.name);
+                else if (item.op == 2) DoConnectNow(item.address, item.kind, item.name);
             }
         }
-        PollPairedDevices(FALSE);
+        PollPairedDevices();
         WriteHeartbeat();
         if (g_hwnd) PostMessageW(g_hwnd, WM_WORKER_DONE, 0, 0);
     }
+    CoUninitialize();
     return 0;
 }
 
-static int GetSelectedDeviceIndex(void) {
-    return (int)SendMessageW(g_list, LVM_GETNEXTITEM, -1, LVNI_SELECTED);
+/* =========================================================================
+ *  Clean Modern GDI Drawing Helpers
+ * ========================================================================= */
+static void FillRoundBox(HDC hdc, RECT r, int rad, COLORREF fill, COLORREF border) {
+    HBRUSH br = CreateSolidBrush(fill);
+    HPEN   pen = CreatePen(PS_SOLID, 1, border);
+    HGDIOBJ oldB = SelectObject(hdc, br);
+    HGDIOBJ oldP = SelectObject(hdc, pen);
+    RoundRect(hdc, r.left, r.top, r.right, r.bottom, rad, rad);
+    SelectObject(hdc, oldB);
+    SelectObject(hdc, oldP);
+    DeleteObject(br);
+    DeleteObject(pen);
 }
 
-static void RefreshUiList(void) {
-    int sel = GetSelectedDeviceIndex();
-    SendMessageW(g_list, WM_SETREDRAW, FALSE, 0);
-    SendMessageW(g_list, LVM_DELETEALLITEMS, 0, 0);
+static void DrawPillBadge(HDC hdc, HFONT font, int rightX, int y, const wchar_t *text,
+                          COLORREF fg, COLORREF bg, int dpi) {
+    SelectObject(hdc, font);
+    SIZE sz;
+    GetTextExtentPoint32W(hdc, text, (int)wcslen(text), &sz);
+    int padX = S(12, dpi);
+    int h = S(24, dpi);
+    int w = sz.cx + padX * 2 + S(12, dpi);
+    RECT r = { rightX - w, y, rightX, y + h };
+    FillRoundBox(hdc, r, h, bg, bg);
 
-    int blockedCount = 0;
-    EnterCriticalSection(&g_lock);
-    for (int i = 0; i < g_devCount; i++) {
-        DeviceEntry *d = &g_devices[i];
-        if (!d->allowAuto) blockedCount++;
+    /* Status dot */
+    HBRUSH dotBr = CreateSolidBrush(fg);
+    HPEN   dotPen = CreatePen(PS_SOLID, 1, fg);
+    HGDIOBJ ob = SelectObject(hdc, dotBr);
+    HGDIOBJ op = SelectObject(hdc, dotPen);
+    int dotSz = S(6, dpi);
+    int dy = y + (h - dotSz) / 2;
+    Ellipse(hdc, r.left + S(10, dpi), dy, r.left + S(10, dpi) + dotSz, dy + dotSz);
+    SelectObject(hdc, ob);
+    SelectObject(hdc, op);
+    DeleteObject(dotBr);
+    DeleteObject(dotPen);
 
-        LVITEMW lvi;
-        ZeroMemory(&lvi, sizeof(lvi));
-        lvi.mask = LVIF_TEXT;
-        lvi.iItem = i;
-        lvi.pszText = d->name;
-        SendMessageW(g_list, LVM_INSERTITEMW, 0, (LPARAM)&lvi);
+    RECT tr = { r.left + S(21, dpi), y, r.right - S(8, dpi), y + h };
+    SetTextColor(hdc, fg);
+    DrawTextW(hdc, text, -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+}
 
-        LVITEMW sub;
-        ZeroMemory(&sub, sizeof(sub));
-        sub.mask = LVIF_TEXT;
-        sub.iItem = i;
-
-        sub.iSubItem = 1;
-        sub.pszText = d->kind;
-        SendMessageW(g_list, LVM_SETITEMW, 0, (LPARAM)&sub);
-
-        wchar_t connBuf[64];
-        if (d->connected && !d->allowAuto && d->sessionAllowed)
-            wcsncpy(connBuf, L"Connected (This Session)", 63);
-        else if (d->connected)
-            wcsncpy(connBuf, L"Connected", 63);
-        else
-            wcsncpy(connBuf, L"Disconnected", 63);
-        sub.iSubItem = 2;
-        sub.pszText = connBuf;
-        SendMessageW(g_list, LVM_SETITEMW, 0, (LPARAM)&sub);
-
-        wchar_t ruleBuf[64];
-        wcsncpy(ruleBuf, d->allowAuto ? L"Allowed (Auto-Connect)" : L"BLOCKED (Phone Safe)", 63);
-        sub.iSubItem = 3;
-        sub.pszText = ruleBuf;
-        SendMessageW(g_list, LVM_SETITEMW, 0, (LPARAM)&sub);
+static void DrawActionBtn(HDC hdc, HFONT font, RECT r, const wchar_t *label,
+                          int style /* 0=sec, 1=primary, 2=danger */, BOOL hovered, int dpi) {
+    COLORREF fill = COL_SEC_BTN, border = COL_BORDER;
+    if (style == 1) {
+        fill = hovered ? COL_PRIMARY_HOV : COL_PRIMARY;
+        border = fill;
+    } else if (style == 2) {
+        fill = hovered ? COL_DANGER_HOV : COL_DANGER;
+        border = fill;
+    } else if (hovered) {
+        fill = COL_SEC_HOV;
     }
-    BOOL radioOn = g_radioOn;
-    int total = g_devCount;
+    FillRoundBox(hdc, r, S(8, dpi), fill, border);
+    SelectObject(hdc, font);
+    SetTextColor(hdc, COL_TEXT);
+    DrawTextW(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+}
+
+static void DrawToggleSwitch(HDC hdc, HFONT font, RECT r, BOOL on, const wchar_t *label,
+                             BOOL hovered, int dpi) {
+    int tw = S(40, dpi), th = S(22, dpi);
+    int ty = r.top + (r.bottom - r.top - th) / 2;
+    RECT track = { r.left, ty, r.left + tw, ty + th };
+    COLORREF fill = on ? COL_PRIMARY : (hovered ? COL_SEC_HOV : COL_SEC_BTN);
+    COLORREF rim  = on ? COL_PRIMARY_HOV : COL_BORDER;
+    FillRoundBox(hdc, track, th, fill, rim);
+
+    int knob = th - S(6, dpi);
+    int kx = on ? (track.right - knob - S(3, dpi)) : (track.left + S(3, dpi));
+    int ky = ty + S(3, dpi);
+    HBRUSH kb = CreateSolidBrush(RGB(255, 255, 255));
+    HPEN   kp = CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
+    HGDIOBJ ob = SelectObject(hdc, kb);
+    HGDIOBJ op = SelectObject(hdc, kp);
+    Ellipse(hdc, kx, ky, kx + knob, ky + knob);
+    SelectObject(hdc, ob);
+    SelectObject(hdc, op);
+    DeleteObject(kb);
+    DeleteObject(kp);
+
+    if (label && label[0]) {
+        SelectObject(hdc, font);
+        SetTextColor(hdc, hovered ? COL_TEXT : COL_MUTED);
+        RECT lr = { track.right + S(9, dpi), r.top, r.right, r.bottom };
+        DrawTextW(hdc, label, -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
+}
+
+static void AddHit(RECT r, int kind, int index) {
+    if (g_hitCount < MAX_HITBOXES) {
+        g_hits[g_hitCount].rect  = r;
+        g_hits[g_hitCount].kind  = kind;
+        g_hits[g_hitCount].index = index;
+        g_hitCount++;
+    }
+}
+
+static void RenderWindow(HWND hwnd, HDC targetDc) {
+    RECT client;
+    GetClientRect(hwnd, &client);
+    int W = client.right - client.left;
+    int H = client.bottom - client.top;
+    if (W <= 0 || H <= 0) return;
+
+    int dpi = GetWinDpi(hwnd);
+    HDC mem = CreateCompatibleDC(targetDc);
+    HBITMAP bmp = CreateCompatibleBitmap(targetDc, W, H);
+    HGDIOBJ oldBmp = SelectObject(mem, bmp);
+    SetBkMode(mem, TRANSPARENT);
+
+    HFONT fTitle = CreateFontW(-S(19, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+    HFONT fCard  = CreateFontW(-S(13, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+    HFONT fBtn   = CreateFontW(-S(11, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+    HFONT fBody  = CreateFontW(-S(11, dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+
+    HBRUSH bgBrush = CreateSolidBrush(COL_BG);
+    FillRect(mem, &client, bgBrush);
+    DeleteObject(bgBrush);
+
+    g_hitCount = 0;
+    int M = S(20, dpi);
+    int CW = W - M * 2;
+
+    /* Copy device snapshot thread-safely */
+    DeviceEntry snap[MAX_DEVICES];
+    int count = 0, blockedCount = 0;
+    BOOL radioOn = TRUE;
+    EnterCriticalSection(&g_lock);
+    count = g_devCount;
+    radioOn = g_radioOn;
+    if (count > 0) memcpy(snap, g_devices, sizeof(DeviceEntry) * (size_t)count);
     LeaveCriticalSection(&g_lock);
+    for (int i = 0; i < count; i++) if (!snap[i].allowAuto) blockedCount++;
 
-    if (sel >= 0 && sel < total) {
-        LVITEMW st;
-        ZeroMemory(&st, sizeof(st));
-        st.stateMask = LVIS_SELECTED | LVIS_FOCUSED;
-        st.state = LVIS_SELECTED | LVIS_FOCUSED;
-        SendMessageW(g_list, LVM_SETITEMSTATE, sel, (LPARAM)&st);
-    }
-    SendMessageW(g_list, WM_SETREDRAW, TRUE, 0);
-    InvalidateRect(g_list, NULL, TRUE);
+    /* Header hero card */
+    int heroY = S(16, dpi);
+    int heroH = S(104, dpi);
+    RECT heroR = { M, heroY, M + CW, heroY + heroH };
+    FillRoundBox(mem, heroR, S(12, dpi), COL_CARD, COL_BORDER);
 
-    wchar_t banner[256];
+    SelectObject(mem, fTitle);
+    SetTextColor(mem, COL_TEXT);
+    RECT titleR = { heroR.left + S(18, dpi), heroR.top + S(12, dpi), heroR.right - S(220, dpi), heroR.top + S(40, dpi) };
+    DrawTextW(mem, L"Bluetooth Guard", -1, &titleR, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
     if (!g_guardOn) {
-        wcsncpy(banner, L"Status: Guard Paused — Windows is allowed to auto-connect all paired devices.", 255);
+        DrawPillBadge(mem, fBtn, heroR.right - S(18, dpi), heroR.top + S(15, dpi),
+                      L"Guard Paused", COL_WARN, COL_WARN_BG, dpi);
     } else if (!radioOn) {
-        wcsncpy(banner, L"Status: Bluetooth is off — Guard is watching and ready when Bluetooth turns on.", 255);
+        DrawPillBadge(mem, fBtn, heroR.right - S(18, dpi), heroR.top + S(15, dpi),
+                      L"Bluetooth Off", COL_MUTED, COL_PILL_MUTED, dpi);
     } else {
-        _snwprintf(banner, 255, L"Status: Guard Active — %d of %d paired device(s) set to BLOCKED (Phone Safe).",
-                   blockedCount, total);
+        wchar_t pillTxt[64];
+        _snwprintf(pillTxt, 63, L"Active  ·  %d Protected", blockedCount);
+        DrawPillBadge(mem, fBtn, heroR.right - S(18, dpi), heroR.top + S(15, dpi),
+                      pillTxt, COL_GOOD, COL_GOOD_BG, dpi);
     }
-    SetWindowTextW(g_lblStatus, banner);
-}
 
-static void ApplySelectedAction(int action) {
-    int idx = GetSelectedDeviceIndex();
-    if (idx < 0) {
-        MessageBoxW(g_hwnd, L"Select a Bluetooth device in the list first.", APP_TITLE, MB_OK | MB_ICONINFORMATION);
-        return;
-    }
-    ULONGLONG addr = 0;
-    wchar_t kind[16] = L"Audio", name[128] = L"";
+    SelectObject(mem, fBody);
+    SetTextColor(mem, COL_MUTED);
+    RECT subR = { heroR.left + S(18, dpi), heroR.top + S(40, dpi), heroR.right - S(18, dpi), heroR.top + S(60, dpi) };
+    DrawTextW(mem, L"Turn off Auto-Connect for phone earbuds. Manual connect still works here or in Windows Quick Settings.",
+              -1, &subR, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
-    EnterCriticalSection(&g_lock);
-    if (idx < g_devCount) {
-        DeviceEntry *d = &g_devices[idx];
-        addr = d->address;
-        wcsncpy(kind, d->kind, 15);
-        wcsncpy(name, d->name, 127);
-        if (action == ID_BTN_ALLOW) {
-            d->allowAuto = TRUE;
-            d->sessionAllowed = FALSE;
-            d->enforcedIdle = FALSE;
-        } else if (action == ID_BTN_BLOCK) {
-            d->allowAuto = FALSE;
-            d->sessionAllowed = FALSE;
-            d->enforcedIdle = TRUE;
-        } else if (action == ID_BTN_CONNECT) {
-            d->sessionAllowed = TRUE;
-            d->seenConnected = FALSE;
-            d->enforcedIdle = FALSE;
-            d->sessionStartTick = GetTickCount64();
-        } else if (action == ID_BTN_DISCONN) {
-            d->sessionAllowed = FALSE;
-            d->enforcedIdle = TRUE;
+    RECT togGuardR = { heroR.left + S(18, dpi), heroR.top + S(66, dpi), heroR.left + S(230, dpi), heroR.top + S(94, dpi) };
+    int idxGuard = g_hitCount;
+    AddHit(togGuardR, HIT_TOGGLE_GUARD, 0);
+    DrawToggleSwitch(mem, fBody, togGuardR, g_guardOn, L"Guard Enabled", g_hoverIdx == idxGuard, dpi);
+
+    RECT togStartR = { heroR.left + S(240, dpi), heroR.top + S(66, dpi), heroR.left + S(470, dpi), heroR.top + S(94, dpi) };
+    int idxStart = g_hitCount;
+    AddHit(togStartR, HIT_TOGGLE_STARTUP, 0);
+    DrawToggleSwitch(mem, fBody, togStartR, g_autostart, L"Start with Windows", g_hoverIdx == idxStart, dpi);
+
+    RECT btnRefR = { heroR.right - S(108, dpi), heroR.top + S(64, dpi), heroR.right - S(18, dpi), heroR.top + S(94, dpi) };
+    int idxRef = g_hitCount;
+    AddHit(btnRefR, HIT_BTN_REFRESH, 0);
+    DrawActionBtn(mem, fBtn, btnRefR, L"Refresh", 0, g_hoverIdx == idxRef, dpi);
+
+    /* Scrollable device cards region */
+    int listTop = heroR.bottom + S(14, dpi);
+    int footerH = S(50, dpi);
+    int listBottom = H - footerH;
+    int cardH = S(78, dpi);
+    int gap = S(10, dpi);
+    g_contentH = count * (cardH + gap);
+    int maxScroll = g_contentH - (listBottom - listTop);
+    if (maxScroll < 0) maxScroll = 0;
+    if (g_scrollY > maxScroll) g_scrollY = maxScroll;
+    if (g_scrollY < 0) g_scrollY = 0;
+
+    HRGN clip = CreateRectRgn(0, listTop, W, listBottom);
+    SelectClipRgn(mem, clip);
+
+    if (count == 0) {
+        RECT emptyR = { M, listTop, M + CW, listTop + S(80, dpi) };
+        FillRoundBox(mem, emptyR, S(12, dpi), COL_CARD, COL_BORDER);
+        SelectObject(mem, fBody);
+        SetTextColor(mem, COL_MUTED);
+        RECT er = { emptyR.left + S(18, dpi), emptyR.top, emptyR.right - S(18, dpi), emptyR.bottom };
+        DrawTextW(mem, L"No paired Bluetooth devices found yet. Pair headphones/earbuds in Windows Settings, then click Refresh.",
+                  -1, &er, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    } else {
+        int y = listTop - g_scrollY;
+        for (int i = 0; i < count; i++) {
+            DeviceEntry *d = &snap[i];
+            RECT cr = { M, y, M + CW, y + cardH };
+            if (cr.bottom >= listTop && cr.top <= listBottom) {
+                FillRoundBox(mem, cr, S(12, dpi), COL_CARD, COL_BORDER);
+
+                /* Device name + kind */
+                wchar_t titleBuf[280];
+                _snwprintf(titleBuf, 279, L"%s", d->name);
+                SelectObject(mem, fCard);
+                SetTextColor(mem, COL_TEXT);
+                RECT nr = { cr.left + S(18, dpi), cr.top + S(13, dpi), cr.right - S(340, dpi), cr.top + S(38, dpi) };
+                DrawTextW(mem, titleBuf, -1, &nr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+                /* Subtitle status line */
+                const wchar_t *subTxt = NULL;
+                if (d->connected && !d->allowAuto)
+                    subTxt = L"Connected manually for this session  ·  Re-locks automatically after disconnect";
+                else if (d->connected)
+                    subTxt = L"Connected";
+                else if (!d->allowAuto)
+                    subTxt = L"Auto-connect OFF (phone safe)  ·  Click Connect any time to use on this PC";
+                else
+                    subTxt = L"Auto-connect ON  ·  Connects automatically when in range";
+
+                SelectObject(mem, fBody);
+                SetTextColor(mem, d->connected ? COL_GOOD : (!d->allowAuto ? COL_ACCENT : COL_MUTED));
+                RECT sr = { cr.left + S(18, dpi), cr.top + S(41, dpi), cr.right - S(300, dpi), cr.top + S(64, dpi) };
+                DrawTextW(mem, subTxt, -1, &sr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+                /* Right controls: Auto-Connect switch + Connect/Disconnect button */
+                RECT autoTogR = { cr.right - S(290, dpi), cr.top + S(24, dpi), cr.right - S(138, dpi), cr.top + S(54, dpi) };
+                int hitAuto = g_hitCount;
+                AddHit(autoTogR, HIT_DEV_AUTO_TOGGLE, i);
+                DrawToggleSwitch(mem, fBody, autoTogR, d->allowAuto, L"Auto-Connect", g_hoverIdx == hitAuto, dpi);
+
+                RECT connBtnR = { cr.right - S(126, dpi), cr.top + S(22, dpi), cr.right - S(18, dpi), cr.top + S(56, dpi) };
+                int hitConn = g_hitCount;
+                AddHit(connBtnR, HIT_DEV_CONNECT_BTN, i);
+                DrawActionBtn(mem, fBtn, connBtnR,
+                              d->connected ? L"Disconnect" : L"Connect",
+                              d->connected ? 2 : 1,
+                              g_hoverIdx == hitConn, dpi);
+            }
+            y += cardH + gap;
         }
     }
-    LeaveCriticalSection(&g_lock);
 
-    SaveRules();
-    if (action == ID_BTN_ALLOW || action == ID_BTN_CONNECT)
-        EnqueueWork(2, addr, kind, name);
-    else if (action == ID_BTN_BLOCK || action == ID_BTN_DISCONN)
-        EnqueueWork(1, addr, kind, name);
+    SelectClipRgn(mem, NULL);
+    DeleteObject(clip);
 
-    RefreshUiList();
+    /* Clean bottom footer */
+    SelectObject(mem, fBody);
+    SetTextColor(mem, COL_MUTED);
+    RECT footTxtR = { M, listBottom + S(8, dpi), W - M - S(150, dpi), H - S(8, dpi) };
+    DrawTextW(mem, L"Closing this window keeps Bluetooth Guard active in your system tray.",
+              -1, &footTxtR, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+    RECT quitBtnR = { W - M - S(132, dpi), listBottom + S(9, dpi), W - M, H - S(11, dpi) };
+    int idxQuit = g_hitCount;
+    AddHit(quitBtnR, HIT_BTN_QUIT, 0);
+    DrawActionBtn(mem, fBtn, quitBtnR, L"Quit App", 0, g_hoverIdx == idxQuit, dpi);
+
+    BitBlt(targetDc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
+
+    DeleteObject(fTitle);
+    DeleteObject(fCard);
+    DeleteObject(fBtn);
+    DeleteObject(fBody);
+    SelectObject(mem, oldBmp);
+    DeleteObject(bmp);
+    DeleteDC(mem);
+}
+
+static void HandleHitClick(int hitIdx) {
+    if (hitIdx < 0 || hitIdx >= g_hitCount) return;
+    int kind = g_hits[hitIdx].kind;
+    int di   = g_hits[hitIdx].index;
+
+    if (kind == HIT_TOGGLE_GUARD) {
+        g_guardOn = !g_guardOn;
+        SaveRules();
+        ReleaseSemaphore(g_qSem, 1, NULL);
+        InvalidateRect(g_hwnd, NULL, FALSE);
+    } else if (kind == HIT_TOGGLE_STARTUP) {
+        SetAutostart(!g_autostart);
+        InvalidateRect(g_hwnd, NULL, FALSE);
+    } else if (kind == HIT_BTN_REFRESH) {
+        ReleaseSemaphore(g_qSem, 1, NULL);
+    } else if (kind == HIT_BTN_QUIT) {
+        g_quitting = TRUE;
+        DestroyWindow(g_hwnd);
+    } else if (kind == HIT_DEV_AUTO_TOGGLE) {
+        ULONGLONG addr = 0;
+        wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
+        BOOL nowAllow = TRUE, wasConn = FALSE;
+        EnterCriticalSection(&g_lock);
+        if (di >= 0 && di < g_devCount) {
+            DeviceEntry *d = &g_devices[di];
+            d->allowAuto = !d->allowAuto;
+            d->sessionAllowed = FALSE;
+            d->seenConnected = FALSE;
+            nowAllow = d->allowAuto;
+            wasConn = d->connected;
+            addr = d->address;
+            wcsncpy(dkind, d->kind, 15);
+            wcsncpy(dname, d->name, 127);
+            wcsncpy(dmac, d->mac, 23);
+        }
+        LeaveCriticalSection(&g_lock);
+        SaveRules();
+        if (!nowAllow && wasConn && g_guardOn) {
+            EnqueueWork(1, addr, dmac, dkind, dname);
+        }
+        InvalidateRect(g_hwnd, NULL, FALSE);
+    } else if (kind == HIT_DEV_CONNECT_BTN) {
+        ULONGLONG addr = 0;
+        wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
+        BOOL wasConn = FALSE;
+        EnterCriticalSection(&g_lock);
+        if (di >= 0 && di < g_devCount) {
+            DeviceEntry *d = &g_devices[di];
+            wasConn = d->connected;
+            addr = d->address;
+            wcsncpy(dkind, d->kind, 15);
+            wcsncpy(dname, d->name, 127);
+            wcsncpy(dmac, d->mac, 23);
+            if (wasConn) {
+                d->sessionAllowed = FALSE;
+                d->seenConnected = FALSE;
+                d->connected = FALSE;
+            } else {
+                d->sessionAllowed = TRUE;
+                d->seenConnected = FALSE;
+                d->sessionStartTick = GetTickCount64();
+            }
+        }
+        LeaveCriticalSection(&g_lock);
+        EnqueueWork(wasConn ? 1 : 2, addr, dmac, dkind, dname);
+        InvalidateRect(g_hwnd, NULL, FALSE);
+    }
 }
 
 static void ShowTrayMenu(void) {
     HMENU hMenu = CreatePopupMenu();
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_OPEN, L"Open Bluetooth Guard");
-    AppendMenuW(hMenu, MF_STRING | (g_guardOn ? MF_CHECKED : 0), IDM_TRAY_PAUSE, L"Guard Active");
+    AppendMenuW(hMenu, MF_STRING | (g_guardOn ? MF_CHECKED : 0), IDM_TRAY_PAUSE, L"Guard Enabled");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 
     EnterCriticalSection(&g_lock);
     for (int i = 0; i < g_devCount && i < 20; i++) {
         wchar_t label[300];
-        _snwprintf(label, 299, L"%s %s",
-                   g_devices[i].connected ? L"Disconnect:" : L"Connect Now:",
+        _snwprintf(label, 299, L"%s  %s",
+                   g_devices[i].connected ? L"Disconnect" : L"Connect",
                    g_devices[i].name);
         AppendMenuW(hMenu, MF_STRING, IDM_TRAY_DEV0 + i, label);
     }
@@ -671,180 +1067,108 @@ static void ShowTrayMenu(void) {
     DestroyMenu(hMenu);
 }
 
-static void LayoutControls(HWND hwnd) {
-    int dpi = GetWindowDpi(hwnd);
-    RECT rc;
-    GetClientRect(hwnd, &rc);
-    int w = rc.right - rc.left;
-    int h = rc.bottom - rc.top;
-    int m = S(16, dpi);
-    int cw = w - m * 2;
-
-    MoveWindow(g_lblStatus, m, S(14, dpi), cw, S(24, dpi), TRUE);
-    MoveWindow(g_chkGuard,  m, S(42, dpi), cw / 2 - S(8, dpi), S(24, dpi), TRUE);
-    MoveWindow(g_chkStart,  m + cw / 2, S(42, dpi), cw / 2, S(24, dpi), TRUE);
-    MoveWindow(g_lblHint,   m, S(70, dpi), cw, S(20, dpi), TRUE);
-
-    int listTop = S(96, dpi);
-    int bottomArea = S(96, dpi);
-    int listH = h - listTop - bottomArea;
-    if (listH < S(120, dpi)) listH = S(120, dpi);
-    MoveWindow(g_list, m, listTop, cw, listH, TRUE);
-
-    int row1Y = listTop + listH + S(12, dpi);
-    int bw4 = (cw - S(30, dpi)) / 4;
-    MoveWindow(g_btnAllow, m,                      row1Y, bw4, S(34, dpi), TRUE);
-    MoveWindow(g_btnBlock, m + (bw4 + S(10, dpi)), row1Y, bw4, S(34, dpi), TRUE);
-    MoveWindow(g_btnConn,  m + (bw4 + S(10, dpi)) * 2, row1Y, bw4, S(34, dpi), TRUE);
-    MoveWindow(g_btnDisc,  m + (bw4 + S(10, dpi)) * 3, row1Y, bw4, S(34, dpi), TRUE);
-
-    int row2Y = row1Y + S(42, dpi);
-    MoveWindow(g_btnRef,  m, row2Y, S(140, dpi), S(32, dpi), TRUE);
-    MoveWindow(g_btnQuit, w - m - S(160, dpi), row2Y, S(160, dpi), S(32, dpi), TRUE);
-}
-
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
-    case WM_CREATE: {
-        int dpi = GetWindowDpi(hwnd);
-        g_fontTitle = CreateFontW(-S(14, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-                                  DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
-        g_fontBold  = CreateFontW(-S(10, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-                                  DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
-        g_fontBody  = CreateFontW(-S(10, dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                  DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+    case WM_CREATE:
+        ApplyModernWindowFrame(hwnd);
+        SetTimer(hwnd, 1, 700, NULL);
+        return 0;
 
-        g_lblStatus = CreateWindowExW(0, L"STATIC", L"Scanning paired Bluetooth devices...",
-                                      WS_CHILD | WS_VISIBLE, 0, 0, 100, 24, hwnd, NULL, NULL, NULL);
-        g_chkGuard  = CreateWindowExW(0, L"BUTTON", L"Actively block auto-connect for Blocked devices",
-                                      WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 0, 0, 100, 24,
-                                      hwnd, (HMENU)ID_CHK_GUARD, NULL, NULL);
-        g_chkStart  = CreateWindowExW(0, L"BUTTON", L"Start quietly when Windows logs in",
-                                      WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 0, 0, 100, 24,
-                                      hwnd, (HMENU)ID_CHK_STARTUP, NULL, NULL);
-        g_lblHint   = CreateWindowExW(0, L"STATIC",
-                                      L"Select your phone earbuds below and click \"Block Auto-Connect\". Use \"Connect Now\" whenever you want them on this PC.",
-                                      WS_CHILD | WS_VISIBLE, 0, 0, 100, 20, hwnd, NULL, NULL, NULL);
+    case WM_ERASEBKGND:
+        return 1;
 
-        g_list = CreateWindowExW(WS_EX_CLIENTEDGE, WC_LISTVIEWW, L"",
-                                 WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
-                                 0, 0, 100, 200, hwnd, (HMENU)ID_LIST_DEVICES, NULL, NULL);
-        SendMessageW(g_list, LVM_SETEXTENDEDLISTVIEWSTYLE, 0,
-                     LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
-
-        LVCOLUMNW col;
-        ZeroMemory(&col, sizeof(col));
-        col.mask = LVCF_TEXT | LVCF_WIDTH;
-        col.cx = S(220, dpi); col.pszText = L"Bluetooth Device";
-        SendMessageW(g_list, LVM_INSERTCOLUMNW, 0, (LPARAM)&col);
-        col.cx = S(80, dpi);  col.pszText = L"Type";
-        SendMessageW(g_list, LVM_INSERTCOLUMNW, 1, (LPARAM)&col);
-        col.cx = S(165, dpi); col.pszText = L"Status";
-        SendMessageW(g_list, LVM_INSERTCOLUMNW, 2, (LPARAM)&col);
-        col.cx = S(185, dpi); col.pszText = L"Auto-Connect Rule";
-        SendMessageW(g_list, LVM_INSERTCOLUMNW, 3, (LPARAM)&col);
-
-        g_btnAllow = CreateWindowExW(0, L"BUTTON", L"Allow Auto-Connect",
-                                     WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 0, 0, 100, 32,
-                                     hwnd, (HMENU)ID_BTN_ALLOW, NULL, NULL);
-        g_btnBlock = CreateWindowExW(0, L"BUTTON", L"Block Auto-Connect",
-                                     WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 0, 0, 100, 32,
-                                     hwnd, (HMENU)ID_BTN_BLOCK, NULL, NULL);
-        g_btnConn  = CreateWindowExW(0, L"BUTTON", L"Connect Now",
-                                     WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 0, 0, 100, 32,
-                                     hwnd, (HMENU)ID_BTN_CONNECT, NULL, NULL);
-        g_btnDisc  = CreateWindowExW(0, L"BUTTON", L"Disconnect",
-                                     WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 0, 0, 100, 32,
-                                     hwnd, (HMENU)ID_BTN_DISCONN, NULL, NULL);
-        g_btnRef   = CreateWindowExW(0, L"BUTTON", L"Refresh Devices",
-                                     WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 0, 0, 100, 32,
-                                     hwnd, (HMENU)ID_BTN_REFRESH, NULL, NULL);
-        g_btnQuit  = CreateWindowExW(0, L"BUTTON", L"Quit Completely",
-                                     WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 0, 0, 100, 32,
-                                     hwnd, (HMENU)ID_BTN_QUIT, NULL, NULL);
-
-        HWND ctrls[] = {g_chkGuard, g_chkStart, g_lblHint, g_list,
-                        g_btnAllow, g_btnBlock, g_btnConn, g_btnDisc, g_btnRef, g_btnQuit};
-        SendMessageW(g_lblStatus, WM_SETFONT, (WPARAM)g_fontBold, TRUE);
-        for (size_t i = 0; i < sizeof(ctrls)/sizeof(ctrls[0]); i++)
-            SendMessageW(ctrls[i], WM_SETFONT, (WPARAM)g_fontBody, TRUE);
-
-        SendMessageW(g_chkGuard, BM_SETCHECK, g_guardOn ? BST_CHECKED : BST_UNCHECKED, 0);
-        SendMessageW(g_chkStart, BM_SETCHECK, IsAutostartEnabled() ? BST_CHECKED : BST_UNCHECKED, 0);
-
-        LayoutControls(hwnd);
-        SetTimer(hwnd, 1, 800, NULL);
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+        RenderWindow(hwnd, hdc);
+        EndPaint(hwnd, &ps);
         return 0;
     }
 
     case WM_SIZE:
-        LayoutControls(hwnd);
+        InvalidateRect(hwnd, NULL, FALSE);
         return 0;
 
-    case WM_CTLCOLORSTATIC: {
-        HDC hdc = (HDC)wp;
-        SetBkColor(hdc, GetSysColor(COLOR_WINDOW));
-        SetTextColor(hdc, GetSysColor(COLOR_WINDOWTEXT));
-        return (LRESULT)GetSysColorBrush(COLOR_WINDOW);
+    case WM_MOUSEWHEEL: {
+        int delta = GET_WHEEL_DELTA_WPARAM(wp);
+        g_scrollY -= (delta / WHEEL_DELTA) * S(44, GetWinDpi(hwnd));
+        if (g_scrollY < 0) g_scrollY = 0;
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 0;
     }
 
-    case WM_COMMAND: {
-        int id = LOWORD(wp);
-        if (id == ID_CHK_GUARD) {
-            g_guardOn = (SendMessageW(g_chkGuard, BM_GETCHECK, 0, 0) == BST_CHECKED);
-            SaveRules();
-            ReleaseSemaphore(g_qSem, 1, NULL);
-            RefreshUiList();
-        } else if (id == ID_CHK_STARTUP) {
-            SetAutostart(SendMessageW(g_chkStart, BM_GETCHECK, 0, 0) == BST_CHECKED);
-        } else if (id == ID_BTN_ALLOW || id == ID_BTN_BLOCK || id == ID_BTN_CONNECT || id == ID_BTN_DISCONN) {
-            ApplySelectedAction(id);
-        } else if (id == ID_BTN_REFRESH) {
-            ReleaseSemaphore(g_qSem, 1, NULL);
-        } else if (id == ID_BTN_QUIT || id == IDM_TRAY_QUIT) {
-            g_quitting = TRUE;
-            DestroyWindow(hwnd);
-        } else if (id == IDM_TRAY_OPEN) {
-            ShowWindow(hwnd, SW_SHOWNORMAL);
-            SetForegroundWindow(hwnd);
-        } else if (id == IDM_TRAY_PAUSE) {
-            g_guardOn = !g_guardOn;
-            SendMessageW(g_chkGuard, BM_SETCHECK, g_guardOn ? BST_CHECKED : BST_UNCHECKED, 0);
-            SaveRules();
-            RefreshUiList();
-        } else if (id >= IDM_TRAY_DEV0 && id < IDM_TRAY_DEV0 + MAX_DEVICES) {
-            int di = id - IDM_TRAY_DEV0;
-            EnterCriticalSection(&g_lock);
-            if (di < g_devCount) {
-                DeviceEntry *d = &g_devices[di];
-                ULONGLONG addr = d->address;
-                wchar_t kind[16], name[128];
-                wcsncpy(kind, d->kind, 15); kind[15] = L'\0';
-                wcsncpy(name, d->name, 127); name[127] = L'\0';
-                BOOL wasConn = d->connected;
-                if (wasConn) {
-                    d->sessionAllowed = FALSE;
-                    d->enforcedIdle = TRUE;
-                } else {
-                    d->sessionAllowed = TRUE;
-                    d->seenConnected = FALSE;
-                    d->enforcedIdle = FALSE;
-                    d->sessionStartTick = GetTickCount64();
-                }
-                LeaveCriticalSection(&g_lock);
-                EnqueueWork(wasConn ? 1 : 2, addr, kind, name);
-            } else {
-                LeaveCriticalSection(&g_lock);
+    case WM_MOUSEMOVE: {
+        POINT pt = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
+        int found = -1;
+        for (int i = 0; i < g_hitCount; i++) {
+            if (PtInRect(&g_hits[i].rect, pt)) { found = i; break; }
+        }
+        SetCursor(LoadCursorW(NULL, found >= 0 ? IDC_HAND : IDC_ARROW));
+        if (found != g_hoverIdx) {
+            g_hoverIdx = found;
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+        return 0;
+    }
+
+    case WM_LBUTTONUP: {
+        POINT pt = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
+        for (int i = 0; i < g_hitCount; i++) {
+            if (PtInRect(&g_hits[i].rect, pt)) {
+                HandleHitClick(i);
+                break;
             }
         }
         return 0;
     }
 
+    case WM_COMMAND: {
+        int id = LOWORD(wp);
+        if (id == IDM_TRAY_OPEN) {
+            ShowWindow(hwnd, SW_SHOWNORMAL);
+            SetForegroundWindow(hwnd);
+        } else if (id == IDM_TRAY_PAUSE) {
+            g_guardOn = !g_guardOn;
+            SaveRules();
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (id == IDM_TRAY_QUIT) {
+            g_quitting = TRUE;
+            DestroyWindow(hwnd);
+        } else if (id >= IDM_TRAY_DEV0 && id < IDM_TRAY_DEV0 + MAX_DEVICES) {
+            int di = id - IDM_TRAY_DEV0;
+            ULONGLONG addr = 0;
+            wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
+            BOOL wasConn = FALSE;
+            EnterCriticalSection(&g_lock);
+            if (di < g_devCount) {
+                DeviceEntry *d = &g_devices[di];
+                wasConn = d->connected;
+                addr = d->address;
+                wcsncpy(dkind, d->kind, 15);
+                wcsncpy(dname, d->name, 127);
+                wcsncpy(dmac, d->mac, 23);
+                if (wasConn) {
+                    d->sessionAllowed = FALSE;
+                    d->seenConnected = FALSE;
+                } else {
+                    d->sessionAllowed = TRUE;
+                    d->seenConnected = FALSE;
+                    d->sessionStartTick = GetTickCount64();
+                }
+            }
+            LeaveCriticalSection(&g_lock);
+            EnqueueWork(wasConn ? 1 : 2, addr, dmac, dkind, dname);
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+        return 0;
+    }
+
     case WM_WORKER_DONE:
-        RefreshUiList();
+        InvalidateRect(hwnd, NULL, FALSE);
         return 0;
 
     case WM_TIMER:
+        CheckForegroundManualIntent();
         if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {
             ShowWindow(hwnd, SW_SHOWNORMAL);
             SetForegroundWindow(hwnd);
@@ -854,14 +1178,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_POWERBROADCAST:
         if (wp == PBT_APMSUSPEND) {
+            g_manualGraceUntil = 0;
             EnterCriticalSection(&g_lock);
             for (int i = 0; i < g_devCount; i++) {
                 g_devices[i].sessionAllowed = FALSE;
                 g_devices[i].seenConnected = FALSE;
-                g_devices[i].enforcedIdle = FALSE;
             }
             LeaveCriticalSection(&g_lock);
         } else if (wp == PBT_APMRESUMEAUTOMATIC || wp == PBT_APMRESUMESUSPEND) {
+            g_manualGraceUntil = 0;
             ReleaseSemaphore(g_qSem, 1, NULL);
         }
         return TRUE;
@@ -881,8 +1206,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (!g_trayHinted) {
                 g_trayHinted = TRUE;
                 g_nid.uFlags = NIF_INFO;
-                wcsncpy(g_nid.szInfoTitle, L"Bluetooth Guard is still running", 63);
-                wcsncpy(g_nid.szInfo, L"Guarding your earbuds in the background. Right-click the tray icon any time.", 255);
+                wcsncpy(g_nid.szInfoTitle, L"Bluetooth Guard is active in tray", 63);
+                wcsncpy(g_nid.szInfo, L"Right-click the tray icon any time to quick-connect or disconnect.", 255);
                 Shell_NotifyIconW(NIM_MODIFY, &g_nid);
             }
             return 0;
@@ -925,14 +1250,13 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
         return 0;
     }
 
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     g_showEvent = CreateEventW(NULL, FALSE, FALSE, SHOW_EVENT_NAME);
     InitializeCriticalSection(&g_lock);
     g_qSem = CreateSemaphoreW(NULL, 1, 64, NULL);
 
-    INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_LISTVIEW_CLASSES | ICC_STANDARD_CLASSES };
-    InitCommonControlsEx(&icc);
-
     InitBluetoothApis();
+    g_autostart = IsAutostartEnabled();
     LoadRules();
     WriteHeartbeat();
 
@@ -947,14 +1271,14 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     wc.hIcon         = g_appIcon;
     wc.hIconSm       = g_appIcon;
     wc.hCursor       = LoadCursorW(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    wc.lpszClassName = L"TestsBluetoothGuardWnd";
+    wc.hbrBackground = CreateSolidBrush(COL_BG);
+    wc.lpszClassName = L"TestsBluetoothGuardModernWnd";
     RegisterClassExW(&wc);
 
-    int dpi = GetWindowDpi(NULL);
+    int dpi = GetWinDpi(NULL);
     g_hwnd = CreateWindowExW(0, wc.lpszClassName, APP_TITLE,
                              WS_OVERLAPPEDWINDOW,
-                             CW_USEDEFAULT, CW_USEDEFAULT, S(700, dpi), S(480, dpi),
+                             CW_USEDEFAULT, CW_USEDEFAULT, S(740, dpi), S(560, dpi),
                              NULL, NULL, hInst, NULL);
 
     ZeroMemory(&g_nid, sizeof(g_nid));
@@ -988,5 +1312,6 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     if (g_showEvent) CloseHandle(g_showEvent);
     if (hMutex) CloseHandle(hMutex);
     DeleteCriticalSection(&g_lock);
+    CoUninitialize();
     return 0;
 }

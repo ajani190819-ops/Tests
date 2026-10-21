@@ -226,7 +226,7 @@ public static class BtNative {
     return list.ToArray();
   }
 
-  // Blocks auto-connect profiles AND drops any active ACL link immediately.
+  // Drops any active ACL link immediately WITHOUT disabling profiles so manual Connect always works.
   public static string BlockAndDisconnect(ulong address, string kind) {
     BLUETOOTH_DEVICE_INFO info = new BLUETOOTH_DEVICE_INFO();
     info.dwSize = (uint)Marshal.SizeOf(typeof(BLUETOOTH_DEVICE_INFO));
@@ -235,7 +235,7 @@ public static class BtNative {
     Guid[] targets = GetTargetGuids(kind, info);
     for (int i = 0; i < targets.Length; i++) {
       Guid g = targets[i];
-      try { BluetoothSetServiceState(IntPtr.Zero, ref info, ref g, BLUETOOTH_SERVICE_DISABLE); } catch { }
+      try { BluetoothSetServiceState(IntPtr.Zero, ref info, ref g, BLUETOOTH_SERVICE_ENABLE); } catch { }
     }
 
     List<IntPtr> radios = OpenAllRadios();
