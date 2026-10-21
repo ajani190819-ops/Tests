@@ -422,9 +422,14 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             "advapi32.dll",
             "ole32.dll",
             "winhttp.dll",
+            "comdlg32.dll",
             "msvcrt.dll",
         }
-        for rel in ("project-hub/ProjectHub.exe", "bluetooth-guard/BluetoothGuard.exe"):
+        for rel in (
+            "project-hub/ProjectHub.exe",
+            "bluetooth-guard/BluetoothGuard.exe",
+            "keyboard-lighting/KeyboardLighting.exe",
+        ):
             exe = ROOT / rel
             self.assertTrue(exe.exists(), f"Missing standalone native executable {rel}")
             data = exe.read_bytes()
@@ -545,6 +550,10 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         ui_cs = (ROOT / "keyboard-lighting" / "ui_controls.cs.txt").read_text(encoding="ascii")
         self.assertIn("DrawSuiteEmblem", ui_cs)
         self.assertIn("Radius = 14", ui_cs)
+        kbl_c = (ROOT / "keyboard-lighting" / "src" / "keyboard_lighting.c").read_text(encoding="ascii")
+        self.assertIn("SmoothRoundRect", kbl_c)
+        self.assertIn("DrawPillSwitch", kbl_c)
+        self.assertIn("RES_ICON_EMBLEM", kbl_c)
 
         for rel_ico in (
             "docs/brand/emblem.ico",

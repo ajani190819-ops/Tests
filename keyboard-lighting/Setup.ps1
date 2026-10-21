@@ -38,7 +38,7 @@ $ExePath  = Join-Path $Here 'KeyboardLighting.exe'
 $TrayPs   = Join-Path $Here 'Tray.ps1'
 $Engine   = Join-Path $Here 'Aura-Background.ps1'
 
-$Files = @('Aura-Background.ps1', 'Tray.ps1', 'ui_controls.cs.txt', 'app.ico', 'Setup.ps1', 'Setup.bat', 'Restart.bat', 'Zones.ps1', 'Zones.bat', 'MyEffect.ps1', 'README.md')
+$Files = @('KeyboardLighting.exe', 'Aura-Background.ps1', 'Tray.ps1', 'ui_controls.cs.txt', 'app.ico', 'Setup.ps1', 'Setup.bat', 'Restart.bat', 'Zones.ps1', 'Zones.bat', 'MyEffect.ps1', 'README.md')
 
 # --------------------------------------------------------------- output
 $script:Report   = New-Object System.Collections.ArrayList
@@ -187,7 +187,9 @@ if (-not $TestOnly) {
         "$env:WinDir\Microsoft.NET\Framework\v4.0.30319\csc.exe")) {
         if (Test-Path $cand) { $csc = $cand; break }
     }
-    if (-not $csc) {
+    if ((Test-Path $ExePath) -and (Get-Item $ExePath).Length -gt 65536) {
+        Ok ('Native KeyboardLighting.exe ready ({0} bytes).' -f (Get-Item $ExePath).Length)
+    } elseif (-not $csc) {
         Warn 'No C# compiler found - a shortcut will be used instead.'
     } else {
         $src  = Join-Path $env:TEMP 'kbl_launcher.cs'

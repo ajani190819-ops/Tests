@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.4.0"
-#define HUB_VERSION_W     L"2.4"
+#define HUB_VERSION       "2.5.0"
+#define HUB_VERSION_W     L"2.5"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -763,8 +763,10 @@ static void RefreshProjectStatuses(void) {
     }
 
     /* 2. Keyboard Lighting */
+    wchar_t kblExe[MAX_PATH];
+    _snwprintf(kblExe, MAX_PATH, L"%s\\KeyboardLighting.exe", g_kblDir);
     _snwprintf(path, MAX_PATH, L"%s\\Tray.ps1", g_kblDir);
-    BOOL hasKbl = FileExistsW(path);
+    BOOL hasKbl = FileExistsW(kblExe) || FileExistsW(path);
     wchar_t kblLock[MAX_PATH];
     _snwprintf(kblLock, MAX_PATH, L"%s\\KeyboardLighting\\running.lock", g_localApp);
     int kblState = CheckPidLockStatus(kblLock, 12.0, NULL, NULL);
@@ -1047,41 +1049,56 @@ static void WorkerInstallKeyboardLighting(void) {
     EnsureActiveBranch(branch, 64);
     EnsureDirTree(g_kblDir);
 
-    /* Stop running Tray + Engine first so app.ico and Ui.dll unlock and reload fresh */
-    SetFooterStatus(L"Stopping running Keyboard Lighting tray for clean update...", 10);
-    wchar_t lp[MAX_PATH], uiDll[MAX_PATH];
+    wchar_t kblExe[MAX_PATH], lp[MAX_PATH], uiDll[MAX_PATH];
+    _snwprintf(kblExe, MAX_PATH, L"%s\\KeyboardLighting.exe", g_kblDir);
+    SetFooterStatus(L"Stopping running Keyboard Lighting for clean update...", 10);
+    if (FileExistsW(kblExe)) {
+        SHELLEXECUTEINFOW sei;
+        ZeroMemory(&sei, sizeof(sei));
+        sei.cbSize = sizeof(sei);
+        sei.fMask  = SEE_MASK_NOCLOSEPROCESS;
+        sei.lpFile = kblExe;
+        sei.lpParameters = L"--stop";
+        sei.nShow  = SW_HIDE;
+        if (ShellExecuteExW(&sei) && sei.hProcess) {
+            WaitForSingleObject(sei.hProcess, 2000);
+            CloseHandle(sei.hProcess);
+        }
+    }
     _snwprintf(lp, MAX_PATH, L"%s\\KeyboardLighting\\running.lock", g_localApp);
     StopProcessFromLock(lp);
     _snwprintf(lp, MAX_PATH, L"%s\\KeyboardLighting\\engine.pid", g_localApp);
     StopProcessFromLock(lp);
-    Sleep(250);
+    Sleep(300);
     _snwprintf(uiDll, MAX_PATH, L"%s\\Ui.dll", g_kblDir);
     DeleteFileW(uiDll);
 
     const wchar_t *files[] = {
-        L"Aura-Background.ps1", L"Tray.ps1", L"ui_controls.cs.txt", L"app.ico",
-        L"Setup.ps1", L"Setup.bat", L"Restart.bat", L"Zones.ps1", L"Zones.bat",
-        L"MyEffect.ps1", L"README.md"
+        L"KeyboardLighting.exe", L"Aura-Background.ps1", L"app.ico",
+        L"Tray.ps1", L"ui_controls.cs.txt", L"Setup.ps1", L"Setup.bat",
+        L"Restart.bat", L"Zones.ps1", L"Zones.bat", L"MyEffect.ps1", L"README.md"
     };
     int count = (int)(sizeof(files) / sizeof(files[0]));
     for (int i = 0; i < count; i++) {
         wchar_t msg[256], rel[128], dest[MAX_PATH];
         _snwprintf(msg, 255, L"Downloading Keyboard Lighting (%d/%d): %s...", i + 1, count, files[i]);
-        SetFooterStatus(msg, 15 + (i * 75) / count);
+        SetFooterStatus(msg, 15 + (i * 80) / count);
         _snwprintf(rel, 127, L"keyboard-lighting/%s", files[i]);
         _snwprintf(dest, MAX_PATH, L"%s\\%s", g_kblDir, files[i]);
         DownloadRawRepoFile(branch, rel, dest);
     }
 
-    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
-
-    wchar_t setupBat[MAX_PATH];
-    _snwprintf(setupBat, MAX_PATH, L"%s\\Setup.bat", g_kblDir);
-    if (FileExistsW(setupBat)) {
-        ShellExecuteW(g_hwnd, L"open", setupBat, NULL, g_kblDir, SW_SHOWNORMAL);
-        SetFooterStatus(L"Keyboard Lighting files updated — completing Setup...", 0);
+    if (FileExistsW(kblExe)) {
+        wchar_t desk[MAX_PATH], lnk[MAX_PATH];
+        if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
+            _snwprintf(lnk, MAX_PATH, L"%s\\Keyboard Lighting.lnk", desk);
+            CreateShortcutLink(lnk, kblExe, g_kblDir, L"Keyboard Lighting - ROG Strix G16 RGB");
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+        }
+        ShellExecuteW(NULL, L"open", kblExe, NULL, g_kblDir, SW_SHOWNORMAL);
+        SetFooterStatus(L"Keyboard Lighting native EXE updated and launched!", 0);
     } else {
-        SetFooterStatus(L"Could not download Keyboard Lighting files.", 0);
+        SetFooterStatus(L"Could not download KeyboardLighting.exe from GitHub.", 0);
     }
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
 }

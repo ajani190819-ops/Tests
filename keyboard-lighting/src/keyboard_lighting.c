@@ -1,0 +1,2100 @@
+#ifndef UNICODE
+#define UNICODE 1
+#endif
+#ifndef _UNICODE
+#define _UNICODE 1
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <windowsx.h>
+#include <commctrl.h>
+#include <commdlg.h>
+#include <shellapi.h>
+#include <shlobj.h>
+#include <winhttp.h>
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <wchar.h>
+
+/* ============================================================================
+ *  Keyboard Lighting - Native Win32 Suite App (v2.5.0)
+ *
+ *  Matches the unified Soft Slate Suite UI & visual layout shared with
+ *  ProjectHub.exe and BluetoothGuard.exe while preserving 100% config &
+ *  protocol compatibility with %LOCALAPPDATA%\KeyboardLighting\panel.json,
+ *  theme.json, live.txt, frame.txt, layout.txt, and Aura-Background.ps1.
+ * ============================================================================ */
+
+#define APP_TITLE           L"Keyboard Lighting"
+#define SINGLE_MUTEX_NAME   L"Local\\Tests_KeyboardLighting_SingleInstance_v2"
+#define SHOW_EVENT_NAME     L"Local\\Tests_KeyboardLighting_ShowWindow_v2"
+#define REPO_OWNER_W        L"ajani190819-ops"
+#define REPO_NAME_W         L"Tests"
+#define FALLBACK_BRANCH_W   L"arena/e895b94f-tests"
+
+#define RES_ICON_APP        1
+#define RES_ICON_EMBLEM     2
+
+#define WM_TRAYICON         (WM_APP + 1)
+#define WM_ENGINE_BOOTED    (WM_APP + 2)
+
+#define IDM_TRAY_OPEN       200
+#define IDM_TRAY_TOGGLE     201
+#define IDM_TRAY_KBD        202
+#define IDM_TRAY_BAR        203
+#define IDM_TRAY_RESTART    204
+#define IDM_TRAY_AUTOSTART  205
+#define IDM_TRAY_ZONES      206
+#define IDM_TRAY_FOLDER     207
+#define IDM_TRAY_QUIT       208
+#define IDM_EFF_BASE        400
+
+/* Soft Slate Suite Palette (matches Project Hub, Bluetooth Guard & docs/UI_STYLE_GUIDE.md) */
+#define COL_BG              RGB(24, 27, 36)    /* #181B24 */
+#define COL_FOOTER_BG       RGB(20, 23, 31)    /* #14171F */
+#define COL_DIVIDER         RGB(48, 55, 72)    /* #303748 */
+#define COL_CARD            RGB(34, 39, 52)    /* #222734 */
+#define COL_BORDER          RGB(56, 64, 84)    /* #384054 */
+#define COL_SEC_BTN         RGB(43, 49, 66)    /* #2B3142 */
+#define COL_SEC_HOV         RGB(54, 62, 84)    /* #363E54 */
+#define COL_BTN_BORDER      RGB(64, 74, 96)    /* #404A60 */
+#define COL_HOVER_RIM       RGB(96, 112, 144)  /* #607090 */
+#define COL_TEXT            RGB(236, 239, 246) /* #ECEFF6 */
+#define COL_MUTED           RGB(154, 163, 184) /* #9AA3B8 */
+#define COL_TELEMETRY       RGB(116, 126, 148) /* #747E94 */
+#define COL_GOOD            RGB(52, 211, 153)  /* #34D399 */
+#define COL_GOOD_BG         RGB(24, 52, 44)
+#define COL_WARN            RGB(251, 191, 36)  /* #FBBF24 */
+#define COL_WARN_BG         RGB(56, 44, 24)
+#define COL_ACCENT          RGB(56, 189, 248)  /* #38BDF8 */
+#define COL_ACCENT_STRONG   RGB(37, 99, 235)   /* #2563EB */
+#define COL_ACCENT_HOV      RGB(59, 130, 246)  /* #3B82F6 */
+#define COL_INDIGO          RGB(129, 140, 248) /* #818CF8 */
+#define COL_DANGER          RGB(248, 113, 113) /* #F87171 */
+#define COL_DANGER_BG       RGB(58, 30, 36)
+#define COL_IDLE_SLATE      RGB(108, 120, 144)
+#define COL_PILL_MUTED      RGB(42, 48, 64)
+
+typedef struct {
+    const char *label;
+    const char *token;
+    const char *hint;
+    int         usesPalette;
+} EffectDef;
+
+static const EffectDef kEffects[] = {
+    { "Scrolling gradient",  "gradient",  "Smooth flowing multi-colour band across lamps",        1 },
+    { "Rainbow",             "rainbow",   "Full spectrum wave (picks its own colours)",           0 },
+    { "Wave",                "wave",      " rhythmic travelling wave using your palette",          1 },
+    { "Comet",               "comet",     "Bright head with glowing trailing tail",               1 },
+    { "Scanner",             "scanner",   "Sweeps back and forth end-to-end",                     1 },
+    { "Breathing",           "breathe",   "Gentle fade in and out across your palette",           1 },
+    { "Pulse",               "pulse",     "Crisp rhythmic beat across your palette",              1 },
+    { "Fire",                "fire",      "Warm flickering ember glow (picks its own colours)",   0 },
+    { "Solid colour",        "static",    "Steady non-moving colour across zones",                1 },
+    { "Colour cycle",        "cycle",     "Slowly shifts every lamp through the spectrum",        0 },
+    { "Strobe",              "strobe",    "High-energy flash using your palette",                 1 },
+    { "Starry night",        "stars",     "Twinkling sparks fading across zones",                 1 },
+    { "Ripple",              "ripple",    "Expanding rings from the centre outward",              1 },
+    { "Aurora",              "aurora",    "Organic northern-lights shimmer",                      1 },
+    { "Music - spectrum",    "spectrum",  "Live audio frequency visualizer from speakers",        1 },
+    { "Music - level meter", "vumeter",   "Live stereo volume meter from system audio",           1 },
+    { "Music - beat flash",  "beat",      "Flashes on musical beats in real time",                1 },
+    { "Music - bass pulse",  "pulsebass", "Pulses with low-frequency bass hits",                  1 },
+    { "Screen mirror",       "ambient",   "Samples live colours from your display",               0 },
+    { "Battery meter",       "battery",   "Shows charge level from green (full) to red",          0 },
+    { "CPU meter",           "cpu",       "Reacts to live processor load",                        0 },
+    { "Clock",               "clock",     " shifts palette gently with the time of day",           0 }
+};
+#define EFFECT_COUNT ((int)(sizeof(kEffects) / sizeof(kEffects[0])))
+
+typedef struct {
+    BOOL     on;
+    int      effectIdx;
+    int      speed;        /* 1..50 -> 0.1x..5.0x */
+    int      brightness;   /* 5..100 */
+    BOOL     mirror;
+    BOOL     reverse;
+    BOOL     equalise;
+    BOOL     loop;
+    int      swatchCount;  /* 2..8 */
+    COLORREF swatches[8];
+    double   widths[8];    /* 0.25..4.0 */
+} GroupCfg;
+
+typedef struct {
+    int      masterBrightness; /* 5..100 */
+    BOOL     overlay;
+    BOOL     link;
+    BOOL     smooth;
+    char     onExit[16];
+    COLORREF customColors[16];
+    GroupCfg kbd;
+    GroupCfg bar;
+} PanelCfg;
+
+enum HitKind {
+    HIT_NONE = 0,
+    HIT_HDR_LIGHTS,
+    HIT_HDR_STARTUP,
+    HIT_HDR_RESTART,
+    HIT_SLIDER_MASTER,
+    HIT_TAB_KBD,
+    HIT_TAB_BAR,
+    HIT_TOG_ZONE_ON,
+    HIT_TOG_LINK,
+    HIT_PICK_EFFECT,
+    HIT_SWATCH_0,          /* +0..7 */
+    HIT_WIDTH_0 = 20,      /* +0..7 */
+    HIT_SWATCH_ADD = 30,
+    HIT_SWATCH_REM,
+    HIT_SLIDER_SPEED,
+    HIT_SLIDER_BRIGHT,
+    HIT_TOG_LOOP,
+    HIT_TOG_EQ,
+    HIT_TOG_MIRROR,
+    HIT_TOG_REVERSE,
+    HIT_TOG_SMOOTH,
+    HIT_TOG_OVERLAY,
+    HIT_FOOT_ZONES,
+    HIT_FOOT_ELEVATE,
+    HIT_FOOT_QUIT
+};
+
+typedef struct {
+    RECT rect;
+    int  kind;
+    int  index;
+} HitBox;
+
+static HWND             g_hwnd         = NULL;
+static HICON            g_appIcon      = NULL;
+static NOTIFYICONDATAW  g_nid;
+static HANDLE           g_showEvent    = NULL;
+static HANDLE           g_engineProc   = NULL;
+static DWORD            g_enginePid    = 0;
+static BOOL             g_isAdmin      = FALSE;
+static BOOL             g_autostart    = FALSE;
+static BOOL             g_wantOff      = FALSE;
+static BOOL             g_quitting     = FALSE;
+static BOOL             g_trayHinted   = FALSE;
+static volatile LONG    g_downloading  = 0;
+
+static PanelCfg         g_cfg;
+static int              g_tab          = 0; /* 0 = Keyboard, 1 = Light Bar */
+static HitBox           g_hits[96];
+static int              g_hitCount     = 0;
+static int              g_hoverIdx     = -1;
+static int              g_dragKind     = HIT_NONE;
+static int              g_dragIdx      = 0;
+static RECT             g_dragRect     = {0, 0, 0, 0};
+static int              g_scrollY      = 0;
+static int              g_contentH     = 0;
+static BOOL             g_applyPending = FALSE;
+static ULONGLONG        g_applyAtTick  = 0;
+
+/* Live preview state */
+static COLORREF         g_liveCols[64];
+static int              g_liveKbdN     = 4;
+static int              g_liveBarN     = 12;
+static BOOL             g_hasLiveFrame = FALSE;
+static ULONGLONG        g_lastFrameTick = 0;
+
+/* Paths */
+static wchar_t          g_exePath[MAX_PATH];
+static wchar_t          g_exeDir[MAX_PATH];
+static wchar_t          g_cfgDir[MAX_PATH];
+static wchar_t          g_panelPath[MAX_PATH];
+static wchar_t          g_themePath[MAX_PATH];
+static wchar_t          g_livePath[MAX_PATH];
+static wchar_t          g_framePath[MAX_PATH];
+static wchar_t          g_layoutPath[MAX_PATH];
+static wchar_t          g_lockPath[MAX_PATH];
+static wchar_t          g_showPath[MAX_PATH];
+static wchar_t          g_engPidPath[MAX_PATH];
+static wchar_t          g_stopPath[MAX_PATH];
+static wchar_t          g_engineScript[MAX_PATH];
+static wchar_t          g_zonesBat[MAX_PATH];
+static wchar_t          g_statusText[256] = L"Starting ROG Strix G16 lighting engine...";
+
+typedef UINT    (WINAPI *PFN_GetDpiForWindow)(HWND);
+typedef HRESULT (WINAPI *PFN_DwmSetWindowAttribute)(HWND, DWORD, LPCVOID, DWORD);
+
+static int GetWinDpi(HWND hwnd) {
+    HMODULE u32 = GetModuleHandleW(L"user32.dll");
+    if (u32) {
+        PFN_GetDpiForWindow fn = (PFN_GetDpiForWindow)(void *)GetProcAddress(u32, "GetDpiForWindow");
+        if (fn && hwnd) {
+            UINT d = fn(hwnd);
+            if (d >= 96) return (int)d;
+        }
+    }
+    HDC hdc = GetDC(hwnd);
+    int dpi = hdc ? GetDeviceCaps(hdc, LOGPIXELSX) : 96;
+    if (hdc) ReleaseDC(hwnd, hdc);
+    return dpi >= 96 ? dpi : 96;
+}
+
+static int S(int px, int dpi) { return MulDiv(px, dpi, 96); }
+
+static void ApplyModernWindowFrame(HWND hwnd) {
+    HMODULE dwm = LoadLibraryW(L"dwmapi.dll");
+    if (!dwm) return;
+    PFN_DwmSetWindowAttribute setAttr =
+        (PFN_DwmSetWindowAttribute)(void *)GetProcAddress(dwm, "DwmSetWindowAttribute");
+    if (setAttr) {
+        BOOL dark = TRUE;
+        DWORD roundPref = 2; /* DWMWCP_ROUND */
+        COLORREF captionCol = COL_BG;
+        COLORREF borderCol  = COL_DIVIDER;
+        setAttr(hwnd, 20, &dark, sizeof(dark));
+        setAttr(hwnd, 33, &roundPref, sizeof(roundPref));
+        setAttr(hwnd, 35, &captionCol, sizeof(captionCol));
+        setAttr(hwnd, 34, &borderCol, sizeof(borderCol));
+    }
+    FreeLibrary(dwm);
+}
+
+static BOOL FileExistsW(const wchar_t *p) {
+    DWORD a = GetFileAttributesW(p);
+    return (a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY));
+}
+
+static void EnsureDirTree(const wchar_t *dir) {
+    wchar_t tmp[MAX_PATH];
+    wcsncpy(tmp, dir, MAX_PATH - 1);
+    tmp[MAX_PATH - 1] = L'\0';
+    for (wchar_t *p = tmp + 3; *p; p++) {
+        if (*p == L'\\' || *p == L'/') {
+            wchar_t ch = *p;
+            *p = L'\0';
+            CreateDirectoryW(tmp, NULL);
+            *p = ch;
+        }
+    }
+    CreateDirectoryW(tmp, NULL);
+}
+
+static BOOL CheckIsAdmin(void) {
+    BOOL admin = FALSE;
+    SID_IDENTIFIER_AUTHORITY ntAuth = SECURITY_NT_AUTHORITY;
+    PSID admGroup = NULL;
+    if (AllocateAndInitializeSid(&ntAuth, 2, SECURITY_BUILTIN_DOMAIN_RID,
+                                 DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &admGroup)) {
+        CheckTokenMembership(NULL, admGroup, &admin);
+        FreeSid(admGroup);
+    }
+    return admin;
+}
+
+static char *ReadFileUtf8(const wchar_t *path, DWORD *outLen) {
+    HANDLE hf = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                            NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hf == INVALID_HANDLE_VALUE) return NULL;
+    DWORD sz = GetFileSize(hf, NULL);
+    if (sz == INVALID_FILE_SIZE || sz > 4 * 1024 * 1024) { CloseHandle(hf); return NULL; }
+    char *buf = (char *)malloc(sz + 1);
+    if (!buf) { CloseHandle(hf); return NULL; }
+    DWORD rd = 0;
+    if (!ReadFile(hf, buf, sz, &rd, NULL)) { free(buf); CloseHandle(hf); return NULL; }
+    buf[rd] = '\0';
+    CloseHandle(hf);
+    if (outLen) *outLen = rd;
+    return buf;
+}
+
+static BOOL WriteAtomicUtf8(const wchar_t *dest, const char *data) {
+    wchar_t tmp[MAX_PATH];
+    _snwprintf(tmp, MAX_PATH, L"%s.tmp", dest);
+    HANDLE hf = CreateFileW(tmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hf == INVALID_HANDLE_VALUE) return FALSE;
+    DWORD len = (DWORD)strlen(data), wr = 0;
+    BOOL ok = WriteFile(hf, data, len, &wr, NULL) && (wr == len);
+    CloseHandle(hf);
+    if (!ok) { DeleteFileW(tmp); return FALSE; }
+    if (!MoveFileExW(tmp, dest, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        DeleteFileW(tmp);
+        return FALSE;
+    }
+    return TRUE;
+}
+
+static COLORREF ParseHexColor(const char *s, COLORREF fallback) {
+    while (*s && (*s == ' ' || *s == '"' || *s == '\'')) s++;
+    if (*s == '#') s++;
+    if (strlen(s) < 6) return fallback;
+    char buf[7] = { s[0], s[1], s[2], s[3], s[4], s[5], 0 };
+    unsigned long v = strtoul(buf, NULL, 16);
+    return RGB((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF);
+}
+
+static void FormatHexColor(COLORREF c, char *out) {
+    snprintf(out, 8, "#%02X%02X%02X", GetRValue(c), GetGValue(c), GetBValue(c));
+}
+
+static int FindEffectIndex(const char *nameOrTok) {
+    for (int i = 0; i < EFFECT_COUNT; i++) {
+        if (_stricmp(kEffects[i].label, nameOrTok) == 0 ||
+            _stricmp(kEffects[i].token, nameOrTok) == 0) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+static GroupCfg *CurGroup(void) {
+    return (g_tab == 1) ? &g_cfg.bar : &g_cfg.kbd;
+}
+
+static void InitDefaultCfg(void) {
+    ZeroMemory(&g_cfg, sizeof(g_cfg));
+    g_cfg.masterBrightness = 100;
+    g_cfg.overlay          = TRUE;
+    g_cfg.link             = FALSE;
+    g_cfg.smooth           = TRUE;
+    strncpy(g_cfg.onExit, "off", sizeof(g_cfg.onExit) - 1);
+    for (int i = 0; i < 16; i++) g_cfg.customColors[i] = RGB(255, 255, 255);
+
+    g_cfg.kbd.on          = TRUE;
+    g_cfg.kbd.effectIdx   = 0; /* Scrolling gradient */
+    g_cfg.kbd.speed       = 10;
+    g_cfg.kbd.brightness  = 100;
+    g_cfg.kbd.equalise    = TRUE;
+    g_cfg.kbd.loop        = FALSE;
+    g_cfg.kbd.swatchCount = 6;
+    g_cfg.kbd.swatches[0] = RGB(255, 0, 0);
+    g_cfg.kbd.swatches[1] = RGB(255, 127, 0);
+    g_cfg.kbd.swatches[2] = RGB(255, 255, 0);
+    g_cfg.kbd.swatches[3] = RGB(0, 255, 0);
+    g_cfg.kbd.swatches[4] = RGB(0, 0, 255);
+    g_cfg.kbd.swatches[5] = RGB(139, 0, 255);
+    for (int i = 0; i < 8; i++) g_cfg.kbd.widths[i] = 1.0;
+
+    g_cfg.bar.on          = TRUE;
+    g_cfg.bar.effectIdx   = 1; /* Rainbow */
+    g_cfg.bar.speed       = 10;
+    g_cfg.bar.brightness  = 100;
+    g_cfg.bar.equalise    = TRUE;
+    g_cfg.bar.loop        = TRUE;
+    g_cfg.bar.swatchCount = 2;
+    g_cfg.bar.swatches[0] = RGB(0, 180, 255);
+    g_cfg.bar.swatches[1] = RGB(255, 0, 102);
+    for (int i = 0; i < 8; i++) g_cfg.bar.widths[i] = 1.0;
+}
+
+/* Lightweight parser preserving existing user panel.json settings */
+static const char *JsonVal(const char *src, const char *end, const char *key) {
+    char pat[64];
+    snprintf(pat, sizeof(pat), "\"%s\"", key);
+    const char *p = src;
+    while (p && p < end) {
+        const char *hit = strstr(p, pat);
+        if (!hit || hit >= end) return NULL;
+        const char *q = hit + strlen(pat);
+        while (q < end && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n')) q++;
+        if (q < end && *q == ':') {
+            q++;
+            while (q < end && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n')) q++;
+            return q;
+        }
+        p = hit + 1;
+    }
+    return NULL;
+}
+
+static BOOL JsonBool(const char *src, const char *end, const char *key, BOOL defVal) {
+    const char *v = JsonVal(src, end, key);
+    if (!v) return defVal;
+    if (strncmp(v, "true", 4) == 0) return TRUE;
+    if (strncmp(v, "false", 5) == 0) return FALSE;
+    return defVal;
+}
+
+static int JsonInt(const char *src, const char *end, const char *key, int defVal) {
+    const char *v = JsonVal(src, end, key);
+    if (!v) return defVal;
+    return atoi(v);
+}
+
+static void JsonStr(const char *src, const char *end, const char *key, char *out, size_t cap) {
+    const char *v = JsonVal(src, end, key);
+    if (!v || *v != '"') return;
+    v++;
+    size_t i = 0;
+    while (v < end && *v && *v != '"' && i + 1 < cap) out[i++] = *v++;
+    out[i] = '\0';
+}
+
+static void ParseGroupJson(const char *src, const char *end, GroupCfg *g) {
+    g->on         = JsonBool(src, end, "On", g->on);
+    g->speed      = JsonInt(src, end, "Speed", g->speed);
+    g->brightness = JsonInt(src, end, "Brightness", g->brightness);
+    g->mirror     = JsonBool(src, end, "Mirror", g->mirror);
+    g->reverse    = JsonBool(src, end, "Reverse", g->reverse);
+    g->equalise   = JsonBool(src, end, "Equalise", g->equalise);
+    g->loop       = JsonBool(src, end, "Loop", g->loop);
+    if (g->speed < 1) g->speed = 1;
+    if (g->speed > 50) g->speed = 50;
+    if (g->brightness < 5) g->brightness = 5;
+    if (g->brightness > 100) g->brightness = 100;
+
+    char eff[64] = "";
+    JsonStr(src, end, "Effect", eff, sizeof(eff));
+    if (eff[0]) g->effectIdx = FindEffectIndex(eff);
+
+    const char *sw = JsonVal(src, end, "Swatches");
+    if (sw && *sw == '[') {
+        const char *brEnd = strchr(sw, ']');
+        if (brEnd && brEnd < end) {
+            int n = 0;
+            const char *p = sw + 1;
+            while (p < brEnd && n < 8) {
+                const char *q1 = strchr(p, '"');
+                if (!q1 || q1 >= brEnd) break;
+                const char *q2 = strchr(q1 + 1, '"');
+                if (!q2 || q2 >= brEnd) break;
+                g->swatches[n++] = ParseHexColor(q1 + 1, RGB(56, 189, 248));
+                p = q2 + 1;
+            }
+            if (n >= 1) g->swatchCount = n;
+        }
+    }
+
+    const char *wd = JsonVal(src, end, "Widths");
+    if (wd && *wd == '[') {
+        const char *brEnd = strchr(wd, ']');
+        if (brEnd && brEnd < end) {
+            int n = 0;
+            const char *p = wd + 1;
+            while (p < brEnd && n < 8) {
+                while (p < brEnd && (*p == ' ' || *p == ',' || *p == '\r' || *p == '\n')) p++;
+                if (p >= brEnd || *p == ']') break;
+                char *next = NULL;
+                double val = strtod(p, &next);
+                if (next == p) break;
+                if (val < 0.25) val = 0.25;
+                if (val > 4.0) val = 4.0;
+                g->widths[n++] = val;
+                p = next;
+            }
+        }
+    }
+}
+
+static void LoadPanelCfg(void) {
+    InitDefaultCfg();
+    DWORD len = 0;
+    char *json = ReadFileUtf8(g_panelPath, &len);
+    if (!json) return;
+    const char *end = json + len;
+
+    const char *kbdPos = JsonVal(json, end, "Kbd");
+    const char *topEnd = kbdPos ? kbdPos : end;
+    g_cfg.masterBrightness = JsonInt(json, topEnd, "Brightness", 100);
+    if (g_cfg.masterBrightness < 5) g_cfg.masterBrightness = 5;
+    if (g_cfg.masterBrightness > 100) g_cfg.masterBrightness = 100;
+    g_cfg.overlay = JsonBool(json, topEnd, "Overlay", g_cfg.overlay);
+    g_cfg.link    = JsonBool(json, topEnd, "Link", g_cfg.link);
+    g_cfg.smooth  = JsonBool(json, topEnd, "Smooth", g_cfg.smooth);
+    JsonStr(json, topEnd, "OnExit", g_cfg.onExit, sizeof(g_cfg.onExit));
+
+    const char *barPos = JsonVal(json, end, "Bar");
+    if (kbdPos) {
+        const char *kEnd = (barPos && barPos > kbdPos) ? barPos : end;
+        ParseGroupJson(kbdPos, kEnd, &g_cfg.kbd);
+    }
+    if (barPos) {
+        ParseGroupJson(barPos, end, &g_cfg.bar);
+    }
+    free(json);
+}
+
+static void FormatGroupPanelJson(const GroupCfg *g, char *out, size_t cap) {
+    char swBuf[256] = "", wdBuf[256] = "";
+    size_t so = 0, wo = 0;
+    for (int i = 0; i < g->swatchCount; i++) {
+        char hx[8];
+        FormatHexColor(g->swatches[i], hx);
+        so += (size_t)snprintf(swBuf + so, sizeof(swBuf) - so, "%s\"%s\"", i ? ", " : "", hx);
+        wo += (size_t)snprintf(wdBuf + wo, sizeof(wdBuf) - wo, "%s%.3f", i ? ", " : "", g->widths[i]);
+    }
+    snprintf(out, cap,
+        "  \"%s\": {\r\n"
+        "    \"On\": %s,\r\n"
+        "    \"Effect\": \"%s\",\r\n"
+        "    \"Speed\": %d,\r\n"
+        "    \"Brightness\": %d,\r\n"
+        "    \"Mirror\": %s,\r\n"
+        "    \"Reverse\": %s,\r\n"
+        "    \"Equalise\": %s,\r\n"
+        "    \"Loop\": %s,\r\n"
+        "    \"Swatches\": [ %s ],\r\n"
+        "    \"Widths\": [ %s ]\r\n"
+        "  }",
+        (g == &g_cfg.kbd) ? "Kbd" : "Bar",
+        g->on ? "true" : "false",
+        kEffects[g->effectIdx].label,
+        g->speed,
+        g->brightness,
+        g->mirror ? "true" : "false",
+        g->reverse ? "true" : "false",
+        g->equalise ? "true" : "false",
+        g->loop ? "true" : "false",
+        swBuf, wdBuf);
+}
+
+static void SavePanelCfg(void) {
+    char kJson[1024], bJson[1024], custBuf[512] = "", full[3200];
+    FormatGroupPanelJson(&g_cfg.kbd, kJson, sizeof(kJson));
+    FormatGroupPanelJson(&g_cfg.bar, bJson, sizeof(bJson));
+    size_t co = 0;
+    for (int i = 0; i < 16; i++) {
+        if (g_cfg.customColors[i] != RGB(255, 255, 255)) {
+            co += (size_t)snprintf(custBuf + co, sizeof(custBuf) - co, "%s%lu",
+                                   co ? ", " : "", (unsigned long)g_cfg.customColors[i]);
+        }
+    }
+    snprintf(full, sizeof(full),
+        "{\r\n"
+        "  \"Brightness\": %d,\r\n"
+        "  \"Overlay\": %s,\r\n"
+        "  \"Link\": %s,\r\n"
+        "  \"OnExit\": \"%s\",\r\n"
+        "  \"Smooth\": %s,\r\n"
+        "  \"Custom\": [ %s ],\r\n"
+        "%s,\r\n"
+        "%s\r\n"
+        "}\r\n",
+        g_cfg.masterBrightness,
+        g_cfg.overlay ? "true" : "false",
+        g_cfg.link ? "true" : "false",
+        g_cfg.onExit[0] ? g_cfg.onExit : "off",
+        g_cfg.smooth ? "true" : "false",
+        custBuf, kJson, bJson);
+    WriteAtomicUtf8(g_panelPath, full);
+}
+
+static void WriteLiveBrightness(void) {
+    char buf[32];
+    int lvl = g_cfg.masterBrightness * 10;
+    if (lvl < 0) lvl = 0;
+    if (lvl > 1000) lvl = 1000;
+    snprintf(buf, sizeof(buf), "%d\r\n", lvl);
+    WriteAtomicUtf8(g_livePath, buf);
+}
+
+static void FormatThemeBlock(const GroupCfg *g, const char *name, char *out, size_t cap) {
+    char cols[128] = "", wds[128] = "";
+    size_t co = 0, wo = 0;
+    for (int i = 0; i < g->swatchCount; i++) {
+        char hx[8];
+        FormatHexColor(g->swatches[i], hx);
+        co += (size_t)snprintf(cols + co, sizeof(cols) - co, "%s%s", i ? "," : "", hx);
+        wo += (size_t)snprintf(wds + wo, sizeof(wds) - wo, "%s%.3f", i ? "," : "", g->widths[i]);
+    }
+    snprintf(out, cap,
+        "  \"%s\": {\r\n"
+        "    \"On\": %s,\r\n"
+        "    \"Effect\": \"%s\",\r\n"
+        "    \"Colors\": \"%s\",\r\n"
+        "    \"Widths\": \"%s\",\r\n"
+        "    \"Speed\": %.2f,\r\n"
+        "    \"Brightness\": %.3f,\r\n"
+        "    \"Mirror\": %s,\r\n"
+        "    \"Reverse\": %s,\r\n"
+        "    \"Equalise\": %s,\r\n"
+        "    \"Loop\": %s\r\n"
+        "  }",
+        name,
+        g->on ? "true" : "false",
+        kEffects[g->effectIdx].token,
+        cols, wds,
+        (double)g->speed / 10.0,
+        (double)g->brightness / 100.0,
+        g->mirror ? "true" : "false",
+        g->reverse ? "true" : "false",
+        g->equalise ? "true" : "false",
+        g->loop ? "true" : "false");
+}
+
+static void WriteThemeJson(void) {
+    char kb[768], bb[768], full[2048];
+    FormatThemeBlock(&g_cfg.kbd, "Kbd", kb, sizeof(kb));
+    FormatThemeBlock(&g_cfg.bar, "Bar", bb, sizeof(bb));
+    snprintf(full, sizeof(full),
+        "{\r\n"
+        "  \"Brightness\": %.3f,\r\n"
+        "  \"Smooth\": %s,\r\n"
+        "%s,\r\n"
+        "%s\r\n"
+        "}\r\n",
+        (double)g_cfg.masterBrightness / 100.0,
+        g_cfg.smooth ? "true" : "false",
+        kb, bb);
+    WriteAtomicUtf8(g_themePath, full);
+}
+
+static void SyncLinkedZone(void) {
+    if (!g_cfg.link) return;
+    GroupCfg *src = CurGroup();
+    GroupCfg *dst = (g_tab == 1) ? &g_cfg.kbd : &g_cfg.bar;
+    *dst = *src;
+}
+
+static void WriteHeartbeat(void) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%lu\r\n", (unsigned long)GetCurrentProcessId());
+    HANDLE hf = CreateFileW(g_lockPath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                            NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hf != INVALID_HANDLE_VALUE) {
+        DWORD wr = 0;
+        WriteFile(hf, buf, (DWORD)strlen(buf), &wr, NULL);
+        CloseHandle(hf);
+    }
+}
+
+/* ============================================================================
+ *  Engine Lifecycle & Automatic Standalone GitHub Bootstrap
+ * ============================================================================ */
+
+static BOOL IsEngineAlive(void) {
+    if (!g_engineProc) return FALSE;
+    DWORD code = 0;
+    if (GetExitCodeProcess(g_engineProc, &code) && code == STILL_ACTIVE) return TRUE;
+    CloseHandle(g_engineProc);
+    g_engineProc = NULL;
+    g_enginePid = 0;
+    return FALSE;
+}
+
+static void KillPidFromFile(const wchar_t *path) {
+    char *txt = ReadFileUtf8(path, NULL);
+    if (txt) {
+        unsigned long pid = strtoul(txt, NULL, 10);
+        free(txt);
+        if (pid > 0 && pid != GetCurrentProcessId()) {
+            HANDLE hp = OpenProcess(PROCESS_TERMINATE, FALSE, (DWORD)pid);
+            if (hp) { TerminateProcess(hp, 0); CloseHandle(hp); }
+        }
+    }
+    DeleteFileW(path);
+}
+
+static void StopEngine(BOOL graceful) {
+    if (graceful && (IsEngineAlive() || FileExistsW(g_engPidPath))) {
+        WriteAtomicUtf8(g_stopPath, "1");
+        if (g_engineProc) WaitForSingleObject(g_engineProc, 450);
+        else Sleep(200);
+    }
+    if (g_engineProc) {
+        TerminateProcess(g_engineProc, 0);
+        CloseHandle(g_engineProc);
+        g_engineProc = NULL;
+        g_enginePid = 0;
+    }
+    KillPidFromFile(g_engPidPath);
+    DeleteFileW(g_stopPath);
+}
+
+static BOOL DownloadRepoFileWinHttp(const wchar_t *branch, const wchar_t *relName, const wchar_t *dest) {
+    wchar_t urlPath[512];
+    _snwprintf(urlPath, 511, L"/%s/%s/%s/keyboard-lighting/%s",
+               REPO_OWNER_W, REPO_NAME_W, branch, relName);
+
+    HINTERNET hSess = WinHttpOpen(L"Tests-KeyboardLighting/2.5",
+                                  WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                  WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSess) return FALSE;
+    WinHttpSetTimeouts(hSess, 6000, 8000, 12000, 20000);
+    HINTERNET hConn = WinHttpConnect(hSess, L"raw.githubusercontent.com", INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (!hConn) { WinHttpCloseHandle(hSess); return FALSE; }
+    HINTERNET hReq = WinHttpOpenRequest(hConn, L"GET", urlPath, NULL,
+                                        WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                        WINHTTP_FLAG_SECURE);
+    if (!hReq) { WinHttpCloseHandle(hConn); WinHttpCloseHandle(hSess); return FALSE; }
+
+    BOOL ok = FALSE;
+    if (WinHttpSendRequest(hReq, WINHTTP_NO_ADDITIONAL_HEADERS, 0, NULL, 0, 0, 0) &&
+        WinHttpReceiveResponse(hReq, NULL)) {
+        DWORD status = 0, ssz = sizeof(status);
+        WinHttpQueryHeaders(hReq, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                            WINHTTP_HEADER_NAME_BY_INDEX, &status, &ssz, WINHTTP_NO_HEADER_INDEX);
+        if (status == 200) {
+            DWORD cap = 65536, len = 0;
+            BYTE *buf = (BYTE *)malloc(cap);
+            for (; buf;) {
+                DWORD avail = 0, rd = 0;
+                if (!WinHttpQueryDataAvailable(hReq, &avail) || avail == 0) break;
+                if (len + avail + 1 > cap) {
+                    while (len + avail + 1 > cap) cap *= 2;
+                    BYTE *nb = (BYTE *)realloc(buf, cap);
+                    if (!nb) { free(buf); buf = NULL; break; }
+                    buf = nb;
+                }
+                if (!WinHttpReadData(hReq, buf + len, avail, &rd) || rd == 0) break;
+                len += rd;
+            }
+            if (buf && len > 64) {
+                wchar_t tmp[MAX_PATH];
+                _snwprintf(tmp, MAX_PATH, L"%s.tmp", dest);
+                HANDLE hf = CreateFileW(tmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+                if (hf != INVALID_HANDLE_VALUE) {
+                    DWORD wr = 0;
+                    if (WriteFile(hf, buf, len, &wr, NULL) && wr == len) {
+                        CloseHandle(hf);
+                        ok = MoveFileExW(tmp, dest, MOVEFILE_REPLACE_EXISTING);
+                    } else {
+                        CloseHandle(hf);
+                        DeleteFileW(tmp);
+                    }
+                }
+            }
+            free(buf);
+        }
+    }
+    WinHttpCloseHandle(hReq);
+    WinHttpCloseHandle(hConn);
+    WinHttpCloseHandle(hSess);
+    return ok;
+}
+
+static DWORD WINAPI BootstrapEngineWorker(LPVOID unused) {
+    (void)unused;
+    const wchar_t *branches[2] = { L"main", FALLBACK_BRANCH_W };
+    wchar_t dest[MAX_PATH];
+    _snwprintf(dest, MAX_PATH, L"%s\\Aura-Background.ps1", g_cfgDir);
+    BOOL got = FALSE;
+    for (int b = 0; b < 2 && !got; b++) {
+        got = DownloadRepoFileWinHttp(branches[b], L"Aura-Background.ps1", dest);
+        if (got) {
+            wchar_t z1[MAX_PATH], z2[MAX_PATH];
+            _snwprintf(z1, MAX_PATH, L"%s\\Zones.ps1", g_cfgDir);
+            _snwprintf(z2, MAX_PATH, L"%s\\Zones.bat", g_cfgDir);
+            DownloadRepoFileWinHttp(branches[b], L"Zones.ps1", z1);
+            DownloadRepoFileWinHttp(branches[b], L"Zones.bat", z2);
+        }
+    }
+    InterlockedExchange(&g_downloading, 0);
+    if (g_hwnd) PostMessageW(g_hwnd, WM_ENGINE_BOOTED, got ? 1 : 0, 0);
+    return 0;
+}
+
+static void StartEngine(void) {
+    StopEngine(FALSE);
+    g_wantOff = FALSE;
+
+    const wchar_t *script = NULL;
+    if (FileExistsW(g_engineScript)) {
+        script = g_engineScript;
+    } else {
+        static wchar_t cachedEngine[MAX_PATH];
+        _snwprintf(cachedEngine, MAX_PATH, L"%s\\Aura-Background.ps1", g_cfgDir);
+        if (FileExistsW(cachedEngine)) {
+            script = cachedEngine;
+        } else {
+            if (InterlockedCompareExchange(&g_downloading, 1, 0) == 0) {
+                wcsncpy(g_statusText, L"Downloading Aura-Background.ps1 engine from GitHub...", 255);
+                HANDLE ht = CreateThread(NULL, 0, BootstrapEngineWorker, NULL, 0, NULL);
+                if (ht) CloseHandle(ht);
+            }
+            return;
+        }
+    }
+
+    WriteLiveBrightness();
+    WriteThemeJson();
+
+    char kCols[128] = "", kWds[128] = "", bCols[128] = "", bWds[128] = "", c0[8] = "#38BDF8", c1[8] = "#818CF8";
+    size_t o1 = 0, o2 = 0, o3 = 0, o4 = 0;
+    for (int i = 0; i < g_cfg.kbd.swatchCount; i++) {
+        char hx[8];
+        FormatHexColor(g_cfg.kbd.swatches[i], hx);
+        if (i == 0) strncpy(c0, hx, 7);
+        if (i == 1) strncpy(c1, hx, 7);
+        o1 += (size_t)snprintf(kCols + o1, sizeof(kCols) - o1, "%s%s", i ? "," : "", hx);
+        o2 += (size_t)snprintf(kWds + o2, sizeof(kWds) - o2, "%s%.3f", i ? "," : "", g_cfg.kbd.widths[i]);
+    }
+    for (int i = 0; i < g_cfg.bar.swatchCount; i++) {
+        char hx[8];
+        FormatHexColor(g_cfg.bar.swatches[i], hx);
+        o3 += (size_t)snprintf(bCols + o3, sizeof(bCols) - o3, "%s%s", i ? "," : "", hx);
+        o4 += (size_t)snprintf(bWds + o4, sizeof(bWds) - o4, "%s%.3f", i ? "," : "", g_cfg.bar.widths[i]);
+    }
+
+    wchar_t cmd[2048];
+    _snwprintf(cmd, 2047,
+        L"powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"%s\""
+        L" -Effect %S -Speed %.2f -Brightness %.3f -Master %.3f -Fps 60 -Quiet"
+        L" -OwnerPid %lu -OnExit %S"
+        L" -Colors \"%S\" -Widths \"%S\" -Color \"%S\" -Color2 \"%S\""
+        L"%s%s -Equalise %s -Layout %s%s"
+        L" -BarEffect %S -BarSpeed %.2f -BarBrightness %.3f"
+        L" -BarColors \"%S\" -BarWidths \"%S\""
+        L"%s%s -BarEqualise %s -BarLayout %s%s%s",
+        script,
+        kEffects[g_cfg.kbd.effectIdx].token,
+        (double)g_cfg.kbd.speed / 10.0,
+        (double)g_cfg.kbd.brightness / 100.0,
+        (double)g_cfg.masterBrightness / 100.0,
+        (unsigned long)GetCurrentProcessId(),
+        g_cfg.onExit[0] ? g_cfg.onExit : "off",
+        kCols, kWds, c0, c1,
+        g_cfg.kbd.mirror ? L" -Mirror" : L"",
+        g_cfg.kbd.reverse ? L" -Reverse" : L"",
+        g_cfg.kbd.equalise ? L"on" : L"off",
+        g_cfg.kbd.loop ? L"loop" : L"across",
+        g_cfg.kbd.on ? L"" : L" -KbdOff",
+        kEffects[g_cfg.bar.effectIdx].token,
+        (double)g_cfg.bar.speed / 10.0,
+        (double)g_cfg.bar.brightness / 100.0,
+        bCols, bWds,
+        g_cfg.bar.mirror ? L" -BarMirror" : L"",
+        g_cfg.bar.reverse ? L" -BarReverse" : L"",
+        g_cfg.bar.equalise ? L"on" : L"off",
+        g_cfg.bar.loop ? L"loop" : L"across",
+        g_cfg.bar.on ? L"" : L" -BarOff",
+        g_cfg.overlay ? L" -OverlayOn" : L"");
+
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    ZeroMemory(&pi, sizeof(pi));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+
+    if (CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, g_exeDir, &si, &pi)) {
+        CloseHandle(pi.hThread);
+        g_engineProc = pi.hProcess;
+        g_enginePid  = pi.dwProcessId;
+        char pidBuf[32];
+        snprintf(pidBuf, sizeof(pidBuf), "%lu\r\n", (unsigned long)g_enginePid);
+        WriteAtomicUtf8(g_engPidPath, pidBuf);
+        _snwprintf(g_statusText, 255, L"Active  \x00B7  Keys: %S  \x00B7  Light Bar: %S",
+                   g_cfg.kbd.on ? kEffects[g_cfg.kbd.effectIdx].label : "Off",
+                   g_cfg.bar.on ? kEffects[g_cfg.bar.effectIdx].label : "Off");
+    } else {
+        wcsncpy(g_statusText, L"Could not launch lighting engine process.", 255);
+    }
+}
+
+static void TurnAllLightsOff(void) {
+    StopEngine(TRUE);
+    g_wantOff = TRUE;
+    const wchar_t *script = FileExistsW(g_engineScript) ? g_engineScript : NULL;
+    static wchar_t cached[MAX_PATH];
+    if (!script) {
+        _snwprintf(cached, MAX_PATH, L"%s\\Aura-Background.ps1", g_cfgDir);
+        if (FileExistsW(cached)) script = cached;
+    }
+    if (script) {
+        wchar_t cmd[768];
+        _snwprintf(cmd, 767, L"powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"%s\" -Effect off -Quiet", script);
+        STARTUPINFOW si;
+        PROCESS_INFORMATION pi;
+        ZeroMemory(&si, sizeof(si));
+        ZeroMemory(&pi, sizeof(pi));
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+        if (CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, g_exeDir, &si, &pi)) {
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+        }
+    }
+    wcsncpy(g_statusText, L"Lighting turned off  \x00B7  Click Lights toggle to resume", 255);
+}
+
+static BOOL QueryAutostart(void) {
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    ZeroMemory(&pi, sizeof(pi));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    wchar_t cmd[] = L"schtasks.exe /Query /TN \"KeyboardLighting\"";
+    if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
+        return FALSE;
+    WaitForSingleObject(pi.hProcess, 2500);
+    DWORD code = 1;
+    GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return (code == 0);
+}
+
+static BOOL SetKblAutostart(BOOL enable) {
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    ZeroMemory(&pi, sizeof(pi));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    wchar_t cmd[MAX_PATH * 2];
+    if (enable) {
+        _snwprintf(cmd, MAX_PATH * 2 - 1,
+                   L"schtasks.exe /Create /TN \"KeyboardLighting\" /TR \"\\\"%s\\\" -Silent\" /SC ONLOGON %s /F",
+                   g_exePath, g_isAdmin ? L"/RL HIGHEST" : L"");
+    } else {
+        _snwprintf(cmd, MAX_PATH * 2 - 1, L"schtasks.exe /Delete /TN \"KeyboardLighting\" /F");
+    }
+    if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
+        return FALSE;
+    WaitForSingleObject(pi.hProcess, 3500);
+    DWORD code = 1;
+    GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    if (code == 0) {
+        g_autostart = enable;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+static void ScheduleLiveApply(void) {
+    g_applyPending = TRUE;
+    g_applyAtTick  = GetTickCount64() + 120ULL;
+}
+
+static void FlushLiveApply(void) {
+    g_applyPending = FALSE;
+    SavePanelCfg();
+    if (g_wantOff) return;
+    if (IsEngineAlive()) {
+        WriteThemeJson();
+        WriteLiveBrightness();
+        _snwprintf(g_statusText, 255, L"Active  \x00B7  Keys: %S  \x00B7  Light Bar: %S",
+                   g_cfg.kbd.on ? kEffects[g_cfg.kbd.effectIdx].label : "Off",
+                   g_cfg.bar.on ? kEffects[g_cfg.bar.effectIdx].label : "Off");
+    } else {
+        StartEngine();
+    }
+}
+
+/* Read live lamp frame from Aura-Background.ps1 or synthesize accurate live palette preview */
+static void PollLivePreviewFrame(void) {
+    DWORD len = 0;
+    char *txt = ReadFileUtf8(g_framePath, &len);
+    if (txt && len > 8) {
+        char *semi = strchr(txt, ';');
+        if (semi) {
+            int n = atoi(txt);
+            const char *hex = semi + 1;
+            if (n >= 1 && n <= 64 && strlen(hex) >= (size_t)(n * 6)) {
+                for (int i = 0; i < n; i++) {
+                    char cbuf[8] = { '#', hex[i*6], hex[i*6+1], hex[i*6+2], hex[i*6+3], hex[i*6+4], hex[i*6+5], 0 };
+                    g_liveCols[i] = ParseHexColor(cbuf, RGB(34, 39, 52));
+                }
+                g_liveKbdN = (n >= 4) ? 4 : n;
+                g_liveBarN = (n > 4) ? (n - 4) : 0;
+                g_hasLiveFrame = TRUE;
+                g_lastFrameTick = GetTickCount64();
+                free(txt);
+                return;
+            }
+        }
+    }
+    free(txt);
+
+    /* Smooth animated preview using exact active settings when off-hardware or starting */
+    if (g_hasLiveFrame && GetTickCount64() - g_lastFrameTick < 2500ULL) return;
+    g_hasLiveFrame = FALSE;
+    g_liveKbdN = 4;
+    g_liveBarN = 12;
+
+    double phase = (double)(GetTickCount64() % 10000ULL) / 10000.0;
+    for (int z = 0; z < 16; z++) {
+        const GroupCfg *g = (z < 4) ? &g_cfg.kbd : &g_cfg.bar;
+        double u = (z < 4) ? ((double)z / 4.0) : ((double)(z - 4) / 12.0);
+        if (g_wantOff || !g->on) {
+            g_liveCols[z] = RGB(24, 28, 38);
+            continue;
+        }
+        double spd = (double)g->speed / 10.0;
+        double pos = fmod(u + phase * spd * (g->reverse ? -1.0 : 1.0) + 10.0, 1.0);
+        COLORREF base;
+        if (!kEffects[g->effectIdx].usesPalette) {
+            double h6 = pos * 6.0;
+            int hi = (int)floor(h6) % 6;
+            double f = h6 - floor(h6);
+            int q = (int)(255.0 * (1.0 - f)), t = (int)(255.0 * f);
+            switch (hi) {
+            case 0: base = RGB(255, t, 0); break;
+            case 1: base = RGB(q, 255, 0); break;
+            case 2: base = RGB(0, 255, t); break;
+            case 3: base = RGB(0, q, 255); break;
+            case 4: base = RGB(t, 0, 255); break;
+            default: base = RGB(255, 0, q); break;
+            }
+        } else {
+            int n = g->swatchCount > 0 ? g->swatchCount : 1;
+            double scaled = pos * n;
+            int i0 = ((int)floor(scaled)) % n;
+            int i1 = (i0 + 1) % n;
+            double f = scaled - floor(scaled);
+            COLORREF c0 = g->swatches[i0], c1 = g->swatches[i1];
+            base = RGB(
+                (int)(GetRValue(c0) + (GetRValue(c1) - GetRValue(c0)) * f),
+                (int)(GetGValue(c0) + (GetGValue(c1) - GetGValue(c0)) * f),
+                (int)(GetBValue(c0) + (GetBValue(c1) - GetBValue(c0)) * f));
+        }
+        double dim = ((double)g_cfg.masterBrightness / 100.0) * ((double)g->brightness / 100.0);
+        g_liveCols[z] = RGB((int)(GetRValue(base) * dim),
+                            (int)(GetGValue(base) * dim),
+                            (int)(GetBValue(base) * dim));
+    }
+}
+
+/* ============================================================================
+ *  Sub-Pixel Anti-Aliased Smooth Rounded UI Renderer (32-bit DIBSection)
+ * ============================================================================ */
+
+static inline uint32_t PackRgb(COLORREF c) {
+    return ((uint32_t)GetRValue(c) << 16) | ((uint32_t)GetGValue(c) << 8) | (uint32_t)GetBValue(c);
+}
+
+static inline uint32_t BlendRgb(uint32_t dst, uint32_t src, int a256) {
+    if (a256 <= 0) return dst;
+    if (a256 >= 256) return src;
+    int inv = 256 - a256;
+    uint32_t rb = (((dst & 0x00FF00FFu) * (uint32_t)inv) + ((src & 0x00FF00FFu) * (uint32_t)a256)) >> 8;
+    uint32_t g  = (((dst & 0x0000FF00u) * (uint32_t)inv) + ((src & 0x0000FF00u) * (uint32_t)a256)) >> 8;
+    return (rb & 0x00FF00FFu) | (g & 0x0000FF00u);
+}
+
+static void FillCanvasRect(uint32_t *px, int W, int H, int x0, int y0, int x1, int y1, COLORREF col) {
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > W) x1 = W;
+    if (y1 > H) y1 = H;
+    if (x0 >= x1 || y0 >= y1) return;
+    uint32_t p = PackRgb(col);
+    for (int y = y0; y < y1; y++) {
+        uint32_t *row = px + (size_t)y * (size_t)W;
+        for (int x = x0; x < x1; x++) row[x] = p;
+    }
+}
+
+static void SmoothRoundRect(uint32_t *px, int W, int H, const RECT *rc, float radius,
+                            COLORREF fillCol, COLORREF borderCol, int clipTop, int clipBottom) {
+    float x0 = (float)rc->left, y0 = (float)rc->top;
+    float x1 = (float)rc->right, y1 = (float)rc->bottom;
+    float rw = x1 - x0, rh = y1 - y0;
+    if (rw <= 0.5f || rh <= 0.5f) return;
+    if (radius * 2.0f > rw) radius = rw * 0.5f;
+    if (radius * 2.0f > rh) radius = rh * 0.5f;
+
+    float cx = 0.5f * (x0 + x1), cy = 0.5f * (y0 + y1);
+    float hx = 0.5f * rw - radius, hy = 0.5f * rh - radius;
+
+    int iy0 = (int)floorf(y0 - 1.0f), iy1 = (int)ceilf(y1 + 1.0f);
+    int ix0 = (int)floorf(x0 - 1.0f), ix1 = (int)ceilf(x1 + 1.0f);
+    if (iy0 < clipTop) iy0 = clipTop;
+    if (iy1 > clipBottom) iy1 = clipBottom;
+    if (iy0 < 0) iy0 = 0;
+    if (iy1 > H) iy1 = H;
+    if (ix0 < 0) ix0 = 0;
+    if (ix1 > W) ix1 = W;
+
+    uint32_t fillP = PackRgb(fillCol), borderP = PackRgb(borderCol);
+    BOOL sameBorder = (fillP == borderP);
+
+    for (int y = iy0; y < iy1; y++) {
+        float qy = fabsf(((float)y + 0.5f) - cy) - hy;
+        uint32_t *row = px + (size_t)y * (size_t)W;
+        for (int x = ix0; x < ix1; x++) {
+            float qx = fabsf(((float)x + 0.5f) - cx) - hx;
+            float sd = (qx > 0.0f && qy > 0.0f) ? (sqrtf(qx * qx + qy * qy) - radius)
+                                                 : ((qx > qy ? qx : qy) - radius);
+            if (sd >= 0.5f) continue;
+
+            uint32_t c = fillP;
+            if (!sameBorder && sd > -1.6f) {
+                float ba = 1.0f - fabsf(sd + 0.5f);
+                if (ba > 0.0f) {
+                    int b256 = (int)(ba * 256.0f);
+                    c = BlendRgb(fillP, borderP, b256 > 256 ? 256 : b256);
+                }
+            }
+            if (sd <= -0.5f) row[x] = c;
+            else row[x] = BlendRgb(row[x], c, (int)((0.5f - sd) * 256.0f));
+        }
+    }
+}
+
+static void DrawSuiteEmblemIcon(HDC hdc, int x, int y, int sz) {
+    HICON hEmb = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(RES_ICON_EMBLEM),
+                                   IMAGE_ICON, sz, sz, LR_DEFAULTCOLOR);
+    if (hEmb) {
+        DrawIconEx(hdc, x, y, hEmb, sz, sz, 0, NULL, DI_NORMAL);
+        DestroyIcon(hEmb);
+    }
+}
+
+static void AddHit(RECT r, int kind, int index) {
+    if (g_hitCount < 96) {
+        g_hits[g_hitCount].rect  = r;
+        g_hits[g_hitCount].kind  = kind;
+        g_hits[g_hitCount].index = index;
+        g_hitCount++;
+    }
+}
+
+static void DrawSuiteBtn(HDC hdc, uint32_t *px, int W, int H, HFONT font, RECT r,
+                         const wchar_t *label, int style, BOOL hot, int dpi, int ct, int cb) {
+    COLORREF fill = hot ? COL_SEC_HOV : COL_SEC_BTN;
+    COLORREF border = hot ? COL_HOVER_RIM : COL_BTN_BORDER;
+    COLORREF fg = COL_TEXT;
+    if (style == 1) { fill = hot ? COL_ACCENT_HOV : COL_ACCENT_STRONG; border = fill; }
+    else if (style == 2) { fill = hot ? RGB(88, 66, 30) : COL_WARN_BG; border = COL_WARN; fg = COL_WARN; }
+    SmoothRoundRect(px, W, H, &r, (float)S(9, dpi), fill, border, ct, cb);
+    SelectObject(hdc, font);
+    SetTextColor(hdc, fg);
+    DrawTextW(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+}
+
+static void DrawPillSwitch(HDC hdc, uint32_t *px, int W, int H, HFONT font, RECT r,
+                           const wchar_t *label, BOOL isOn, BOOL hot, int dpi, int ct, int cb) {
+    SmoothRoundRect(px, W, H, &r, (float)S(9, dpi),
+                    hot ? COL_SEC_HOV : COL_SEC_BTN,
+                    hot ? COL_HOVER_RIM : COL_BTN_BORDER, ct, cb);
+    int tw = S(34, dpi), th = S(18, dpi);
+    int tx = r.right - S(10, dpi) - tw;
+    int ty = r.top + (r.bottom - r.top - th) / 2;
+    RECT trk = { tx, ty, tx + tw, ty + th };
+    SmoothRoundRect(px, W, H, &trk, (float)th * 0.5f,
+                    isOn ? COL_ACCENT_STRONG : RGB(24, 28, 38),
+                    isOn ? COL_ACCENT : COL_BORDER, ct, cb);
+    int kd = th - S(6, dpi);
+    int kx = isOn ? (trk.right - S(3, dpi) - kd) : (trk.left + S(3, dpi));
+    int ky = trk.top + (th - kd) / 2;
+    RECT knb = { kx, ky, kx + kd, ky + kd };
+    COLORREF kc = isOn ? RGB(255, 255, 255) : COL_MUTED;
+    SmoothRoundRect(px, W, H, &knb, (float)kd * 0.5f, kc, kc, ct, cb);
+
+    SelectObject(hdc, font);
+    SetTextColor(hdc, isOn ? COL_TEXT : COL_MUTED);
+    RECT lr = { r.left + S(12, dpi), r.top, tx - S(6, dpi), r.bottom };
+    DrawTextW(hdc, label, -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+}
+
+static void DrawSmoothSlider(HDC hdc, uint32_t *px, int W, int H, HFONT fLabel, HFONT fVal,
+                             RECT trackBox, const wchar_t *title, const wchar_t *valStr,
+                             double norm01, BOOL hot, int dpi, int ct, int cb) {
+    if (norm01 < 0.0) norm01 = 0.0;
+    if (norm01 > 1.0) norm01 = 1.0;
+
+    SelectObject(hdc, fLabel);
+    SetTextColor(hdc, COL_MUTED);
+    RECT lr = { trackBox.left, trackBox.top - S(19, dpi), trackBox.right - S(72, dpi), trackBox.top - S(1, dpi) };
+    DrawTextW(hdc, title, -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+
+    SelectObject(hdc, fVal);
+    SetTextColor(hdc, COL_ACCENT);
+    RECT vr = { trackBox.right - S(72, dpi), trackBox.top - S(19, dpi), trackBox.right, trackBox.top - S(1, dpi) };
+    DrawTextW(hdc, valStr, -1, &vr, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+
+    int barH = S(8, dpi);
+    int cy = (trackBox.top + trackBox.bottom) / 2;
+    RECT groove = { trackBox.left, cy - barH / 2, trackBox.right, cy + barH / 2 };
+    SmoothRoundRect(px, W, H, &groove, (float)barH * 0.5f, RGB(22, 26, 35), COL_BORDER, ct, cb);
+
+    int thumbR = S(hot ? 9 : 8, dpi);
+    int usable = (groove.right - groove.left) - thumbR * 2;
+    if (usable < 1) usable = 1;
+    int cx = groove.left + thumbR + (int)(norm01 * usable);
+
+    RECT fillR = { groove.left, groove.top, cx, groove.bottom };
+    SmoothRoundRect(px, W, H, &fillR, (float)barH * 0.5f, COL_ACCENT_STRONG, COL_ACCENT, ct, cb);
+
+    RECT thumb = { cx - thumbR, cy - thumbR, cx + thumbR, cy + thumbR };
+    SmoothRoundRect(px, W, H, &thumb, (float)thumbR, RGB(248, 250, 252), COL_ACCENT, ct, cb);
+}
+
+static void RenderKblWindow(HWND hwnd, HDC targetDc) {
+    RECT cli;
+    GetClientRect(hwnd, &cli);
+    int W = cli.right - cli.left, H = cli.bottom - cli.top;
+    if (W <= 0 || H <= 0) return;
+
+    int dpi = GetWinDpi(hwnd);
+    BITMAPINFO bmi;
+    ZeroMemory(&bmi, sizeof(bmi));
+    bmi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth       = W;
+    bmi.bmiHeader.biHeight      = -H;
+    bmi.bmiHeader.biPlanes      = 1;
+    bmi.bmiHeader.biBitCount    = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    uint32_t *px = NULL;
+    HDC mem = CreateCompatibleDC(targetDc);
+    HBITMAP bmp = CreateDIBSection(targetDc, &bmi, DIB_RGB_COLORS, (void **)&px, NULL, 0);
+    if (!bmp || !px) { DeleteDC(mem); return; }
+    HGDIOBJ oldBmp = SelectObject(mem, bmp);
+    SetBkMode(mem, TRANSPARENT);
+
+    HFONT fTitle = CreateFontW(-S(19, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+    HFONT fSub   = CreateFontW(-S(12, dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+    HFONT fCard  = CreateFontW(-S(14, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+    HFONT fBtn   = CreateFontW(-S(12, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+    HFONT fBadge = CreateFontW(-S(11, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+    HFONT fSmall = CreateFontW(-S(11, dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+
+    int M = S(28, dpi);
+    int CW = W - M * 2;
+    int headerH = S(76, dpi);
+    int footerH = S(44, dpi);
+    int footerTop = H - footerH;
+
+    FillCanvasRect(px, W, H, 0, 0, W, footerTop, COL_BG);
+    FillCanvasRect(px, W, H, 0, footerTop, W, H, COL_FOOTER_BG);
+
+    g_hitCount = 0;
+
+    /* 1. Unified Suite Header (matches Project Hub & Bluetooth Guard) */
+    int embSz = S(36, dpi);
+    DrawSuiteEmblemIcon(mem, M, (headerH - embSz) / 2, embSz);
+
+    int topH = S(34, dpi), topY = (headerH - topH) / 2;
+    RECT btnRst  = { W - M - S(88, dpi), topY, W - M, topY + topH };
+    RECT togAuto = { btnRst.left - S(130, dpi), topY, btnRst.left - S(8, dpi), topY + topH };
+    RECT togLive = { togAuto.left - S(122, dpi), topY, togAuto.left - S(8, dpi), topY + topH };
+
+    int iLive = g_hitCount; AddHit(togLive, HIT_HDR_LIGHTS, 0);
+    DrawPillSwitch(mem, px, W, H, fBtn, togLive, L"Lights", !g_wantOff, g_hoverIdx == iLive, dpi, 0, headerH);
+
+    int iAuto = g_hitCount; AddHit(togAuto, HIT_HDR_STARTUP, 0);
+    DrawPillSwitch(mem, px, W, H, fBtn, togAuto, L"Startup", g_autostart, g_hoverIdx == iAuto, dpi, 0, headerH);
+
+    int iRst = g_hitCount; AddHit(btnRst, HIT_HDR_RESTART, 0);
+    DrawSuiteBtn(mem, px, W, H, fBtn, btnRst, L"Restart", 0, g_hoverIdx == iRst, dpi, 0, headerH);
+
+    int hdrLeft = M + embSz + S(14, dpi);
+    SelectObject(mem, fTitle);
+    SetTextColor(mem, COL_TEXT);
+    RECT rHdrT = { hdrLeft, S(13, dpi), togLive.left - S(12, dpi), S(40, dpi) };
+    DrawTextW(mem, L"Keyboard Lighting", -1, &rHdrT, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+
+    wchar_t subHdr[160];
+    _snwprintf(subHdr, 159, L"ROG Strix G16  \x00B7  Keys: %S  \x00B7  Light Bar: %S",
+               g_wantOff || !g_cfg.kbd.on ? "Off" : kEffects[g_cfg.kbd.effectIdx].label,
+               g_wantOff || !g_cfg.bar.on ? "Off" : kEffects[g_cfg.bar.effectIdx].label);
+    SelectObject(mem, fSub);
+    SetTextColor(mem, COL_TELEMETRY);
+    RECT rHdrS = { hdrLeft, S(40, dpi), togLive.left - S(12, dpi), S(60, dpi) };
+    DrawTextW(mem, subHdr, -1, &rHdrS, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+
+    FillCanvasRect(px, W, H, M, headerH, W - M, headerH + 1, COL_DIVIDER);
+
+    /* Scrollable Cards Region */
+    int listTop = headerH + S(12, dpi);
+    int listBot = footerTop - S(2, dpi);
+    int gap = S(12, dpi);
+    int hCard1 = S(138, dpi), hCard2 = S(118, dpi), hCard3 = S(118, dpi), hCard4 = S(148, dpi);
+    g_contentH = hCard1 + hCard2 + hCard3 + hCard4 + gap * 3 + S(16, dpi);
+    int maxSc = g_contentH - (listBot - listTop);
+    if (maxSc < 0) maxSc = 0;
+    if (g_scrollY > maxSc) g_scrollY = maxSc;
+    if (g_scrollY < 0) g_scrollY = 0;
+
+    int saved = SaveDC(mem);
+    IntersectClipRect(mem, 0, listTop, W, listBot);
+
+    int y = listTop - g_scrollY;
+    GroupCfg *cg = CurGroup();
+    BOOL alive = IsEngineAlive();
+
+    /* ---- CARD 1: Live ROG Strix G16 Preview + Master Brightness ---- */
+    RECT c1 = { M, y, M + CW, y + hCard1 };
+    SmoothRoundRect(px, W, H, &c1, (float)S(14, dpi), COL_CARD, COL_BORDER, listTop, listBot);
+
+    COLORREF stCol = g_wantOff ? COL_IDLE_SLATE : (alive ? COL_GOOD : COL_WARN);
+    COLORREF stBg  = g_wantOff ? COL_PILL_MUTED : (alive ? COL_GOOD_BG : COL_WARN_BG);
+    const wchar_t *stTxt = g_wantOff ? L"Lights Off" : (alive ? L"Engine Active" : L"Preview Ready");
+
+    RECT bar1 = { c1.left + S(1, dpi), c1.top + S(16, dpi), c1.left + S(5, dpi), c1.bottom - S(16, dpi) };
+    SmoothRoundRect(px, W, H, &bar1, (float)S(2, dpi), stCol, stCol, listTop, listBot);
+
+    int icoSz = S(38, dpi);
+    HICON hAppIco = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(RES_ICON_APP),
+                                      IMAGE_ICON, icoSz, icoSz, LR_DEFAULTCOLOR);
+    if (hAppIco) {
+        DrawIconEx(mem, c1.left + S(16, dpi), c1.top + S(12, dpi), hAppIco, icoSz, icoSz, 0, NULL, DI_NORMAL);
+        DestroyIcon(hAppIco);
+    }
+
+    SelectObject(mem, fCard);
+    SetTextColor(mem, COL_TEXT);
+    RECT c1Title = { c1.left + S(64, dpi), c1.top + S(14, dpi), c1.right - S(150, dpi), c1.top + S(38, dpi) };
+    DrawTextW(mem, L"ROG Strix G16 Live Strip", -1, &c1Title, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+
+    /* Status Pill on Card 1 */
+    SelectObject(mem, fBadge);
+    SIZE bsz = {0, 0};
+    GetTextExtentPoint32W(mem, stTxt, (int)wcslen(stTxt), &bsz);
+    int pillW = bsz.cx + S(26, dpi), pillH = S(22, dpi);
+    RECT pill1 = { c1.right - S(16, dpi) - pillW, c1.top + S(12, dpi), c1.right - S(16, dpi), c1.top + S(12, dpi) + pillH };
+    SmoothRoundRect(px, W, H, &pill1, (float)pillH * 0.5f, stBg, stBg, listTop, listBot);
+    int d6 = S(6, dpi);
+    RECT pDot = { pill1.left + S(9, dpi), pill1.top + (pillH - d6)/2, pill1.left + S(9, dpi) + d6, pill1.top + (pillH - d6)/2 + d6 };
+    SmoothRoundRect(px, W, H, &pDot, (float)d6 * 0.5f, stCol, stCol, listTop, listBot);
+    RECT pTxt = { pill1.left + S(18, dpi), pill1.top, pill1.right - S(6, dpi), pill1.bottom };
+    SetTextColor(mem, stCol);
+    DrawTextW(mem, stTxt, -1, &pTxt, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+
+    /* 4-Zone Keyboard + 12-Zone Light Bar Smooth Rounded Strip */
+    int stripY = c1.top + S(52, dpi), stripH = S(28, dpi);
+    int innerW = CW - S(32, dpi);
+    int splitGap = S(12, dpi);
+    int kbdStripW = (innerW - splitGap) * 32 / 100;
+    int barStripW = innerW - splitGap - kbdStripW;
+    int cellGap = S(3, dpi);
+
+    int kn = g_liveKbdN > 0 ? g_liveKbdN : 4;
+    for (int i = 0; i < kn; i++) {
+        int x0 = c1.left + S(16, dpi) + (kbdStripW * i) / kn;
+        int x1 = c1.left + S(16, dpi) + (kbdStripW * (i + 1)) / kn - cellGap;
+        RECT zr = { x0, stripY, x1, stripY + stripH };
+        SmoothRoundRect(px, W, H, &zr, (float)S(6, dpi), g_liveCols[i], COL_BORDER, listTop, listBot);
+    }
+    int bn = g_liveBarN > 0 ? g_liveBarN : 12;
+    int barLeft = c1.left + S(16, dpi) + kbdStripW + splitGap;
+    for (int i = 0; i < bn; i++) {
+        int x0 = barLeft + (barStripW * i) / bn;
+        int x1 = barLeft + (barStripW * (i + 1)) / bn - S(2, dpi);
+        RECT zr = { x0, stripY, x1, stripY + stripH };
+        SmoothRoundRect(px, W, H, &zr, (float)S(5, dpi), g_liveCols[kn + i], COL_BORDER, listTop, listBot);
+    }
+
+    /* Master Brightness Slider */
+    wchar_t mbVal[16];
+    _snwprintf(mbVal, 15, L"%d%%", g_cfg.masterBrightness);
+    RECT slMaster = { c1.left + S(16, dpi), c1.top + S(104, dpi), c1.right - S(16, dpi), c1.top + S(128, dpi) };
+    int iMas = g_hitCount; AddHit(slMaster, HIT_SLIDER_MASTER, 0);
+    DrawSmoothSlider(mem, px, W, H, fBadge, fBadge, slMaster, L"Master Brightness (Fn Keys)", mbVal,
+                     (double)(g_cfg.masterBrightness - 5) / 95.0,
+                     g_hoverIdx == iMas || g_dragKind == HIT_SLIDER_MASTER, dpi, listTop, listBot);
+
+    y += hCard1 + gap;
+
+    /* ---- CARD 2: Zone Tabs + Effect Picker ---- */
+    RECT c2 = { M, y, M + CW, y + hCard2 };
+    SmoothRoundRect(px, W, H, &c2, (float)S(14, dpi), COL_CARD, COL_BORDER, listTop, listBot);
+
+    RECT segBox = { c2.left + S(16, dpi), c2.top + S(12, dpi), c2.left + S(256, dpi), c2.top + S(44, dpi) };
+    SmoothRoundRect(px, W, H, &segBox, (float)S(10, dpi), RGB(24, 28, 38), COL_BORDER, listTop, listBot);
+    RECT tab0 = { segBox.left + S(3, dpi), segBox.top + S(3, dpi), (segBox.left + segBox.right)/2 - S(1, dpi), segBox.bottom - S(3, dpi) };
+    RECT tab1 = { (segBox.left + segBox.right)/2 + S(1, dpi), segBox.top + S(3, dpi), segBox.right - S(3, dpi), segBox.bottom - S(3, dpi) };
+    int iT0 = g_hitCount; AddHit(tab0, HIT_TAB_KBD, 0);
+    int iT1 = g_hitCount; AddHit(tab1, HIT_TAB_BAR, 0);
+    if (g_tab == 0) {
+        SmoothRoundRect(px, W, H, &tab0, (float)S(8, dpi), COL_ACCENT_STRONG, COL_ACCENT_STRONG, listTop, listBot);
+        if (g_hoverIdx == iT1) SmoothRoundRect(px, W, H, &tab1, (float)S(8, dpi), COL_SEC_HOV, COL_SEC_HOV, listTop, listBot);
+    } else {
+        SmoothRoundRect(px, W, H, &tab1, (float)S(8, dpi), COL_ACCENT_STRONG, COL_ACCENT_STRONG, listTop, listBot);
+        if (g_hoverIdx == iT0) SmoothRoundRect(px, W, H, &tab0, (float)S(8, dpi), COL_SEC_HOV, COL_SEC_HOV, listTop, listBot);
+    }
+    SelectObject(mem, fBtn);
+    SetTextColor(mem, g_tab == 0 ? RGB(255,255,255) : COL_MUTED);
+    DrawTextW(mem, L"Keyboard", -1, &tab0, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SetTextColor(mem, g_tab == 1 ? RGB(255,255,255) : COL_MUTED);
+    DrawTextW(mem, L"Light Bar", -1, &tab1, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+    RECT togZone = { c2.right - S(292, dpi), c2.top + S(12, dpi), c2.right - S(156, dpi), c2.top + S(44, dpi) };
+    RECT togLink = { c2.right - S(148, dpi), c2.top + S(12, dpi), c2.right - S(16, dpi),  c2.top + S(44, dpi) };
+    int iZO = g_hitCount; AddHit(togZone, HIT_TOG_ZONE_ON, 0);
+    DrawPillSwitch(mem, px, W, H, fBtn, togZone, L"Zone On", cg->on, g_hoverIdx == iZO, dpi, listTop, listBot);
+    int iLK = g_hitCount; AddHit(togLink, HIT_TOG_LINK, 0);
+    DrawPillSwitch(mem, px, W, H, fBtn, togLink, L"Match Both", g_cfg.link, g_hoverIdx == iLK, dpi, listTop, listBot);
+
+    RECT pickR = { c2.left + S(16, dpi), c2.top + S(58, dpi), c2.left + S(296, dpi), c2.top + S(98, dpi) };
+    int iPk = g_hitCount; AddHit(pickR, HIT_PICK_EFFECT, 0);
+    SmoothRoundRect(px, W, H, &pickR, (float)S(10, dpi),
+                    g_hoverIdx == iPk ? COL_SEC_HOV : COL_SEC_BTN,
+                    g_hoverIdx == iPk ? COL_HOVER_RIM : COL_BTN_BORDER, listTop, listBot);
+    wchar_t effLabelW[96];
+    _snwprintf(effLabelW, 95, L"Pattern:  %S", kEffects[cg->effectIdx].label);
+    SelectObject(mem, fBtn);
+    SetTextColor(mem, COL_TEXT);
+    RECT pickTxt = { pickR.left + S(14, dpi), pickR.top, pickR.right - S(28, dpi), pickR.bottom };
+    DrawTextW(mem, effLabelW, -1, &pickTxt, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    RECT pickChev = { pickR.right - S(28, dpi), pickR.top, pickR.right - S(8, dpi), pickR.bottom };
+    SetTextColor(mem, COL_ACCENT);
+    DrawTextW(mem, L"\x25BE", -1, &pickChev, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+    wchar_t hintW[160];
+    _snwprintf(hintW, 159, L"%S", kEffects[cg->effectIdx].hint);
+    SelectObject(mem, fSmall);
+    SetTextColor(mem, COL_MUTED);
+    RECT rHint = { pickR.right + S(14, dpi), pickR.top, c2.right - S(16, dpi), pickR.bottom };
+    DrawTextW(mem, hintW, -1, &rHint, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+    y += hCard2 + gap;
+
+    /* ---- CARD 3: Interactive Colour Swatches + Band Width Bars ---- */
+    RECT c3 = { M, y, M + CW, y + hCard3 };
+    SmoothRoundRect(px, W, H, &c3, (float)S(14, dpi), COL_CARD, COL_BORDER, listTop, listBot);
+
+    BOOL usesPal = kEffects[cg->effectIdx].usesPalette != 0;
+    SelectObject(mem, fCard);
+    SetTextColor(mem, COL_TEXT);
+    RECT c3Title = { c3.left + S(16, dpi), c3.top + S(10, dpi), c3.left + S(200, dpi), c3.top + S(32, dpi) };
+    DrawTextW(mem, L"Colour Palette", -1, &c3Title, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+    SelectObject(mem, fSmall);
+    SetTextColor(mem, COL_MUTED);
+    RECT c3Sub = { c3.left + S(150, dpi), c3.top + S(10, dpi), c3.right - S(16, dpi), c3.top + S(32, dpi) };
+    DrawTextW(mem, usesPal ? L"Click a swatch to pick colour  \x00B7  Drag bar beneath to adjust width"
+                           : L"Selected pattern generates its own automatic colour palette",
+              -1, &c3Sub, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+    int sx = c3.left + S(16, dpi), sy = c3.top + S(40, dpi), swSz = S(44, dpi);
+    for (int i = 0; i < cg->swatchCount; i++) {
+        RECT sr = { sx, sy, sx + swSz, sy + swSz };
+        int hIdx = g_hitCount;
+        if (usesPal) AddHit(sr, HIT_SWATCH_0 + i, i);
+        COLORREF fillC = usesPal ? cg->swatches[i] : RGB(45, 50, 64);
+        SmoothRoundRect(px, W, H, &sr, (float)S(11, dpi), fillC,
+                        (usesPal && g_hoverIdx == hIdx) ? RGB(255, 255, 255) : COL_BTN_BORDER,
+                        listTop, listBot);
+
+        RECT wr = { sx, sy + swSz + S(6, dpi), sx + swSz, sy + swSz + S(16, dpi) };
+        if (usesPal) AddHit(wr, HIT_WIDTH_0 + i, i);
+        SmoothRoundRect(px, W, H, &wr, (float)S(5, dpi), RGB(22, 26, 35), COL_BORDER, listTop, listBot);
+        double wt = log(cg->widths[i] / 0.25) / log(16.0);
+        if (wt < 0.0) wt = 0.0;
+        if (wt > 1.0) wt = 1.0;
+        int fw = (int)(wt * swSz);
+        if (fw < S(6, dpi)) fw = S(6, dpi);
+        RECT wf = { wr.left, wr.top, wr.left + fw, wr.bottom };
+        SmoothRoundRect(px, W, H, &wf, (float)S(5, dpi), usesPal ? COL_ACCENT : COL_IDLE_SLATE,
+                        usesPal ? COL_ACCENT : COL_IDLE_SLATE, listTop, listBot);
+
+        sx += swSz + S(10, dpi);
+    }
+    if (usesPal && cg->swatchCount < 8) {
+        RECT addR = { sx, sy, sx + S(36, dpi), sy + swSz };
+        int hAdd = g_hitCount; AddHit(addR, HIT_SWATCH_ADD, 0);
+        DrawSuiteBtn(mem, px, W, H, fCard, addR, L"+", 0, g_hoverIdx == hAdd, dpi, listTop, listBot);
+        sx += S(44, dpi);
+    }
+    if (usesPal && cg->swatchCount > 2) {
+        RECT remR = { sx, sy, sx + S(36, dpi), sy + swSz };
+        int hRem = g_hitCount; AddHit(remR, HIT_SWATCH_REM, 0);
+        DrawSuiteBtn(mem, px, W, H, fCard, remR, L"-", 0, g_hoverIdx == hRem, dpi, listTop, listBot);
+    }
+
+    y += hCard3 + gap;
+
+    /* ---- CARD 4: Speed, Zone Brightness & Motion Switches ---- */
+    RECT c4 = { M, y, M + CW, y + hCard4 };
+    SmoothRoundRect(px, W, H, &c4, (float)S(14, dpi), COL_CARD, COL_BORDER, listTop, listBot);
+
+    int halfW = (CW - S(48, dpi)) / 2;
+    wchar_t spdStr[16], brtStr[16];
+    _snwprintf(spdStr, 15, L"%.1fx", (double)cg->speed / 10.0);
+    _snwprintf(brtStr, 15, L"%d%%", cg->brightness);
+
+    RECT slSpd = { c4.left + S(16, dpi), c4.top + S(32, dpi), c4.left + S(16, dpi) + halfW, c4.top + S(56, dpi) };
+    int iSpd = g_hitCount; AddHit(slSpd, HIT_SLIDER_SPEED, 0);
+    DrawSmoothSlider(mem, px, W, H, fBadge, fBadge, slSpd, L"Effect Speed", spdStr,
+                     (double)(cg->speed - 1) / 49.0,
+                     g_hoverIdx == iSpd || g_dragKind == HIT_SLIDER_SPEED, dpi, listTop, listBot);
+
+    RECT slBrt = { c4.right - S(16, dpi) - halfW, c4.top + S(32, dpi), c4.right - S(16, dpi), c4.top + S(56, dpi) };
+    int iBrt = g_hitCount; AddHit(slBrt, HIT_SLIDER_BRIGHT, 0);
+    DrawSmoothSlider(mem, px, W, H, fBadge, fBadge, slBrt, L"Zone Brightness", brtStr,
+                     (double)(cg->brightness - 5) / 95.0,
+                     g_hoverIdx == iBrt || g_dragKind == HIT_SLIDER_BRIGHT, dpi, listTop, listBot);
+
+    int colW = (CW - S(48, dpi)) / 3;
+    int r1Y = c4.top + S(66, dpi), r2Y = c4.top + S(104, dpi), thH = S(32, dpi);
+    struct { int kind; const wchar_t *lbl; BOOL val; int row; int col; } opts[6] = {
+        { HIT_TOG_LOOP,    L"Wrap Around",     cg->loop,      0, 0 },
+        { HIT_TOG_EQ,      L"Even Brightness", cg->equalise,  0, 1 },
+        { HIT_TOG_MIRROR,  L"Mirror",          cg->mirror,    0, 2 },
+        { HIT_TOG_REVERSE, L"Reverse",         cg->reverse,   1, 0 },
+        { HIT_TOG_SMOOTH,  L"Smooth Colour",   g_cfg.smooth,  1, 1 },
+        { HIT_TOG_OVERLAY, L"Charger Flash",   g_cfg.overlay, 1, 2 }
+    };
+    for (int o = 0; o < 6; o++) {
+        int ox = c4.left + S(16, dpi) + opts[o].col * (colW + S(8, dpi));
+        int oy = (opts[o].row == 0) ? r1Y : r2Y;
+        RECT orRc = { ox, oy, ox + colW, oy + thH };
+        int hO = g_hitCount; AddHit(orRc, opts[o].kind, 0);
+        DrawPillSwitch(mem, px, W, H, fBtn, orRc, opts[o].lbl, opts[o].val,
+                       g_hoverIdx == hO, dpi, listTop, listBot);
+    }
+
+    RestoreDC(mem, saved);
+
+    /* Unified Suite Footer */
+    FillCanvasRect(px, W, H, 0, footerTop, W, footerTop + 1, COL_DIVIDER);
+    COLORREF fCol = (!g_isAdmin) ? COL_WARN : (g_wantOff ? COL_IDLE_SLATE : COL_GOOD);
+    int fdSz = S(8, dpi);
+    RECT fdRc = { M, footerTop + (footerH - fdSz)/2, M + fdSz, footerTop + (footerH - fdSz)/2 + fdSz };
+    SmoothRoundRect(px, W, H, &fdRc, (float)fdSz * 0.5f, fCol, fCol, footerTop, H);
+
+    RECT quitR = { W - M - S(84, dpi), footerTop + S(7, dpi), W - M, H - S(8, dpi) };
+    int iQuit = g_hitCount; AddHit(quitR, HIT_FOOT_QUIT, 0);
+    DrawSuiteBtn(mem, px, W, H, fBtn, quitR, L"Quit", 0, g_hoverIdx == iQuit, dpi, footerTop, H);
+
+    int rightLimit = quitR.left - S(8, dpi);
+    if (!g_isAdmin) {
+        RECT elR = { rightLimit - S(136, dpi), footerTop + S(7, dpi), rightLimit, H - S(8, dpi) };
+        int iEl = g_hitCount; AddHit(elR, HIT_FOOT_ELEVATE, 0);
+        DrawSuiteBtn(mem, px, W, H, fBtn, elR, L"Run as Admin", 2, g_hoverIdx == iEl, dpi, footerTop, H);
+        rightLimit = elR.left - S(8, dpi);
+    } else if (FileExistsW(g_zonesBat)) {
+        RECT znR = { rightLimit - S(116, dpi), footerTop + S(7, dpi), rightLimit, H - S(8, dpi) };
+        int iZn = g_hitCount; AddHit(znR, HIT_FOOT_ZONES, 0);
+        DrawSuiteBtn(mem, px, W, H, fBtn, znR, L"Zones Setup", 0, g_hoverIdx == iZn, dpi, footerTop, H);
+        rightLimit = znR.left - S(8, dpi);
+    }
+
+    SelectObject(mem, fSub);
+    SetTextColor(mem, (!g_isAdmin) ? COL_WARN : COL_MUTED);
+    RECT fTxt = { M + S(16, dpi), footerTop, rightLimit - S(8, dpi), H };
+    DrawTextW(mem, !g_isAdmin ? L"Click 'Run as Admin' to unlock direct ROG Strix G16 USB RGB control"
+                              : g_statusText,
+              -1, &fTxt, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+
+    BitBlt(targetDc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
+
+    DeleteObject(fTitle); DeleteObject(fSub); DeleteObject(fCard);
+    DeleteObject(fBtn); DeleteObject(fBadge); DeleteObject(fSmall);
+    SelectObject(mem, oldBmp);
+    DeleteObject(bmp);
+    DeleteDC(mem);
+}
+
+/* ============================================================================
+ *  Mouse Drag, Color Picker, Menus & Window Procedure
+ * ============================================================================ */
+
+static void ApplySliderDrag(int kind, int idx, RECT r, int mouseX) {
+    int w = r.right - r.left;
+    if (w <= 2) return;
+    double t = (double)(mouseX - r.left) / (double)w;
+    if (t < 0.0) t = 0.0;
+    if (t > 1.0) t = 1.0;
+
+    GroupCfg *cg = CurGroup();
+    if (kind == HIT_SLIDER_MASTER) {
+        g_cfg.masterBrightness = 5 + (int)floor(t * 95.0 + 0.5);
+        WriteLiveBrightness();
+        ScheduleLiveApply();
+    } else if (kind == HIT_SLIDER_SPEED) {
+        cg->speed = 1 + (int)floor(t * 49.0 + 0.5);
+        SyncLinkedZone();
+        ScheduleLiveApply();
+    } else if (kind == HIT_SLIDER_BRIGHT) {
+        cg->brightness = 5 + (int)floor(t * 95.0 + 0.5);
+        SyncLinkedZone();
+        ScheduleLiveApply();
+    } else if (kind >= HIT_WIDTH_0 && kind < HIT_WIDTH_0 + 8 && idx >= 0 && idx < cg->swatchCount) {
+        cg->widths[idx] = 0.25 * pow(16.0, t);
+        SyncLinkedZone();
+        ScheduleLiveApply();
+    }
+    InvalidateRect(g_hwnd, NULL, FALSE);
+}
+
+static void OpenEffectPopup(HWND hwnd, RECT anchor) {
+    HMENU hMenu = CreatePopupMenu();
+    GroupCfg *cg = CurGroup();
+    for (int i = 0; i < EFFECT_COUNT; i++) {
+        wchar_t lbl[64];
+        _snwprintf(lbl, 63, L"%S", kEffects[i].label);
+        AppendMenuW(hMenu, MF_STRING | (cg->effectIdx == i ? MF_CHECKED : 0),
+                    (UINT_PTR)(IDM_EFF_BASE + i), lbl);
+    }
+    POINT pt = { anchor.left, anchor.bottom + 2 };
+    ClientToScreen(hwnd, &pt);
+    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+    DestroyMenu(hMenu);
+}
+
+static void PickSwatchColor(HWND hwnd, int idx) {
+    GroupCfg *cg = CurGroup();
+    if (idx < 0 || idx >= cg->swatchCount) return;
+
+    CHOOSECOLORW cc;
+    ZeroMemory(&cc, sizeof(cc));
+    cc.lStructSize  = sizeof(cc);
+    cc.hwndOwner    = hwnd;
+    cc.rgbResult    = cg->swatches[idx];
+    cc.lpCustColors = g_cfg.customColors;
+    cc.Flags        = CC_FULLOPEN | CC_RGBINIT | CC_ANYCOLOR;
+    if (ChooseColorW(&cc)) {
+        cg->swatches[idx] = cc.rgbResult;
+        SyncLinkedZone();
+        FlushLiveApply();
+        InvalidateRect(hwnd, NULL, FALSE);
+    } else {
+        SavePanelCfg();
+    }
+}
+
+static void RelaunchElevated(HWND hwnd) {
+    StopEngine(TRUE);
+    DeleteFileW(g_lockPath);
+    SHELLEXECUTEINFOW sei;
+    ZeroMemory(&sei, sizeof(sei));
+    sei.cbSize       = sizeof(sei);
+    sei.hwnd         = hwnd;
+    sei.lpVerb       = L"runas";
+    sei.lpFile       = g_exePath;
+    sei.lpParameters = L"-NoElevate";
+    sei.lpDirectory  = g_exeDir;
+    sei.nShow        = SW_SHOWNORMAL;
+    if (ShellExecuteExW(&sei)) {
+        g_quitting = TRUE;
+        DestroyWindow(hwnd);
+    } else {
+        WriteHeartbeat();
+        StartEngine();
+    }
+}
+
+static void HandleHitAction(HWND hwnd, int hitIdx) {
+    if (hitIdx < 0 || hitIdx >= g_hitCount) return;
+    int kind = g_hits[hitIdx].kind;
+    int idx  = g_hits[hitIdx].index;
+    RECT rc  = g_hits[hitIdx].rect;
+    GroupCfg *cg = CurGroup();
+
+    if (kind == HIT_HDR_LIGHTS) {
+        if (g_wantOff) StartEngine();
+        else TurnAllLightsOff();
+    } else if (kind == HIT_HDR_STARTUP) {
+        SetKblAutostart(!g_autostart);
+    } else if (kind == HIT_HDR_RESTART) {
+        StartEngine();
+    } else if (kind == HIT_TAB_KBD) {
+        g_tab = 0;
+    } else if (kind == HIT_TAB_BAR) {
+        g_tab = 1;
+    } else if (kind == HIT_TOG_ZONE_ON) {
+        cg->on = !cg->on;
+        SyncLinkedZone();
+        FlushLiveApply();
+    } else if (kind == HIT_TOG_LINK) {
+        g_cfg.link = !g_cfg.link;
+        SyncLinkedZone();
+        FlushLiveApply();
+    } else if (kind == HIT_PICK_EFFECT) {
+        OpenEffectPopup(hwnd, rc);
+        return;
+    } else if (kind >= HIT_SWATCH_0 && kind < HIT_SWATCH_0 + 8) {
+        PickSwatchColor(hwnd, idx);
+        return;
+    } else if (kind == HIT_SWATCH_ADD && cg->swatchCount < 8) {
+        cg->swatches[cg->swatchCount] = RGB(255, 255, 255);
+        cg->widths[cg->swatchCount]   = 1.0;
+        cg->swatchCount++;
+        SyncLinkedZone();
+        FlushLiveApply();
+    } else if (kind == HIT_SWATCH_REM && cg->swatchCount > 2) {
+        cg->swatchCount--;
+        SyncLinkedZone();
+        FlushLiveApply();
+    } else if (kind == HIT_TOG_LOOP) {
+        cg->loop = !cg->loop;
+        SyncLinkedZone();
+        FlushLiveApply();
+    } else if (kind == HIT_TOG_EQ) {
+        cg->equalise = !cg->equalise;
+        SyncLinkedZone();
+        FlushLiveApply();
+    } else if (kind == HIT_TOG_MIRROR) {
+        cg->mirror = !cg->mirror;
+        SyncLinkedZone();
+        FlushLiveApply();
+    } else if (kind == HIT_TOG_REVERSE) {
+        cg->reverse = !cg->reverse;
+        SyncLinkedZone();
+        FlushLiveApply();
+    } else if (kind == HIT_TOG_SMOOTH) {
+        g_cfg.smooth = !g_cfg.smooth;
+        FlushLiveApply();
+    } else if (kind == HIT_TOG_OVERLAY) {
+        g_cfg.overlay = !g_cfg.overlay;
+        SavePanelCfg();
+        if (!g_wantOff) StartEngine();
+    } else if (kind == HIT_FOOT_ZONES) {
+        ShellExecuteW(hwnd, L"open", g_zonesBat, NULL, g_exeDir, SW_SHOWNORMAL);
+    } else if (kind == HIT_FOOT_ELEVATE) {
+        RelaunchElevated(hwnd);
+        return;
+    } else if (kind == HIT_FOOT_QUIT) {
+        g_quitting = TRUE;
+        DestroyWindow(hwnd);
+        return;
+    }
+    InvalidateRect(hwnd, NULL, FALSE);
+}
+
+static void ShowTrayContextMenu(HWND hwnd) {
+    HMENU hMenu = CreatePopupMenu();
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_OPEN, L"Open Keyboard Lighting");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_TOGGLE,
+                g_wantOff ? L"Turn Lighting On" : L"Turn Lighting Off");
+    AppendMenuW(hMenu, MF_STRING | (g_cfg.kbd.on ? MF_CHECKED : 0), IDM_TRAY_KBD, L"Keyboard Zone Enabled");
+    AppendMenuW(hMenu, MF_STRING | (g_cfg.bar.on ? MF_CHECKED : 0), IDM_TRAY_BAR, L"Light Bar Enabled");
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_RESTART, L"Restart Lighting Engine");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hMenu, MF_STRING | (g_autostart ? MF_CHECKED : 0), IDM_TRAY_AUTOSTART, L"Start with Windows");
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_FOLDER, L"Open Program Folder");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_QUIT, L"Quit Keyboard Lighting");
+
+    POINT pt;
+    GetCursorPos(&pt);
+    SetForegroundWindow(hwnd);
+    TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+    DestroyMenu(hMenu);
+}
+
+static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    switch (msg) {
+    case WM_CREATE:
+        ApplyModernWindowFrame(hwnd);
+        SetTimer(hwnd, 1, 45, NULL);  /* 22 FPS live preview & slider debounce */
+        SetTimer(hwnd, 2, 600, NULL); /* Heartbeat, show.flag & engine watchdog */
+        return 0;
+
+    case WM_ERASEBKGND:
+        return 1;
+
+    case WM_GETMINMAXINFO: {
+        int dpi = GetWinDpi(hwnd);
+        MINMAXINFO *mmi = (MINMAXINFO *)lp;
+        mmi->ptMinTrackSize.x = S(700, dpi);
+        mmi->ptMinTrackSize.y = S(480, dpi);
+        return 0;
+    }
+
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+        RenderKblWindow(hwnd, hdc);
+        EndPaint(hwnd, &ps);
+        return 0;
+    }
+
+    case WM_SIZE:
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 0;
+
+    case WM_MOUSEWHEEL: {
+        int delta = GET_WHEEL_DELTA_WPARAM(wp);
+        g_scrollY -= (delta / WHEEL_DELTA) * S(44, GetWinDpi(hwnd));
+        if (g_scrollY < 0) g_scrollY = 0;
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 0;
+    }
+
+    case WM_LBUTTONDOWN: {
+        POINT pt = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
+        for (int i = 0; i < g_hitCount; i++) {
+            int k = g_hits[i].kind;
+            if (PtInRect(&g_hits[i].rect, pt) &&
+                (k == HIT_SLIDER_MASTER || k == HIT_SLIDER_SPEED ||
+                 k == HIT_SLIDER_BRIGHT || (k >= HIT_WIDTH_0 && k < HIT_WIDTH_0 + 8))) {
+                g_dragKind = k;
+                g_dragIdx  = g_hits[i].index;
+                g_dragRect = g_hits[i].rect;
+                SetCapture(hwnd);
+                ApplySliderDrag(k, g_dragIdx, g_dragRect, pt.x);
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    case WM_MOUSEMOVE: {
+        POINT pt = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
+        if (g_dragKind != HIT_NONE) {
+            ApplySliderDrag(g_dragKind, g_dragIdx, g_dragRect, pt.x);
+            return 0;
+        }
+        int found = -1;
+        for (int i = 0; i < g_hitCount; i++) {
+            if (PtInRect(&g_hits[i].rect, pt)) { found = i; break; }
+        }
+        SetCursor(LoadCursorW(NULL, found >= 0 ? IDC_HAND : IDC_ARROW));
+        if (found != g_hoverIdx) {
+            g_hoverIdx = found;
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+        return 0;
+    }
+
+    case WM_LBUTTONUP: {
+        if (g_dragKind != HIT_NONE) {
+            g_dragKind = HIT_NONE;
+            ReleaseCapture();
+            FlushLiveApply();
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 0;
+        }
+        POINT pt = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
+        for (int i = 0; i < g_hitCount; i++) {
+            if (PtInRect(&g_hits[i].rect, pt)) {
+                HandleHitAction(hwnd, i);
+                break;
+            }
+        }
+        return 0;
+    }
+
+    case WM_COMMAND: {
+        int id = LOWORD(wp);
+        if (id >= IDM_EFF_BASE && id < IDM_EFF_BASE + EFFECT_COUNT) {
+            CurGroup()->effectIdx = id - IDM_EFF_BASE;
+            SyncLinkedZone();
+            FlushLiveApply();
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (id == IDM_TRAY_OPEN) {
+            ShowWindow(hwnd, SW_SHOWNORMAL);
+            SetForegroundWindow(hwnd);
+        } else if (id == IDM_TRAY_TOGGLE) {
+            if (g_wantOff) StartEngine(); else TurnAllLightsOff();
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (id == IDM_TRAY_KBD) {
+            g_cfg.kbd.on = !g_cfg.kbd.on;
+            FlushLiveApply();
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (id == IDM_TRAY_BAR) {
+            g_cfg.bar.on = !g_cfg.bar.on;
+            FlushLiveApply();
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (id == IDM_TRAY_RESTART) {
+            StartEngine();
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (id == IDM_TRAY_AUTOSTART) {
+            SetKblAutostart(!g_autostart);
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (id == IDM_TRAY_FOLDER) {
+            ShellExecuteW(hwnd, L"open", g_exeDir, NULL, NULL, SW_SHOWNORMAL);
+        } else if (id == IDM_TRAY_QUIT) {
+            g_quitting = TRUE;
+            DestroyWindow(hwnd);
+        }
+        return 0;
+    }
+
+    case WM_ENGINE_BOOTED:
+        if (wp == 1 && !g_wantOff) StartEngine();
+        else wcsncpy(g_statusText, L"Could not download Aura-Background.ps1 - check internet.", 255);
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 0;
+
+    case WM_POWERBROADCAST:
+        if ((wp == PBT_APMRESUMEAUTOMATIC || wp == PBT_APMRESUMESUSPEND) && !g_wantOff) {
+            if (IsEngineAlive()) { WriteThemeJson(); WriteLiveBrightness(); }
+            else StartEngine();
+        }
+        return TRUE;
+
+    case WM_TIMER:
+        if (wp == 1) {
+            if (g_applyPending && GetTickCount64() >= g_applyAtTick) FlushLiveApply();
+            if (IsWindowVisible(hwnd)) {
+                PollLivePreviewFrame();
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+        } else if (wp == 2) {
+            WriteHeartbeat();
+            if (FileExistsW(g_showPath)) {
+                DeleteFileW(g_showPath);
+                ShowWindow(hwnd, SW_SHOWNORMAL);
+                SetForegroundWindow(hwnd);
+            }
+            if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {
+                ShowWindow(hwnd, SW_SHOWNORMAL);
+                SetForegroundWindow(hwnd);
+            }
+            if (!g_wantOff && !IsEngineAlive() && InterlockedCompareExchange(&g_downloading, 0, 0) == 0) {
+                StartEngine();
+            }
+        }
+        return 0;
+
+    case WM_TRAYICON:
+        if (lp == WM_LBUTTONDBLCLK || lp == WM_LBUTTONUP) {
+            ShowWindow(hwnd, SW_SHOWNORMAL);
+            SetForegroundWindow(hwnd);
+        } else if (lp == WM_RBUTTONUP || lp == WM_CONTEXTMENU) {
+            ShowTrayContextMenu(hwnd);
+        }
+        return 0;
+
+    case WM_CLOSE:
+        if (!g_quitting) {
+            ShowWindow(hwnd, SW_HIDE);
+            if (!g_trayHinted) {
+                g_trayHinted = TRUE;
+                g_nid.uFlags = NIF_INFO;
+                wcsncpy(g_nid.szInfoTitle, L"Keyboard Lighting is active in tray", 63);
+                wcsncpy(g_nid.szInfo, L"Right-click the tray icon any time to adjust zones or quit.", 255);
+                Shell_NotifyIconW(NIM_MODIFY, &g_nid);
+            }
+            return 0;
+        }
+        DestroyWindow(hwnd);
+        return 0;
+
+    case WM_DESTROY:
+        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        StopEngine(TRUE);
+        DeleteFileW(g_lockPath);
+        PostQuitMessage(0);
+        return 0;
+    }
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+static void InitKblPaths(void) {
+    GetModuleFileNameW(NULL, g_exePath, MAX_PATH);
+    wcsncpy(g_exeDir, g_exePath, MAX_PATH - 1);
+    wchar_t *sl = wcsrchr(g_exeDir, L'\\');
+    if (sl) *sl = L'\0';
+
+    wchar_t localApp[MAX_PATH] = L"";
+    if (FAILED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, localApp)))
+        GetEnvironmentVariableW(L"LOCALAPPDATA", localApp, MAX_PATH);
+
+    _snwprintf(g_cfgDir,     MAX_PATH, L"%s\\KeyboardLighting", localApp);
+    EnsureDirTree(g_cfgDir);
+    _snwprintf(g_panelPath,  MAX_PATH, L"%s\\panel.json", g_cfgDir);
+    _snwprintf(g_themePath,  MAX_PATH, L"%s\\theme.json", g_cfgDir);
+    _snwprintf(g_livePath,   MAX_PATH, L"%s\\live.txt", g_cfgDir);
+    _snwprintf(g_framePath,  MAX_PATH, L"%s\\frame.txt", g_cfgDir);
+    _snwprintf(g_layoutPath, MAX_PATH, L"%s\\layout.txt", g_cfgDir);
+    _snwprintf(g_lockPath,   MAX_PATH, L"%s\\running.lock", g_cfgDir);
+    _snwprintf(g_showPath,   MAX_PATH, L"%s\\show.flag", g_cfgDir);
+    _snwprintf(g_engPidPath, MAX_PATH, L"%s\\engine.pid", g_cfgDir);
+    _snwprintf(g_stopPath,   MAX_PATH, L"%s\\stop.flag", g_cfgDir);
+    _snwprintf(g_engineScript, MAX_PATH, L"%s\\Aura-Background.ps1", g_exeDir);
+    _snwprintf(g_zonesBat,   MAX_PATH, L"%s\\Zones.bat", g_exeDir);
+    if (!FileExistsW(g_zonesBat))
+        _snwprintf(g_zonesBat, MAX_PATH, L"%s\\Zones.bat", g_cfgDir);
+}
+
+int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
+    (void)hPrev; (void)nShow;
+    InitKblPaths();
+    g_isAdmin = CheckIsAdmin();
+
+    BOOL silent    = (cmdLine && (wcsstr(cmdLine, L"-Silent") != NULL || wcsstr(cmdLine, L"--silent") != NULL));
+    BOOL noElevate = (cmdLine && (wcsstr(cmdLine, L"-NoElevate") != NULL || wcsstr(cmdLine, L"--no-elevate") != NULL));
+
+    if (cmdLine && (wcsstr(cmdLine, L"--stop") != NULL || wcsstr(cmdLine, L"-Stop") != NULL)) {
+        StopEngine(TRUE);
+        KillPidFromFile(g_lockPath);
+        return 0;
+    }
+
+    HANDLE hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        if (!silent) {
+            WriteAtomicUtf8(g_showPath, "1");
+            HANDLE ev = OpenEventW(EVENT_MODIFY_STATE, FALSE, SHOW_EVENT_NAME);
+            if (ev) { SetEvent(ev); CloseHandle(ev); }
+        }
+        if (hMutex) CloseHandle(hMutex);
+        return 0;
+    }
+
+    /* Request elevation once for direct ROG Strix G16 USB HID RGB access unless declined */
+    if (!g_isAdmin && !noElevate) {
+        ReleaseMutex(hMutex);
+        CloseHandle(hMutex);
+        SHELLEXECUTEINFOW sei;
+        ZeroMemory(&sei, sizeof(sei));
+        sei.cbSize       = sizeof(sei);
+        sei.lpVerb       = L"runas";
+        sei.lpFile       = g_exePath;
+        sei.lpParameters = silent ? L"-Silent -NoElevate" : L"-NoElevate";
+        sei.lpDirectory  = g_exeDir;
+        sei.nShow        = SW_SHOWNORMAL;
+        if (ShellExecuteExW(&sei)) return 0;
+        /* User declined UAC - stay open gracefully in preview mode with 'Run as Admin' button! */
+        hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
+    }
+
+    g_showEvent = CreateEventW(NULL, FALSE, FALSE, SHOW_EVENT_NAME);
+    INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_STANDARD_CLASSES };
+    InitCommonControlsEx(&icc);
+
+    /* Ensure any legacy Tray.ps1 process is cleanly closed before taking over */
+    KillPidFromFile(g_lockPath);
+    LoadPanelCfg();
+    g_autostart = QueryAutostart();
+    WriteHeartbeat();
+    PollLivePreviewFrame();
+
+    g_appIcon = LoadIconW(hInst, MAKEINTRESOURCEW(RES_ICON_APP));
+    if (!g_appIcon) g_appIcon = LoadIconW(NULL, IDI_APPLICATION);
+
+    WNDCLASSEXW wc;
+    ZeroMemory(&wc, sizeof(wc));
+    wc.cbSize        = sizeof(wc);
+    wc.lpfnWndProc   = KblWndProc;
+    wc.hInstance     = hInst;
+    wc.hIcon         = g_appIcon;
+    wc.hIconSm       = g_appIcon;
+    wc.hCursor       = LoadCursorW(NULL, IDC_ARROW);
+    wc.hbrBackground = CreateSolidBrush(COL_BG);
+    wc.lpszClassName = L"TestsKeyboardLightingSuiteWnd";
+    RegisterClassExW(&wc);
+
+    int dpi = GetWinDpi(NULL);
+    g_hwnd = CreateWindowExW(0, wc.lpszClassName, APP_TITLE,
+                             WS_OVERLAPPEDWINDOW,
+                             CW_USEDEFAULT, CW_USEDEFAULT, S(820, dpi), S(660, dpi),
+                             NULL, NULL, hInst, NULL);
+
+    ZeroMemory(&g_nid, sizeof(g_nid));
+    g_nid.cbSize           = sizeof(g_nid);
+    g_nid.hWnd             = g_hwnd;
+    g_nid.uID              = 1;
+    g_nid.uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    g_nid.uCallbackMessage = WM_TRAYICON;
+    g_nid.hIcon            = g_appIcon;
+    wcsncpy(g_nid.szTip, L"Keyboard Lighting - ROG Strix G16", 127);
+    Shell_NotifyIconW(NIM_ADD, &g_nid);
+
+    StartEngine();
+
+    if (!silent) {
+        ShowWindow(g_hwnd, SW_SHOWNORMAL);
+        UpdateWindow(g_hwnd);
+    }
+
+    MSG msg;
+    while (GetMessageW(&msg, NULL, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+
+    if (g_showEvent) CloseHandle(g_showEvent);
+    if (hMutex) CloseHandle(hMutex);
+    return 0;
+}

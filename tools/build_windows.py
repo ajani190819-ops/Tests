@@ -85,9 +85,18 @@ def main() -> int:
             ["-luser32", "-lgdi32", "-lshell32", "-lole32", "-luuid",
              "-ladvapi32", "-lcomctl32"],
         ),
+        (
+            "kbl",
+            ROOT / "keyboard-lighting" / "src",
+            "kbl.rc",
+            ROOT / "keyboard-lighting" / "src" / "keyboard_lighting.c",
+            ROOT / "keyboard-lighting" / "KeyboardLighting.exe",
+            ["-luser32", "-lgdi32", "-lshell32", "-ladvapi32",
+             "-lcomctl32", "-lcomdlg32", "-lwinhttp"],
+        ),
     ]
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
         futs = [pool.submit(build_target, zig_py, env, *t) for t in targets]
         for fut in futs:
             print(fut.result())
