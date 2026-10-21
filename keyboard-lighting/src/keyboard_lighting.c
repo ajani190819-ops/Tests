@@ -40,10 +40,11 @@
 
 /* Built-in release tag. keyboard-lighting/VERSION.txt in the repo carries
  * the latest; a mismatch surfaces "Update ready" in the panel. */
-#define KBL_VERSION         "2.8.1"
+#define KBL_VERSION         "2.8.2"
 
 #define WM_TRAYICON         (WM_APP + 1)
 #define WM_ENGINE_BOOTED    (WM_APP + 2)
+#define WM_FN_EVENT         (WM_APP + 3)
 
 #define IDM_TRAY_OPEN       200
 #define IDM_TRAY_TOGGLE     201
@@ -896,7 +897,7 @@ static void HidOpenAll(void) {
  * exactly like screen-brightness keys, with the same on-screen toast the
  * slider uses. 0% is a true blackout; the toggle returns to the last
  * level instead of jumping to full. */
-static void FnApply(int dir) {
+static void FnApplyOnUi(int dir) {
     ULONGLONG now = GetTickCount64();
     if (now - g_fnLastApply < 140ULL) return;   /* double-path duplicate */
     if (FnStampFresh()) return;                 /* engine WMI path got there first */
@@ -923,6 +924,15 @@ static void FnApply(int dir) {
     SavePanelCfg();
     ScheduleLiveApply();
     InvalidateRect(g_hwnd, NULL, FALSE);
+}
+
+/* HID listener threads only marshal the press; every bit of state, engine
+ * and file work runs on the window's own thread. Doing it on the listener
+ * threads raced the UI timer (twin CloseHandle on the engine process,
+ * colliding panel.json.tmp writes) - the intermittent startup-era crash
+ * that arrived with the pattern-save system. */
+static void FnApply(int dir) {
+    if (g_hwnd) PostMessageW(g_hwnd, WM_FN_EVENT, (WPARAM)dir, 0);
 }
 
 /* ============================================================================
@@ -1794,41 +1804,36 @@ static void SmoothRoundRect(uint32_t *px, int W, int H, const RECT *rc, float ra
     }
 }
 
-/* Emblem source cache: the icon is rasterized ONCE into a 32-bit DIB and
-   reused. The first spin build rebuilt the whole source (LoadImage, DIB,
-   DC) on every paint - 22 allocations a second - and the app died within
-   half a minute of that churn. Per paint only PlgBlt runs now. */
+/* Emblem cache: the icon is rasterized ONCE at 4x into a plain pixel
+   array and every paint rotates it with bilinear sampling. Smooth at any
+   angle (no nearest-neighbour pixel steps), and nothing at all is
+   allocated per frame. */
 typedef struct EmbCache {
-    int      sz;
-    HDC      dc;
-    HBITMAP  bmp;
-    HGDIOBJ  old;
-    HICON    ico;
+    int      sz;        /* on-screen size */
+    int      srcSz;     /* 4x supersample */
+    uint32_t *src;      /* srcSz * srcSz colour rows, pre-blended on bg */
 } EmbCache;
-static EmbCache g_embCache = { 0, NULL, NULL, NULL, NULL };
+static EmbCache g_embCache = { 0, 0, NULL };
 
 static void EmbCacheEnsure(int sz, COLORREF bg) {
-    if (g_embCache.dc && g_embCache.sz == sz) return;
-    if (g_embCache.dc) {
-        SelectObject(g_embCache.dc, g_embCache.old);
-        DeleteObject(g_embCache.bmp);
-        DeleteDC(g_embCache.dc);
-        if (g_embCache.ico) DestroyIcon(g_embCache.ico);
-        g_embCache.dc = NULL;
-        g_embCache.bmp = NULL;
-        g_embCache.ico = NULL;
-    }
+    if (g_embCache.src && g_embCache.sz == sz) return;
+    free(g_embCache.src);
+    g_embCache.src = NULL;
+    g_embCache.sz = 0;
     if (sz < 8 || sz > 512) return;
+    int srcSz = sz * 4;
+    uint32_t *src = (uint32_t *)malloc((size_t)srcSz * srcSz * sizeof(uint32_t));
+    if (!src) return;
     HICON hEmb = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(RES_ICON_EMBLEM),
-                                   IMAGE_ICON, sz, sz, LR_DEFAULTCOLOR);
-    if (!hEmb) return;
+                                   IMAGE_ICON, srcSz, srcSz, LR_DEFAULTCOLOR);
+    if (!hEmb) { free(src); return; }
     HDC dc = CreateCompatibleDC(NULL);
     BITMAPINFO bi;
     void *bits = NULL;
     ZeroMemory(&bi, sizeof(bi));
     bi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
-    bi.bmiHeader.biWidth       = sz;
-    bi.bmiHeader.biHeight      = sz;
+    bi.bmiHeader.biWidth       = srcSz;
+    bi.bmiHeader.biHeight      = -srcSz;  /* top-down rows match src */
     bi.bmiHeader.biPlanes      = 1;
     bi.bmiHeader.biBitCount    = 32;
     bi.bmiHeader.biCompression = BI_RGB;
@@ -1837,50 +1842,72 @@ static void EmbCacheEnsure(int sz, COLORREF bg) {
         if (bmp) DeleteObject(bmp);
         if (dc) DeleteDC(dc);
         DestroyIcon(hEmb);
+        free(src);
         return;
     }
     HGDIOBJ old = SelectObject(dc, bmp);
-    RECT fr = { 0, 0, sz, sz };
+    RECT fr = { 0, 0, srcSz, srcSz };
     HBRUSH bgb = CreateSolidBrush(bg);
     FillRect(dc, &fr, bgb);
     DeleteObject(bgb);
-    DrawIconEx(dc, 0, 0, hEmb, sz, sz, 0, NULL, DI_NORMAL);
-    g_embCache.sz  = sz;
-    g_embCache.dc  = dc;
-    g_embCache.bmp = bmp;
-    g_embCache.old = old;
-    g_embCache.ico = hEmb;
+    DrawIconEx(dc, 0, 0, hEmb, srcSz, srcSz, 0, NULL, DI_NORMAL);
+    CopyMemory(src, bits, (size_t)srcSz * srcSz * sizeof(uint32_t));
+    SelectObject(dc, old);
+    DeleteObject(bmp);
+    DeleteDC(dc);
+    DestroyIcon(hEmb);
+    g_embCache.sz    = sz;
+    g_embCache.srcSz = srcSz;
+    g_embCache.src   = src;
 }
 
-static void EmbSpinBlit(HDC hdc, int x, int y, int sz, COLORREF bg) {
-    if (!g_embCache.dc || g_embCache.sz != sz) {
-        DrawIconEx(hdc, x, y, g_embCache.ico, sz, sz, 0, NULL, DI_NORMAL);
-        return;
-    }
-    /* Spin slowly - one full turn every 30 seconds. Fast enough to read
-       as alive, slow enough to never pull the eye off the controls. */
+static void EmbSpinDraw(uint32_t *px, int W, int H, int x, int y, int sz, COLORREF bg) {
+    EmbCacheEnsure(sz, bg);
+    const uint32_t *src = g_embCache.src;
+    if (!src) return;
+    int srcSz = g_embCache.srcSz;
+    /* One full turn every 30 seconds: slow enough to read as alive,
+       slow enough to never pull the eye off the controls. */
     double ang = ((double)(GetTickCount64() % 30000ULL) / 30000.0) * 6.283185307179586;
     double ca = cos(ang), sa = sin(ang);
     double c = (sz - 1) * 0.5;
-    static const double cxy[3][2] = { { -1, -1 }, { 1, -1 }, { -1, 1 } };
-    POINT pt[3];
-    for (int i = 0; i < 3; i++) {
-        double dx = cxy[i][0] * c, dy = cxy[i][1] * c;
-        pt[i].x = x + (LONG)(c + dx * ca - dy * sa + 0.5);
-        pt[i].y = y + (LONG)(c + dx * sa + dy * ca + 0.5);
+    double sc = (double)(srcSz - 1) / (double)(sz > 1 ? sz : 1);
+    int maxs = srcSz - 1;
+    for (int dy = 0; dy < sz; dy++) {
+        int ty = y + dy;
+        if (ty < 0 || ty >= H) continue;
+        double v = dy - c;
+        for (int dx = 0; dx < sz; dx++) {
+            int tx = x + dx;
+            if (tx < 0 || tx >= W) continue;
+            double u = dx - c;
+            double fx = (ca * u + sa * v + c) * sc;
+            double fy = (-sa * u + ca * v + c) * sc;
+            if (fx < 0) fx = 0; else if (fx > maxs) fx = maxs;
+            if (fy < 0) fy = 0; else if (fy > maxs) fy = maxs;
+            int x0 = (int)fx, y0 = (int)fy;
+            double ax = fx - x0, ay = fy - y0;
+            double w00 = (1 - ax) * (1 - ay), w10 = ax * (1 - ay);
+            double w01 = (1 - ax) * ay,       w11 = ax * ay;
+            const uint32_t *p00 = &src[y0 * srcSz + x0];
+            uint32_t c00 = p00[0];
+            uint32_t c10 = (x0 < maxs) ? p00[1] : c00;
+            const uint32_t *p01 = (y0 < maxs) ? p00 + srcSz : p00;
+            uint32_t c01 = p01[0];
+            uint32_t c11 = (x0 < maxs) ? p01[1] : c01;
+            double r = (c00 & 255) * w00 + (c10 & 255) * w10 + (c01 & 255) * w01 + (c11 & 255) * w11;
+            double g = ((c00 >> 8) & 255) * w00 + ((c10 >> 8) & 255) * w10 +
+                       ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
+            double b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
+                       ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
+            px[ty * W + tx] = RGB((int)(r + 0.5), (int)(g + 0.5), (int)(b + 0.5));
+        }
     }
-    /* PlgBlt fills the area outside the parallelogram with the DC's
-       background colour - bg matches the header fill, so the rotation
-       corners blend straight into the header. */
-    COLORREF oldbk = SetBkColor(hdc, bg);
-    if (!PlgBlt(hdc, pt, g_embCache.dc, 0, 0, sz, sz, NULL, 0, 0))
-        DrawIconEx(hdc, x, y, g_embCache.ico, sz, sz, 0, NULL, DI_NORMAL);
-    SetBkColor(hdc, oldbk);
 }
 
-static void DrawSuiteEmblemIcon(HDC hdc, int x, int y, int sz) {
+static void DrawSuiteEmblemIcon(uint32_t *px, int W, int H, int x, int y, int sz) {
     EmbCacheEnsure(sz, COL_BG);
-    EmbSpinBlit(hdc, x, y, sz, COL_BG);
+    EmbSpinDraw(px, W, H, x, y, sz, COL_BG);
 }
 
 static void AddHit(RECT r, int kind, int index) {
@@ -2012,7 +2039,7 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
 
     /* 1. Unified Suite Header (matches Project Hub & Bluetooth Guard) */
     int embSz = S(36, dpi);
-    DrawSuiteEmblemIcon(mem, M, (headerH - embSz) / 2, embSz);
+    DrawSuiteEmblemIcon(px, W, H, M, (headerH - embSz) / 2, embSz);
 
     int topH = S(34, dpi), topY = (headerH - topH) / 2;
     RECT btnRst  = { W - M - S(88, dpi), topY, W - M, topY + topH };
@@ -2671,6 +2698,38 @@ static void ShowTrayContextMenu(HWND hwnd) {
     DestroyMenu(hMenu);
 }
 
+/* One-file crash report so a fault can be diagnosed from the machine it
+ * happened on: code, address and the module that owned the address. */
+static void WriteCrashCrumb(EXCEPTION_POINTERS *ep) {
+    wchar_t path[MAX_PATH];
+    wchar_t mod[MAX_PATH] = L"?";
+    _snwprintf(path, MAX_PATH, L"%s\\crashlog.txt", g_cfgDir[0] ? g_cfgDir : L".");
+    void *addr = (ep && ep->ExceptionRecord) ? ep->ExceptionRecord->ExceptionAddress : NULL;
+    HMODULE hm = NULL;
+    if (addr && GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                   GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                   (LPCWSTR)addr, &hm) && hm)
+        GetModuleFileNameW(hm, mod, MAX_PATH);
+    char line[768];
+    snprintf(line, sizeof(line),
+             "KeyboardLighting %s\r\ncode=0x%08lX\r\naddr=0x%p\r\nmodule=%ls\r\n",
+             KBL_VERSION,
+             (unsigned long)(ep && ep->ExceptionRecord ? ep->ExceptionRecord->ExceptionCode : 0),
+             addr, mod);
+    HANDLE hf = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                            FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hf != INVALID_HANDLE_VALUE) {
+        DWORD wr = 0;
+        WriteFile(hf, line, (DWORD)strlen(line), &wr, NULL);
+        CloseHandle(hf);
+    }
+}
+
+static LONG WINAPI CrashFilter(EXCEPTION_POINTERS *ep) {
+    WriteCrashCrumb(ep);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
 static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_CREATE:
@@ -2834,6 +2893,10 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
 
+    case WM_FN_EVENT:
+        FnApplyOnUi((int)wp);
+        return 0;
+
     case WM_ENGINE_BOOTED:
         if (wp == 1 && !g_wantOff) StartEngine();
         else wcsncpy(g_statusText, L"Could not download Aura-Background.ps1 - check internet.", 255);
@@ -2962,6 +3025,7 @@ static void InitKblPaths(void) {
     _snwprintf(g_stopPath,   MAX_PATH, L"%s\\stop.flag", g_cfgDir);
     _snwprintf(g_presetPath, MAX_PATH, L"%s\\presets.json", g_cfgDir);
     _snwprintf(g_fnStampPath, MAX_PATH, L"%s\\fnstamp.txt", g_cfgDir);
+    SetUnhandledExceptionFilter(CrashFilter);
     _snwprintf(g_engineScript, MAX_PATH, L"%s\\Aura-Background.ps1", g_exeDir);
     _snwprintf(g_zonesBat,   MAX_PATH, L"%s\\Zones.bat", g_exeDir);
     if (!FileExistsW(g_zonesBat))
