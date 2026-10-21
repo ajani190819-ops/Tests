@@ -40,7 +40,7 @@
 
 /* Built-in release tag. keyboard-lighting/VERSION.txt in the repo carries
  * the latest; a mismatch surfaces "Update ready" in the panel. */
-#define KBL_VERSION         "2.8.0"
+#define KBL_VERSION         "2.8.1"
 
 #define WM_TRAYICON         (WM_APP + 1)
 #define WM_ENGINE_BOOTED    (WM_APP + 2)
@@ -1794,15 +1794,35 @@ static void SmoothRoundRect(uint32_t *px, int W, int H, const RECT *rc, float ra
     }
 }
 
-static void DrawSuiteEmblemIcon(HDC hdc, int x, int y, int sz) {
+/* Emblem source cache: the icon is rasterized ONCE into a 32-bit DIB and
+   reused. The first spin build rebuilt the whole source (LoadImage, DIB,
+   DC) on every paint - 22 allocations a second - and the app died within
+   half a minute of that churn. Per paint only PlgBlt runs now. */
+typedef struct EmbCache {
+    int      sz;
+    HDC      dc;
+    HBITMAP  bmp;
+    HGDIOBJ  old;
+    HICON    ico;
+} EmbCache;
+static EmbCache g_embCache = { 0, NULL, NULL, NULL, NULL };
+
+static void EmbCacheEnsure(int sz, COLORREF bg) {
+    if (g_embCache.dc && g_embCache.sz == sz) return;
+    if (g_embCache.dc) {
+        SelectObject(g_embCache.dc, g_embCache.old);
+        DeleteObject(g_embCache.bmp);
+        DeleteDC(g_embCache.dc);
+        if (g_embCache.ico) DestroyIcon(g_embCache.ico);
+        g_embCache.dc = NULL;
+        g_embCache.bmp = NULL;
+        g_embCache.ico = NULL;
+    }
+    if (sz < 8 || sz > 512) return;
     HICON hEmb = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(RES_ICON_EMBLEM),
                                    IMAGE_ICON, sz, sz, LR_DEFAULTCOLOR);
     if (!hEmb) return;
-    /* Spin slowly - one full turn every 30 seconds. Fast enough to read
-       as alive, slow enough to never pull the eye off the controls. */
-    double ang = ((double)(GetTickCount64() % 30000ULL) / 30000.0) * 6.283185307179586;
-    double ca = cos(ang), sa = sin(ang);
-    HDC ms = CreateCompatibleDC(hdc);
+    HDC dc = CreateCompatibleDC(NULL);
     BITMAPINFO bi;
     void *bits = NULL;
     ZeroMemory(&bi, sizeof(bi));
@@ -1812,39 +1832,55 @@ static void DrawSuiteEmblemIcon(HDC hdc, int x, int y, int sz) {
     bi.bmiHeader.biPlanes      = 1;
     bi.bmiHeader.biBitCount    = 32;
     bi.bmiHeader.biCompression = BI_RGB;
-    HBITMAP hb = ms ? CreateDIBSection(ms, &bi, DIB_RGB_COLORS, &bits, NULL, 0) : NULL;
-    HGDIOBJ oldb = hb ? SelectObject(ms, hb) : NULL;
-    if (!hb || !bits) {
-        if (oldb) SelectObject(ms, oldb);
-        if (hb) DeleteObject(hb);
-        if (ms) DeleteDC(ms);
-        DrawIconEx(hdc, x, y, hEmb, sz, sz, 0, NULL, DI_NORMAL);
+    HBITMAP bmp = dc ? CreateDIBSection(dc, &bi, DIB_RGB_COLORS, &bits, NULL, 0) : NULL;
+    if (!dc || !bmp || !bits) {
+        if (bmp) DeleteObject(bmp);
+        if (dc) DeleteDC(dc);
         DestroyIcon(hEmb);
         return;
     }
+    HGDIOBJ old = SelectObject(dc, bmp);
     RECT fr = { 0, 0, sz, sz };
-    HBRUSH bgb = CreateSolidBrush(COL_BG);
-    FillRect(ms, &fr, bgb);
+    HBRUSH bgb = CreateSolidBrush(bg);
+    FillRect(dc, &fr, bgb);
     DeleteObject(bgb);
-    DrawIconEx(ms, 0, 0, hEmb, sz, sz, 0, NULL, DI_NORMAL);
+    DrawIconEx(dc, 0, 0, hEmb, sz, sz, 0, NULL, DI_NORMAL);
+    g_embCache.sz  = sz;
+    g_embCache.dc  = dc;
+    g_embCache.bmp = bmp;
+    g_embCache.old = old;
+    g_embCache.ico = hEmb;
+}
+
+static void EmbSpinBlit(HDC hdc, int x, int y, int sz, COLORREF bg) {
+    if (!g_embCache.dc || g_embCache.sz != sz) {
+        DrawIconEx(hdc, x, y, g_embCache.ico, sz, sz, 0, NULL, DI_NORMAL);
+        return;
+    }
+    /* Spin slowly - one full turn every 30 seconds. Fast enough to read
+       as alive, slow enough to never pull the eye off the controls. */
+    double ang = ((double)(GetTickCount64() % 30000ULL) / 30000.0) * 6.283185307179586;
+    double ca = cos(ang), sa = sin(ang);
     double c = (sz - 1) * 0.5;
     static const double cxy[3][2] = { { -1, -1 }, { 1, -1 }, { -1, 1 } };
     POINT pt[3];
-    for (int i = 0; i < 3; i++) {{
+    for (int i = 0; i < 3; i++) {
         double dx = cxy[i][0] * c, dy = cxy[i][1] * c;
         pt[i].x = x + (LONG)(c + dx * ca - dy * sa + 0.5);
         pt[i].y = y + (LONG)(c + dx * sa + dy * ca + 0.5);
-    }}
+    }
     /* PlgBlt fills the area outside the parallelogram with the DC's
-       background colour - COL_BG matches the header fill, so the rotation
+       background colour - bg matches the header fill, so the rotation
        corners blend straight into the header. */
-    COLORREF oldbk = SetBkColor(hdc, COL_BG);
-    PlgBlt(hdc, pt, ms, 0, 0, sz, sz, NULL, 0, 0);
+    COLORREF oldbk = SetBkColor(hdc, bg);
+    if (!PlgBlt(hdc, pt, g_embCache.dc, 0, 0, sz, sz, NULL, 0, 0))
+        DrawIconEx(hdc, x, y, g_embCache.ico, sz, sz, 0, NULL, DI_NORMAL);
     SetBkColor(hdc, oldbk);
-    SelectObject(ms, oldb);
-    DeleteObject(hb);
-    DeleteDC(ms);
-    DestroyIcon(hEmb);
+}
+
+static void DrawSuiteEmblemIcon(HDC hdc, int x, int y, int sz) {
+    EmbCacheEnsure(sz, COL_BG);
+    EmbSpinBlit(hdc, x, y, sz, COL_BG);
 }
 
 static void AddHit(RECT r, int kind, int index) {
@@ -2842,7 +2878,9 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                  * check GitHub for a newer build. */
                 static ULONGLONG nextUpdCheck = 0;
                 ULONGLONG nowU = GetTickCount64();
-                if (nowU >= nextUpdCheck) {
+                if (nextUpdCheck == 0) {
+                    nextUpdCheck = nowU + 10000ULL;  /* first check 10s in */
+                } else if (nowU >= nextUpdCheck) {
                     nextUpdCheck = nowU + 10000ULL;
                     if (InterlockedCompareExchange(&g_updBusy, 1, 0) == 0) {
                         HANDLE hU = CreateThread(NULL, 0, UpdateCheckWorker, NULL, 0, NULL);
