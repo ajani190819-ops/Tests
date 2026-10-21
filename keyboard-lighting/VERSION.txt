@@ -1,2 +1,0 @@
-2.8.2
-Keyboard Lighting release tag - KeyboardLighting.exe checks this file for updates.

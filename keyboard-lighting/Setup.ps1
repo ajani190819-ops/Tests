@@ -433,15 +433,6 @@ if (-not (Test-Path $ghCfg) -and -not $ghRunning) {
             if ($null -ne $cfg.max_brightness) { $cfg.max_brightness = 3 }
             else { Add-Member -InputObject $cfg -MemberType NoteProperty -Name 'max_brightness' -Value 3 -Force }
 
-            # G-Helper's idle-timeout timer dims the keyboard to 0 on its own
-            # (keyboard_timeout defaults to 60s on battery) - one more way its
-            # coarse control steals the lights out from under the smooth
-            # master. Disable both timers.
-            foreach ($tk in 'keyboard_timeout', 'keyboard_ac_timeout') {
-                if ($null -ne $cfg.$tk) { $cfg.$tk = 0 }
-                else { Add-Member -InputObject $cfg -MemberType NoteProperty -Name $tk -Value 0 -Force }
-            }
-
             $dir = Split-Path -Parent $ghCfg
             if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
             if (Test-Path $ghCfg) { Copy-Item $ghCfg ($ghCfg + '.bak') -Force -ErrorAction SilentlyContinue }
