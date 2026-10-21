@@ -982,10 +982,54 @@ static void SmoothRoundRect(uint32_t *px, int W, int H, const RECT *rc, float ra
 static void DrawWayfinderEmblem(HDC hdc, int x, int y, int sz) {
     HICON hEmb = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(RES_ICON_EMBLEM),
                                    IMAGE_ICON, sz, sz, LR_DEFAULTCOLOR);
-    if (hEmb) {
+    if (!hEmb) return;
+    /* Spin slowly - one full turn every 30 seconds. Fast enough to read
+       as alive, slow enough to never pull the eye off the controls. */
+    double ang = ((double)(GetTickCount64() % 30000ULL) / 30000.0) * 6.283185307179586;
+    double ca = cos(ang), sa = sin(ang);
+    HDC ms = CreateCompatibleDC(hdc);
+    BITMAPINFO bi;
+    void *bits = NULL;
+    ZeroMemory(&bi, sizeof(bi));
+    bi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth       = sz;
+    bi.bmiHeader.biHeight      = sz;
+    bi.bmiHeader.biPlanes      = 1;
+    bi.bmiHeader.biBitCount    = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    HBITMAP hb = ms ? CreateDIBSection(ms, &bi, DIB_RGB_COLORS, &bits, NULL, 0) : NULL;
+    HGDIOBJ oldb = hb ? SelectObject(ms, hb) : NULL;
+    if (!hb || !bits) {
+        if (oldb) SelectObject(ms, oldb);
+        if (hb) DeleteObject(hb);
+        if (ms) DeleteDC(ms);
         DrawIconEx(hdc, x, y, hEmb, sz, sz, 0, NULL, DI_NORMAL);
         DestroyIcon(hEmb);
+        return;
     }
+    RECT fr = { 0, 0, sz, sz };
+    HBRUSH bgb = CreateSolidBrush(COL_BG);
+    FillRect(ms, &fr, bgb);
+    DeleteObject(bgb);
+    DrawIconEx(ms, 0, 0, hEmb, sz, sz, 0, NULL, DI_NORMAL);
+    double c = (sz - 1) * 0.5;
+    static const double cxy[3][2] = { { -1, -1 }, { 1, -1 }, { -1, 1 } };
+    POINT pt[3];
+    for (int i = 0; i < 3; i++) {{
+        double dx = cxy[i][0] * c, dy = cxy[i][1] * c;
+        pt[i].x = x + (LONG)(c + dx * ca - dy * sa + 0.5);
+        pt[i].y = y + (LONG)(c + dx * sa + dy * ca + 0.5);
+    }}
+    /* PlgBlt fills the area outside the parallelogram with the DC's
+       background colour - COL_BG matches the header fill, so the rotation
+       corners blend straight into the header. */
+    COLORREF oldbk = SetBkColor(hdc, COL_BG);
+    PlgBlt(hdc, pt, ms, 0, 0, sz, sz, NULL, 0, 0);
+    SetBkColor(hdc, oldbk);
+    SelectObject(ms, oldb);
+    DeleteObject(hb);
+    DeleteDC(ms);
+    DestroyIcon(hEmb);
 }
 
 static void DrawStatusTag(HDC hdc, uint32_t *px, int W, int H, HFONT font,
@@ -1030,7 +1074,7 @@ static void DrawActionBtn(HDC hdc, uint32_t *px, int W, int H, HFONT font, RECT 
         fg = COL_DANGER;
     }
 
-    SmoothRoundRect(px, W, H, &r, (float)S(9, dpi), fill, border, clipTop, clipBottom);
+    SmoothRoundRect(px, W, H, &r, (float)S(7, dpi), fill, border, clipTop, clipBottom);
     SelectObject(hdc, font);
     SetTextColor(hdc, fg);
     DrawTextW(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
@@ -1042,7 +1086,7 @@ static void DrawPillToggle(HDC hdc, uint32_t *px, int W, int H, HFONT font, RECT
                            int clipTop, int clipBottom) {
     COLORREF cardFill = hovered ? COL_SEC_HOV : COL_SEC_BTN;
     COLORREF border   = hovered ? COL_HOVER_RIM : COL_BTN_BORDER;
-    SmoothRoundRect(px, W, H, &r, (float)S(9, dpi), cardFill, border, clipTop, clipBottom);
+    SmoothRoundRect(px, W, H, &r, (float)S(7, dpi), cardFill, border, clipTop, clipBottom);
 
     int trackW = S(34, dpi), trackH = S(18, dpi);
     int trackX = r.right - S(10, dpi) - trackW;
@@ -1198,7 +1242,7 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
 
     if (count == 0) {
         RECT emptyR = { M, listTop, M + CW, listTop + S(82, dpi) };
-        SmoothRoundRect(px, W, H, &emptyR, (float)S(14, dpi), COL_CARD, COL_BORDER, listTop, listBottom);
+        SmoothRoundRect(px, W, H, &emptyR, (float)S(10, dpi), COL_CARD, COL_BORDER, listTop, listBottom);
         SelectObject(mem, fBody);
         SetTextColor(mem, COL_MUTED);
         RECT er = { emptyR.left + S(24, dpi), emptyR.top, emptyR.right - S(18, dpi), emptyR.bottom };
@@ -1210,7 +1254,7 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
             DeviceEntry *d = &snap[i];
             RECT cr = { M, y, M + CW, y + cardH };
             if (cr.bottom >= listTop && cr.top <= listBottom) {
-                SmoothRoundRect(px, W, H, &cr, (float)S(14, dpi), COL_CARD, COL_BORDER, listTop, listBottom);
+                SmoothRoundRect(px, W, H, &cr, (float)S(10, dpi), COL_CARD, COL_BORDER, listTop, listBottom);
 
                 COLORREF barCol = COL_IDLE_SLATE, tagFg = COL_MUTED, tagBg = COL_PILL_MUTED;
                 const wchar_t *tagTxt = L"Auto On";
@@ -1414,6 +1458,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_CREATE:
         ApplyModernWindowFrame(hwnd);
         SetTimer(hwnd, 1, 700, NULL);
+        SetTimer(hwnd, 3, 250, NULL);   /* emblem spin repaint */
         return 0;
 
     case WM_ERASEBKGND:
@@ -1510,6 +1555,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_TIMER:
+        if (wp == 3) { InvalidateRect(hwnd, NULL, FALSE); return 0; }
         CheckForegroundManualIntent();
         if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {
             ShowWindow(hwnd, SW_SHOWNORMAL);

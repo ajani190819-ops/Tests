@@ -38,6 +38,10 @@
 #define RES_ICON_APP        1
 #define RES_ICON_EMBLEM     2
 
+/* Built-in release tag. keyboard-lighting/VERSION.txt in the repo carries
+ * the latest; a mismatch surfaces "Update ready" in the panel. */
+#define KBL_VERSION         "2.8.0"
+
 #define WM_TRAYICON         (WM_APP + 1)
 #define WM_ENGINE_BOOTED    (WM_APP + 2)
 
@@ -187,6 +191,10 @@ static BOOL             g_wantOff      = FALSE;
 static BOOL             g_quitting     = FALSE;
 static BOOL             g_trayHinted   = FALSE;
 static volatile LONG    g_downloading  = 0;
+static volatile LONG    g_updBusy      = 0;
+static wchar_t          g_updVer[32]   = L"";
+static wchar_t          g_updLine[256] = L"";
+static BOOL             g_updShown     = FALSE;
 
 static PanelCfg         g_cfg;
 static int              g_tab          = 0; /* 0 = Keyboard, 1 = Light Bar */
@@ -1371,6 +1379,47 @@ static BOOL DownloadRepoFileWinHttp(const wchar_t *branch, const wchar_t *relNam
     return ok;
 }
 
+/* Quiet "is there a newer build?" probe. keyboard-lighting/VERSION.txt in
+ * the repo carries the release tag; this runs every 10 seconds - one third
+ * of the emblem's 30s rotation - and only surfaces "Update ready" once.
+ * This panel never replaces its own exe: the fix path is Project Hub's
+ * Update All, so the note points there. */
+static DWORD WINAPI UpdateCheckWorker(LPVOID unused) {
+    (void)unused;
+    const wchar_t *branches[2] = { FALLBACK_BRANCH_W, L"main" };
+    wchar_t dest[MAX_PATH];
+    _snwprintf(dest, MAX_PATH, L"%s\\vercheck.tmp", g_cfgDir);
+    char *txt = NULL;
+    for (int b = 0; b < 2 && !txt; b++) {
+        if (!DownloadRepoFileWinHttp(branches[b], L"VERSION.txt", dest)) continue;
+        DWORD len = 0;
+        txt = ReadFileUtf8(dest, &len);
+        DeleteFileW(dest);
+    }
+    if (txt) {
+        char ver[32];
+        int i = 0;
+        for (; txt[i] && txt[i] != '\r' && txt[i] != '\n' && i < 30; i++) ver[i] = txt[i];
+        ver[i] = '\0';
+        free(txt);
+        if (ver[0] && strcmp(ver, KBL_VERSION) != 0) {
+            MultiByteToWideChar(CP_UTF8, 0, ver, -1, g_updVer, 31);
+            g_updVer[31] = L'\0';
+            _snwprintf(g_updLine, 255,
+                       L"Update v%s ready  \x00B7  Open Project Hub and use Update All",
+                       g_updVer);
+            if (!g_updShown) {
+                g_updShown = TRUE;
+                wcsncpy(g_toastText, L"New Keyboard Lighting build ready  \x00B7  Project Hub > Update All", 95);
+                g_toastAt = GetTickCount64() + 5000ULL;
+            }
+            if (g_hwnd) InvalidateRect(g_hwnd, NULL, FALSE);
+        }
+    }
+    InterlockedExchange(&g_updBusy, 0);
+    return 0;
+}
+
 static DWORD WINAPI BootstrapEngineWorker(LPVOID unused) {
     (void)unused;
     const wchar_t *branches[2] = { L"main", FALLBACK_BRANCH_W };
@@ -1748,10 +1797,54 @@ static void SmoothRoundRect(uint32_t *px, int W, int H, const RECT *rc, float ra
 static void DrawSuiteEmblemIcon(HDC hdc, int x, int y, int sz) {
     HICON hEmb = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(RES_ICON_EMBLEM),
                                    IMAGE_ICON, sz, sz, LR_DEFAULTCOLOR);
-    if (hEmb) {
+    if (!hEmb) return;
+    /* Spin slowly - one full turn every 30 seconds. Fast enough to read
+       as alive, slow enough to never pull the eye off the controls. */
+    double ang = ((double)(GetTickCount64() % 30000ULL) / 30000.0) * 6.283185307179586;
+    double ca = cos(ang), sa = sin(ang);
+    HDC ms = CreateCompatibleDC(hdc);
+    BITMAPINFO bi;
+    void *bits = NULL;
+    ZeroMemory(&bi, sizeof(bi));
+    bi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth       = sz;
+    bi.bmiHeader.biHeight      = sz;
+    bi.bmiHeader.biPlanes      = 1;
+    bi.bmiHeader.biBitCount    = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    HBITMAP hb = ms ? CreateDIBSection(ms, &bi, DIB_RGB_COLORS, &bits, NULL, 0) : NULL;
+    HGDIOBJ oldb = hb ? SelectObject(ms, hb) : NULL;
+    if (!hb || !bits) {
+        if (oldb) SelectObject(ms, oldb);
+        if (hb) DeleteObject(hb);
+        if (ms) DeleteDC(ms);
         DrawIconEx(hdc, x, y, hEmb, sz, sz, 0, NULL, DI_NORMAL);
         DestroyIcon(hEmb);
+        return;
     }
+    RECT fr = { 0, 0, sz, sz };
+    HBRUSH bgb = CreateSolidBrush(COL_BG);
+    FillRect(ms, &fr, bgb);
+    DeleteObject(bgb);
+    DrawIconEx(ms, 0, 0, hEmb, sz, sz, 0, NULL, DI_NORMAL);
+    double c = (sz - 1) * 0.5;
+    static const double cxy[3][2] = { { -1, -1 }, { 1, -1 }, { -1, 1 } };
+    POINT pt[3];
+    for (int i = 0; i < 3; i++) {{
+        double dx = cxy[i][0] * c, dy = cxy[i][1] * c;
+        pt[i].x = x + (LONG)(c + dx * ca - dy * sa + 0.5);
+        pt[i].y = y + (LONG)(c + dx * sa + dy * ca + 0.5);
+    }}
+    /* PlgBlt fills the area outside the parallelogram with the DC's
+       background colour - COL_BG matches the header fill, so the rotation
+       corners blend straight into the header. */
+    COLORREF oldbk = SetBkColor(hdc, COL_BG);
+    PlgBlt(hdc, pt, ms, 0, 0, sz, sz, NULL, 0, 0);
+    SetBkColor(hdc, oldbk);
+    SelectObject(ms, oldb);
+    DeleteObject(hb);
+    DeleteDC(ms);
+    DestroyIcon(hEmb);
 }
 
 static void AddHit(RECT r, int kind, int index) {
@@ -1770,7 +1863,7 @@ static void DrawSuiteBtn(HDC hdc, uint32_t *px, int W, int H, HFONT font, RECT r
     COLORREF fg = COL_TEXT;
     if (style == 1) { fill = hot ? COL_ACCENT_HOV : COL_ACCENT_STRONG; border = fill; }
     else if (style == 2) { fill = hot ? RGB(88, 66, 30) : COL_WARN_BG; border = COL_WARN; fg = COL_WARN; }
-    SmoothRoundRect(px, W, H, &r, (float)S(9, dpi), fill, border, ct, cb);
+    SmoothRoundRect(px, W, H, &r, (float)S(7, dpi), fill, border, ct, cb);
     SelectObject(hdc, font);
     SetTextColor(hdc, fg);
     DrawTextW(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
@@ -1778,7 +1871,7 @@ static void DrawSuiteBtn(HDC hdc, uint32_t *px, int W, int H, HFONT font, RECT r
 
 static void DrawPillSwitch(HDC hdc, uint32_t *px, int W, int H, HFONT font, RECT r,
                            const wchar_t *label, BOOL isOn, BOOL hot, int dpi, int ct, int cb) {
-    SmoothRoundRect(px, W, H, &r, (float)S(9, dpi),
+    SmoothRoundRect(px, W, H, &r, (float)S(7, dpi),
                     hot ? COL_SEC_HOV : COL_SEC_BTN,
                     hot ? COL_HOVER_RIM : COL_BTN_BORDER, ct, cb);
     int tw = S(34, dpi), th = S(18, dpi);
@@ -1957,7 +2050,7 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
 
     /* ---- CARD 0: Saved Patterns (one-click named presets) ---- */
     RECT c0 = { M, y, M + CW, y + hCard0 };
-    SmoothRoundRect(px, W, H, &c0, (float)S(14, dpi), COL_CARD, COL_BORDER, listTop, listBot);
+    SmoothRoundRect(px, W, H, &c0, (float)S(10, dpi), COL_CARD, COL_BORDER, listTop, listBot);
 
     SelectObject(mem, fCard);
     SetTextColor(mem, COL_TEXT);
@@ -2012,7 +2105,7 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
 
     /* ---- CARD 1: Live ROG Strix G16 Preview + Master Brightness ---- */
     RECT c1 = { M, y, M + CW, y + hCard1 };
-    SmoothRoundRect(px, W, H, &c1, (float)S(14, dpi), COL_CARD, COL_BORDER, listTop, listBot);
+    SmoothRoundRect(px, W, H, &c1, (float)S(10, dpi), COL_CARD, COL_BORDER, listTop, listBot);
 
     COLORREF stCol = g_wantOff ? COL_IDLE_SLATE : (alive ? COL_GOOD : COL_WARN);
     COLORREF stBg  = g_wantOff ? COL_PILL_MUTED : (alive ? COL_GOOD_BG : COL_WARN_BG);
@@ -2061,7 +2154,7 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
         int x0 = c1.left + S(16, dpi) + (kbdStripW * i) / kn;
         int x1 = c1.left + S(16, dpi) + (kbdStripW * (i + 1)) / kn - cellGap;
         RECT zr = { x0, stripY, x1, stripY + stripH };
-        SmoothRoundRect(px, W, H, &zr, (float)S(6, dpi), g_liveCols[i], COL_BORDER, listTop, listBot);
+        SmoothRoundRect(px, W, H, &zr, (float)S(5, dpi), g_liveCols[i], COL_BORDER, listTop, listBot);
     }
     int bn = g_liveBarN > 0 ? g_liveBarN : 12;
     int barLeft = c1.left + S(16, dpi) + kbdStripW + splitGap;
@@ -2069,7 +2162,7 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
         int x0 = barLeft + (barStripW * i) / bn;
         int x1 = barLeft + (barStripW * (i + 1)) / bn - S(2, dpi);
         RECT zr = { x0, stripY, x1, stripY + stripH };
-        SmoothRoundRect(px, W, H, &zr, (float)S(5, dpi), g_liveCols[kn + i], COL_BORDER, listTop, listBot);
+        SmoothRoundRect(px, W, H, &zr, (float)S(4, dpi), g_liveCols[kn + i], COL_BORDER, listTop, listBot);
     }
 
     /* Master Brightness Slider */
@@ -2085,20 +2178,20 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
 
     /* ---- CARD 2: Zone Tabs + Effect Picker ---- */
     RECT c2 = { M, y, M + CW, y + hCard2 };
-    SmoothRoundRect(px, W, H, &c2, (float)S(14, dpi), COL_CARD, COL_BORDER, listTop, listBot);
+    SmoothRoundRect(px, W, H, &c2, (float)S(10, dpi), COL_CARD, COL_BORDER, listTop, listBot);
 
     RECT segBox = { c2.left + S(16, dpi), c2.top + S(12, dpi), c2.left + S(256, dpi), c2.top + S(44, dpi) };
-    SmoothRoundRect(px, W, H, &segBox, (float)S(10, dpi), RGB(24, 28, 38), COL_BORDER, listTop, listBot);
+    SmoothRoundRect(px, W, H, &segBox, (float)S(8, dpi), RGB(24, 28, 38), COL_BORDER, listTop, listBot);
     RECT tab0 = { segBox.left + S(3, dpi), segBox.top + S(3, dpi), (segBox.left + segBox.right)/2 - S(1, dpi), segBox.bottom - S(3, dpi) };
     RECT tab1 = { (segBox.left + segBox.right)/2 + S(1, dpi), segBox.top + S(3, dpi), segBox.right - S(3, dpi), segBox.bottom - S(3, dpi) };
     int iT0 = g_hitCount; AddHit(tab0, HIT_TAB_KBD, 0);
     int iT1 = g_hitCount; AddHit(tab1, HIT_TAB_BAR, 0);
     if (g_tab == 0) {
-        SmoothRoundRect(px, W, H, &tab0, (float)S(8, dpi), COL_ACCENT_STRONG, COL_ACCENT_STRONG, listTop, listBot);
-        if (g_hoverIdx == iT1) SmoothRoundRect(px, W, H, &tab1, (float)S(8, dpi), COL_SEC_HOV, COL_SEC_HOV, listTop, listBot);
+        SmoothRoundRect(px, W, H, &tab0, (float)S(6, dpi), COL_ACCENT_STRONG, COL_ACCENT_STRONG, listTop, listBot);
+        if (g_hoverIdx == iT1) SmoothRoundRect(px, W, H, &tab1, (float)S(6, dpi), COL_SEC_HOV, COL_SEC_HOV, listTop, listBot);
     } else {
-        SmoothRoundRect(px, W, H, &tab1, (float)S(8, dpi), COL_ACCENT_STRONG, COL_ACCENT_STRONG, listTop, listBot);
-        if (g_hoverIdx == iT0) SmoothRoundRect(px, W, H, &tab0, (float)S(8, dpi), COL_SEC_HOV, COL_SEC_HOV, listTop, listBot);
+        SmoothRoundRect(px, W, H, &tab1, (float)S(6, dpi), COL_ACCENT_STRONG, COL_ACCENT_STRONG, listTop, listBot);
+        if (g_hoverIdx == iT0) SmoothRoundRect(px, W, H, &tab0, (float)S(6, dpi), COL_SEC_HOV, COL_SEC_HOV, listTop, listBot);
     }
     SelectObject(mem, fBtn);
     SetTextColor(mem, g_tab == 0 ? RGB(255,255,255) : COL_MUTED);
@@ -2115,7 +2208,7 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
 
     RECT pickR = { c2.left + S(16, dpi), c2.top + S(58, dpi), c2.left + S(296, dpi), c2.top + S(98, dpi) };
     int iPk = g_hitCount; AddHit(pickR, HIT_PICK_EFFECT, 0);
-    SmoothRoundRect(px, W, H, &pickR, (float)S(10, dpi),
+    SmoothRoundRect(px, W, H, &pickR, (float)S(8, dpi),
                     g_hoverIdx == iPk ? COL_SEC_HOV : COL_SEC_BTN,
                     g_hoverIdx == iPk ? COL_HOVER_RIM : COL_BTN_BORDER, listTop, listBot);
     wchar_t effLabelW[96];
@@ -2139,7 +2232,7 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
 
     /* ---- CARD 3: Interactive Colour Swatches + Band Width Bars ---- */
     RECT c3 = { M, y, M + CW, y + hCard3 };
-    SmoothRoundRect(px, W, H, &c3, (float)S(14, dpi), COL_CARD, COL_BORDER, listTop, listBot);
+    SmoothRoundRect(px, W, H, &c3, (float)S(10, dpi), COL_CARD, COL_BORDER, listTop, listBot);
 
     BOOL usesPal = kEffects[cg->effectIdx].usesPalette != 0;
     SelectObject(mem, fCard);
@@ -2160,20 +2253,20 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
         int hIdx = g_hitCount;
         if (usesPal) AddHit(sr, HIT_SWATCH_0 + i, i);
         COLORREF fillC = usesPal ? cg->swatches[i] : RGB(45, 50, 64);
-        SmoothRoundRect(px, W, H, &sr, (float)S(11, dpi), fillC,
+        SmoothRoundRect(px, W, H, &sr, (float)S(8, dpi), fillC,
                         (usesPal && g_hoverIdx == hIdx) ? RGB(255, 255, 255) : COL_BTN_BORDER,
                         listTop, listBot);
 
         RECT wr = { sx, sy + swSz + S(6, dpi), sx + swSz, sy + swSz + S(16, dpi) };
         if (usesPal) AddHit(wr, HIT_WIDTH_0 + i, i);
-        SmoothRoundRect(px, W, H, &wr, (float)S(5, dpi), RGB(22, 26, 35), COL_BORDER, listTop, listBot);
+        SmoothRoundRect(px, W, H, &wr, (float)S(4, dpi), RGB(22, 26, 35), COL_BORDER, listTop, listBot);
         double wt = log(cg->widths[i] / 0.25) / log(16.0);
         if (wt < 0.0) wt = 0.0;
         if (wt > 1.0) wt = 1.0;
         int fw = (int)(wt * swSz);
         if (fw < S(6, dpi)) fw = S(6, dpi);
         RECT wf = { wr.left, wr.top, wr.left + fw, wr.bottom };
-        SmoothRoundRect(px, W, H, &wf, (float)S(5, dpi), usesPal ? COL_ACCENT : COL_IDLE_SLATE,
+        SmoothRoundRect(px, W, H, &wf, (float)S(4, dpi), usesPal ? COL_ACCENT : COL_IDLE_SLATE,
                         usesPal ? COL_ACCENT : COL_IDLE_SLATE, listTop, listBot);
 
         sx += swSz + S(10, dpi);
@@ -2194,7 +2287,7 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
 
     /* ---- CARD 4: Speed, Zone Brightness & Motion Switches ---- */
     RECT c4 = { M, y, M + CW, y + hCard4 };
-    SmoothRoundRect(px, W, H, &c4, (float)S(14, dpi), COL_CARD, COL_BORDER, listTop, listBot);
+    SmoothRoundRect(px, W, H, &c4, (float)S(10, dpi), COL_CARD, COL_BORDER, listTop, listBot);
 
     int halfW = (CW - S(48, dpi)) / 2;
     wchar_t spdStr[16], brtStr[16];
@@ -2263,7 +2356,8 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
     RECT fTxt = { M + S(16, dpi), footerTop, rightLimit - S(8, dpi), H };
     const wchar_t *helpTxt = HelpForHit(g_hoverIdx);
     DrawTextW(mem, (!g_isAdmin) ? L"Click 'Run as Admin' to unlock direct ROG Strix G16 USB RGB control"
-                                : (helpTxt ? helpTxt : g_statusText),
+                                : (helpTxt ? helpTxt
+                                   : (g_updVer[0] ? g_updLine : g_statusText)),
               -1, &fTxt, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
     /* Floating brightness toast (shown after Fn F2 / F3 presses) */
@@ -2743,6 +2837,20 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
         } else if (wp == 2) {
             WriteHeartbeat();
+            {
+                /* Every 10s - one third of the emblem's rotation - quietly
+                 * check GitHub for a newer build. */
+                static ULONGLONG nextUpdCheck = 0;
+                ULONGLONG nowU = GetTickCount64();
+                if (nowU >= nextUpdCheck) {
+                    nextUpdCheck = nowU + 10000ULL;
+                    if (InterlockedCompareExchange(&g_updBusy, 1, 0) == 0) {
+                        HANDLE hU = CreateThread(NULL, 0, UpdateCheckWorker, NULL, 0, NULL);
+                        if (hU) CloseHandle(hU);
+                        else InterlockedExchange(&g_updBusy, 0);
+                    }
+                }
+            }
             PollFnBrightness();
             if (FileExistsW(g_showPath)) {
                 DeleteFileW(g_showPath);

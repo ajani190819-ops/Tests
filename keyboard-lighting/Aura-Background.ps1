@@ -721,21 +721,26 @@ public class LampEngine {
     double hm = h1 + dh * w;
     double am = Cm * Math.Cos(hm), bm = Cm * Math.Sin(hm);
     FromOklab(Lm, am, bm, out r, out g, out b);
-    if (r < -1e-9 || g < -1e-9 || b < -1e-9 ||
-        r > 1.000000001 || g > 1.000000001 || b > 1.000000001) {
+    // Only pull the chroma back when a channel goes NEGATIVE. Values over
+    // 1 are real in this pipeline (the palette gain runs past unity and
+    // the lamp path clips at 255), and treating them as out of gamut
+    // collapsed every bright mix toward zero chroma - the other half of
+    // what read as white.
+    if (r < -1e-9 || g < -1e-9 || b < -1e-9) {
       double lo = 0.0, hi = 1.0;
       for (int it = 0; it < 12; it++) {
         double mid = (lo + hi) * 0.5;
         FromOklab(Lm, am * mid, bm * mid, out r, out g, out b);
-        if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9 &&
-            r <= 1.000000001 && g <= 1.000000001 && b <= 1.000000001) lo = mid;
+        if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9) lo = mid;
         else hi = mid;
       }
       FromOklab(Lm, am * lo, bm * lo, out r, out g, out b);
     }
-    if (r < 0) r = 0; else if (r > 1) r = 1;
-    if (g < 0) g = 0; else if (g > 1) g = 1;
-    if (b < 0) b = 0; else if (b > 1) b = 1;
+    // No top clamp: over-1 is the gain path's legitimate output and must
+    // survive to the lamp clip, or bright mixes flatten to white.
+    if (r < 0) r = 0;
+    if (g < 0) g = 0;
+    if (b < 0) b = 0;
   }
 
   static void MixOklab(double L1, double A1, double B1,
@@ -745,20 +750,20 @@ public class LampEngine {
     double A = A1 + (A2 - A1) * w;
     double B = B1 + (B2 - B1) * w;
     FromOklab(L, A, B, out r, out g, out b);
-    if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9 &&
-        r <= 1.000000001 && g <= 1.000000001 && b <= 1.000000001) return;
+    // Same gamut rule as MixOklch: negatives pull the chroma back, over-1
+    // is legal (gain space) and is clipped later at the lamp.
+    if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9) return;
     double lo = 0.0, hi = 1.0;
     for (int it = 0; it < 18; it++) {
       double mid = (lo + hi) * 0.5;
       FromOklab(L, A * mid, B * mid, out r, out g, out b);
-      if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9 &&
-          r <= 1.000000001 && g <= 1.000000001 && b <= 1.000000001) lo = mid;
+      if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9) lo = mid;
       else hi = mid;
     }
     FromOklab(L, A * lo, B * lo, out r, out g, out b);
-    if (r < 0) r = 0; else if (r > 1) r = 1;
-    if (g < 0) g = 0; else if (g > 1) g = 1;
-    if (b < 0) b = 0; else if (b > 1) b = 1;
+    if (r < 0) r = 0;
+    if (g < 0) g = 0;
+    if (b < 0) b = 0;
   }
 
   static void ToOklab(double r, double g, double b,
@@ -814,8 +819,14 @@ public class LampEngine {
     // a straight line in sRGB dips in brightness through the middle, which
     // would read as a dim pulse - precisely the artefact being removed.
     double La, Aa, Ba, Lb, Ab, Bb, mr, mg, mb;
-    ToOklab(o_r, o_g, o_b, out La, out Aa, out Ba);
-    ToOklab(n_r, n_g, n_b, out Lb, out Ab, out Bb);
+    // SamplePal answers in lamp bytes (0-255, gamma-encoded); OKLab works
+    // in linear 0-1. Feeding the bytes straight in drove every midpoint's
+    // lightness far past 1.0, and the clip in MixOklch then flattened the
+    // whole crossfade to white - the white flash between colour changes,
+    // and a board parked white while a slider drag kept restarting the
+    // fade every 40ms. Convert at the boundary both ways.
+    ToOklab(ToLin(o_r), ToLin(o_g), ToLin(o_b), out La, out Aa, out Ba);
+    ToOklab(ToLin(n_r), ToLin(n_g), ToLin(n_b), out Lb, out Ab, out Bb);
     MixOklch(La, Aa, Ba, Lb, Ab, Bb, u, out mr, out mg, out mb);
     r = ToSrgb(mr); g = ToSrgb(mg); b = ToSrgb(mb);
   }
@@ -978,11 +989,29 @@ public class LampEngine {
       PalSet ps = gr.LivePal;
       if (ps != null && ps.Count > 0 &&
           ps.G.Length == ps.Count && ps.B.Length == ps.Count) {
-        gr.PalR = ps.R; gr.PalG = ps.G; gr.PalB = ps.B;
-        // Widths travel with the colours, so they can never be applied
-        // against a palette of a different size.
-        gr.PalW = (ps.W != null && ps.W.Length == ps.Count) ? ps.W : null;
-        repal = true;
+        // Only count this as a colour CHANGE when the colours actually
+        // differ from the ones on screen. The panel re-sends the palette
+        // with every theme write, and slider drags write every ~40ms, so
+        // taking each write as a change restarted the 300ms changeover on
+        // every tick - the board sat mid-fade (white, before the scale fix)
+        // for the whole drag instead of just getting brighter. An identical
+        // palette is not a change; widths alone can move with no fade.
+        bool samePal = (gr.PalR != null && gr.PalR.Length == ps.Count);
+        if (samePal) {
+          for (int i = 0; i < ps.Count; i++) {
+            if (gr.PalR[i] != ps.R[i] || gr.PalG[i] != ps.G[i] ||
+                gr.PalB[i] != ps.B[i]) { samePal = false; break; }
+          }
+        }
+        if (!samePal) {
+          gr.PalR = ps.R; gr.PalG = ps.G; gr.PalB = ps.B;
+          // Widths travel with the colours, so they can never be applied
+          // against a palette of a different size.
+          gr.PalW = (ps.W != null && ps.W.Length == ps.Count) ? ps.W : null;
+          repal = true;
+        } else {
+          gr.PalW = (ps.W != null && ps.W.Length == ps.Count) ? ps.W : null;
+        }
       }
 
       int lf = gr.LiveFlags;
@@ -4237,9 +4266,17 @@ try {
                         }
                     }
 
-                    Sync-Sources2 $needAud $needScr
+                    # A source-sync failure (no audio device yet, no
+                    # screen ready) must not swallow the settings that
+                    # were already applied above, and must not stay
+                    # invisible when it happens.
+                    try { Sync-Sources2 $needAud $needScr } catch {
+                        Write-Log ('source sync failed: ' + $_.Exception.Message)
+                    }
                 }
-            } catch { }
+            } catch {
+                Write-Log ('theme apply failed: ' + $_.Exception.Message)
+            }
         }
 
         Start-Sleep -Milliseconds 70

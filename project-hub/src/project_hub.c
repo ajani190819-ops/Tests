@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.7.0"
-#define HUB_VERSION_W     L"2.7"
+#define HUB_VERSION       "2.8.0"
+#define HUB_VERSION_W     L"2.8"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -286,7 +286,54 @@ static void RebuildFontsAndIcons(HWND hwnd) {
 
 /* Exposed symbol reference kept in sync with suite style tests */
 static void DrawWayfinderEmblem(HDC hdc, int x, int y, int sz) {
-    if (g_hdrEmblem) DrawIconEx(hdc, x, y, g_hdrEmblem, sz, sz, 0, NULL, DI_NORMAL);
+    if (!g_hdrEmblem) return;
+    /* Spin slowly - one full turn every 30 seconds. Fast enough to read
+       as alive, slow enough to never pull the eye off the controls. */
+    double ang = ((double)(GetTickCount64() % 30000ULL) / 30000.0) * 6.283185307179586;
+    double ca = cos(ang), sa = sin(ang);
+    HDC ms = CreateCompatibleDC(hdc);
+    BITMAPINFO bi;
+    void *bits = NULL;
+    ZeroMemory(&bi, sizeof(bi));
+    bi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth       = sz;
+    bi.bmiHeader.biHeight      = sz;
+    bi.bmiHeader.biPlanes      = 1;
+    bi.bmiHeader.biBitCount    = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    HBITMAP hb = ms ? CreateDIBSection(ms, &bi, DIB_RGB_COLORS, &bits, NULL, 0) : NULL;
+    HGDIOBJ oldb = hb ? SelectObject(ms, hb) : NULL;
+    if (!hb || !bits) {
+        if (oldb) SelectObject(ms, oldb);
+        if (hb) DeleteObject(hb);
+        if (ms) DeleteDC(ms);
+        DrawIconEx(hdc, x, y, g_hdrEmblem, sz, sz, 0, NULL, DI_NORMAL);
+        
+        return;
+    }
+    RECT fr = { 0, 0, sz, sz };
+    HBRUSH bgb = CreateSolidBrush(COL_BG);
+    FillRect(ms, &fr, bgb);
+    DeleteObject(bgb);
+    DrawIconEx(ms, 0, 0, g_hdrEmblem, sz, sz, 0, NULL, DI_NORMAL);
+    double c = (sz - 1) * 0.5;
+    static const double cxy[3][2] = { { -1, -1 }, { 1, -1 }, { -1, 1 } };
+    POINT pt[3];
+    for (int i = 0; i < 3; i++) {{
+        double dx = cxy[i][0] * c, dy = cxy[i][1] * c;
+        pt[i].x = x + (LONG)(c + dx * ca - dy * sa + 0.5);
+        pt[i].y = y + (LONG)(c + dx * sa + dy * ca + 0.5);
+    }}
+    /* PlgBlt fills the area outside the parallelogram with the DC's
+       background colour - COL_BG matches the header fill, so the rotation
+       corners blend straight into the header. */
+    COLORREF oldbk = SetBkColor(hdc, COL_BG);
+    PlgBlt(hdc, pt, ms, 0, 0, sz, sz, NULL, 0, 0);
+    SetBkColor(hdc, oldbk);
+    SelectObject(ms, oldb);
+    DeleteObject(hb);
+    DeleteDC(ms);
+    
 }
 
 static BOOL FileExistsW(const wchar_t *p) {
@@ -1481,7 +1528,7 @@ static void DrawActionBtn(HDC hdc, uint32_t *px, int W, int H, const ActionBtn *
         bg     = hot ? COL_BTN_HOVER : COL_BTN_BG;
         border = hot ? COL_HOVER_BORDER : COL_BTN_BORDER;
     }
-    SmoothRoundRect(px, W, H, &btn->rc, (float)S(9, dpi), bg, border, clipTop, clipBottom);
+    SmoothRoundRect(px, W, H, &btn->rc, (float)S(7, dpi), bg, border, clipTop, clipBottom);
     SelectObject(hdc, g_fontBtn);
     SetTextColor(hdc, fg);
     RECT tr = btn->rc;
@@ -1594,7 +1641,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc) {
         const ProjectCard *card = &g_cards[c];
         if (card->rcCard.bottom < headerH || card->rcCard.top > footerTop) continue;
 
-        SmoothRoundRect(px, w, h, &card->rcCard, (float)S(14, dpi),
+        SmoothRoundRect(px, w, h, &card->rcCard, (float)S(10, dpi),
                         COL_CARD_BG, COL_CARD_BORDER, headerH + 1, footerTop - 1);
 
         COLORREF tagFg = COL_TEXT_SECONDARY, tagBg = COL_IDLE_BG, barCol = COL_IDLE_SLATE;
@@ -1869,6 +1916,7 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         InitCardDefinitions();
         RefreshProjectStatuses();
         SetTimer(hwnd, 1, 2000, NULL);
+        SetTimer(hwnd, 2, 250, NULL);   /* emblem spin repaint */
         EnqueueTask(TASK_CHECK_REMOTE);
         return 0;
 
@@ -1979,11 +2027,25 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_TIMER:
+        if (wp == 2) {
+            /* Emblem spin only - keep this light so the animated mark
+               never costs a full status sweep. */
+            if (g_rcEmblem.right > g_rcEmblem.left)
+                InvalidateRect(hwnd, &g_rcEmblem, FALSE);
+            return 0;
+        }
         if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {
             ShowWindow(hwnd, SW_SHOWNORMAL);
             SetForegroundWindow(hwnd);
         }
         RefreshProjectStatuses();
+        {
+            /* Every 5th tick = 10s - one third of the emblem's 30s
+             * rotation: quietly re-check GitHub for Hub & app updates so
+             * "Update Hub" lights up on its own. */
+            static int tickN = 0;
+            if (++tickN >= 5) { tickN = 0; EnqueueTask(TASK_CHECK_REMOTE); }
+        }
         return 0;
 
     case WM_DESTROY:
