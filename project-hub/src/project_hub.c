@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.3.0"
-#define HUB_VERSION_W     L"2.3"
+#define HUB_VERSION       "2.4.0"
+#define HUB_VERSION_W     L"2.4"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -1033,6 +1033,9 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
 
     if (launchAfter) {
         ShellExecuteW(NULL, L"open", destExe, NULL, g_btgDir, SW_SHOWNORMAL);
+    } else {
+        /* Start high-priority tray guard immediately in background & register FastBoot logon task */
+        ShellExecuteW(NULL, L"open", destExe, L"--silent", g_btgDir, SW_HIDE);
     }
     SetFooterStatus(L"Bluetooth Guard updated with new UI & icon!", 0);
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);

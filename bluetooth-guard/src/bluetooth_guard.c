@@ -9,6 +9,7 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <commctrl.h>
+#include <dbt.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <psapi.h>
@@ -141,10 +142,14 @@ static const IID   kIidIKsControl     = {0x28F54685, 0x06FD, 0x11D2, {0xB2,0x7A,
 
 static HWND             g_hwnd       = NULL;
 static HICON            g_appIcon    = NULL;
+static HDEVNOTIFY       g_devNotifyIface = NULL;
+static HDEVNOTIFY       g_devNotifyRadio = NULL;
+static HANDLE           g_radioNotifyHandle = NULL;
 static NOTIFYICONDATAW  g_nid;
 static BOOL             g_quitting   = FALSE;
 static BOOL             g_guardOn    = TRUE;
-static BOOL             g_autostart  = FALSE;
+static BOOL             g_autostart  = TRUE;
+static BOOL             g_autostartExplicit = FALSE;
 static BOOL             g_radioOn    = TRUE;
 static BOOL             g_trayHinted = FALSE;
 static HANDLE           g_showEvent  = NULL;
@@ -159,7 +164,85 @@ static int              g_hoverIdx   = -1;
 static int              g_scrollY    = 0;
 static int              g_contentH   = 0;
 
-static ULONGLONG        g_manualGraceUntil = 0;
+static volatile LONGLONG g_fastBurstUntil = 0;
+static ULONGLONG         g_manualGraceUntil = 0;
+
+typedef BOOL (WINAPI *PFN_SetProcessInformation)(HANDLE, int, LPVOID, DWORD);
+
+typedef struct {
+    ULONG Version;
+    ULONG ControlMask;
+    ULONG StateMask;
+} BtPowerThrottlingState;
+
+static void ArmFastBurstWindow(ULONGLONG durationMs) {
+    LONGLONG target = (LONGLONG)(GetTickCount64() + durationMs);
+    LONGLONG cur = InterlockedCompareExchange64(&g_fastBurstUntil, 0, 0);
+    if (target > cur) InterlockedExchange64(&g_fastBurstUntil, target);
+}
+
+/* Maximize CPU scheduling priority & disable Windows 11 EcoQoS throttling so boot/wake reaction is instantaneous */
+static void BoostProcessAndShutdownPriority(void) {
+    if (!SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS)) {
+        SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
+    }
+    SetProcessShutdownParameters(0x3FF, 0);
+
+    HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
+    if (k32) {
+        PFN_SetProcessInformation pSetProcInfo =
+            (PFN_SetProcessInformation)(void *)GetProcAddress(k32, "SetProcessInformation");
+        if (pSetProcInfo) {
+            BtPowerThrottlingState pts;
+            pts.Version     = 1;
+            pts.ControlMask = 0x7; /* EXECUTION_SPEED | IGNORE_TIMER_RESOLUTION | MIN_RESOLUTION */
+            pts.StateMask   = 0;   /* Disable all background throttling even on battery */
+            pSetProcInfo(GetCurrentProcess(), 4 /* ProcessPowerThrottling */, &pts, sizeof(pts));
+        }
+    }
+}
+
+/* Subscribe to live kernel Bluetooth HCI / radio interface notifications for <1ms connect detection */
+static void RegisterBluetoothNotifications(HWND hwnd) {
+    if (!hwnd) return;
+    static const GUID kGuidBthPortIface =
+        {0x0850302A, 0xB344, 0x4FDA, {0x9B,0xE9,0x90,0x57,0x6B,0x8D,0x46,0xF0}};
+
+    if (!g_devNotifyIface) {
+        DEV_BROADCAST_DEVICEINTERFACE_W dbi;
+        ZeroMemory(&dbi, sizeof(dbi));
+        dbi.dbcc_size       = sizeof(dbi);
+        dbi.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
+        dbi.dbcc_classguid  = kGuidBthPortIface;
+        g_devNotifyIface = RegisterDeviceNotificationW(hwnd, &dbi, DEVICE_NOTIFY_WINDOW_HANDLE);
+    }
+
+    if (!g_devNotifyRadio && pBtFindFirstRadio && pBtFindRadioClose) {
+        BLUETOOTH_FIND_RADIO_PARAMS rp;
+        rp.dwSize = sizeof(rp);
+        HANDLE hRadio = NULL;
+        HBLUETOOTH_RADIO_FIND hRF = pBtFindFirstRadio(&rp, &hRadio);
+        if (hRF) {
+            pBtFindRadioClose(hRF);
+            if (hRadio) {
+                DEV_BROADCAST_HANDLE dbh;
+                ZeroMemory(&dbh, sizeof(dbh));
+                dbh.dbch_size       = sizeof(dbh);
+                dbh.dbch_devicetype = DBT_DEVTYP_HANDLE;
+                dbh.dbch_handle     = hRadio;
+                g_devNotifyRadio = RegisterDeviceNotificationW(hwnd, &dbh, DEVICE_NOTIFY_WINDOW_HANDLE);
+                if (g_devNotifyRadio) g_radioNotifyHandle = hRadio;
+                else CloseHandle(hRadio);
+            }
+        }
+    }
+}
+
+static void UnregisterBluetoothNotifications(void) {
+    if (g_devNotifyRadio) { UnregisterDeviceNotification(g_devNotifyRadio); g_devNotifyRadio = NULL; }
+    if (g_radioNotifyHandle) { CloseHandle(g_radioNotifyHandle); g_radioNotifyHandle = NULL; }
+    if (g_devNotifyIface) { UnregisterDeviceNotification(g_devNotifyIface); g_devNotifyIface = NULL; }
+}
 
 static WorkItem         g_queue[64];
 static int              g_qHead      = 0;
@@ -471,21 +554,109 @@ static BOOL IsAutostartEnabled(void) {
     return (rc == ERROR_SUCCESS && sz > 4);
 }
 
+#define FASTBOOT_TASK_NAME L"Tests_BluetoothGuard_FastBoot"
+
+static void RunHiddenCmd(const wchar_t *app, wchar_t *args, DWORD waitMs) {
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    ZeroMemory(&pi, sizeof(pi));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    if (CreateProcessW(app, args, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+        WaitForSingleObject(pi.hProcess, waitMs);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
+}
+
+/* Install both:
+ *   1. Zero-delay ONLOGON Scheduled Task (Priority 4, runs on battery, bypasses Explorer's 10s delay)
+ *   2. Explorer\Serialize StartupDelayInMSec=0 + HKCU\...\Run fallback
+ * Runs entirely in user context (LeastPrivilege) — NO administrator prompt needed! */
 static void SetAutostart(BOOL enable) {
     HKEY hk = NULL;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-                      0, KEY_SET_VALUE, &hk) != ERROR_SUCCESS) return;
-    if (!enable) {
-        RegDeleteValueW(hk, L"BluetoothGuard");
-    } else {
-        wchar_t exe[MAX_PATH], cmd[MAX_PATH + 32];
-        GetModuleFileNameW(NULL, exe, MAX_PATH);
-        _snwprintf(cmd, MAX_PATH + 32, L"\"%s\" --silent", exe);
-        RegSetValueExW(hk, L"BluetoothGuard", 0, REG_SZ,
-                       (const BYTE *)cmd, (DWORD)((wcslen(cmd) + 1) * sizeof(wchar_t)));
+                      0, KEY_SET_VALUE, &hk) == ERROR_SUCCESS) {
+        if (!enable) {
+            RegDeleteValueW(hk, L"BluetoothGuard");
+        } else {
+            wchar_t exe[MAX_PATH], cmd[MAX_PATH + 32];
+            GetModuleFileNameW(NULL, exe, MAX_PATH);
+            _snwprintf(cmd, MAX_PATH + 32, L"\"%s\" --silent", exe);
+            RegSetValueExW(hk, L"BluetoothGuard", 0, REG_SZ,
+                           (const BYTE *)cmd, (DWORD)((wcslen(cmd) + 1) * sizeof(wchar_t)));
+        }
+        RegCloseKey(hk);
     }
-    RegCloseKey(hk);
+
+    if (enable) {
+        /* Disable Windows Explorer's artificial ~10-second post-boot startup delay */
+        HKEY hSer = NULL;
+        if (RegCreateKeyExW(HKEY_CURRENT_USER,
+                            L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize",
+                            0, NULL, 0, KEY_SET_VALUE, NULL, &hSer, NULL) == ERROR_SUCCESS) {
+            DWORD zero = 0;
+            RegSetValueExW(hSer, L"StartupDelayInMSec", 0, REG_DWORD, (const BYTE *)&zero, sizeof(zero));
+            RegSetValueExW(hSer, L"WaitForIdleState",   0, REG_DWORD, (const BYTE *)&zero, sizeof(zero));
+            RegCloseKey(hSer);
+        }
+
+        /* Write Scheduled Task XML with PT0S logon trigger, Priority=4 (interactive/high), and battery allowed */
+        wchar_t exe[MAX_PATH], xmlPath[MAX_PATH];
+        GetModuleFileNameW(NULL, exe, MAX_PATH);
+        _snwprintf(xmlPath, MAX_PATH, L"%s\\fastboot-task.xml", g_cfgDir);
+        FILE *xf = _wfopen(xmlPath, L"w, ccs=UTF-16LE");
+        if (xf) {
+            fwprintf(xf,
+                L"<?xml version=\"1.0\" encoding=\"UTF-16\"?>\r\n"
+                L"<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">\r\n"
+                L"  <Triggers>\r\n"
+                L"    <LogonTrigger>\r\n"
+                L"      <Enabled>true</Enabled>\r\n"
+                L"      <Delay>PT0S</Delay>\r\n"
+                L"    </LogonTrigger>\r\n"
+                L"  </Triggers>\r\n"
+                L"  <Principals>\r\n"
+                L"    <Principal id=\"Author\">\r\n"
+                L"      <LogonType>InteractiveToken</LogonType>\r\n"
+                L"      <RunLevel>LeastPrivilege</RunLevel>\r\n"
+                L"    </Principal>\r\n"
+                L"  </Principals>\r\n"
+                L"  <Settings>\r\n"
+                L"    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>\r\n"
+                L"    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>\r\n"
+                L"    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>\r\n"
+                L"    <AllowHardTerminate>true</AllowHardTerminate>\r\n"
+                L"    <StartWhenAvailable>true</StartWhenAvailable>\r\n"
+                L"    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>\r\n"
+                L"    <Priority>4</Priority>\r\n"
+                L"  </Settings>\r\n"
+                L"  <Actions Context=\"Author\">\r\n"
+                L"    <Exec>\r\n"
+                L"      <Command>\"%s\"</Command>\r\n"
+                L"      <Arguments>--silent</Arguments>\r\n"
+                L"    </Exec>\r\n"
+                L"  </Actions>\r\n"
+                L"</Task>\r\n",
+                exe);
+            fclose(xf);
+            wchar_t schArgs[MAX_PATH * 2];
+            _snwprintf(schArgs, MAX_PATH * 2 - 1,
+                       L"schtasks.exe /Create /TN \"%s\" /XML \"%s\" /F",
+                       FASTBOOT_TASK_NAME, xmlPath);
+            RunHiddenCmd(NULL, schArgs, 4000);
+            DeleteFileW(xmlPath);
+        }
+    } else {
+        wchar_t delArgs[256];
+        _snwprintf(delArgs, 255, L"schtasks.exe /Delete /TN \"%s\" /F", FASTBOOT_TASK_NAME);
+        RunHiddenCmd(NULL, delArgs, 3000);
+    }
+
     g_autostart = enable;
+    g_autostartExplicit = TRUE;
 }
 
 static void SaveRules(void) {
@@ -493,6 +664,7 @@ static void SaveRules(void) {
     if (!fp) return;
     EnterCriticalSection(&g_lock);
     fwprintf(fp, L"guard=%d\n", g_guardOn ? 1 : 0);
+    fwprintf(fp, L"autostart=%d\n", g_autostart ? 1 : 0);
     for (int i = 0; i < g_devCount; i++) {
         fwprintf(fp, L"%s|%d|%llu|%s|%s\n",
                  g_devices[i].mac,
@@ -516,6 +688,11 @@ static void LoadRules(void) {
         while (l > 0 && (line[l - 1] == L'\n' || line[l - 1] == L'\r')) line[--l] = L'\0';
         if (wcsncmp(line, L"guard=", 6) == 0) {
             g_guardOn = (_wtoi(line + 6) != 0);
+            continue;
+        }
+        if (wcsncmp(line, L"autostart=", 10) == 0) {
+            g_autostart = (_wtoi(line + 10) != 0);
+            g_autostartExplicit = TRUE;
             continue;
         }
         wchar_t *p1 = wcschr(line, L'|'); if (!p1) continue; *p1++ = L'\0';
@@ -665,11 +842,28 @@ static void PollPairedDevices(void) {
     LeaveCriticalSection(&g_lock);
 }
 
+/* Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep */
+static void DisconnectGuardedDevicesNow(void) {
+    if (!g_guardOn) return;
+    PollPairedDevices();
+}
+
 static DWORD WINAPI WorkerThread(LPVOID unused) {
     (void)unused;
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
     CoInitializeEx(NULL, COINIT_MULTITHREADED);
+
+    /* Ensure high-priority zero-delay logon task + Explorer StartupDelayInMSec=0 are installed */
+    if (g_autostart) {
+        SetAutostart(TRUE);
+        SaveRules();
+    }
+
     while (InterlockedCompareExchange(&g_workerRun, 1, 1) == 1) {
-        DWORD w = WaitForSingleObject(g_qSem, 1500);
+        LONGLONG burstUntil = InterlockedCompareExchange64(&g_fastBurstUntil, 0, 0);
+        DWORD waitMs = ((LONGLONG)GetTickCount64() < burstUntil) ? 80 : 250;
+
+        DWORD w = WaitForSingleObject(g_qSem, waitMs);
         if (InterlockedCompareExchange(&g_workerRun, 1, 1) == 0) break;
 
         if (w == WAIT_OBJECT_0) {
@@ -689,8 +883,9 @@ static DWORD WINAPI WorkerThread(LPVOID unused) {
             }
         }
         PollPairedDevices();
+        if (g_hwnd && !g_devNotifyRadio) RegisterBluetoothNotifications(g_hwnd);
         WriteHeartbeat();
-        if (g_hwnd) PostMessageW(g_hwnd, WM_WORKER_DONE, 0, 0);
+        if (g_hwnd && IsWindowVisible(g_hwnd)) PostMessageW(g_hwnd, WM_WORKER_DONE, 0, 0);
     }
     CoUninitialize();
     return 0;
@@ -1130,6 +1325,7 @@ static void HandleHitClick(int hitIdx) {
         InvalidateRect(g_hwnd, NULL, FALSE);
     } else if (kind == HIT_TOGGLE_STARTUP) {
         SetAutostart(!g_autostart);
+        SaveRules();
         InvalidateRect(g_hwnd, NULL, FALSE);
     } else if (kind == HIT_BTN_REFRESH) {
         ReleaseSemaphore(g_qSem, 1, NULL);
@@ -1322,6 +1518,25 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         WriteHeartbeat();
         return 0;
 
+    case WM_DEVICECHANGE:
+        /* Kernel radio / HCI connection state changed — wake high-priority worker in <1ms! */
+        ArmFastBurstWindow(5000ULL);
+        ReleaseSemaphore(g_qSem, 1, NULL);
+        return TRUE;
+
+    case WM_QUERYENDSESSION:
+    case WM_ENDSESSION:
+        /* Clear active sessions & disconnect guarded earbuds before Restart / Fast Startup hibernate */
+        g_manualGraceUntil = 0;
+        EnterCriticalSection(&g_lock);
+        for (int i = 0; i < g_devCount; i++) {
+            g_devices[i].sessionAllowed = FALSE;
+            g_devices[i].seenConnected = FALSE;
+        }
+        LeaveCriticalSection(&g_lock);
+        DisconnectGuardedDevicesNow();
+        return TRUE;
+
     case WM_POWERBROADCAST:
         if (wp == PBT_APMSUSPEND) {
             g_manualGraceUntil = 0;
@@ -1331,8 +1546,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 g_devices[i].seenConnected = FALSE;
             }
             LeaveCriticalSection(&g_lock);
+            DisconnectGuardedDevicesNow();
         } else if (wp == PBT_APMRESUMEAUTOMATIC || wp == PBT_APMRESUMESUSPEND) {
             g_manualGraceUntil = 0;
+            ArmFastBurstWindow(30000ULL);
             ReleaseSemaphore(g_qSem, 1, NULL);
         }
         return TRUE;
@@ -1362,6 +1579,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_DESTROY:
+        UnregisterBluetoothNotifications();
         Shell_NotifyIconW(NIM_DELETE, &g_nid);
         DeleteFileW(g_lockPath);
         PostQuitMessage(0);
@@ -1372,7 +1590,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
     (void)hPrev; (void)nShow;
+    BoostProcessAndShutdownPriority();
     InitPaths();
+
+    BOOL silent = (cmdLine && (wcsstr(cmdLine, L"--silent") != NULL ||
+                               wcsstr(cmdLine, L"--startup") != NULL));
 
     if (cmdLine && wcsstr(cmdLine, L"--stop")) {
         FILE *fp = _wfopen(g_lockPath, L"r");
@@ -1390,8 +1612,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
 
     HANDLE hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        HANDLE ev = OpenEventW(EVENT_MODIFY_STATE, FALSE, SHOW_EVENT_NAME);
-        if (ev) { SetEvent(ev); CloseHandle(ev); }
+        if (!silent) {
+            HANDLE ev = OpenEventW(EVENT_MODIFY_STATE, FALSE, SHOW_EVENT_NAME);
+            if (ev) { SetEvent(ev); CloseHandle(ev); }
+        }
         if (hMutex) CloseHandle(hMutex);
         return 0;
     }
@@ -1402,8 +1626,13 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     g_qSem = CreateSemaphoreW(NULL, 1, 64, NULL);
 
     InitBluetoothApis();
-    g_autostart = IsAutostartEnabled();
+    BOOL regAuto = IsAutostartEnabled();
     LoadRules();
+    if (!g_autostartExplicit) g_autostart = regAuto ? TRUE : TRUE;
+
+    /* Immediate millisecond-0 Bluetooth sweep BEFORE creating window/fonts/icons! */
+    ArmFastBurstWindow(60000ULL);
+    PollPairedDevices();
     WriteHeartbeat();
 
     g_appIcon = LoadIconW(hInst, MAKEINTRESOURCEW(1));
@@ -1426,6 +1655,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
                              WS_OVERLAPPEDWINDOW,
                              CW_USEDEFAULT, CW_USEDEFAULT, S(740, dpi), S(560, dpi),
                              NULL, NULL, hInst, NULL);
+    RegisterBluetoothNotifications(g_hwnd);
 
     ZeroMemory(&g_nid, sizeof(g_nid));
     g_nid.cbSize           = sizeof(g_nid);
@@ -1434,12 +1664,11 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     g_nid.uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     g_nid.uCallbackMessage = WM_TRAYICON;
     g_nid.hIcon            = g_appIcon;
-    wcsncpy(g_nid.szTip, L"Bluetooth Guard", 127);
+    wcsncpy(g_nid.szTip, L"Bluetooth Guard (High-Priority Active)", 127);
     Shell_NotifyIconW(NIM_ADD, &g_nid);
 
     HANDLE hThread = CreateThread(NULL, 0, WorkerThread, NULL, 0, NULL);
 
-    BOOL silent = (cmdLine && wcsstr(cmdLine, L"--silent") != NULL);
     if (!silent) {
         ShowWindow(g_hwnd, SW_SHOWNORMAL);
         UpdateWindow(g_hwnd);

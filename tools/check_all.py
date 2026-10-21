@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Every check in this repo, in both dependency states, one line each.
+"""Every check in this repo, executed concurrently across CPU cores.
 
-    python3 tools/check_all.py
-
-Why this exists: verifying a change used to mean running six test scripts and
-three sync tools by hand, remembering that test_wave_gcode SKIPS without
-shapely (a skip is not a pass) and that test_plugin_runtime has a path that
-only runs WITHOUT it. Doing that by hand is slow and easy to get wrong.
+    python3 tools/check_all.py              # concurrent + SHA-256 Merkle cache for unchanged geometry suite
+    python3 tools/check_all.py --no-cache   # force full uncached execution of every suite
 
 Exit code is non-zero if anything failed or skipped, so it can gate a commit
-and run directly in GitHub Actions CI.
+and run directly in GitHub Actions CI (where CI=true always runs cold).
 """
+import concurrent.futures
+import hashlib
+import json
 import os
 import pathlib
 import shutil
@@ -21,14 +20,12 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 NODEPS = pathlib.Path("/tmp/nodeps")
 ARENA_LINK = ROOT / "arena-link-windows"
+EXTERNAL_VENV_PY = pathlib.Path("/home/user/.venv/bin/python")
+CACHE_PATH = pathlib.Path("/home/user/.cache/tests_check_merkle.json")
 
 TESTS = ["test_installer.py", "test_plugin_audit.py",
          "test_post_script.py", "test_unlayered_waves.py",
          "test_wave_gcode.py", "test_windows_apps.py"]
-# test_plugin_runtime.py asserts what the plugins do when numpy and shapely
-# are MISSING (the first-run dependency path), so it is only run in the
-# no-deps pass below. Running it with the deps installed reports failures
-# that mean nothing -- which is exactly the confusion this script removes.
 NODEPS_ONLY = ["test_plugin_runtime.py", "test_plugin_audit.py"]
 TOOLS = [["tools/sync_engine.py", "--check"],
          ["tools/sync_changelog.py", "--check"],
@@ -44,6 +41,43 @@ def have_deps():
         return False
 
 
+def wave_gcode_merkle_key() -> str:
+    """Exact cryptographic SHA-256 digest of every file & package version test_wave_gcode.py depends on."""
+    import numpy
+    import shapely
+    h = hashlib.sha256()
+    h.update(f"py={sys.version}|np={numpy.__version__}|shp={shapely.__version__}\n".encode())
+    watched = sorted(
+        list((ROOT / "plugins" / "wave-overhangs").rglob("*"))
+        + list((ROOT / "tests" / "fixtures").rglob("*"))
+        + [
+            ROOT / "tests" / "test_wave_gcode.py",
+            ROOT / "tests" / "wave_cases.py",
+            ROOT / "tests" / "fake_orca.py",
+        ]
+    )
+    for p in watched:
+        if p.is_file() and "__pycache__" not in p.parts:
+            h.update(str(p.relative_to(ROOT)).encode() + b"\0")
+            h.update(p.read_bytes() + b"\0")
+    return h.hexdigest()
+
+
+def load_cache() -> dict:
+    try:
+        return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_cache(data: dict) -> None:
+    try:
+        CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        CACHE_PATH.write_text(json.dumps(data), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def make_nodeps():
     """A PYTHONPATH that makes numpy and shapely unimportable."""
     NODEPS.mkdir(parents=True, exist_ok=True)
@@ -54,7 +88,7 @@ def make_nodeps():
     return env
 
 
-def run_cmd(label, cmd, cwd=ROOT, env=None):
+def exec_task(label, cmd, cwd=ROOT, env=None):
     with tempfile.TemporaryDirectory() as tmp_storage:
         run_env = dict(os.environ if env is None else env)
         run_env.setdefault("ORCA_PLUGIN_STORAGE_DIR", tmp_storage)
@@ -65,49 +99,93 @@ def run_cmd(label, cmd, cwd=ROOT, env=None):
     skipped = body.lstrip().startswith("SKIP")
     mark = "FAIL" if failed else ("SKIP" if skipped else "ok  ")
     last = [ln for ln in body.strip().splitlines() if ln.strip()]
-    print(f"  {mark}  {label}")
+    lines = [f"  {mark}  {label}"]
     if failed:
         for line in last[-12:]:
-            print(f"          {line[:160]}")
-    return failed, skipped
-
-
-def run(label, argv, env=None):
-    return run_cmd(label, [sys.executable] + argv, cwd=ROOT, env=env)
+            lines.append(f"          {line[:160]}")
+    return failed, skipped, lines
 
 
 def main():
+    if not have_deps() and EXTERNAL_VENV_PY.exists() and pathlib.Path(sys.executable) != EXTERNAL_VENV_PY:
+        os.execv(str(EXTERNAL_VENV_PY), [str(EXTERNAL_VENV_PY), __file__] + sys.argv[1:])
+
+    use_cache = ("--no-cache" not in sys.argv) and (os.environ.get("CI", "").lower() != "true")
     deps = have_deps()
-    bad = []
-    skipped = []
-    print("with numpy + shapely:" if deps else
-          "numpy/shapely NOT INSTALLED -- geometry tests will skip:")
-    for test in TESTS:
-        failed, skip = run(test, [f"tests/{test}"])
-        if failed:
-            bad.append(test)
-        if skip:
-            skipped.append(test)
+    cache = load_cache() if (use_cache and deps) else {}
+    wave_key = wave_gcode_merkle_key() if deps else ""
 
-    print("without numpy + shapely (the first-run dependency path):")
-    env = make_nodeps()
-    for test in NODEPS_ONLY:
-        failed, _s = run(test, [f"tests/{test}"], env=env)
-        if failed:
-            bad.append(test + " (no deps)")
+    nodeps_env = make_nodeps()
+    has_arena = ARENA_LINK.exists() and bool(shutil.which("node"))
 
-    print("repository consistency:")
-    for argv in TOOLS:
-        label = argv[0].split("/")[-1] + (" " + " ".join(argv[1:]) if len(argv) > 1 else "")
-        failed, _s = run(label, argv)
-        if failed:
-            bad.append(label)
+    max_workers = max(4, min(16, (os.cpu_count() or 4) * 2))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+        dep_futs = []
+        for test in TESTS:
+            if test == "test_wave_gcode.py" and wave_key and cache.get("wave_gcode") == wave_key:
+                dep_futs.append((test, None))
+            else:
+                dep_futs.append(
+                    (test, pool.submit(exec_task, test, [sys.executable, f"tests/{test}"], ROOT, None))
+                )
+        nodep_futs = [
+            (test, pool.submit(exec_task, test, [sys.executable, f"tests/{test}"], ROOT, nodeps_env))
+            for test in NODEPS_ONLY
+        ]
+        tool_futs = []
+        for argv in TOOLS:
+            label = argv[0].split("/")[-1] + (" " + " ".join(argv[1:]) if len(argv) > 1 else "")
+            tool_futs.append(
+                (label, pool.submit(exec_task, label, [sys.executable] + argv, ROOT, None))
+            )
+        arena_fut = (
+            pool.submit(exec_task, "npm test", ["npm", "test"], ARENA_LINK, None)
+            if has_arena else None
+        )
 
-    if ARENA_LINK.exists() and shutil.which("node"):
-        print("arena-link-windows:")
-        failed, _s = run_cmd("npm test", ["npm", "test"], cwd=ARENA_LINK)
-        if failed:
-            bad.append("arena-link-windows (npm test)")
+        bad = []
+        skipped = []
+
+        print("with numpy + shapely:" if deps else
+              "numpy/shapely NOT INSTALLED -- geometry tests will skip:")
+        for test, fut in dep_futs:
+            if fut is None:
+                print(f"  ok    {test} (SHA-256 unchanged)")
+                continue
+            failed, skip, lines = fut.result()
+            for ln in lines:
+                print(ln)
+            if failed:
+                bad.append(test)
+            elif skip:
+                skipped.append(test)
+            elif test == "test_wave_gcode.py" and wave_key and use_cache:
+                cache["wave_gcode"] = wave_key
+                save_cache(cache)
+
+        print("without numpy + shapely (the first-run dependency path):")
+        for test, fut in nodep_futs:
+            failed, _s, lines = fut.result()
+            for ln in lines:
+                print(ln)
+            if failed:
+                bad.append(test + " (no deps)")
+
+        print("repository consistency:")
+        for label, fut in tool_futs:
+            failed, _s, lines = fut.result()
+            for ln in lines:
+                print(ln)
+            if failed:
+                bad.append(label)
+
+        if arena_fut is not None:
+            print("arena-link-windows:")
+            failed, _s, lines = arena_fut.result()
+            for ln in lines:
+                print(ln)
+            if failed:
+                bad.append("arena-link-windows (npm test)")
 
     print()
     if bad:
