@@ -20,7 +20,6 @@ __pycache__/
 node_modules/
 dist/
 out/
-keyboard-lighting/*.exe
 keyboard-lighting/*.dll
 bluetooth-guard/*.dll
 project-hub/*.dll
