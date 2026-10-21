@@ -411,7 +411,18 @@ if (-not (Test-Path $ghCfg) -and -not $ghRunning) {
         Warn 'G-Helper config.json could not be read.'
     }
 
-    if ($skip -eq 1) {
+    # skip_aura alone is NOT enough any more: the brightness-gate pins and
+    # the idle-timeout kill came later, and machines that set skip_aura in
+    # an earlier era were skipping straight past them - G-Helper then kept
+    # stepping the EC 0..3 gate and dimming on its own. Only treat the
+    # containment as done when every key is actually in place.
+    $done = $false
+    if ($cfg -and $skip -eq 1) {
+        $done = ($null -ne $cfg.keyboard_brightness -and [int]$cfg.keyboard_brightness -eq 3 -and
+                 $null -ne $cfg.max_brightness -and [int]$cfg.max_brightness -eq 3 -and
+                 $null -ne $cfg.keyboard_timeout -and [int]$cfg.keyboard_timeout -eq 0)
+    }
+    if ($done) {
         Ok 'G-Helper is already set to leave the keyboard colours alone.'
     } elseif ($TestOnly) {
         Warn 'G-Helper will re-apply its own colours on startup.'

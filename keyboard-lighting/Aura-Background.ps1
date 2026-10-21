@@ -4128,11 +4128,14 @@ try {
         # keys and its idle-timeout timer can drop that gate at any moment,
         # and the smooth master needs the whole range underneath at all
         # times - so lock it on a slow cycle as well as on every Fn event.
+        # The HID gate pin is a cheap 51-byte feature report: hold it every
+        # tick so G-Helper's Fn steps and idle timer never win the 0..3 gate
+        # for more than a blink. The WMI pin stays on the slower cycle.
+        [void]$eng.PinGate(3)
         $script:GateTick++
         if ($script:GateTick -ge 8) {
             $script:GateTick = 0
             [void](Set-KbdBacklight 3)
-            [void]$eng.PinGate(3)
         }
 
         # --- panel-written brightness file (kept: the Fn keys use it too) ---
