@@ -16,6 +16,9 @@ Companion documents, mandatory only when the current task needs them:
 * `.agent/facts/` — short, confirmed technical facts by topic.
 * `.agent/decisions/` — accepted design constraints and their reasons.
 * `.agent/runbooks/` — repeatable test and release procedures.
+* `docs/UI_STYLE_GUIDE.md` — unified Destiny 2-inspired desktop UI style guide
+  shared across all apps in this suite (`ProjectHub`, `BluetoothGuard`,
+  `KeyboardLighting`, `Arena Link`). Read before building or changing any app UI.
 * `docs/ORCA-PLUGIN-FACTS.md` — binding OrcaSlicer facts. Read before changing
   an Orca plugin; do not re-derive or contradict it.
 * `docs/ROADMAP.md` — Orca plugin plans and open questions. Read before
@@ -54,10 +57,12 @@ step:**
    tray icon to quit", "my laptop steals my earbuds from my phone and cuts my
    audio"). Translate those symptoms into the underlying Windows / Python / JS /
    Java mechanics yourself rather than asking the owner technical questions.
-3. **Show a short "What I understood" check at the very top of your reply**
-    whenever a message has multiple parts or casual phrasing — 2 to 5 short,
-   plain-English bullets with zero filler — then immediately deliver the work
-   or ask one compact batch of options if a real choice is needed.
+3. **Keep this translation strictly internal — NEVER echo or repeat it back to
+   the owner.** This translation step is strictly for your own internal thinking
+   so you understand every part of the request accurately before acting. Do
+   **not** include a "Translated Instructions" or "What I understood" recap
+   block in your visible reply — go straight to doing the work or presenting
+   clean options when a genuine choice is needed.
 
 ---
 

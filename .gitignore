@@ -27,5 +27,7 @@ project-hub/*.dll
 *.new
 *.old
 *.hubtmp
+Unselected files/
+
 
 

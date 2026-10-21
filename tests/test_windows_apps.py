@@ -528,6 +528,12 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("crash.log", hub)
         self.assertIn("window.ready", setup)
         self.assertTrue((ROOT / "project-hub" / "Setup.bat").exists())
+        self.assertTrue((ROOT / "docs" / "UI_STYLE_GUIDE.md").exists())
+        self.assertIn("UPDATE HUB", hub_c)
+        self.assertIn("WorkerSelfUpdateHub", hub_c)
+        self.assertIn("DrawWayfinderEmblem", hub_c)
+        btg_c = (ROOT / "bluetooth-guard" / "src" / "bluetooth_guard.c").read_text(encoding="utf-8")
+        self.assertIn("DrawWayfinderEmblem", btg_c)
 
     def test_setup_bat_files_avoid_cmd_parenthesized_if_blocks(self):
         for rel in (

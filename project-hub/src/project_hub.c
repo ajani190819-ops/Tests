@@ -18,8 +18,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.1.0"
-#define HUB_VERSION_W     L"2.1.0"
+#define HUB_VERSION       "2.2.0"
+#define HUB_VERSION_W     L"2.2"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -34,11 +34,11 @@
 
 /* Action IDs */
 #define ID_BTN_REFRESH_ALL   1001
-#define ID_BTN_UPDATE_ALL    1002
-#define ID_BTN_MORE_MENU     1003
+#define ID_BTN_SELF_UPDATE   1002
+#define ID_BTN_UPDATE_ALL    1003
+#define ID_EMBLEM_MENU       1004
 #define ID_MENU_SHORTCUT     1011
-#define ID_MENU_SELF_UPDATE  1012
-#define ID_MENU_SUITE_DIR    1013
+#define ID_MENU_SUITE_DIR    1012
 
 #define ID_BTG_OPEN          1101
 #define ID_BTG_UPDATE        1102
@@ -62,46 +62,56 @@
 #define ID_ARENA_SYNC        1502
 #define ID_ARENA_FOLDER      1503
 
-/* Modern dark slate palette (matches BluetoothGuard.exe) */
-#define COL_BG               RGB(15, 23, 42)    /* #0F172A */
-#define COL_HEADER_BG        RGB(15, 23, 42)    /* #0F172A */
-#define COL_FOOTER_BG        RGB(12, 19, 35)    /* #0C1323 */
-#define COL_CARD_BG          RGB(30, 41, 59)    /* #1E293B */
-#define COL_CARD_HOVER       RGB(36, 49, 70)    /* #243146 */
-#define COL_CARD_BORDER      RGB(51, 65, 85)    /* #334155 */
-#define COL_DIVIDER          RGB(30, 41, 59)    /* #1E293B */
-#define COL_TEXT_PRIMARY     RGB(248, 250, 252) /* #F8FAFC */
-#define COL_TEXT_SECONDARY   RGB(148, 163, 184) /* #94A3B8 */
-#define COL_TEXT_MUTED       RGB(100, 116, 139) /* #64748B */
+/* Vanguard Slate — Destiny 2-inspired Suite Design Tokens (see docs/UI_STYLE_GUIDE.md) */
+#define COL_BG               RGB(11, 16, 27)    /* #0B101B */
+#define COL_DIRECTOR_LINE    RGB(20, 30, 48)    /* #141E30 */
+#define COL_OUTER_FRAME      RGB(25, 37, 58)    /* #19253A */
+#define COL_DIVIDER          RGB(30, 43, 62)    /* #1E2B3E */
+#define COL_CARD_BG          RGB(16, 23, 38)    /* #101726 */
+#define COL_CARD_HOVER       RGB(22, 32, 52)    /* #162034 */
+#define COL_CARD_BORDER      RGB(38, 53, 75)    /* #26354B */
+#define COL_BTN_BG           RGB(16, 23, 38)    /* #101726 */
+#define COL_BTN_HOVER        RGB(26, 38, 60)    /* #1A263C */
+#define COL_BTN_BORDER       RGB(49, 68, 95)    /* #31445F */
+#define COL_HOVER_RIM        RGB(220, 232, 248) /* #DCE8F8 */
 
-#define COL_ACCENT           RGB(14, 165, 233)  /* #0EA5E9 */
-#define COL_ACCENT_HOVER     RGB(56, 189, 248)  /* #38BDF8 */
-#define COL_BTN_BG           RGB(42, 56, 78)    /* #2A384E */
-#define COL_BTN_HOVER        RGB(58, 76, 104)   /* #3A4C68 */
-#define COL_BTN_BORDER       RGB(71, 85, 105)   /* #475569 */
-#define COL_WARN_BTN         RGB(180, 83, 9)    /* #B45309 */
-#define COL_WARN_BTN_HOVER   RGB(217, 119, 6)   /* #D97706 */
+#define COL_TEXT_PRIMARY     RGB(238, 244, 252) /* #EEF4FC */
+#define COL_TEXT_SECONDARY   RGB(140, 162, 192) /* #8CA2C0 */
+#define COL_TEXT_MUTED       RGB(104, 126, 156) /* #687E9C */
+#define COL_ICON_STROKE      RGB(218, 230, 246) /* #DAE6F6 */
 
-#define COL_OK_TEXT          RGB(52, 211, 153)  /* #34D399 */
-#define COL_OK_BG            RGB(6, 58, 46)
-#define COL_WARN_TEXT        RGB(251, 191, 36)  /* #FBBF24 */
-#define COL_WARN_BG          RGB(69, 42, 10)
-#define COL_ERR_TEXT         RGB(248, 113, 113) /* #F87171 */
-#define COL_ERR_BG           RGB(69, 18, 24)
-#define COL_IDLE_TEXT        RGB(148, 163, 184) /* #94A3B8 */
-#define COL_IDLE_BG          RGB(39, 52, 73)
+#define COL_ARC_CYAN         RGB(56, 189, 248)  /* #38BDF8 */
+#define COL_ARC_BG           RGB(12, 36, 56)
+#define COL_EMERALD          RGB(44, 227, 139)  /* #2CE38B */
+#define COL_EMERALD_BG       RGB(13, 43, 36)    /* #0D2B24 */
+#define COL_SOLAR_GOLD       RGB(245, 185, 66)  /* #F5B942 */
+#define COL_SOLAR_BG         RGB(44, 34, 16)    /* #2C2210 */
+#define COL_CRIMSON          RGB(248, 113, 113) /* #F87171 */
+#define COL_CRIMSON_BG       RGB(46, 20, 27)    /* #2E141B */
+#define COL_IDLE_SLATE       RGB(78, 98, 126)
+#define COL_IDLE_BG          RGB(22, 31, 48)
 
 enum {
-    BADGE_NEUTRAL = 0,
+    BADGE_IDLE    = 0,
     BADGE_OK      = 1,
     BADGE_WARN    = 2,
-    BADGE_DANGER  = 3
+    BADGE_ARC     = 3,
+    BADGE_DANGER  = 4
 };
 
 enum {
-    BTN_SECONDARY = 0,
-    BTN_PRIMARY   = 1,
-    BTN_WARNING   = 2
+    BTN_PLAIN     = 0,
+    BTN_SOLAR_TOP = 1,
+    BTN_ARC_TOP   = 2,
+    BTN_WARN_RIM  = 3
+};
+
+enum {
+    ICON_BLUETOOTH = 0,
+    ICON_KEYBOARD  = 1,
+    ICON_CUBE      = 2,
+    ICON_PLUGIN    = 3,
+    ICON_LINK      = 4
 };
 
 enum {
@@ -126,8 +136,8 @@ typedef struct {
 } ActionBtn;
 
 typedef struct {
-    const wchar_t *title;
-    const wchar_t *subtitle;
+    int            iconKind;
+    const wchar_t *trackedTitle;
     wchar_t        badge[48];
     int            badgeKind;
     wchar_t        detail[256];
@@ -138,6 +148,7 @@ typedef struct {
 
 static HWND             g_hwnd        = NULL;
 static HFONT            g_fontHero    = NULL;
+static HFONT            g_fontSub     = NULL;
 static HFONT            g_fontTitle   = NULL;
 static HFONT            g_fontBody    = NULL;
 static HFONT            g_fontBtn     = NULL;
@@ -147,10 +158,11 @@ static HANDLE           g_showEvent   = NULL;
 static CRITICAL_SECTION g_cs;
 
 static ActionBtn        g_topBtns[3] = {
-    { ID_BTN_REFRESH_ALL, L"Refresh",    BTN_SECONDARY, 86,  {0,0,0,0} },
-    { ID_BTN_UPDATE_ALL,  L"Update All", BTN_PRIMARY,   104, {0,0,0,0} },
-    { ID_BTN_MORE_MENU,   L"More \x25BE", BTN_SECONDARY, 74, {0,0,0,0} }
+    { ID_BTN_REFRESH_ALL, L"REFRESH",    BTN_PLAIN,     96,  {0,0,0,0} },
+    { ID_BTN_SELF_UPDATE, L"UPDATE HUB", BTN_SOLAR_TOP, 114, {0,0,0,0} },
+    { ID_BTN_UPDATE_ALL,  L"UPDATE ALL", BTN_ARC_TOP,   112, {0,0,0,0} }
 };
+static RECT             g_rcEmblem    = {0, 0, 0, 0};
 
 static ProjectCard      g_cards[5];
 static int              g_hoverId     = 0;
@@ -171,14 +183,16 @@ static wchar_t          g_arenaDir[MAX_PATH];
 
 /* Shared remote state protected by g_cs */
 static wchar_t          g_activeBranch[64]  = L"";
+static char             g_remHubVer[32]     = "";
 static char             g_remWaveVer[32]    = "";
 static char             g_remInfillVer[32]  = "";
 static char             g_remArenaVer[32]   = "";
 static wchar_t          g_remHudName[128]   = L"";
 static wchar_t          g_remHudPath[512]   = L"";
 static DWORD            g_remHudSize        = 0;
-static wchar_t          g_statusMsg[512]    = L"Checking local apps and GitHub updates...";
+static wchar_t          g_statusMsg[512]    = L"SCANNING SUITE MODULES  //  CONNECTING TO GITHUB...";
 static int              g_progressVal       = 0;
+static BOOL             g_hubUpdAvail       = FALSE;
 
 /* Worker queue */
 static int              g_taskQueue[32];
@@ -214,12 +228,14 @@ static void ApplyModernWindowFrame(HWND hwnd) {
         (PFN_DwmSetWindowAttribute)(void *)GetProcAddress(dwm, "DwmSetWindowAttribute");
     if (setAttr) {
         BOOL dark = TRUE;
-        DWORD roundPref = 2; /* DWMWCP_ROUND */
+        DWORD cornerPref = 3; /* DWMWCP_ROUNDSMALL — sharp architectural Destiny feel */
         COLORREF captionCol = COL_BG;
+        COLORREF borderCol  = COL_OUTER_FRAME;
         setAttr(hwnd, 20, &dark, sizeof(dark));
         setAttr(hwnd, 19, &dark, sizeof(dark));
-        setAttr(hwnd, 33, &roundPref, sizeof(roundPref));
+        setAttr(hwnd, 33, &cornerPref, sizeof(cornerPref));
         setAttr(hwnd, 35, &captionCol, sizeof(captionCol));
+        setAttr(hwnd, 34, &borderCol, sizeof(borderCol));
     }
     FreeLibrary(dwm);
 }
@@ -227,20 +243,23 @@ static void ApplyModernWindowFrame(HWND hwnd) {
 static void RebuildFonts(HWND hwnd) {
     int dpi = GetWinDpi(hwnd);
     if (g_fontHero)  DeleteObject(g_fontHero);
+    if (g_fontSub)   DeleteObject(g_fontSub);
     if (g_fontTitle) DeleteObject(g_fontTitle);
     if (g_fontBody)  DeleteObject(g_fontBody);
     if (g_fontBtn)   DeleteObject(g_fontBtn);
     if (g_fontBadge) DeleteObject(g_fontBadge);
 
-    g_fontHero  = CreateFontW(-S(19, dpi), 0, 0, 0, FW_BOLD,     FALSE, FALSE, FALSE,
+    g_fontHero  = CreateFontW(-S(19, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
-    g_fontTitle = CreateFontW(-S(14, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+    g_fontSub   = CreateFontW(-S(11, dpi), 0, 0, 0, FW_NORMAL,   FALSE, FALSE, FALSE,
+                              DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Consolas");
+    g_fontTitle = CreateFontW(-S(13, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
     g_fontBody  = CreateFontW(-S(12, dpi), 0, 0, 0, FW_NORMAL,   FALSE, FALSE, FALSE,
                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
-    g_fontBtn   = CreateFontW(-S(12, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+    g_fontBtn   = CreateFontW(-S(11, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
-    g_fontBadge = CreateFontW(-S(11, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+    g_fontBadge = CreateFontW(-S(10, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
 }
 
@@ -321,7 +340,7 @@ static BYTE *HttpGetBuffer(const wchar_t *host, const wchar_t *urlPath, DWORD *o
     if (outSize) *outSize = 0;
     if (outStatus) *outStatus = 0;
 
-    HINTERNET hSession = WinHttpOpen(L"Tests-ProjectHub/2.1",
+    HINTERNET hSession = WinHttpOpen(L"Tests-ProjectHub/2.2",
                                      WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                      WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!hSession) return NULL;
@@ -336,7 +355,7 @@ static BYTE *HttpGetBuffer(const wchar_t *host, const wchar_t *urlPath, DWORD *o
     if (!hReq) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return NULL; }
 
     BOOL sent = WinHttpSendRequest(hReq,
-                                   L"User-Agent: Tests-ProjectHub/2.1\r\nAccept: */*\r\n",
+                                   L"User-Agent: Tests-ProjectHub/2.2\r\nAccept: */*\r\n",
                                    (DWORD)-1L, WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
     if (!sent || !WinHttpReceiveResponse(hReq, NULL)) {
         WinHttpCloseHandle(hReq); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
@@ -560,56 +579,63 @@ static BOOL CreateShortcutLink(const wchar_t *lnkPath, const wchar_t *targetExe,
 static void InitCardDefinitions(void) {
     ZeroMemory(g_cards, sizeof(g_cards));
 
-    g_cards[0].title    = L"Bluetooth Guard";
-    g_cards[0].subtitle = L"Phone audio protection";
-    g_cards[0].btnCount = 4;
-    g_cards[0].btns[0]  = (ActionBtn){ ID_BTG_OPEN,   L"Open",   BTN_PRIMARY,   68, {0,0,0,0} };
-    g_cards[0].btns[1]  = (ActionBtn){ ID_BTG_UPDATE, L"Update", BTN_SECONDARY, 72, {0,0,0,0} };
-    g_cards[0].btns[2]  = (ActionBtn){ ID_BTG_STOP,   L"Stop",   BTN_SECONDARY, 60, {0,0,0,0} };
-    g_cards[0].btns[3]  = (ActionBtn){ ID_BTG_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0} };
+    /* Project names reference:
+     * Bluetooth Guard | Keyboard Lighting | Spatial HUD | OrcaSlicer Plugins | Arena Link
+     */
+    g_cards[0].iconKind     = ICON_BLUETOOTH;
+    g_cards[0].trackedTitle = L"B L U E T O O T H   G U A R D";
+    g_cards[0].btnCount     = 4;
+    g_cards[0].btns[0]      = (ActionBtn){ ID_BTG_OPEN,   L"OPEN",   BTN_PLAIN, 70, {0,0,0,0} };
+    g_cards[0].btns[1]      = (ActionBtn){ ID_BTG_UPDATE, L"UPDATE", BTN_PLAIN, 76, {0,0,0,0} };
+    g_cards[0].btns[2]      = (ActionBtn){ ID_BTG_STOP,   L"STOP",   BTN_PLAIN, 64, {0,0,0,0} };
+    g_cards[0].btns[3]      = (ActionBtn){ ID_BTG_FOLDER, L"FOLDER", BTN_PLAIN, 72, {0,0,0,0} };
 
-    g_cards[1].title    = L"Keyboard Lighting";
-    g_cards[1].subtitle = L"ROG Strix G16 RGB tray";
-    g_cards[1].btnCount = 4;
-    g_cards[1].btns[0]  = (ActionBtn){ ID_KBL_OPEN,    L"Open",     BTN_SECONDARY, 64, {0,0,0,0} };
-    g_cards[1].btns[1]  = (ActionBtn){ ID_KBL_RESTART, L"Unfreeze", BTN_SECONDARY, 82, {0,0,0,0} };
-    g_cards[1].btns[2]  = (ActionBtn){ ID_KBL_UPDATE,  L"Update",   BTN_SECONDARY, 72, {0,0,0,0} };
-    g_cards[1].btns[3]  = (ActionBtn){ ID_KBL_FOLDER,  L"Folder",   BTN_SECONDARY, 68, {0,0,0,0} };
+    g_cards[1].iconKind     = ICON_KEYBOARD;
+    g_cards[1].trackedTitle = L"K E Y B O A R D   L I G H T I N G";
+    g_cards[1].btnCount     = 4;
+    g_cards[1].btns[0]      = (ActionBtn){ ID_KBL_OPEN,    L"OPEN",     BTN_PLAIN, 70, {0,0,0,0} };
+    g_cards[1].btns[1]      = (ActionBtn){ ID_KBL_RESTART, L"UNFREEZE", BTN_PLAIN, 88, {0,0,0,0} };
+    g_cards[1].btns[2]      = (ActionBtn){ ID_KBL_UPDATE,  L"UPDATE",   BTN_PLAIN, 76, {0,0,0,0} };
+    g_cards[1].btns[3]      = (ActionBtn){ ID_KBL_FOLDER,  L"FOLDER",   BTN_PLAIN, 72, {0,0,0,0} };
 
-    g_cards[2].title    = L"Spatial HUD";
-    g_cards[2].subtitle = L"Minecraft 26.3 Fabric mod";
-    g_cards[2].btnCount = 3;
-    g_cards[2].btns[0]  = (ActionBtn){ ID_HUD_UPDATE, L"Update Mod",  BTN_PRIMARY,   96, {0,0,0,0} };
-    g_cards[2].btns[1]  = (ActionBtn){ ID_HUD_PICK,   L"Mods Dir...", BTN_SECONDARY, 92, {0,0,0,0} };
-    g_cards[2].btns[2]  = (ActionBtn){ ID_HUD_FOLDER, L"Folder",      BTN_SECONDARY, 68, {0,0,0,0} };
+    g_cards[2].iconKind     = ICON_CUBE;
+    g_cards[2].trackedTitle = L"S P A T I A L   H U D";
+    g_cards[2].btnCount     = 3;
+    g_cards[2].btns[0]      = (ActionBtn){ ID_HUD_UPDATE, L"UPDATE MOD", BTN_PLAIN, 102, {0,0,0,0} };
+    g_cards[2].btns[1]      = (ActionBtn){ ID_HUD_PICK,   L"MODS DIR",   BTN_PLAIN, 88,  {0,0,0,0} };
+    g_cards[2].btns[2]      = (ActionBtn){ ID_HUD_FOLDER, L"FOLDER",     BTN_PLAIN, 72,  {0,0,0,0} };
 
-    g_cards[3].title    = L"OrcaSlicer Plugins";
-    g_cards[3].subtitle = L"Wave Overhangs & Unlayered Infill";
-    g_cards[3].btnCount = 3;
-    g_cards[3].btns[0]  = (ActionBtn){ ID_ORCA_UPDATE, L"Update",      BTN_PRIMARY,   76,  {0,0,0,0} };
-    g_cards[3].btns[1]  = (ActionBtn){ ID_ORCA_MENU,   L"Branch Menu", BTN_SECONDARY, 100, {0,0,0,0} };
-    g_cards[3].btns[2]  = (ActionBtn){ ID_ORCA_FOLDER, L"Folder",      BTN_SECONDARY, 68,  {0,0,0,0} };
+    g_cards[3].iconKind     = ICON_PLUGIN;
+    g_cards[3].trackedTitle = L"O R C A S L I C E R   P L U G I N S";
+    g_cards[3].btnCount     = 3;
+    g_cards[3].btns[0]      = (ActionBtn){ ID_ORCA_UPDATE, L"UPDATE", BTN_PLAIN, 82, {0,0,0,0} };
+    g_cards[3].btns[1]      = (ActionBtn){ ID_ORCA_MENU,   L"BRANCH", BTN_PLAIN, 82, {0,0,0,0} };
+    g_cards[3].btns[2]      = (ActionBtn){ ID_ORCA_FOLDER, L"FOLDER", BTN_PLAIN, 72, {0,0,0,0} };
 
-    g_cards[4].title    = L"Arena Link";
-    g_cards[4].subtitle = L"Local Git workspace bridge";
-    g_cards[4].btnCount = 3;
-    g_cards[4].btns[0]  = (ActionBtn){ ID_ARENA_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0} };
-    g_cards[4].btns[1]  = (ActionBtn){ ID_ARENA_SYNC,   L"Sync",   BTN_SECONDARY, 68, {0,0,0,0} };
-    g_cards[4].btns[2]  = (ActionBtn){ ID_ARENA_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0} };
+    g_cards[4].iconKind     = ICON_LINK;
+    g_cards[4].trackedTitle = L"A R E N A   L I N K";
+    g_cards[4].btnCount     = 3;
+    g_cards[4].btns[0]      = (ActionBtn){ ID_ARENA_OPEN,   L"OPEN",   BTN_PLAIN, 76, {0,0,0,0} };
+    g_cards[4].btns[1]      = (ActionBtn){ ID_ARENA_SYNC,   L"SYNC",   BTN_PLAIN, 76, {0,0,0,0} };
+    g_cards[4].btns[2]      = (ActionBtn){ ID_ARENA_FOLDER, L"FOLDER", BTN_PLAIN, 72, {0,0,0,0} };
 }
 
 static void RefreshProjectStatuses(void) {
-    char remWave[32], remInfill[32], remArena[32];
+    char remHub[32], remWave[32], remInfill[32], remArena[32];
     wchar_t remHud[128];
     DWORD remHudSz = 0;
 
     EnterCriticalSection(&g_cs);
+    strncpy(remHub, g_remHubVer, 31); remHub[31] = '\0';
     strncpy(remWave, g_remWaveVer, 31); remWave[31] = '\0';
     strncpy(remInfill, g_remInfillVer, 31); remInfill[31] = '\0';
     strncpy(remArena, g_remArenaVer, 31); remArena[31] = '\0';
     wcsncpy(remHud, g_remHudName, 127); remHud[127] = L'\0';
     remHudSz = g_remHudSize;
     LeaveCriticalSection(&g_cs);
+
+    g_hubUpdAvail = (remHub[0] != '\0' && strcmp(remHub, HUB_VERSION) != 0);
+    g_topBtns[1].label = g_hubUpdAvail ? L"UPDATE HUB \x25B2" : L"UPDATE HUB";
 
     wchar_t path[MAX_PATH];
 
@@ -621,24 +647,21 @@ static void RefreshProjectStatuses(void) {
     int blocked = 0, total = 0;
     int btgState = CheckPidLockStatus(btgLock, 12.0, &blocked, &total);
     if (btgState == 1) {
-        wcsncpy(g_cards[0].badge, L"Running", 47);
+        wcsncpy(g_cards[0].badge, L"ACTIVE", 47);
         g_cards[0].badgeKind = BADGE_OK;
-        g_cards[0].btns[0].label = L"Open";
-        g_cards[0].btns[0].style = BTN_SECONDARY;
+        g_cards[0].btns[0].label = L"OPEN";
         _snwprintf(g_cards[0].detail, 255,
-                   L"Guarding Bluetooth  \x00B7  %d auto-connect OFF (%d paired)", blocked, total);
+                   L"Phone audio protection  \x00B7  %d guarded (%d paired)", blocked, total);
     } else if (hasBtg) {
-        wcsncpy(g_cards[0].badge, L"Stopped", 47);
-        g_cards[0].badgeKind = BADGE_NEUTRAL;
-        g_cards[0].btns[0].label = L"Start";
-        g_cards[0].btns[0].style = BTN_PRIMARY;
-        wcsncpy(g_cards[0].detail, L"Installed locally  \x00B7  Click Start to launch tray guard", 255);
+        wcsncpy(g_cards[0].badge, L"STANDBY", 47);
+        g_cards[0].badgeKind = BADGE_IDLE;
+        g_cards[0].btns[0].label = L"OPEN";
+        wcsncpy(g_cards[0].detail, L"Phone audio protection  \x00B7  Click OPEN to launch guard", 255);
     } else {
-        wcsncpy(g_cards[0].badge, L"Not Installed", 47);
+        wcsncpy(g_cards[0].badge, L"SETUP READY", 47);
         g_cards[0].badgeKind = BADGE_WARN;
-        g_cards[0].btns[0].label = L"Install";
-        g_cards[0].btns[0].style = BTN_PRIMARY;
-        wcsncpy(g_cards[0].detail, L"Click Install to download & launch BluetoothGuard.exe", 255);
+        g_cards[0].btns[0].label = L"INSTALL";
+        wcsncpy(g_cards[0].detail, L"Phone audio protection  \x00B7  Click INSTALL to set up", 255);
     }
 
     /* 2. Keyboard Lighting */
@@ -648,26 +671,25 @@ static void RefreshProjectStatuses(void) {
     _snwprintf(kblLock, MAX_PATH, L"%s\\KeyboardLighting\\running.lock", g_localApp);
     int kblState = CheckPidLockStatus(kblLock, 12.0, NULL, NULL);
     if (kblState == 2) {
-        wcsncpy(g_cards[1].badge, L"Frozen", 47);
+        wcsncpy(g_cards[1].badge, L"FROZEN", 47);
         g_cards[1].badgeKind = BADGE_DANGER;
-        g_cards[1].btns[1].style = BTN_WARNING;
-        wcsncpy(g_cards[1].detail, L"Tray stopped responding  \x00B7  Click Unfreeze to restart cleanly", 255);
+        g_cards[1].btns[1].style = BTN_WARN_RIM;
+        wcsncpy(g_cards[1].detail, L"ROG Strix G16 RGB lighting  \x00B7  Click UNFREEZE to recover", 255);
     } else if (kblState == 1) {
-        wcsncpy(g_cards[1].badge, L"Running", 47);
+        wcsncpy(g_cards[1].badge, L"ACTIVE", 47);
         g_cards[1].badgeKind = BADGE_OK;
-        g_cards[1].btns[1].style = BTN_SECONDARY;
-        wcsncpy(g_cards[1].detail, L"Active in system tray", 255);
+        g_cards[1].btns[1].style = BTN_PLAIN;
+        wcsncpy(g_cards[1].detail, L"ROG Strix G16 RGB lighting", 255);
     } else if (hasKbl) {
-        wcsncpy(g_cards[1].badge, L"Stopped", 47);
-        g_cards[1].badgeKind = BADGE_NEUTRAL;
-        g_cards[1].btns[0].style = BTN_PRIMARY;
-        g_cards[1].btns[1].style = BTN_SECONDARY;
-        wcsncpy(g_cards[1].detail, L"Installed locally  \x00B7  Click Open to start", 255);
+        wcsncpy(g_cards[1].badge, L"STANDBY", 47);
+        g_cards[1].badgeKind = BADGE_IDLE;
+        g_cards[1].btns[1].style = BTN_PLAIN;
+        wcsncpy(g_cards[1].detail, L"ROG Strix G16 RGB lighting  \x00B7  Installed locally", 255);
     } else {
-        wcsncpy(g_cards[1].badge, L"Not Installed", 47);
-        g_cards[1].badgeKind = BADGE_NEUTRAL;
-        g_cards[1].btns[2].style = BTN_PRIMARY;
-        wcsncpy(g_cards[1].detail, L"Click Update to download & configure Keyboard Lighting", 255);
+        wcsncpy(g_cards[1].badge, L"SETUP READY", 47);
+        g_cards[1].badgeKind = BADGE_WARN;
+        g_cards[1].btns[1].style = BTN_PLAIN;
+        wcsncpy(g_cards[1].detail, L"ROG Strix G16 RGB lighting  \x00B7  Click UPDATE to install", 255);
     }
 
     /* 3. Spatial HUD */
@@ -682,21 +704,17 @@ static void RefreshProjectStatuses(void) {
         FindClose(hf);
     }
     if (!foundJar[0]) {
-        wcsncpy(g_cards[2].badge, L"Not Installed", 47);
-        g_cards[2].badgeKind = BADGE_NEUTRAL;
-        g_cards[2].btns[0].style = BTN_PRIMARY;
-        wcsncpy(g_cards[2].detail, L"No JAR in selected mods folder  \x00B7  Click Update Mod to install", 255);
-    } else if (remHudSz > 0 && foundSize != remHudSz) {
-        wcsncpy(g_cards[2].badge, L"Update Ready", 47);
+        wcsncpy(g_cards[2].badge, L"UPDATE READY", 47);
         g_cards[2].badgeKind = BADGE_WARN;
-        g_cards[2].btns[0].style = BTN_PRIMARY;
-        _snwprintf(g_cards[2].detail, 255, L"%s (%lu KB)  \x2192  Latest: %s (%lu KB)",
-                   foundJar, (unsigned long)(foundSize / 1024), remHud, (unsigned long)(remHudSz / 1024));
+        wcsncpy(g_cards[2].detail, L"Minecraft 26.3 Fabric mod  \x00B7  Click UPDATE MOD to install", 255);
+    } else if (remHudSz > 0 && foundSize != remHudSz) {
+        wcsncpy(g_cards[2].badge, L"UPDATE READY", 47);
+        g_cards[2].badgeKind = BADGE_WARN;
+        _snwprintf(g_cards[2].detail, 255, L"Minecraft 26.3 Fabric mod  \x00B7  Newer build (%s)", remHud);
     } else {
-        wcsncpy(g_cards[2].badge, L"Up to Date", 47);
+        wcsncpy(g_cards[2].badge, L"UP TO DATE", 47);
         g_cards[2].badgeKind = BADGE_OK;
-        g_cards[2].btns[0].style = BTN_SECONDARY;
-        _snwprintf(g_cards[2].detail, 255, L"%s (%lu KB)", foundJar, (unsigned long)(foundSize / 1024));
+        _snwprintf(g_cards[2].detail, 255, L"Minecraft 26.3 Fabric mod  \x00B7  %s", foundJar);
     }
 
     /* 4. OrcaSlicer Plugins */
@@ -720,18 +738,16 @@ static void RefreshProjectStatuses(void) {
         if (py) { ExtractQuotedAfter(py, "PLUGIN_VERSION", locInfill, sizeof(locInfill)); free(py); }
     }
     if (!locWave[0] && !locInfill[0]) {
-        wcsncpy(g_cards[3].badge, L"Not Installed", 47);
-        g_cards[3].badgeKind = BADGE_NEUTRAL;
-        g_cards[3].btns[0].style = BTN_PRIMARY;
-        _snwprintf(g_cards[3].detail, 255, L"Latest on GitHub: Wave Overhangs %S  \x00B7  Unlayered Infill %S",
-                   remWave[0] ? remWave : "...", remInfill[0] ? remInfill : "...");
+        wcsncpy(g_cards[3].badge, L"UPDATE READY", 47);
+        g_cards[3].badgeKind = BADGE_WARN;
+        _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S & Unlayered Infill %S available",
+                   remWave[0] ? remWave : "latest", remInfill[0] ? remInfill : "latest");
     } else {
         BOOL upd = (remWave[0] && strcmp(locWave, remWave) != 0) ||
                    (remInfill[0] && strcmp(locInfill, remInfill) != 0);
-        wcsncpy(g_cards[3].badge, upd ? L"Update Ready" : L"Up to Date", 47);
+        wcsncpy(g_cards[3].badge, upd ? L"UPDATE READY" : L"UP TO DATE", 47);
         g_cards[3].badgeKind = upd ? BADGE_WARN : BADGE_OK;
-        g_cards[3].btns[0].style = upd ? BTN_PRIMARY : BTN_SECONDARY;
-        _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S  \x00B7  Unlayered Infill %S",
+        _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S & Unlayered Infill %S",
                    locWave[0] ? locWave : "none", locInfill[0] ? locInfill : "none");
     }
 
@@ -751,16 +767,14 @@ static void RefreshProjectStatuses(void) {
     }
     if (locArena[0]) {
         BOOL upd = (remArena[0] && strcmp(locArena, remArena) != 0);
-        wcsncpy(g_cards[4].badge, upd ? L"Update Ready" : L"Ready", 47);
-        g_cards[4].badgeKind = upd ? BADGE_WARN : BADGE_OK;
-        g_cards[4].btns[1].style = upd ? BTN_PRIMARY : BTN_SECONDARY;
-        _snwprintf(g_cards[4].detail, 255, L"Source v%S  \x00B7  %d linked Git workspace%s",
-                   locArena, linkedRepos, linkedRepos == 1 ? L"" : L"s");
+        wcsncpy(g_cards[4].badge, upd ? L"UPDATE READY" : L"READY", 47);
+        g_cards[4].badgeKind = upd ? BADGE_WARN : BADGE_ARC;
+        _snwprintf(g_cards[4].detail, 255, L"Local Git workspace bridge  \x00B7  v%S (%d linked)",
+                   locArena, linkedRepos);
     } else {
-        wcsncpy(g_cards[4].badge, L"Sync Available", 47);
-        g_cards[4].badgeKind = BADGE_NEUTRAL;
-        g_cards[4].btns[1].style = BTN_PRIMARY;
-        _snwprintf(g_cards[4].detail, 255, L"%d linked Git workspace%s  \x00B7  Click Sync for latest files",
+        wcsncpy(g_cards[4].badge, L"READY", 47);
+        g_cards[4].badgeKind = BADGE_ARC;
+        _snwprintf(g_cards[4].detail, 255, L"Local Git workspace bridge  \x00B7  %d linked workspace%s",
                    linkedRepos, linkedRepos == 1 ? L"" : L"s");
     }
 
@@ -769,11 +783,26 @@ static void RefreshProjectStatuses(void) {
 
 static void WorkerCheckRemote(void) {
     wchar_t branch[64];
-    SetFooterStatus(L"Checking GitHub for project versions & updates...", 20);
+    SetFooterStatus(L"CHECKING GITHUB FOR HUB & SUITE UPDATES...", 15);
     EnsureActiveBranch(branch, 64);
 
     wchar_t p[256];
     DWORD sz = 0; int st = 0;
+
+    /* 0. Check Project Hub's own remote version in project-hub/src/project_hub.c */
+    _snwprintf(p, 255, L"/%s/%s/%s/project-hub/src/project_hub.c", REPO_OWNER_W, REPO_NAME_W, branch);
+    char *hubSrc = (char *)HttpGetBuffer(L"raw.githubusercontent.com", p, &sz, &st);
+    if (hubSrc && st == 200) {
+        char hv[32] = "";
+        if (ExtractQuotedAfter(hubSrc, "#define HUB_VERSION", hv, sizeof(hv))) {
+            EnterCriticalSection(&g_cs);
+            strncpy(g_remHubVer, hv, 31);
+            LeaveCriticalSection(&g_cs);
+        }
+    }
+    free(hubSrc);
+
+    /* 1. plugins.json */
     _snwprintf(p, 255, L"/%s/%s/%s/plugins.json", REPO_OWNER_W, REPO_NAME_W, branch);
     char *manifest = (char *)HttpGetBuffer(L"raw.githubusercontent.com", p, &sz, &st);
     if (manifest && st == 200) {
@@ -788,8 +817,9 @@ static void WorkerCheckRemote(void) {
         LeaveCriticalSection(&g_cs);
     }
     free(manifest);
-    SetFooterStatus(L"Checking Arena Link & Spatial HUD releases...", 60);
+    SetFooterStatus(L"CHECKING ARENA LINK & SPATIAL HUD RELEASES...", 60);
 
+    /* 2. arena-link-windows/package.json */
     _snwprintf(p, 255, L"/%s/%s/%s/arena-link-windows/package.json", REPO_OWNER_W, REPO_NAME_W, branch);
     char *apkg = (char *)HttpGetBuffer(L"raw.githubusercontent.com", p, &sz, &st);
     if (apkg && st == 200) {
@@ -802,6 +832,7 @@ static void WorkerCheckRemote(void) {
     }
     free(apkg);
 
+    /* 3. Spatial HUD GitHub release metadata */
     _snwprintf(p, 255, L"/repos/%s/%s/releases/tags/spatial-hud-latest", REPO_OWNER_W, REPO_NAME_W);
     char *rel = (char *)HttpGetBuffer(L"api.github.com", p, &sz, &st);
     if (rel && st == 200) {
@@ -828,9 +859,20 @@ static void WorkerCheckRemote(void) {
     }
     free(rel);
 
-    wchar_t doneMsg[256];
-    _snwprintf(doneMsg, 255, L"Synced status with GitHub (%s)", branch);
-    SetFooterStatus(doneMsg, 0);
+    char remHubLocal[32] = "";
+    EnterCriticalSection(&g_cs);
+    strncpy(remHubLocal, g_remHubVer, 31);
+    LeaveCriticalSection(&g_cs);
+
+    if (remHubLocal[0] && strcmp(remHubLocal, HUB_VERSION) != 0) {
+        wchar_t updMsg[256];
+        _snwprintf(updMsg, 255,
+                   L"NEW PROJECT HUB v%S AVAILABLE ON GITHUB  //  CLICK 'UPDATE HUB' ABOVE",
+                   remHubLocal);
+        SetFooterStatus(updMsg, 0);
+    } else {
+        SetFooterStatus(L"ALL SUITE MODULES VERIFIED  //  GITHUB CONNECTED", 0);
+    }
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
 }
 
@@ -843,7 +885,7 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
     _snwprintf(destExe, MAX_PATH, L"%s\\BluetoothGuard.exe", g_btgDir);
 
     if (FileExistsW(destExe)) {
-        SetFooterStatus(L"Stopping running Bluetooth Guard before update...", 20);
+        SetFooterStatus(L"STOPPING RUNNING BLUETOOTH GUARD BEFORE UPDATE...", 20);
         SHELLEXECUTEINFOW sei;
         ZeroMemory(&sei, sizeof(sei));
         sei.cbSize = sizeof(sei);
@@ -859,9 +901,9 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
         Sleep(250);
     }
 
-    SetFooterStatus(L"Downloading BluetoothGuard.exe from GitHub...", 60);
+    SetFooterStatus(L"DOWNLOADING BLUETOOTHGUARD.EXE FROM GITHUB...", 60);
     if (!DownloadRawRepoFile(branch, L"bluetooth-guard/BluetoothGuard.exe", destExe)) {
-        SetFooterStatus(L"Could not download BluetoothGuard.exe from GitHub.", 0);
+        SetFooterStatus(L"ERROR  //  COULD NOT DOWNLOAD BLUETOOTHGUARD.EXE FROM GITHUB", 0);
         return FALSE;
     }
 
@@ -874,7 +916,7 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
     if (launchAfter) {
         ShellExecuteW(NULL, L"open", destExe, NULL, g_btgDir, SW_SHOWNORMAL);
     }
-    SetFooterStatus(L"Bluetooth Guard updated and ready.", 0);
+    SetFooterStatus(L"BLUETOOTH GUARD UPDATED AND READY  //  GITHUB CONNECTED", 0);
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
     return TRUE;
 }
@@ -892,7 +934,7 @@ static void WorkerInstallKeyboardLighting(void) {
     int count = (int)(sizeof(files) / sizeof(files[0]));
     for (int i = 0; i < count; i++) {
         wchar_t msg[256], rel[128], dest[MAX_PATH];
-        _snwprintf(msg, 255, L"Downloading Keyboard Lighting (%d/%d): %s...", i + 1, count, files[i]);
+        _snwprintf(msg, 255, L"DOWNLOADING KEYBOARD LIGHTING (%d/%d)  //  %s", i + 1, count, files[i]);
         SetFooterStatus(msg, 10 + (i * 80) / count);
         _snwprintf(rel, 127, L"keyboard-lighting/%s", files[i]);
         _snwprintf(dest, MAX_PATH, L"%s\\%s", g_kblDir, files[i]);
@@ -903,15 +945,15 @@ static void WorkerInstallKeyboardLighting(void) {
     _snwprintf(setupBat, MAX_PATH, L"%s\\Setup.bat", g_kblDir);
     if (FileExistsW(setupBat)) {
         ShellExecuteW(g_hwnd, L"open", setupBat, NULL, g_kblDir, SW_SHOWNORMAL);
-        SetFooterStatus(L"Downloaded Keyboard Lighting and launched Setup.", 0);
+        SetFooterStatus(L"KEYBOARD LIGHTING DOWNLOADED  //  SETUP LAUNCHED", 0);
     } else {
-        SetFooterStatus(L"Could not download Keyboard Lighting files.", 0);
+        SetFooterStatus(L"ERROR  //  COULD NOT DOWNLOAD KEYBOARD LIGHTING FILES", 0);
     }
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
 }
 
 static void WorkerInstallSpatialHud(void) {
-    SetFooterStatus(L"Checking latest Spatial HUD release on GitHub...", 20);
+    SetFooterStatus(L"CHECKING LATEST SPATIAL HUD RELEASE...", 20);
     if (!g_remHudPath[0]) WorkerCheckRemote();
 
     wchar_t dlPath[512], jarName[128];
@@ -921,16 +963,16 @@ static void WorkerInstallSpatialHud(void) {
     LeaveCriticalSection(&g_cs);
 
     if (!dlPath[0] || !jarName[0]) {
-        SetFooterStatus(L"No published Spatial HUD JAR found under release 'spatial-hud-latest'.", 0);
+        SetFooterStatus(L"SPATIAL HUD  //  NO PUBLISHED JAR UNDER 'spatial-hud-latest' YET", 0);
         return;
     }
 
-    SetFooterStatus(L"Downloading Spatial HUD Fabric JAR...", 60);
+    SetFooterStatus(L"DOWNLOADING SPATIAL HUD FABRIC JAR...", 60);
     DWORD sz = 0; int st = 0;
     BYTE *jarBytes = HttpGetBuffer(L"github.com", dlPath, &sz, &st);
     if (!jarBytes || st != 200 || sz < 4096 || jarBytes[0] != 'P' || jarBytes[1] != 'K') {
         free(jarBytes);
-        SetFooterStatus(L"Spatial HUD download failed or was not a valid JAR archive.", 0);
+        SetFooterStatus(L"ERROR  //  SPATIAL HUD DOWNLOAD FAILED OR INVALID ARCHIVE", 0);
         return;
     }
 
@@ -955,10 +997,10 @@ static void WorkerInstallSpatialHud(void) {
 
     if (ok) {
         wchar_t msg[300];
-        _snwprintf(msg, 299, L"Installed %s into mods folder.", jarName);
+        _snwprintf(msg, 299, L"SPATIAL HUD INSTALLED  //  %s", jarName);
         SetFooterStatus(msg, 0);
     } else {
-        SetFooterStatus(L"Could not write JAR to mods folder (close Minecraft first).", 0);
+        SetFooterStatus(L"ERROR  //  COULD NOT WRITE TO MODS FOLDER (CLOSE MINECRAFT FIRST)", 0);
     }
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
 }
@@ -967,7 +1009,7 @@ static void WorkerInstallOrcaPlugins(void) {
     wchar_t branch[64];
     EnsureActiveBranch(branch, 64);
 
-    SetFooterStatus(L"Downloading Wave Overhangs & Unlayered Infill plugins...", 40);
+    SetFooterStatus(L"DOWNLOADING WAVE OVERHANGS & UNLAYERED INFILL...", 40);
     EnsureDirTree(g_orcaBatDir);
 
     wchar_t batPath[MAX_PATH], tmpWave[MAX_PATH], tmpInf[MAX_PATH];
@@ -979,7 +1021,7 @@ static void WorkerInstallOrcaPlugins(void) {
     BOOL ok2 = DownloadRawRepoFile(branch, L"plugins/wave-overhangs/wave_overhangs_orca.py", tmpWave);
     BOOL ok3 = DownloadRawRepoFile(branch, L"plugins/unlayered-infill/unlayered_infill_orca.py", tmpInf);
     if (!ok2 || !ok3) {
-        SetFooterStatus(L"Failed downloading OrcaSlicer plugin files from GitHub.", 0);
+        SetFooterStatus(L"ERROR  //  FAILED DOWNLOADING ORCASLICER PLUGINS", 0);
         (void)ok1;
         return;
     }
@@ -1043,7 +1085,7 @@ static void WorkerInstallOrcaPlugins(void) {
         CopyFileW(tmpInf, dst, FALSE);
     }
 
-    SetFooterStatus(L"Updated Wave Overhangs + Unlayered Infill! Restart OrcaSlicer to load.", 0);
+    SetFooterStatus(L"ORCASLICER PLUGINS UPDATED  //  RESTART ORCASLICER TO LOAD", 0);
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
 }
 
@@ -1061,17 +1103,17 @@ static void WorkerSyncArenaLink(void) {
         wcsncpy(sub, files[i], 127);
         for (wchar_t *c = sub; *c; c++) if (*c == L'/') *c = L'\\';
         _snwprintf(dest, MAX_PATH, L"%s\\%s", g_arenaDir, sub);
-        SetFooterStatus(L"Syncing Arena Link source files from GitHub...", 15 + (i * 80) / n);
+        SetFooterStatus(L"SYNCING ARENA LINK SOURCE FROM GITHUB...", 15 + (i * 80) / n);
         DownloadRawRepoFile(branch, rel, dest);
     }
-    SetFooterStatus(L"Arena Link source files synced.", 0);
+    SetFooterStatus(L"ARENA LINK SOURCE SYNCED  //  READY", 0);
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
 }
 
 static void WorkerSelfUpdateHub(void) {
     wchar_t branch[64];
     EnsureActiveBranch(branch, 64);
-    SetFooterStatus(L"Downloading latest ProjectHub.exe from GitHub...", 50);
+    SetFooterStatus(L"DOWNLOADING LATEST PROJECTHUB.EXE FROM GITHUB...", 50);
 
     wchar_t newExe[MAX_PATH], oldExe[MAX_PATH];
     _snwprintf(newExe, MAX_PATH, L"%s.new", g_exePath);
@@ -1079,18 +1121,18 @@ static void WorkerSelfUpdateHub(void) {
     DeleteFileW(oldExe);
 
     if (!DownloadRawRepoFile(branch, L"project-hub/ProjectHub.exe", newExe)) {
-        SetFooterStatus(L"Could not download ProjectHub.exe from GitHub.", 0);
+        SetFooterStatus(L"ERROR  //  COULD NOT DOWNLOAD PROJECTHUB.EXE FROM GITHUB", 0);
         return;
     }
 
     if (!MoveFileExW(g_exePath, oldExe, MOVEFILE_REPLACE_EXISTING) ||
         !MoveFileExW(newExe, g_exePath, MOVEFILE_REPLACE_EXISTING)) {
         DeleteFileW(newExe);
-        SetFooterStatus(L"Could not replace ProjectHub.exe on disk.", 0);
+        SetFooterStatus(L"ERROR  //  COULD NOT REPLACE PROJECTHUB.EXE ON DISK", 0);
         return;
     }
 
-    SetFooterStatus(L"Updated ProjectHub.exe — restarting...", 100);
+    SetFooterStatus(L"PROJECT HUB UPDATED  //  RELAUNCHING...", 100);
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_SELFUPD, 0, 0);
 }
 
@@ -1133,7 +1175,7 @@ static DWORD WINAPI HubWorkerThread(LPVOID unused) {
             WorkerInstallSpatialHud();
             WorkerSyncArenaLink();
             WorkerCheckRemote();
-            SetFooterStatus(L"All projects updated.", 0);
+            SetFooterStatus(L"ALL SUITE MODULES UPDATED  //  GITHUB CONNECTED", 0);
             break;
         case TASK_SELF_UPDATE:         WorkerSelfUpdateHub(); break;
         default: break;
@@ -1167,7 +1209,7 @@ static void RestartKeyboardLightingCleanly(void) {
         ShellExecuteW(g_hwnd, L"open", rstBat, NULL, g_kblDir, SW_SHOWNORMAL);
     else
         EnqueueTask(TASK_INSTALL_KBL);
-    SetFooterStatus(L"Restarted Keyboard Lighting cleanly.", 0);
+    SetFooterStatus(L"KEYBOARD LIGHTING RESTARTED CLEANLY", 0);
 }
 
 static void PickSpatialHudModsFolder(void) {
@@ -1195,38 +1237,186 @@ static void PickSpatialHudModsFolder(void) {
 }
 
 /* ============================================================================
- * Modern Double-Buffered GDI Rendering & Layout
+ * Vanguard Slate — Destiny 2-Inspired Vector Rendering Engine
  * ============================================================================ */
 
-static void FillRoundBox(HDC hdc, const RECT *rc, int rad, COLORREF fill, COLORREF border) {
+static void FillSharpBox(HDC hdc, const RECT *rc, COLORREF fill, COLORREF border) {
     HBRUSH br = CreateSolidBrush(fill);
-    HPEN pen = CreatePen(PS_SOLID, 1, border);
-    HGDIOBJ oldBr = SelectObject(hdc, br);
-    HGDIOBJ oldPen = SelectObject(hdc, pen);
-    RoundRect(hdc, rc->left, rc->top, rc->right, rc->bottom, rad, rad);
-    SelectObject(hdc, oldBr);
-    SelectObject(hdc, oldPen);
+    FillRect(hdc, rc, br);
     DeleteObject(br);
+    HBRUSH fr = CreateSolidBrush(border);
+    FrameRect(hdc, rc, fr);
+    DeleteObject(fr);
+}
+
+static void FillSolidBar(HDC hdc, int l, int t, int r, int b, COLORREF col) {
+    RECT rc = { l, t, r, b };
+    HBRUSH br = CreateSolidBrush(col);
+    FillRect(hdc, &rc, br);
+    DeleteObject(br);
+}
+
+static void DrawDiamondTick(HDC hdc, int cx, int cy, int r, COLORREF col) {
+    POINT pts[4] = { {cx, cy - r}, {cx + r, cy}, {cx, cy + r}, {cx - r, cy} };
+    HBRUSH br = CreateSolidBrush(col);
+    HPEN pen = CreatePen(PS_SOLID, 1, col);
+    HGDIOBJ ob = SelectObject(hdc, br);
+    HGDIOBJ op = SelectObject(hdc, pen);
+    Polygon(hdc, pts, 4);
+    SelectObject(hdc, ob);
+    SelectObject(hdc, op);
+    DeleteObject(br);
+    DeleteObject(pen);
+}
+
+/* Subtle Destiny Director compass geometry + outer architectural frame */
+static void DrawDirectorBackdrop(HDC hdc, int w, int h, int dpi) {
+    HPEN pen = CreatePen(PS_SOLID, 1, COL_DIRECTOR_LINE);
+    HGDIOBJ oldPen = SelectObject(hdc, pen);
+    HGDIOBJ oldBr = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+    int cx = w / 2;
+    int cy = h / 2;
+    int r1 = S(220, dpi);
+    int r2 = S(340, dpi);
+    Ellipse(hdc, cx - r1, cy - r1, cx + r1, cy + r1);
+    Ellipse(hdc, cx - r2, cy - r2, cx + r2, cy + r2);
+
+    MoveToEx(hdc, cx, S(6, dpi), NULL); LineTo(hdc, cx, h - S(6, dpi));
+    MoveToEx(hdc, S(6, dpi), cy, NULL); LineTo(hdc, w - S(6, dpi), cy);
+
+    SelectObject(hdc, oldPen);
+    DeleteObject(pen);
+
+    /* Outer hairline architectural border + midpoint diamond ticks */
+    int m = S(8, dpi);
+    HPEN frPen = CreatePen(PS_SOLID, 1, COL_OUTER_FRAME);
+    oldPen = SelectObject(hdc, frPen);
+    Rectangle(hdc, m, m, w - m, h - m);
+    SelectObject(hdc, oldPen);
+    SelectObject(hdc, oldBr);
+    DeleteObject(frPen);
+
+    int d = S(3, dpi);
+    DrawDiamondTick(hdc, cx, m, d, COL_IDLE_SLATE);
+    DrawDiamondTick(hdc, cx, h - m, d, COL_IDLE_SLATE);
+    DrawDiamondTick(hdc, m, cy, d, COL_IDLE_SLATE);
+    DrawDiamondTick(hdc, w - m, cy, d, COL_IDLE_SLATE);
+}
+
+/* Destiny 8-point Wayfinder compass star emblem in header */
+static void DrawWayfinderEmblem(HDC hdc, int cx, int cy, int r, COLORREF ringCol, COLORREF starCol) {
+    HGDIOBJ oldBr = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+    HPEN ringPen = CreatePen(PS_SOLID, 1, ringCol);
+    HGDIOBJ oldPen = SelectObject(hdc, ringPen);
+    Ellipse(hdc, cx - r, cy - r, cx + r, cy + r);
+    int ri = (r * 68) / 100;
+    Ellipse(hdc, cx - ri, cy - ri, cx + ri, cy + ri);
+    SelectObject(hdc, oldPen);
+    DeleteObject(ringPen);
+
+    HPEN starPen = CreatePen(PS_SOLID, 1, starCol);
+    oldPen = SelectObject(hdc, starPen);
+    /* Cardinal long rays extending slightly past outer ring */
+    int ext = r + 3;
+    MoveToEx(hdc, cx, cy - ext, NULL); LineTo(hdc, cx, cy + ext + 1);
+    MoveToEx(hdc, cx - ext, cy, NULL); LineTo(hdc, cx + ext + 1, cy);
+    /* Diagonal secondary rays */
+    int dg = (r * 58) / 100;
+    MoveToEx(hdc, cx - dg, cy - dg, NULL); LineTo(hdc, cx + dg + 1, cy + dg + 1);
+    MoveToEx(hdc, cx - dg, cy + dg, NULL); LineTo(hdc, cx + dg + 1, cy - dg - 1);
+    SelectObject(hdc, oldPen);
+    SelectObject(hdc, oldBr);
+    DeleteObject(starPen);
+
+    DrawDiamondTick(hdc, cx, cy, 3, starCol);
+}
+
+/* Crisp 2px vector line-art card icons */
+static void DrawCardVectorIcon(HDC hdc, int kind, int cx, int cy, int dpi) {
+    HPEN pen = CreatePen(PS_SOLID, S(2, dpi), COL_ICON_STROKE);
+    HGDIOBJ oldPen = SelectObject(hdc, pen);
+    HGDIOBJ oldBr = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+    if (kind == ICON_BLUETOOTH) {
+        int h = S(13, dpi), w = S(7, dpi);
+        POINT pts[6] = {
+            { cx - w + 1, cy - h / 2 },
+            { cx + w,     cy + h / 2 },
+            { cx,         cy + h },
+            { cx,         cy - h },
+            { cx + w,     cy - h / 2 },
+            { cx - w + 1, cy + h / 2 }
+        };
+        Polyline(hdc, pts, 6);
+    } else if (kind == ICON_KEYBOARD) {
+        int hw = S(14, dpi), hh = S(9, dpi);
+        RoundRect(hdc, cx - hw, cy - hh, cx + hw, cy + hh, S(3, dpi), S(3, dpi));
+        for (int col = -2; col <= 2; col++) {
+            int kx = cx + col * S(5, dpi);
+            MoveToEx(hdc, kx, cy - S(4, dpi), NULL);
+            LineTo(hdc, kx + S(2, dpi), cy - S(4, dpi));
+            MoveToEx(hdc, kx, cy, NULL);
+            LineTo(hdc, kx + S(2, dpi), cy);
+        }
+        MoveToEx(hdc, cx - S(7, dpi), cy + S(5, dpi), NULL);
+        LineTo(hdc, cx + S(7, dpi), cy + S(5, dpi));
+    } else if (kind == ICON_CUBE) {
+        int r = S(12, dpi), dx = S(11, dpi), dy = S(6, dpi);
+        POINT hex[7] = {
+            { cx,      cy - r },
+            { cx + dx, cy - dy },
+            { cx + dx, cy + dy },
+            { cx,      cy + r },
+            { cx - dx, cy + dy },
+            { cx - dx, cy - dy },
+            { cx,      cy - r }
+        };
+        Polyline(hdc, hex, 7);
+        MoveToEx(hdc, cx - dx, cy - dy, NULL); LineTo(hdc, cx, cy);
+        LineTo(hdc, cx + dx, cy - dy);
+        MoveToEx(hdc, cx, cy, NULL); LineTo(hdc, cx, cy + r);
+    } else if (kind == ICON_PLUGIN) {
+        int b = S(10, dpi);
+        Rectangle(hdc, cx - b, cy - b + S(2, dpi), cx + b, cy + b + S(2, dpi));
+        Ellipse(hdc, cx - S(4, dpi), cy - b - S(3, dpi), cx + S(4, dpi), cy - b + S(5, dpi));
+        Ellipse(hdc, cx + b - S(3, dpi), cy - S(2, dpi), cx + b + S(5, dpi), cy + S(6, dpi));
+    } else {
+        /* Chain link glyph */
+        int r = S(10, dpi);
+        RoundRect(hdc, cx - r - S(2, dpi), cy - S(3, dpi), cx + S(3, dpi), cy + r, S(8, dpi), S(8, dpi));
+        RoundRect(hdc, cx - S(3, dpi), cy - r, cx + r + S(2, dpi), cy + S(3, dpi), S(8, dpi), S(8, dpi));
+    }
+
+    SelectObject(hdc, oldPen);
+    SelectObject(hdc, oldBr);
     DeleteObject(pen);
 }
 
 static void DrawActionBtn(HDC hdc, const ActionBtn *btn, int dpi) {
     BOOL hot = (g_hoverId == btn->id);
-    COLORREF bg, border, fg = COL_TEXT_PRIMARY;
-    if (btn->style == BTN_PRIMARY) {
-        bg     = hot ? COL_ACCENT_HOVER : COL_ACCENT;
-        border = bg;
-    } else if (btn->style == BTN_WARNING) {
-        bg     = hot ? COL_WARN_BTN_HOVER : COL_WARN_BTN;
-        border = bg;
-    } else {
-        bg     = hot ? COL_BTN_HOVER : COL_BTN_BG;
-        border = COL_BTN_BORDER;
+    COLORREF bg     = hot ? COL_BTN_HOVER : COL_BTN_BG;
+    COLORREF border = hot ? COL_HOVER_RIM : COL_BTN_BORDER;
+    COLORREF fg     = COL_TEXT_PRIMARY;
+
+    if (btn->style == BTN_WARN_RIM && !hot) border = COL_SOLAR_GOLD;
+    if (btn->style == BTN_SOLAR_TOP && g_hubUpdAvail) fg = COL_SOLAR_GOLD;
+
+    FillSharpBox(hdc, &btn->rc, bg, border);
+
+    /* Signature Destiny 3px luminous top bar on header feature buttons */
+    if (btn->style == BTN_SOLAR_TOP) {
+        FillSolidBar(hdc, btn->rc.left, btn->rc.top, btn->rc.right,
+                     btn->rc.top + S(3, dpi), COL_SOLAR_GOLD);
+    } else if (btn->style == BTN_ARC_TOP) {
+        FillSolidBar(hdc, btn->rc.left, btn->rc.top, btn->rc.right,
+                     btn->rc.top + S(3, dpi), COL_ARC_CYAN);
     }
-    FillRoundBox(hdc, &btn->rc, S(8, dpi), bg, border);
+
     SelectObject(hdc, g_fontBtn);
     SetTextColor(hdc, fg);
     RECT tr = btn->rc;
+    if (btn->style == BTN_SOLAR_TOP || btn->style == BTN_ARC_TOP) tr.top += S(2, dpi);
     DrawTextW(hdc, btn->label, -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 }
 
@@ -1236,45 +1426,51 @@ static void ComputeLayout(HWND hwnd) {
     GetClientRect(hwnd, &cli);
     int w = cli.right - cli.left;
     int h = cli.bottom - cli.top;
-    int pad = S(20, dpi);
-    int headerH = S(68, dpi);
-    int footerH = S(46, dpi);
+    int pad = S(32, dpi);
+    int headerH = S(76, dpi);
+    int footerH = S(42, dpi);
     int cardH = S(78, dpi);
-    int gap = S(10, dpi);
+    int gap = S(12, dpi);
+
+    int embR = S(18, dpi);
+    int embCx = pad + embR;
+    int embCy = headerH / 2;
+    SetRect(&g_rcEmblem, embCx - embR - 4, embCy - embR - 4, embCx + embR + 4, embCy + embR + 4);
 
     int bx = w - pad;
-    int topBtnH = S(32, dpi);
+    int topBtnH = S(34, dpi);
     int topBtnY = (headerH - topBtnH) / 2;
     for (int i = 2; i >= 0; i--) {
         int bw = S(g_topBtns[i].widthPx, dpi);
         bx -= bw;
         SetRect(&g_topBtns[i].rc, bx, topBtnY, bx + bw, topBtnY + topBtnH);
-        bx -= S(8, dpi);
+        bx -= S(10, dpi);
     }
 
-    int contentH = 5 * cardH + 4 * gap + S(12, dpi);
+    int contentH = 5 * cardH + 4 * gap + S(24, dpi);
     int viewH = h - headerH - footerH;
     g_maxScrollY = (contentH > viewH) ? (contentH - viewH) : 0;
     if (g_scrollY > g_maxScrollY) g_scrollY = g_maxScrollY;
     if (g_scrollY < 0) g_scrollY = 0;
 
-    int y = headerH + S(4, dpi) - g_scrollY;
+    int startY = headerH + ((viewH > contentH) ? (viewH - contentH) / 2 + S(12, dpi) : S(14, dpi)) - g_scrollY;
     int btnH = S(28, dpi);
     for (int c = 0; c < 5; c++) {
-        SetRect(&g_cards[c].rcCard, pad, y, w - pad, y + cardH);
+        SetRect(&g_cards[c].rcCard, pad, startY, w - pad, startY + cardH);
         int rx = w - pad - S(14, dpi);
-        int by = y + cardH - S(12, dpi) - btnH;
+        int by = startY + cardH - S(11, dpi) - btnH;
         for (int b = g_cards[c].btnCount - 1; b >= 0; b--) {
             int bw = S(g_cards[c].btns[b].widthPx, dpi);
             rx -= bw;
             SetRect(&g_cards[c].btns[b].rc, rx, by, rx + bw, by + btnH);
-            rx -= S(6, dpi);
+            rx -= S(8, dpi);
         }
-        y += cardH + gap;
+        startY += cardH + gap;
     }
 }
 
 static int HitTestButtons(POINT pt, int headerBottom, int footerTop) {
+    if (PtInRect(&g_rcEmblem, pt)) return ID_EMBLEM_MENU;
     for (int i = 0; i < 3; i++) {
         if (PtInRect(&g_topBtns[i].rc, pt)) return g_topBtns[i].id;
     }
@@ -1302,98 +1498,94 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc) {
     HGDIOBJ oldBmp = SelectObject(hdc, bmp);
     SetBkMode(hdc, TRANSPARENT);
 
-    /* Base canvas */
-    HBRUSH bgBr = CreateSolidBrush(COL_BG);
-    FillRect(hdc, &cli, bgBr);
-    DeleteObject(bgBr);
+    /* Base obsidian-navy canvas + subtle Destiny compass geometry */
+    FillSolidBar(hdc, 0, 0, w, h, COL_BG);
+    DrawDirectorBackdrop(hdc, w, h, dpi);
 
-    int pad = S(20, dpi);
-    int headerH = S(68, dpi);
-    int footerH = S(46, dpi);
+    int pad = S(32, dpi);
+    int headerH = S(76, dpi);
+    int footerH = S(42, dpi);
     int footerTop = h - footerH;
 
-    /* Cards clipped cleanly between header and footer */
+    /* Project Cards clipped cleanly between header and footer */
     int saved = SaveDC(hdc);
-    IntersectClipRect(hdc, 0, headerH, w, footerTop);
+    IntersectClipRect(hdc, 0, headerH + 1, w, footerTop - 1);
 
     for (int c = 0; c < 5; c++) {
         const ProjectCard *card = &g_cards[c];
         if (card->rcCard.bottom < headerH || card->rcCard.top > footerTop) continue;
 
-        FillRoundBox(hdc, &card->rcCard, S(12, dpi), COL_CARD_BG, COL_CARD_BORDER);
+        FillSharpBox(hdc, &card->rcCard, COL_CARD_BG, COL_CARD_BORDER);
 
-        /* Status pill colors */
-        COLORREF pillFg = COL_IDLE_TEXT, pillBg = COL_IDLE_BG, stripeCol = COL_BTN_BORDER;
+        COLORREF tagFg = COL_TEXT_SECONDARY, tagBg = COL_IDLE_BG, barCol = COL_IDLE_SLATE;
         if (card->badgeKind == BADGE_OK) {
-            pillFg = COL_OK_TEXT; pillBg = COL_OK_BG; stripeCol = COL_OK_TEXT;
+            tagFg = COL_EMERALD; tagBg = COL_EMERALD_BG; barCol = COL_EMERALD;
         } else if (card->badgeKind == BADGE_WARN) {
-            pillFg = COL_WARN_TEXT; pillBg = COL_WARN_BG; stripeCol = COL_WARN_TEXT;
+            tagFg = COL_SOLAR_GOLD; tagBg = COL_SOLAR_BG; barCol = COL_SOLAR_GOLD;
+        } else if (card->badgeKind == BADGE_ARC) {
+            tagFg = COL_ARC_CYAN; tagBg = COL_ARC_BG; barCol = COL_ARC_CYAN;
         } else if (card->badgeKind == BADGE_DANGER) {
-            pillFg = COL_ERR_TEXT; pillBg = COL_ERR_BG; stripeCol = COL_ERR_TEXT;
+            tagFg = COL_CRIMSON; tagBg = COL_CRIMSON_BG; barCol = COL_CRIMSON;
         }
 
-        /* Left vertical accent bar */
-        RECT accentRc = {
-            card->rcCard.left + S(1, dpi),
-            card->rcCard.top + S(14, dpi),
-            card->rcCard.left + S(5, dpi),
-            card->rcCard.bottom - S(14, dpi)
-        };
-        FillRoundBox(hdc, &accentRc, S(3, dpi), stripeCol, stripeCol);
+        /* Full-height 6px left status bar flush on left edge of card */
+        FillSolidBar(hdc, card->rcCard.left, card->rcCard.top,
+                     card->rcCard.left + S(6, dpi), card->rcCard.bottom, barCol);
 
-        /* Measure & draw status pill top-right */
+        /* Left vector line icon */
+        int iconCx = card->rcCard.left + S(38, dpi);
+        int iconCy = (card->rcCard.top + card->rcCard.bottom) / 2;
+        DrawCardVectorIcon(hdc, card->iconKind, iconCx, iconCy, dpi);
+
+        /* Top-right rectangular bordered status tag with status dot */
         SelectObject(hdc, g_fontBadge);
+        const wchar_t *badgeTxt = card->badge[0] ? card->badge : L"CHECKING";
         SIZE bsz = {0, 0};
-        const wchar_t *badgeTxt = card->badge[0] ? card->badge : L"Checking";
         GetTextExtentPoint32W(hdc, badgeTxt, (int)wcslen(badgeTxt), &bsz);
-        int pillW = bsz.cx + S(20, dpi);
-        int pillH = S(22, dpi);
-        RECT pillRc = {
-            card->rcCard.right - S(14, dpi) - pillW,
-            card->rcCard.top + S(11, dpi),
+        int tagW = bsz.cx + S(28, dpi);
+        int tagH = S(22, dpi);
+        RECT tagRc = {
+            card->rcCard.right - S(14, dpi) - tagW,
+            card->rcCard.top + S(10, dpi),
             card->rcCard.right - S(14, dpi),
-            card->rcCard.top + S(11, dpi) + pillH
+            card->rcCard.top + S(10, dpi) + tagH
         };
-        FillRoundBox(hdc, &pillRc, S(11, dpi), pillBg, pillBg);
-        SetTextColor(hdc, pillFg);
-        DrawTextW(hdc, badgeTxt, -1, &pillRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        FillSharpBox(hdc, &tagRc, tagBg, tagFg);
 
-        /* Card Title + muted subtitle inline */
+        HBRUSH dotBr = CreateSolidBrush(tagFg);
+        HPEN dotPen = CreatePen(PS_SOLID, 1, tagFg);
+        HGDIOBJ ob = SelectObject(hdc, dotBr);
+        HGDIOBJ op = SelectObject(hdc, dotPen);
+        int dotR = S(3, dpi);
+        int dotCx = tagRc.left + S(10, dpi);
+        int dotCy = (tagRc.top + tagRc.bottom) / 2;
+        Ellipse(hdc, dotCx - dotR, dotCy - dotR, dotCx + dotR + 1, dotCy + dotR + 1);
+        SelectObject(hdc, ob);
+        SelectObject(hdc, op);
+        DeleteObject(dotBr);
+        DeleteObject(dotPen);
+
+        RECT tagTextRc = { tagRc.left + S(17, dpi), tagRc.top, tagRc.right - S(6, dpi), tagRc.bottom };
+        SetTextColor(hdc, tagFg);
+        DrawTextW(hdc, badgeTxt, -1, &tagTextRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+
+        /* Tracked uppercase card title */
+        int textLeft = card->rcCard.left + S(68, dpi);
         SelectObject(hdc, g_fontTitle);
-        SIZE tsz = {0, 0};
-        GetTextExtentPoint32W(hdc, card->title, (int)wcslen(card->title), &tsz);
-        RECT titleRc = {
-            card->rcCard.left + S(16, dpi),
-            card->rcCard.top + S(11, dpi),
-            pillRc.left - S(10, dpi),
-            card->rcCard.top + S(34, dpi)
-        };
         SetTextColor(hdc, COL_TEXT_PRIMARY);
-        DrawTextW(hdc, card->title, -1, &titleRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        RECT titleRc = { textLeft, card->rcCard.top + S(13, dpi), tagRc.left - S(12, dpi), card->rcCard.top + S(36, dpi) };
+        DrawTextW(hdc, card->trackedTitle, -1, &titleRc,
+                  DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
-        int subLeft = titleRc.left + tsz.cx + S(10, dpi);
-        if (subLeft + S(60, dpi) < pillRc.left) {
-            SelectObject(hdc, g_fontBody);
-            SetTextColor(hdc, COL_TEXT_MUTED);
-            RECT subRc = { subLeft, card->rcCard.top + S(12, dpi), pillRc.left - S(10, dpi), card->rcCard.top + S(34, dpi) };
-            DrawTextW(hdc, card->subtitle, -1, &subRc,
-                      DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
-        }
-
-        /* Clean 1-line detail summary on bottom-left */
+        /* Clean subtitle / summary line */
         int firstBtnLeft = (card->btnCount > 0) ? card->btns[0].rc.left : (card->rcCard.right - S(16, dpi));
-        RECT detRc = {
-            card->rcCard.left + S(16, dpi),
-            card->rcCard.bottom - S(36, dpi),
-            firstBtnLeft - S(14, dpi),
-            card->rcCard.bottom - S(12, dpi)
-        };
         SelectObject(hdc, g_fontBody);
         SetTextColor(hdc, COL_TEXT_SECONDARY);
+        RECT detRc = { textLeft, card->rcCard.top + S(38, dpi), firstBtnLeft - S(14, dpi), card->rcCard.bottom - S(12, dpi) };
         DrawTextW(hdc, card->detail, -1, &detRc,
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
-        /* Action buttons */
+        /* Right-aligned action buttons */
         for (int b = 0; b < card->btnCount; b++) {
             DrawActionBtn(hdc, &card->btns[b], dpi);
         }
@@ -1401,40 +1593,36 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc) {
 
     RestoreDC(hdc, saved);
 
-    /* Top Header */
-    RECT hdrRc = { 0, 0, w, headerH };
-    HBRUSH hdrBr = CreateSolidBrush(COL_HEADER_BG);
-    FillRect(hdc, &hdrRc, hdrBr);
-    DeleteObject(hdrBr);
+    /* Header Wayfinder star emblem + tracked title + // telemetry subtitle */
+    int embR = S(18, dpi);
+    int embCx = pad + embR;
+    int embCy = headerH / 2;
+    DrawWayfinderEmblem(hdc, embCx, embCy, embR,
+                        g_hoverId == ID_EMBLEM_MENU ? COL_ARC_CYAN : COL_BTN_BORDER,
+                        g_hoverId == ID_EMBLEM_MENU ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
 
-    int hdrRightLimit = g_topBtns[0].rc.left - S(12, dpi);
+    int hdrTextLeft = pad + embR * 2 + S(14, dpi);
+    int hdrRightLimit = g_topBtns[0].rc.left - S(14, dpi);
     SelectObject(hdc, g_fontHero);
     SetTextColor(hdc, COL_TEXT_PRIMARY);
-    RECT hTitle = { pad, S(12, dpi), hdrRightLimit, S(38, dpi) };
-    DrawTextW(hdc, L"Project Hub", -1, &hTitle, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    RECT hTitle = { hdrTextLeft, S(13, dpi), hdrRightLimit, S(40, dpi) };
+    DrawTextW(hdc, L"P R O J E C T   H U B", -1, &hTitle, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
-    SelectObject(hdc, g_fontBody);
-    SetTextColor(hdc, COL_TEXT_SECONDARY);
-    RECT hSub = { pad, S(38, dpi), hdrRightLimit, S(58, dpi) };
-    DrawTextW(hdc, L"Manage apps, status, and one-click updates", -1, &hSub,
+    SelectObject(hdc, g_fontSub);
+    SetTextColor(hdc, COL_TEXT_MUTED);
+    RECT hSub = { hdrTextLeft, S(40, dpi), hdrRightLimit, S(60, dpi) };
+    DrawTextW(hdc, L"SUITE CONTROL  //  v" HUB_VERSION_W, -1, &hSub,
               DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
     for (int i = 0; i < 3; i++) {
         DrawActionBtn(hdc, &g_topBtns[i], dpi);
     }
 
-    /* Footer bar */
-    RECT ftrRc = { 0, footerTop, w, h };
-    HBRUSH ftrBr = CreateSolidBrush(COL_FOOTER_BG);
-    FillRect(hdc, &ftrRc, ftrBr);
-    DeleteObject(ftrBr);
+    /* Header bottom hairline divider */
+    FillSolidBar(hdc, pad, headerH, w - pad, headerH + 1, COL_DIVIDER);
 
-    HPEN divPen = CreatePen(PS_SOLID, 1, COL_CARD_BORDER);
-    HGDIOBJ oldPen = SelectObject(hdc, divPen);
-    MoveToEx(hdc, 0, footerTop, NULL);
-    LineTo(hdc, w, footerTop);
-    SelectObject(hdc, oldPen);
-    DeleteObject(divPen);
+    /* Footer top hairline divider + luminous download progress bar */
+    FillSolidBar(hdc, pad, footerTop, w - pad, footerTop + 1, COL_DIVIDER);
 
     wchar_t footMsg[512];
     int pct = 0;
@@ -1444,18 +1632,29 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc) {
     LeaveCriticalSection(&g_cs);
 
     if (pct > 0 && pct < 100) {
-        RECT trackRc = { pad, footerTop + S(7, dpi), w - pad, footerTop + S(11, dpi) };
-        FillRoundBox(hdc, &trackRc, S(2, dpi), COL_CARD_BG, COL_CARD_BG);
         int fillW = ((w - pad * 2) * pct) / 100;
-        if (fillW > S(4, dpi)) {
-            RECT fillRc = { pad, footerTop + S(7, dpi), pad + fillW, footerTop + S(11, dpi) };
-            FillRoundBox(hdc, &fillRc, S(2, dpi), COL_ACCENT, COL_ACCENT);
+        if (fillW > 2) {
+            FillSolidBar(hdc, pad, footerTop - 1, pad + fillW, footerTop + S(2, dpi), COL_ARC_CYAN);
         }
     }
 
-    SelectObject(hdc, g_fontBody);
-    SetTextColor(hdc, COL_TEXT_SECONDARY);
-    RECT fTxt = { pad, footerTop + (pct > 0 && pct < 100 ? S(14, dpi) : S(8, dpi)), w - pad, h - S(6, dpi) };
+    COLORREF dotCol = g_hubUpdAvail ? COL_SOLAR_GOLD : ((pct > 0 && pct < 100) ? COL_ARC_CYAN : COL_EMERALD);
+    HBRUSH fDotBr = CreateSolidBrush(dotCol);
+    HPEN fDotPen = CreatePen(PS_SOLID, 1, dotCol);
+    HGDIOBJ fob = SelectObject(hdc, fDotBr);
+    HGDIOBJ fop = SelectObject(hdc, fDotPen);
+    int fdR = S(4, dpi);
+    int fdCx = pad + fdR;
+    int fdCy = footerTop + footerH / 2;
+    Ellipse(hdc, fdCx - fdR, fdCy - fdR, fdCx + fdR + 1, fdCy + fdR + 1);
+    SelectObject(hdc, fob);
+    SelectObject(hdc, fop);
+    DeleteObject(fDotBr);
+    DeleteObject(fDotPen);
+
+    SelectObject(hdc, g_fontSub);
+    SetTextColor(hdc, g_hubUpdAvail ? COL_SOLAR_GOLD : COL_TEXT_MUTED);
+    RECT fTxt = { pad + S(18, dpi), footerTop, w - pad, h - S(8, dpi) };
     DrawTextW(hdc, footMsg, -1, &fTxt, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
     BitBlt(targetDc, 0, 0, w, h, hdc, 0, 0, SRCCOPY);
@@ -1464,16 +1663,16 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc) {
     DeleteDC(hdc);
 }
 
-static void ShowMoreMenu(HWND hwnd) {
+static void ShowUtilityMenu(HWND hwnd) {
     HMENU hMenu = CreatePopupMenu();
-    AppendMenuW(hMenu, MF_STRING, ID_MENU_SHORTCUT,    L"Pin Project Hub to Desktop");
-    AppendMenuW(hMenu, MF_STRING, ID_MENU_SELF_UPDATE, L"Self-Update Project Hub (" HUB_VERSION_W L")");
+    AppendMenuW(hMenu, MF_STRING, ID_MENU_SHORTCUT,  L"Pin Project Hub Shortcut to Desktop");
+    AppendMenuW(hMenu, MF_STRING, ID_BTN_SELF_UPDATE, L"Self-Update Project Hub Now");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(hMenu, MF_STRING, ID_MENU_SUITE_DIR,   L"Open Managed Apps Folder");
+    AppendMenuW(hMenu, MF_STRING, ID_MENU_SUITE_DIR, L"Open Managed Suite Folder");
 
-    POINT pt = { g_topBtns[2].rc.right, g_topBtns[2].rc.bottom + 4 };
+    POINT pt = { g_rcEmblem.left, g_rcEmblem.bottom + 4 };
     ClientToScreen(hwnd, &pt);
-    TrackPopupMenu(hMenu, TPM_RIGHTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
     DestroyMenu(hMenu);
 }
 
@@ -1484,25 +1683,25 @@ static void HandleActionCommand(HWND hwnd, int id) {
         RefreshProjectStatuses();
         EnqueueTask(TASK_CHECK_REMOTE);
         break;
+    case ID_BTN_SELF_UPDATE:
+        EnqueueTask(TASK_SELF_UPDATE);
+        break;
     case ID_BTN_UPDATE_ALL:
         EnqueueTask(TASK_UPDATE_ALL);
         break;
-    case ID_BTN_MORE_MENU:
-        ShowMoreMenu(hwnd);
+    case ID_EMBLEM_MENU:
+        ShowUtilityMenu(hwnd);
         break;
     case ID_MENU_SHORTCUT: {
         wchar_t desk[MAX_PATH], lnk[MAX_PATH];
         if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
             _snwprintf(lnk, MAX_PATH, L"%s\\Project Hub.lnk", desk);
             if (CreateShortcutLink(lnk, g_exePath, g_exeDir, L"Project Hub - Status & Updates")) {
-                SetFooterStatus(L"Pinned 'Project Hub' shortcut to Desktop.", 0);
+                SetFooterStatus(L"PINNED 'PROJECT HUB' SHORTCUT TO DESKTOP", 0);
             }
         }
         break;
     }
-    case ID_MENU_SELF_UPDATE:
-        EnqueueTask(TASK_SELF_UPDATE);
-        break;
     case ID_MENU_SUITE_DIR:
         EnsureDirTree(g_suiteDir);
         ShellExecuteW(hwnd, L"open", g_suiteDir, NULL, NULL, SW_SHOWNORMAL);
@@ -1520,7 +1719,7 @@ static void HandleActionCommand(HWND hwnd, int id) {
     case ID_BTG_STOP:
         _snwprintf(p, MAX_PATH, L"%s\\BluetoothGuard.exe", g_btgDir);
         if (FileExistsW(p)) ShellExecuteW(hwnd, L"open", p, L"--stop", g_btgDir, SW_HIDE);
-        SetFooterStatus(L"Stopped Bluetooth Guard.", 0);
+        SetFooterStatus(L"BLUETOOTH GUARD STOPPED", 0);
         break;
     case ID_BTG_FOLDER:
         EnsureDirTree(g_btgDir);
@@ -1626,8 +1825,8 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_GETMINMAXINFO: {
         int dpi = GetWinDpi(hwnd);
         MINMAXINFO *mmi = (MINMAXINFO *)lp;
-        mmi->ptMinTrackSize.x = S(640, dpi);
-        mmi->ptMinTrackSize.y = S(420, dpi);
+        mmi->ptMinTrackSize.x = S(720, dpi);
+        mmi->ptMinTrackSize.y = S(460, dpi);
         return 0;
     }
 
@@ -1661,7 +1860,7 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         RECT cli;
         GetClientRect(hwnd, &cli);
         POINT pt = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
-        int hit = HitTestButtons(pt, S(68, dpi), cli.bottom - S(46, dpi));
+        int hit = HitTestButtons(pt, S(76, dpi), cli.bottom - S(42, dpi));
         if (hit != g_hoverId) {
             g_hoverId = hit;
             InvalidateRect(hwnd, NULL, FALSE);
@@ -1690,10 +1889,14 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         RECT cli;
         GetClientRect(hwnd, &cli);
         POINT pt = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
-        int hit = HitTestButtons(pt, S(68, dpi), cli.bottom - S(46, dpi));
+        int hit = HitTestButtons(pt, S(76, dpi), cli.bottom - S(42, dpi));
         if (hit != 0) HandleActionCommand(hwnd, hit);
         return 0;
     }
+
+    case WM_RBUTTONUP:
+        ShowUtilityMenu(hwnd);
+        return 0;
 
     case WM_COMMAND:
         HandleActionCommand(hwnd, LOWORD(wp));
@@ -1771,7 +1974,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     int dpi = GetWinDpi(NULL);
     g_hwnd = CreateWindowExW(0, wc.lpszClassName, APP_TITLE,
                              WS_OVERLAPPEDWINDOW,
-                             CW_USEDEFAULT, CW_USEDEFAULT, S(780, dpi), S(600, dpi),
+                             CW_USEDEFAULT, CW_USEDEFAULT, S(860, dpi), S(620, dpi),
                              NULL, NULL, hInst, NULL);
 
     ShowWindow(g_hwnd, SW_SHOWNORMAL);

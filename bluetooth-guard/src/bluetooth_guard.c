@@ -39,26 +39,32 @@
 #define MAX_DEVICES     64
 #define MAX_HITBOXES    192
 
-/* Theme palette (matches Project Hub & Keyboard Lighting) */
-#define COL_BG          RGB(18, 20, 28)
-#define COL_CARD        RGB(27, 31, 44)
-#define COL_CARD_HOVER  RGB(32, 37, 52)
-#define COL_BORDER      RGB(44, 51, 70)
-#define COL_TEXT        RGB(240, 243, 250)
-#define COL_MUTED       RGB(142, 152, 178)
-#define COL_PRIMARY     RGB(37, 99, 235)
-#define COL_PRIMARY_HOV RGB(59, 130, 246)
-#define COL_SEC_BTN     RGB(38, 44, 62)
-#define COL_SEC_HOV     RGB(50, 58, 82)
-#define COL_DANGER      RGB(185, 28, 28)
-#define COL_DANGER_HOV  RGB(220, 38, 38)
-#define COL_GOOD        RGB(52, 211, 153)
-#define COL_GOOD_BG     RGB(22, 58, 48)
-#define COL_WARN        RGB(251, 191, 36)
-#define COL_WARN_BG     RGB(62, 50, 24)
-#define COL_ACCENT      RGB(96, 165, 250)
-#define COL_ACCENT_BG   RGB(26, 48, 78)
-#define COL_PILL_MUTED  RGB(36, 41, 56)
+/* Vanguard Slate — Destiny 2-inspired Suite Design Tokens (see docs/UI_STYLE_GUIDE.md) */
+#define COL_BG            RGB(11, 16, 27)    /* #0B101B */
+#define COL_DIRECTOR_LINE RGB(20, 30, 48)    /* #141E30 */
+#define COL_OUTER_FRAME   RGB(25, 37, 58)    /* #19253A */
+#define COL_DIVIDER       RGB(30, 43, 62)    /* #1E2B3E */
+#define COL_CARD          RGB(16, 23, 38)    /* #101726 */
+#define COL_CARD_HOVER    RGB(22, 32, 52)    /* #162034 */
+#define COL_BORDER        RGB(38, 53, 75)    /* #26354B */
+#define COL_BTN_BORDER    RGB(49, 68, 95)    /* #31445F */
+#define COL_HOVER_RIM     RGB(220, 232, 248) /* #DCE8F8 */
+#define COL_TEXT          RGB(238, 244, 252) /* #EEF4FC */
+#define COL_MUTED         RGB(140, 162, 192) /* #8CA2C0 */
+#define COL_TELEMETRY     RGB(104, 126, 156) /* #687E9C */
+#define COL_ICON_STROKE   RGB(218, 230, 246) /* #DAE6F6 */
+#define COL_SEC_BTN       RGB(16, 23, 38)    /* #101726 */
+#define COL_SEC_HOV       RGB(26, 38, 60)    /* #1A263C */
+#define COL_GOOD          RGB(44, 227, 139)  /* #2CE38B */
+#define COL_GOOD_BG       RGB(13, 43, 36)    /* #0D2B24 */
+#define COL_WARN          RGB(245, 185, 66)  /* #F5B942 */
+#define COL_WARN_BG       RGB(44, 34, 16)    /* #2C2210 */
+#define COL_ACCENT        RGB(56, 189, 248)  /* #38BDF8 */
+#define COL_ACCENT_BG     RGB(12, 36, 56)
+#define COL_DANGER        RGB(248, 113, 113) /* #F87171 */
+#define COL_DANGER_BG     RGB(46, 20, 27)
+#define COL_IDLE_SLATE    RGB(78, 98, 126)
+#define COL_PILL_MUTED    RGB(22, 31, 48)
 
 enum HitKind {
     HIT_NONE = 0,
@@ -687,95 +693,158 @@ static DWORD WINAPI WorkerThread(LPVOID unused) {
 }
 
 /* =========================================================================
- *  Clean Modern GDI Drawing Helpers
+ *  Vanguard Slate — Destiny 2-Inspired Vector Rendering Helpers
  * ========================================================================= */
-static void FillRoundBox(HDC hdc, RECT r, int rad, COLORREF fill, COLORREF border) {
+static void FillSharpBox(HDC hdc, RECT r, COLORREF fill, COLORREF border) {
     HBRUSH br = CreateSolidBrush(fill);
-    HPEN   pen = CreatePen(PS_SOLID, 1, border);
-    HGDIOBJ oldB = SelectObject(hdc, br);
-    HGDIOBJ oldP = SelectObject(hdc, pen);
-    RoundRect(hdc, r.left, r.top, r.right, r.bottom, rad, rad);
-    SelectObject(hdc, oldB);
-    SelectObject(hdc, oldP);
+    FillRect(hdc, &r, br);
+    DeleteObject(br);
+    HBRUSH fr = CreateSolidBrush(border);
+    FrameRect(hdc, &r, fr);
+    DeleteObject(fr);
+}
+
+static void FillSolidBar(HDC hdc, int l, int t, int r, int b, COLORREF col) {
+    RECT rc = { l, t, r, b };
+    HBRUSH br = CreateSolidBrush(col);
+    FillRect(hdc, &rc, br);
+    DeleteObject(br);
+}
+
+static void DrawDiamondTick(HDC hdc, int cx, int cy, int r, COLORREF col) {
+    POINT pts[4] = { {cx, cy - r}, {cx + r, cy}, {cx, cy + r}, {cx - r, cy} };
+    HBRUSH br = CreateSolidBrush(col);
+    HPEN pen = CreatePen(PS_SOLID, 1, col);
+    HGDIOBJ ob = SelectObject(hdc, br);
+    HGDIOBJ op = SelectObject(hdc, pen);
+    Polygon(hdc, pts, 4);
+    SelectObject(hdc, ob);
+    SelectObject(hdc, op);
     DeleteObject(br);
     DeleteObject(pen);
 }
 
-static void DrawPillBadge(HDC hdc, HFONT font, int rightX, int y, const wchar_t *text,
+static void DrawDirectorBackdrop(HDC hdc, int w, int h, int dpi) {
+    HPEN pen = CreatePen(PS_SOLID, 1, COL_DIRECTOR_LINE);
+    HGDIOBJ oldPen = SelectObject(hdc, pen);
+    HGDIOBJ oldBr = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+    int cx = w / 2, cy = h / 2;
+    int r1 = S(210, dpi), r2 = S(325, dpi);
+    Ellipse(hdc, cx - r1, cy - r1, cx + r1, cy + r1);
+    Ellipse(hdc, cx - r2, cy - r2, cx + r2, cy + r2);
+    MoveToEx(hdc, cx, S(6, dpi), NULL); LineTo(hdc, cx, h - S(6, dpi));
+    MoveToEx(hdc, S(6, dpi), cy, NULL); LineTo(hdc, w - S(6, dpi), cy);
+    SelectObject(hdc, oldPen);
+    DeleteObject(pen);
+
+    int m = S(8, dpi);
+    HPEN frPen = CreatePen(PS_SOLID, 1, COL_OUTER_FRAME);
+    oldPen = SelectObject(hdc, frPen);
+    Rectangle(hdc, m, m, w - m, h - m);
+    SelectObject(hdc, oldPen);
+    SelectObject(hdc, oldBr);
+    DeleteObject(frPen);
+
+    int d = S(3, dpi);
+    DrawDiamondTick(hdc, cx, m, d, COL_IDLE_SLATE);
+    DrawDiamondTick(hdc, cx, h - m, d, COL_IDLE_SLATE);
+    DrawDiamondTick(hdc, m, cy, d, COL_IDLE_SLATE);
+    DrawDiamondTick(hdc, w - m, cy, d, COL_IDLE_SLATE);
+}
+
+static void DrawWayfinderEmblem(HDC hdc, int cx, int cy, int r) {
+    HGDIOBJ oldBr = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+    HPEN ringPen = CreatePen(PS_SOLID, 1, COL_BTN_BORDER);
+    HGDIOBJ oldPen = SelectObject(hdc, ringPen);
+    Ellipse(hdc, cx - r, cy - r, cx + r, cy + r);
+    int ri = (r * 68) / 100;
+    Ellipse(hdc, cx - ri, cy - ri, cx + ri, cy + ri);
+    SelectObject(hdc, oldPen);
+    DeleteObject(ringPen);
+
+    HPEN starPen = CreatePen(PS_SOLID, 1, COL_MUTED);
+    oldPen = SelectObject(hdc, starPen);
+    int ext = r + 3;
+    MoveToEx(hdc, cx, cy - ext, NULL); LineTo(hdc, cx, cy + ext + 1);
+    MoveToEx(hdc, cx - ext, cy, NULL); LineTo(hdc, cx + ext + 1, cy);
+    int dg = (r * 58) / 100;
+    MoveToEx(hdc, cx - dg, cy - dg, NULL); LineTo(hdc, cx + dg + 1, cy + dg + 1);
+    MoveToEx(hdc, cx - dg, cy + dg, NULL); LineTo(hdc, cx + dg + 1, cy - dg - 1);
+    SelectObject(hdc, oldPen);
+    SelectObject(hdc, oldBr);
+    DeleteObject(starPen);
+    DrawDiamondTick(hdc, cx, cy, 3, COL_MUTED);
+}
+
+static void DrawDeviceVectorIcon(HDC hdc, const wchar_t *kind, int cx, int cy, int dpi) {
+    HPEN pen = CreatePen(PS_SOLID, S(2, dpi), COL_ICON_STROKE);
+    HGDIOBJ oldPen = SelectObject(hdc, pen);
+    HGDIOBJ oldBr = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+    if (kind && _wcsicmp(kind, L"Input") == 0) {
+        int hw = S(13, dpi), hh = S(8, dpi);
+        RoundRect(hdc, cx - hw, cy - hh, cx + hw, cy + hh, S(3, dpi), S(3, dpi));
+        MoveToEx(hdc, cx - S(6, dpi), cy + S(4, dpi), NULL);
+        LineTo(hdc, cx + S(6, dpi), cy + S(4, dpi));
+    } else {
+        /* Clean minimalist headphones / audio arc */
+        int r = S(11, dpi);
+        Arc(hdc, cx - r, cy - r, cx + r, cy + r, cx + r, cy, cx - r, cy);
+        Rectangle(hdc, cx - r - S(2, dpi), cy - S(2, dpi), cx - r + S(4, dpi), cy + S(8, dpi));
+        Rectangle(hdc, cx + r - S(4, dpi), cy - S(2, dpi), cx + r + S(2, dpi), cy + S(8, dpi));
+    }
+
+    SelectObject(hdc, oldPen);
+    SelectObject(hdc, oldBr);
+    DeleteObject(pen);
+}
+
+static void DrawStatusTag(HDC hdc, HFONT font, int rightX, int y, const wchar_t *text,
                           COLORREF fg, COLORREF bg, int dpi) {
     SelectObject(hdc, font);
     SIZE sz;
     GetTextExtentPoint32W(hdc, text, (int)wcslen(text), &sz);
-    int padX = S(12, dpi);
-    int h = S(24, dpi);
-    int w = sz.cx + padX * 2 + S(12, dpi);
+    int h = S(22, dpi);
+    int w = sz.cx + S(28, dpi);
     RECT r = { rightX - w, y, rightX, y + h };
-    FillRoundBox(hdc, r, h, bg, bg);
+    FillSharpBox(hdc, r, bg, fg);
 
-    /* Status dot */
     HBRUSH dotBr = CreateSolidBrush(fg);
     HPEN   dotPen = CreatePen(PS_SOLID, 1, fg);
     HGDIOBJ ob = SelectObject(hdc, dotBr);
     HGDIOBJ op = SelectObject(hdc, dotPen);
-    int dotSz = S(6, dpi);
-    int dy = y + (h - dotSz) / 2;
-    Ellipse(hdc, r.left + S(10, dpi), dy, r.left + S(10, dpi) + dotSz, dy + dotSz);
+    int dotR = S(3, dpi);
+    int dcx = r.left + S(10, dpi);
+    int dcy = y + h / 2;
+    Ellipse(hdc, dcx - dotR, dcy - dotR, dcx + dotR + 1, dcy + dotR + 1);
     SelectObject(hdc, ob);
     SelectObject(hdc, op);
     DeleteObject(dotBr);
     DeleteObject(dotPen);
 
-    RECT tr = { r.left + S(21, dpi), y, r.right - S(8, dpi), y + h };
+    RECT tr = { r.left + S(17, dpi), y, r.right - S(6, dpi), y + h };
     SetTextColor(hdc, fg);
-    DrawTextW(hdc, text, -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    DrawTextW(hdc, text, -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 }
 
+/* style: 0=plain, 1=Arc Cyan top bar, 2=Crimson top bar, 3=Emerald top bar, 4=Solar Gold top bar */
 static void DrawActionBtn(HDC hdc, HFONT font, RECT r, const wchar_t *label,
-                          int style /* 0=sec, 1=primary, 2=danger */, BOOL hovered, int dpi) {
-    COLORREF fill = COL_SEC_BTN, border = COL_BORDER;
-    if (style == 1) {
-        fill = hovered ? COL_PRIMARY_HOV : COL_PRIMARY;
-        border = fill;
-    } else if (style == 2) {
-        fill = hovered ? COL_DANGER_HOV : COL_DANGER;
-        border = fill;
-    } else if (hovered) {
-        fill = COL_SEC_HOV;
-    }
-    FillRoundBox(hdc, r, S(8, dpi), fill, border);
+                          int style, BOOL hovered, int dpi) {
+    COLORREF fill   = hovered ? COL_SEC_HOV : COL_SEC_BTN;
+    COLORREF border = hovered ? COL_HOVER_RIM : COL_BTN_BORDER;
+    FillSharpBox(hdc, r, fill, border);
+
+    if (style == 1)      FillSolidBar(hdc, r.left, r.top, r.right, r.top + S(3, dpi), COL_ACCENT);
+    else if (style == 2) FillSolidBar(hdc, r.left, r.top, r.right, r.top + S(3, dpi), COL_DANGER);
+    else if (style == 3) FillSolidBar(hdc, r.left, r.top, r.right, r.top + S(3, dpi), COL_GOOD);
+    else if (style == 4) FillSolidBar(hdc, r.left, r.top, r.right, r.top + S(3, dpi), COL_WARN);
+
     SelectObject(hdc, font);
     SetTextColor(hdc, COL_TEXT);
-    DrawTextW(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-}
-
-static void DrawToggleSwitch(HDC hdc, HFONT font, RECT r, BOOL on, const wchar_t *label,
-                             BOOL hovered, int dpi) {
-    int tw = S(40, dpi), th = S(22, dpi);
-    int ty = r.top + (r.bottom - r.top - th) / 2;
-    RECT track = { r.left, ty, r.left + tw, ty + th };
-    COLORREF fill = on ? COL_PRIMARY : (hovered ? COL_SEC_HOV : COL_SEC_BTN);
-    COLORREF rim  = on ? COL_PRIMARY_HOV : COL_BORDER;
-    FillRoundBox(hdc, track, th, fill, rim);
-
-    int knob = th - S(6, dpi);
-    int kx = on ? (track.right - knob - S(3, dpi)) : (track.left + S(3, dpi));
-    int ky = ty + S(3, dpi);
-    HBRUSH kb = CreateSolidBrush(RGB(255, 255, 255));
-    HPEN   kp = CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
-    HGDIOBJ ob = SelectObject(hdc, kb);
-    HGDIOBJ op = SelectObject(hdc, kp);
-    Ellipse(hdc, kx, ky, kx + knob, ky + knob);
-    SelectObject(hdc, ob);
-    SelectObject(hdc, op);
-    DeleteObject(kb);
-    DeleteObject(kp);
-
-    if (label && label[0]) {
-        SelectObject(hdc, font);
-        SetTextColor(hdc, hovered ? COL_TEXT : COL_MUTED);
-        RECT lr = { track.right + S(9, dpi), r.top, r.right, r.bottom };
-        DrawTextW(hdc, label, -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-    }
+    RECT tr = r;
+    if (style != 0) tr.top += S(2, dpi);
+    DrawTextW(hdc, label, -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 }
 
 static void AddHit(RECT r, int kind, int index) {
@@ -802,20 +871,25 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
 
     HFONT fTitle = CreateFontW(-S(19, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
                                DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+    HFONT fSub   = CreateFontW(-S(11, dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Consolas");
     HFONT fCard  = CreateFontW(-S(13, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
                                DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
     HFONT fBtn   = CreateFontW(-S(11, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
                                DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
-    HFONT fBody  = CreateFontW(-S(11, dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT fBadge = CreateFontW(-S(10, dpi), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+    HFONT fBody  = CreateFontW(-S(12, dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
 
-    HBRUSH bgBrush = CreateSolidBrush(COL_BG);
-    FillRect(mem, &client, bgBrush);
-    DeleteObject(bgBrush);
+    FillSolidBar(mem, 0, 0, W, H, COL_BG);
+    DrawDirectorBackdrop(mem, W, H, dpi);
 
     g_hitCount = 0;
-    int M = S(20, dpi);
+    int M = S(28, dpi);
     int CW = W - M * 2;
+    int headerH = S(76, dpi);
+    int footerH = S(44, dpi);
 
     /* Copy device snapshot thread-safely */
     DeviceEntry snap[MAX_DEVICES];
@@ -828,57 +902,59 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
     LeaveCriticalSection(&g_lock);
     for (int i = 0; i < count; i++) if (!snap[i].allowAuto) blockedCount++;
 
-    /* Header hero card */
-    int heroY = S(16, dpi);
-    int heroH = S(104, dpi);
-    RECT heroR = { M, heroY, M + CW, heroY + heroH };
-    FillRoundBox(mem, heroR, S(12, dpi), COL_CARD, COL_BORDER);
+    /* Header Wayfinder star emblem + wide-tracked title + // telemetry subtitle */
+    int embR = S(18, dpi);
+    DrawWayfinderEmblem(mem, M + embR, headerH / 2, embR);
 
-    SelectObject(mem, fTitle);
-    SetTextColor(mem, COL_TEXT);
-    RECT titleR = { heroR.left + S(18, dpi), heroR.top + S(12, dpi), heroR.right - S(220, dpi), heroR.top + S(40, dpi) };
-    DrawTextW(mem, L"Bluetooth Guard", -1, &titleR, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    int topBtnH = S(34, dpi);
+    int topBtnY = (headerH - topBtnH) / 2;
+    RECT btnRefR   = { W - M - S(92, dpi),  topBtnY, W - M,                topBtnY + topBtnH };
+    RECT togStartR = { btnRefR.left - S(136, dpi), topBtnY, btnRefR.left - S(8, dpi), topBtnY + topBtnH };
+    RECT togGuardR = { togStartR.left - S(128, dpi), topBtnY, togStartR.left - S(8, dpi), topBtnY + topBtnH };
 
-    if (!g_guardOn) {
-        DrawPillBadge(mem, fBtn, heroR.right - S(18, dpi), heroR.top + S(15, dpi),
-                      L"Guard Paused", COL_WARN, COL_WARN_BG, dpi);
-    } else if (!radioOn) {
-        DrawPillBadge(mem, fBtn, heroR.right - S(18, dpi), heroR.top + S(15, dpi),
-                      L"Bluetooth Off", COL_MUTED, COL_PILL_MUTED, dpi);
-    } else {
-        wchar_t pillTxt[64];
-        _snwprintf(pillTxt, 63, L"Active  ·  %d Protected", blockedCount);
-        DrawPillBadge(mem, fBtn, heroR.right - S(18, dpi), heroR.top + S(15, dpi),
-                      pillTxt, COL_GOOD, COL_GOOD_BG, dpi);
-    }
-
-    SelectObject(mem, fBody);
-    SetTextColor(mem, COL_MUTED);
-    RECT subR = { heroR.left + S(18, dpi), heroR.top + S(40, dpi), heroR.right - S(18, dpi), heroR.top + S(60, dpi) };
-    DrawTextW(mem, L"Turn off Auto-Connect for phone earbuds. Manual connect still works here or in Windows Quick Settings.",
-              -1, &subR, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-
-    RECT togGuardR = { heroR.left + S(18, dpi), heroR.top + S(66, dpi), heroR.left + S(230, dpi), heroR.top + S(94, dpi) };
     int idxGuard = g_hitCount;
     AddHit(togGuardR, HIT_TOGGLE_GUARD, 0);
-    DrawToggleSwitch(mem, fBody, togGuardR, g_guardOn, L"Guard Enabled", g_hoverIdx == idxGuard, dpi);
+    DrawActionBtn(mem, fBtn, togGuardR,
+                  g_guardOn ? L"GUARD: ON" : L"GUARD: PAUSED",
+                  g_guardOn ? 3 : 4, g_hoverIdx == idxGuard, dpi);
 
-    RECT togStartR = { heroR.left + S(240, dpi), heroR.top + S(66, dpi), heroR.left + S(470, dpi), heroR.top + S(94, dpi) };
     int idxStart = g_hitCount;
     AddHit(togStartR, HIT_TOGGLE_STARTUP, 0);
-    DrawToggleSwitch(mem, fBody, togStartR, g_autostart, L"Start with Windows", g_hoverIdx == idxStart, dpi);
+    DrawActionBtn(mem, fBtn, togStartR,
+                  g_autostart ? L"STARTUP: ON" : L"STARTUP: OFF",
+                  g_autostart ? 1 : 0, g_hoverIdx == idxStart, dpi);
 
-    RECT btnRefR = { heroR.right - S(108, dpi), heroR.top + S(64, dpi), heroR.right - S(18, dpi), heroR.top + S(94, dpi) };
     int idxRef = g_hitCount;
     AddHit(btnRefR, HIT_BTN_REFRESH, 0);
-    DrawActionBtn(mem, fBtn, btnRefR, L"Refresh", 0, g_hoverIdx == idxRef, dpi);
+    DrawActionBtn(mem, fBtn, btnRefR, L"REFRESH", 0, g_hoverIdx == idxRef, dpi);
+
+    int hdrLeft = M + embR * 2 + S(14, dpi);
+    SelectObject(mem, fTitle);
+    SetTextColor(mem, COL_TEXT);
+    RECT titleR = { hdrLeft, S(13, dpi), togGuardR.left - S(12, dpi), S(40, dpi) };
+    DrawTextW(mem, L"B L U E T O O T H   G U A R D", -1, &titleR,
+              DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+
+    wchar_t subHdr[96];
+    if (!g_guardOn)
+        wcsncpy(subHdr, L"AUDIO SHIELD  //  PAUSED", 95);
+    else if (!radioOn)
+        wcsncpy(subHdr, L"AUDIO SHIELD  //  BLUETOOTH RADIO OFF", 95);
+    else
+        _snwprintf(subHdr, 95, L"AUDIO SHIELD  //  %d GUARDED  ·  %d PAIRED", blockedCount, count);
+
+    SelectObject(mem, fSub);
+    SetTextColor(mem, COL_TELEMETRY);
+    RECT subR = { hdrLeft, S(40, dpi), togGuardR.left - S(12, dpi), S(60, dpi) };
+    DrawTextW(mem, subHdr, -1, &subR, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+
+    FillSolidBar(mem, M, headerH, W - M, headerH + 1, COL_DIVIDER);
 
     /* Scrollable device cards region */
-    int listTop = heroR.bottom + S(14, dpi);
-    int footerH = S(50, dpi);
+    int listTop = headerH + S(14, dpi);
     int listBottom = H - footerH;
-    int cardH = S(78, dpi);
-    int gap = S(10, dpi);
+    int cardH = S(80, dpi);
+    int gap = S(12, dpi);
     g_contentH = count * (cardH + gap);
     int maxScroll = g_contentH - (listBottom - listTop);
     if (maxScroll < 0) maxScroll = 0;
@@ -890,11 +966,12 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
 
     if (count == 0) {
         RECT emptyR = { M, listTop, M + CW, listTop + S(80, dpi) };
-        FillRoundBox(mem, emptyR, S(12, dpi), COL_CARD, COL_BORDER);
+        FillSharpBox(mem, emptyR, COL_CARD, COL_BORDER);
+        FillSolidBar(mem, emptyR.left, emptyR.top, emptyR.left + S(6, dpi), emptyR.bottom, COL_IDLE_SLATE);
         SelectObject(mem, fBody);
         SetTextColor(mem, COL_MUTED);
-        RECT er = { emptyR.left + S(18, dpi), emptyR.top, emptyR.right - S(18, dpi), emptyR.bottom };
-        DrawTextW(mem, L"No paired Bluetooth devices found yet. Pair headphones/earbuds in Windows Settings, then click Refresh.",
+        RECT er = { emptyR.left + S(24, dpi), emptyR.top, emptyR.right - S(18, dpi), emptyR.bottom };
+        DrawTextW(mem, L"No paired Bluetooth devices found yet. Pair headphones in Windows Settings, then click REFRESH.",
                   -1, &er, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     } else {
         int y = listTop - g_scrollY;
@@ -902,44 +979,71 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
             DeviceEntry *d = &snap[i];
             RECT cr = { M, y, M + CW, y + cardH };
             if (cr.bottom >= listTop && cr.top <= listBottom) {
-                FillRoundBox(mem, cr, S(12, dpi), COL_CARD, COL_BORDER);
+                FillSharpBox(mem, cr, COL_CARD, COL_BORDER);
 
-                /* Device name + kind */
-                wchar_t titleBuf[280];
-                _snwprintf(titleBuf, 279, L"%s", d->name);
+                COLORREF barCol = COL_IDLE_SLATE, tagFg = COL_MUTED, tagBg = COL_PILL_MUTED;
+                const wchar_t *tagTxt = L"AUTO ON";
+                if (d->connected) {
+                    barCol = COL_GOOD; tagFg = COL_GOOD; tagBg = COL_GOOD_BG;
+                    tagTxt = !d->allowAuto ? L"MANUAL SESSION" : L"CONNECTED";
+                } else if (!d->allowAuto) {
+                    barCol = COL_ACCENT; tagFg = COL_ACCENT; tagBg = COL_ACCENT_BG;
+                    tagTxt = L"PHONE SAFE";
+                }
+
+                /* Full-height 6px left status bar + minimal device vector icon */
+                FillSolidBar(mem, cr.left, cr.top, cr.left + S(6, dpi), cr.bottom, barCol);
+                DrawDeviceVectorIcon(mem, d->kind, cr.left + S(36, dpi), (cr.top + cr.bottom) / 2, dpi);
+
+                /* Top-right status tag */
+                DrawStatusTag(mem, fBadge, cr.right - S(14, dpi), cr.top + S(10, dpi),
+                              tagTxt, tagFg, tagBg, dpi);
+
+                /* Uppercase device name */
+                wchar_t upperName[260];
+                wcsncpy(upperName, d->name, 259);
+                upperName[259] = L'\0';
+                CharUpperW(upperName);
+
                 SelectObject(mem, fCard);
                 SetTextColor(mem, COL_TEXT);
-                RECT nr = { cr.left + S(18, dpi), cr.top + S(13, dpi), cr.right - S(340, dpi), cr.top + S(38, dpi) };
-                DrawTextW(mem, titleBuf, -1, &nr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+                RECT nr = { cr.left + S(66, dpi), cr.top + S(12, dpi), cr.right - S(180, dpi), cr.top + S(36, dpi) };
+                DrawTextW(mem, upperName, -1, &nr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
-                /* Subtitle status line */
+                /* Right bottom buttons: [AUTO-CONNECT: ON/OFF]  [CONNECT / DISCONNECT] */
+                int btnBottomY = cr.bottom - S(11, dpi);
+                int btnTopY    = btnBottomY - S(28, dpi);
+                RECT connBtnR  = { cr.right - S(124, dpi), btnTopY, cr.right - S(14, dpi), btnBottomY };
+                RECT autoTogR  = { connBtnR.left - S(162, dpi), btnTopY, connBtnR.left - S(8, dpi), btnBottomY };
+
+                /* Calm subtitle line on left */
                 const wchar_t *subTxt = NULL;
                 if (d->connected && !d->allowAuto)
-                    subTxt = L"Connected manually for this session  ·  Re-locks automatically after disconnect";
+                    subTxt = L"Connected manually  ·  Re-locks automatically after disconnect";
                 else if (d->connected)
-                    subTxt = L"Connected";
+                    subTxt = L"Active audio link";
                 else if (!d->allowAuto)
-                    subTxt = L"Auto-connect OFF (phone safe)  ·  Click Connect any time to use on this PC";
+                    subTxt = L"Auto-connect OFF  ·  Manual connect ready here or in Quick Settings";
                 else
                     subTxt = L"Auto-connect ON  ·  Connects automatically when in range";
 
                 SelectObject(mem, fBody);
-                SetTextColor(mem, d->connected ? COL_GOOD : (!d->allowAuto ? COL_ACCENT : COL_MUTED));
-                RECT sr = { cr.left + S(18, dpi), cr.top + S(41, dpi), cr.right - S(300, dpi), cr.top + S(64, dpi) };
-                DrawTextW(mem, subTxt, -1, &sr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+                SetTextColor(mem, COL_MUTED);
+                RECT sr = { cr.left + S(66, dpi), cr.top + S(38, dpi), autoTogR.left - S(14, dpi), cr.bottom - S(12, dpi) };
+                DrawTextW(mem, subTxt, -1, &sr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
-                /* Right controls: Auto-Connect switch + Connect/Disconnect button */
-                RECT autoTogR = { cr.right - S(290, dpi), cr.top + S(24, dpi), cr.right - S(138, dpi), cr.top + S(54, dpi) };
                 int hitAuto = g_hitCount;
                 AddHit(autoTogR, HIT_DEV_AUTO_TOGGLE, i);
-                DrawToggleSwitch(mem, fBody, autoTogR, d->allowAuto, L"Auto-Connect", g_hoverIdx == hitAuto, dpi);
+                DrawActionBtn(mem, fBtn, autoTogR,
+                              d->allowAuto ? L"AUTO-CONNECT: ON" : L"AUTO-CONNECT: OFF",
+                              d->allowAuto ? 0 : 1,
+                              g_hoverIdx == hitAuto, dpi);
 
-                RECT connBtnR = { cr.right - S(126, dpi), cr.top + S(22, dpi), cr.right - S(18, dpi), cr.top + S(56, dpi) };
                 int hitConn = g_hitCount;
                 AddHit(connBtnR, HIT_DEV_CONNECT_BTN, i);
                 DrawActionBtn(mem, fBtn, connBtnR,
-                              d->connected ? L"Disconnect" : L"Connect",
-                              d->connected ? 2 : 1,
+                              d->connected ? L"DISCONNECT" : L"CONNECT",
+                              d->connected ? 2 : 3,
                               g_hoverIdx == hitConn, dpi);
             }
             y += cardH + gap;
@@ -949,23 +1053,40 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
     SelectClipRgn(mem, NULL);
     DeleteObject(clip);
 
-    /* Clean bottom footer */
-    SelectObject(mem, fBody);
-    SetTextColor(mem, COL_MUTED);
-    RECT footTxtR = { M, listBottom + S(8, dpi), W - M - S(150, dpi), H - S(8, dpi) };
-    DrawTextW(mem, L"Closing this window keeps Bluetooth Guard active in your system tray.",
-              -1, &footTxtR, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    /* Slim Vanguard footer bar */
+    FillSolidBar(mem, M, listBottom, W - M, listBottom + 1, COL_DIVIDER);
 
-    RECT quitBtnR = { W - M - S(132, dpi), listBottom + S(9, dpi), W - M, H - S(11, dpi) };
+    COLORREF footDot = g_guardOn ? COL_GOOD : COL_WARN;
+    HBRUSH fdBr = CreateSolidBrush(footDot);
+    HPEN fdPen = CreatePen(PS_SOLID, 1, footDot);
+    HGDIOBJ fob = SelectObject(mem, fdBr);
+    HGDIOBJ fop = SelectObject(mem, fdPen);
+    int fdR = S(4, dpi);
+    int fdcx = M + fdR, fdcy = listBottom + footerH / 2;
+    Ellipse(mem, fdcx - fdR, fdcy - fdR, fdcx + fdR + 1, fdcy + fdR + 1);
+    SelectObject(mem, fob);
+    SelectObject(mem, fop);
+    DeleteObject(fdBr);
+    DeleteObject(fdPen);
+
+    SelectObject(mem, fSub);
+    SetTextColor(mem, COL_TELEMETRY);
+    RECT footTxtR = { M + S(18, dpi), listBottom, W - M - S(128, dpi), H - S(8, dpi) };
+    DrawTextW(mem, L"SYSTEM TRAY ACTIVE  //  MANUAL CONNECT READY IN APP & WINDOWS SETTINGS",
+              -1, &footTxtR, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+
+    RECT quitBtnR = { W - M - S(112, dpi), listBottom + S(8, dpi), W - M, H - S(10, dpi) };
     int idxQuit = g_hitCount;
     AddHit(quitBtnR, HIT_BTN_QUIT, 0);
-    DrawActionBtn(mem, fBtn, quitBtnR, L"Quit App", 0, g_hoverIdx == idxQuit, dpi);
+    DrawActionBtn(mem, fBtn, quitBtnR, L"QUIT GUARD", 0, g_hoverIdx == idxQuit, dpi);
 
     BitBlt(targetDc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
 
     DeleteObject(fTitle);
+    DeleteObject(fSub);
     DeleteObject(fCard);
     DeleteObject(fBtn);
+    DeleteObject(fBadge);
     DeleteObject(fBody);
     SelectObject(mem, oldBmp);
     DeleteObject(bmp);

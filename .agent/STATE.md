@@ -1,13 +1,14 @@
 # Current state
 
-- Last updated: 2026-10-20
+- Last updated: 2026-10-21
 - Session branch: `arena/e895b94f-tests`
 - Read when: starting any task in this repository.
 
 ## Completed in this pass (verified)
 
-1. **Agent workflow & repo hygiene (`AGENTS.md`, `.gitignore`, `archive/`, `docs/`):**
-   - Added **Section 0 (Starter Step)** to `AGENTS.md` instructing every AI session to translate casual/dictated prompts into structured task buckets (`What I Understood`, `Do now`, `Do next`, `Boundaries`) before acting.
+1. **Agent workflow & repo hygiene (`AGENTS.md`, `docs/UI_STYLE_GUIDE.md`, `.gitignore`, `archive/`, `docs/`):**
+   - Added **Section 0 (Starter Step)** to `AGENTS.md` instructing every AI session to translate casual/dictated prompts internally before acting **without repeating or echoing the translation back in visible replies**.
+   - Created **`docs/UI_STYLE_GUIDE.md`** (*Vanguard Slate — Destiny 2-Inspired Desktop Design Language*) + selected UI concept reference (`docs/ui-concepts/suite-ui-concept.png`) shared across `ProjectHub.exe`, `BluetoothGuard.exe`, and `arena-link-windows/`.
    - Repaired corrupted lines and outdated rules in `AGENTS.md`, removed committed crash logs/screenshots from root, scrubbed personal paths (`C:\Users\<user>`) and usernames across tracked files, archived superseded root mod folders under `archive/`, and expanded `.gitignore`.
 2. **OrcaSlicer plugins (`Wave Overhangs 0.0.51`, `Unlayered Infill 0.4.10`) & `Orca-Plugins.bat` (`2.2.0`):**
    - Fixed settings auto-restore when Orca resets a plugin config to `{}`, fixed mid-session `restore_backup: true` on slice, stopped `WaveOverhangsCheck` from polluting `settings_backups` with factory defaults, and fixed `"enabled": "false"` / `"wall_snap": "false"` string parsing.
@@ -19,8 +20,8 @@
    - Fixed forgetting deleted/moved folders, sidebar persistence of missing folders, 0-commit `git init` repos, Windows `.cmd` Claude CLI detection, Electron navigation locks, privacy wording, and `node:test` coverage in `arena-link-windows`.
 4. **Windows Desktop Suite (`keyboard-lighting/`, `bluetooth-guard/`, `project-hub/`):**
    - **`keyboard-lighting/`:** Eliminated sleep/wake/tray deadlocks and UI freezes by replacing all `Register-ObjectEvent` subscriptions on `Microsoft.Win32.SystemEvents` with lock-free atomic C# watchers (`[KbLight.PowerWatch]` & `[AuraPowerWatch]`), replacing slow WMI `Win32_Process` queries with `engine.pid` + `running.lock` PID checks, moving process teardown and update checks off the WinForms UI thread, adding a 1.5s `show.flag` responsiveness handshake + automatic hung-instance recovery, adding `Restart.bat` + `-Stop`/`-Restart` flags, and migrating self-update URLs to `ajani190819-ops/Tests/main/keyboard-lighting`.
-   - **`bluetooth-guard/`:** Built native Windows Bluetooth auto-connect blocker & quick-connect tray app using `BluetoothAPIs.dll` (`BluetoothSetServiceState` `DISABLE`/`ENABLE`) + `IOCTL_BTH_DISCONNECT_DEVICE` (`0x0041000C`) on a background runspace worker, with per-device **Allow auto-connect** toggles and session-scoped **Connect Now** that auto-relocks on disconnect/sleep/exit.
-   - **`project-hub/`:** Built unified Windows desktop Control Center (`project-hub\Setup.bat`) showing live status, versions, and one-click Launch / Restart / Update actions across all 5 projects in this repository.
+   - **`bluetooth-guard/` (`BluetoothGuard.exe`):** Built standalone native Win32 x64 GUI tray app styled in the shared Destiny 2 *Vanguard Slate* UI. Keeps A2DP/HFP/AVRCP/HID profiles enabled (`EnsureProfilesEnabled`) so manual connecting always works both via one-click **CONNECT** inside `BluetoothGuard.exe` (`KSPROPSETID_BtAudio` `KSPROPERTY_ONESHOT_RECONNECT`) and via Windows Quick Settings / Settings (`CheckForegroundManualIntent`), while blocking unsolicited background auto-connects (`KSPROPERTY_ONESHOT_DISCONNECT` + `IOCTL_BTH_DISCONNECT_DEVICE`).
+   - **`project-hub/` (`ProjectHub.exe` v2.2.0):** Built standalone native Win32 x64 Control Center styled in the shared Destiny 2 *Vanguard Slate* UI, with top-level **UPDATE HUB** self-update (checks remote `HUB_VERSION` on GitHub + atomic `MoveFileExW` hot-swap & relaunch) and one-click status/launch/update actions across all 5 projects.
    - **`tests/test_windows_apps.py` + `tools/check_all.py` + `docs/ci/ci.yml`:** Added full static verification for C# 5.0 syntax, PS 5.1 syntax, strict ASCII safety, pure CRLF `.bat` invariants, URL hygiene, and app reliability contracts.
 
 ## Active notes
