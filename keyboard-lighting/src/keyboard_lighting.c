@@ -1290,8 +1290,71 @@ static void FlushLiveApply(void) {
     }
 }
 
+/* Light Bar physical order from the engine's layout.txt: the lamp ids as
+   they sit around the real closed loop (the order established in Zones
+   Setup), NOT the raw lamp-index order that frame.txt delivers. The ring
+   preview must follow this order or a scrolling gradient jumps around the
+   circle instead of travelling round it once. */
+static int          g_barOrder[64];
+static double       g_barQ[64];        /* 0..1 ring fraction, seam gap intact */
+static int          g_barLayoutN = 0;
+static ULONGLONG    g_layoutReadAt = 0;
+
+static void ParseLayoutTxt(char *txt) {
+    int order[64], n = 0, havePos = 0, ring = 0;
+    double pos[64];
+    for (char *q2 = txt; q2 && *q2; ) {
+        char *nl = strchr(q2, '\n');
+        if (nl) *nl = 0;
+        size_t len = strlen(q2);
+        while (len > 0 && (q2[len - 1] == '\r' || q2[len - 1] == ' ')) q2[--len] = 0;
+        if (strncmp(q2, "bar=", 4) == 0) {
+            const char *v = q2 + 4;
+            n = 0;
+            while (n < 64 && *v) {
+                order[n++] = atoi(v);
+                while (*v && *v != ',') v++;
+                if (*v == ',') v++;
+            }
+        } else if (strncmp(q2, "barpos=", 7) == 0) {
+            const char *v = q2 + 7;
+            havePos = 0;
+            while (havePos < 64 && *v) {
+                pos[havePos++] = atof(v);
+                while (*v && *v != ',') v++;
+                if (*v == ',') v++;
+            }
+        } else if (strncmp(q2, "barring=", 8) == 0) {
+            ring = atoi(q2 + 8) != 0;
+        }
+        q2 = nl ? nl + 1 : NULL;
+    }
+    if (n < 2) { g_barLayoutN = 0; return; }
+    for (int k = 0; k < n; k++) g_barOrder[k] = order[k];
+    if (havePos == n && ring) {
+        /* barpos is re-normalised 0..1 across the endpoints, which would
+           drop the last lamp ONTO the first one's angle. The engine's ring
+           map leaves exactly one step of seam room: q = p * (n-1)/n. */
+        for (int k = 0; k < n; k++)
+            g_barQ[k] = pos[k] * (double)(n - 1) / (double)n;
+    } else {
+        for (int k = 0; k < n; k++) g_barQ[k] = (double)k / (double)n;
+    }
+    g_barLayoutN = n;
+}
+
+static void PollLayoutTxt(void) {
+    ULONGLONG now = GetTickCount64();
+    if (now - g_layoutReadAt < 500ULL) return;
+    g_layoutReadAt = now;
+    DWORD len = 0;
+    char *txt = ReadFileUtf8(g_layoutPath, &len);
+    if (txt) { ParseLayoutTxt(txt); free(txt); }
+}
+
 /* Read live lamp frame from Aura-Background.ps1 or synthesize accurate live palette preview */
 static void PollLivePreviewFrame(void) {
+    PollLayoutTxt();
     DWORD len = 0;
     char *txt = ReadFileUtf8(g_framePath, &len);
     if (txt && len > 8) {
@@ -1325,6 +1388,13 @@ static void PollLivePreviewFrame(void) {
     for (int z = 0; z < 16; z++) {
         const GroupCfg *g = (z < 4) ? &g_cfg.kbd : &g_cfg.bar;
         double u = (z < 4) ? ((double)z / 4.0) : ((double)(z - 4) / 12.0);
+        /* Follow the established ring order so the synthesised gradient
+           also travels round the circle instead of jumping at the seam. */
+        if (z >= 4) {
+            for (int k = 0; k < g_barLayoutN; k++) {
+                if (g_barOrder[k] == z) { u = g_barQ[k]; break; }
+            }
+        }
         if (g_wantOff || !g->on) {
             g_liveCols[z] = RGB(24, 28, 38);
             continue;
@@ -1901,11 +1971,21 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
     SmoothRingTrack(px, W, H, ringCx, ringCy, ringR, (float)S(3, dpi),
                     COL_BORDER, listTop, listBot);
     for (int i = 0; i < bn; i++) {
-        double ang = -1.5707963267948966 + 6.283185307179586 * (double)i / (double)bn;
+        /* Place each lamp at its established ring angle (layout.txt), so the
+           dots show the real loop order the engine's effects travel through.
+           Without the layout the ring falls back to even index order. */
+        int lamp = kn + i;
+        double frac = (double)i / (double)bn;
+        if (i < g_barLayoutN) {
+            lamp = g_barOrder[i];
+            if (lamp < 0 || lamp >= 64) lamp = kn + i;
+            frac = g_barQ[i];
+        }
+        double ang = -1.5707963267948966 + 6.283185307179586 * frac;
         float dx = ringCx + ringR * (float)cos(ang);
         float dy = ringCy + ringR * (float)sin(ang);
         SmoothCircle(px, W, H, dx, dy, dotR,
-                     g_liveCols[kn + i], COL_BORDER, listTop, listBot);
+                     g_liveCols[lamp], COL_BORDER, listTop, listBot);
     }
 
     /* Master Brightness Slider */
