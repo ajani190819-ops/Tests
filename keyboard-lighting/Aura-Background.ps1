@@ -3758,18 +3758,25 @@ $script:LastPct = 100
 # rather than test it first.
 $script:AtkInst  = $null
 $script:AtkTried = $false
+$script:AtkRetryAt = [DateTime]::MinValue
 function Set-KbdBacklight([int]$level) {
     if ($level -lt 0) { return $false }        # negative means leave it alone
     if ($level -gt 3) { $level = 3 }
 
-    if (-not $script:AtkTried) {
+    if (-not $script:AtkInst -and [DateTime]::UtcNow -ge $script:AtkRetryAt) {
+        $firstProbe = -not $script:AtkTried
         $script:AtkTried = $true
         try {
             $script:AtkInst = @(Get-CimInstance -Namespace 'root/wmi' `
                 -ClassName 'AsusAtkWmi_WMNB' -ErrorAction Stop)[0]
         } catch { $script:AtkInst = $null }
         if ($script:AtkInst) { Write-Log 'hardware backlight level: control available' }
-        else { Write-Log 'hardware backlight level: ASUS ATK WMI not present - leaving it to the Fn keys' 'WARN' }
+        elseif ($firstProbe) { Write-Log 'hardware backlight level: ASUS ATK WMI not present - leaving it to the Fn keys' 'WARN' }
+        # Re-probe slowly instead of giving up for the whole session: one
+        # transient ACPI error must not leave the EC 0..3 gate unpinned
+        # forever, or the keyboard dims on its own and can then never
+        # brighten again until the engine is restarted.
+        if (-not $script:AtkInst) { $script:AtkRetryAt = [DateTime]::UtcNow.AddSeconds(60) }
     }
     if (-not $script:AtkInst) { return $false }
 
@@ -3782,9 +3789,11 @@ function Set-KbdBacklight([int]$level) {
         return $true
     } catch {
         Write-Log ("could not set hardware backlight level: {0}" -f $_.Exception.Message) 'WARN'
-        # Do not retry a broken interface every second for the rest of the
-        # session; one complaint in the log is enough.
+        # Drop the interface but keep the door open - re-probe in a minute.
+        # The old give-up-forever behaviour left the EC gate unpinned after a
+        # single hiccup: the lights could be dimmed but never brightened.
         $script:AtkInst = $null
+        $script:AtkRetryAt = [DateTime]::UtcNow.AddSeconds(60)
         return $false
     }
 }
@@ -3811,6 +3820,10 @@ function Set-Live([int]$level) {
         $z.LiveDirty = $true
     }
     try { Set-Content -Path $liveFile -Value $level -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
+    # Raising the software master is pointless while the EC 0..3 gate sits
+    # low - the hardware range would clamp it. Re-assert the full gate on
+    # every brightness move so "up" always actually goes up.
+    if ($level -gt 0) { [void](Set-KbdBacklight 3) }
 }
 
 # --- wake from sleep -------------------------------------------------
@@ -4098,6 +4111,7 @@ try {
                             $z.LiveMaster = $val
                             $z.LiveDirty = $true
                         }
+                        if ($val -gt 0) { [void](Set-KbdBacklight 3) }
                     }
                 }
             } catch { }
