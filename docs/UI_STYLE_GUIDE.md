@@ -1,26 +1,38 @@
-# Suite UI Style Guide — Vanguard Slate (Destiny 2-Inspired Desktop Language)
+# Suite UI & Icon Style Guide — Soft Slate Language
 
-Every desktop app and companion tool in this repository belongs to one visual family so you can tell at a glance that they are part of the same suite:
+Every desktop application in this repository shares one calm, approachable, unified design language and a cohesive app icon family (like Microsoft Fluent or Google Workspace):
 
-- **Project Hub** (`project-hub/ProjectHub.exe`)
-- **Bluetooth Guard** (`bluetooth-guard/BluetoothGuard.exe`)
-- **Keyboard Lighting** (`keyboard-lighting/Tray.ps1`)
-- **Arena Link Windows** (`arena-link-windows/`)
+- **Project Hub** (`project-hub/ProjectHub.exe`, icon: `project-hub/hub.ico`)
+- **Bluetooth Guard** (`bluetooth-guard/BluetoothGuard.exe`, icon: `bluetooth-guard/btguard.ico`)
+- **Keyboard Lighting** (`keyboard-lighting/Tray.ps1` + `keyboard-lighting/ui_controls.cs.txt`, icon: `keyboard-lighting/app.ico`)
+- **Spatial HUD** (`docs/brand/spatial-hud.ico`)
+- **OrcaSlicer Plugins** (`docs/brand/orca-plugins.ico`)
+- **Arena Link Windows** (`arena-link-windows/`, icon: `arena-link-windows/assets/icon.ico`)
 
-Reference concept mockup: [`docs/ui-concepts/suite-ui-concept.png`](ui-concepts/suite-ui-concept.png)
+ Suite icon family preview: [`docs/brand/suite-icons-preview.png`](brand/suite-icons-preview.png) · Master suite emblem: [`docs/brand/suite-emblem.png`](brand/suite-emblem.png)
 
 ---
 
-## 1. Core Design Philosophy
+## 1. Core Principles
 
-Inspired by **Destiny 2's Director & Settings menus** — architectural, calm, sharp, and readable, with **zero visual clutter**:
-
-1. **Sharp Architectural Geometry over Bubbly Pills:** Surfaces, buttons, and status badges use crisp **0px–2px rectangular corners** with `1px` hairline borders rather than heavy drop shadows or rounded bubble buttons.
-2. **Luminous Edge Bars Signal Meaning:**
-   - Every item card has a **full-height `6px` solid status bar** flush along its left edge showing live state at a glance.
-   - Important header buttons carry a **crisp `3px` luminous top-edge bar** (`Solar Gold` for app self-updates, `Arc Cyan` for primary suite actions).
-3. **Subtle Celestial Backdrop, Never Distracting:** A deep obsidian-navy ground (`#0B101B`) with ultra-faint (`~4–6%` contrast) compass circles, axis crosshairs, outer hairline frame, and tiny edge diamond ticks gives depth without competing with text.
-4. **Plain, Calm Copy:** Every card shows one clear title, one short subtitle/summary line, one status tag on the top right, and clean uppercase action tiles on the bottom right. Never stuff raw `C:\Users\...` file paths into normal status text.
+1. **Soft, Rounded Geometry — Never Harsh or Sharp:**
+   - Windows use native **Windows 11 full rounded corners** (`DWMWCP_ROUND = 2`).
+   - Content cards use **`14px` smooth anti-aliased rounded corners** (`border-radius: 14px`).
+   - Action buttons, dropdown pickers, and color swatches use **`9px–10px` rounded corners**.
+   - Status badges and toggle switches use **full smooth capsule pills** (`999px` radius).
+   - Never use sharp `0px` box corners, harsh white borders, or busy background crosshairs.
+2. **Suite Tri-Spoke Core Emblem Everywhere (No Compass Icon):**
+   - Every app header and icon watermark uses the **Tri-Spoke Core Emblem** (`docs/brand/suite-emblem.png` / `docs/brand/emblem.ico`: outer thin ring, three 120-degree curved arcs separated at 12, 4, and 8 o'clock, three double-parallel radial spokes, and a center disc with an upward triangle cutout). Never use the old 8-point compass emblem.
+3. **Cohesive App Icon Suite (`tools/generate_suite_icons.py`):**
+   - Every app icon is built on the **exact same brushed dark slate Windows 11 superellipse squircle** with a subtle recessed Tri-Spoke Core motif, soft top-left studio lighting, and a distinct per-app Fluent accent color:
+     - **Project Hub:** Platinum-Ice & Soft Sky (`#93C5FD` / `#F8FAFC`) — full Tri-Spoke Core Medallion
+     - **Bluetooth Guard:** Soft Cobalt-Sky (`#60A5FA` -> `#2563EB`) — rounded Bluetooth shield badge
+     - **Keyboard Lighting:** Soft Violet-Sky Aura (`#A78BFA` -> `#38BDF8` + warm amber underglow) — rounded keycap & lightbar glyph
+     - **Spatial HUD:** Warm Amber-Gold (`#FDE68A` -> `#D97706`) — soft isometric 3D cube
+     - **OrcaSlicer Plugins:** Soft Mint-Emerald (`#6EE7B7` -> `#10B981`) — non-planar wave ribbons
+     - **Arena Link:** Soft Teal-Mint (`#5EEAD4` -> `#14B8A6`) — rounded interlocking link glyph
+4. **Calm, Natural Typography:**
+   - Use natural **Title Case** (`Project Hub`, `Bluetooth Guard`, `Keyboard Lighting`) and plain human sentences rather than shouty wide-spaced all-caps strings or raw `C:\Users\...` file paths.
 
 ---
 
@@ -28,61 +40,28 @@ Inspired by **Destiny 2's Director & Settings menus** — architectural, calm, s
 
 | Token | Role | Hex | Win32 `RGB(r, g, b)` | CSS Variable |
 | :--- | :--- | :--- | :--- | :--- |
-| **Canvas Void** | Main window background | `#0B101B` | `RGB(11, 16, 27)` | `--bg-canvas: #0b101b;` |
-| **Director Line** | Subtle background compass rings / axes / outer frame | `#141E30` | `RGB(20, 30, 48)` | `--line-director: #141e30;` |
-| **Plate Fill** | Card & button resting fill | `#101726` | `RGB(16, 23, 38)` | `--panel: #101726;` |
-| **Plate Hover** | Card / button hover fill | `#182338` | `RGB(24, 35, 56)` | `--panel-hover: #182338;` |
-| **Hairline Border** | Card & divider resting border | `#26354B` | `RGB(38, 53, 75)` | `--border: #26354b;` |
-| **Button Border** | Action button resting border | `#31445F` | `RGB(49, 68, 95)` | `--border-btn: #31445f;` |
-| **Hover Rim** | Crisp Destiny hover border highlight | `#DCE8F8` | `RGB(220, 232, 248)` | `--border-hot: #dce8f8;` |
-| **Ghost White** | Primary uppercase headers & active labels | `#EEF4FC` | `RGB(238, 244, 252)` | `--text-primary: #eef4fc;` |
-| **Slate Mist** | Card subtitles & calm detail text | `#8CA2C0` | `RGB(140, 162, 192)` | `--text-secondary: #8ca2c0;` |
-| **Muted Telemetry** | `//` header & footer telemetry text | `#687E9C` | `RGB(104, 126, 156)` | `--text-muted: #687e9c;` |
-| **Arc Cyan** | Primary global action / manual session active | `#38BDF8` | `RGB(56, 189, 248)` | `--accent-arc: #38bdf8;` |
-| **Strand Emerald** | Active / Running / Connected / Up to Date | `#2CE38B` | `RGB(44, 227, 139)` | `--status-ok: #2ce38b;` |
-| **Emerald Tint** | `ACTIVE` / `UP TO DATE` badge background | `#0D2B24` | `RGB(13, 43, 36)` | `--status-ok-bg: #0d2b24;` |
-| **Solar Gold** | Self-update button bar / `UPDATE READY` | `#F5B942` | `RGB(245, 185, 66)` | `--status-warn: #f5b942;` |
-| **Solar Tint** | `UPDATE READY` badge background | `#2C2210` | `RGB(44, 34, 16)` | `--status-warn-bg: #2c2210;` |
-| **Crimson Alert** | Frozen / Disconnected error alert | `#F87171` | `RGB(248, 113, 113)` | `--status-err: #f87171;` |
-| **Crimson Tint** | Error / `FROZEN` badge background | `#2E141B` | `RGB(46, 20, 27)` | `--status-err-bg: #2e141b;` |
+| **Canvas Slate** | Soft low-glare window background | `#181B24` | `RGB(24, 27, 36)` | `--bg-canvas: #181b24;` |
+| **Card Surface** | Rounded card background | `#222734` | `RGB(34, 39, 52)` | `--panel: #222734;` |
+| **Control Surface** | Secondary button / input fill | `#2B3142` | `RGB(43, 49, 66)` | `--panel-raised: #2b3142;` |
+| **Control Hover** | Soft hover state fill | `#343C50` | `RGB(52, 60, 80)` | `--panel-hover: #343c50;` |
+| **Soft Hairline** | Subtle card & button border | `#3A4256` | `RGB(58, 66, 86)` | `--border: #3a4256;` |
+| **Hover Border** | Gentle hover border highlight | `#525E7A` | `RGB(82, 94, 122)` | `--border-hot: #525e7a;` |
+| **Primary Text** | Titles & button labels | `#ECEFF6` | `RGB(236, 239, 246)` | `--text-primary: #eceff6;` |
+| **Secondary Text** | Subtitles & calm status copy | `#9AA3B8` | `RGB(154, 163, 184)` | `--text-muted: #9aa3b8;` |
+| **Primary Sky** | Primary action buttons & active toggles | `#38BDF8` | `RGB(56, 189, 248)` | `--accent: #38bdf8;` |
+| **Accent Indigo** | Secondary gradient partner (sliders/tabs) | `#818CF8` | `RGB(129, 140, 248)` | `--accent-indigo: #818cf8;` |
+| **Active Mint** | Running / Connected / Up to Date | `#34D399` | `RGB(52, 211, 153)` | `--status-ok: #34d399;` |
+| **Warm Amber** | `Update Hub` & `Update Ready` | `#FBBF24` | `RGB(251, 191, 36)` | `--status-warn: #fbbf24;` |
+| **Soft Coral** | Disconnect / Frozen alert | `#F87171` | `RGB(248, 113, 113)` | `--status-err: #f87171;` |
 
 ---
 
-## 3. Typography & Hierarchy
+## 3. Regenerating All Suite Icons
 
-All Windows desktop apps use **Segoe UI** (built into every Windows 10/11 PC with zero extra font installs) with explicit letter spacing for titles and tags:
+Whenever branding or icon geometry changes, run:
 
-1. **Window Title (`18–20px` Semibold, Uppercase, Wide-Tracked):**
-   - Rendered with explicit wide character spacing (`P R O J E C T   H U B`, `B L U E T O O T H   G U A R D`).
-2. **Telemetry Subtitle (`11px` Regular/Semibold, Uppercase, Tracked):**
-   - Uses double-slash divider syntax: `SUITE CONTROL  //  v2.2`, `AUDIO SHIELD  //  ACTIVE`.
-3. **Card Title (`14px` Semibold, Uppercase, Medium-Tracked):**
-   - `B L U E T O O T H   G U A R D`, `K E Y B O A R D   L I G H T I N G`, `S P A T I A L   H U D`, etc.
-4. **Card Subtitle / Status Detail (`12px` Regular, Normal Tracking):**
-   - Plain sentence case for effortless reading (`Phone audio protection`, `Wave Overhangs 0.0.51 & Unlayered Infill 0.4.10`).
-5. **Action Buttons & Status Badges (`10.5–11px` Semibold, Uppercase):**
-   - Short 1–2 word labels: `OPEN`, `UPDATE`, `STOP`, `FOLDER`, `CONNECT`, `DISCONNECT`, `UPDATE HUB`, `UPDATE ALL`.
+```bash
+python3 tools/generate_suite_icons.py
+```
 
----
-
-## 4. Standard Layout Anatomy
-
-1. **Header Bar (`74px` scaled by DPI):**
-   - Left: **8-point Wayfinder Compass Emblem** inside a hairline circle + wide-tracked app title + `//` telemetry subtitle.
-   - Right: Rectangular `34px`-tall header action tiles with `3px` colored top bars on featured actions (`UPDATE HUB` in Solar Gold, primary global action in Arc Cyan).
-   - Bottom edge: `1px` full-width hairline divider (`#1E2B3E`).
-2. **Card List (`78–82px` card height, `12px` vertical spacing):**
-   - Sharp rectangular card (`#101726`, `1px` `#26354B` border).
-   - `6px` full-height status bar along left edge (`Emerald`, `Solar Gold`, `Arc Cyan`, `Crimson`, or `Muted Slate`).
-   - Minimal monochrome vector line icon (`24–28px`) in the left gutter.
-   - Uppercase title + clean subtitle on the left; bordered status tag (`● ACTIVE`, `● UPDATE READY`, `● READY`) on the top right; crisp rectangular action buttons aligned along the bottom right.
-3. **Footer Status Bar (`42px` scaled by DPI):**
-   - Full-width `1px` top divider line (doubling as a crisp `2px` luminous cyan progress bar along the top edge whenever a background download is running).
-   - Colored `7px` status dot on the left + uppercase status message (`ALL SUITE MODULES VERIFIED  //  GITHUB CONNECTED`).
-
----
-
-## 5. Self-Update Standard for Standalone `.exe` Apps
-
-- Standalone launcher hubs (`ProjectHub.exe`) must expose a visible top-level **`UPDATE HUB`** button right in the header bar (highlighted with the **Solar Gold** top accent bar) rather than burying self-update inside hidden menus.
-- On startup and on **`REFRESH`**, `ProjectHub.exe` compares its compiled `HUB_VERSION` against `HUB_VERSION` in `project-hub/src/project_hub.c` on GitHub so you immediately see when a newer `ProjectHub.exe` is ready, and clicking **`UPDATE HUB`** downloads, atomically swaps (`MoveFileExW`), and relaunches the updated `.exe` in one click.
+This regenerates all multi-resolution `.ico` files (`256, 64, 48, 32, 24, 16` in 32-bit RGBA), PNG previews, `docs/brand/emblem.ico`, and `docs/brand/suite-icons-preview.png`. Recompile `ProjectHub.exe` and `BluetoothGuard.exe` afterward so their embedded `.rc` icon resources update inside the standalone `.exe` binaries too.

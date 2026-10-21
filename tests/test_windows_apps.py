@@ -529,11 +529,31 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("window.ready", setup)
         self.assertTrue((ROOT / "project-hub" / "Setup.bat").exists())
         self.assertTrue((ROOT / "docs" / "UI_STYLE_GUIDE.md").exists())
-        self.assertIn("UPDATE HUB", hub_c)
+        self.assertIn("Update Hub", hub_c)
         self.assertIn("WorkerSelfUpdateHub", hub_c)
-        self.assertIn("DrawWayfinderEmblem", hub_c)
+        self.assertIn("SmoothRoundRect", hub_c)
+        self.assertIn("RES_ICON_EMBLEM", hub_c)
         btg_c = (ROOT / "bluetooth-guard" / "src" / "bluetooth_guard.c").read_text(encoding="utf-8")
-        self.assertIn("DrawWayfinderEmblem", btg_c)
+        self.assertIn("SmoothRoundRect", btg_c)
+        self.assertIn("DrawPillToggle", btg_c)
+        self.assertIn("RES_ICON_EMBLEM", btg_c)
+        ui_cs = (ROOT / "keyboard-lighting" / "ui_controls.cs.txt").read_text(encoding="ascii")
+        self.assertIn("DrawSuiteEmblem", ui_cs)
+        self.assertIn("Radius = 14", ui_cs)
+
+        for rel_ico in (
+            "docs/brand/emblem.ico",
+            "project-hub/hub.ico",
+            "bluetooth-guard/btguard.ico",
+            "keyboard-lighting/app.ico",
+            "arena-link-windows/assets/icon.ico",
+            "docs/brand/spatial-hud.ico",
+            "docs/brand/orca-plugins.ico",
+        ):
+            raw = (ROOT / rel_ico).read_bytes()
+            self.assertEqual(raw[:4], b"\x00\x00\x01\x00", f"{rel_ico} missing valid Windows ICO header")
+            count = int.from_bytes(raw[4:6], "little")
+            self.assertGreaterEqual(count, 5, f"{rel_ico} should include multi-DPI icon frames")
 
     def test_setup_bat_files_avoid_cmd_parenthesized_if_blocks(self):
         for rel in (
