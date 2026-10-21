@@ -51,6 +51,9 @@
 #define IDM_TRAY_FOLDER     207
 #define IDM_TRAY_QUIT       208
 #define IDM_EFF_BASE        400
+#define IDM_PAT_BASE        420
+#define IDM_PAT_NEW         428
+#define IDM_PAT_DEL         429
 
 /* Soft Slate Suite Palette (matches Project Hub, Bluetooth Guard & docs/UI_STYLE_GUIDE.md) */
 #define COL_BG              RGB(24, 27, 36)    /* #181B24 */
@@ -499,6 +502,8 @@ static void LoadPresetIndex(void) {
 
 static void SyncLinkedZone(void);
 static void FlushLiveApply(void);
+static void SavePanelCfg(void);
+static void ScheduleLiveApply(void);
 
 static void SavePresetSlot(int idx) {
     wchar_t path[MAX_PATH], sec[16], key[8], v[24];
@@ -536,6 +541,82 @@ static void ApplyPresetSlot(int idx) {
     _snwprintf(g_toastText, 95, L"Preset \x00B7 %s", g_presetName[idx]);
     g_toastAt = GetTickCount64() + 1400ULL;
     InvalidateRect(g_hwnd, NULL, FALSE);
+}
+
+static void DeletePresetSlot(int idx) {
+    wchar_t path[MAX_PATH], sec[16], key[8];
+    if (idx < 0 || idx >= PRESET_MAX) return;
+    PresetPath(path);
+    _snwprintf(key, 8, L"Name%d", idx + 1);
+    WritePrivateProfileStringW(L"Names", key, NULL, path);
+    _snwprintf(sec, 16, L"Kbd%d", idx + 1); WritePrivateProfileStringW(sec, NULL, NULL, path);
+    _snwprintf(sec, 16, L"Bar%d", idx + 1); WritePrivateProfileStringW(sec, NULL, NULL, path);
+    _snwprintf(sec, 16, L"P%d", idx + 1);   WritePrivateProfileStringW(sec, NULL, NULL, path);
+    g_presetName[idx][0] = L'\0';
+    g_presetUsed[idx] = FALSE;
+    if (g_presetIdx == idx) g_presetIdx = -1;
+}
+
+/* Pattern picker: the same native popup menu the effect list uses. Every
+ * saved pattern is one row, one click swaps the whole look. */
+static void OpenPatternPopup(HWND hwnd, RECT anchor) {
+    HMENU hMenu = CreatePopupMenu();
+    int used = 0;
+    for (int i = 0; i < PRESET_MAX; i++) {
+        if (!g_presetUsed[i]) continue;
+        AppendMenuW(hMenu, MF_STRING | (g_presetIdx == i ? MF_CHECKED : 0),
+                    (UINT_PTR)(IDM_PAT_BASE + i), g_presetName[i]);
+        used++;
+    }
+    if (used == 0)
+        AppendMenuW(hMenu, MF_STRING | MF_GRAYED, 0, L"No saved patterns yet");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hMenu, MF_STRING, IDM_PAT_NEW, L"Save current as new pattern");
+    if (g_presetIdx >= 0 && g_presetUsed[g_presetIdx]) {
+        wchar_t lbl[48];
+        _snwprintf(lbl, 48, L"Delete: %s", g_presetName[g_presetIdx]);
+        AppendMenuW(hMenu, MF_STRING, IDM_PAT_DEL, lbl);
+    }
+    POINT pt = { anchor.left, anchor.bottom + 2 };
+    ClientToScreen(hwnd, &pt);
+    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+    DestroyMenu(hMenu);
+}
+
+/* ---- global brightness hotkeys --------------------------------------
+ * Two system-wide hotkeys (default Ctrl+Alt+Up / Ctrl+Alt+Down) so
+ * brightness can live on keys G-Helper does not fight over. Bind M4/M5 to
+ * these combos in G-Helper's key remap and the spare keys become smooth
+ * brightness control with no Fn traffic at all. Override in presets.ini:
+ * [Keys] UpMod/UpKey/DownMod/DownKey use the Win32 RegisterHotKey codes.
+ */
+static void StepMasterBrightness(int dir) {
+    int pct = g_cfg.masterBrightness + dir * 10;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    if (pct == g_cfg.masterBrightness) return;
+    g_cfg.masterBrightness = pct;
+    if (pct <= 0)
+        _snwprintf(g_toastText, 95, L"Keyboard Lights  \x00B7  Off");
+    else
+        _snwprintf(g_toastText, 95, L"Keyboard Lights  \x00B7  %d%%", pct);
+    g_toastAt = GetTickCount64() + 1400ULL;
+    SavePanelCfg();
+    ScheduleLiveApply();
+    InvalidateRect(g_hwnd, NULL, FALSE);
+}
+
+static void RegisterBrightnessHotkeys(HWND hwnd) {
+    wchar_t path[MAX_PATH];
+    PresetPath(path);
+    UINT upMod = GetPrivateProfileIntW(L"Keys", L"UpMod", MOD_CONTROL | MOD_ALT, path);
+    UINT upKey = GetPrivateProfileIntW(L"Keys", L"UpKey", 0x26, path);
+    UINT dnMod = GetPrivateProfileIntW(L"Keys", L"DownMod", MOD_CONTROL | MOD_ALT, path);
+    UINT dnKey = GetPrivateProfileIntW(L"Keys", L"DownKey", 0x28, path);
+    if (!RegisterHotKey(hwnd, 1, upMod, upKey))
+        RegisterHotKey(hwnd, 1, MOD_CONTROL | MOD_ALT, 0x74);   /* fallback Ctrl+Alt+F5 */
+    if (!RegisterHotKey(hwnd, 2, dnMod, dnKey))
+        RegisterHotKey(hwnd, 2, MOD_CONTROL | MOD_ALT, 0x75);   /* fallback Ctrl+Alt+F6 */
 }
 
 /* Lightweight parser preserving existing user panel.json settings */
@@ -798,7 +879,7 @@ static const wchar_t *HelpForHit(int hitIdx) {
     case HIT_TOG_SMOOTH:    return L"Steady Colours: on = no shimmer at any level. Off = fine dithering for ultra-smooth dimming.";
     case HIT_TOG_OVERLAY:   return L"Battery Alerts: briefly show battery status on the lights (restarts engine when toggled).";
     case HIT_FOOT_SAVEP:    return L"Save the current colours and effect as a named pattern (presets.ini).";
-    case HIT_FOOT_PATTERN:  return L"Swap to the next saved pattern with one click.";
+    case HIT_FOOT_PATTERN:  return L"Open the pattern list - click any saved pattern to swap the whole look. Ctrl+Alt+Up/Down also step brightness on keys G-Helper does not touch.";
     case HIT_FOOT_ZONES:    return L"Open Zones Setup if patterns jump about - lets you fix which lamp is which.";
     case HIT_FOOT_ELEVATE:  return L"Restart as Administrator to unlock direct USB RGB control of the ROG Strix G16.";
     case HIT_FOOT_QUIT:     return L"Quit Keyboard Lighting and turn the lights off.";
@@ -2195,17 +2276,8 @@ static void HandleHitAction(HWND hwnd, int hitIdx) {
         _snwprintf(g_toastText, 95, L"Saved \x00B7 %s", g_presetName[slot]);
         g_toastAt = GetTickCount64() + 1400ULL;
     } else if (kind == HIT_FOOT_PATTERN) {
-        int slot = g_presetIdx;
-        for (int n = 0; n < PRESET_MAX; n++) {
-            slot = (slot + 1) % PRESET_MAX;
-            if (g_presetUsed[slot]) break;
-        }
-        if (g_presetUsed[slot]) {
-            ApplyPresetSlot(slot);
-        } else {
-            _snwprintf(g_toastText, 95, L"No saved patterns yet - press Save");
-            g_toastAt = GetTickCount64() + 1400ULL;
-        }
+        OpenPatternPopup(hwnd, rc);
+        return;
     } else if (kind == HIT_FOOT_ZONES) {
         ShellExecuteW(hwnd, L"open", g_zonesBat, NULL, g_exeDir, SW_SHOWNORMAL);
     } else if (kind == HIT_FOOT_ELEVATE) {
@@ -2334,6 +2406,11 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
 
+    case WM_HOTKEY:
+        if (wp == 1) StepMasterBrightness(1);
+        else if (wp == 2) StepMasterBrightness(-1);
+        return 0;
+
     case WM_COMMAND: {
         int id = LOWORD(wp);
         if (id >= IDM_EFF_BASE && id < IDM_EFF_BASE + EFFECT_COUNT) {
@@ -2341,6 +2418,27 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             SyncLinkedZone();
             FlushLiveApply();
             InvalidateRect(hwnd, NULL, FALSE);
+        } else if (id >= IDM_PAT_BASE && id < IDM_PAT_BASE + PRESET_MAX) {
+            if (g_presetUsed[id - IDM_PAT_BASE])
+                ApplyPresetSlot(id - IDM_PAT_BASE);
+        } else if (id == IDM_PAT_NEW) {
+            int slot = -1;
+            for (int i = 0; i < PRESET_MAX; i++) {
+                if (!g_presetUsed[i]) { slot = i; break; }
+            }
+            if (slot < 0) {
+                _snwprintf(g_toastText, 95, L"All 8 pattern slots are full - delete one first");
+                g_toastAt = GetTickCount64() + 1400ULL;
+            } else {
+                SavePresetSlot(slot);
+                _snwprintf(g_toastText, 95, L"Saved \x00B7 %s", g_presetName[slot]);
+                g_toastAt = GetTickCount64() + 1400ULL;
+            }
+        } else if (id == IDM_PAT_DEL) {
+            if (g_presetIdx >= 0 && g_presetUsed[g_presetIdx]) {
+                DeletePresetSlot(g_presetIdx);
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
         } else if (id == IDM_TRAY_OPEN) {
             ShowWindow(hwnd, SW_SHOWNORMAL);
             SetForegroundWindow(hwnd);
@@ -2544,6 +2642,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
                              WS_OVERLAPPEDWINDOW,
                              CW_USEDEFAULT, CW_USEDEFAULT, S(820, dpi), S(660, dpi),
                              NULL, NULL, hInst, NULL);
+    RegisterBrightnessHotkeys(g_hwnd);
 
     ZeroMemory(&g_nid, sizeof(g_nid));
     g_nid.cbSize           = sizeof(g_nid);
