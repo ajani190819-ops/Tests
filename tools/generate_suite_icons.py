@@ -85,9 +85,11 @@ def trispoke_sdf_alpha(size: int, scale: float = 0.88, thickness_boost: float = 
 
 
 def make_squircle_base(size: int, tint_rgb: tuple, watermark: bool = True) -> Image.Image:
-    """Create a Microsoft-Fluent-style soft rounded squircle brushed dark slate base
-    with subtle radial sheen, soft outer drop shadow, glossy top rim, and subtle recessed
-    Tri-Spoke Core motif."""
+    """Legacy squircle plate (kept for the showcase sheet only). The exported
+    app icons use make_transparent_studio_base instead: the opaque plate read
+    as a muddy warm-brown blob at taskbar size and never matched the app
+    window backgrounds, so the icons now float on full transparency just like
+    the emblem in each window header."""
     lin = np.linspace(-1.0, 1.0, size, dtype=np.float32)
     yy, xx = np.meshgrid(lin, lin, indexing="ij")
     px = 2.0 / float(size)
@@ -142,6 +144,14 @@ def make_squircle_base(size: int, tint_rgb: tuple, watermark: bool = True) -> Im
     body = Image.fromarray(arr, mode="RGBA")
     canvas.alpha_composite(body)
     return canvas
+
+
+def make_transparent_studio_base(size: int, tint_rgb: tuple) -> Image.Image:
+    """Fully transparent canvas. Depth comes from the per-glyph drop shadow +
+    glow inside composite_elevated_layer, so the icon reads cleanly on any
+    taskbar, desktop, or start-menu background instead of carrying its own
+    mismatched plate color."""
+    return Image.new("RGBA", (size, size), (0, 0, 0, 0))
 
 
 def composite_elevated_layer(base: Image.Image, alpha: np.ndarray,
@@ -205,10 +215,17 @@ def build_header_emblem(size: int = 512) -> Image.Image:
     return Image.fromarray(out, mode="RGBA")
 
 
-def build_icon_project_hub(size: int = 512) -> Image.Image:
-    base = make_squircle_base(size, (125, 211, 252), watermark=False)
-    # Remove duplicate background watermark by painting fresh smooth brushed center disc
-    emblem = trispoke_sdf_alpha(size, scale=0.68, thickness_boost=0.008)
+def build_icon_project_hub(size: int = 512, small: bool = False) -> Image.Image:
+    base = make_transparent_studio_base(size, (125, 211, 252))
+    boost = 0.016 + (0.030 if small else 0.0)
+    # Dark rim silhouette first: without it the pale gradient washes out on
+    # light desktops / start menus and the 16px frame disappears entirely.
+    rim = trispoke_sdf_alpha(size, scale=0.86, thickness_boost=boost + 0.038)
+    rim_img = Image.fromarray((np.clip(rim, 0.0, 1.0) * 255.0).astype(np.uint8), mode="L")
+    rim_layer = Image.new("RGBA", (size, size), (16, 22, 32, 255))
+    rim_layer.putalpha(rim_img)
+    base.alpha_composite(rim_layer)
+    emblem = trispoke_sdf_alpha(size, scale=0.86, thickness_boost=boost)
     return composite_elevated_layer(
         base, emblem,
         col_top=(244, 248, 255),
@@ -217,18 +234,18 @@ def build_icon_project_hub(size: int = 512) -> Image.Image:
     )
 
 
-def build_icon_bluetooth_guard(size: int = 512) -> Image.Image:
-    base = make_squircle_base(size, (59, 130, 246))
+def build_icon_bluetooth_guard(size: int = 512, small: bool = False) -> Image.Image:
+    base = make_transparent_studio_base(size, (59, 130, 246))
 
     # Soft translucent cobalt rounded inner badge
     badge_a = draw_antialias_mask(size, lambda d, s: d.rounded_rectangle(
-        [s * 0.24, s * 0.20, s * 0.76, s * 0.80], radius=s * 0.16, fill=255
+        [s * 0.10, s * 0.08, s * 0.90, s * 0.92], radius=s * 0.22, fill=255
     ))
-    composite_elevated_layer(base, badge_a * 0.94, (56, 152, 255), (29, 92, 214), (56, 165, 250))
+    composite_elevated_layer(base, badge_a * 0.97, (56, 152, 255), (29, 92, 214), (56, 165, 250))
 
     # Crisp smooth-capped white Bluetooth glyph inside the cobalt badge
     def bt_fn(d: ImageDraw.ImageDraw, s: int):
-        w = int(s * 0.046)
+        w = int(s * (0.062 if small else 0.046))
         cx, cy = s * 0.50, s * 0.50
         pts = [
             (cx - s * 0.115, cy - s * 0.105),
@@ -247,14 +264,14 @@ def build_icon_bluetooth_guard(size: int = 512) -> Image.Image:
     return composite_elevated_layer(base, bt_a, (250, 253, 255), (219, 238, 255), None)
 
 
-def build_icon_keyboard_lighting(size: int = 512) -> Image.Image:
-    base = make_squircle_base(size, (168, 85, 247))
+def build_icon_keyboard_lighting(size: int = 512, small: bool = False) -> Image.Image:
+    base = make_transparent_studio_base(size, (168, 85, 247))
 
     # Luminous aura underglow bar beneath keycap plate
     glow_bar = draw_antialias_mask(size, lambda d, s: d.rounded_rectangle(
         [s * 0.23, s * 0.67, s * 0.77, s * 0.75], radius=s * 0.04, fill=255
     ))
-    composite_elevated_layer(base, glow_bar, (251, 191, 36), (56, 189, 248), (168, 85, 247))
+    composite_elevated_layer(base, glow_bar, (196, 181, 253), (56, 189, 248), (168, 85, 247))
 
     # Smooth rounded keyboard plate in violet-indigo-sky gradient
     plate_a = draw_antialias_mask(size, lambda d, s: d.rounded_rectangle(
@@ -262,8 +279,20 @@ def build_icon_keyboard_lighting(size: int = 512) -> Image.Image:
     ))
     composite_elevated_layer(base, plate_a, (167, 139, 250), (56, 189, 248), (129, 140, 248))
 
-    # Crisp white keycaps + spacebar inside keyboard plate
+    # Crisp white keycaps + spacebar inside keyboard plate. At icon size the
+    # 4x2 grid merges into mush, so tiny frames drop to a bold 3x2 grid with
+    # wider gutters - the details survive where the old downscale lost them.
     def keys_fn(d: ImageDraw.ImageDraw, s: int):
+        if small:
+            for row_i, y0 in enumerate((0.325, 0.435)):
+                for col_i in range(3):
+                    x0 = 0.275 + col_i * 0.155
+                    d.rounded_rectangle(
+                        [s * x0, s * y0, s * (x0 + 0.125), s * (y0 + 0.075)],
+                        radius=s * 0.022, fill=255,
+                    )
+            d.rounded_rectangle([s * 0.32, s * 0.545, s * 0.68, s * 0.605], radius=s * 0.024, fill=255)
+            return
         for row_i, y0 in enumerate((0.335, 0.425)):
             for col_i in range(4):
                 x0 = 0.265 + col_i * 0.125
@@ -277,7 +306,7 @@ def build_icon_keyboard_lighting(size: int = 512) -> Image.Image:
     return composite_elevated_layer(base, keys_a, (252, 253, 255), (226, 236, 255), None)
 
 
-def build_icon_spatial_hud(size: int = 512) -> Image.Image:
+def build_icon_spatial_hud(size: int = 512, small: bool = False) -> Image.Image:
     base = make_squircle_base(size, (245, 158, 11))
 
     # 3-face soft isometric Fluent cube (top bright gold, left warm amber, right deep bronze-gold)
@@ -309,7 +338,7 @@ def build_icon_spatial_hud(size: int = 512) -> Image.Image:
     return base
 
 
-def build_icon_orca_plugins(size: int = 512) -> Image.Image:
+def build_icon_orca_plugins(size: int = 512, small: bool = False) -> Image.Image:
     base = make_squircle_base(size, (52, 211, 153))
 
     # Stacked flowing wave ribbons representing non-planar Wave Overhangs + Unlayered Infill
@@ -337,7 +366,7 @@ def build_icon_orca_plugins(size: int = 512) -> Image.Image:
     return base
 
 
-def build_icon_arena_link(size: int = 512) -> Image.Image:
+def build_icon_arena_link(size: int = 512, small: bool = False) -> Image.Image:
     base = make_squircle_base(size, (45, 212, 191))
 
     def ring1(d: ImageDraw.ImageDraw, s: int):
@@ -355,36 +384,56 @@ def build_icon_arena_link(size: int = 512) -> Image.Image:
     return base
 
 
-def save_multi_ico(img: Image.Image, ico_path: Path, png_path: Path = None):
+def save_multi_ico(build, ico_path: Path, png_path: Path = None):
+    """Write a true multi-size ICO where EVERY size is rendered analytically
+    at its own resolution (with small-size stroke boosts) instead of being
+    downscaled from one master - the old downscale path turned the 16-32px
+    frames into mush and the details vanished."""
+    import io
+    import struct
     ico_path.parent.mkdir(parents=True, exist_ok=True)
-    master = img.resize((256, 256), Image.Resampling.LANCZOS)
-    if png_path is not None:
-        png_path.parent.mkdir(parents=True, exist_ok=True)
-        master.save(png_path, format="PNG")
-    master.save(
-        ico_path,
-        format="ICO",
-        sizes=[(256, 256), (64, 64), (48, 48), (32, 32), (24, 24), (16, 16)],
-    )
+    sizes = [(256, 256), (64, 64), (48, 48), (32, 32), (24, 24), (16, 16)]
+    frames = []
+    for (w, h) in sizes:
+        im = build(w, small=(w <= 32)).convert("RGBA")
+        if png_path is not None and (w, h) == (256, 256):
+            png_path.parent.mkdir(parents=True, exist_ok=True)
+            # the companion PNG export is the LARGE crisp master, not 256
+            build(1024, small=False).convert("RGBA").save(png_path, format="PNG")
+        buf = io.BytesIO()
+        im.save(buf, format="PNG")
+        frames.append((w, h, buf.getvalue()))
+    out = struct.pack("<HHH", 0, 1, len(frames))
+    offset = 6 + 16 * len(frames)
+    entries = b""
+    data = b""
+    for (w, h, px) in frames:
+        wb = 0 if w >= 256 else w
+        hb = 0 if h >= 256 else h
+        entries += struct.pack("<BBBBHHII", wb, hb, 0, 0, 1, 32, len(px), offset)
+        offset += len(px)
+        data += px
+    ico_path.write_bytes(out + entries + data)
 
 
 def main():
     BRAND_DIR.mkdir(parents=True, exist_ok=True)
 
     emblem = build_header_emblem(512)
-    save_multi_ico(emblem, BRAND_DIR / "emblem.ico", BRAND_DIR / "suite-emblem.png")
+    save_multi_ico(lambda w, small=False: build_header_emblem(w),
+                   BRAND_DIR / "emblem.ico", BRAND_DIR / "suite-emblem.png")
 
     icons = [
-        ("Project Hub",       build_icon_project_hub(512),       ROOT / "project-hub" / "hub.ico",               BRAND_DIR / "icon-project-hub.png"),
-        ("Bluetooth Guard",   build_icon_bluetooth_guard(512),   ROOT / "bluetooth-guard" / "btguard.ico",       BRAND_DIR / "icon-bluetooth-guard.png"),
-        ("Keyboard Lighting", build_icon_keyboard_lighting(512), ROOT / "keyboard-lighting" / "app.ico",         BRAND_DIR / "icon-keyboard-lighting.png"),
-        ("Spatial HUD",       build_icon_spatial_hud(512),       BRAND_DIR / "spatial-hud.ico",                  BRAND_DIR / "icon-spatial-hud.png"),
-        ("Orca Plugins",      build_icon_orca_plugins(512),      BRAND_DIR / "orca-plugins.ico",                 BRAND_DIR / "icon-orca-plugins.png"),
-        ("Arena Link",        build_icon_arena_link(512),        ROOT / "arena-link-windows" / "assets" / "icon.ico", BRAND_DIR / "icon-arena-link.png"),
+        ("Project Hub",       build_icon_project_hub,       ROOT / "project-hub" / "hub.ico",               BRAND_DIR / "icon-project-hub.png"),
+        ("Bluetooth Guard",   build_icon_bluetooth_guard,   ROOT / "bluetooth-guard" / "btguard.ico",       BRAND_DIR / "icon-bluetooth-guard.png"),
+        ("Keyboard Lighting", build_icon_keyboard_lighting, ROOT / "keyboard-lighting" / "app.ico",         BRAND_DIR / "icon-keyboard-lighting.png"),
+        ("Spatial HUD",       build_icon_spatial_hud,       BRAND_DIR / "spatial-hud.ico",                  BRAND_DIR / "icon-spatial-hud.png"),
+        ("Orca Plugins",      build_icon_orca_plugins,      BRAND_DIR / "orca-plugins.ico",                 BRAND_DIR / "icon-orca-plugins.png"),
+        ("Arena Link",        build_icon_arena_link,        ROOT / "arena-link-windows" / "assets" / "icon.ico", BRAND_DIR / "icon-arena-link.png"),
     ]
 
-    for _, im, ico_p, png_p in icons:
-        save_multi_ico(im, ico_p, png_p)
+    for _, build, ico_p, png_p in icons:
+        save_multi_ico(build, ico_p, png_p)
 
     # Build a crisp showcase sheet so the user can inspect the entire icon family side by side
     cols = 3
@@ -404,7 +453,7 @@ def main():
     hdr_emb = emblem.resize((36, 36), Image.Resampling.LANCZOS)
     sheet.alpha_composite(hdr_emb, dest=(44, 30))
     draw.text((94, 30), "Unified Suite App Icons", fill=(236, 239, 246, 255), font=font_hdr)
-    draw.text((94, 58), "Brushed slate squircle base  ·  Tri-Spoke Core emblem  ·  Distinct per-app Fluent accents",
+    draw.text((94, 58), "Transparent studio glyphs  ·  Tri-Spoke Core emblem  ·  Distinct per-app Fluent accents",
               fill=(154, 163, 184, 255), font=font_sub)
 
     cell_w = 340
@@ -412,7 +461,8 @@ def main():
     start_x = 42
     start_y = 108
 
-    for i, (label, im, _, _) in enumerate(icons):
+    for i, (label, build, _, _) in enumerate(icons):
+        im = build(512)
         r_idx = i // cols
         c_idx = i % cols
         cx0 = start_x + c_idx * (cell_w + 18)
@@ -437,6 +487,16 @@ def main():
 
     preview_path = BRAND_DIR / "suite-icons-preview.png"
     sheet.convert("RGB").save(preview_path, format="PNG")
+
+    # Profile-photo exports: fully transparent straight-alpha glyphs the user
+    # can drop straight into GitHub / Discord / etc. The old versions carried
+    # an opaque slate plate that read as a muddy brown-orange background once
+    # any site flattened it; these float on pure transparency.
+    build_icon_project_hub(2048).save(BRAND_DIR / "project-hub-icon-2048.png")
+    build_icon_project_hub(1024).save(BRAND_DIR / "project-hub-icon-1024.png")
+    build_header_emblem(2048).save(BRAND_DIR / "tri-spoke-emblem-2048.png")
+    build_header_emblem(1024).save(BRAND_DIR / "tri-spoke-emblem-1024.png")
+
     print("Generated icons successfully:", preview_path)
 
 
