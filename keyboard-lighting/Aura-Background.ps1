@@ -1054,6 +1054,7 @@ public class LampEngine {
   public volatile int  WriteFails = 0;
   int overrun = 0;                      // consecutive frames whose writes overflowed
   double[] er, eg, eb;     // carried quantisation error, for temporal dither
+  double[] frPrev, fgPrev, fbPrev;   // last targets, for moving-only dither
 
   // ---- live frame publishing -------------------------------------
   // The control panel used to redraw the preview by re-implementing the
@@ -1279,7 +1280,10 @@ public class LampEngine {
     // Staging buffers for what this frame WANTS to send. pr/pg/pb must keep
     // describing what the device actually has until the writes come back
     // clean - see the promotion step at the bottom.
-    if (nr == null) { nr = new int[LampCount]; ng = new int[LampCount]; nb2 = new int[LampCount]; }
+    if (nr == null) {
+      nr = new int[LampCount]; ng = new int[LampCount]; nb2 = new int[LampCount];
+      frPrev = new double[LampCount]; fgPrev = new double[LampCount]; fbPrev = new double[LampCount];
+    }
 
     for (int bi = 0; bi < nbatch; bi++) {
       byte[] b = bufs[bi];
@@ -1289,7 +1293,17 @@ public class LampEngine {
         int i = first + s;
         int st = Interleaved ? s*4 : s;
         double peak = Math.Max(fr[i], Math.Max(fg[i], fb[i]));
-        bool lampDith = (peak <= 0.0005) ? false : (dith || peak < 14.0);
+        // Dither only while this lamp's target is actually creeping. A held
+        // colour sitting on x.5 used to flip x/x+1 every frame (the 40,41,
+        // 40,41 shimmer), while a creeping gradient without dither stepped
+        // visibly through the few codes it has at low brightness - which is
+        // the fast "flicker" seen while a pattern scrolls. Moving values get
+        // error feedback (smooth travel); held values round straight (dead
+        // solid, and the transfer is skipped entirely when nothing changed).
+        double df0 = fr[i] - frPrev[i], df1 = fg[i] - fgPrev[i], df2 = fb[i] - fbPrev[i];
+        frPrev[i] = fr[i]; fgPrev[i] = fg[i]; fbPrev[i] = fb[i];
+        bool moving = df0 > 0.05 || df0 < -0.05 || df1 > 0.05 || df1 < -0.05 || df2 > 0.05 || df2 < -0.05;
+        bool lampDith = (peak <= 0.0005) ? false : (moving && (dith || peak < 14.0));
         int qr = Dither(fr[i], MaxR, ref er[i], lampDith);
         int qg = Dither(fg[i], MaxG, ref eg[i], lampDith);
         int qb = Dither(fb[i], MaxB, ref eb[i], lampDith);
@@ -1335,6 +1349,22 @@ public class LampEngine {
       failRun++;
       if (failRun >= 8) { DeviceLost = true; failRun = 0; }
     }
+  }
+
+  // Re-assert the EC's 0..3 hardware brightness gate on the same vendor
+  // feature channel G-Helper drives. The software master paints frames;
+  // this packet stops G-Helper's idle timer / Fn keys from stepping the
+  // hardware cap back down under it. WMI Set-KbdBacklight is the second,
+  // independent pin - belt and braces on purpose.
+  public bool PinGate(int level) {
+    try {
+      if (h == IntPtr.Zero) return false;
+      int len = ReportLen < 5 ? 5 : ReportLen;
+      byte[] pkt = new byte[len];
+      pkt[0] = 0x5a; pkt[1] = 0xBA; pkt[2] = 0xC5; pkt[3] = 0xC4;
+      pkt[4] = (byte)(level & 0x03);
+      return HidD_SetFeature(h, pkt, len);
+    } catch { return false; }
   }
 
   // Re-send the "host is in charge" control report. This is the only thing
@@ -3823,7 +3853,10 @@ function Set-Live([int]$level) {
     # Raising the software master is pointless while the EC 0..3 gate sits
     # low - the hardware range would clamp it. Re-assert the full gate on
     # every brightness move so "up" always actually goes up.
-    if ($level -gt 0) { [void](Set-KbdBacklight 3) }
+    if ($level -gt 0) {
+        [void](Set-KbdBacklight 3)
+        [void]$eng.PinGate(3)
+    }
 }
 
 # --- wake from sleep -------------------------------------------------
@@ -4032,6 +4065,7 @@ try {
             }
             if ($due) {
                 [void](Set-KbdBacklight $KbdBacklight)
+                [void]$eng.PinGate(3)
                 $eng.ReAssert()
                 foreach ($z in $eng.Groups) { $z.LiveDirty = $true }
             }
@@ -4083,6 +4117,7 @@ try {
                 # back to full now, and again shortly after, so our software
                 # master stays the only brightness that moves.
                 [void](Set-KbdBacklight 3)
+                [void]$eng.PinGate(3)
                 [void]$script:repairAt.Add([DateTime]::UtcNow.AddMilliseconds(200))
                 [void]$script:repairAt.Add([DateTime]::UtcNow.AddMilliseconds(600))
                 $ev = Get-Event -SourceIdentifier 'AuraAtk' -ErrorAction SilentlyContinue
@@ -4094,9 +4129,10 @@ try {
         # and the smooth master needs the whole range underneath at all
         # times - so lock it on a slow cycle as well as on every Fn event.
         $script:GateTick++
-        if ($script:GateTick -ge 25) {
+        if ($script:GateTick -ge 8) {
             $script:GateTick = 0
             [void](Set-KbdBacklight 3)
+            [void]$eng.PinGate(3)
         }
 
         # --- panel-written brightness file (kept: the Fn keys use it too) ---
