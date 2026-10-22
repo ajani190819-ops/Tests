@@ -226,6 +226,8 @@ static wchar_t          g_lockPath[MAX_PATH];
 static wchar_t          g_showPath[MAX_PATH];
 static wchar_t          g_engPidPath[MAX_PATH];
 static wchar_t          g_stopPath[MAX_PATH];
+static wchar_t          g_brightUpPath[MAX_PATH];
+static wchar_t          g_brightDownPath[MAX_PATH];
 static wchar_t          g_engineScript[MAX_PATH];
 static wchar_t          g_zonesBat[MAX_PATH];
 static wchar_t          g_statusText[256] = L"Starting ROG Strix G16 lighting engine...";
@@ -2720,6 +2722,8 @@ static void InitKblPaths(void) {
     _snwprintf(g_showPath,   MAX_PATH, L"%s\\show.flag", g_cfgDir);
     _snwprintf(g_engPidPath, MAX_PATH, L"%s\\engine.pid", g_cfgDir);
     _snwprintf(g_stopPath,   MAX_PATH, L"%s\\stop.flag", g_cfgDir);
+    _snwprintf(g_brightUpPath,   MAX_PATH, L"%s\\bright_up.flag", g_cfgDir);
+    _snwprintf(g_brightDownPath, MAX_PATH, L"%s\\bright_down.flag", g_cfgDir);
     _snwprintf(g_engineScript, MAX_PATH, L"%s\\Aura-Background.ps1", g_exeDir);
     _snwprintf(g_zonesBat,   MAX_PATH, L"%s\\Zones.bat", g_exeDir);
     if (!FileExistsW(g_zonesBat))
@@ -2737,6 +2741,18 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     if (cmdLine && (wcsstr(cmdLine, L"--stop") != NULL || wcsstr(cmdLine, L"-Stop") != NULL)) {
         StopEngine(TRUE);
         KillPidFromFile(g_lockPath);
+        return 0;
+    }
+
+    /* Brightness taps for the M4/M5 G-Helper 'Custom' actions: a second
+       instance drops a flag the engine turns into one smooth master step
+       and exits immediately - no window, no single-instance bounce. */
+    if (cmdLine && (wcsstr(cmdLine, L"-BrightUp") != NULL || wcsstr(cmdLine, L"--bright-up") != NULL)) {
+        WriteAtomicUtf8(g_brightUpPath, "1");
+        return 0;
+    }
+    if (cmdLine && (wcsstr(cmdLine, L"-BrightDown") != NULL || wcsstr(cmdLine, L"--bright-down") != NULL)) {
+        WriteAtomicUtf8(g_brightDownPath, "1");
         return 0;
     }
 
