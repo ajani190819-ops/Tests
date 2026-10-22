@@ -79,6 +79,7 @@ typedef struct Row {
     int         isBackup;
     int         tested;
     int         ok;
+    int         usedTcp;
     int         ms[3];
     int         med;
     int         rank;     /* 1-based within family after a run */
@@ -180,6 +181,71 @@ static int DnsProbe(const char *ip, int family, int timeoutMs, int *outMs) {
     return 1;
 }
 
+static int DnsProbeTcp(const char *ip, int family, int timeoutMs, int *outMs) {
+    SOCKET s = socket(family == 6 ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s == INVALID_SOCKET) return 0;
+    int okconn = 0;
+    u_long nb = 1;
+    ioctlsocket(s, FIONBIO, &nb);
+    if (family == 6) {
+        struct sockaddr_in6 a;
+        ZeroMemory(&a, sizeof(a));
+        a.sin6_family = AF_INET6;
+        a.sin6_port = htons(53);
+        if (inet_pton(AF_INET6, ip, &a.sin6_addr) != 1) { closesocket(s); return 0; }
+        okconn = (connect(s, (const struct sockaddr *)&a, sizeof(a)) == 0);
+    } else {
+        struct sockaddr_in a;
+        ZeroMemory(&a, sizeof(a));
+        a.sin_family = AF_INET;
+        a.sin_port = htons(53);
+        if (inet_pton(AF_INET, ip, &a.sin_addr) != 1) { closesocket(s); return 0; }
+        okconn = (connect(s, (const struct sockaddr *)&a, sizeof(a)) == 0);
+    }
+    if (!okconn) {
+        if (WSAGetLastError() != WSAEWOULDBLOCK) { closesocket(s); return 0; }
+        fd_set wf;
+        FD_ZERO(&wf);
+        FD_SET(s, &wf);
+        struct timeval tvt;
+        tvt.tv_sec = timeoutMs / 1000;
+        tvt.tv_usec = (timeoutMs % 1000) * 1000;
+        if (select(0, NULL, &wf, NULL, &tvt) <= 0) { closesocket(s); return 0; }
+        int soe = 0, sl = sizeof(soe);
+        getsockopt(s, SOL_SOCKET, SO_ERROR, (char *)&soe, &sl);
+        if (soe != 0) { closesocket(s); return 0; }
+    }
+    nb = 0;
+    ioctlsocket(s, FIONBIO, &nb);
+    DWORD tv = (DWORD)timeoutMs;
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
+    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv));
+    BYTE q[64];
+    WORD id = (WORD)((GetTickCount() ^ ((size_t)ip * 31)) & 0xFFFF);
+    int qlen = BuildQuery(q, id);
+    unsigned char lh[2];
+    lh[0] = (unsigned char)(qlen >> 8);
+    lh[1] = (unsigned char)qlen;
+    if (send(s, (const char *)lh, 2, 0) != 2 || send(s, (const char *)q, qlen, 0) != qlen) {
+        closesocket(s);
+        return 0;
+    }
+    LARGE_INTEGER t0, t1, fq;
+    QueryPerformanceFrequency(&fq);
+    QueryPerformanceCounter(&t0);
+    if (recv(s, (char *)lh, 2, MSG_WAITALL) != 2) { closesocket(s); return 0; }
+    int rlen = ((int)lh[0] << 8) | (int)lh[1];
+    if (rlen < 12 || rlen > 512) { closesocket(s); return 0; }
+    char r[512];
+    if (recv(s, r, rlen, MSG_WAITALL) != rlen) { closesocket(s); return 0; }
+    QueryPerformanceCounter(&t1);
+    closesocket(s);
+    if ((WORD)(((BYTE)r[0] << 8) | (BYTE)r[1]) != id) return 0;
+    if (((BYTE)r[2] & 0x80) == 0) return 0;
+    *outMs = (int)((t1.QuadPart - t0.QuadPart) * 1000 / fq.QuadPart);
+    return 1;
+}
+
 static int Median3(int *a) {
     int x = a[0], y = a[1], z = a[2], t;
     if (x > y) { t = x; x = y; y = t; }
@@ -224,6 +290,17 @@ static DWORD WINAPI TestThread(LPVOID param) {
                 if (got == 3) break;
             } else {
                 if (++strikes >= 2) break;
+            }
+        }
+        if (got == 0) {
+            /* UDP path failed entirely - many networks filter outbound UDP/53
+               but still pass TCP/53, so try that before calling it dead. */
+            for (int k = 0; k < 2; k++) {
+                int ms = 0;
+                if (DnsProbeTcp(r->ip, r->family, 1500, &ms)) {
+                    r->ms[got++] = ms;
+                    r->usedTcp = 1;
+                }
             }
         }
         if (got > 0) {
@@ -393,7 +470,7 @@ static void LoadConfig(void) {
     _snwprintf(g_cfgPath, MAX_PATH, L"%s\\config.ini", dir);
     g_auto = GetPrivateProfileIntW(L"Pilot", L"Auto", 0, g_cfgPath);
     g_intervalMin = GetPrivateProfileIntW(L"Pilot", L"IntervalMin", 30, g_cfgPath);
-    if (g_intervalMin < 5) g_intervalMin = 5;
+    if (g_intervalMin != 0 && g_intervalMin < 5) g_intervalMin = 5;
     {
         char tmp[64];
         wchar_t w[64];
@@ -433,12 +510,187 @@ static BOOL ForegroundIsFullscreen(void) {
     return EqualRect(&wr, &mi.rcMonitor);
 }
 
+/* ---- Auto live-watch: probe the active DNS + its nearest rivals on a fast
+   tick and switch the moment one is CLEARLY and CONSISTENTLY faster. The
+   safety rules below exist so switching can never thrash the connection:
+     * margin   - the rival must be 20% faster AND at least 20 ms faster,
+                  so two near-equal servers never trade places
+     * streak   - it must win 3 probe rounds in a row (a real trend, not a
+                  one-off blip)
+     * cooldown - 5 minutes of quiet after every switch
+     * verify   - if the new server stops answering within 2 minutes, the
+                  previous one is restored automatically
+     * deferral - nothing switches while a fullscreen window is in front
+   A DNS change never touches established connections; only new lookups
+   use the new server. */
+typedef struct WatchCand {
+    char   ip[64];
+    int    family;
+    int    srv;        /* index into SERVERS, or -1 for the current active */
+    int    isPrimary;  /* the currently-active primary of its family */
+    double ewma;       /* smoothed latency in ms, -1 = no data yet */
+    int    misses;     /* consecutive failed probes */
+    int    streak;     /* consecutive rounds beating the active primary */
+} WatchCand;
+
+static WatchCand  g_watch[12];
+static int        g_watchN = 0;
+static ULONGLONG  g_lastSwitchAt = 0;
+static ULONGLONG  g_switchedAt = 0;
+static int        g_switchFam = 0;
+static char       g_prevV4[64] = "", g_prevV6[64] = "";
+
+#define WATCH_MIN_GAIN_MS  20.0
+#define WATCH_WIN_RATIO    0.80
+#define WATCH_STREAK_NEED  3
+#define WATCH_COOLDOWN_MS  (5ULL * 60000ULL)
+#define WATCH_VERIFY_MS    (2ULL * 60000ULL)
+#define AUTO_FULLTEST_MS   (30ULL * 60000ULL)
+
+static void AddWatch(const char *ip, int family, int srv) {
+    if (!ip || !ip[0] || g_watchN >= 12) return;
+    for (int i = 0; i < g_watchN; i++)
+        if (g_watch[i].family == family && strcmp(g_watch[i].ip, ip) == 0) return;
+    WatchCand *c = &g_watch[g_watchN++];
+    ZeroMemory(c, sizeof(*c));
+    strncpy(c->ip, ip, 63);
+    c->family = family;
+    c->srv = srv;
+    c->ewma = -1;
+}
+
+static void RebuildWatch(void) {
+    g_watchN = 0;
+    if (g_curV4[0]) AddWatch(g_curV4, 4, -1);
+    if (g_curV6[0]) AddWatch(g_curV6, 6, -1);
+    for (int i = 0; i < g_watchN; i++)
+        if ((g_watch[i].family == 4 && g_curV4[0] && strcmp(g_watch[i].ip, g_curV4) == 0) ||
+            (g_watch[i].family == 6 && g_curV6[0] && strcmp(g_watch[i].ip, g_curV6) == 0))
+            g_watch[i].isPrimary = 1;
+    for (int fam = 4; fam <= 6; fam += 2) {
+        int want = (fam == 4) ? 4 : 2, added = 0;
+        for (int rk = 1; added < want && rk <= g_rowCount; rk++) {
+            for (int i = 0; i < g_rowCount && added < want; i++) {
+                Row *r = &g_rows[i];
+                if (r->family == fam && r->ok && !r->isBackup && r->rank == rk) {
+                    int before = g_watchN;
+                    AddWatch(r->ip, fam, r->srv);
+                    if (g_watchN > before) added++;
+                }
+            }
+        }
+    }
+}
+
+static void WatchSwitch(int fam, const char *ip, int srv, double chalMs, double actMs) {
+    const DnsServer *sv = (srv >= 0 && srv < SERVER_COUNT) ? &SERVERS[srv] : NULL;
+    const char *v4a = "", *v4b = "", *v6a = "", *v6b = "";
+    const char *sec = "";
+    if (sv) {
+        if (fam == 4) {
+            if (sv->v4a[0] && strcmp(sv->v4a, ip) != 0) sec = sv->v4a;
+            else if (sv->v4b[0] && strcmp(sv->v4b, ip) != 0) sec = sv->v4b;
+        } else {
+            if (sv->v6a[0] && strcmp(sv->v6a, ip) != 0) sec = sv->v6a;
+            else if (sv->v6b[0] && strcmp(sv->v6b, ip) != 0) sec = sv->v6b;
+        }
+    }
+    if (fam == 4) {
+        strncpy(g_prevV4, g_curV4, 63); g_prevV4[63] = '\0';
+        v4a = ip; v4b = sec;
+    } else {
+        strncpy(g_prevV6, g_curV6, 63); g_prevV6[63] = '\0';
+        v6a = ip; v6b = sec;
+    }
+    ApplyDns((int)g_ifIndex, v4a, v4b, v6a, v6b);
+    SaveConfig();
+    g_lastSwitchAt = GetTickCount64();
+    g_switchedAt = g_lastSwitchAt;
+    g_switchFam = fam;
+    for (int i = 0; i < g_watchN; i++) g_watch[i].streak = 0;
+    {
+        wchar_t wip[64], wname[64];
+        Widen(ip, wip, 64);
+        Widen(sv ? sv->name : "rival", wname, 64);
+        _snwprintf(g_status, 511,
+                   L"Auto-Pilot switched IPv%d to %s %s (%.0f ms vs %.0f ms) - existing connections are unaffected.",
+                   fam, wname, wip, chalMs, actMs);
+        g_status[511] = L'\0';
+    }
+    InvalidateRect(g_hwnd, NULL, FALSE);
+}
+
+static void WatchTick(void) {
+    if (g_watchN == 0) { RebuildWatch(); if (g_watchN == 0) return; }
+    ULONGLONG now = GetTickCount64();
+
+    for (int i = 0; i < g_watchN; i++) {
+        WatchCand *c = &g_watch[i];
+        int ms = 0;
+        if (DnsProbe(c->ip, c->family, 900, &ms)) {
+            c->ewma = (c->ewma < 0) ? (double)ms : (c->ewma * 0.6 + (double)ms * 0.4);
+            c->misses = 0;
+        } else {
+            c->misses++;
+            if (c->ewma >= 0) c->ewma = c->ewma * 0.8 + 450.0 * 0.2;
+        }
+    }
+
+    for (int fam = 4; fam <= 6; fam += 2) {
+        WatchCand *act = NULL, *best = NULL;
+        for (int i = 0; i < g_watchN; i++) {
+            WatchCand *c = &g_watch[i];
+            if (c->family != fam) continue;
+            if (c->isPrimary) act = c;
+            else if (c->ewma >= 0 && (!best || c->ewma < best->ewma)) best = c;
+        }
+        if (!act || !best) continue;
+        int wins = (act->ewma >= 0 &&
+                    (act->ewma - best->ewma) >= WATCH_MIN_GAIN_MS &&
+                    best->ewma <= act->ewma * WATCH_WIN_RATIO);
+        for (int i = 0; i < g_watchN; i++) {
+            WatchCand *c = &g_watch[i];
+            if (c->family != fam || c->isPrimary) continue;
+            c->streak = (wins && c == best) ? c->streak + 1 : 0;
+        }
+        if (wins && best->streak >= WATCH_STREAK_NEED &&
+            now - g_lastSwitchAt >= WATCH_COOLDOWN_MS &&
+            !ForegroundIsFullscreen()) {
+            WatchSwitch(fam, best->ip, best->srv, best->ewma, act->ewma);
+            return;
+        }
+    }
+
+    /* post-switch health check: revert if the new primary dies right away */
+    if (g_switchFam && now - g_switchedAt < WATCH_VERIFY_MS) {
+        for (int i = 0; i < g_watchN; i++) {
+            WatchCand *c = &g_watch[i];
+            if (c->family != g_switchFam || !c->isPrimary) continue;
+            if (c->misses >= 3) {
+                const char *prev = (g_switchFam == 4) ? g_prevV4 : g_prevV6;
+                if (prev[0]) {
+                    if (g_switchFam == 4) ApplyDns((int)g_ifIndex, prev, "", "", "");
+                    else ApplyDns((int)g_ifIndex, "", "", prev, "");
+                    SaveConfig();
+                    wcsncpy(g_status, L"Auto-Pilot reverted - the new server failed its health check.", 511);
+                    g_status[511] = L'\0';
+                    g_switchFam = 0;
+                    g_lastSwitchAt = GetTickCount64();
+                    RebuildWatch();
+                    InvalidateRect(g_hwnd, NULL, FALSE);
+                }
+                return;
+            }
+        }
+    }
+}
+
 /* ---- UI ---- */
 enum { BTN_TEST = 0, BTN_APPLY, BTN_AUTO, BTN_INTERVAL, BTN_ADMIN, BTN_COUNT };
 
 static void BtnRect(int i, RECT *r) {
     int x = S(20), y = S(62), h = S(36);
-    int w[BTN_COUNT] = { S(140), S(150), S(140), S(120), S(170) };
+    int w[BTN_COUNT] = { S(140), S(150), S(140), S(150), S(170) };
     for (int k = 0; k < i; k++) x += w[k] + S(10);
     SetRect(r, x, y, x + w[i], y + h);
 }
@@ -506,7 +758,8 @@ static void PaintAll(HWND hwnd) {
     wchar_t intLabel[48];
     _snwprintf(autoLabel, 47, L"Auto-Pilot: %s", g_auto ? L"ON" : L"OFF");
     autoLabel[47] = L'\0';
-    _snwprintf(intLabel, 47, L"Every %d min", g_intervalMin);
+    if (g_intervalMin == 0) WCpy(intLabel, 48, L"Interval: Auto");
+    else _snwprintf(intLabel, 47, L"Every %d min", g_intervalMin);
     intLabel[47] = L'\0';
     DrawBtn(mem, BTN_TEST, L"Test & Rank", 1, 0);
     DrawBtn(mem, BTN_APPLY, L"Apply Fastest", 0, 0);
@@ -564,7 +817,8 @@ static void PaintAll(HWND hwnd) {
             WCpy(wmed, 32, L"-");
             WCpy(wsmp, 48, L"timeout / no route");
         } else {
-            _snwprintf(wmed, 31, L"%d ms", r->med);
+            if (r->usedTcp) _snwprintf(wmed, 31, L"%d ms (TCP)", r->med);
+            else _snwprintf(wmed, 31, L"%d ms", r->med);
             wmed[31] = L'\0';
             wchar_t s1[8], s2[8], s3[8];
             if (r->ms[0] >= 0) _snwprintf(s1, 7, L"%d", r->ms[0]); else wcscpy_s(s1, 8, L"-");
@@ -639,7 +893,15 @@ static void UpdateStatusAfterTest(void) {
         _snwprintf(g_status, 511, L"Fastest IPv4: %s %s (%d ms)  |  no working IPv6 resolver  |  press Apply Fastest",
                    n4, ip4, g_rows[g_best4].med);
     } else {
-        wcsncpy(g_status, L"No resolver answered - the network may block UDP port 53.", 511);
+        wcsncpy(g_status, L"No resolver answered over UDP or TCP port 53 - this network may block outside DNS.", 511);
+    }
+    {
+        int reach = 0;
+        wchar_t tail[80];
+        for (int i = 0; i < g_rowCount; i++) if (g_rows[i].tested && g_rows[i].ok) reach++;
+        _snwprintf(tail, 79, L"  |  %d/%d endpoints reachable", reach, g_rowCount);
+        tail[79] = L'\0';
+        wcsncat(g_status, tail, 511 - wcslen(g_status));
     }
     g_status[511] = L'\0';
 }
@@ -710,6 +972,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             SaveConfig();
             if (g_auto && !g_elevated) {
                 wcsncpy(g_status, L"Auto-Pilot needs administrator rights - click Restart as Admin.", 511);
+            } else if (g_auto && g_intervalMin == 0) {
+                if (g_lastTestAt == 0 && !g_testing) StartTest(1);
+                else RebuildWatch();
+                WCpy(g_status, 512,
+                     L"Auto-Pilot enabled (live watch) - it switches the instant a rival is clearly "
+                     L"and consistently faster, and never while a fullscreen app is in front.");
             } else {
                 _snwprintf(g_status, 511, L"Auto-Pilot %s - re-tests every %d min and only switches when clearly faster.",
                            g_auto ? L"enabled" : L"disabled", g_intervalMin);
@@ -717,12 +985,19 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             g_status[511] = L'\0';
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (b == BTN_INTERVAL) {
-            int steps[5] = { 15, 30, 60, 120, 300 };
-            int cur = 1;
-            for (int i = 0; i < 5; i++) if (steps[i] == g_intervalMin) cur = i;
-            g_intervalMin = steps[(cur + 1) % 5];
+            int steps[6] = { 0, 15, 30, 60, 120, 300 };
+            int cur = 2;
+            for (int i = 0; i < 6; i++) if (steps[i] == g_intervalMin) cur = i;
+            g_intervalMin = steps[(cur + 1) % 6];
             SaveConfig();
-            _snwprintf(g_status, 511, L"Auto-Pilot interval set to %d minutes.", g_intervalMin);
+            if (g_intervalMin == 0) {
+                WCpy(g_status, 512,
+                     L"Auto mode: live watch - switches only when a rival is 20%/20 ms faster, "
+                     L"3 rounds in a row, 5 min cooldown, auto-revert if it dies.");
+                RebuildWatch();
+            } else {
+                _snwprintf(g_status, 511, L"Auto-Pilot interval set to %d minutes.", g_intervalMin);
+            }
             g_status[511] = L'\0';
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (b == BTN_ADMIN) {
@@ -740,7 +1015,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     case WM_APP_DONE:
         UpdateStatusAfterTest();
-        if (g_autoRun) {
+        if (g_autoRun && g_intervalMin == 0) {
+            RebuildWatch();
+        } else if (g_autoRun) {
             int better = 0;
             if (g_best4 >= 0) {
                 Row *b = &g_rows[g_best4];
@@ -755,10 +1032,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         InvalidateRect(hwnd, NULL, FALSE);
         return 0;
     case WM_TIMER:
-        if (wp == 1 && g_auto && g_elevated && !g_testing && !ForegroundIsFullscreen()) {
+        if (wp == 1 && g_auto && g_elevated && !g_testing) {
             ULONGLONG now = GetTickCount64();
-            if (g_lastTestAt == 0 || now - g_lastTestAt >= (ULONGLONG)g_intervalMin * 60000ULL)
-                StartTest(1);
+            if (g_intervalMin == 0) {
+                /* live watch: cheap probes every tick, full re-rank twice an hour */
+                if (!ForegroundIsFullscreen()) WatchTick();
+                if (g_lastTestAt == 0 || now - g_lastTestAt >= AUTO_FULLTEST_MS) StartTest(1);
+            } else if (!ForegroundIsFullscreen()) {
+                if (g_lastTestAt == 0 || now - g_lastTestAt >= (ULONGLONG)g_intervalMin * 60000ULL)
+                    StartTest(1);
+            }
         }
         return 0;
     case WM_DESTROY:
@@ -862,7 +1145,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     }
 
     ShowWindow(g_hwnd, SW_SHOW);
-    SetTimer(g_hwnd, 1, 30000, NULL);
+    SetTimer(g_hwnd, 1, 10000, NULL);
 
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0)) {
