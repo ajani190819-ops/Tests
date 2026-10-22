@@ -43,9 +43,10 @@ Every extra sequential round-trip or redundant rebuild adds seconds of wall-cloc
      ```bash
      python3 tools/build_windows.py
      ```
-   * **Regenerate all multi-DPI `.ico` & `.png` suite icons (~1.5s):**
+   * **Regenerate all multi-DPI `.ico` / `.png` suite icons + spin loops (~80–130s, NOT 2s):**
+     only run when icon/brand files actually change — it re-renders 180 spin frames at 1024px:
      ```bash
-     /home/user/.venv/bin/python tools/generate_suite_icons.py
+     /home/user/.venv/bin/python3 tools/generate_suite_icons.py
      ```
    * **Run ALL 13 repository verification suites concurrently (~4s):**
      ```bash
@@ -54,10 +55,10 @@ Every extra sequential round-trip or redundant rebuild adds seconds of wall-cloc
 3. **Keep tool environments & caches strictly outside `/home/user/Tests`.**
    * Always store Python virtualenvs in `/home/user/.venv` and Zig caches in `/home/user/.cache/zig`. Never install `.venv`, `node_modules` bloat, or build caches inside `/home/user/Tests` — keeping the worktree lean makes turn-end snapshots instantaneous.
 4. **One-shot Git sync, commit, and push.**
-   * Cross-turn sandbox checkpoints can reset `.git/HEAD` while keeping working tree edits intact. Combine fetch + reset + commit + push into a single command at the end of a turn:
-     ```bash
-     git fetch origin <branch> && git reset origin/<branch> && git add -A && git commit -m "..." && git push origin <branch>
-     ```
+   * Cross-turn sandbox checkpoints reset `.git/HEAD` to the branch base while keeping working-tree edits intact; earlier commit objects can vanish and later pushes then reject as non-fast-forward. **Mitigation:**
+     * **START of every turn** (before any edit or commit): `bash tools/sync_branch.sh` — re-points the branch at `origin/<branch>` without touching files. Uncommitted work reappears as normal diffs.
+     * **End of turn:** one commit+push burst (`git add -A && git commit -m "..." && git push origin <branch>`). Never force-push; if a push rejects, run `bash tools/sync_branch.sh`, re-commit, push again.
+     * **State lives in files, not chat:** `.agent/STATE.md` survives resets — update it whenever project state changes.
 5. **Keep internal reasoning tight and focused.** Decide the architecture once, batch the edits cleanly, compile + run `python3 tools/check_all.py` once, push, and answer concisely.
 
 ---
