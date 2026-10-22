@@ -92,7 +92,18 @@ typedef struct Row {
 static Row g_rows[128];
 static int g_rowCount = 0;
 
+#define WM_TRAYICON     (WM_APP + 2)
+#define IDM_TRAY_OPEN   4001
+#define IDM_TRAY_TEST   4002
+#define IDM_TRAY_AUTO   4003
+#define IDM_TRAY_QUIT   4004
+
 static HWND        g_hwnd = NULL;
+static HICON       g_hIcon = NULL;
+static NOTIFYICONDATAW g_nid;
+static UINT        g_exitMsg = 0;
+static int         g_quitting = 0;
+static int         g_trayHinted = 0;
 static HFONT       g_fontUI = NULL, g_fontTitle = NULL, g_fontBtn = NULL;
 
 static void WCpy(wchar_t *d, int n, const wchar_t *s) {
@@ -526,7 +537,7 @@ static DWORD WINAPI StatsThread(LPVOID unused) {
     while (g_statsRun) {
         Sleep(1000);
         if (!g_statsRun) break;
-        if (IsIconic(g_hwnd)) continue;   /* free when hidden */
+        if (IsIconic(g_hwnd) || !IsWindowVisible(g_hwnd)) continue;  /* free when hidden */
 
         /* 1) passive throughput on the active adapter (zero extra traffic) */
         MIB_IFROW row;
@@ -1094,6 +1105,22 @@ static void DrawBtn(HDC dc, int idx, const wchar_t *label, int primary, int ambe
     DrawTextW(dc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 }
 
+static void ShowTrayContextMenu(HWND hwnd) {
+    HMENU hMenu = CreatePopupMenu();
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_OPEN, L"Open DNS Pilot");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_TEST, L"Run Test & Rank Now");
+    AppendMenuW(hMenu, MF_STRING | (g_auto ? MF_CHECKED : 0), IDM_TRAY_AUTO,
+                L"Auto-Pilot Enabled");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_QUIT, L"Quit DNS Pilot");
+    POINT pt;
+    GetCursorPos(&pt);
+    SetForegroundWindow(hwnd);
+    TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+    DestroyMenu(hMenu);
+}
+
 static void RowRect(int vis, RECT *r) {
     SetRect(r, S(20), S(166) + vis * S(34), S(960), S(166) + (vis + 1) * S(34));
 }
@@ -1445,10 +1472,63 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
         }
         return 0;
+    case WM_COMMAND:
+        switch (LOWORD(wp)) {
+        case IDM_TRAY_OPEN:
+            ShowWindow(hwnd, SW_SHOWNORMAL);
+            SetForegroundWindow(hwnd);
+            return 0;
+        case IDM_TRAY_TEST:
+            StartTest(0);
+            return 0;
+        case IDM_TRAY_AUTO:
+            g_auto = !g_auto;
+            SaveConfig();
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 0;
+        case IDM_TRAY_QUIT:
+            g_quitting = 1;
+            DestroyWindow(hwnd);
+            return 0;
+        }
+        return 0;
+    case WM_TRAYICON:
+        if (lp == WM_LBUTTONDBLCLK || lp == WM_LBUTTONUP) {
+            ShowWindow(hwnd, SW_SHOWNORMAL);
+            SetForegroundWindow(hwnd);
+        } else if (lp == WM_RBUTTONUP || lp == WM_CONTEXTMENU) {
+            ShowTrayContextMenu(hwnd);
+        }
+        return 0;
+    case WM_CLOSE:
+        /* Closing hides to the tray just like Keyboard Lighting: Auto-Pilot,
+           the watch and the stats strip all keep running in the background. */
+        if (!g_quitting) {
+            ShowWindow(hwnd, SW_HIDE);
+            if (!g_trayHinted) {
+                g_trayHinted = 1;
+                g_nid.uFlags = NIF_INFO;
+                wcsncpy(g_nid.szInfoTitle, L"DNS Pilot is running in the tray", 63);
+                wcsncpy(g_nid.szInfo, L"Right-click the tray icon to run a test or quit.", 255);
+                Shell_NotifyIconW(NIM_MODIFY, &g_nid);
+                g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+            }
+            return 0;
+        }
+        DestroyWindow(hwnd);
+        return 0;
     case WM_DESTROY:
         KillTimer(hwnd, 1);
+        KillTimer(hwnd, 2);
+        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_statsRun = 0;
         DeleteCriticalSection(&g_watchCs);
         PostQuitMessage(0);
+        return 0;
+    }
+    if (msg == g_exitMsg) {
+        g_quitting = 1;
+        DestroyWindow(hwnd);
         return 0;
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
@@ -1458,6 +1538,22 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     (void)hPrev;
     (void)nShow;
     WSADATA wsa;
+    g_exitMsg = RegisterWindowMessageW(L"KBLSuiteDnsPilot_Exit");
+
+    /* --stop: ask a running pilot (even one hiding in the tray) to quit for
+       real, so an updater can replace the exe. Same contract as BTG/KBL. */
+    if (cmdLine && (wcsstr(cmdLine, L"--stop") != NULL || wcsstr(cmdLine, L"-Stop") != NULL)) {
+        HWND other = FindWindowW(L"KBLSuiteDnsPilotWindow", NULL);
+        if (other) {
+            PostMessageW(other, g_exitMsg, 0, 0);
+            for (int i = 0; i < 40; i++) {
+                if (!FindWindowW(L"KBLSuiteDnsPilotWindow", NULL)) break;
+                Sleep(50);
+            }
+        }
+        return 0;
+    }
+
     int skipSingle = (cmdLine && (wcsstr(cmdLine, L"-ApplyNow") != NULL ||
                                   wcsstr(cmdLine, L"-TakeOver") != NULL));
     if (!skipSingle) {
@@ -1539,7 +1635,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInst;
     wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
-    wc.hIcon = LoadIconW(hInst, MAKEINTRESOURCEW(1));
+    g_hIcon = LoadIconW(hInst, MAKEINTRESOURCEW(1));
+    wc.hIcon = g_hIcon;
     wc.lpszClassName = L"KBLSuiteDnsPilotWindow";
     RegisterClassExW(&wc);
 
@@ -1554,6 +1651,17 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     /* dark title bar matching the background + smooth corners (dwmapi is
        loaded dynamically so the PE imports stay clean) */
     ApplyModernWindowFrame(g_hwnd);
+
+    /* tray icon: closing the window hides to the tray like Keyboard Lighting */
+    ZeroMemory(&g_nid, sizeof(g_nid));
+    g_nid.cbSize           = sizeof(g_nid);
+    g_nid.hWnd             = g_hwnd;
+    g_nid.uID              = 1;
+    g_nid.uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    g_nid.uCallbackMessage = WM_TRAYICON;
+    g_nid.hIcon            = g_hIcon;
+    wcsncpy(g_nid.szTip, L"DNS Pilot - Auto-Pilot DNS switching", 127);
+    Shell_NotifyIconW(NIM_ADD, &g_nid);
 
     ShowWindow(g_hwnd, SW_SHOW);
     InitializeCriticalSection(&g_watchCs);
