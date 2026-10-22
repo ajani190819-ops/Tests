@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.10"
-#define HUB_VERSION_W     L"2.8.10"
+#define HUB_VERSION       "2.8.11"
+#define HUB_VERSION_W     L"2.8.11"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -1400,6 +1400,22 @@ static void WorkerInstallDnsPilot(BOOL launchAfter) {
     EnsureActiveBranch(branch, 64);
     EnsureDirTree(g_dnsDir);
 
+    /* An app that is open when its update starts must come back up on its
+       own afterwards. A running pilot also holds its exe lock, so close it
+       politely first and relaunch it once the new build is in place. */
+    BOOL wasRunning = FALSE;
+    HWND hPilot = FindWindowW(L"KBLSuiteDnsPilotWindow", NULL);
+    if (hPilot) {
+        wasRunning = TRUE;
+        SetFooterStatus(L"Closing DNS Pilot for a clean update...", 8);
+        PostMessageW(hPilot, WM_CLOSE, 0, 0);
+        for (int i = 0; i < 40; i++) {  /* up to 2 s for a clean exit */
+            if (!FindWindowW(L"KBLSuiteDnsPilotWindow", NULL)) break;
+            Sleep(50);
+        }
+        Sleep(150);
+    }
+
     wchar_t destExe[MAX_PATH];
     _snwprintf(destExe, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
 
@@ -1416,9 +1432,10 @@ static void WorkerInstallDnsPilot(BOOL launchAfter) {
         SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
     }
 
-    if (launchAfter) {
+    if (launchAfter || wasRunning) {
         ShellExecuteW(NULL, L"open", destExe, NULL, g_dnsDir, SW_SHOWNORMAL);
-        SetFooterStatus(L"DNS Pilot installed and launched!", 0);
+        SetFooterStatus(wasRunning ? L"DNS Pilot updated and reopened!"
+                                   : L"DNS Pilot installed and launched!", 0);
     } else {
         SetFooterStatus(L"DNS Pilot is up to date.", 0);
     }
