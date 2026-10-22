@@ -389,6 +389,34 @@ def build_icon_orca_plugins(size: int = 512, small: bool = False) -> Image.Image
     return base
 
 
+def build_icon_dns_pilot(size: int = 512, small: bool = False) -> Image.Image:
+    base = make_transparent_studio_base(size, (8, 145, 178))
+
+    # Soft translucent cyan rounded inner badge (family style with BTG/KBL)
+    badge_a = draw_antialias_mask(size, lambda d, s: d.rounded_rectangle(
+        [s * 0.07, s * 0.05, s * 0.93, s * 0.95], radius=s * 0.24, fill=255
+    ))
+    composite_elevated_layer(base, badge_a * 0.97, (34, 211, 238), (8, 145, 178), (103, 232, 249))
+
+    # Crisp white globe glyph (resolution = global) with speed streaks that
+    # say "fast" - the streaks vanish at icon size where they would smear.
+    def globe_fn(d: ImageDraw.ImageDraw, s: int):
+        w = int(s * (0.072 if small else 0.052))
+        cx, cy = s * 0.50, s * 0.52
+        r = s * 0.275
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=255, width=w)
+        d.line([(cx - r, cy), (cx + r, cy)], fill=255, width=w)
+        mer = r * 0.46
+        d.ellipse([cx - mer, cy - r, cx + mer, cy + r], outline=255, width=w)
+        if not small:
+            sw = max(2, int(w * 0.85))
+            for x0, y0, x1, y1 in ((0.70, 0.185, 0.865, 0.125), (0.755, 0.275, 0.895, 0.225)):
+                d.line([(s * x0, s * y0), (s * x1, s * y1)], fill=255, width=sw)
+
+    globe_a = draw_antialias_mask(size, globe_fn)
+    return composite_elevated_layer(base, globe_a, (250, 253, 255), (219, 238, 255), None)
+
+
 def build_icon_arena_link(size: int = 512, small: bool = False) -> Image.Image:
     base = make_squircle_base(size, (45, 212, 191))
 
@@ -453,6 +481,7 @@ def main():
         ("Spatial HUD",       build_icon_spatial_hud,       BRAND_DIR / "spatial-hud.ico",                  BRAND_DIR / "icon-spatial-hud.png"),
         ("Orca Plugins",      build_icon_orca_plugins,      BRAND_DIR / "orca-plugins.ico",                 BRAND_DIR / "icon-orca-plugins.png"),
         ("Arena Link",        build_icon_arena_link,        ROOT / "arena-link-windows" / "assets" / "icon.ico", BRAND_DIR / "icon-arena-link.png"),
+        ("DNS Pilot",         build_icon_dns_pilot,         ROOT / "dns-pilot" / "dnspilot.ico",              BRAND_DIR / "icon-dns-pilot.png"),
     ]
 
     for _, build, ico_p, png_p in icons:
@@ -460,8 +489,8 @@ def main():
 
     # Build a crisp showcase sheet so the user can inspect the entire icon family side by side
     cols = 3
-    rows = 2
-    sheet_w, sheet_h = 1140, 680
+    rows = 3
+    sheet_w, sheet_h = 1140, 960
     sheet = Image.new("RGBA", (sheet_w, sheet_h), (22, 25, 34, 255))
     draw = ImageDraw.Draw(sheet)
 

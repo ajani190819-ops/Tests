@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.7"
-#define HUB_VERSION_W     L"2.8.7"
+#define HUB_VERSION       "2.8.8"
+#define HUB_VERSION_W     L"2.8.8"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -42,6 +42,7 @@
 #define RES_ICON_HUD         5
 #define RES_ICON_ORCA        6
 #define RES_ICON_ARENA       7
+#define RES_ICON_DNS         8
 
 /* Action IDs */
 #define ID_BTN_REFRESH_ALL   1001
@@ -75,6 +76,10 @@
 #define ID_ARENA_OPEN        1501
 #define ID_ARENA_SYNC        1502
 #define ID_ARENA_FOLDER      1503
+
+#define ID_DNS_OPEN          1601
+#define ID_DNS_UPDATE        1602
+#define ID_DNS_FOLDER        1603
 
 /* Soft Slate Suite Palette (matches Keyboard Lighting, Bluetooth Guard & docs/UI_STYLE_GUIDE.md) */
 #define COL_BG               RGB(24, 27, 36)    /* #181B24 */
@@ -129,6 +134,8 @@ enum {
     TASK_INSTALL_KBL,
     TASK_INSTALL_HUD,
     TASK_INSTALL_ORCA,
+    TASK_INSTALL_DNS,
+    TASK_OPEN_OR_INSTALL_DNS,
     TASK_SYNC_ARENA,
     TASK_UPDATE_ALL,
     TASK_SELF_UPDATE
@@ -163,7 +170,7 @@ static HFONT            g_fontBtn     = NULL;
 static HFONT            g_fontBadge   = NULL;
 static HICON            g_appIcon     = NULL;
 static HICON            g_hdrEmblem   = NULL;
-static HICON            g_cardIcons[5] = {NULL, NULL, NULL, NULL, NULL};
+static HICON            g_cardIcons[6] = {NULL, NULL, NULL, NULL, NULL, NULL};
 static HANDLE           g_showEvent   = NULL;
 static CRITICAL_SECTION g_cs;
 
@@ -175,7 +182,7 @@ static ActionBtn        g_topBtns[4] = {
 };
 static RECT             g_rcEmblem    = {0, 0, 0, 0};
 
-static ProjectCard      g_cards[5];
+static ProjectCard      g_cards[6];
 static int              g_hoverId     = 0;
 static int              g_scrollY     = 0;
 static int              g_maxScrollY  = 0;
@@ -189,6 +196,7 @@ static wchar_t          g_hubCfgDir[MAX_PATH];
 static wchar_t          g_btgDir[MAX_PATH];
 static wchar_t          g_btgExtraExe[MAX_PATH];
 static wchar_t          g_kblDir[MAX_PATH];
+static wchar_t          g_dnsDir[MAX_PATH];
 static wchar_t          g_modsDir[MAX_PATH];
 static wchar_t          g_orcaBatDir[MAX_PATH];
 static wchar_t          g_arenaDir[MAX_PATH];
@@ -283,8 +291,8 @@ static void RebuildFontsAndIcons(HWND hwnd) {
                                     IMAGE_ICON, embPx, embPx, LR_DEFAULTCOLOR);
 
     int cardIcoPx = S(44, dpi);
-    const int ids[5] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA, RES_ICON_ARENA };
-    for (int i = 0; i < 5; i++) {
+    const int ids[6] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA, RES_ICON_ARENA, RES_ICON_DNS };
+    for (int i = 0; i < 6; i++) {
         if (g_cardIcons[i]) { DestroyIcon(g_cardIcons[i]); g_cardIcons[i] = NULL; }
         g_cardIcons[i] = (HICON)LoadImageW(g_hInst, MAKEINTRESOURCEW(ids[i]),
                                            IMAGE_ICON, cardIcoPx, cardIcoPx, LR_DEFAULTCOLOR);
@@ -485,7 +493,7 @@ static void EnsureDirTree(const wchar_t *dir) {
 }
 
 static volatile LONG g_checkActive = 0;
-static DWORD g_remBtgSize = 0, g_remKblSize = 0, g_remKblPs1Size = 0;
+static DWORD g_remBtgSize = 0, g_remKblSize = 0, g_remKblPs1Size = 0, g_remDnsSize = 0;
 static RECT           g_rcFooterDot = { 0, 0, 0, 0 };
 
 /* Quiet update-check phase: the periodic version check gets a small
@@ -834,6 +842,20 @@ static void InitAllPaths(void) {
     }
     if (!g_kblDir[0]) _snwprintf(g_kblDir, MAX_PATH, L"%s\\KeyboardLighting", g_suiteDir);
 
+    /* 2b. Locate existing DNS Pilot installation (sibling of the hub, repo
+       checkout, or the suite dir where Install puts it) */
+    g_dnsDir[0] = L'\0';
+    _snwprintf(cand, MAX_PATH, L"%s\\DnsPilot.exe", g_exeDir);
+    if (FileExistsW(cand)) {
+        wcsncpy(g_dnsDir, g_exeDir, MAX_PATH - 1);
+    } else {
+        _snwprintf(cand, MAX_PATH, L"%s\\dns-pilot\\DnsPilot.exe", parent);
+        if (FileExistsW(cand)) {
+            _snwprintf(g_dnsDir, MAX_PATH, L"%s\\dns-pilot", parent);
+        }
+    }
+    if (!g_dnsDir[0]) _snwprintf(g_dnsDir, MAX_PATH, L"%s\\DnsPilot", g_suiteDir);
+
     /* 3. OrcaSlicer & Arena Link */
     _snwprintf(cand, MAX_PATH, L"%s\\Orca-Plugins.bat", parent);
     if (FileExistsW(cand)) wcsncpy(g_orcaBatDir, parent, MAX_PATH - 1);
@@ -952,6 +974,13 @@ static void InitCardDefinitions(void) {
     g_cards[4].btns[0]   = (ActionBtn){ ID_ARENA_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0} };
     g_cards[4].btns[1]   = (ActionBtn){ ID_ARENA_SYNC,   L"Sync",   BTN_SECONDARY, 68, {0,0,0,0} };
     g_cards[4].btns[2]   = (ActionBtn){ ID_ARENA_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0} };
+
+    g_cards[5].resIconId = RES_ICON_DNS;
+    g_cards[5].title     = L"DNS Pilot";
+    g_cards[5].btnCount  = 3;
+    g_cards[5].btns[0]   = (ActionBtn){ ID_DNS_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0} };
+    g_cards[5].btns[1]   = (ActionBtn){ ID_DNS_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0} };
+    g_cards[5].btns[2]   = (ActionBtn){ ID_DNS_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0} };
 }
 
 static void RefreshProjectStatuses(void) {
@@ -968,9 +997,10 @@ static void RefreshProjectStatuses(void) {
     remHudSz = g_remHudSize;
     LeaveCriticalSection(&g_cs);
 
-    DWORD remBtgSz, remKblSz, remPs1Sz;
+    DWORD remBtgSz, remKblSz, remPs1Sz, remDnsSz;
     EnterCriticalSection(&g_cs);
     remBtgSz = g_remBtgSize; remKblSz = g_remKblSize; remPs1Sz = g_remKblPs1Size;
+    remDnsSz = g_remDnsSize;
     LeaveCriticalSection(&g_cs);
     wchar_t btgExeP[MAX_PATH], kblExeP2[MAX_PATH], kblPs1P[MAX_PATH];
     _snwprintf(btgExeP, MAX_PATH, L"%s\\BluetoothGuard.exe", g_btgDir);
@@ -1149,6 +1179,32 @@ static void RefreshProjectStatuses(void) {
                    linkedRepos, linkedRepos == 1 ? L"" : L"s");
     }
 
+    /* 6. DNS Pilot */
+    wchar_t dnsExe[MAX_PATH];
+    _snwprintf(dnsExe, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
+    BOOL hasDns = FileExistsW(dnsExe);
+    BOOL dnsUpd = hasDns && (remDnsSz > 0 && LocalSizeOf(dnsExe) != remDnsSz);
+    g_cards[5].btns[1].style = BTN_SECONDARY;
+    if (!hasDns) {
+        wcsncpy(g_cards[5].badge, L"Setup Ready", 47);
+        g_cards[5].badgeKind = BADGE_WARN;
+        g_cards[5].btns[0].label = L"Install";
+        g_cards[5].btns[0].style = BTN_PRIMARY;
+        wcsncpy(g_cards[5].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Click Install to set up", 255);
+    } else {
+        wcsncpy(g_cards[5].badge, L"Up to Date", 47);
+        g_cards[5].badgeKind = BADGE_OK;
+        g_cards[5].btns[0].label = L"Open";
+        g_cards[5].btns[0].style = BTN_SECONDARY;
+        wcsncpy(g_cards[5].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Installed locally", 255);
+    }
+    if (dnsUpd) {
+        wcsncat(g_cards[5].badge, L"  \x00B7  Update Ready", 47);
+        if (g_cards[5].badgeKind == BADGE_OK || g_cards[5].badgeKind == BADGE_IDLE)
+            g_cards[5].badgeKind = BADGE_WARN;
+        g_cards[5].btns[1].style = BTN_AMBER;
+    }
+
     if (g_hwnd) InvalidateRect(g_hwnd, NULL, FALSE);
 }
 
@@ -1203,17 +1259,20 @@ static void WorkerCheckRemote(void) {
     /* Remote build sizes: the installed file differing from the branch copy
        is what 'Update Ready' means for the EXE apps. */
     {
-        DWORD szBtg = 0, szKbl = 0, szPs1 = 0;
+        DWORD szBtg = 0, szKbl = 0, szPs1 = 0, szDns = 0;
         _snwprintf(p, 255, L"/%s/%s/%s/bluetooth-guard/BluetoothGuard.exe", REPO_OWNER_W, REPO_NAME_W, branch);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szBtg);
         _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/KeyboardLighting.exe", REPO_OWNER_W, REPO_NAME_W, branch);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szKbl);
         _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/Aura-Background.ps1", REPO_OWNER_W, REPO_NAME_W, branch);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szPs1);
+        _snwprintf(p, 255, L"/%s/%s/%s/dns-pilot/DnsPilot.exe", REPO_OWNER_W, REPO_NAME_W, branch);
+        HttpHeadSize(L"raw.githubusercontent.com", p, &szDns);
         EnterCriticalSection(&g_cs);
         if (szBtg) g_remBtgSize = szBtg;
         if (szKbl) g_remKblSize = szKbl;
         if (szPs1) g_remKblPs1Size = szPs1;
+        if (szDns) g_remDnsSize = szDns;
         LeaveCriticalSection(&g_cs);
     }
 
@@ -1327,6 +1386,36 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
     SetFooterStatus(L"Bluetooth Guard updated with new UI & icon!", 0);
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
     return TRUE;
+}
+
+static void WorkerInstallDnsPilot(BOOL launchAfter) {
+    wchar_t branch[64];
+    EnsureActiveBranch(branch, 64);
+    EnsureDirTree(g_dnsDir);
+
+    wchar_t destExe[MAX_PATH];
+    _snwprintf(destExe, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
+
+    SetFooterStatus(L"Downloading latest DnsPilot.exe from GitHub...", 60);
+    if (!DownloadRawRepoFile(branch, L"dns-pilot/DnsPilot.exe", destExe)) {
+        SetFooterStatus(L"Could not download DnsPilot.exe from GitHub.", 0);
+        return;
+    }
+
+    wchar_t desk[MAX_PATH], lnk[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
+        _snwprintf(lnk, MAX_PATH, L"%s\\DNS Pilot.lnk", desk);
+        CreateShortcutLink(lnk, destExe, g_dnsDir, L"DNS Pilot - Fast DNS benchmark & auto-pilot");
+        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+    }
+
+    if (launchAfter) {
+        ShellExecuteW(NULL, L"open", destExe, NULL, g_dnsDir, SW_SHOWNORMAL);
+        SetFooterStatus(L"DNS Pilot installed and launched!", 0);
+    } else {
+        SetFooterStatus(L"DNS Pilot is up to date.", 0);
+    }
+    if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
 }
 
 static void WorkerInstallKeyboardLighting(void) {
@@ -1604,12 +1693,15 @@ static DWORD WINAPI HubWorkerThread(LPVOID unused) {
         case TASK_INSTALL_KBL:         WorkerInstallKeyboardLighting(); break;
         case TASK_INSTALL_HUD:         WorkerInstallSpatialHud(); break;
         case TASK_INSTALL_ORCA:        WorkerInstallOrcaPlugins(); break;
+        case TASK_INSTALL_DNS:         WorkerInstallDnsPilot(FALSE); break;
+        case TASK_OPEN_OR_INSTALL_DNS: WorkerInstallDnsPilot(TRUE); break;
         case TASK_SYNC_ARENA:          WorkerSyncArenaLink(); break;
         case TASK_UPDATE_ALL:
             WorkerInstallBluetoothGuard(FALSE);
             WorkerInstallKeyboardLighting();
             WorkerInstallOrcaPlugins();
             WorkerInstallSpatialHud();
+            WorkerInstallDnsPilot(FALSE);
             WorkerSyncArenaLink();
             WorkerCheckRemote();
             SetFooterStatus(L"All suite apps updated!", 0);
@@ -1800,7 +1892,7 @@ static void ComputeLayout(HWND hwnd) {
         bx -= S(9, dpi);
     }
 
-    int contentH = 5 * cardH + 4 * gap + S(24, dpi);
+    int contentH = 6 * cardH + 5 * gap + S(24, dpi);
     int viewH = h - headerH - footerH;
     g_maxScrollY = (contentH > viewH) ? (contentH - viewH) : 0;
     if (g_scrollY > g_maxScrollY) g_scrollY = g_maxScrollY;
@@ -1808,7 +1900,7 @@ static void ComputeLayout(HWND hwnd) {
 
     int startY = headerH + ((viewH > contentH) ? (viewH - contentH) / 2 + S(12, dpi) : S(12, dpi)) - g_scrollY;
     int btnH = S(30, dpi);
-    for (int c = 0; c < 5; c++) {
+    for (int c = 0; c < 6; c++) {
         SetRect(&g_cards[c].rcCard, pad, startY, w - pad, startY + cardH);
         int rx = w - pad - S(16, dpi);
         int by = startY + cardH - S(12, dpi) - btnH;
@@ -1828,7 +1920,7 @@ static int HitTestButtons(POINT pt, int headerBottom, int footerTop) {
         if (PtInRect(&g_topBtns[i].rc, pt)) return g_topBtns[i].id;
     }
     if (pt.y < headerBottom || pt.y > footerTop) return 0;
-    for (int c = 0; c < 5; c++) {
+    for (int c = 0; c < 6; c++) {
         for (int b = 0; b < g_cards[c].btnCount; b++) {
             if (PtInRect(&g_cards[c].btns[b].rc, pt)) return g_cards[c].btns[b].id;
         }
@@ -1876,7 +1968,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc) {
     IntersectClipRect(hdc, 0, headerH + 1, w, footerTop - 1);
 
     int cardIcoSz = S(44, dpi);
-    for (int c = 0; c < 5; c++) {
+    for (int c = 0; c < 6; c++) {
         const ProjectCard *card = &g_cards[c];
         if (card->rcCard.bottom < headerH || card->rcCard.top > footerTop) continue;
 
@@ -2292,6 +2384,19 @@ static void HandleActionCommand(HWND hwnd, int id) {
         ShellExecuteW(hwnd, L"open", g_btgDir, NULL, NULL, SW_SHOWNORMAL);
         break;
 
+    case ID_DNS_OPEN:
+        _snwprintf(p, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
+        if (FileExistsW(p)) ShellExecuteW(hwnd, L"open", p, NULL, g_dnsDir, SW_SHOWNORMAL);
+        else EnqueueTask(TASK_OPEN_OR_INSTALL_DNS);
+        break;
+    case ID_DNS_UPDATE:
+        EnqueueTask(TASK_INSTALL_DNS);
+        break;
+    case ID_DNS_FOLDER:
+        EnsureDirTree(g_dnsDir);
+        ShellExecuteW(hwnd, L"open", g_dnsDir, NULL, NULL, SW_SHOWNORMAL);
+        break;
+
     case ID_KBL_OPEN: {
         wchar_t showFlag[MAX_PATH];
         _snwprintf(showFlag, MAX_PATH, L"%s\\KeyboardLighting\\show.flag", g_localApp);
@@ -2554,7 +2659,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     int dpi = GetWinDpi(NULL);
     g_hwnd = CreateWindowExW(0, wc.lpszClassName, APP_TITLE,
                              WS_OVERLAPPEDWINDOW,
-                             CW_USEDEFAULT, CW_USEDEFAULT, S(860, dpi), S(620, dpi),
+                             CW_USEDEFAULT, CW_USEDEFAULT, S(860, dpi), S(700, dpi),
                              NULL, NULL, hInst, NULL);
 
     ShowWindow(g_hwnd, SW_SHOWNORMAL);
