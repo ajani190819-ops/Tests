@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.8"
-#define HUB_VERSION_W     L"2.8.8"
+#define HUB_VERSION       "2.8.9"
+#define HUB_VERSION_W     L"2.8.9"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -77,9 +77,9 @@
 #define ID_ARENA_SYNC        1502
 #define ID_ARENA_FOLDER      1503
 
-#define ID_DNS_OPEN          1601
-#define ID_DNS_UPDATE        1602
-#define ID_DNS_FOLDER        1603
+#define ID_DNS_OPEN          1701
+#define ID_DNS_UPDATE        1702
+#define ID_DNS_FOLDER        1703
 
 /* Soft Slate Suite Palette (matches Keyboard Lighting, Bluetooth Guard & docs/UI_STYLE_GUIDE.md) */
 #define COL_BG               RGB(24, 27, 36)    /* #181B24 */
@@ -1398,7 +1398,7 @@ static void WorkerInstallDnsPilot(BOOL launchAfter) {
 
     SetFooterStatus(L"Downloading latest DnsPilot.exe from GitHub...", 60);
     if (!DownloadRawRepoFile(branch, L"dns-pilot/DnsPilot.exe", destExe)) {
-        SetFooterStatus(L"Could not download DnsPilot.exe from GitHub.", 0);
+        SetFooterStatus(L"Could not save DnsPilot.exe - close DNS Pilot if it is open, then retry.", 0);
         return;
     }
 
@@ -2387,9 +2387,13 @@ static void HandleActionCommand(HWND hwnd, int id) {
     case ID_DNS_OPEN:
         _snwprintf(p, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
         if (FileExistsW(p)) ShellExecuteW(hwnd, L"open", p, NULL, g_dnsDir, SW_SHOWNORMAL);
-        else EnqueueTask(TASK_OPEN_OR_INSTALL_DNS);
+        else {
+            SetFooterStatus(L"DNS Pilot: fetching latest DnsPilot.exe from GitHub...", 25);
+            EnqueueTask(TASK_OPEN_OR_INSTALL_DNS);
+        }
         break;
     case ID_DNS_UPDATE:
+        SetFooterStatus(L"DNS Pilot: fetching latest DnsPilot.exe from GitHub...", 25);
         EnqueueTask(TASK_INSTALL_DNS);
         break;
     case ID_DNS_FOLDER:
