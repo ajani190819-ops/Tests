@@ -32,6 +32,7 @@
 #define APP_TITLE_W   L"DNS Pilot"
 #define APP_DIR_NAME  L"\\DnsPilot"
 #define WM_APP_DONE   (WM_APP + 1)
+#define SINGLE_MUTEX_NAME L"Local\\Tests_DnsPilot_SingleInstance"
 
 #define COL_BG        RGB(24, 27, 36)
 #define COL_CARD      RGB(34, 39, 52)
@@ -498,18 +499,6 @@ static void SaveConfig(void) {
     WritePrivateProfileStringW(L"Pilot", L"LastV6", w, g_cfgPath);
 }
 
-static BOOL ForegroundIsFullscreen(void) {
-    HWND fg = GetForegroundWindow();
-    RECT wr;
-    MONITORINFO mi;
-    if (!fg || fg == g_hwnd) return FALSE;
-    if (!GetWindowRect(fg, &wr)) return FALSE;
-    mi.cbSize = sizeof(mi);
-    if (!GetMonitorInfoW(MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST), &mi))
-        return FALSE;
-    return EqualRect(&wr, &mi.rcMonitor);
-}
-
 /* ---- Auto live-watch: probe the active DNS + its nearest rivals on a fast
    tick and switch the moment one is CLEARLY and CONSISTENTLY faster. The
    safety rules below exist so switching can never thrash the connection:
@@ -517,12 +506,12 @@ static BOOL ForegroundIsFullscreen(void) {
                   so two near-equal servers never trade places
      * streak   - it must win 3 probe rounds in a row (a real trend, not a
                   one-off blip)
-     * cooldown - 5 minutes of quiet after every switch
+     * cooldown - a 60 s settle gap after every switch
      * verify   - if the new server stops answering within 2 minutes, the
                   previous one is restored automatically
-     * deferral - nothing switches while a fullscreen window is in front
-   A DNS change never touches established connections; only new lookups
-   use the new server. */
+   Switching mid-game is fine by design: a DNS change never touches
+   established connections, so downloads, calls and games keep running on
+   their current sockets while only new lookups use the new server. */
 typedef struct WatchCand {
     char   ip[64];
     int    family;
@@ -535,6 +524,8 @@ typedef struct WatchCand {
 
 static WatchCand  g_watch[12];
 static int        g_watchN = 0;
+static volatile LONG g_watchBusy = 0;
+static CRITICAL_SECTION g_watchCs;
 static ULONGLONG  g_lastSwitchAt = 0;
 static ULONGLONG  g_switchedAt = 0;
 static int        g_switchFam = 0;
@@ -543,7 +534,7 @@ static char       g_prevV4[64] = "", g_prevV6[64] = "";
 #define WATCH_MIN_GAIN_MS  20.0
 #define WATCH_WIN_RATIO    0.80
 #define WATCH_STREAK_NEED  3
-#define WATCH_COOLDOWN_MS  (5ULL * 60000ULL)
+#define WATCH_COOLDOWN_MS  (60ULL * 1000ULL)
 #define WATCH_VERIFY_MS    (2ULL * 60000ULL)
 #define AUTO_FULLTEST_MS   (30ULL * 60000ULL)
 
@@ -559,7 +550,7 @@ static void AddWatch(const char *ip, int family, int srv) {
     c->ewma = -1;
 }
 
-static void RebuildWatch(void) {
+static void RebuildWatchBody(void) {
     g_watchN = 0;
     if (g_curV4[0]) AddWatch(g_curV4, 4, -1);
     if (g_curV6[0]) AddWatch(g_curV6, 6, -1);
@@ -580,6 +571,12 @@ static void RebuildWatch(void) {
             }
         }
     }
+}
+
+static void RebuildWatch(void) {
+    EnterCriticalSection(&g_watchCs);
+    RebuildWatchBody();
+    LeaveCriticalSection(&g_watchCs);
 }
 
 static void WatchSwitch(int fam, const char *ip, int srv, double chalMs, double actMs) {
@@ -620,7 +617,7 @@ static void WatchSwitch(int fam, const char *ip, int srv, double chalMs, double 
     InvalidateRect(g_hwnd, NULL, FALSE);
 }
 
-static void WatchTick(void) {
+static void WatchTickBody(void) {
     if (g_watchN == 0) { RebuildWatch(); if (g_watchN == 0) return; }
     ULONGLONG now = GetTickCount64();
 
@@ -654,8 +651,7 @@ static void WatchTick(void) {
             c->streak = (wins && c == best) ? c->streak + 1 : 0;
         }
         if (wins && best->streak >= WATCH_STREAK_NEED &&
-            now - g_lastSwitchAt >= WATCH_COOLDOWN_MS &&
-            !ForegroundIsFullscreen()) {
+            now - g_lastSwitchAt >= WATCH_COOLDOWN_MS) {
             WatchSwitch(fam, best->ip, best->srv, best->ewma, act->ewma);
             return;
         }
@@ -683,6 +679,19 @@ static void WatchTick(void) {
             }
         }
     }
+}
+
+static void WatchTick(void) {
+    EnterCriticalSection(&g_watchCs);
+    WatchTickBody();
+    LeaveCriticalSection(&g_watchCs);
+}
+
+static DWORD WINAPI WatchThread(LPVOID param) {
+    (void)param;
+    WatchTick();
+    InterlockedExchange(&g_watchBusy, 0);
+    return 0;
 }
 
 /* ---- UI ---- */
@@ -977,7 +986,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 else RebuildWatch();
                 WCpy(g_status, 512,
                      L"Auto-Pilot enabled (live watch) - it switches the instant a rival is clearly "
-                     L"and consistently faster, and never while a fullscreen app is in front.");
+                     L"and consistently faster. Switching mid-game is safe - existing "
+                     L"connections are never touched.");
             } else {
                 _snwprintf(g_status, 511, L"Auto-Pilot %s - re-tests every %d min and only switches when clearly faster.",
                            g_auto ? L"enabled" : L"disabled", g_intervalMin);
@@ -993,7 +1003,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (g_intervalMin == 0) {
                 WCpy(g_status, 512,
                      L"Auto mode: live watch - switches only when a rival is 20%/20 ms faster, "
-                     L"3 rounds in a row, 5 min cooldown, auto-revert if it dies.");
+                     L"3 rounds in a row, 60 s settle gap, auto-revert if it dies.");
                 RebuildWatch();
             } else {
                 _snwprintf(g_status, 511, L"Auto-Pilot interval set to %d minutes.", g_intervalMin);
@@ -1001,7 +1011,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             g_status[511] = L'\0';
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (b == BTN_ADMIN) {
-            if (!g_elevated) RelaunchElevated(NULL);
+            if (!g_elevated) {
+                RelaunchElevated(L"-TakeOver");
+                DestroyWindow(hwnd);   /* the elevated copy takes over */
+            }
         }
         return 0;
     }
@@ -1035,10 +1048,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (wp == 1 && g_auto && g_elevated && !g_testing) {
             ULONGLONG now = GetTickCount64();
             if (g_intervalMin == 0) {
-                /* live watch: cheap probes every tick, full re-rank twice an hour */
-                if (!ForegroundIsFullscreen()) WatchTick();
+                /* live watch on a worker thread: cheap probes every tick and a
+                   full re-rank twice an hour - probe timeouts can never stall
+                   the UI or the switch path */
+                if (InterlockedCompareExchange(&g_watchBusy, 0, 0) == 0) {
+                    InterlockedExchange(&g_watchBusy, 1);
+                    CreateThread(NULL, 0, WatchThread, NULL, 0, NULL);
+                }
                 if (g_lastTestAt == 0 || now - g_lastTestAt >= AUTO_FULLTEST_MS) StartTest(1);
-            } else if (!ForegroundIsFullscreen()) {
+            } else {
                 if (g_lastTestAt == 0 || now - g_lastTestAt >= (ULONGLONG)g_intervalMin * 60000ULL)
                     StartTest(1);
             }
@@ -1046,6 +1064,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_DESTROY:
         KillTimer(hwnd, 1);
+        DeleteCriticalSection(&g_watchCs);
         PostQuitMessage(0);
         return 0;
     }
@@ -1056,6 +1075,20 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     (void)hPrev;
     (void)nShow;
     WSADATA wsa;
+    int skipSingle = (cmdLine && (wcsstr(cmdLine, L"-ApplyNow") != NULL ||
+                                  wcsstr(cmdLine, L"-TakeOver") != NULL));
+    if (!skipSingle) {
+        HANDLE hMu = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
+        if (GetLastError() == ERROR_ALREADY_EXISTS) {
+            HWND other = FindWindowW(L"KBLSuiteDnsPilotWindow", NULL);
+            if (other) {
+                ShowWindow(other, SW_RESTORE);
+                SetForegroundWindow(other);
+            }
+            if (hMu) CloseHandle(hMu);
+            return 0;
+        }
+    }
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
         MessageBoxW(NULL, L"Winsock failed to start.", APP_TITLE_W, MB_ICONERROR);
         return 1;
@@ -1145,6 +1178,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     }
 
     ShowWindow(g_hwnd, SW_SHOW);
+    InitializeCriticalSection(&g_watchCs);
     SetTimer(g_hwnd, 1, 10000, NULL);
 
     MSG msg;
