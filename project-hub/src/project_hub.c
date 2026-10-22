@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.13"
-#define HUB_VERSION_W     L"2.8.13"
+#define HUB_VERSION       "2.8.14"
+#define HUB_VERSION_W     L"2.8.14"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -1015,9 +1015,12 @@ static void RefreshProjectStatuses(void) {
     _snwprintf(kblPs1P, MAX_PATH, L"%s\\Aura-Background.ps1", g_kblDir);
     DWORD locBtgSz = LocalSizeOf(btgExeP);
     if (!locBtgSz && g_btgExtraExe[0]) locBtgSz = LocalSizeOf(g_btgExtraExe);
-    BOOL btgUpd = (remBtgSz > 0 && locBtgSz != remBtgSz);
-    BOOL kblUpd = (remKblSz > 0 && LocalSizeOf(kblExeP2) != remKblSz) ||
-                  (remPs1Sz > 0 && LocalSizeOf(kblPs1P) != remPs1Sz);
+    BOOL btgKnown = (remBtgSz > 0 && locBtgSz > 0);
+    BOOL btgUpd = btgKnown && locBtgSz != remBtgSz;
+    DWORD locKblSz = LocalSizeOf(kblExeP2), locPs1Sz = LocalSizeOf(kblPs1P);
+    BOOL kblKnown = (remKblSz > 0 && locKblSz > 0);
+    BOOL kblUpd = kblKnown && locKblSz != remKblSz;
+    if (!kblUpd && remPs1Sz > 0 && locPs1Sz > 0) kblUpd = (locPs1Sz != remPs1Sz);
 
     g_hubUpdAvail = (remHub[0] != '\0' && strcmp(remHub, HUB_VERSION) != 0);
     g_topBtns[1].label = g_hubUpdAvail ? L"Update Hub \x25B2" : L"Update Hub";
@@ -1052,11 +1055,15 @@ static void RefreshProjectStatuses(void) {
         wcsncpy(g_cards[0].detail, L"Phone audio protection  \x00B7  Click Install to set up", 255);
     }
 
-    if (btgUpd) {
-        wcsncat(g_cards[0].badge, L"  \x00B7  Update Ready", 47);
-        if (g_cards[0].badgeKind == BADGE_OK || g_cards[0].badgeKind == BADGE_IDLE)
-            g_cards[0].badgeKind = BADGE_WARN;
-        g_cards[0].btns[1].style = BTN_AMBER;
+    /* show BOTH facts whenever both are known: "Active  ·  Up to Date",
+       "Active  ·  Update Ready", "Standby  ·  Up to Date", ... */
+    if (hasBtg && btgKnown) {
+        wcsncat(g_cards[0].badge, btgUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
+        if (btgUpd) {
+            if (g_cards[0].badgeKind == BADGE_OK || g_cards[0].badgeKind == BADGE_IDLE)
+                g_cards[0].badgeKind = BADGE_WARN;
+            g_cards[0].btns[1].style = BTN_AMBER;
+        }
     }
 
     /* 2. Keyboard Lighting */
@@ -1089,11 +1096,13 @@ static void RefreshProjectStatuses(void) {
         wcsncpy(g_cards[1].detail, L"ROG Strix G16 RGB lighting  \x00B7  Click Update to install", 255);
     }
 
-    if (kblUpd) {
-        wcsncat(g_cards[1].badge, L"  \x00B7  Update Ready", 47);
-        if (g_cards[1].badgeKind == BADGE_OK || g_cards[1].badgeKind == BADGE_IDLE)
-            g_cards[1].badgeKind = BADGE_WARN;
-        g_cards[1].btns[2].style = BTN_AMBER;
+    if (hasKbl && kblKnown) {
+        wcsncat(g_cards[1].badge, kblUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
+        if (kblUpd) {
+            if (g_cards[1].badgeKind == BADGE_OK || g_cards[1].badgeKind == BADGE_IDLE)
+                g_cards[1].badgeKind = BADGE_WARN;
+            g_cards[1].btns[2].style = BTN_AMBER;
+        }
     }
 
     /* 3. Spatial HUD */
@@ -1175,7 +1184,7 @@ static void RefreshProjectStatuses(void) {
     }
     if (locArena[0]) {
         BOOL upd = (remArena[0] && strcmp(locArena, remArena) != 0);
-        wcsncpy(g_cards[4].badge, upd ? L"Update Ready" : L"Ready", 47);
+        wcsncpy(g_cards[4].badge, upd ? L"Update Ready" : L"Up to Date", 47);
         g_cards[4].badgeKind = upd ? BADGE_WARN : BADGE_SKY;
         _snwprintf(g_cards[4].detail, 255, L"Local Git workspace bridge  \x00B7  v%S (%d linked)",
                    locArena, linkedRepos);
@@ -1190,7 +1199,10 @@ static void RefreshProjectStatuses(void) {
     wchar_t dnsExe[MAX_PATH];
     _snwprintf(dnsExe, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
     BOOL hasDns = FileExistsW(dnsExe);
-    BOOL dnsUpd = hasDns && (remDnsSz > 0 && LocalSizeOf(dnsExe) != remDnsSz);
+    DWORD locDnsSz = LocalSizeOf(dnsExe);
+    BOOL dnsKnown = (remDnsSz > 0 && locDnsSz > 0);
+    BOOL dnsUpd = hasDns && dnsKnown && locDnsSz != remDnsSz;
+    BOOL dnsRunning = (FindWindowW(L"KBLSuiteDnsPilotWindow", NULL) != NULL);
     g_cards[5].btns[1].style = BTN_SECONDARY;
     if (!hasDns) {
         wcsncpy(g_cards[5].badge, L"Setup Ready", 47);
@@ -1198,18 +1210,26 @@ static void RefreshProjectStatuses(void) {
         g_cards[5].btns[0].label = L"Install";
         g_cards[5].btns[0].style = BTN_PRIMARY;
         wcsncpy(g_cards[5].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Click Install to set up", 255);
-    } else {
-        wcsncpy(g_cards[5].badge, L"Up to Date", 47);
+    } else if (dnsRunning) {
+        wcsncpy(g_cards[5].badge, L"Active", 47);
         g_cards[5].badgeKind = BADGE_OK;
+        g_cards[5].btns[0].label = L"Open";
+        g_cards[5].btns[0].style = BTN_SECONDARY;
+        wcsncpy(g_cards[5].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Running (window or tray)", 255);
+    } else {
+        wcsncpy(g_cards[5].badge, L"Standby", 47);
+        g_cards[5].badgeKind = BADGE_IDLE;
         g_cards[5].btns[0].label = L"Open";
         g_cards[5].btns[0].style = BTN_SECONDARY;
         wcsncpy(g_cards[5].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Installed locally", 255);
     }
-    if (dnsUpd) {
-        wcsncat(g_cards[5].badge, L"  \x00B7  Update Ready", 47);
-        if (g_cards[5].badgeKind == BADGE_OK || g_cards[5].badgeKind == BADGE_IDLE)
-            g_cards[5].badgeKind = BADGE_WARN;
-        g_cards[5].btns[1].style = BTN_AMBER;
+    if (hasDns && dnsKnown) {
+        wcsncat(g_cards[5].badge, dnsUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
+        if (dnsUpd) {
+            if (g_cards[5].badgeKind == BADGE_OK || g_cards[5].badgeKind == BADGE_IDLE)
+                g_cards[5].badgeKind = BADGE_WARN;
+            g_cards[5].btns[1].style = BTN_AMBER;
+        }
     }
 
     if (g_hwnd) InvalidateRect(g_hwnd, NULL, FALSE);
@@ -1275,15 +1295,21 @@ static void WorkerCheckRemote(void) {
         HttpHeadSize(L"raw.githubusercontent.com", p, &szPs1);
         _snwprintf(p, 255, L"/%s/%s/%s/dns-pilot/DnsPilot.exe", REPO_OWNER_W, REPO_NAME_W, branch);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szDns);
+        /* Always record the result: a failed HEAD means "unknown" (0), never
+           "keep the old number". Stale cached sizes are what left Update Ready
+           badges stuck yellow after an update already said up to date. */
         EnterCriticalSection(&g_cs);
-        if (szBtg) g_remBtgSize = szBtg;
-        if (szKbl) g_remKblSize = szKbl;
-        if (szPs1) g_remKblPs1Size = szPs1;
-        if (szDns) g_remDnsSize = szDns;
+        g_remBtgSize = szBtg;
+        g_remKblSize = szKbl;
+        g_remKblPs1Size = szPs1;
+        g_remDnsSize = szDns;
         LeaveCriticalSection(&g_cs);
     }
 
     _snwprintf(p, 255, L"/repos/%s/%s/releases/tags/spatial-hud-latest", REPO_OWNER_W, REPO_NAME_W);
+    EnterCriticalSection(&g_cs);
+    g_remHudSize = 0;   /* unknown until this lookup succeeds - never stale */
+    LeaveCriticalSection(&g_cs);
     char *rel = (char *)HttpGetBuffer(L"api.github.com", p, &sz, &st);
     if (rel && st == 200) {
         const char *dlPos = strstr(rel, "\"browser_download_url\"");
@@ -1348,6 +1374,12 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
     wchar_t destExe[MAX_PATH];
     _snwprintf(destExe, MAX_PATH, L"%s\\BluetoothGuard.exe", g_btgDir);
 
+    BOOL btgWasVisible = FALSE;
+    {
+        HWND wB = FindWindowW(L"TestsBluetoothGuardModernWnd", NULL);
+        if (wB && IsWindowVisible(wB)) btgWasVisible = TRUE;
+    }
+
     const wchar_t *stopTarget = FileExistsW(destExe) ? destExe
                               : (g_btgExtraExe[0] && FileExistsW(g_btgExtraExe) ? g_btgExtraExe : NULL);
     if (stopTarget) {
@@ -1384,7 +1416,7 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
         SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
     }
 
-    if (launchAfter) {
+    if (launchAfter || btgWasVisible) {
         ShellExecuteW(NULL, L"open", destExe, NULL, g_btgDir, SW_SHOWNORMAL);
     } else {
         /* Start high-priority tray guard immediately in background & register FastBoot logon task */
@@ -1403,10 +1435,11 @@ static void WorkerInstallDnsPilot(BOOL launchAfter) {
     /* An app that is open when its update starts must come back up on its
        own afterwards. A running pilot also holds its exe lock, so close it
        politely first and relaunch it once the new build is in place. */
-    BOOL wasRunning = FALSE;
+    BOOL wasRunning = FALSE, wasVisible = FALSE;
     HWND hPilot = FindWindowW(L"KBLSuiteDnsPilotWindow", NULL);
     if (hPilot) {
         wasRunning = TRUE;
+        wasVisible = IsWindowVisible(hPilot) ? TRUE : FALSE;
         SetFooterStatus(L"Stopping running DNS Pilot for clean update...", 8);
         wchar_t pilotExe[MAX_PATH];
         _snwprintf(pilotExe, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
@@ -1445,7 +1478,11 @@ static void WorkerInstallDnsPilot(BOOL launchAfter) {
     }
 
     if (launchAfter || wasRunning) {
-        ShellExecuteW(NULL, L"open", destExe, NULL, g_dnsDir, SW_SHOWNORMAL);
+        /* restore as it was: a visible window comes back, a trayed pilot
+           starts quietly in the tray again instead of popping open */
+        BOOL show = (launchAfter || wasVisible);
+        ShellExecuteW(NULL, L"open", destExe, show ? NULL : L"-Silent", g_dnsDir,
+                      show ? SW_SHOWNORMAL : SW_HIDE);
         SetFooterStatus(wasRunning ? L"DNS Pilot updated and reopened!"
                                    : L"DNS Pilot installed and launched!", 0);
     } else {
@@ -1461,6 +1498,12 @@ static void WorkerInstallKeyboardLighting(void) {
 
     wchar_t kblExe[MAX_PATH], lp[MAX_PATH], uiDll[MAX_PATH];
     _snwprintf(kblExe, MAX_PATH, L"%s\\KeyboardLighting.exe", g_kblDir);
+    BOOL kblWasInstalled = FileExistsW(kblExe);
+    BOOL kblWasVisible = FALSE;
+    {
+        HWND wK = FindWindowW(L"TestsKeyboardLightingSuiteWnd", NULL);
+        if (wK && IsWindowVisible(wK)) kblWasVisible = TRUE;
+    }
     SetFooterStatus(L"Stopping running Keyboard Lighting for clean update...", 10);
     if (FileExistsW(kblExe)) {
         SHELLEXECUTEINFOW sei;
@@ -1505,8 +1548,16 @@ static void WorkerInstallKeyboardLighting(void) {
             CreateShortcutLink(lnk, kblExe, g_kblDir, L"Keyboard Lighting - ROG Strix G16 RGB");
             SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
         }
-        ShellExecuteW(NULL, L"open", kblExe, NULL, g_kblDir, SW_SHOWNORMAL);
-        SetFooterStatus(L"Keyboard Lighting native EXE updated and launched!", 0);
+        /* restore as it was: a visible window comes back to the front,
+           anything else (trayed or not running) starts quietly in the tray
+           instead of popping the window open */
+        if (kblWasVisible || !kblWasInstalled) {
+            ShellExecuteW(NULL, L"open", kblExe, NULL, g_kblDir, SW_SHOWNORMAL);
+            SetFooterStatus(L"Keyboard Lighting updated and reopened!", 0);
+        } else {
+            ShellExecuteW(NULL, L"open", kblExe, L"-Silent", g_kblDir, SW_HIDE);
+            SetFooterStatus(L"Keyboard Lighting updated - running quietly in the tray.", 0);
+        }
     } else {
         SetFooterStatus(L"Could not download KeyboardLighting.exe from GitHub.", 0);
     }
