@@ -24,6 +24,8 @@
 #include <stdio.h>
 #include <windowsx.h>
 #include <shellapi.h>
+#include <math.h>
+#include <stdint.h>
 
 #ifndef GGI_MARK_NONEXISTING_GLYPHS
 #define GGI_MARK_NONEXISTING_GLYPHS 1
@@ -90,7 +92,7 @@ static Row g_rows[128];
 static int g_rowCount = 0;
 
 static HWND        g_hwnd = NULL;
-static HFONT       g_fontUI = NULL, g_fontTitle = NULL;
+static HFONT       g_fontUI = NULL, g_fontTitle = NULL, g_fontBtn = NULL;
 
 static void WCpy(wchar_t *d, int n, const wchar_t *s) {
     wcsncpy(d, s, (size_t)(n - 1));
@@ -116,6 +118,29 @@ static char        g_lastV4[64] = "", g_lastV6[64] = "";
 static int         g_best4 = -1, g_best6 = -1;
 
 static int S(int v) { return MulDiv(v, g_dpi, 96); }
+
+typedef HRESULT (WINAPI *PFN_DwmSetWindowAttribute)(HWND, DWORD, LPCVOID, DWORD);
+
+/* Title bar, border and corners in the exact same colours as Project Hub:
+   the caption strip matches the background instead of the OS grey. */
+static void ApplyModernWindowFrame(HWND hwnd) {
+    HMODULE dwm = LoadLibraryW(L"dwmapi.dll");
+    if (!dwm) return;
+    PFN_DwmSetWindowAttribute setAttr =
+        (PFN_DwmSetWindowAttribute)(void *)GetProcAddress(dwm, "DwmSetWindowAttribute");
+    if (setAttr) {
+        BOOL dark = TRUE;
+        DWORD cornerPref = 2; /* DWMWCP_ROUND - full smooth Windows 11 rounded corners */
+        COLORREF captionCol = COL_BG;
+        COLORREF borderCol  = COL_DIV;
+        setAttr(hwnd, 20, &dark, sizeof(dark));
+        setAttr(hwnd, 19, &dark, sizeof(dark));
+        setAttr(hwnd, 33, &cornerPref, sizeof(cornerPref));
+        setAttr(hwnd, 35, &captionCol, sizeof(captionCol));
+        setAttr(hwnd, 34, &borderCol, sizeof(borderCol));
+    }
+    FreeLibrary(dwm);
+}
 
 static void Widen(const char *a, wchar_t *w, int n) {
     if (!a) { w[0] = L'\0'; return; }
@@ -697,8 +722,181 @@ static DWORD WINAPI WatchThread(LPVOID param) {
 /* ---- UI ---- */
 enum { BTN_TEST = 0, BTN_APPLY, BTN_AUTO, BTN_INTERVAL, BTN_ADMIN, BTN_COUNT };
 
+/* Spinning Tri-Spoke Core Emblem - analytic sub-pixel SDF renderer,
+   identical to Project Hub (ported 1:1 from tools/generate_suite_icons.py).
+   Drawn straight at cache resolution so it is razor sharp at any DPI. */
+#define EMB_SDF_SCALE 0.92
+#define EMB_SDF_BOOST 0.012
+
+static RECT g_rcEmblem;
+
+static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
+    (void)bg;
+    const double scale = EMB_SDF_SCALE, b = EMB_SDF_BOOST;
+    const double pxSize = 2.0 / (double)n;
+    const double aa = (pxSize * 1.35 > 1e-4) ? (pxSize * 1.35) : 1e-4;
+    const double deg = 0.017453292519943295;
+    static const double gaps[3] = { -90.0, 30.0, 150.0 };
+    static const double nrm[3] = { 90.0, -150.0, -30.0 };
+    for (int j = 0; j < n; j++) {
+        double y0 = ((double)j + 0.5) / (double)n;
+        double y = -1.0 + 2.0 * y0;
+        for (int i = 0; i < n; i++) {
+            double x0 = ((double)i + 0.5) / (double)n;
+            double x = -1.0 + 2.0 * x0;
+            double r = sqrt(x * x + y * y) / scale;
+            double ang = atan2(y, x) / deg;
+            double dOuter = fabs(r - 0.895) - (0.022 + b * 0.45);
+            double dRad   = fabs(r - 0.742) - (0.056 + b * 0.5);
+            double dGap = 180.0;
+            for (int k = 0; k < 3; k++) {
+                double m = fmod(ang - gaps[k] + 180.0, 360.0);
+                if (m < 0) m += 360.0;
+                double diff = fabs(m - 180.0);
+                if (diff < dGap) dGap = diff;
+            }
+            double dCut  = (12.5 - dGap) * deg * 0.742;
+            double dArcs = (dRad > dCut) ? dRad : dCut;
+            double dSpokes = 10.0;
+            double pMid = 0.052 + b * 0.12, pHw = 0.024 + b * 0.42;
+            double sMid = 0.5 * (0.258 + 0.722), sHw = 0.5 * (0.722 - 0.258);
+            for (int k = 0; k < 3; k++) {
+                double rad = gaps[k] * deg;
+                double ux = cos(rad), uy = sin(rad);
+                double proj = (x * ux + y * uy) / scale;
+                double perp = fabs(-x * uy + y * ux) / scale;
+                double dAlong = fabs(proj - sMid) - sHw;
+                double dBars  = fabs(perp - pMid) - pHw;
+                double dThis  = (dAlong > dBars) ? dAlong : dBars;
+                if (dThis < dSpokes) dSpokes = dThis;
+            }
+            double dHubOut = r - (0.224 + b * 0.25);
+            double dTri = -10.0;
+            for (int k = 0; k < 3; k++) {
+                double rad = nrm[k] * deg;
+                double dHalf = (x * cos(rad) + y * sin(rad)) / scale - 0.074;
+                if (dHalf > dTri) dTri = dHalf;
+            }
+            double dHub = (dHubOut > -dTri) ? dHubOut : -dTri;
+            double u1 = (dOuter < dArcs) ? dOuter : dArcs;
+            double u2 = (dSpokes < dHub) ? dSpokes : dHub;
+            double u  = (u1 < u2) ? u1 : u2;
+            double alpha = 0.5 - (u * scale) / aa;
+            if (alpha < 0) alpha = 0; else if (alpha > 1) alpha = 1;
+            double t = x0 * 0.3 + y0 * 0.7;
+            if (t < 0) t = 0; else if (t > 1) t = 1;
+            double fr = 246.0 * (1 - t) + 196.0 * t;
+            double fg = 249.0 * (1 - t) + 212.0 * t;
+            double fb = 254.0 * (1 - t) + 234.0 * t;
+            dst[j * n + i] = RGB((int)(fr + 0.5), (int)(fg + 0.5), (int)(fb + 0.5)) |
+                             ((DWORD)(int)(alpha * 255.0 + 0.5) << 24);
+        }
+    }
+}
+
+typedef struct EmbCache {
+    int      sz;
+    int      srcSz;
+    uint32_t *src;
+} EmbCache;
+static EmbCache g_embCache = { 0, 0, NULL };
+
+static void EmbCacheEnsure(int sz, COLORREF bg) {
+    if (g_embCache.src && g_embCache.sz == sz) return;
+    free(g_embCache.src);
+    g_embCache.src = NULL;
+    g_embCache.sz = 0;
+    if (sz < 8 || sz > 512) return;
+    int srcSz = sz * 4;
+    uint32_t *src = (uint32_t *)malloc((size_t)srcSz * srcSz * sizeof(uint32_t));
+    if (!src) return;
+    EmbRasterize(src, srcSz, bg);
+    g_embCache.sz    = sz;
+    g_embCache.srcSz = srcSz;
+    g_embCache.src   = src;
+}
+
+static void EmbSpinDraw(uint32_t *px, int W, int H, int x, int y, int sz, COLORREF bg) {
+    EmbCacheEnsure(sz, bg);
+    const uint32_t *src = g_embCache.src;
+    if (!src) return;
+    int srcSz = g_embCache.srcSz;
+    /* One full turn every 30 seconds: slow enough to read as alive. */
+    double ang = ((double)(GetTickCount64() % 30000ULL) / 30000.0) * 6.283185307179586;
+    double ca = cos(ang), sa = sin(ang);
+    double c = (sz - 1) * 0.5;
+    double sc = (double)(srcSz - 1) / (double)(sz > 1 ? sz : 1);
+    int maxs = srcSz - 1;
+    for (int dy = 0; dy < sz; dy++) {
+        int ty = y + dy;
+        if (ty < 0 || ty >= H) continue;
+        double v = dy - c;
+        for (int dx = 0; dx < sz; dx++) {
+            int tx = x + dx;
+            if (tx < 0 || tx >= W) continue;
+            double u = dx - c;
+            double fx = (ca * u + sa * v + c) * sc;
+            double fy = (-sa * u + ca * v + c) * sc;
+            if (fx < 0) fx = 0; else if (fx > maxs) fx = maxs;
+            if (fy < 0) fy = 0; else if (fy > maxs) fy = maxs;
+            int x0 = (int)fx, y0 = (int)fy;
+            double ax = fx - x0, ay = fy - y0;
+            double w00 = (1 - ax) * (1 - ay), w10 = ax * (1 - ay);
+            double w01 = (1 - ax) * ay,       w11 = ax * ay;
+            const uint32_t *p00 = &src[y0 * srcSz + x0];
+            uint32_t c00 = p00[0];
+            uint32_t c10 = (x0 < maxs) ? p00[1] : c00;
+            const uint32_t *p01 = (y0 < maxs) ? p00 + srcSz : p00;
+            uint32_t c01 = p01[0];
+            uint32_t c11 = (x0 < maxs) ? p01[1] : c01;
+            double r = (c00 & 255) * w00 + (c10 & 255) * w10 + (c01 & 255) * w01 + (c11 & 255) * w11;
+            double g = ((c00 >> 8) & 255) * w00 + ((c10 >> 8) & 255) * w10 +
+                       ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
+            double b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
+                       ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
+            double a = ((c00 >> 24) & 255) * w00 + ((c10 >> 24) & 255) * w10 +
+                       ((c01 >> 24) & 255) * w01 + ((c11 >> 24) & 255) * w11;
+            int ai = (int)(a + 0.5);
+            uint32_t d = px[ty * W + tx];
+            if (ai >= 255) {
+                px[ty * W + tx] = RGB((int)(r + 0.5), (int)(g + 0.5), (int)(b + 0.5));
+            } else if (ai > 0) {
+                int dr = (int)(d & 255), dg = (int)((d >> 8) & 255), db = (int)((d >> 16) & 255);
+                px[ty * W + tx] = RGB(((int)(r + 0.5) * ai + dr * (255 - ai) + 127) / 255,
+                                      ((int)(g + 0.5) * ai + dg * (255 - ai) + 127) / 255,
+                                      ((int)(b + 0.5) * ai + db * (255 - ai) + 127) / 255);
+            }
+        }
+    }
+}
+
+static void DrawWayfinderEmblem(uint32_t *px, int W, int H, int x, int y, int sz) {
+    EmbCacheEnsure(sz, COL_BG);
+    EmbSpinDraw(px, W, H, x, y, sz, COL_BG);
+}
+
+/* GDI blit wrapper: rasterize the emblem over the background colour and
+   hand the finished square to SetDIBitsToDevice. */
+static void PaintEmblem(HDC dc, int x, int y, int sz) {
+    if (sz < 8 || sz > 512) return;
+    uint32_t *px = (uint32_t *)malloc((size_t)sz * sz * sizeof(uint32_t));
+    if (!px) return;
+    for (int i = 0; i < sz * sz; i++) px[i] = (uint32_t)COL_BG;
+    DrawWayfinderEmblem(px, sz, sz, 0, 0, sz);
+    BITMAPINFO bmi;
+    ZeroMemory(&bmi, sizeof(bmi));
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = sz;
+    bmi.bmiHeader.biHeight = -sz;   /* top-down rows */
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+    SetDIBitsToDevice(dc, x, y, sz, sz, 0, 0, 0, sz, px, &bmi, DIB_RGB_COLORS);
+    free(px);
+}
+
 static void BtnRect(int i, RECT *r) {
-    int x = S(20), y = S(62), h = S(36);
+    int x = S(20), y = S(78), h = S(36);
     int w[BTN_COUNT] = { S(140), S(150), S(140), S(150), S(170) };
     for (int k = 0; k < i; k++) x += w[k] + S(10);
     SetRect(r, x, y, x + w[i], y + h);
@@ -727,12 +925,12 @@ static void DrawBtn(HDC dc, int idx, const wchar_t *label, int primary, int ambe
     DeleteObject(p);
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, amber ? COL_WARN : COL_TXT);
-    SelectObject(dc, g_fontUI);
+    SelectObject(dc, g_fontBtn);
     DrawTextW(dc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 }
 
 static void RowRect(int vis, RECT *r) {
-    SetRect(r, S(20), S(112) + vis * S(34), S(860), S(112) + (vis + 1) * S(34));
+    SetRect(r, S(20), S(146) + vis * S(34), S(960), S(146) + (vis + 1) * S(34));
 }
 
 static void PaintAll(HWND hwnd) {
@@ -749,10 +947,16 @@ static void PaintAll(HWND hwnd) {
     FillSolid(mem, &all, COL_BG);
 
     SetBkMode(mem, TRANSPARENT);
+
+    /* Spinning Tri-Spoke Core emblem - identical renderer to Project Hub */
+    int embSz = S(52);
+    SetRect(&g_rcEmblem, S(28), S(12), S(28) + embSz, S(12) + embSz);
+    PaintEmblem(mem, g_rcEmblem.left, g_rcEmblem.top, embSz);
+
     SetTextColor(mem, COL_TXT);
     SelectObject(mem, g_fontTitle);
     RECT tr;
-    SetRect(&tr, S(20), S(10), S(500), S(40));
+    SetRect(&tr, S(94), S(12), S(600), S(42));
     DrawTextW(mem, L"DNS Pilot", -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     SelectObject(mem, g_fontUI);
     SetTextColor(mem, COL_MUTE);
@@ -760,7 +964,7 @@ static void PaintAll(HWND hwnd) {
     _snwprintf(sub, 255, L"Benchmarks real DNS queries and routes Windows through the fastest  |  %s  |  ifIndex %d  |  %s",
                g_adName, g_ifIndex, g_elevated ? L"Administrator" : L"not elevated");
     sub[255] = L'\0';
-    SetRect(&tr, S(20), S(34), W - S(20), S(58));
+    SetRect(&tr, S(94), S(42), W - S(20), S(64));
     DrawTextW(mem, sub, -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
     wchar_t autoLabel[48];
@@ -776,21 +980,21 @@ static void PaintAll(HWND hwnd) {
     DrawBtn(mem, BTN_INTERVAL, intLabel, 0, 0);
     DrawBtn(mem, BTN_ADMIN, g_elevated ? L"Running as Admin" : L"Restart as Admin", 0, 0);
 
-    /* table header */
-    SetRect(&tr, S(20), S(100), S(860), S(112));
+    /* table header - columns use the full window width and never overlap */
+    int cwid[6] = { S(36), S(190), S(240), S(62), S(112), S(236) };
+    int cx[6] = { S(32), S(72), S(272), S(522), S(592), S(712) };
     SetTextColor(mem, COL_MUTE);
     SelectObject(mem, g_fontUI);
     {
-        int cx[6] = { S(32), S(220), S(430), S(500), S(580), S(700) };
         const wchar_t *heads[6] = { L"#", L"Resolver", L"Server IP", L"Family", L"Median", L"Samples" };
         for (int i = 0; i < 6; i++) {
             RECT hr;
-            SetRect(&hr, cx[i], S(92), cx[i] + S(200), S(112));
+            SetRect(&hr, cx[i], S(122), cx[i] + cwid[i], S(146));
             DrawTextW(mem, heads[i], -1, &hr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         }
     }
 
-    int tableH = H - S(112) - S(52);
+    int tableH = H - S(146) - S(52);
     int visRows = tableH / S(34);
     if (visRows < 1) visRows = 1;
     if (g_topRow > g_rowCount - visRows) g_topRow = g_rowCount - visRows;
@@ -836,7 +1040,6 @@ static void PaintAll(HWND hwnd) {
             _snwprintf(wsmp, 47, L"%s / %s / %s ms", s1, s2, s3);
             wsmp[47] = L'\0';
         }
-        int cx[6] = { S(32), S(220), S(430), S(500), S(580), S(700) };
         wchar_t *cols[6];
         wchar_t wrank[8];
         if (r->tested && r->ok && r->rank > 0) _snwprintf(wrank, 7, L"%d", r->rank);
@@ -844,7 +1047,7 @@ static void PaintAll(HWND hwnd) {
         cols[0] = wrank; cols[1] = wname; cols[2] = wip; cols[3] = wfam; cols[4] = wmed; cols[5] = wsmp;
         for (int c = 0; c < 6; c++) {
             RECT cr;
-            SetRect(&cr, cx[c], rr.top, cx[c] + S(210), rr.bottom);
+            SetRect(&cr, cx[c], rr.top, cx[c] + cwid[c], rr.bottom);
             if (c == 0 && r->rank == 1) SetTextColor(mem, COL_GOLD);
             else if (c == 4 && r->tested && r->ok) SetTextColor(mem, r->rank == 1 ? COL_GOLD : COL_TXT);
             else if (c == 5 && r->tested && !r->ok) SetTextColor(mem, COL_BAD);
@@ -1045,6 +1248,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         InvalidateRect(hwnd, NULL, FALSE);
         return 0;
     case WM_TIMER:
+        if (wp == 2) {
+            InvalidateRect(hwnd, &g_rcEmblem, FALSE);
+            return 0;
+        }
         if (wp == 1 && g_auto && g_elevated && !g_testing) {
             ULONGLONG now = GetTickCount64();
             if (g_intervalMin == 0) {
@@ -1145,8 +1352,9 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
         g_dpi = GetDeviceCaps(sdc, LOGPIXELSX);
         ReleaseDC(NULL, sdc);
     }
-    g_fontUI = CreateFontW(-S(15), 0, 0, 0, FW_NORMAL, 0, 0, 0, 0, 0, 0, 0, 0, L"Segoe UI");
-    g_fontTitle = CreateFontW(-S(21), 0, 0, 0, FW_SEMIBOLD, 0, 0, 0, 0, 0, 0, 0, 0, L"Segoe UI");
+    g_fontUI = CreateFontW(-S(12), 0, 0, 0, FW_NORMAL, 0, 0, 0, 0, 0, 0, 0, 0, L"Segoe UI");
+    g_fontTitle = CreateFontW(-S(19), 0, 0, 0, FW_SEMIBOLD, 0, 0, 0, 0, 0, 0, 0, 0, L"Segoe UI");
+    g_fontBtn = CreateFontW(-S(12), 0, 0, 0, FW_SEMIBOLD, 0, 0, 0, 0, 0, 0, 0, 0, L"Segoe UI");
 
     WNDCLASSEXW wc;
     ZeroMemory(&wc, sizeof(wc));
@@ -1159,27 +1367,25 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     wc.lpszClassName = L"KBLSuiteDnsPilotWindow";
     RegisterClassExW(&wc);
 
+    RECT wrc = { 0, 0, S(980), S(760) };
+    AdjustWindowRectEx(&wrc, WS_OVERLAPPEDWINDOW, FALSE, 0);
     g_hwnd = CreateWindowExW(0, wc.lpszClassName, APP_TITLE_W,
                              WS_OVERLAPPEDWINDOW,
-                             CW_USEDEFAULT, CW_USEDEFAULT, S(880), S(640),
+                             CW_USEDEFAULT, CW_USEDEFAULT,
+                             wrc.right - wrc.left, wrc.bottom - wrc.top,
                              NULL, NULL, hInst, NULL);
 
-    /* dwmapi is loaded dynamically so the PE imports stay clean */
-    {
-        typedef HRESULT (WINAPI *DwmSetWindowAttribute_t)(HWND, DWORD, LPCVOID, DWORD);
-        HMODULE dwm = LoadLibraryW(L"dwmapi.dll");
-        if (dwm) {
-            DwmSetWindowAttribute_t p = (DwmSetWindowAttribute_t)GetProcAddress(dwm, "DwmSetWindowAttribute");
-            if (p) {
-                DWORD pref = 2;
-                p(g_hwnd, 33, &pref, sizeof(pref));
-            }
-        }
-    }
+    /* dark title bar matching the background + smooth corners (dwmapi is
+       loaded dynamically so the PE imports stay clean) */
+    ApplyModernWindowFrame(g_hwnd);
 
     ShowWindow(g_hwnd, SW_SHOW);
     InitializeCriticalSection(&g_watchCs);
     SetTimer(g_hwnd, 1, 10000, NULL);
+    SetTimer(g_hwnd, 2, 50, NULL);     /* emblem spin repaint */
+
+    /* opening the pilot always kicks off a real test right away */
+    StartTest(0);
 
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0)) {
