@@ -2745,14 +2745,22 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     }
 
     /* Brightness taps for the M4/M5 G-Helper 'Custom' actions: a second
-       instance drops a flag the engine turns into one smooth master step
-       and exits immediately - no window, no single-instance bounce. */
+       instance writes a one-shot token the engine turns into a paced master
+       step and exits immediately - no window, no single-instance bounce.
+       The token is a millisecond stamp so a held key's repeat taps are each
+       seen; the engine paces them into a smooth sweep. */
     if (cmdLine && (wcsstr(cmdLine, L"-BrightUp") != NULL || wcsstr(cmdLine, L"--bright-up") != NULL)) {
-        WriteAtomicUtf8(g_brightUpPath, "1");
+        char tok[32];
+        _snprintf(tok, 32, "%llu", (unsigned long long)GetTickCount64());
+        tok[31] = '\0';
+        WriteAtomicUtf8(g_brightUpPath, tok);
         return 0;
     }
     if (cmdLine && (wcsstr(cmdLine, L"-BrightDown") != NULL || wcsstr(cmdLine, L"--bright-down") != NULL)) {
-        WriteAtomicUtf8(g_brightDownPath, "1");
+        char tok[32];
+        _snprintf(tok, 32, "%llu", (unsigned long long)GetTickCount64());
+        tok[31] = '\0';
+        WriteAtomicUtf8(g_brightDownPath, tok);
         return 0;
     }
 
