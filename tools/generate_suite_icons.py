@@ -556,27 +556,26 @@ def export_spin_loops(size: int = 768, frames: int = 240, ms: int = 50):
         method=4,
     )
 
-    # ---- transparent GIF: shared palette + Bayer alpha dither ----
-    # Palette from frame 0 with invisible pixels pre-filled by the glyph's
-    # darkest visible tone so no palette entry is wasted on "nothing".
-    rgb0 = imgs[0].convert("RGB")
-    pal_src = rgb0.quantize(colors=255, method=Image.Quantize.MEDIANCUT)
+    # ---- transparent GIF: shared palette + clean binary alpha cut ----
+    # GIF transparency is 1-bit. Dithering the soft edge leaves a speckled
+    # fringe that reads as a colored plate behind the glyph ("it's sitting
+    # on something"). A clean threshold cut at 140 keeps the ~2px SDF
+    # silhouette smooth enough with ZERO fringe, and the palette now sees
+    # only real glyph tones instead of the black void underneath.
+    a0 = np.asarray(imgs[0].getchannel("A"), dtype=np.float32)
+    rgb_arr = np.asarray(imgs[0].convert("RGB"), dtype=np.uint8).copy()
+    rgb_arr[a0 < 140.0] = (16, 22, 32)
+    pal_src = Image.fromarray(rgb_arr, mode="RGB").quantize(
+        colors=255, method=Image.Quantize.MEDIANCUT)
 
     gif_frames = []
     trans_idx = 255
-    bayer = np.array(BAYER4, dtype=np.float32)
     pal_bytes = pal_src.getpalette()
     for im in imgs:
         q = im.convert("RGB").quantize(palette=pal_src, dither=Image.Dither.NONE)
         idx = np.frombuffer(q.tobytes(), dtype=np.uint8).reshape(im.size[1], im.size[0]).copy()
         a = np.asarray(im.getchannel("A"), dtype=np.float32)
-        thr = (bayer[np.arange(im.size[1])[:, None] % 4,
-                     np.arange(im.size[0])[None, :] % 4] + 0.5) * 8.0
-        # The faint outer glow stipples into a huge noisy annulus that LZW
-        # cannot compress; shed it and dither only the real shape edge where
-        # anti-aliasing matters. The rim + gradient + drop shadow - the
-        # shading people liked on the icon - are untouched.
-        idx[(a <= 12.0) | (a < 90.0) | ((a < 250.0) & (a < thr))] = trans_idx
+        idx[a < 140.0] = trans_idx
         frame = Image.frombytes("P", im.size, idx.tobytes())
         frame.putpalette(pal_bytes)
         gif_frames.append(frame)
