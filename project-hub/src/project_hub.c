@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.5"
-#define HUB_VERSION_W     L"2.8"
+#define HUB_VERSION       "2.8.6"
+#define HUB_VERSION_W     L"2.8.6"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -48,7 +48,10 @@
 #define ID_BTN_SELF_UPDATE   1002
 #define ID_BTN_UPDATE_ALL    1003
 #define ID_EMBLEM_MENU       1004
+#define ID_BTN_BRANCH        1005
 #define ID_MENU_SHORTCUT     1011
+#define ID_MENU_BRANCH_BASE  1600
+#define ID_MENU_BRANCH_CUSTOM 1699
 #define ID_MENU_SUITE_DIR    1012
 
 #define ID_BTG_OPEN          1101
@@ -164,10 +167,11 @@ static HICON            g_cardIcons[5] = {NULL, NULL, NULL, NULL, NULL};
 static HANDLE           g_showEvent   = NULL;
 static CRITICAL_SECTION g_cs;
 
-static ActionBtn        g_topBtns[3] = {
+static ActionBtn        g_topBtns[4] = {
     { ID_BTN_REFRESH_ALL, L"Refresh",    BTN_SECONDARY, 92,  {0,0,0,0} },
     { ID_BTN_SELF_UPDATE, L"Update Hub", BTN_AMBER,     112, {0,0,0,0} },
-    { ID_BTN_UPDATE_ALL,  L"Update All", BTN_PRIMARY,   108, {0,0,0,0} }
+    { ID_BTN_UPDATE_ALL,  L"Update All", BTN_PRIMARY,   108, {0,0,0,0} },
+    { ID_BTN_BRANCH,      L"Branch \x25BC", BTN_SECONDARY, 96, {0,0,0,0} }
 };
 static RECT             g_rcEmblem    = {0, 0, 0, 0};
 
@@ -191,6 +195,9 @@ static wchar_t          g_arenaDir[MAX_PATH];
 
 /* Shared remote state protected by g_cs */
 static wchar_t          g_activeBranch[64]  = L"";
+static wchar_t          g_branchMenuNames[96][64];
+static int              g_branchMenuN        = 0;
+static wchar_t          g_branchPromptOut[64];
 static char             g_remHubVer[32]     = "";
 static char             g_remWaveVer[32]    = "";
 static char             g_remInfillVer[32]  = "";
@@ -599,6 +606,31 @@ static BOOL DownloadRawRepoFile(const wchar_t *branch, const wchar_t *relUrl, co
     return ok;
 }
 
+/* The branch the updater pulls from is the user's choice, remembered in
+   %LOCALAPPDATA%\ProjectHub\config.ini so every update check and download
+   follows it without any merging. */
+static void BranchCfgPath(wchar_t *out, size_t cap) {
+    _snwprintf(out, cap, L"%s\\ProjectHub\\config.ini", g_localApp);
+    out[cap - 1] = L'\0';
+}
+
+static BOOL LoadBranchCfg(wchar_t *out, size_t cap) {
+    wchar_t ini[MAX_PATH];
+    BranchCfgPath(ini, MAX_PATH);
+    out[0] = L'\0';
+    DWORD n = GetPrivateProfileStringW(L"Update", L"Branch", L"", out, (DWORD)cap, ini);
+    return n > 0 && out[0];
+}
+
+static void SaveBranchCfg(const wchar_t *branch) {
+    wchar_t dir[MAX_PATH], ini[MAX_PATH];
+    _snwprintf(dir, MAX_PATH, L"%s\\ProjectHub", g_localApp);
+    dir[MAX_PATH - 1] = L'\0';
+    CreateDirectoryW(dir, NULL);
+    BranchCfgPath(ini, MAX_PATH);
+    WritePrivateProfileStringW(L"Update", L"Branch", branch, ini);
+}
+
 static void EnsureActiveBranch(wchar_t *outBranch, size_t cap) {
     EnterCriticalSection(&g_cs);
     if (g_activeBranch[0]) {
@@ -609,14 +641,20 @@ static void EnsureActiveBranch(wchar_t *outBranch, size_t cap) {
     }
     LeaveCriticalSection(&g_cs);
 
-    DWORD sz = 0;
-    int st = 0;
-    wchar_t probePath[256];
-    _snwprintf(probePath, 255, L"/%s/%s/main/bluetooth-guard/README.md", REPO_OWNER_W, REPO_NAME_W);
-    BYTE *probe = HttpGetBuffer(L"raw.githubusercontent.com", probePath, &sz, &st);
-    free(probe);
-
-    const wchar_t *chosen = (st == 200 && sz > 20) ? L"main" : FALLBACK_BRANCH_W;
+    /* Saved user choice wins; only auto-probe when never chosen. */
+    wchar_t chosenBuf[64];
+    const wchar_t *chosen;
+    if (LoadBranchCfg(chosenBuf, 64)) {
+        chosen = chosenBuf;
+    } else {
+        DWORD sz = 0;
+        int st = 0;
+        wchar_t probePath[256];
+        _snwprintf(probePath, 255, L"/%s/%s/main/bluetooth-guard/README.md", REPO_OWNER_W, REPO_NAME_W);
+        BYTE *probe = HttpGetBuffer(L"raw.githubusercontent.com", probePath, &sz, &st);
+        free(probe);
+        chosen = (st == 200 && sz > 20) ? L"main" : FALLBACK_BRANCH_W;
+    }
     EnterCriticalSection(&g_cs);
     wcsncpy(g_activeBranch, chosen, 63);
     g_activeBranch[63] = L'\0';
@@ -1664,7 +1702,7 @@ static void ComputeLayout(HWND hwnd) {
     int bx = w - pad;
     int topBtnH = S(35, dpi);
     int topBtnY = (headerH - topBtnH) / 2;
-    for (int i = 2; i >= 0; i--) {
+    for (int i = 3; i >= 0; i--) {
         int bw = S(g_topBtns[i].widthPx, dpi);
         bx -= bw;
         SetRect(&g_topBtns[i].rc, bx, topBtnY, bx + bw, topBtnY + topBtnH);
@@ -1695,7 +1733,7 @@ static void ComputeLayout(HWND hwnd) {
 
 static int HitTestButtons(POINT pt, int headerBottom, int footerTop) {
     if (PtInRect(&g_rcEmblem, pt)) return ID_EMBLEM_MENU;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         if (PtInRect(&g_topBtns[i].rc, pt)) return g_topBtns[i].id;
     }
     if (pt.y < headerBottom || pt.y > footerTop) return 0;
@@ -1845,10 +1883,18 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc) {
     SelectObject(hdc, g_fontSub);
     SetTextColor(hdc, COL_TEXT_MUTED);
     RECT hSub = { hdrTextLeft, S(40, dpi), hdrRightLimit, S(60, dpi) };
-    DrawTextW(hdc, L"Suite Control  \x00B7  v" HUB_VERSION_W, -1, &hSub,
-              DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+    {
+        wchar_t subBuf[160];
+        EnterCriticalSection(&g_cs);
+        _snwprintf(subBuf, 159, L"Suite Control  \x00B7  v" HUB_VERSION_W L"  \x00B7  %s",
+                   g_activeBranch[0] ? g_activeBranch : L"auto");
+        subBuf[159] = L'\0';
+        LeaveCriticalSection(&g_cs);
+        DrawTextW(hdc, subBuf, -1, &hSub,
+                  DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+    }
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         DrawActionBtn(hdc, px, w, h, &g_topBtns[i], dpi, 0, headerH);
     }
 
@@ -1908,6 +1954,7 @@ static void ShowUtilityMenu(HWND hwnd) {
     HMENU hMenu = CreatePopupMenu();
     AppendMenuW(hMenu, MF_STRING, ID_MENU_SHORTCUT,  L"Pin Project Hub Shortcut to Desktop");
     AppendMenuW(hMenu, MF_STRING, ID_BTN_SELF_UPDATE, L"Self-Update Project Hub Now");
+    AppendMenuW(hMenu, MF_STRING, ID_BTN_BRANCH, L"Download Branch...");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(hMenu, MF_STRING, ID_MENU_SUITE_DIR, L"Open Managed Suite Folder");
 
@@ -1917,8 +1964,180 @@ static void ShowUtilityMenu(HWND hwnd) {
     DestroyMenu(hMenu);
 }
 
+/* ---- download-branch picker ------------------------------------------- */
+
+static void FetchBranchNames(void) {
+    g_branchMenuN = 0;
+    DWORD sz = 0;
+    int st = 0;
+    BYTE *buf = HttpGetBuffer(L"api.github.com",
+                              L"/repos/ajani190819-ops/Tests/branches?per_page=100",
+                              &sz, &st);
+    if (!buf || st != 200) { free(buf); return; }
+    char *s = (char *)buf;
+    while (g_branchMenuN < 96) {
+        char *q = strstr(s, "\"name\":\"");
+        if (!q) break;
+        q += 8;
+        char *e = strchr(q, '"');
+        if (!e || (e - q) >= 64) break;
+        int i;
+        for (i = 0; q + i < e; i++)
+            g_branchMenuNames[g_branchMenuN][i] = (wchar_t)(unsigned char)q[i];
+        g_branchMenuNames[g_branchMenuN][i] = L'\0';
+        g_branchMenuN++;
+        s = e + 1;
+    }
+    free(buf);
+}
+
+static void EnsureBranchInMenu(const wchar_t *name) {
+    int i;
+    for (i = 0; i < g_branchMenuN; i++)
+        if (_wcsicmp(g_branchMenuNames[i], name) == 0) return;
+    if (g_branchMenuN >= 96) return;
+    wcsncpy(g_branchMenuNames[g_branchMenuN], name, 63);
+    g_branchMenuNames[g_branchMenuN][63] = L'\0';
+    g_branchMenuN++;
+}
+
+static INT_PTR CALLBACK BranchPromptProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp) {
+    switch (msg) {
+    case WM_INITDIALOG:
+        SetDlgItemTextW(hDlg, 201, (const wchar_t *)lp);
+        return TRUE;
+    case WM_COMMAND:
+        if (LOWORD(wp) == IDOK) {
+            GetDlgItemTextW(hDlg, 201, g_branchPromptOut, 63);
+            g_branchPromptOut[63] = L'\0';
+            EndDialog(hDlg, IDOK);
+            return TRUE;
+        }
+        if (LOWORD(wp) == IDCANCEL) {
+            EndDialog(hDlg, IDCANCEL);
+            return TRUE;
+        }
+        break;
+    }
+    return FALSE;
+}
+
+static INT_PTR PromptBranchName(HWND hwnd, const wchar_t *preset) {
+    /* In-memory dialog template built byte-by-byte (the C struct has no
+       members for the trailing menu/class/title): label + edit + OK/Cancel. */
+    static BYTE buf[1024];
+    ZeroMemory(buf, sizeof(buf));
+    BYTE *p = buf;
+    *(DWORD *)p = DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU; p += 4;
+    *(WORD *)p = 4;    p += 2;   /* cdit */
+    *(WORD *)p = 10;   p += 2;   /* x */
+    *(WORD *)p = 10;   p += 2;   /* y */
+    *(WORD *)p = 240;  p += 2;   /* cx */
+    *(WORD *)p = 78;   p += 2;   /* cy */
+    *(WORD *)p = 0;    p += 2;   /* no menu */
+    *(WORD *)p = 0;    p += 2;   /* no class */
+    *(WCHAR *)p = 0;   p += 2;   /* title "" */
+    *(WORD *)p = 9;    p += 2;   /* font size */
+    {
+        static const WCHAR face[] = L"Segoe UI";
+        CopyMemory(p, face, sizeof(face));
+        p += sizeof(face);
+    }
+    struct { DWORD style; short x, y, cx, cy; WORD id; WORD cls; const WCHAR *title; } items[4] = {
+        { WS_CHILD | WS_VISIBLE | SS_LEFT, 8, 12, 224, 12, 101, 0x0082, L"GitHub branch name:" },
+        { WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL,
+          8, 28, 224, 14, 201, 0x0081, L"" },
+        { WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
+          128, 52, 48, 16, IDOK, 0x0080, L"OK" },
+        { WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+          182, 52, 48, 16, IDCANCEL, 0x0080, L"Cancel" },
+    };
+    for (int i = 0; i < 4; i++) {
+        p = (BYTE *)(((ULONG_PTR)p + 3) & ~(ULONG_PTR)3);
+        *(DWORD *)p = items[i].style; p += 4;
+        *(DWORD *)p = 0;             p += 4;
+        *(WORD *)p = (WORD)items[i].x;  p += 2;
+        *(WORD *)p = (WORD)items[i].y;  p += 2;
+        *(WORD *)p = (WORD)items[i].cx; p += 2;
+        *(WORD *)p = (WORD)items[i].cy; p += 2;
+        *(WORD *)p = items[i].id;    p += 2;
+        *(WORD *)p = 0xFFFF;         p += 2;
+        *(WORD *)p = items[i].cls;   p += 2;
+        {
+            size_t n = wcslen(items[i].title) + 1;
+            CopyMemory(p, items[i].title, n * sizeof(WCHAR));
+            p += n * sizeof(WCHAR);
+        }
+        *(WORD *)p = 0;              p += 2;
+    }
+    g_branchPromptOut[0] = L'\0';
+    return DialogBoxIndirectParamW(g_hInst, (DLGTEMPLATE *)buf, hwnd,
+                                   BranchPromptProc, (LPARAM)preset);
+}
+
+static void SetActiveBranch(HWND hwnd, const wchar_t *branch) {
+    if (!branch || !branch[0]) return;
+    EnterCriticalSection(&g_cs);
+    wcsncpy(g_activeBranch, branch, 63);
+    g_activeBranch[63] = L'\0';
+    LeaveCriticalSection(&g_cs);
+    SaveBranchCfg(branch);
+    {
+        wchar_t msg[160];
+        _snwprintf(msg, 159, L"Download branch set to '%s' - refreshing update checks.", branch);
+        msg[159] = L'\0';
+        SetFooterStatus(msg, 0);
+    }
+    RefreshProjectStatuses();
+    EnqueueTask(TASK_CHECK_REMOTE);
+    InvalidateRect(hwnd, NULL, FALSE);
+}
+
+static void ShowBranchMenu(HWND hwnd) {
+    FetchBranchNames();
+    if (g_branchMenuN == 0) {
+        EnsureBranchInMenu(L"main");
+        EnsureBranchInMenu(FALLBACK_BRANCH_W);
+    }
+    EnsureBranchInMenu(L"main");
+    EnsureBranchInMenu(FALLBACK_BRANCH_W);
+    {
+        wchar_t active[64];
+        EnsureActiveBranch(active, 64);
+        EnsureBranchInMenu(active);
+    }
+    HMENU hMenu = CreatePopupMenu();
+    AppendMenuW(hMenu, MF_STRING | MF_DISABLED | MF_GRAYED, 0, L"Download updates from:");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    {
+        wchar_t active[64];
+        EnsureActiveBranch(active, 64);
+        for (int i = 0; i < g_branchMenuN; i++) {
+            UINT flags = MF_STRING;
+            if (_wcsicmp(g_branchMenuNames[i], active) == 0) flags |= MF_CHECKED;
+            AppendMenuW(hMenu, flags, ID_MENU_BRANCH_BASE + i, g_branchMenuNames[i]);
+        }
+    }
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hMenu, MF_STRING, ID_MENU_BRANCH_CUSTOM, L"Other branch...");
+    {
+        POINT pt = { g_topBtns[3].rc.left, g_topBtns[3].rc.bottom + 4 };
+        ClientToScreen(hwnd, &pt);
+        TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON,
+                       pt.x, pt.y, 0, hwnd, NULL);
+    }
+    DestroyMenu(hMenu);
+}
+
 static void HandleActionCommand(HWND hwnd, int id) {
     wchar_t p[MAX_PATH];
+    /* dynamic branch-menu entries carry an index into the fetched list */
+    if (id >= ID_MENU_BRANCH_BASE && id < ID_MENU_BRANCH_CUSTOM) {
+        int idx = id - ID_MENU_BRANCH_BASE;
+        if (idx >= 0 && idx < g_branchMenuN)
+            SetActiveBranch(hwnd, g_branchMenuNames[idx]);
+        return;
+    }
     switch (id) {
     case ID_BTN_REFRESH_ALL:
         RefreshProjectStatuses();
@@ -1930,6 +2149,16 @@ static void HandleActionCommand(HWND hwnd, int id) {
     case ID_BTN_UPDATE_ALL:
         EnqueueTask(TASK_UPDATE_ALL);
         break;
+    case ID_BTN_BRANCH:
+        ShowBranchMenu(hwnd);
+        break;
+    case ID_MENU_BRANCH_CUSTOM: {
+        wchar_t cur[64];
+        EnsureActiveBranch(cur, 64);
+        if (PromptBranchName(hwnd, cur) == IDOK && g_branchPromptOut[0])
+            SetActiveBranch(hwnd, g_branchPromptOut);
+        break;
+    }
     case ID_EMBLEM_MENU:
         ShowUtilityMenu(hwnd);
         break;
@@ -1948,6 +2177,7 @@ static void HandleActionCommand(HWND hwnd, int id) {
         EnsureDirTree(g_suiteDir);
         ShellExecuteW(hwnd, L"open", g_suiteDir, NULL, NULL, SW_SHOWNORMAL);
         break;
+
 
     case ID_BTG_OPEN:
         _snwprintf(p, MAX_PATH, L"%s\\BluetoothGuard.exe", g_btgDir);
