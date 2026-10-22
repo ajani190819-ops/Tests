@@ -238,14 +238,15 @@ def build_icon_project_hub(size: int = 512, small: bool = False,
     # soft alpha blobs become a speckled halo once GIF's 1-bit transparency
     # has to dither them, and the shadow looks dirty on light surfaces. The
     # gradient + rim still carry the shading people liked on the icon.
-    rim = trispoke_sdf_alpha(size, scale=0.91,
+    scale = 1.06 if spin else 1.02
+    rim = trispoke_sdf_alpha(size, scale=scale,
                              thickness_boost=boost + (0.022 if spin else 0.038),
                              angle_deg=angle_deg)
     rim_img = Image.fromarray((np.clip(rim, 0.0, 1.0) * 255.0).astype(np.uint8), mode="L")
     rim_layer = Image.new("RGBA", (size, size), (16, 22, 32, 255))
     rim_layer.putalpha(rim_img)
     base.alpha_composite(rim_layer)
-    emblem = trispoke_sdf_alpha(size, scale=0.91, thickness_boost=boost,
+    emblem = trispoke_sdf_alpha(size, scale=scale, thickness_boost=boost,
                                 angle_deg=angle_deg)
     return composite_elevated_layer(
         base, emblem,
@@ -537,7 +538,7 @@ BAYER4 = (
 )
 
 
-def export_spin_loops(size: int = 512, frames: int = 240, ms: int = 50):
+def export_spin_loops(size: int = 768, frames: int = 240, ms: int = 50):
     """docs/brand/tri-spoke-spin.gif (transparent) + .webp (full alpha)."""
     imgs = []
     for i in range(frames):
