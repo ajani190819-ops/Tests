@@ -2822,6 +2822,30 @@ static void RelaunchElevated(HWND hwnd) {
     }
 }
 
+static void EnsureLogonTask(void) {
+    /* One UAC prompt ever: once we run elevated, register a logon task with
+       highest privileges so every future start of Keyboard Lighting is
+       silent (tasks skip UAC) and fully functional. Re-registering is
+       idempotent, so updates simply refresh the task. */
+    wchar_t cmd[640];
+    _snwprintf(cmd, 639,
+               L"schtasks /Create /F /SC ONLOGON /TN \"TestsSuite-KeyboardLighting\" "
+               L"/TR \"\\\"%s\\\" -NoElevate\" /RL HIGHEST", g_exePath);
+    cmd[639] = L'\0';
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    if (CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW,
+                       NULL, NULL, &si, &pi)) {
+        WaitForSingleObject(pi.hProcess, 8000);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+}
+
 static void HandleHitAction(HWND hwnd, int hitIdx) {
     if (hitIdx < 0 || hitIdx >= g_hitCount) return;
     int kind = g_hits[hitIdx].kind;
@@ -3284,6 +3308,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
         /* User declined UAC - stay open gracefully in preview mode with 'Run as Admin' button! */
         hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
     }
+
+    if (g_isAdmin) EnsureLogonTask();
 
     g_showEvent = CreateEventW(NULL, FALSE, FALSE, SHOW_EVENT_NAME);
     INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_STANDARD_CLASSES };
