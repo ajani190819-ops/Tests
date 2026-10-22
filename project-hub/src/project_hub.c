@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.11"
-#define HUB_VERSION_W     L"2.8.11"
+#define HUB_VERSION       "2.8.12"
+#define HUB_VERSION_W     L"2.8.12"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -1673,10 +1673,33 @@ static void WorkerSelfUpdateHub(void) {
         return;
     }
 
-    if (!MoveFileExW(g_exePath, oldExe, MOVEFILE_REPLACE_EXISTING) ||
-        !MoveFileExW(newExe, g_exePath, MOVEFILE_REPLACE_EXISTING)) {
+    /* The running image can be renamed away but not overwritten. The second
+       move must therefore never be allowed to fail with the old exe already
+       renamed - that is how ProjectHub.exe could disappear from disk.
+       Retry through transient locks (AV scans love fresh downloads), and if
+       it still fails put the old exe back so the hub always stays present. */
+    if (!MoveFileExW(g_exePath, oldExe, MOVEFILE_REPLACE_EXISTING)) {
         DeleteFileW(newExe);
         SetFooterStatus(L"Could not replace ProjectHub.exe on disk.", 0);
+        return;
+    }
+
+    BOOL swapped = FALSE;
+    for (int i = 0; i < 10 && !swapped; i++) {
+        swapped = MoveFileExW(newExe, g_exePath, MOVEFILE_REPLACE_EXISTING);
+        if (!swapped) Sleep(300);
+    }
+    if (!swapped) {
+        for (int i = 0; i < 10; i++) {
+            if (MoveFileExW(oldExe, g_exePath, MOVEFILE_REPLACE_EXISTING)) break;
+            Sleep(300);
+        }
+        if (FileExistsW(g_exePath)) {
+            DeleteFileW(newExe);
+            SetFooterStatus(L"Could not install the update - kept the current Project Hub.", 0);
+        } else {
+            SetFooterStatus(L"Update failed - ProjectHub.exe.old still holds the last good hub.", 0);
+        }
         return;
     }
 
