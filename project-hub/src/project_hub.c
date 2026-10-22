@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.12"
-#define HUB_VERSION_W     L"2.8.12"
+#define HUB_VERSION       "2.8.13"
+#define HUB_VERSION_W     L"2.8.13"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -1407,13 +1407,25 @@ static void WorkerInstallDnsPilot(BOOL launchAfter) {
     HWND hPilot = FindWindowW(L"KBLSuiteDnsPilotWindow", NULL);
     if (hPilot) {
         wasRunning = TRUE;
-        SetFooterStatus(L"Closing DNS Pilot for a clean update...", 8);
-        PostMessageW(hPilot, WM_CLOSE, 0, 0);
-        for (int i = 0; i < 40; i++) {  /* up to 2 s for a clean exit */
-            if (!FindWindowW(L"KBLSuiteDnsPilotWindow", NULL)) break;
-            Sleep(50);
+        SetFooterStatus(L"Stopping running DNS Pilot for clean update...", 8);
+        wchar_t pilotExe[MAX_PATH];
+        _snwprintf(pilotExe, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
+        if (FileExistsW(pilotExe)) {
+            /* --stop quits the app for real; WM_CLOSE only hides it to the
+               tray now, so the exe would stay locked. */
+            SHELLEXECUTEINFOW sei;
+            ZeroMemory(&sei, sizeof(sei));
+            sei.cbSize = sizeof(sei);
+            sei.fMask  = SEE_MASK_NOCLOSEPROCESS;
+            sei.lpFile = pilotExe;
+            sei.lpParameters = L"--stop";
+            sei.nShow  = SW_HIDE;
+            if (ShellExecuteExW(&sei) && sei.hProcess) {
+                WaitForSingleObject(sei.hProcess, 2500);
+                CloseHandle(sei.hProcess);
+            }
         }
-        Sleep(150);
+        Sleep(300);
     }
 
     wchar_t destExe[MAX_PATH];
