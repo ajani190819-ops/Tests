@@ -1625,12 +1625,31 @@ static void OnRawInputMsg(HWND hwnd, LPARAM lp) {
 }
 
 /* ---- Native-style brightness OSD (sun + bar + percent) -------------
-   Compact bottom-centre popup matching the Windows volume/brightness OSD:
-   dark pill, small sun, thin cream bar, and the live percent fitted at the
-   right. Appears whenever keyboard brightness changes from outside the
-   window (M4/M5, Fn keys, other panels) and hides after ~1.4s. */
+   Bottom-centre popup built to look like the Windows OSD: neutral dark
+   body, the REAL Windows brightness glyph (U+E706 from Segoe Fluent
+   Icons / Segoe MDL2 Assets - the exact icon Windows draws), a thin
+   rounded bar, and the live percent. Appears whenever keyboard
+   brightness changes from outside the window and hides after ~1.4s. */
 static HWND g_osdHwnd = NULL;
 static int  g_osdPct = -1;
+
+static void OsdDrawSunFallback(HDC mem, int cx, int cy, int r) {
+    HPEN sunPen = CreatePen(PS_SOLID, r / 3 + 1, RGB(240, 240, 240));
+    HBRUSH sunBr = CreateSolidBrush(RGB(240, 240, 240));
+    HGDIOBJ op = SelectObject(mem, sunPen);
+    HGDIOBJ ob = SelectObject(mem, sunBr);
+    Ellipse(mem, cx - r, cy - r, cx + r, cy + r);
+    for (int a = 0; a < 8; a++) {
+        double th = a * 0.7853981633974483;
+        int rayIn = r + r / 2, rayOut = r * 2 + r / 2;
+        MoveToEx(mem, cx + (int)(rayIn * cos(th)), cy + (int)(rayIn * sin(th)), NULL);
+        LineTo(mem, cx + (int)(rayOut * cos(th)), cy + (int)(rayOut * sin(th)));
+    }
+    SelectObject(mem, op);
+    SelectObject(mem, ob);
+    DeleteObject(sunPen);
+    DeleteObject(sunBr);
+}
 
 static LRESULT CALLBACK OsdWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
@@ -1646,38 +1665,59 @@ static LRESULT CALLBACK OsdWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         HDC mem = CreateCompatibleDC(dc);
         HBITMAP bmp = CreateCompatibleBitmap(dc, W, H);
         HGDIOBJ oldBm = SelectObject(mem, bmp);
-        HBRUSH bg = CreateSolidBrush(RGB(32, 35, 42));
-        HPEN bgPen = CreatePen(PS_SOLID, 1, RGB(32, 35, 42));
+        HBRUSH bg = CreateSolidBrush(RGB(44, 44, 44));
+        HPEN bgPen = CreatePen(PS_SOLID, 1, RGB(44, 44, 44));
         HGDIOBJ oldBr = SelectObject(mem, bg);
         HGDIOBJ oldPen = SelectObject(mem, bgPen);
-        RoundRect(mem, 0, 0, W, H, H / 3, H / 3);
-        /* sun */
-        int pad = H * 26 / 100;
-        int sunR = H * 10 / 100;
-        int sunCx = pad + sunR * 2, sunCy = H / 2;
-        HPEN sunPen = CreatePen(PS_SOLID, H / 26 + 1, RGB(232, 236, 245));
-        HBRUSH sunBr = CreateSolidBrush(RGB(232, 236, 245));
-        SelectObject(mem, sunPen);
-        SelectObject(mem, sunBr);
-        Ellipse(mem, sunCx - sunR, sunCy - sunR, sunCx + sunR, sunCy + sunR);
+        RoundRect(mem, 0, 0, W, H, H / 5, H / 5);
+        int pad = H * 32 / 100;
+        int iconCx = pad + H * 22 / 100;
+        /* The exact Windows brightness glyph (Segoe Fluent Icons E706,
+           Segoe MDL2 Assets E706 on Win10). Same font, same icon. */
+        int glyphOk = 0;
+        HFONT f1 = CreateFontW(-H * 52 / 100, 0, 0, 0, FW_NORMAL, 0, 0, 0,
+                               0, 0, 0, 0, 0, L"Segoe Fluent Icons");
+        HFONT f2 = CreateFontW(-H * 52 / 100, 0, 0, 0, FW_NORMAL, 0, 0, 0,
+                               0, 0, 0, 0, 0, L"Segoe MDL2 Assets");
+        HFONT useF = f1;
         {
-            int rayIn = sunR + sunR / 2, rayOut = sunR * 2 + sunR / 2;
-            for (int a = 0; a < 8; a++) {
-                double th = a * 0.7853981633974483;
-                MoveToEx(mem, sunCx + (int)(rayIn * cos(th)), sunCy + (int)(rayIn * sin(th)), NULL);
-                LineTo(mem, sunCx + (int)(rayOut * cos(th)), sunCy + (int)(rayOut * sin(th)));
+            HGDIOBJ of = SelectObject(mem, f1);
+            WORD gi = 0xFFFF;
+            if (GetGlyphIndicesW(mem, L"\xE706", 1, &gi, GGI_MARK_NONEXISTING_GLYPHS) != GDI_ERROR && gi != 0xFFFF) {
+                glyphOk = 1;
+            } else {
+                SelectObject(mem, f2);
+                gi = 0xFFFF;
+                if (GetGlyphIndicesW(mem, L"\xE706", 1, &gi, GGI_MARK_NONEXISTING_GLYPHS) != GDI_ERROR && gi != 0xFFFF) {
+                    glyphOk = 1;
+                    useF = f2;
+                }
             }
+            SelectObject(mem, of);
         }
-        /* thin bar with a dedicated percent area that FITS */
-        int barH = H * 14 / 100;
+        if (glyphOk) {
+            HGDIOBJ of = SelectObject(mem, useF);
+            RECT ir;
+            SetBkMode(mem, TRANSPARENT);
+            SetTextColor(mem, RGB(240, 240, 240));
+            SetRect(&ir, iconCx - H * 30 / 100, 0, iconCx + H * 30 / 100, H);
+            DrawTextW(mem, L"\xE706", -1, &ir, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+            SelectObject(mem, of);
+        } else {
+            OsdDrawSunFallback(mem, iconCx, H / 2, H * 11 / 100);
+        }
+        DeleteObject(f1);
+        DeleteObject(f2);
+        /* thin native-style bar + percent */
+        int barH = H * 15 / 100;
         if (barH < 5) barH = 5;
         int barY = (H - barH) / 2;
-        int barX = sunCx + H * 30 / 100;
-        int pctW = H * 82 / 100;
-        int barW = W - barX - pctW - pad;
+        int barX = iconCx + H * 38 / 100;
+        int pctW = H * 84 / 100;
+        int barW = W - barX - pctW - pad / 2;
         if (barW < 40) barW = 40;
-        HBRUSH trBr = CreateSolidBrush(RGB(62, 66, 74));
-        HPEN trPen = CreatePen(PS_SOLID, 1, RGB(62, 66, 74));
+        HBRUSH trBr = CreateSolidBrush(RGB(90, 90, 90));
+        HPEN trPen = CreatePen(PS_SOLID, 1, RGB(90, 90, 90));
         SelectObject(mem, trBr);
         SelectObject(mem, trPen);
         RoundRect(mem, barX, barY, barX + barW, barY + barH, barH, barH);
@@ -1686,28 +1726,27 @@ static LRESULT CALLBACK OsdWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (pct > 100) pct = 100;
         int fillW = (barW - 2) * pct / 100;
         if (fillW > 0 && pct > 0) {
-            HBRUSH fBr = CreateSolidBrush(RGB(233, 226, 206));
-            HPEN fPen = CreatePen(PS_SOLID, 1, RGB(233, 226, 206));
+            HBRUSH fBr = CreateSolidBrush(RGB(232, 226, 208));
+            HPEN fPen = CreatePen(PS_SOLID, 1, RGB(232, 226, 208));
             SelectObject(mem, fBr);
             SelectObject(mem, fPen);
             RoundRect(mem, barX + 1, barY + 1, barX + 1 + fillW, barY + barH - 1, barH, barH);
             DeleteObject(fBr);
             DeleteObject(fPen);
         }
-        /* percent, small like the native OSD's caption */
         {
-            HFONT font = CreateFontW(-H * 25 / 100, 0, 0, 0, FW_SEMIBOLD, 0, 0, 0,
+            HFONT font = CreateFontW(-H * 24 / 100, 0, 0, 0, FW_NORMAL, 0, 0, 0,
                                      0, 0, 0, 0, 0, L"Segoe UI");
-            HGDIOBJ oldF = SelectObject(mem, font);
+            HGDIOBJ of = SelectObject(mem, font);
             wchar_t t[16];
             _snwprintf(t, 15, L"%d%%", pct);
             t[15] = L'\0';
             RECT tr;
-            SetRect(&tr, barX + barW + H * 4 / 100, 0, W - H * 6 / 100, H);
+            SetRect(&tr, barX + barW + H * 2 / 100, 0, W - pad / 3, H);
             SetBkMode(mem, TRANSPARENT);
-            SetTextColor(mem, RGB(232, 236, 245));
+            SetTextColor(mem, RGB(235, 235, 235));
             DrawTextW(mem, t, -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-            SelectObject(mem, oldF);
+            SelectObject(mem, of);
             DeleteObject(font);
         }
         BitBlt(dc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
@@ -1715,7 +1754,6 @@ static LRESULT CALLBACK OsdWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         SelectObject(mem, oldPen);
         SelectObject(mem, oldBm);
         DeleteObject(bg); DeleteObject(bgPen);
-        DeleteObject(sunBr); DeleteObject(sunPen);
         DeleteObject(trBr); DeleteObject(trPen);
         DeleteObject(bmp);
         DeleteDC(mem);
@@ -1738,7 +1776,7 @@ static void OsdCreate(HINSTANCE hInst) {
     g_osdHwnd = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,
                                 wc.lpszClassName, L"", WS_POPUP,
                                 0, 0, 10, 10, NULL, NULL, hInst, NULL);
-    if (g_osdHwnd) SetLayeredWindowAttributes(g_osdHwnd, 0, 255, LWA_ALPHA);
+    if (g_osdHwnd) SetLayeredWindowAttributes(g_osdHwnd, 0, 242, LWA_ALPHA);
 }
 
 static void OsdShow(int pct) {
@@ -1746,7 +1784,6 @@ static void OsdShow(int pct) {
     HDC sdc = GetDC(NULL);
     int dpi = GetDeviceCaps(sdc, LOGPIXELSX);
     ReleaseDC(NULL, sdc);
-    /* Compact, like the Windows OSD: ~320x54 at 96dpi. */
     int W = MulDiv(320, dpi, 96), H = MulDiv(54, dpi, 96);
     RECT wa;
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &wa, 0);
