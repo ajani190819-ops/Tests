@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tri-Spoke Spin - transparency preview</title>
+<style>
+ body{margin:0;font:14px system-ui;color:#e8ecf5;background:#181b24;transition:background .25s}
+ .bar{display:flex;gap:8px;align-items:center;padding:14px 18px;background:#14171f}
+ button{border:1px solid #303748;background:#222734;color:#e8ecf5;border-radius:8px;padding:8px 14px;cursor:pointer}
+ .stage{min-height:calc(100vh - 120px);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+ img{width:min(78vmin,720px);height:auto}
+ .cap{opacity:.65;max-width:640px;text-align:center;line-height:1.5}
+</style>
+<div class="bar">
+ <b>Tri-Spoke spin</b>&nbsp;&mdash;&nbsp;backdrop:
+ <button onclick="setBg('#181b24')">App slate</button>
+ <button onclick="setBg('#202124')">Viewer grey</button>
+ <button onclick="setBg('#f4f6fb')">Light</button>
+ <button onclick="setBg('#33201a')">Warm</button>
+ <button onclick="setBg('checker')">Checker</button>
+</div>
+<div class="stage">
+ <img src="https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/e895b94f-tests/docs/brand/tri-spoke-spin-1024.webp" alt="spinning tri-spoke logo">
+ <div class="cap">The logo must sit on <i>your</i> backdrop with no plate around it.
+ If you see a solid square here, this page is not open in a browser &mdash;
+ desktop image viewers flatten transparency onto their own canvas.</div>
+</div>
+<script>
+function setBg(c){
+  document.body.style.background = (c === 'checker')
+    ? 'repeating-conic-gradient(#444 0 25%,#222 0 50%) 0/28px 28px'
+    : c;
+}
+</script>

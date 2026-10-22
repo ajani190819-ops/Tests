@@ -538,61 +538,109 @@ BAYER4 = (
 )
 
 
-def export_spin_loops(size: int = 768, frames: int = 240, ms: int = 50):
-    """docs/brand/tri-spoke-spin.gif (transparent) + .webp (full alpha)."""
+def export_spin_loops(size: int = 1024, frames: int = 180, ms: int = 66):
+    """The spin ships in three flavors:
+
+      tri-spoke-spin-1024.webp  - FULL alpha, true color: the quality master.
+      tri-spoke-spin-1024.gif   - 1-bit transparency, narrow edge dither
+                                  (legacy viewers / README fallback).
+      spin.html                 - browser preview over switchable backdrops.
+
+    Desktop image viewers (Windows Photos and friends) flatten ANY
+    transparency onto their own warm-grey canvas - that backdrop is the
+    "brown background" people keep seeing, and no file can fix a flattening
+    viewer. Browsers and the hub's in-app emblem show the true see-through
+    alpha; the preview page exists to prove it on purpose.
+    """
     imgs = []
     for i in range(frames):
         ang = 360.0 * i / frames
         imgs.append(build_icon_project_hub(size, angle_deg=ang, spin=True).convert("RGBA"))
 
-    # ---- animated WebP: exact, no dithering ----
-    imgs[0].save(
-        BRAND_DIR / "tri-spoke-spin.webp",
-        save_all=True,
-        append_images=imgs[1:],
-        duration=ms,
-        loop=0,
-        quality=80,
-        method=4,
-    )
+    # Keep invisible RGB neutral so lossy WebP cannot bleed warm garbage
+    # into transparent regions' edges.
+    for im in imgs:
+        arr = np.asarray(im, dtype=np.uint8).copy()
+        arr[arr[:, :, 3] < 8] = (16, 22, 32, 0)
+        im.paste(Image.fromarray(arr, mode="RGBA"))
 
-    # ---- transparent GIF: shared palette + clean binary alpha cut ----
-    # GIF transparency is 1-bit. Dithering the soft edge leaves a speckled
-    # fringe that reads as a colored plate behind the glyph ("it's sitting
-    # on something"). A clean threshold cut at 140 keeps the ~2px SDF
-    # silhouette smooth enough with ZERO fringe, and the palette now sees
-    # only real glyph tones instead of the black void underneath.
+    def _save_webp(path):
+        imgs[0].save(path, save_all=True, append_images=imgs[1:],
+                     duration=ms, loop=0, quality=85, method=4)
+
+    _save_webp(BRAND_DIR / "tri-spoke-spin-1024.webp")
+    _save_webp(BRAND_DIR / "tri-spoke-spin.webp")
+
+    # GIF: 256 colours + 1-bit alpha. The SDF edge is ~2px anti-aliased;
+    # ordered-dithering ONLY that narrow band keeps the silhouette smooth
+    # without the speckled plate a wide dither produces.
     a0 = np.asarray(imgs[0].getchannel("A"), dtype=np.float32)
     rgb_arr = np.asarray(imgs[0].convert("RGB"), dtype=np.uint8).copy()
-    rgb_arr[a0 < 140.0] = (16, 22, 32)
+    rgb_arr[a0 < 8] = (16, 22, 32)
     pal_src = Image.fromarray(rgb_arr, mode="RGB").quantize(
         colors=255, method=Image.Quantize.MEDIANCUT)
+    pal_bytes = pal_src.getpalette()
 
+    bayer = np.array(BAYER4, dtype=np.float32)
+    thr = (bayer[np.arange(size)[:, None] % 4,
+                 np.arange(size)[None, :] % 4] + 0.5) * 16.0
     gif_frames = []
     trans_idx = 255
-    pal_bytes = pal_src.getpalette()
     for im in imgs:
         q = im.convert("RGB").quantize(palette=pal_src, dither=Image.Dither.NONE)
-        idx = np.frombuffer(q.tobytes(), dtype=np.uint8).reshape(im.size[1], im.size[0]).copy()
+        idx = np.frombuffer(q.tobytes(), dtype=np.uint8).reshape(size, size).copy()
         a = np.asarray(im.getchannel("A"), dtype=np.float32)
-        idx[a < 140.0] = trans_idx
+        idx[(a < 90.0) | ((a < 250.0) & (a < thr))] = trans_idx
         frame = Image.frombytes("P", im.size, idx.tobytes())
         frame.putpalette(pal_bytes)
         gif_frames.append(frame)
 
-    gif_frames[0].save(
-        BRAND_DIR / "tri-spoke-spin.gif",
-        save_all=True,
-        append_images=gif_frames[1:],
-        duration=ms,
-        loop=0,
-        disposal=2,
-        transparency=trans_idx,
-        optimize=False,
-    )
+    def _save_gif(path):
+        gif_frames[0].save(path, save_all=True, append_images=gif_frames[1:],
+                           duration=ms, loop=0, disposal=2,
+                           transparency=trans_idx, optimize=False)
+
+    _save_gif(BRAND_DIR / "tri-spoke-spin-1024.gif")
+    _save_gif(BRAND_DIR / "tri-spoke-spin.gif")
+
+    html = """<!doctype html>
+<meta charset="utf-8">
+<title>Tri-Spoke Spin - transparency preview</title>
+<style>
+ body{margin:0;font:14px system-ui;color:#e8ecf5;background:#181b24;transition:background .25s}
+ .bar{display:flex;gap:8px;align-items:center;padding:14px 18px;background:#14171f}
+ button{border:1px solid #303748;background:#222734;color:#e8ecf5;border-radius:8px;padding:8px 14px;cursor:pointer}
+ .stage{min-height:calc(100vh - 120px);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+ img{width:min(78vmin,720px);height:auto}
+ .cap{opacity:.65;max-width:640px;text-align:center;line-height:1.5}
+</style>
+<div class="bar">
+ <b>Tri-Spoke spin</b>&nbsp;&mdash;&nbsp;backdrop:
+ <button onclick="setBg('#181b24')">App slate</button>
+ <button onclick="setBg('#202124')">Viewer grey</button>
+ <button onclick="setBg('#f4f6fb')">Light</button>
+ <button onclick="setBg('#33201a')">Warm</button>
+ <button onclick="setBg('checker')">Checker</button>
+</div>
+<div class="stage">
+ <img src="tri-spoke-spin-1024.webp" alt="spinning tri-spoke logo">
+ <div class="cap">The logo must sit on <i>your</i> backdrop with no plate around it.
+ If you see a solid square here, this page is not open in a browser &mdash;
+ desktop image viewers flatten transparency onto their own canvas.</div>
+</div>
+<script>
+function setBg(c){
+  document.body.style.background = (c === 'checker')
+    ? 'repeating-conic-gradient(#444 0 25%,#222 0 50%) 0/28px 28px'
+    : c;
+}
+</script>
+"""
+    (BRAND_DIR / "spin.html").write_text(html, encoding="utf-8")
+
     import os
-    print("spin gif bytes:", os.path.getsize(BRAND_DIR / "tri-spoke-spin.gif"))
-    print("spin webp bytes:", os.path.getsize(BRAND_DIR / "tri-spoke-spin.webp"))
+    for f in ("tri-spoke-spin-1024.gif", "tri-spoke-spin-1024.webp"):
+        print("spin", f, "bytes:", os.path.getsize(BRAND_DIR / f))
 
 
 if __name__ == "__main__":
