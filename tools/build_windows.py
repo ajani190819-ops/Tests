@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Parallel zero-discovery builder for ProjectHub.exe and BluetoothGuard.exe.
+"""Parallel zero-discovery builder for ProjectHub.exe, BluetoothGuard.exe,
+KeyboardLighting.exe, and DnsPilot.exe.
 
 Usage:
     python3 tools/build_windows.py
@@ -94,9 +95,18 @@ def main() -> int:
             ["-luser32", "-lgdi32", "-lshell32", "-ladvapi32",
              "-lcomctl32", "-lcomdlg32", "-lwinhttp"],
         ),
+        (
+            "dnspilot",
+            ROOT / "dns-pilot" / "src",
+            "dns-pilot.rc",
+            ROOT / "dns-pilot" / "src" / "dns_pilot.c",
+            ROOT / "dns-pilot" / "DnsPilot.exe",
+            ["-luser32", "-lgdi32", "-lshell32", "-ladvapi32",
+             "-lcomctl32", "-lws2_32", "-liphlpapi"],
+        ),
     ]
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         futs = [pool.submit(build_target, zig_py, env, *t) for t in targets]
         for fut in futs:
             print(fut.result())

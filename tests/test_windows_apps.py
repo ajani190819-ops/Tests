@@ -395,6 +395,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             ROOT / "keyboard-lighting",
             ROOT / "bluetooth-guard",
             ROOT / "project-hub",
+            ROOT / "dns-pilot",
             ROOT / "spatial-hud-template-26.3",
         ]
         for base in scan_dirs:
@@ -424,11 +425,14 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             "winhttp.dll",
             "comdlg32.dll",
             "msvcrt.dll",
+            "ws2_32.dll",
+            "iphlpapi.dll",
         }
         for rel in (
             "project-hub/ProjectHub.exe",
             "bluetooth-guard/BluetoothGuard.exe",
             "keyboard-lighting/KeyboardLighting.exe",
+            "dns-pilot/DnsPilot.exe",
         ):
             exe = ROOT / rel
             self.assertTrue(exe.exists(), f"Missing standalone native executable {rel}")
