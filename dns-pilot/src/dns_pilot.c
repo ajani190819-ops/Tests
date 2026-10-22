@@ -1663,7 +1663,11 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     wcsncpy(g_nid.szTip, L"DNS Pilot - Auto-Pilot DNS switching", 127);
     Shell_NotifyIconW(NIM_ADD, &g_nid);
 
-    ShowWindow(g_hwnd, SW_SHOW);
+    /* -Silent: start hidden in the tray (the hub uses this to put an
+       updated pilot back the way it was instead of popping the window) */
+    BOOL silent = (cmdLine && (wcsstr(cmdLine, L"-Silent") != NULL ||
+                               wcsstr(cmdLine, L"--silent") != NULL));
+    if (!silent) ShowWindow(g_hwnd, SW_SHOW);
     InitializeCriticalSection(&g_watchCs);
     SetTimer(g_hwnd, 1, 10000, NULL);
     SetTimer(g_hwnd, 2, 50, NULL);     /* emblem spin repaint */
@@ -1672,8 +1676,9 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     InitializeCriticalSection(&g_statsCs);
     CreateThread(NULL, 0, StatsThread, NULL, 0, NULL);
 
-    /* opening the pilot always kicks off a real test right away */
-    StartTest(0);
+    /* opening the pilot always kicks off a real test right away
+       (not on a silent tray start - that is a restore, not an open) */
+    if (!silent) StartTest(0);
 
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0)) {
