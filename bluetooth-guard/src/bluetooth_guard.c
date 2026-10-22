@@ -97,6 +97,7 @@ typedef struct {
     BOOL      sessionAllowed;
     BOOL      seenConnected;
     BOOL      profilesRepaired;
+    BOOL      visible;
     ULONGLONG sessionStartTick;
 } DeviceEntry;
 
@@ -299,6 +300,33 @@ static BOOL InitBluetoothApis(void) {
     pBtSetServiceState = (PFN_BtSetServiceState)(void *)GetProcAddress(m, "BluetoothSetServiceState");
     return (pBtFindFirstRadio && pBtFindNextRadio && pBtFindRadioClose &&
             pBtFindFirstDevice && pBtFindNextDevice && pBtFindDeviceClose && pBtSetServiceState);
+}
+
+/* Has this device ever carried a profile connection on this machine?
+   BTHPORT keeps one subkey per service under the device key, and those
+   appear the first time a profile actually connects. A paired-but-never-
+   used entry (Swift Pair bait, stale cache rows) has the key but no
+   services - exactly the devices that must never be listed here. When the
+   registry cannot answer, err on showing the device. */
+static BOOL HasConnectedBefore(ULONGLONG addr) {
+    wchar_t folder[16], path[160];
+    for (int i = 0; i < 6; i++) {
+        unsigned v = (unsigned)((addr >> (8 * i)) & 0xFF);
+        folder[i * 2]     = (wchar_t)(L"0123456789ABCDEF"[(v >> 4) & 15]);
+        folder[i * 2 + 1] = (wchar_t)(L"0123456789ABCDEF"[v & 15]);
+    }
+    folder[12] = L'\0';
+    _snwprintf(path, 160, L"SYSTEM\\CurrentControlSet\\Services\\BTHPORT\\Parameters\\Devices\\%s", folder);
+    path[159] = L'\0';
+    HKEY hKey = NULL;
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, path, 0, KEY_READ, &hKey) != ERROR_SUCCESS)
+        return TRUE;
+    DWORD subKeys = 0;
+    LONG rc = RegQueryInfoKeyW(hKey, NULL, NULL, NULL, &subKeys, NULL, NULL,
+                               NULL, NULL, NULL, NULL, NULL);
+    RegCloseKey(hKey);
+    if (rc != ERROR_SUCCESS) return TRUE;
+    return subKeys > 0;
 }
 
 static void FormatMac(ULONGLONG addr, wchar_t *out, size_t cap) {
@@ -703,6 +731,9 @@ static void LoadRules(void) {
         if (g_devCount < MAX_DEVICES) {
             DeviceEntry *d = &g_devices[g_devCount++];
             ZeroMemory(d, sizeof(*d));
+            /* saved rows only carry the allow/block policy; they are not
+               proof the device is one of yours - the OS scan decides */
+            d->visible = FALSE;
             wcsncpy(d->mac, line, 23);
             d->allowAuto = (_wtoi(p1) != 0);
             d->address = _wcstoui64(p2, NULL, 10);
@@ -755,8 +786,11 @@ static void PollPairedDevices(void) {
     BLUETOOTH_DEVICE_SEARCH_PARAMS sp;
     ZeroMemory(&sp, sizeof(sp));
     sp.dwSize = sizeof(sp);
+    /* Only this machine's own devices: paired or currently connected.
+       fReturnRemembered stays off - remembered-but-never-used entries
+       (Swift Pair bait, stale inquiry cache) are strangers and the list
+       has no business showing them. */
     sp.fReturnAuthenticated = TRUE;
-    sp.fReturnRemembered = TRUE;
     sp.fReturnConnected = TRUE;
 
     BLUETOOTH_DEVICE_INFO info;
@@ -770,6 +804,7 @@ static void PollPairedDevices(void) {
     if (hFind) {
         do {
             if (info.Address.ullLong != 0) {
+                if (!info.fAuthenticated && !info.fConnected) continue;
                 wchar_t mac[24], kind[16];
                 FormatMac(info.Address.ullLong, mac, 24);
                 const wchar_t *nm = info.szName[0] ? info.szName : mac;
@@ -791,6 +826,9 @@ static void PollPairedDevices(void) {
                     wcsncpy(d->name, nm, 247);
                     wcsncpy(d->kind, kind, 15);
                     d->connected = info.fConnected ? TRUE : FALSE;
+                    /* List only devices this machine has connected to
+                       before (or is connected to right now). */
+                    d->visible = info.fConnected || HasConnectedBefore(info.Address.ullLong);
 
                     /* Always ensure profiles stay enabled so manual connect always works! */
                     if (!d->profilesRepaired) {
@@ -1271,7 +1309,12 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
     radioOn = g_radioOn;
     if (count > 0) memcpy(snap, g_devices, sizeof(DeviceEntry) * (size_t)count);
     LeaveCriticalSection(&g_lock);
-    for (int i = 0; i < count; i++) if (!snap[i].allowAuto) blockedCount++;
+    int visCount = 0;
+    for (int i = 0; i < count; i++) {
+        if (!snap[i].visible) continue;
+        visCount++;
+        if (!snap[i].allowAuto) blockedCount++;
+    }
 
     /* Header Suite Tri-Spoke Core Emblem + natural title + calm subtitle */
     int embSz = S(36, dpi);
@@ -1308,7 +1351,7 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
     else if (!radioOn)
         wcsncpy(subHdr, L"Bluetooth radio is off", 95);
     else
-        _snwprintf(subHdr, 95, L"Audio protection  \x00B7  %d protected (%d paired)", blockedCount, count);
+        _snwprintf(subHdr, 95, L"Audio protection  \x00B7  %d protected (%d paired)", blockedCount, visCount);
 
     SelectObject(mem, fSub);
     SetTextColor(mem, COL_TELEMETRY);
@@ -1322,7 +1365,7 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
     int listBottom = footerTop;
     int cardH = S(82, dpi);
     int gap = S(11, dpi);
-    g_contentH = count * (cardH + gap);
+    g_contentH = visCount * (cardH + gap);
     int maxScroll = g_contentH - (listBottom - listTop);
     if (maxScroll < 0) maxScroll = 0;
     if (g_scrollY > maxScroll) g_scrollY = maxScroll;
@@ -1335,7 +1378,7 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
     HICON hCardIco = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(RES_ICON_APP),
                                        IMAGE_ICON, cardIcoSz, cardIcoSz, LR_DEFAULTCOLOR);
 
-    if (count == 0) {
+    if (visCount == 0) {
         RECT emptyR = { M, listTop, M + CW, listTop + S(82, dpi) };
         SmoothRoundRect(px, W, H, &emptyR, (float)S(10, dpi), COL_CARD, COL_BORDER, listTop, listBottom);
         SelectObject(mem, fBody);
@@ -1347,6 +1390,9 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
         int y = listTop - g_scrollY;
         for (int i = 0; i < count; i++) {
             DeviceEntry *d = &snap[i];
+            /* hidden entries take no row space - the hit index below stays
+               the raw snapshot index so clicks still land correctly */
+            if (!d->visible) continue;
             RECT cr = { M, y, M + CW, y + cardH };
             if (cr.bottom >= listTop && cr.top <= listBottom) {
                 SmoothRoundRect(px, W, H, &cr, (float)S(10, dpi), COL_CARD, COL_BORDER, listTop, listBottom);
