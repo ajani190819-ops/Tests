@@ -3902,11 +3902,21 @@ $step = 50
 $stopFile = Join-Path $stateDir 'stop.flag'
 if (Test-Path $stopFile) { Remove-Item $stopFile -Force -ErrorAction SilentlyContinue }
 # One-shot brightness taps written by KeyboardLighting.exe -BrightUp / -BrightDown
-# (the G-Helper M4/M5 'Custom' actions). Each flag is one smooth master step -
-# the same step the Fn F2/F3 listener applies - and never touches G-Helper's
-# native 4-step gate.
+# (the G-Helper M4/M5 'Custom' actions). Each token is one tap; a held key
+# repeats those taps and they are paced into a smooth sweep (one step every
+# 150ms) exactly like holding the screen-brightness keys, instead of every
+# repeat collapsing into one engine tick. Never touches G-Helper's 4-step
+# gate - the software master is the only brightness that moves.
 $brightUpFile = Join-Path $stateDir 'bright_up.flag'
 $brightDownFile = Join-Path $stateDir 'bright_down.flag'
+$brightStepMs = 150
+$brightHoldMs = 400
+$script:brightUpSeen = ''
+$script:brightDownSeen = ''
+$script:brightRampDir = 0
+$script:brightRampNext = [DateTime]::UtcNow
+$script:brightRampLast = [DateTime]::UtcNow
+$script:brightPending = $false
 $enginePidFile = Join-Path $stateDir 'engine.pid'
 try { Set-Content -Path $enginePidFile -Value $PID -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
 
@@ -3961,16 +3971,48 @@ try {
             break
         }
 
-        # --- M4/M5 brightness taps from KeyboardLighting.exe ------------
+        # --- M4/M5 brightness taps: paced like screen brightness -------
+        $nowU = [DateTime]::UtcNow
+        $tapDir = 0
         if (Test-Path $brightUpFile) {
-            Remove-Item $brightUpFile -Force -ErrorAction SilentlyContinue
-            Set-Live ($script:LiveLevel + $step)
-            if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+            $tok = ''
+            try { $tok = (Get-Content $brightUpFile -Raw -ErrorAction Stop).Trim() } catch { }
+            if ($tok -ne '' -and $tok -ne $script:brightUpSeen) {
+                $script:brightUpSeen = $tok
+                $tapDir = 1
+            }
         }
         if (Test-Path $brightDownFile) {
-            Remove-Item $brightDownFile -Force -ErrorAction SilentlyContinue
-            Set-Live ($script:LiveLevel - $step)
-            if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+            $tok = ''
+            try { $tok = (Get-Content $brightDownFile -Raw -ErrorAction Stop).Trim() } catch { }
+            if ($tok -ne '' -and $tok -ne $script:brightDownSeen) {
+                $script:brightDownSeen = $tok
+                $tapDir = -1
+            }
+        }
+        if ($tapDir -ne 0) {
+            # A tap steps at once; while taps keep coming (a held key) the
+            # extras are carried as fuel and released at the pacing interval,
+            # so the sweep runs at a human rate instead of engine speed.
+            if ($tapDir -ne $script:brightRampDir -or $nowU -ge $script:brightRampNext) {
+                Set-Live ($script:LiveLevel + $tapDir * $step)
+                if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                $script:brightPending = $false
+            } else {
+                $script:brightPending = $true
+            }
+            $script:brightRampDir = $tapDir
+            $script:brightRampLast = $nowU
+        } elseif ($script:brightPending) {
+            if ($nowU -ge $script:brightRampLast.AddMilliseconds($brightHoldMs)) {
+                $script:brightPending = $false
+            } elseif ($nowU -ge $script:brightRampNext) {
+                Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
+                if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                $script:brightPending = $false
+            }
         }
 
         # The app that owns us has gone. Leave by the same door as a normal
