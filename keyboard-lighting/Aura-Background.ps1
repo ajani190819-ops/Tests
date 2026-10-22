@@ -3911,12 +3911,15 @@ $brightUpFile = Join-Path $stateDir 'bright_up.flag'
 $brightDownFile = Join-Path $stateDir 'bright_down.flag'
 $brightStepMs = 150
 $brightHoldMs = 400
+$holdModeFile = Join-Path $stateDir 'hold_mode.txt'
 $script:brightUpSeen = ''
 $script:brightDownSeen = ''
 $script:brightRampDir = 0
 $script:brightRampNext = [DateTime]::UtcNow
 $script:brightRampLast = [DateTime]::UtcNow
 $script:brightPending = $false
+$script:brightBurst = 0
+$script:brightLatch = $false
 $enginePidFile = Join-Path $stateDir 'engine.pid'
 try { Set-Content -Path $enginePidFile -Value $PID -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
 
@@ -3991,27 +3994,83 @@ try {
             }
         }
         if ($tapDir -ne 0) {
-            # A tap steps at once; while taps keep coming (a held key) the
-            # extras are carried as fuel and released at the pacing interval,
-            # so the sweep runs at a human rate instead of engine speed.
-            if ($tapDir -ne $script:brightRampDir -or $nowU -ge $script:brightRampNext) {
+            # Hold modes (hold_mode.txt, written by KeyboardLighting.exe
+            # -HoldMode): the M4/M5 hardware sends ONE event per press, so
+            #   latch = press once to glide, press again to stop (closest to
+            #           a real hold: movement runs across an interval)
+            #   burst = every press glides 4 steps (20%) at the same cadence
+            #   tap   = every press is exactly one 5% step
+            $mode = 'latch'
+            try {
+                $m = (Get-Content $holdModeFile -Raw -ErrorAction Stop).Trim()
+                if ($m -eq 'tap' -or $m -eq 'burst' -or $m -eq 'latch') { $mode = $m }
+            } catch { }
+            if ($mode -eq 'latch') {
+                if ($script:brightRampDir -eq $tapDir -and $script:brightLatch) {
+                    $script:brightRampDir = 0
+                    $script:brightLatch = $false
+                    $script:brightPending = $false
+                    $script:brightBurst = 0
+                } else {
+                    Set-Live ($script:LiveLevel + $tapDir * $step)
+                    if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                    $script:brightRampDir = $tapDir
+                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                    $script:brightLatch = $true
+                    $script:brightPending = $false
+                    $script:brightBurst = 0
+                }
+            } elseif ($mode -eq 'burst') {
                 Set-Live ($script:LiveLevel + $tapDir * $step)
                 if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                $script:brightRampDir = $tapDir
                 $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                $script:brightBurst = 3
+                $script:brightLatch = $false
                 $script:brightPending = $false
+                $script:brightRampLast = $nowU
             } else {
-                $script:brightPending = $true
+                if ($tapDir -ne $script:brightRampDir -or $nowU -ge $script:brightRampNext) {
+                    Set-Live ($script:LiveLevel + $tapDir * $step)
+                    if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                    $script:brightPending = $false
+                } else {
+                    $script:brightPending = $true
+                }
+                $script:brightLatch = $false
+                $script:brightRampDir = $tapDir
+                $script:brightRampLast = $nowU
             }
-            $script:brightRampDir = $tapDir
-            $script:brightRampLast = $nowU
-        } elseif ($script:brightPending) {
-            if ($nowU -ge $script:brightRampLast.AddMilliseconds($brightHoldMs)) {
-                $script:brightPending = $false
-            } elseif ($nowU -ge $script:brightRampNext) {
-                Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
-                if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
-                $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
-                $script:brightPending = $false
+        } elseif ($script:brightRampDir -ne 0) {
+            if ($script:brightBurst -gt 0) {
+                if ($nowU -ge $script:brightRampNext) {
+                    Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
+                    if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                    $script:brightBurst--
+                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                }
+            } elseif ($script:brightLatch) {
+                if ($nowU -ge $script:brightRampNext) {
+                    if (($script:brightRampDir -gt 0 -and $script:LiveLevel -lt 1000) -or
+                        ($script:brightRampDir -lt 0 -and $script:LiveLevel -gt 0)) {
+                        Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
+                        if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                        $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                    } else {
+                        $script:brightRampDir = 0
+                        $script:brightLatch = $false
+                    }
+                }
+            } elseif ($script:brightPending) {
+                if ($nowU -ge $script:brightRampLast.AddMilliseconds($brightHoldMs)) {
+                    $script:brightPending = $false
+                } elseif ($nowU -ge $script:brightRampNext) {
+                    Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
+                    if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                    $script:brightPending = $false
+                }
             }
         }
 
