@@ -96,11 +96,11 @@ def trispoke_sdf_alpha(size: int, scale: float = 0.88, thickness_boost: float = 
 
 
 def make_squircle_base(size: int, tint_rgb: tuple, watermark: bool = True) -> Image.Image:
-    """Legacy squircle plate (kept for the showcase sheet only). The exported
-    app icons use make_transparent_studio_base instead: the opaque plate read
-    as a muddy warm-brown blob at taskbar size and never matched the app
-    window backgrounds, so the icons now float on full transparency just like
-    the emblem in each window header."""
+    """The suite app-icon plate: dark slate squircle medallion with brushed
+    sheen, top-lit rim and the recessed Tri-Spoke watermark. Spatial HUD,
+    Orca Plugins and Arena Link all sit on this plate, and so do the rest of
+    the suite icons - a coloured elevated glyph floats on the medallion and
+    the shared plate keeps every icon one visual family."""
     lin = np.linspace(-1.0, 1.0, size, dtype=np.float32)
     yy, xx = np.meshgrid(lin, lin, indexing="ij")
     px = 2.0 / float(size)
@@ -258,15 +258,9 @@ def build_icon_project_hub(size: int = 512, small: bool = False,
 
 
 def build_icon_bluetooth_guard(size: int = 512, small: bool = False) -> Image.Image:
-    base = make_transparent_studio_base(size, (59, 130, 246))
+    base = make_squircle_base(size, (59, 130, 246))
 
-    # Soft translucent cobalt rounded inner badge
-    badge_a = draw_antialias_mask(size, lambda d, s: d.rounded_rectangle(
-        [s * 0.07, s * 0.05, s * 0.93, s * 0.95], radius=s * 0.24, fill=255
-    ))
-    composite_elevated_layer(base, badge_a * 0.97, (56, 152, 255), (29, 92, 214), (56, 165, 250))
-
-    # Crisp smooth-capped white Bluetooth glyph inside the cobalt badge
+    # Crisp smooth-capped Bluetooth rune floating on the slate medallion
     def bt_fn(d: ImageDraw.ImageDraw, s: int):
         w = int(s * (0.072 if small else 0.054))
         cx, cy = s * 0.50, s * 0.50
@@ -284,11 +278,11 @@ def build_icon_bluetooth_guard(size: int = 512, small: bool = False) -> Image.Im
             d.ellipse([px0 - r, py0 - r, px0 + r, py0 + r], fill=255)
 
     bt_a = draw_antialias_mask(size, bt_fn)
-    return composite_elevated_layer(base, bt_a, (250, 253, 255), (219, 238, 255), None)
+    return composite_elevated_layer(base, bt_a, (147, 197, 253), (37, 99, 235), (59, 130, 246))
 
 
 def build_icon_keyboard_lighting(size: int = 512, small: bool = False) -> Image.Image:
-    base = make_transparent_studio_base(size, (168, 85, 247))
+    base = make_squircle_base(size, (168, 85, 247))
 
     # Luminous aura underglow bar beneath keycap plate
     glow_bar = draw_antialias_mask(size, lambda d, s: d.rounded_rectangle(
@@ -296,11 +290,12 @@ def build_icon_keyboard_lighting(size: int = 512, small: bool = False) -> Image.
     ))
     composite_elevated_layer(base, glow_bar, (196, 181, 253), (56, 189, 248), (168, 85, 247))
 
-    # Smooth rounded keyboard plate in violet-indigo-sky gradient
+    # Smooth rounded keyboard plate in violet-indigo gradient, matching the
+    # family rule the other medallions follow (glyph = shades of its tint)
     plate_a = draw_antialias_mask(size, lambda d, s: d.rounded_rectangle(
         [s * 0.155, s * 0.235, s * 0.845, s * 0.655], radius=s * 0.11, fill=255
     ))
-    composite_elevated_layer(base, plate_a, (167, 139, 250), (56, 189, 248), (129, 140, 248))
+    composite_elevated_layer(base, plate_a, (201, 170, 254), (139, 92, 246), (168, 85, 247))
 
     # Crisp white keycaps + spacebar inside keyboard plate. At icon size the
     # 4x2 grid merges into mush, so tiny frames drop to a bold 3x2 grid with
@@ -326,7 +321,8 @@ def build_icon_keyboard_lighting(size: int = 512, small: bool = False) -> Image.
         d.rounded_rectangle([s * 0.315, s * 0.520, s * 0.685, s * 0.585], radius=s * 0.024, fill=255)
 
     keys_a = draw_antialias_mask(size, keys_fn)
-    return composite_elevated_layer(base, keys_a, (252, 253, 255), (226, 236, 255), None)
+    return composite_elevated_layer(base, keys_a, (252, 253, 255), (226, 236, 255), None,
+                                    shadow=False)
 
 
 def build_icon_spatial_hud(size: int = 512, small: bool = False) -> Image.Image:
@@ -390,16 +386,10 @@ def build_icon_orca_plugins(size: int = 512, small: bool = False) -> Image.Image
 
 
 def build_icon_dns_pilot(size: int = 512, small: bool = False) -> Image.Image:
-    base = make_transparent_studio_base(size, (8, 145, 178))
+    base = make_squircle_base(size, (8, 145, 178))
 
-    # Soft translucent cyan rounded inner badge (family style with BTG/KBL)
-    badge_a = draw_antialias_mask(size, lambda d, s: d.rounded_rectangle(
-        [s * 0.07, s * 0.05, s * 0.93, s * 0.95], radius=s * 0.24, fill=255
-    ))
-    composite_elevated_layer(base, badge_a * 0.97, (34, 211, 238), (8, 145, 178), (103, 232, 249))
-
-    # Crisp white globe glyph (resolution = global) with speed streaks that
-    # say "fast" - the streaks vanish at icon size where they would smear.
+    # Globe glyph (resolution = global) with speed streaks that say "fast" -
+    # the streaks vanish at icon size where they would smear.
     def globe_fn(d: ImageDraw.ImageDraw, s: int):
         w = int(s * (0.072 if small else 0.052))
         cx, cy = s * 0.50, s * 0.52
@@ -410,11 +400,11 @@ def build_icon_dns_pilot(size: int = 512, small: bool = False) -> Image.Image:
         d.ellipse([cx - mer, cy - r, cx + mer, cy + r], outline=255, width=w)
         if not small:
             sw = max(2, int(w * 0.85))
-            for x0, y0, x1, y1 in ((0.70, 0.185, 0.865, 0.125), (0.755, 0.275, 0.895, 0.225)):
+            for x0, y0, x1, y1 in ((0.70, 0.26, 0.82, 0.19), (0.77, 0.335, 0.88, 0.275)):
                 d.line([(s * x0, s * y0), (s * x1, s * y1)], fill=255, width=sw)
 
     globe_a = draw_antialias_mask(size, globe_fn)
-    return composite_elevated_layer(base, globe_a, (250, 253, 255), (219, 238, 255), None)
+    return composite_elevated_layer(base, globe_a, (165, 243, 252), (8, 145, 178), (34, 211, 238))
 
 
 def build_icon_arena_link(size: int = 512, small: bool = False) -> Image.Image:
