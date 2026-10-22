@@ -830,6 +830,8 @@ static void WriteLiveBrightness(void) {
  * exactly like screen-brightness keys drive the system OSD. */
 static void ScheduleLiveApply(void);
 
+static void OsdShow(int pct);
+
 static void PollFnBrightness(void) {
     ULONGLONG now = GetTickCount64();
     if (now - g_lastFnPoll < 150ULL) return;
@@ -850,6 +852,7 @@ static void PollFnBrightness(void) {
     else
         _snwprintf(g_toastText, 95, L"Keyboard Lights  \x00B7  %d%%", pct);
     g_toastAt = now + 1400ULL;
+    OsdShow(pct);
     SavePanelCfg();
     ScheduleLiveApply();
     InvalidateRect(g_hwnd, NULL, FALSE);
@@ -1348,24 +1351,136 @@ static void ParseLayoutTxt(char *txt) {
 
 /* ---- M4/M5 hold-to-repeat ------------------------------
    G-Helper's Custom action fires ONCE per press (no key-up, no repeat).
-   But if the key ALSO reports as a normal keyboard key, Windows delivers
-   typematic REPEAT keydowns and a key-up while the user holds it - exactly
-   the screen-brightness feel. We learn that scancode by context (it is the
-   only un-injected key event happening at the same moment as a bright tap)
-   and then stream paced tokens while the key is held, stopping at key-up.
-   Everything is saved to presets.ini [Keys] M4Scan=/M5Scan=. */
+   Three independent signals can reveal the rest of the physical gesture:
+     1. The key may ALSO report as a normal keyboard key: Windows then
+        sends typematic REPEAT keydowns and a key-up while it is held.
+     2. RawInput keyboard reports (catches key usages that never become
+        WM_KEYDOWN - VKey 255 vendor keys).
+     3. The ASUS input HID stream (VID 0x0B05, report id 0x5A - the very
+        stream G-Helper reads): its press frames may REPEAT while held,
+        and some models send a RELEASE frame (byte1 == 0, like the ROG
+        Ally) or press|0x80. A press+release pair gives TRUE hold with
+        no repeats needed at all.
+   All three feed one state machine: press starts a paced token stream
+   (the engine turns each token into one 5% step), release stops it.
+   Learned bindings persist in presets.ini [Keys] M4Scan=/M5Scan=/M4Hid=/
+   M5Hid=. Without any hold signal, behavior stays a clean tap per press. */
 typedef struct KeyRec { ULONGLONG tick; DWORD scan; BYTE down; BYTE injected; } KeyRec;
 static KeyRec    g_keyRing[256];
 static int       g_keyRingHead = 0;
+typedef struct HidRec { ULONGLONG tick; DWORD code; BYTE rel; } HidRec;
+static HidRec    g_hidRing[256];
+static int       g_hidRingHead = 0;
 static HHOOK     g_kbHook = NULL;
 static int       g_scanBound[2] = { 0, 0 };
+static DWORD     g_hidCode[2] = { 0, 0 };
 static BYTE      g_scanArmed[2] = { 1, 1 };
+static BYTE      g_hidDown[2] = { 0, 0 };
+static BYTE      g_holdOn[2] = { 0, 0 };
+static BYTE      g_hidRelSeen[2] = { 0, 0 };
+static ULONGLONG g_sigAt[2] = { 0, 0 };
 static ULONGLONG g_scanNext[2] = { 0, 0 };
 static int       g_learnCand[2] = { 0, 0 };
 static int       g_learnN[2] = { 0, 0 };
+static DWORD     g_learnHid[2] = { 0, 0 };
+static int       g_learnHidN[2] = { 0, 0 };
 static char      g_seenTok[2][32];
 
-static void LearnScanFromRing(int dir) {
+static int HasReleaseSrc(int dir) {
+    return g_scanBound[dir] != 0 || g_hidRelSeen[dir] >= 2;
+}
+
+static void HoldTokenWrite(int dir) {
+    char tok[32];
+    _snprintf(tok, 32, "%llu", (unsigned long long)GetTickCount64());
+    tok[31] = '\0';
+    WriteAtomicUtf8(dir == 0 ? g_brightDownPath : g_brightUpPath, tok);
+}
+
+/* One paced token per interval while the gesture is live. */
+static void HoldPump(void) {
+    ULONGLONG now = GetTickCount64();
+    for (int i = 0; i < 2; i++) {
+        if (!g_holdOn[i]) continue;
+        if (!HasReleaseSrc(i) && now - g_sigAt[i] > 300ULL) {
+            g_holdOn[i] = 0;
+            continue;
+        }
+        if (now >= g_scanNext[i]) {
+            g_scanNext[i] = now + 150;
+            HoldTokenWrite(i);
+        }
+    }
+}
+
+static void PressSignal(int dir, int repeat, ULONGLONG now) {
+    g_sigAt[dir] = now;
+    if (repeat) {
+        g_holdOn[dir] = 1;
+    } else if (HasReleaseSrc(dir)) {
+        /* Release is observable: stream for the whole hold. The press
+           itself already stepped once via G-Helper's Custom token. */
+        g_holdOn[dir] = 1;
+        g_scanNext[dir] = now + 150;
+    }
+}
+
+static void ReleaseSignal(int dir, ULONGLONG now) {
+    (void)now;
+    g_holdOn[dir] = 0;
+    g_scanArmed[dir] = 1;
+    if (g_hidDown[dir]) {
+        g_hidDown[dir] = 0;
+        if (g_hidRelSeen[dir] < 255) g_hidRelSeen[dir]++;
+    }
+}
+
+static void OnScanEvent(DWORD scan, int down, int injected, ULONGLONG now) {
+    if (injected) return;
+    for (int i = 0; i < 2; i++) {
+        if (g_scanBound[i] == 0 || (int)scan != g_scanBound[i]) continue;
+        if (!down) {
+            ReleaseSignal(i, now);
+        } else if (g_scanArmed[i]) {
+            /* Fresh press: G-Helper's Custom action writes this tap's
+               token already. Gate briefly so a duplicate raw-input copy of
+               this same down cannot double-step. */
+            g_scanArmed[i] = 0;
+            g_scanNext[i] = now + 120;
+            PressSignal(i, 0, now);
+        } else {
+            PressSignal(i, 1, now);
+        }
+    }
+}
+
+static void OnRawHid(const BYTE *b, int len, ULONGLONG now) {
+    if (len < 2 || b[0] != 0x5A) return;
+    DWORD code = b[1];
+    int rel = 0, mapped = -1;
+    if (code == 0) {
+        rel = 1;
+        for (int i = 0; i < 2; i++) if (g_hidDown[i]) mapped = i;
+    }
+    for (int i = 0; i < 2; i++) {
+        if (g_hidCode[i] != 0 && code == g_hidCode[i]) mapped = i;
+        if (g_hidCode[i] != 0 && code == (g_hidCode[i] | 0x80)) { mapped = i; rel = 1; }
+    }
+    HidRec *r = &g_hidRing[g_hidRingHead];
+    r->tick = now; r->code = code; r->rel = (BYTE)rel;
+    g_hidRingHead = (g_hidRingHead + 1) & 255;
+    if (mapped >= 0) {
+        if (rel) {
+            ReleaseSignal(mapped, now);
+        } else {
+            int repeat = g_hidDown[mapped];
+            g_hidDown[mapped] = 1;
+            PressSignal(mapped, repeat, now);
+        }
+    }
+}
+
+static void LearnFromRing(int dir) {
     ULONGLONG now = GetTickCount64();
     int cand = 0;
     for (int i = 0; i < 256; i++) {
@@ -1378,21 +1493,50 @@ static void LearnScanFromRing(int dir) {
         cand = (int)r->scan;
         break;
     }
-    if (!cand) return;
-    if (g_learnCand[dir] == cand) {
-        g_learnN[dir]++;
-        if (g_learnN[dir] >= 2 && g_scanBound[dir] != cand) {
-            wchar_t num[16], path[MAX_PATH];
-            g_scanBound[dir] = cand;
-            g_scanArmed[dir] = 1;
-            _snwprintf(num, 15, L"%d", cand);
-            num[15] = L'\0';
-            _snwprintf(path, MAX_PATH, L"%s\\presets.ini", g_cfgDir);
-            WritePrivateProfileStringW(L"Keys", dir == 0 ? L"M4Scan" : L"M5Scan", num, path);
+    if (cand) {
+        if (g_learnCand[dir] == cand) {
+            g_learnN[dir]++;
+            if (g_learnN[dir] >= 2 && g_scanBound[dir] != cand) {
+                wchar_t num[16], path[MAX_PATH];
+                g_scanBound[dir] = cand;
+                g_scanArmed[dir] = 1;
+                _snwprintf(num, 15, L"%d", cand);
+                num[15] = L'\0';
+                _snwprintf(path, MAX_PATH, L"%s\\presets.ini", g_cfgDir);
+                WritePrivateProfileStringW(L"Keys", dir == 0 ? L"M4Scan" : L"M5Scan", num, path);
+            }
+        } else {
+            g_learnCand[dir] = cand;
+            g_learnN[dir] = 1;
         }
-    } else {
-        g_learnCand[dir] = cand;
-        g_learnN[dir] = 1;
+    }
+    {
+        DWORD hc = 0;
+        for (int i = 0; i < 256; i++) {
+            int idx = (g_hidRingHead + 255 - i) & 255;
+            HidRec *r = &g_hidRing[idx];
+            if (r->tick == 0) break;
+            if (now - r->tick > 1500ULL) break;
+            if (r->rel || r->code == 0) continue;
+            hc = r->code;
+            break;
+        }
+        if (hc) {
+            if (g_learnHid[dir] == hc) {
+                g_learnHidN[dir]++;
+                if (g_learnHidN[dir] >= 2 && g_hidCode[dir] != hc) {
+                    wchar_t num[16], path[MAX_PATH];
+                    g_hidCode[dir] = hc;
+                    _snwprintf(num, 15, L"%lu", (unsigned long)hc);
+                    num[15] = L'\0';
+                    _snwprintf(path, MAX_PATH, L"%s\\presets.ini", g_cfgDir);
+                    WritePrivateProfileStringW(L"Keys", dir == 0 ? L"M4Hid" : L"M5Hid", num, path);
+                }
+            } else {
+                g_learnHid[dir] = hc;
+                g_learnHidN[dir] = 1;
+            }
+        }
     }
 }
 
@@ -1405,7 +1549,7 @@ static void WatchBrightTokens(void) {
         if (cur[0] && strcmp(cur, g_seenTok[dir]) != 0) {
             int fresh = g_seenTok[dir][0] != '\0';
             strncpy(g_seenTok[dir], cur, 31);
-            if (fresh) LearnScanFromRing(dir);
+            if (fresh) LearnFromRing(dir);
         }
     }
 }
@@ -1421,27 +1565,189 @@ static LRESULT CALLBACK KbHoldProc(int code, WPARAM wp, LPARAM lp) {
         r->tick = now; r->scan = k->scanCode;
         r->down = (BYTE)down; r->injected = (BYTE)injected;
         g_keyRingHead = (g_keyRingHead + 1) & 255;
-        if (!injected) {
-            for (int i = 0; i < 2; i++) {
-                if (g_scanBound[i] != 0 && (int)k->scanCode == g_scanBound[i]) {
-                    if (!down) {
-                        g_scanArmed[i] = 1;
-                    } else if (g_scanArmed[i]) {
-                        /* Fresh press: G-Helper's Custom action writes this
-                           tap's token already - skip so one press = one step. */
-                        g_scanArmed[i] = 0;
-                    } else if (now >= g_scanNext[i]) {
-                        char tok[32];
-                        g_scanNext[i] = now + 140;
-                        _snprintf(tok, 32, "%llu", (unsigned long long)now);
-                        tok[31] = '\0';
-                        WriteAtomicUtf8(i == 0 ? g_brightDownPath : g_brightUpPath, tok);
-                    }
+        OnScanEvent(k->scanCode, down, injected, now);
+    }
+    return CallNextHookEx(g_kbHook, code, wp, lp);
+}
+
+static void InitRawInput(HWND hwnd) {
+    RAWINPUTDEVICE rid[16];
+    UINT n = 0;
+    rid[n].usUsagePage = 0x01; rid[n].usUsage = 0x06;
+    rid[n].dwFlags = RIDEV_INPUTSINK; rid[n].hwndTarget = hwnd;
+    n++;
+    UINT num = 0;
+    GetRawInputDeviceList(NULL, &num, sizeof(RAWINPUTDEVICELIST));
+    if (num > 0 && num < 64) {
+        RAWINPUTDEVICELIST list[64];
+        num = GetRawInputDeviceList(list, &num, sizeof(RAWINPUTDEVICELIST));
+        for (UINT i = 0; i < num && n < 16; i++) {
+            RID_DEVICE_INFO info;
+            UINT cb = sizeof(info);
+            info.cbSize = sizeof(info);
+            if (GetRawInputDeviceInfoW(list[i].hDevice, RIDI_DEVICEINFO, &info, &cb) != (UINT)-1 &&
+                info.dwType == RIM_TYPEHID && info.hid.dwVendorId == 0x0B05) {
+                UINT j; int dup = 0;
+                for (j = 1; j < n; j++)
+                    if (rid[j].usUsagePage == info.hid.usUsagePage && rid[j].usUsage == info.hid.usUsage) dup = 1;
+                if (!dup) {
+                    rid[n].usUsagePage = info.hid.usUsagePage;
+                    rid[n].usUsage = info.hid.usUsage;
+                    rid[n].dwFlags = RIDEV_INPUTSINK;
+                    rid[n].hwndTarget = hwnd;
+                    n++;
                 }
             }
         }
     }
-    return CallNextHookEx(g_kbHook, code, wp, lp);
+    RegisterRawInputDevices(rid, n, sizeof(RAWINPUTDEVICE));
+}
+
+static void OnRawInputMsg(HWND hwnd, LPARAM lp) {
+    (void)hwnd;
+    UINT dwSize = 0;
+    GetRawInputData((HRAWINPUT)lp, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
+    if (dwSize == 0 || dwSize >= 4096) return;
+    BYTE buf[4096];
+    if (GetRawInputData((HRAWINPUT)lp, RID_INPUT, buf, &dwSize, sizeof(RAWINPUTHEADER)) != dwSize) return;
+    const RAWINPUT *ri = (const RAWINPUT *)buf;
+    ULONGLONG now = GetTickCount64();
+    if (ri->header.dwType == RIM_TYPEKEYBOARD) {
+        int down = (ri->data.keyboard.Flags & RI_KEY_BREAK) == 0;
+        KeyRec *r = &g_keyRing[g_keyRingHead];
+        r->tick = now; r->scan = ri->data.keyboard.MakeCode;
+        r->down = (BYTE)down; r->injected = 0;
+        g_keyRingHead = (g_keyRingHead + 1) & 255;
+        OnScanEvent(ri->data.keyboard.MakeCode, down, 0, now);
+    } else if (ri->header.dwType == RIM_TYPEHID) {
+        OnRawHid(ri->data.hid.bRawData, (int)ri->data.hid.dwSizeHid, now);
+    }
+}
+
+/* ---- Native-style brightness OSD (sun + bar + percent) -------------
+   A small top-centre popup that appears whenever the keyboard brightness
+   changes from outside the window (M4/M5, Fn keys, other panels) and
+   fades out after ~1.4s - the same feel as the Windows OSD. */
+static HWND g_osdHwnd = NULL;
+static int  g_osdPct = -1;
+
+static LRESULT CALLBACK OsdWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    switch (msg) {
+    case WM_TIMER:
+        if (wp == 3) { KillTimer(hwnd, 3); ShowWindow(hwnd, SW_HIDE); }
+        return 0;
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC dc = BeginPaint(hwnd, &ps);
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        int W = rc.right, H = rc.bottom;
+        HDC mem = CreateCompatibleDC(dc);
+        HBITMAP bmp = CreateCompatibleBitmap(dc, W, H);
+        HGDIOBJ oldBm = SelectObject(mem, bmp);
+        HBRUSH bg = CreateSolidBrush(RGB(32, 35, 42));
+        HPEN bgPen = CreatePen(PS_SOLID, 1, RGB(32, 35, 42));
+        HGDIOBJ oldBr = SelectObject(mem, bg);
+        HGDIOBJ oldPen = SelectObject(mem, bgPen);
+        RoundRect(mem, 0, 0, W, H, H / 5, H / 5);
+        int pad = H * 22 / 100;
+        int sunR = H * 16 / 100;
+        int sunCx = pad + sunR * 3, sunCy = H / 2;
+        HPEN sunPen = CreatePen(PS_SOLID, H / 22, RGB(232, 236, 245));
+        SelectObject(mem, sunPen);
+        HBRUSH sunBr = CreateSolidBrush(RGB(232, 236, 245));
+        SelectObject(mem, sunBr);
+        Ellipse(mem, sunCx - sunR, sunCy - sunR, sunCx + sunR, sunCy + sunR);
+        {
+            int rayIn = sunR + sunR / 2, rayOut = sunR + sunR + sunR / 2;
+            for (int a = 0; a < 8; a++) {
+                double th = a * 0.7853981633974483;
+                MoveToEx(mem, sunCx + (int)(rayIn * cos(th)), sunCy + (int)(rayIn * sin(th)), NULL);
+                LineTo(mem, sunCx + (int)(rayOut * cos(th)), sunCy + (int)(rayOut * sin(th)));
+            }
+        }
+        int barX = sunCx + H * 42 / 100;
+        int barY = H * 38 / 100, barH = H * 24 / 100;
+        int pctW = H * 38 / 100;
+        int barW = W - barX - pctW - pad;
+        HBRUSH trBr = CreateSolidBrush(RGB(62, 66, 74));
+        HPEN trPen = CreatePen(PS_SOLID, 1, RGB(62, 66, 74));
+        SelectObject(mem, trBr);
+        SelectObject(mem, trPen);
+        RoundRect(mem, barX, barY, barX + barW, barY + barH, barH, barH);
+        int pct = g_osdPct;
+        if (pct < 0) pct = 0;
+        if (pct > 100) pct = 100;
+        int fillW = (barW - 2) * pct / 100;
+        if (fillW > 0 && pct > 0) {
+            HBRUSH fBr = CreateSolidBrush(RGB(233, 226, 206));
+            HPEN fPen = CreatePen(PS_SOLID, 1, RGB(233, 226, 206));
+            SelectObject(mem, fBr);
+            SelectObject(mem, fPen);
+            RoundRect(mem, barX + 1, barY + 1, barX + 1 + fillW, barY + barH - 1, barH, barH);
+            DeleteObject(fBr);
+            DeleteObject(fPen);
+        }
+        {
+            HFONT font = CreateFontW(-H * 26 / 100, 0, 0, 0, FW_SEMIBOLD, 0, 0, 0,
+                                     0, 0, 0, 0, 0, L"Segoe UI");
+            HGDIOBJ oldF = SelectObject(mem, font);
+            wchar_t t[16];
+            _snwprintf(t, 15, L"%d%%", pct);
+            t[15] = L'\0';
+            RECT tr;
+            SetRect(&tr, barX + barW + pad / 2, 0, W - pad / 2, H);
+            SetBkMode(mem, TRANSPARENT);
+            SetTextColor(mem, RGB(232, 236, 245));
+            DrawTextW(mem, t, -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            SelectObject(mem, oldF);
+            DeleteObject(font);
+        }
+        BitBlt(dc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
+        SelectObject(mem, oldBr);
+        SelectObject(mem, oldPen);
+        SelectObject(mem, oldBm);
+        DeleteObject(bg); DeleteObject(bgPen);
+        DeleteObject(sunBr); DeleteObject(sunPen);
+        DeleteObject(trBr); DeleteObject(trPen);
+        DeleteObject(bmp);
+        DeleteDC(mem);
+        EndPaint(hwnd, &ps);
+        return 0;
+    }
+    }
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+static void OsdCreate(HINSTANCE hInst) {
+    WNDCLASSEXW wc;
+    ZeroMemory(&wc, sizeof(wc));
+    wc.cbSize = sizeof(wc);
+    wc.lpfnWndProc = OsdWndProc;
+    wc.hInstance = hInst;
+    wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
+    wc.lpszClassName = L"KBLSuiteOsdWindow";
+    RegisterClassExW(&wc);
+    g_osdHwnd = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,
+                                wc.lpszClassName, L"", WS_POPUP,
+                                0, 0, 10, 10, NULL, NULL, hInst, NULL);
+    if (g_osdHwnd) SetLayeredWindowAttributes(g_osdHwnd, 0, 255, LWA_ALPHA);
+}
+
+static void OsdShow(int pct) {
+    if (!g_osdHwnd) return;
+    HDC sdc = GetDC(NULL);
+    int dpi = GetDeviceCaps(sdc, LOGPIXELSX);
+    ReleaseDC(NULL, sdc);
+    int W = MulDiv(380, dpi, 96), H = MulDiv(76, dpi, 96);
+    int sw = GetSystemMetrics(SM_CXSCREEN);
+    int x = (sw - W) / 2;
+    int y = MulDiv(30, dpi, 96);
+    g_osdPct = pct;
+    SetWindowPos(g_osdHwnd, HWND_TOPMOST, x, y, W, H, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    ShowWindow(g_osdHwnd, SW_SHOWNOACTIVATE);
+    InvalidateRect(g_osdHwnd, NULL, FALSE);
+    SetTimer(g_osdHwnd, 3, 1400, NULL);
 }
 
 static void PollLayoutTxt(void) {
@@ -2752,12 +3058,17 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         return TRUE;
 
+    case WM_INPUT:
+        OnRawInputMsg(hwnd, lp);
+        return DefWindowProcW(hwnd, msg, wp, lp);
+
     case WM_TIMER:
         if (wp == 1) {
             if (g_applyPending && GetTickCount64() >= g_applyAtTick) FlushLiveApply();
+            PollFnBrightness();
+            HoldPump();
             if (IsWindowVisible(hwnd)) {
                 PollLivePreviewFrame();
-                PollFnBrightness();
                 InvalidateRect(hwnd, NULL, FALSE);
             }
         } else if (wp == 2) {
@@ -2842,6 +3153,8 @@ static void InitKblPaths(void) {
         _snwprintf(p, MAX_PATH, L"%s\\presets.ini", g_cfgDir);
         g_scanBound[0] = (int)GetPrivateProfileIntW(L"Keys", L"M4Scan", 0, p);
         g_scanBound[1] = (int)GetPrivateProfileIntW(L"Keys", L"M5Scan", 0, p);
+        g_hidCode[0] = (DWORD)GetPrivateProfileIntW(L"Keys", L"M4Hid", 0, p);
+        g_hidCode[1] = (DWORD)GetPrivateProfileIntW(L"Keys", L"M5Hid", 0, p);
     }
     _snwprintf(g_engineScript, MAX_PATH, L"%s\\Aura-Background.ps1", g_exeDir);
     _snwprintf(g_zonesBat,   MAX_PATH, L"%s\\Zones.bat", g_exeDir);
@@ -2853,6 +3166,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     (void)hPrev; (void)nShow;
     InitKblPaths();
     g_kbHook = SetWindowsHookExW(WH_KEYBOARD_LL, KbHoldProc, GetModuleHandleW(NULL), 0);
+    OsdCreate(hInst);
+    InitRawInput(g_hwnd);
     g_isAdmin = CheckIsAdmin();
 
     BOOL silent    = (cmdLine && (wcsstr(cmdLine, L"-Silent") != NULL || wcsstr(cmdLine, L"--silent") != NULL));
