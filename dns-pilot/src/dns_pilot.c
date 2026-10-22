@@ -19,6 +19,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
+#include <icmpapi.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -113,6 +114,13 @@ static wchar_t     g_adName[128] = L"(no adapter found)";
 static DWORD       g_ifIndex = 0;
 static char        g_curV4[64] = "";
 static char        g_curV6[64] = "";
+/* Live stats strip: passive adapter throughput + 1 Hz ICMP ping */
+static CRITICAL_SECTION g_statsCs;
+static wchar_t      g_statsLine[160] = L"GW -  |  DNS -  |  \x2193 - Mbps  |  \x2191 - Mbps";
+static volatile LONG g_statsRun = 1;
+static char         g_gwIp[64] = "";   /* default gateway, v4 or v6 */
+static int          g_gwIsV6 = 0;
+static char         g_srcV6[64] = "";  /* adapter's own v6 for ICMP6 source */
 static wchar_t     g_cfgPath[MAX_PATH];
 static char        g_lastV4[64] = "", g_lastV6[64] = "";
 static int         g_best4 = -1, g_best6 = -1;
@@ -378,6 +386,7 @@ static void StartTest(int autoRun) {
 }
 
 /* ---- active adapter discovery (iphlpapi; locale-proof) ---- */
+static void CaptureAdapterExtras(const IP_ADAPTER_ADDRESSES *p);
 static void FindActiveAdapter(void) {
     ULONG sz = 16 * 1024;
 #ifndef GAA_FLAG_INCLUDE_GATEWAY
@@ -403,6 +412,7 @@ static void FindActiveAdapter(void) {
         g_ifIndex = p->IfIndex ? p->IfIndex : p->Ipv6IfIndex;
         if (p->FriendlyName) wcsncpy(g_adName, p->FriendlyName, 127);
         g_adName[127] = L'\0';
+        CaptureAdapterExtras(p);
         break;
     }
     if (!g_ifIndex) {
@@ -413,10 +423,158 @@ static void FindActiveAdapter(void) {
             g_ifIndex = p->IfIndex ? p->IfIndex : p->Ipv6IfIndex;
             if (p->FriendlyName) wcsncpy(g_adName, p->FriendlyName, 127);
             g_adName[127] = L'\0';
+            CaptureAdapterExtras(p);
             break;
         }
     }
     free(aa);
+}
+
+static void CopySockIp(const SOCKET_ADDRESS *sa, char *out, int outn, int *isV6) {
+    out[0] = '\0';
+    if (isV6) *isV6 = 0;
+    if (!sa || !sa->lpSockaddr) return;
+    if (sa->lpSockaddr->sa_family == AF_INET) {
+        const struct sockaddr_in *sv = (const struct sockaddr_in *)sa->lpSockaddr;
+        inet_ntop(AF_INET, (void *)&sv->sin_addr, out, outn);
+    } else if (sa->lpSockaddr->sa_family == AF_INET6) {
+        const struct sockaddr_in6 *sv6 = (const struct sockaddr_in6 *)sa->lpSockaddr;
+        inet_ntop(AF_INET6, (void *)&sv6->sin6_addr, out, outn);
+        if (isV6) *isV6 = 1;
+    }
+}
+
+static void CaptureAdapterExtras(const IP_ADAPTER_ADDRESSES *p) {
+    int isV6 = 0;
+    if (p->FirstGatewayAddress)
+        CopySockIp(&p->FirstGatewayAddress->Address, g_gwIp, 63, &isV6);
+    g_gwIsV6 = isV6;
+    for (const IP_ADAPTER_UNICAST_ADDRESS *u = p->FirstUnicastAddress; u; u = u->Next) {
+        if (u->Address.lpSockaddr && u->Address.lpSockaddr->sa_family == AF_INET6) {
+            CopySockIp(&u->Address, g_srcV6, 63, NULL);
+            break;
+        }
+    }
+}
+
+/* ---- live stats strip: passive throughput + 1 Hz ping (tiny footprint) ---- */
+#define STATS_PING_TIMEOUT 600
+#define PING_NONE ((DWORD)-1)
+
+static DWORD PingV4Once(const char *ip, DWORD timeoutMs) {
+    ULONG addr = inet_addr(ip);
+    if (addr == INADDR_NONE) return PING_NONE;
+    HANDLE h = IcmpCreateFile();
+    if (h == INVALID_HANDLE_VALUE) return PING_NONE;
+    char req[8] = "KBLsui";
+    char reply[sizeof(ICMP_ECHO_REPLY) + 16];
+    ZeroMemory(reply, sizeof(reply));
+    DWORD ms = PING_NONE;
+    if (IcmpSendEcho(h, addr, req, 6, NULL, reply, sizeof(reply), timeoutMs) > 0) {
+        ICMP_ECHO_REPLY *r = (ICMP_ECHO_REPLY *)reply;
+        if (r->Status == 0) ms = r->RoundTripTime;
+    }
+    IcmpCloseHandle(h);
+    return ms;
+}
+
+static DWORD PingV6Once(const char *ip, const char *src, DWORD timeoutMs) {
+    if (!src || !src[0]) return PING_NONE;
+    HANDLE h = Icmp6CreateFile();
+    if (h == INVALID_HANDLE_VALUE) return PING_NONE;
+    struct sockaddr_in6 dst, src6;
+    ZeroMemory(&dst, sizeof(dst));
+    ZeroMemory(&src6, sizeof(src6));
+    dst.sin6_family = AF_INET6;
+    src6.sin6_family = AF_INET6;
+    if (inet_pton(AF_INET6, ip, &dst.sin6_addr) != 1 ||
+        inet_pton(AF_INET6, src, &src6.sin6_addr) != 1) {
+        IcmpCloseHandle(h);
+        return PING_NONE;
+    }
+    char req[8] = "KBLsui";
+    char reply[sizeof(ICMPV6_ECHO_REPLY) + 48];
+    ZeroMemory(reply, sizeof(reply));
+    DWORD ms = PING_NONE;
+    if (Icmp6SendEcho2(h, NULL, NULL, NULL, &src6, &dst, req, 6, NULL,
+                      reply, sizeof(reply), timeoutMs) > 0) {
+        ICMPV6_ECHO_REPLY *r = (ICMPV6_ECHO_REPLY *)reply;
+        if (r->Status == 0) ms = r->RoundTripTime;
+    }
+    IcmpCloseHandle(h);
+    return ms;
+}
+
+static void FmtMs(DWORD ms, wchar_t *out, int n) {
+    if (ms == PING_NONE) WCpy(out, n, L"-");
+    else if (ms == 0) WCpy(out, n, L"<1 ms");
+    else _snwprintf(out, n - 1, L"%lu ms", (unsigned long)ms);
+}
+
+static void FmtMbps(double mbps, wchar_t *out, int n) {
+    if (mbps < 0.0) WCpy(out, n, L"-");
+    else if (mbps >= 100.0) _snwprintf(out, n - 1, L"%.0f Mbps", mbps);
+    else if (mbps >= 10.0)  _snwprintf(out, n - 1, L"%.1f Mbps", mbps);
+    else _snwprintf(out, n - 1, L"%.2f Mbps", mbps);
+    out[n - 1] = L'\0';
+}
+
+static DWORD WINAPI StatsThread(LPVOID unused) {
+    (void)unused;
+    ULONGLONG lastTick = 0, lastIn = 0, lastOut = 0;
+    double downEwma = -1.0, upEwma = -1.0;
+    while (g_statsRun) {
+        Sleep(1000);
+        if (!g_statsRun) break;
+        if (IsIconic(g_hwnd)) continue;   /* free when hidden */
+
+        /* 1) passive throughput on the active adapter (zero extra traffic) */
+        MIB_IFROW row;
+        ZeroMemory(&row, sizeof(row));
+        row.dwIndex = g_ifIndex;
+        if (g_ifIndex && GetIfEntry(&row) == NO_ERROR) {
+            ULONGLONG inOct = row.dwInOctets, outOct = row.dwOutOctets;
+            ULONGLONG tick = GetTickCount64();
+            if (lastTick && tick > lastTick) {
+                ULONGLONG dt = tick - lastTick;
+                ULONGLONG dIn  = (inOct  >= lastIn)  ? (inOct  - lastIn)  : (inOct  + (1ULL << 32) - lastIn);
+                ULONGLONG dOut = (outOct >= lastOut) ? (outOct - lastOut) : (outOct + (1ULL << 32) - lastOut);
+                double secs = (double)dt / 1000.0;
+                if (secs > 0.05) {
+                    double din  = (double)dIn  * 8.0 / secs / 1e6;
+                    double dout = (double)dOut * 8.0 / secs / 1e6;
+                    downEwma = (downEwma < 0) ? din  : downEwma * 0.6 + din  * 0.4;
+                    upEwma   = (upEwma   < 0) ? dout : upEwma   * 0.6 + dout * 0.4;
+                }
+            }
+            lastIn = inOct; lastOut = outOct; lastTick = tick;
+        }
+
+        /* 2) one small ping each to the router and the active DNS server */
+        DWORD gwMs = PING_NONE, dnsMs = PING_NONE;
+        if (g_gwIp[0])
+            gwMs = g_gwIsV6 ? PingV6Once(g_gwIp, g_srcV6, STATS_PING_TIMEOUT)
+                            : PingV4Once(g_gwIp, STATS_PING_TIMEOUT);
+        if (g_curV4[0])
+            dnsMs = PingV4Once(g_curV4, STATS_PING_TIMEOUT);
+        else if (g_curV6[0])
+            dnsMs = PingV6Once(g_curV6, g_srcV6, STATS_PING_TIMEOUT);
+
+        /* 3) build the one-line strip */
+        wchar_t wGw[16], wDns[16], wDown[24], wUp[24], line[160];
+        FmtMs(gwMs, wGw, 16);
+        FmtMs(dnsMs, wDns, 16);
+        FmtMbps(downEwma, wDown, 24);
+        FmtMbps(upEwma, wUp, 24);
+        _snwprintf(line, 159, L"GW %s  |  DNS %s  |  \x2193 %s  |  \x2191 %s",
+                   wGw, wDns, wDown, wUp);
+        line[159] = L'\0';
+        EnterCriticalSection(&g_statsCs);
+        wcsncpy(g_statsLine, line, 159);
+        LeaveCriticalSection(&g_statsCs);
+        InvalidateRect(g_hwnd, NULL, FALSE);
+    }
+    return 0;
 }
 
 /* ---- applying DNS (netsh with numeric ifIndex; needs elevation) ---- */
@@ -896,7 +1054,7 @@ static void PaintEmblem(HDC dc, int x, int y, int sz) {
 }
 
 static void BtnRect(int i, RECT *r) {
-    int x = S(20), y = S(78), h = S(36);
+    int x = S(20), y = S(96), h = S(36);
     int w[BTN_COUNT] = { S(140), S(150), S(140), S(150), S(170) };
     for (int k = 0; k < i; k++) x += w[k] + S(10);
     SetRect(r, x, y, x + w[i], y + h);
@@ -930,7 +1088,7 @@ static void DrawBtn(HDC dc, int idx, const wchar_t *label, int primary, int ambe
 }
 
 static void RowRect(int vis, RECT *r) {
-    SetRect(r, S(20), S(146) + vis * S(34), S(960), S(146) + (vis + 1) * S(34));
+    SetRect(r, S(20), S(166) + vis * S(34), S(960), S(166) + (vis + 1) * S(34));
 }
 
 static void PaintAll(HWND hwnd) {
@@ -967,6 +1125,17 @@ static void PaintAll(HWND hwnd) {
     SetRect(&tr, S(94), S(42), W - S(20), S(64));
     DrawTextW(mem, sub, -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
+    /* live stats strip: GW/DNS ping + passive download/upload traffic */
+    RECT sr;
+    SetRect(&sr, S(94), S(62), W - S(20), S(88));
+    wchar_t statsSnap[160];
+    EnterCriticalSection(&g_statsCs);
+    wcsncpy(statsSnap, g_statsLine, 159);
+    LeaveCriticalSection(&g_statsCs);
+    statsSnap[159] = L'\0';
+    SetTextColor(mem, COL_TXT);
+    DrawTextW(mem, statsSnap, -1, &sr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
     wchar_t autoLabel[48];
     wchar_t intLabel[48];
     _snwprintf(autoLabel, 47, L"Auto-Pilot: %s", g_auto ? L"ON" : L"OFF");
@@ -989,12 +1158,12 @@ static void PaintAll(HWND hwnd) {
         const wchar_t *heads[6] = { L"#", L"Resolver", L"Server IP", L"Family", L"Median", L"Samples" };
         for (int i = 0; i < 6; i++) {
             RECT hr;
-            SetRect(&hr, cx[i], S(122), cx[i] + cwid[i], S(146));
+            SetRect(&hr, cx[i], S(142), cx[i] + cwid[i], S(166));
             DrawTextW(mem, heads[i], -1, &hr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         }
     }
 
-    int tableH = H - S(146) - S(52);
+    int tableH = H - S(166) - S(52);
     int visRows = tableH / S(34);
     if (visRows < 1) visRows = 1;
     if (g_topRow > g_rowCount - visRows) g_topRow = g_rowCount - visRows;
@@ -1367,7 +1536,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     wc.lpszClassName = L"KBLSuiteDnsPilotWindow";
     RegisterClassExW(&wc);
 
-    RECT wrc = { 0, 0, S(980), S(760) };
+    RECT wrc = { 0, 0, S(980), S(780) };
     AdjustWindowRectEx(&wrc, WS_OVERLAPPEDWINDOW, FALSE, 0);
     g_hwnd = CreateWindowExW(0, wc.lpszClassName, APP_TITLE_W,
                              WS_OVERLAPPEDWINDOW,
@@ -1383,6 +1552,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     InitializeCriticalSection(&g_watchCs);
     SetTimer(g_hwnd, 1, 10000, NULL);
     SetTimer(g_hwnd, 2, 50, NULL);     /* emblem spin repaint */
+
+    /* live stats strip: 1 Hz, one worker thread, ping + passive counters */
+    InitializeCriticalSection(&g_statsCs);
+    CreateThread(NULL, 0, StatsThread, NULL, 0, NULL);
 
     /* opening the pilot always kicks off a real test right away */
     StartTest(0);
