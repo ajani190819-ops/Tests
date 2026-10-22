@@ -3912,8 +3912,18 @@ $brightDownFile = Join-Path $stateDir 'bright_down.flag'
 $brightStepMs = 150
 $brightHoldMs = 400
 $holdModeFile = Join-Path $stateDir 'hold_mode.txt'
+# Seed with the CURRENT token values so a restart never replays the last
+# press as a phantom tap (that was the 'slider moves on its own' bug).
 $script:brightUpSeen = ''
 $script:brightDownSeen = ''
+try {
+    $t = (Get-Content $brightUpFile -Raw -ErrorAction Stop).Trim()
+    if ($t) { $script:brightUpSeen = $t }
+} catch { }
+try {
+    $t = (Get-Content $brightDownFile -Raw -ErrorAction Stop).Trim()
+    if ($t) { $script:brightDownSeen = $t }
+} catch { }
 $script:brightRampDir = 0
 $script:brightRampNext = [DateTime]::UtcNow
 $script:brightRampLast = [DateTime]::UtcNow
@@ -3995,12 +4005,14 @@ try {
         }
         if ($tapDir -ne 0) {
             # Hold modes (hold_mode.txt, written by KeyboardLighting.exe
-            # -HoldMode): the M4/M5 hardware sends ONE event per press, so
-            #   latch = press once to glide, press again to stop (closest to
-            #           a real hold: movement runs across an interval)
+            # -HoldMode):
+            #   tap   = DEFAULT: one 5% step per tap token. The Keyboard
+            #           Lighting app streams extra tokens while the key is
+            #           held (learned keyboard scancode), so a real hold
+            #           glides and releasing stops it.
+            #   latch = press once to glide, press again to stop
             #   burst = every press glides 4 steps (20%) at the same cadence
-            #   tap   = every press is exactly one 5% step
-            $mode = 'latch'
+            $mode = 'tap'
             try {
                 $m = (Get-Content $holdModeFile -Raw -ErrorAction Stop).Trim()
                 if ($m -eq 'tap' -or $m -eq 'burst' -or $m -eq 'latch') { $mode = $m }
