@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.9"
-#define HUB_VERSION_W     L"2.8.9"
+#define HUB_VERSION       "2.8.10"
+#define HUB_VERSION_W     L"2.8.10"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -547,6 +547,13 @@ static BOOL WriteBinaryFileAtomic(const wchar_t *dest, const BYTE *data, DWORD l
     if (!MoveFileExW(tmp, dest, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
         DeleteFileW(tmp);
         return FALSE;
+    }
+    /* Strip the Mark of the Web so Windows does not re-prompt SmartScreen
+       every time the user opens a freshly updated app. */
+    {
+        wchar_t ads[MAX_PATH + 24];
+        _snwprintf(ads, MAX_PATH + 23, L"%s:Zone.Identifier", dest);
+        DeleteFileW(ads);
     }
     return TRUE;
 }
