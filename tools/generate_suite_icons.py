@@ -238,14 +238,14 @@ def build_icon_project_hub(size: int = 512, small: bool = False,
     # soft alpha blobs become a speckled halo once GIF's 1-bit transparency
     # has to dither them, and the shadow looks dirty on light surfaces. The
     # gradient + rim still carry the shading people liked on the icon.
-    rim = trispoke_sdf_alpha(size, scale=0.86,
+    rim = trispoke_sdf_alpha(size, scale=0.91,
                              thickness_boost=boost + (0.022 if spin else 0.038),
                              angle_deg=angle_deg)
     rim_img = Image.fromarray((np.clip(rim, 0.0, 1.0) * 255.0).astype(np.uint8), mode="L")
     rim_layer = Image.new("RGBA", (size, size), (16, 22, 32, 255))
     rim_layer.putalpha(rim_img)
     base.alpha_composite(rim_layer)
-    emblem = trispoke_sdf_alpha(size, scale=0.86, thickness_boost=boost,
+    emblem = trispoke_sdf_alpha(size, scale=0.91, thickness_boost=boost,
                                 angle_deg=angle_deg)
     return composite_elevated_layer(
         base, emblem,
@@ -261,21 +261,21 @@ def build_icon_bluetooth_guard(size: int = 512, small: bool = False) -> Image.Im
 
     # Soft translucent cobalt rounded inner badge
     badge_a = draw_antialias_mask(size, lambda d, s: d.rounded_rectangle(
-        [s * 0.10, s * 0.08, s * 0.90, s * 0.92], radius=s * 0.22, fill=255
+        [s * 0.07, s * 0.05, s * 0.93, s * 0.95], radius=s * 0.24, fill=255
     ))
     composite_elevated_layer(base, badge_a * 0.97, (56, 152, 255), (29, 92, 214), (56, 165, 250))
 
     # Crisp smooth-capped white Bluetooth glyph inside the cobalt badge
     def bt_fn(d: ImageDraw.ImageDraw, s: int):
-        w = int(s * (0.062 if small else 0.046))
+        w = int(s * (0.072 if small else 0.054))
         cx, cy = s * 0.50, s * 0.50
         pts = [
-            (cx - s * 0.115, cy - s * 0.105),
-            (cx + s * 0.105, cy + s * 0.105),
-            (cx - s * 0.005, cy + s * 0.205),
-            (cx - s * 0.005, cy - s * 0.205),
-            (cx + s * 0.105, cy - s * 0.105),
-            (cx - s * 0.115, cy + s * 0.105),
+            (cx - s * 0.138, cy - s * 0.126),
+            (cx + s * 0.126, cy + s * 0.126),
+            (cx - s * 0.006, cy + s * 0.246),
+            (cx - s * 0.006, cy - s * 0.246),
+            (cx + s * 0.126, cy - s * 0.126),
+            (cx - s * 0.138, cy + s * 0.126),
         ]
         d.line(pts, fill=255, width=w, joint="curve")
         for px0, py0 in (pts[0], pts[-1]):
@@ -291,13 +291,13 @@ def build_icon_keyboard_lighting(size: int = 512, small: bool = False) -> Image.
 
     # Luminous aura underglow bar beneath keycap plate
     glow_bar = draw_antialias_mask(size, lambda d, s: d.rounded_rectangle(
-        [s * 0.23, s * 0.67, s * 0.77, s * 0.75], radius=s * 0.04, fill=255
+        [s * 0.195, s * 0.685, s * 0.805, s * 0.775], radius=s * 0.045, fill=255
     ))
     composite_elevated_layer(base, glow_bar, (196, 181, 253), (56, 189, 248), (168, 85, 247))
 
     # Smooth rounded keyboard plate in violet-indigo-sky gradient
     plate_a = draw_antialias_mask(size, lambda d, s: d.rounded_rectangle(
-        [s * 0.19, s * 0.26, s * 0.81, s * 0.64], radius=s * 0.10, fill=255
+        [s * 0.155, s * 0.235, s * 0.845, s * 0.655], radius=s * 0.11, fill=255
     ))
     composite_elevated_layer(base, plate_a, (167, 139, 250), (56, 189, 248), (129, 140, 248))
 
@@ -306,23 +306,23 @@ def build_icon_keyboard_lighting(size: int = 512, small: bool = False) -> Image.
     # wider gutters - the details survive where the old downscale lost them.
     def keys_fn(d: ImageDraw.ImageDraw, s: int):
         if small:
-            for row_i, y0 in enumerate((0.325, 0.435)):
+            for row_i, y0 in enumerate((0.305, 0.418)):
                 for col_i in range(3):
-                    x0 = 0.275 + col_i * 0.155
+                    x0 = 0.255 + col_i * 0.168
                     d.rounded_rectangle(
-                        [s * x0, s * y0, s * (x0 + 0.125), s * (y0 + 0.075)],
-                        radius=s * 0.022, fill=255,
+                        [s * x0, s * y0, s * (x0 + 0.135), s * (y0 + 0.082)],
+                        radius=s * 0.024, fill=255,
                     )
-            d.rounded_rectangle([s * 0.32, s * 0.545, s * 0.68, s * 0.605], radius=s * 0.024, fill=255)
+            d.rounded_rectangle([s * 0.30, s * 0.535, s * 0.70, s * 0.605], radius=s * 0.026, fill=255)
             return
-        for row_i, y0 in enumerate((0.335, 0.425)):
+        for row_i, y0 in enumerate((0.315, 0.412)):
             for col_i in range(4):
-                x0 = 0.265 + col_i * 0.125
+                x0 = 0.245 + col_i * 0.135
                 d.rounded_rectangle(
-                    [s * x0, s * y0, s * (x0 + 0.095), s * (y0 + 0.062)],
-                    radius=s * 0.02, fill=255,
+                    [s * x0, s * y0, s * (x0 + 0.105), s * (y0 + 0.068)],
+                    radius=s * 0.022, fill=255,
                 )
-        d.rounded_rectangle([s * 0.34, s * 0.525, s * 0.66, s * 0.580], radius=s * 0.022, fill=255)
+        d.rounded_rectangle([s * 0.315, s * 0.520, s * 0.685, s * 0.585], radius=s * 0.024, fill=255)
 
     keys_a = draw_antialias_mask(size, keys_fn)
     return composite_elevated_layer(base, keys_a, (252, 253, 255), (226, 236, 255), None)
@@ -421,7 +421,7 @@ def save_multi_ico(build, ico_path: Path, png_path: Path = None):
         if png_path is not None and (w, h) == (256, 256):
             png_path.parent.mkdir(parents=True, exist_ok=True)
             # the companion PNG export is the LARGE crisp master, not 256
-            build(1024, small=False).convert("RGBA").save(png_path, format="PNG")
+            build(2048, small=False).convert("RGBA").save(png_path, format="PNG")
         buf = io.BytesIO()
         im.save(buf, format="PNG")
         frames.append((w, h, buf.getvalue()))

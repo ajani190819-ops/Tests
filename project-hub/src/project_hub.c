@@ -20,7 +20,7 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.3"
+#define HUB_VERSION       "2.8.4"
 #define HUB_VERSION_W     L"2.8"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
