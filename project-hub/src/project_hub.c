@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.6"
-#define HUB_VERSION_W     L"2.8.6"
+#define HUB_VERSION       "2.8.7"
+#define HUB_VERSION_W     L"2.8.7"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -299,13 +299,13 @@ static void RebuildFontsAndIcons(HWND hwnd) {
 #define EMB_SDF_BOOST 0.012
 
 static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
+    (void)bg;
     const double scale = EMB_SDF_SCALE, b = EMB_SDF_BOOST;
     const double pxSize = 2.0 / (double)n;
     const double aa = (pxSize * 1.35 > 1e-4) ? (pxSize * 1.35) : 1e-4;
     const double deg = 0.017453292519943295;
     static const double gaps[3] = { -90.0, 30.0, 150.0 };
     static const double nrm[3] = { 90.0, -150.0, -30.0 };
-    int bgR = GetRValue(bg), bgG = GetGValue(bg), bgB = GetBValue(bg);
     for (int j = 0; j < n; j++) {
         double y0 = ((double)j + 0.5) / (double)n;
         double y = -1.0 + 2.0 * y0;
@@ -356,10 +356,11 @@ static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
             double fr = 246.0 * (1 - t) + 196.0 * t;
             double fg = 249.0 * (1 - t) + 212.0 * t;
             double fb = 254.0 * (1 - t) + 234.0 * t;
-            int rr = (int)(fr * alpha + bgR * (1 - alpha) + 0.5);
-            int gg = (int)(fg * alpha + bgG * (1 - alpha) + 0.5);
-            int bb = (int)(fb * alpha + bgB * (1 - alpha) + 0.5);
-            dst[j * n + i] = RGB(rr, gg, bb);
+            /* Store colour + REAL alpha in the top byte; the blit blends
+               over whatever is behind, so no flat cache box can ever show
+               as a demarcation square around the emblem. */
+            dst[j * n + i] = RGB((int)(fr + 0.5), (int)(fg + 0.5), (int)(fb + 0.5)) |
+                             ((DWORD)(int)(alpha * 255.0 + 0.5) << 24);
         }
     }
 }
@@ -428,7 +429,18 @@ static void EmbSpinDraw(uint32_t *px, int W, int H, int x, int y, int sz, COLORR
                        ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
             double b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
                        ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
-            px[ty * W + tx] = RGB((int)(r + 0.5), (int)(g + 0.5), (int)(b + 0.5));
+            double a = ((c00 >> 24) & 255) * w00 + ((c10 >> 24) & 255) * w10 +
+                       ((c01 >> 24) & 255) * w01 + ((c11 >> 24) & 255) * w11;
+            int ai = (int)(a + 0.5);
+            uint32_t d = px[ty * W + tx];
+            if (ai >= 255) {
+                px[ty * W + tx] = RGB((int)(r + 0.5), (int)(g + 0.5), (int)(b + 0.5));
+            } else if (ai > 0) {
+                int dr = (int)(d & 255), dg = (int)((d >> 8) & 255), db = (int)((d >> 16) & 255);
+                px[ty * W + tx] = RGB(((int)(r + 0.5) * ai + dr * (255 - ai) + 127) / 255,
+                                      ((int)(g + 0.5) * ai + dg * (255 - ai) + 127) / 255,
+                                      ((int)(b + 0.5) * ai + db * (255 - ai) + 127) / 255);
+            }
         }
     }
 }
@@ -443,6 +455,13 @@ static void DrawWayfinderEmblem(uint32_t *px, int W, int H, int x, int y, int sz
 static BOOL FileExistsW(const wchar_t *p) {
     DWORD a = GetFileAttributesW(p);
     return (a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY));
+}
+
+static DWORD LocalSizeOf(const wchar_t *p) {
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (GetFileAttributesExW(p, GetFileExInfoStandard, &fad))
+        return fad.nFileSizeLow;
+    return 0;
 }
 
 static BOOL DirExistsW(const wchar_t *p) {
@@ -466,6 +485,7 @@ static void EnsureDirTree(const wchar_t *dir) {
 }
 
 static volatile LONG g_checkActive = 0;
+static DWORD g_remBtgSize = 0, g_remKblSize = 0, g_remKblPs1Size = 0;
 static RECT           g_rcFooterDot = { 0, 0, 0, 0 };
 
 /* Quiet update-check phase: the periodic version check gets a small
@@ -521,6 +541,32 @@ static BOOL WriteBinaryFileAtomic(const wchar_t *dest, const BYTE *data, DWORD l
         return FALSE;
     }
     return TRUE;
+}
+
+static BOOL HttpHeadSize(const wchar_t *host, const wchar_t *urlPath, DWORD *outSize) {
+    *outSize = 0;
+    HINTERNET hSession = WinHttpOpen(L"Tests-ProjectHub/2.3",
+                                     WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                     WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSession) return FALSE;
+    WinHttpSetTimeouts(hSession, 8000, 10000, 15000, 30000);
+    HINTERNET hConnect = WinHttpConnect(hSession, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (!hConnect) { WinHttpCloseHandle(hSession); return FALSE; }
+    HINTERNET hReq = WinHttpOpenRequest(hConnect, L"HEAD", urlPath, NULL,
+                                        WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                        WINHTTP_FLAG_SECURE);
+    if (!hReq) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return FALSE; }
+    BOOL ok = WinHttpSendRequest(hReq, L"User-Agent: Tests-ProjectHub/2.3\r\n", (DWORD)-1L,
+                                 WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+              WinHttpReceiveResponse(hReq, NULL);
+    if (ok) {
+        DWORD cl = 0, cls = sizeof(cl);
+        if (WinHttpQueryHeaders(hReq, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER,
+                                WINHTTP_HEADER_NAME_BY_INDEX, &cl, &cls, WINHTTP_NO_HEADER_INDEX))
+            *outSize = cl;
+    }
+    WinHttpCloseHandle(hReq); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
+    return ok && *outSize > 0;
 }
 
 static BYTE *HttpGetBuffer(const wchar_t *host, const wchar_t *urlPath, DWORD *outSize, int *outStatus) {
@@ -922,6 +968,20 @@ static void RefreshProjectStatuses(void) {
     remHudSz = g_remHudSize;
     LeaveCriticalSection(&g_cs);
 
+    DWORD remBtgSz, remKblSz, remPs1Sz;
+    EnterCriticalSection(&g_cs);
+    remBtgSz = g_remBtgSize; remKblSz = g_remKblSize; remPs1Sz = g_remKblPs1Size;
+    LeaveCriticalSection(&g_cs);
+    wchar_t btgExeP[MAX_PATH], kblExeP2[MAX_PATH], kblPs1P[MAX_PATH];
+    _snwprintf(btgExeP, MAX_PATH, L"%s\\BluetoothGuard.exe", g_btgDir);
+    _snwprintf(kblExeP2, MAX_PATH, L"%s\\KeyboardLighting.exe", g_kblDir);
+    _snwprintf(kblPs1P, MAX_PATH, L"%s\\Aura-Background.ps1", g_kblDir);
+    DWORD locBtgSz = LocalSizeOf(btgExeP);
+    if (!locBtgSz && g_btgExtraExe[0]) locBtgSz = LocalSizeOf(g_btgExtraExe);
+    BOOL btgUpd = (remBtgSz > 0 && locBtgSz != remBtgSz);
+    BOOL kblUpd = (remKblSz > 0 && LocalSizeOf(kblExeP2) != remKblSz) ||
+                  (remPs1Sz > 0 && LocalSizeOf(kblPs1P) != remPs1Sz);
+
     g_hubUpdAvail = (remHub[0] != '\0' && strcmp(remHub, HUB_VERSION) != 0);
     g_topBtns[1].label = g_hubUpdAvail ? L"Update Hub \x25B2" : L"Update Hub";
 
@@ -955,6 +1015,13 @@ static void RefreshProjectStatuses(void) {
         wcsncpy(g_cards[0].detail, L"Phone audio protection  \x00B7  Click Install to set up", 255);
     }
 
+    if (btgUpd) {
+        wcsncat(g_cards[0].badge, L"  \x00B7  Update Ready", 47);
+        if (g_cards[0].badgeKind == BADGE_OK || g_cards[0].badgeKind == BADGE_IDLE)
+            g_cards[0].badgeKind = BADGE_WARN;
+        g_cards[0].btns[1].style = BTN_AMBER;
+    }
+
     /* 2. Keyboard Lighting */
     wchar_t kblExe[MAX_PATH];
     _snwprintf(kblExe, MAX_PATH, L"%s\\KeyboardLighting.exe", g_kblDir);
@@ -983,6 +1050,13 @@ static void RefreshProjectStatuses(void) {
         g_cards[1].badgeKind = BADGE_WARN;
         g_cards[1].btns[2].style = BTN_PRIMARY;
         wcsncpy(g_cards[1].detail, L"ROG Strix G16 RGB lighting  \x00B7  Click Update to install", 255);
+    }
+
+    if (kblUpd) {
+        wcsncat(g_cards[1].badge, L"  \x00B7  Update Ready", 47);
+        if (g_cards[1].badgeKind == BADGE_OK || g_cards[1].badgeKind == BADGE_IDLE)
+            g_cards[1].badgeKind = BADGE_WARN;
+        g_cards[1].btns[2].style = BTN_AMBER;
     }
 
     /* 3. Spatial HUD */
@@ -1125,6 +1199,23 @@ static void WorkerCheckRemote(void) {
         }
     }
     free(apkg);
+
+    /* Remote build sizes: the installed file differing from the branch copy
+       is what 'Update Ready' means for the EXE apps. */
+    {
+        DWORD szBtg = 0, szKbl = 0, szPs1 = 0;
+        _snwprintf(p, 255, L"/%s/%s/%s/bluetooth-guard/BluetoothGuard.exe", REPO_OWNER_W, REPO_NAME_W, branch);
+        HttpHeadSize(L"raw.githubusercontent.com", p, &szBtg);
+        _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/KeyboardLighting.exe", REPO_OWNER_W, REPO_NAME_W, branch);
+        HttpHeadSize(L"raw.githubusercontent.com", p, &szKbl);
+        _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/Aura-Background.ps1", REPO_OWNER_W, REPO_NAME_W, branch);
+        HttpHeadSize(L"raw.githubusercontent.com", p, &szPs1);
+        EnterCriticalSection(&g_cs);
+        if (szBtg) g_remBtgSize = szBtg;
+        if (szKbl) g_remKblSize = szKbl;
+        if (szPs1) g_remKblPs1Size = szPs1;
+        LeaveCriticalSection(&g_cs);
+    }
 
     _snwprintf(p, 255, L"/repos/%s/%s/releases/tags/spatial-hud-latest", REPO_OWNER_W, REPO_NAME_W);
     char *rel = (char *)HttpGetBuffer(L"api.github.com", p, &sz, &st);
@@ -1695,7 +1786,7 @@ static void ComputeLayout(HWND hwnd) {
     int cardH = S(80, dpi);
     int gap = S(11, dpi);
 
-    int embSz = S(36, dpi);
+    int embSz = S(52, dpi);
     int embY = (headerH - embSz) / 2;
     SetRect(&g_rcEmblem, pad, embY, pad + embSz, embY + embSz);
 
@@ -1870,7 +1961,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc) {
     RestoreDC(hdc, saved);
 
     /* Header: Suite Tri-Spoke Core Emblem + natural title + calm subtitle + rounded buttons */
-    int embSz = S(36, dpi);
+    int embSz = S(52, dpi);
     DrawWayfinderEmblem(px, w, h, g_rcEmblem.left, g_rcEmblem.top, embSz);
 
     int hdrTextLeft = g_rcEmblem.right + S(14, dpi);
