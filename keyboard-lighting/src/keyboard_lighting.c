@@ -1625,9 +1625,10 @@ static void OnRawInputMsg(HWND hwnd, LPARAM lp) {
 }
 
 /* ---- Native-style brightness OSD (sun + bar + percent) -------------
-   A small top-centre popup that appears whenever the keyboard brightness
-   changes from outside the window (M4/M5, Fn keys, other panels) and
-   fades out after ~1.4s - the same feel as the Windows OSD. */
+   Compact bottom-centre popup matching the Windows volume/brightness OSD:
+   dark pill, small sun, thin cream bar, and the live percent fitted at the
+   right. Appears whenever keyboard brightness changes from outside the
+   window (M4/M5, Fn keys, other panels) and hides after ~1.4s. */
 static HWND g_osdHwnd = NULL;
 static int  g_osdPct = -1;
 
@@ -1649,27 +1650,32 @@ static LRESULT CALLBACK OsdWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         HPEN bgPen = CreatePen(PS_SOLID, 1, RGB(32, 35, 42));
         HGDIOBJ oldBr = SelectObject(mem, bg);
         HGDIOBJ oldPen = SelectObject(mem, bgPen);
-        RoundRect(mem, 0, 0, W, H, H / 5, H / 5);
-        int pad = H * 22 / 100;
-        int sunR = H * 16 / 100;
-        int sunCx = pad + sunR * 3, sunCy = H / 2;
-        HPEN sunPen = CreatePen(PS_SOLID, H / 22, RGB(232, 236, 245));
-        SelectObject(mem, sunPen);
+        RoundRect(mem, 0, 0, W, H, H / 3, H / 3);
+        /* sun */
+        int pad = H * 26 / 100;
+        int sunR = H * 10 / 100;
+        int sunCx = pad + sunR * 2, sunCy = H / 2;
+        HPEN sunPen = CreatePen(PS_SOLID, H / 26 + 1, RGB(232, 236, 245));
         HBRUSH sunBr = CreateSolidBrush(RGB(232, 236, 245));
+        SelectObject(mem, sunPen);
         SelectObject(mem, sunBr);
         Ellipse(mem, sunCx - sunR, sunCy - sunR, sunCx + sunR, sunCy + sunR);
         {
-            int rayIn = sunR + sunR / 2, rayOut = sunR + sunR + sunR / 2;
+            int rayIn = sunR + sunR / 2, rayOut = sunR * 2 + sunR / 2;
             for (int a = 0; a < 8; a++) {
                 double th = a * 0.7853981633974483;
                 MoveToEx(mem, sunCx + (int)(rayIn * cos(th)), sunCy + (int)(rayIn * sin(th)), NULL);
                 LineTo(mem, sunCx + (int)(rayOut * cos(th)), sunCy + (int)(rayOut * sin(th)));
             }
         }
-        int barX = sunCx + H * 42 / 100;
-        int barY = H * 38 / 100, barH = H * 24 / 100;
-        int pctW = H * 38 / 100;
+        /* thin bar with a dedicated percent area that FITS */
+        int barH = H * 14 / 100;
+        if (barH < 5) barH = 5;
+        int barY = (H - barH) / 2;
+        int barX = sunCx + H * 30 / 100;
+        int pctW = H * 82 / 100;
         int barW = W - barX - pctW - pad;
+        if (barW < 40) barW = 40;
         HBRUSH trBr = CreateSolidBrush(RGB(62, 66, 74));
         HPEN trPen = CreatePen(PS_SOLID, 1, RGB(62, 66, 74));
         SelectObject(mem, trBr);
@@ -1688,18 +1694,19 @@ static LRESULT CALLBACK OsdWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             DeleteObject(fBr);
             DeleteObject(fPen);
         }
+        /* percent, small like the native OSD's caption */
         {
-            HFONT font = CreateFontW(-H * 26 / 100, 0, 0, 0, FW_SEMIBOLD, 0, 0, 0,
+            HFONT font = CreateFontW(-H * 25 / 100, 0, 0, 0, FW_SEMIBOLD, 0, 0, 0,
                                      0, 0, 0, 0, 0, L"Segoe UI");
             HGDIOBJ oldF = SelectObject(mem, font);
             wchar_t t[16];
             _snwprintf(t, 15, L"%d%%", pct);
             t[15] = L'\0';
             RECT tr;
-            SetRect(&tr, barX + barW + pad / 2, 0, W - pad / 2, H);
+            SetRect(&tr, barX + barW + H * 4 / 100, 0, W - H * 6 / 100, H);
             SetBkMode(mem, TRANSPARENT);
             SetTextColor(mem, RGB(232, 236, 245));
-            DrawTextW(mem, t, -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DrawTextW(mem, t, -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
             SelectObject(mem, oldF);
             DeleteObject(font);
         }
@@ -1739,10 +1746,12 @@ static void OsdShow(int pct) {
     HDC sdc = GetDC(NULL);
     int dpi = GetDeviceCaps(sdc, LOGPIXELSX);
     ReleaseDC(NULL, sdc);
-    int W = MulDiv(380, dpi, 96), H = MulDiv(76, dpi, 96);
-    int sw = GetSystemMetrics(SM_CXSCREEN);
-    int x = (sw - W) / 2;
-    int y = MulDiv(30, dpi, 96);
+    /* Compact, like the Windows OSD: ~320x54 at 96dpi. */
+    int W = MulDiv(320, dpi, 96), H = MulDiv(54, dpi, 96);
+    RECT wa;
+    SystemParametersInfoW(SPI_GETWORKAREA, 0, &wa, 0);
+    int x = wa.left + ((wa.right - wa.left) - W) / 2;
+    int y = wa.bottom - H - MulDiv(26, dpi, 96);
     g_osdPct = pct;
     SetWindowPos(g_osdHwnd, HWND_TOPMOST, x, y, W, H, SWP_NOACTIVATE | SWP_SHOWWINDOW);
     ShowWindow(g_osdHwnd, SW_SHOWNOACTIVATE);
