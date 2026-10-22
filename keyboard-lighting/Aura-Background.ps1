@@ -3901,6 +3901,12 @@ $step = 50
 # frozen on the keyboard.
 $stopFile = Join-Path $stateDir 'stop.flag'
 if (Test-Path $stopFile) { Remove-Item $stopFile -Force -ErrorAction SilentlyContinue }
+# One-shot brightness taps written by KeyboardLighting.exe -BrightUp / -BrightDown
+# (the G-Helper M4/M5 'Custom' actions). Each flag is one smooth master step -
+# the same step the Fn F2/F3 listener applies - and never touches G-Helper's
+# native 4-step gate.
+$brightUpFile = Join-Path $stateDir 'bright_up.flag'
+$brightDownFile = Join-Path $stateDir 'bright_down.flag'
 $enginePidFile = Join-Path $stateDir 'engine.pid'
 try { Set-Content -Path $enginePidFile -Value $PID -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
 
@@ -3953,6 +3959,18 @@ try {
             Remove-Item $stopFile -Force -ErrorAction SilentlyContinue
             Say "  Stop requested." 'Yellow'
             break
+        }
+
+        # --- M4/M5 brightness taps from KeyboardLighting.exe ------------
+        if (Test-Path $brightUpFile) {
+            Remove-Item $brightUpFile -Force -ErrorAction SilentlyContinue
+            Set-Live ($script:LiveLevel + $step)
+            if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+        }
+        if (Test-Path $brightDownFile) {
+            Remove-Item $brightDownFile -Force -ErrorAction SilentlyContinue
+            Set-Live ($script:LiveLevel - $step)
+            if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
         }
 
         # The app that owns us has gone. Leave by the same door as a normal
