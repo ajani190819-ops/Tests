@@ -1039,7 +1039,14 @@ static void PaintEmblem(HDC dc, int x, int y, int sz) {
     if (sz < 8 || sz > 512) return;
     uint32_t *px = (uint32_t *)malloc((size_t)sz * sz * sizeof(uint32_t));
     if (!px) return;
-    for (int i = 0; i < sz * sz; i++) px[i] = (uint32_t)COL_BG;
+    /* Fill the square in the hub's canvas pixel format (PackRgb in the hub:
+       R<<16 | G<<8 | B, the 32bpp DIB order). A raw COLORREF fill blits
+       with red and blue swapped and shows as a box around the emblem -
+       the old demarcation-square issue the hub already solved. */
+    uint32_t bgP = ((uint32_t)GetRValue(COL_BG) << 16) |
+                   ((uint32_t)GetGValue(COL_BG) << 8) |
+                   (uint32_t)GetBValue(COL_BG);
+    for (int i = 0; i < sz * sz; i++) px[i] = bgP;
     DrawWayfinderEmblem(px, sz, sz, 0, 0, sz);
     BITMAPINFO bmi;
     ZeroMemory(&bmi, sizeof(bmi));
