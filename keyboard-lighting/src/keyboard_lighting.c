@@ -1346,6 +1346,104 @@ static void ParseLayoutTxt(char *txt) {
     g_barLayoutN = n;
 }
 
+/* ---- M4/M5 hold-to-repeat ------------------------------
+   G-Helper's Custom action fires ONCE per press (no key-up, no repeat).
+   But if the key ALSO reports as a normal keyboard key, Windows delivers
+   typematic REPEAT keydowns and a key-up while the user holds it - exactly
+   the screen-brightness feel. We learn that scancode by context (it is the
+   only un-injected key event happening at the same moment as a bright tap)
+   and then stream paced tokens while the key is held, stopping at key-up.
+   Everything is saved to presets.ini [Keys] M4Scan=/M5Scan=. */
+typedef struct KeyRec { ULONGLONG tick; DWORD scan; BYTE down; BYTE injected; } KeyRec;
+static KeyRec    g_keyRing[256];
+static int       g_keyRingHead = 0;
+static HHOOK     g_kbHook = NULL;
+static int       g_scanBound[2] = { 0, 0 };
+static BYTE      g_scanArmed[2] = { 1, 1 };
+static ULONGLONG g_scanNext[2] = { 0, 0 };
+static int       g_learnCand[2] = { 0, 0 };
+static int       g_learnN[2] = { 0, 0 };
+static char      g_seenTok[2][32];
+
+static void LearnScanFromRing(int dir) {
+    ULONGLONG now = GetTickCount64();
+    int cand = 0;
+    for (int i = 0; i < 256; i++) {
+        int idx = (g_keyRingHead + 255 - i) & 255;
+        KeyRec *r = &g_keyRing[idx];
+        if (r->tick == 0) break;
+        if (now - r->tick > 1500ULL) break;
+        if (!r->down || r->injected) continue;
+        if (r->scan == 0x1D || r->scan == 0x2A || r->scan == 0x36 || r->scan == 0x38) continue;
+        cand = (int)r->scan;
+        break;
+    }
+    if (!cand) return;
+    if (g_learnCand[dir] == cand) {
+        g_learnN[dir]++;
+        if (g_learnN[dir] >= 2 && g_scanBound[dir] != cand) {
+            wchar_t num[16], path[MAX_PATH];
+            g_scanBound[dir] = cand;
+            g_scanArmed[dir] = 1;
+            _snwprintf(num, 15, L"%d", cand);
+            num[15] = L'\0';
+            _snwprintf(path, MAX_PATH, L"%s\\presets.ini", g_cfgDir);
+            WritePrivateProfileStringW(L"Keys", dir == 0 ? L"M4Scan" : L"M5Scan", num, path);
+        }
+    } else {
+        g_learnCand[dir] = cand;
+        g_learnN[dir] = 1;
+    }
+}
+
+static void WatchBrightTokens(void) {
+    for (int dir = 0; dir < 2; dir++) {
+        char cur[32] = { 0 };
+        DWORD len = 0;
+        char *txt = ReadFileUtf8(dir == 0 ? g_brightDownPath : g_brightUpPath, &len);
+        if (txt) { strncpy(cur, txt, 31); free(txt); }
+        if (cur[0] && strcmp(cur, g_seenTok[dir]) != 0) {
+            int fresh = g_seenTok[dir][0] != '\0';
+            strncpy(g_seenTok[dir], cur, 31);
+            if (fresh) LearnScanFromRing(dir);
+        }
+    }
+}
+
+static LRESULT CALLBACK KbHoldProc(int code, WPARAM wp, LPARAM lp) {
+    if (code == HC_ACTION && (wp == WM_KEYDOWN || wp == WM_SYSKEYDOWN ||
+                              wp == WM_KEYUP || wp == WM_SYSKEYUP)) {
+        const KBDLLHOOKSTRUCT *k = (const KBDLLHOOKSTRUCT *)lp;
+        int down = (wp == WM_KEYDOWN || wp == WM_SYSKEYDOWN);
+        int injected = (k->flags & LLKHF_INJECTED) != 0;
+        ULONGLONG now = GetTickCount64();
+        KeyRec *r = &g_keyRing[g_keyRingHead];
+        r->tick = now; r->scan = k->scanCode;
+        r->down = (BYTE)down; r->injected = (BYTE)injected;
+        g_keyRingHead = (g_keyRingHead + 1) & 255;
+        if (!injected) {
+            for (int i = 0; i < 2; i++) {
+                if (g_scanBound[i] != 0 && (int)k->scanCode == g_scanBound[i]) {
+                    if (!down) {
+                        g_scanArmed[i] = 1;
+                    } else if (g_scanArmed[i]) {
+                        /* Fresh press: G-Helper's Custom action writes this
+                           tap's token already - skip so one press = one step. */
+                        g_scanArmed[i] = 0;
+                    } else if (now >= g_scanNext[i]) {
+                        char tok[32];
+                        g_scanNext[i] = now + 140;
+                        _snprintf(tok, 32, "%llu", (unsigned long long)now);
+                        tok[31] = '\0';
+                        WriteAtomicUtf8(i == 0 ? g_brightDownPath : g_brightUpPath, tok);
+                    }
+                }
+            }
+        }
+    }
+    return CallNextHookEx(g_kbHook, code, wp, lp);
+}
+
 static void PollLayoutTxt(void) {
     ULONGLONG now = GetTickCount64();
     if (now - g_layoutReadAt < 500ULL) return;
@@ -2664,6 +2762,7 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
         } else if (wp == 2) {
             WriteHeartbeat();
+            WatchBrightTokens();
             PollFnBrightness();
             if (FileExistsW(g_showPath)) {
                 DeleteFileW(g_showPath);
@@ -2738,6 +2837,12 @@ static void InitKblPaths(void) {
     _snwprintf(g_brightUpPath,   MAX_PATH, L"%s\\bright_up.flag", g_cfgDir);
     _snwprintf(g_brightDownPath, MAX_PATH, L"%s\\bright_down.flag", g_cfgDir);
     _snwprintf(g_holdModePath,   MAX_PATH, L"%s\\hold_mode.txt", g_cfgDir);
+    {
+        wchar_t p[MAX_PATH];
+        _snwprintf(p, MAX_PATH, L"%s\\presets.ini", g_cfgDir);
+        g_scanBound[0] = (int)GetPrivateProfileIntW(L"Keys", L"M4Scan", 0, p);
+        g_scanBound[1] = (int)GetPrivateProfileIntW(L"Keys", L"M5Scan", 0, p);
+    }
     _snwprintf(g_engineScript, MAX_PATH, L"%s\\Aura-Background.ps1", g_exeDir);
     _snwprintf(g_zonesBat,   MAX_PATH, L"%s\\Zones.bat", g_exeDir);
     if (!FileExistsW(g_zonesBat))
@@ -2747,6 +2852,7 @@ static void InitKblPaths(void) {
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
     (void)hPrev; (void)nShow;
     InitKblPaths();
+    g_kbHook = SetWindowsHookExW(WH_KEYBOARD_LL, KbHoldProc, GetModuleHandleW(NULL), 0);
     g_isAdmin = CheckIsAdmin();
 
     BOOL silent    = (cmdLine && (wcsstr(cmdLine, L"-Silent") != NULL || wcsstr(cmdLine, L"--silent") != NULL));
