@@ -228,6 +228,7 @@ static wchar_t          g_engPidPath[MAX_PATH];
 static wchar_t          g_stopPath[MAX_PATH];
 static wchar_t          g_brightUpPath[MAX_PATH];
 static wchar_t          g_brightDownPath[MAX_PATH];
+static wchar_t          g_holdModePath[MAX_PATH];
 static wchar_t          g_engineScript[MAX_PATH];
 static wchar_t          g_zonesBat[MAX_PATH];
 static wchar_t          g_statusText[256] = L"Starting ROG Strix G16 lighting engine...";
@@ -1587,13 +1588,13 @@ static void SmoothRingTrack(uint32_t *px, int W, int H, float cx, float cy,
 #define EMB_SDF_BOOST 0.012
 
 static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
+    (void)bg;
     const double scale = EMB_SDF_SCALE, b = EMB_SDF_BOOST;
     const double pxSize = 2.0 / (double)n;
     const double aa = (pxSize * 1.35 > 1e-4) ? (pxSize * 1.35) : 1e-4;
     const double deg = 0.017453292519943295;
     static const double gaps[3] = { -90.0, 30.0, 150.0 };
     static const double nrm[3] = { 90.0, -150.0, -30.0 };
-    int bgR = GetRValue(bg), bgG = GetGValue(bg), bgB = GetBValue(bg);
     for (int j = 0; j < n; j++) {
         double y0 = ((double)j + 0.5) / (double)n;
         double y = -1.0 + 2.0 * y0;
@@ -1644,10 +1645,11 @@ static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
             double fr = 246.0 * (1 - t) + 196.0 * t;
             double fg = 249.0 * (1 - t) + 212.0 * t;
             double fb = 254.0 * (1 - t) + 234.0 * t;
-            int rr = (int)(fr * alpha + bgR * (1 - alpha) + 0.5);
-            int gg = (int)(fg * alpha + bgG * (1 - alpha) + 0.5);
-            int bb = (int)(fb * alpha + bgB * (1 - alpha) + 0.5);
-            dst[j * n + i] = RGB(rr, gg, bb);
+            /* Store colour + REAL alpha in the top byte; the blit blends
+               over whatever is behind, so no flat cache box can ever show
+               as a demarcation square around the emblem. */
+            dst[j * n + i] = RGB((int)(fr + 0.5), (int)(fg + 0.5), (int)(fb + 0.5)) |
+                             ((DWORD)(int)(alpha * 255.0 + 0.5) << 24);
         }
     }
 }
@@ -1716,7 +1718,18 @@ static void EmbSpinDraw(uint32_t *px, int W, int H, int x, int y, int sz, COLORR
                        ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
             double b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
                        ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
-            px[ty * W + tx] = RGB((int)(r + 0.5), (int)(g + 0.5), (int)(b + 0.5));
+            double a = ((c00 >> 24) & 255) * w00 + ((c10 >> 24) & 255) * w10 +
+                       ((c01 >> 24) & 255) * w01 + ((c11 >> 24) & 255) * w11;
+            int ai = (int)(a + 0.5);
+            uint32_t d = px[ty * W + tx];
+            if (ai >= 255) {
+                px[ty * W + tx] = RGB((int)(r + 0.5), (int)(g + 0.5), (int)(b + 0.5));
+            } else if (ai > 0) {
+                int dr = (int)(d & 255), dg = (int)((d >> 8) & 255), db = (int)((d >> 16) & 255);
+                px[ty * W + tx] = RGB(((int)(r + 0.5) * ai + dr * (255 - ai) + 127) / 255,
+                                      ((int)(g + 0.5) * ai + dg * (255 - ai) + 127) / 255,
+                                      ((int)(b + 0.5) * ai + db * (255 - ai) + 127) / 255);
+            }
         }
     }
 }
@@ -1854,7 +1867,7 @@ static void RenderKblWindow(HWND hwnd, HDC targetDc) {
     g_hitCount = 0;
 
     /* 1. Unified Suite Header (matches Project Hub & Bluetooth Guard) */
-    int embSz = S(36, dpi);
+    int embSz = S(52, dpi);
     DrawSuiteEmblemIcon(px, W, H, M, (headerH - embSz) / 2, embSz);
 
     int topH = S(34, dpi), topY = (headerH - topH) / 2;
@@ -2724,6 +2737,7 @@ static void InitKblPaths(void) {
     _snwprintf(g_stopPath,   MAX_PATH, L"%s\\stop.flag", g_cfgDir);
     _snwprintf(g_brightUpPath,   MAX_PATH, L"%s\\bright_up.flag", g_cfgDir);
     _snwprintf(g_brightDownPath, MAX_PATH, L"%s\\bright_down.flag", g_cfgDir);
+    _snwprintf(g_holdModePath,   MAX_PATH, L"%s\\hold_mode.txt", g_cfgDir);
     _snwprintf(g_engineScript, MAX_PATH, L"%s\\Aura-Background.ps1", g_exeDir);
     _snwprintf(g_zonesBat,   MAX_PATH, L"%s\\Zones.bat", g_exeDir);
     if (!FileExistsW(g_zonesBat))
@@ -2749,6 +2763,18 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
        step and exits immediately - no window, no single-instance bounce.
        The token is a millisecond stamp so a held key's repeat taps are each
        seen; the engine paces them into a smooth sweep. */
+    /* Hold-mode switch for the M4/M5 brightness taps: the engine reads
+       hold_mode.txt every tick, so this changes behavior with no restart.
+       Usage: -HoldMode latch (default) | burst | tap */
+    if (cmdLine && wcsstr(cmdLine, L"-HoldMode") != NULL) {
+        const wchar_t *m = wcsstr(cmdLine, L"-HoldMode") + 9;
+        while (*m == L' ' || *m == L'=') m++;
+        const char *mode = "latch";
+        if (wcsncmp(m, L"tap", 3) == 0) mode = "tap";
+        else if (wcsncmp(m, L"burst", 5) == 0) mode = "burst";
+        WriteAtomicUtf8(g_holdModePath, mode);
+        return 0;
+    }
     if (cmdLine && (wcsstr(cmdLine, L"-BrightUp") != NULL || wcsstr(cmdLine, L"--bright-up") != NULL)) {
         char tok[32];
         _snprintf(tok, 32, "%llu", (unsigned long long)GetTickCount64());
