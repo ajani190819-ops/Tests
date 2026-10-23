@@ -25,6 +25,7 @@
 | **Bluetooth Guard** | `bluetooth-guard/src/bluetooth_guard.c` + `BluetoothGuard.exe` | 2.8.7 | **GREEN** — rules-ghost device list; FastBoot task now `HighestAvailable` (elevated logon), requireAdministrator |
 | **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `KeyboardLighting.exe` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold modes (`-HoldMode latch\|burst\|tap`, latch default); logon task `/RL HIGHEST`; requireAdministrator |
 | **DNS Pilot** | `dns-pilot/src/dns_pilot.c` + `DnsPilot.exe` | size-tracked | **GREEN** — parallel rank test (seconds); benchmarks on EVERY start incl. tray; autostart = `TestsSuite-DnsPilot` ONLOGON task `/RL HIGHEST` (Run key migrated away); requireAdministrator |
+| **Agent Notes** | `agent-notes/src/agent_notes.c` + `AgentNotes.exe` | size-tracked | **GREEN** — direct quick-notes channel (no Google middleman): POSTs to `tools/notes_server.py` (live preview port 8765), queues in `%LOCALAPPDATA%\AgentNotes\outbox\` while the agent is offline, auto-delivers on reconnect; hub card #6 with Install; requireAdministrator |
 | **Agent tooling** | `AGENTS.md`, `.agent/CODEMAP.md`, `tools/` | 2026-10-23 | **GREEN** — `agent_map.py` code map (`--check` in suite), one-shot build (~2s cached) / full suite (~4s cached) |
 
 ## Fast Commands
