@@ -395,7 +395,8 @@ static void StartTest(int autoRun) {
     g_testedCount = 0;
     g_autoRun = autoRun;
     for (int i = 0; i < g_rowCount; i++) g_rows[i].rank = 0;
-    CreateThread(NULL, 0, TestThread, NULL, 0, NULL);
+    HANDLE hT = CreateThread(NULL, 0, TestThread, NULL, 0, NULL);
+    if (hT) CloseHandle(hT);
 }
 
 /* ---- active adapter discovery (iphlpapi; locale-proof) ---- */
@@ -521,7 +522,10 @@ static DWORD PingV6Once(const char *ip, const char *src, DWORD timeoutMs) {
 static void FmtMs(DWORD ms, wchar_t *out, int n) {
     if (ms == PING_NONE) WCpy(out, n, L"-");
     else if (ms == 0) WCpy(out, n, L"<1 ms");
-    else _snwprintf(out, n - 1, L"%lu ms", (unsigned long)ms);
+    else {
+        _snwprintf(out, n - 1, L"%lu ms", (unsigned long)ms);
+        out[n - 1] = L'\0';
+    }
 }
 
 static void FmtMbps(double mbps, wchar_t *out, int n) {
@@ -1467,7 +1471,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                    the UI or the switch path */
                 if (InterlockedCompareExchange(&g_watchBusy, 0, 0) == 0) {
                     InterlockedExchange(&g_watchBusy, 1);
-                    CreateThread(NULL, 0, WatchThread, NULL, 0, NULL);
+                    HANDLE hW = CreateThread(NULL, 0, WatchThread, NULL, 0, NULL);
+                    if (hW) CloseHandle(hW);
                 }
                 if (g_lastTestAt == 0 || now - g_lastTestAt >= AUTO_FULLTEST_MS) StartTest(1);
             } else {
@@ -1685,7 +1690,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
 
     /* live stats strip: 1 Hz, one worker thread, ping + passive counters */
     InitializeCriticalSection(&g_statsCs);
-    CreateThread(NULL, 0, StatsThread, NULL, 0, NULL);
+    HANDLE hS = CreateThread(NULL, 0, StatsThread, NULL, 0, NULL);
+    if (hS) CloseHandle(hS);
 
     /* opening the pilot always kicks off a real test right away
        (not on a silent tray start - that is a restore, not an open) */

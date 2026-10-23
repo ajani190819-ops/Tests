@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.15"
-#define HUB_VERSION_W     L"2.8.15"
+#define HUB_VERSION       "2.8.16"
+#define HUB_VERSION_W     L"2.8.16"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -1532,13 +1532,14 @@ static void WorkerInstallKeyboardLighting(void) {
         L"Restart.bat", L"Zones.ps1", L"Zones.bat", L"MyEffect.ps1", L"README.md"
     };
     int count = (int)(sizeof(files) / sizeof(files[0]));
+    int dlFail = 0;
     for (int i = 0; i < count; i++) {
         wchar_t msg[256], rel[128], dest[MAX_PATH];
         _snwprintf(msg, 255, L"Downloading Keyboard Lighting (%d/%d): %s...", i + 1, count, files[i]);
         SetFooterStatus(msg, 15 + (i * 80) / count);
         _snwprintf(rel, 127, L"keyboard-lighting/%s", files[i]);
         _snwprintf(dest, MAX_PATH, L"%s\\%s", g_kblDir, files[i]);
-        DownloadRawRepoFile(branch, rel, dest);
+        if (!DownloadRawRepoFile(branch, rel, dest)) dlFail++;
     }
 
     if (FileExistsW(kblExe)) {
@@ -1553,10 +1554,21 @@ static void WorkerInstallKeyboardLighting(void) {
            instead of popping the window open */
         if (kblWasVisible || !kblWasInstalled) {
             ShellExecuteW(NULL, L"open", kblExe, NULL, g_kblDir, SW_SHOWNORMAL);
-            SetFooterStatus(L"Keyboard Lighting updated and reopened!", 0);
         } else {
             ShellExecuteW(NULL, L"open", kblExe, L"-Silent", g_kblDir, SW_HIDE);
-            SetFooterStatus(L"Keyboard Lighting updated - running quietly in the tray.", 0);
+        }
+        if (dlFail) {
+            /* never claim a clean update when helper files are missing */
+            wchar_t warn[256];
+            _snwprintf(warn, 255,
+                       L"Keyboard Lighting updated, but %d of %d files failed to download - press Update to retry.",
+                       dlFail, count);
+            warn[255] = L'\0';
+            SetFooterStatus(warn, 0);
+        } else {
+            SetFooterStatus(kblWasVisible || !kblWasInstalled
+                                ? L"Keyboard Lighting updated and reopened!"
+                                : L"Keyboard Lighting updated - running quietly in the tray.", 0);
         }
     } else {
         SetFooterStatus(L"Could not download KeyboardLighting.exe from GitHub.", 0);
@@ -1639,7 +1651,6 @@ static void WorkerInstallOrcaPlugins(void) {
     BOOL ok3 = DownloadRawRepoFile(branch, L"plugins/unlayered-infill/unlayered_infill_orca.py", tmpInf);
     if (!ok2 || !ok3) {
         SetFooterStatus(L"Failed downloading OrcaSlicer plugins from GitHub.", 0);
-        (void)ok1;
         return;
     }
 
@@ -1700,7 +1711,23 @@ static void WorkerInstallOrcaPlugins(void) {
         CopyFileW(tmpInf, dst, FALSE);
     }
 
-    SetFooterStatus(L"OrcaSlicer plugins updated — restart OrcaSlicer to load.", 0);
+    /* End-state honesty: CopyFileW fails silently while OrcaSlicer holds
+       locks, so verify the plugin files actually landed before claiming it. */
+    BOOL landed = TRUE;
+    if (targetsInstalled == 0) {
+        wchar_t chk[MAX_PATH];
+        _snwprintf(chk, MAX_PATH, L"%s\\OrcaSlicer\\orca_plugins\\wave-overhangs\\wave_overhangs_orca.py", g_roamApp);
+        landed = FileExistsW(chk);
+        _snwprintf(chk, MAX_PATH, L"%s\\OrcaSlicer\\orca_plugins\\unlayered-infill\\unlayered_infill_orca.py", g_roamApp);
+        landed = landed && FileExistsW(chk);
+    }
+    if (!landed) {
+        SetFooterStatus(L"OrcaSlicer plugin files could not be written - close OrcaSlicer and retry.", 0);
+    } else if (!ok1) {
+        SetFooterStatus(L"OrcaSlicer plugins updated, but Orca-Plugins.bat failed to download - restart OrcaSlicer to load.", 0);
+    } else {
+        SetFooterStatus(L"OrcaSlicer plugins updated — restart OrcaSlicer to load.", 0);
+    }
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
 }
 
@@ -1745,7 +1772,14 @@ static void WorkerSelfUpdateHub(void) {
        renamed - that is how ProjectHub.exe could disappear from disk.
        Retry through transient locks (AV scans love fresh downloads), and if
        it still fails put the old exe back so the hub always stays present. */
-    if (!MoveFileExW(g_exePath, oldExe, MOVEFILE_REPLACE_EXISTING)) {
+    /* Transient locks (AV scans love fresh downloads) can bounce this
+       rename a few times - retry before giving up and keeping the hub. */
+    BOOL renamed = FALSE;
+    for (int i = 0; i < 5 && !renamed; i++) {
+        renamed = MoveFileExW(g_exePath, oldExe, MOVEFILE_REPLACE_EXISTING);
+        if (!renamed) Sleep(200);
+    }
+    if (!renamed) {
         DeleteFileW(newExe);
         SetFooterStatus(L"Could not replace ProjectHub.exe on disk.", 0);
         return;
