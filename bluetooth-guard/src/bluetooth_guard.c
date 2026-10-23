@@ -649,7 +649,7 @@ static void SetAutostart(BOOL enable) {
                 L"  <Principals>\r\n"
                 L"    <Principal id=\"Author\">\r\n"
                 L"      <LogonType>InteractiveToken</LogonType>\r\n"
-                L"      <RunLevel>LeastPrivilege</RunLevel>\r\n"
+                L"      <RunLevel>HighestAvailable</RunLevel>\r\n"
                 L"    </Principal>\r\n"
                 L"  </Principals>\r\n"
                 L"  <Settings>\r\n"

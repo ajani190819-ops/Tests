@@ -699,20 +699,25 @@ static void RelaunchElevated(const wchar_t *args) {
 /* Background suite apps start with Windows - quietly in the tray, like
    Bluetooth Guard and Keyboard Lighting. Re-written every launch so an
    updated install path stays correct. */
+/* Autostart at logon through a highest-privilege scheduled task so the
+   pilot comes up in the tray already elevated - a Run-key entry would trip
+   a UAC prompt at every boot now that the exe requires administrator. */
 static void EnsureAutostart(void) {
     wchar_t exe[MAX_PATH];
     if (!GetModuleFileNameW(NULL, exe, MAX_PATH)) return;
     HKEY k = NULL;
     if (RegCreateKeyExW(HKEY_CURRENT_USER,
                         L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-                        0, NULL, 0, KEY_SET_VALUE, NULL, &k, NULL) != ERROR_SUCCESS)
-        return;
-    wchar_t cmd[MAX_PATH + 16];
-    _snwprintf(cmd, MAX_PATH + 15, L"\"%s\" -Silent", exe);
-    cmd[MAX_PATH + 15] = L'\0';
-    RegSetValueExW(k, L"TestsSuite-DnsPilot", 0, REG_SZ,
-                   (const BYTE *)cmd, (DWORD)((wcslen(cmd) + 1) * sizeof(wchar_t)));
-    RegCloseKey(k);
+                        0, NULL, 0, KEY_SET_VALUE, NULL, &k, NULL) == ERROR_SUCCESS) {
+        RegDeleteValueW(k, L"TestsSuite-DnsPilot");   /* migrate away from the old Run entry */
+        RegCloseKey(k);
+    }
+    wchar_t args[MAX_PATH * 2];
+    _snwprintf(args, MAX_PATH * 2 - 1,
+               L"/Create /F /SC ONLOGON /TN \"TestsSuite-DnsPilot\" "
+               L"/TR \"\\\"%s\\\" -Silent\" /RL HIGHEST", exe);
+    args[MAX_PATH * 2 - 1] = L'\0';
+    ShellExecuteW(NULL, L"open", L"schtasks.exe", args, NULL, SW_HIDE);
 }
 
 /* ---- config ---- */
