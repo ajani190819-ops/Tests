@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.20"
-#define HUB_VERSION_W     L"2.8.20"
+#define HUB_VERSION       "2.8.21"
+#define HUB_VERSION_W     L"2.8.21"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -850,6 +850,22 @@ static BOOL ExtractQuotedAfter(const char *hay, const char *key, char *out, size
     return i > 0;
 }
 
+/* Numeric dotted-version compare: TRUE only when a is genuinely newer than b.
+   A stale or older GitHub copy must never claim an update is available - that
+   is what left a false "vX.Y.Z is available" nag and a yellow button after an
+   update had already landed. */
+static BOOL VerNewer(const char *a, const char *b) {
+    for (int i = 0; i < 4; i++) {
+        int va = 0, vb = 0;
+        while (*a >= '0' && *a <= '9') va = va * 10 + (*a++ - '0');
+        while (*b >= '0' && *b <= '9') vb = vb * 10 + (*b++ - '0');
+        if (va != vb) return va > vb;
+        if (*a == '.') a++;
+        if (*b == '.') b++;
+    }
+    return FALSE;
+}
+
 /* Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere */
 static BOOL ResolveShortcutTargetDir(const wchar_t *lnkPath, wchar_t *outDir) {
     if (!FileExistsW(lnkPath)) return FALSE;
@@ -1121,7 +1137,7 @@ static void RefreshProjectStatuses(void) {
     BOOL kblUpd = kblKnown && locKblSz != remKblSz;
     if (!kblUpd && remPs1Sz > 0 && locPs1Sz > 0) kblUpd = (locPs1Sz != remPs1Sz);
 
-    g_hubUpdAvail = (remHub[0] != '\0' && strcmp(remHub, HUB_VERSION) != 0);
+    g_hubUpdAvail = (remHub[0] != '\0' && VerNewer(remHub, HUB_VERSION));
     g_topBtns[1].label = g_hubUpdAvail ? L"Update Hub \x25B2" : L"Update Hub";
     g_topBtns[1].style = g_hubUpdAvail ? BTN_AMBER : BTN_SECONDARY;
 
@@ -1266,8 +1282,8 @@ static void RefreshProjectStatuses(void) {
         _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S & Unlayered Infill %S available",
                    remWave[0] ? remWave : "latest", remInfill[0] ? remInfill : "latest");
     } else {
-        BOOL upd = (remWave[0] && strcmp(locWave, remWave) != 0) ||
-                   (remInfill[0] && strcmp(locInfill, remInfill) != 0);
+        BOOL upd = (remWave[0] && VerNewer(remWave, locWave)) ||
+                   (remInfill[0] && VerNewer(remInfill, locInfill));
         wcsncpy(g_cards[3].badge, upd ? L"Update Ready" : L"Up to Date", 47);
         g_cards[3].badgeKind = upd ? BADGE_WARN : BADGE_OK;
         g_cards[3].btns[0].style = upd ? BTN_PRIMARY : BTN_SECONDARY;
@@ -1409,7 +1425,7 @@ static void WorkerCheckRemote(void) {
     LeaveCriticalSection(&g_cs);
 
     SetCheckPhase(FALSE);
-    if (remHubLocal[0] && strcmp(remHubLocal, HUB_VERSION) != 0) {
+    if (remHubLocal[0] && VerNewer(remHubLocal, HUB_VERSION)) {
         wchar_t updMsg[256];
         _snwprintf(updMsg, 255,
                    L"Project Hub v%S is available on GitHub  ·  Click 'Update Hub' above",
