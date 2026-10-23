@@ -113,6 +113,7 @@ static void WCpy(wchar_t *d, int n, const wchar_t *s) {
 static int         g_dpi = 96;
 static int         g_testing = 0;
 static int         g_testedCount = 0;
+static volatile LONG g_exitStop = 0;   /* set on quit: threads bail out fast */
 static int         g_topRow = 0;
 static int         g_hoverBtn = -1;
 static ULONGLONG   g_lastTestAt = 0;
@@ -324,6 +325,7 @@ static void BuildRows(void) {
 static DWORD WINAPI TestThread(LPVOID param) {
     (void)param;
     for (int i = 0; i < g_rowCount; i++) {
+        if (InterlockedCompareExchange(&g_exitStop, 0, 0)) break;
         Row *r = &g_rows[i];
         int got = 0, strikes = 0;
         r->tested = 1;
@@ -812,12 +814,14 @@ static void WatchSwitch(int fam, const char *ip, int srv, double chalMs, double 
 }
 
 static void WatchTickBody(void) {
+    if (InterlockedCompareExchange(&g_exitStop, 0, 0)) return;
     if (g_watchN == 0) { RebuildWatch(); if (g_watchN == 0) return; }
     ULONGLONG now = GetTickCount64();
 
     for (int i = 0; i < g_watchN; i++) {
         WatchCand *c = &g_watch[i];
         int ms = 0;
+        if (InterlockedCompareExchange(&g_exitStop, 0, 0)) return;
         if (DnsProbe(c->ip, c->family, 900, &ms)) {
             c->ewma = (c->ewma < 0) ? (double)ms : (c->ewma * 0.6 + (double)ms * 0.4);
             c->misses = 0;
@@ -1522,7 +1526,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         KillTimer(hwnd, 2);
         Shell_NotifyIconW(NIM_DELETE, &g_nid);
         g_statsRun = 0;
-        DeleteCriticalSection(&g_watchCs);
+        InterlockedExchange(&g_exitStop, 1);
+        /* Never free g_watchCs while a watch tick can still hold it - that
+           race crashed on exit whenever Auto-Pilot was mid-tick. Park the
+           thread first (bounded wait); if it is somehow still winding down we
+           leave the section for the process teardown to reclaim. */
+        for (int t = 0; t < 150 && InterlockedCompareExchange(&g_watchBusy, 0, 0); t++) Sleep(10);
+        if (!InterlockedCompareExchange(&g_watchBusy, 0, 0))
+            DeleteCriticalSection(&g_watchCs);
         PostQuitMessage(0);
         return 0;
     }
