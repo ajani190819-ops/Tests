@@ -1788,9 +1788,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     HANDLE hS = CreateThread(NULL, 0, StatsThread, NULL, 0, NULL);
     if (hS) CloseHandle(hS);
 
-    /* opening the pilot always kicks off a real test right away
-       (not on a silent tray start - that is a restore, not an open) */
-    if (!silent) StartTest(0);
+    /* every start kicks off a real test right away - including a quiet
+       tray start, so an autostarted pilot benchmarks from the moment it
+       appears instead of idling until someone opens the window */
+    StartTest(0);
 
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0)) {
