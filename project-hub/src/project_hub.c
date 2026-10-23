@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.23"
-#define HUB_VERSION_W     L"2.8.23"
+#define HUB_VERSION       "2.8.24"
+#define HUB_VERSION_W     L"2.8.24"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -1148,17 +1148,99 @@ static int JsonGet(const char *obj, const char *key, char *out, int cap) {
     return i > 0;
 }
 
-static int IsBuiltInId(const char *id) {
+static int BuiltInSlot(const char *id) {
     static const char *known[6] = { "btguard", "kbl", "hud", "orca", "dnspilot", "agentnotes" };
-    for (int i = 0; i < 6; i++) if (strcmp(id, known[i]) == 0) return 1;
+    for (int i = 0; i < 6; i++) if (strcmp(id, known[i]) == 0) return i;
+    return -1;
+}
+
+static int BuiltInBtnId(int slot, const char *verb) {
+    /* verb -> the control id the existing WM_COMMAND switch understands */
+    static const struct { const char *verb; int id; } map[20] = {
+        { "open",      ID_BTG_OPEN },     { "update",    ID_BTG_UPDATE },
+        { "stop",      ID_BTG_STOP },     { "folder",    ID_BTG_FOLDER },
+        { "open",      ID_KBL_OPEN },     { "unfreeze",  ID_KBL_RESTART },
+        { "update",    ID_KBL_UPDATE },   { "folder",    ID_KBL_FOLDER },
+        { "updatemod", ID_HUD_UPDATE },   { "modsdir",   ID_HUD_PICK },
+        { "folder",    ID_HUD_FOLDER },
+        { "update",    ID_ORCA_UPDATE },  { "branch",    ID_ORCA_MENU },
+        { "folder",    ID_ORCA_FOLDER },
+        { "open",      ID_DNS_OPEN },     { "update",    ID_DNS_UPDATE },
+        { "folder",    ID_DNS_FOLDER },
+        { "open",      ID_NOTES_OPEN },   { "update",    ID_NOTES_UPDATE },
+        { "folder",    ID_NOTES_FOLDER }
+    };
+    static const int off[7] = { 0, 4, 8, 11, 14, 17, 20 };
+    if (slot < 0 || slot > 5) return 0;
+    for (int i = off[slot]; i < off[slot + 1]; i++)
+        if (strcmp(map[i].verb, verb) == 0) return map[i].id;
     return 0;
+}
+
+static void FillBuiltInDef(int slot, const char *id, const char *title,
+                           const char *blurb, const char *icon, const char *buttons) {
+    if (slot < 0 || slot >= g_cardCount) return;
+    ProjectCard *c = &g_cards[slot];
+    MultiByteToWideChar(CP_UTF8, 0, id, -1, c->id, 23);
+    if (title[0]) c->title = PoolAdd(title);
+    if (blurb[0]) c->blurb = PoolAdd(blurb);
+    if (buttons[0]) {
+        char list[256];
+        strncpy(list, buttons, sizeof(list) - 1);
+        list[sizeof(list) - 1] = '\0';
+        int n = 0;
+        char *bp = list;
+        while (*bp && n < 4) {
+            char verb[24] = "", label[32] = "";
+            int wpx = 74, k = 0;
+            while (*bp && *bp != ':' && *bp != ',' && k < 23) verb[k++] = *bp++;
+            verb[k] = '\0';
+            if (*bp == ':') bp++;
+            k = 0;
+            while (*bp && *bp != ':' && *bp != ',' && k < 31) label[k++] = *bp++;
+            label[k] = '\0';
+            if (*bp == ':') {
+                bp++;
+                wpx = 0;
+                while (*bp >= '0' && *bp <= '9') wpx = wpx * 10 + (*bp++ - '0');
+                if (wpx < 40 || wpx > 160) wpx = 74;
+            }
+            while (*bp && *bp != ',') bp++;
+            if (*bp == ',') bp++;
+            int btnId = verb[0] ? BuiltInBtnId(slot, verb) : 0;
+            if (!btnId) continue;
+            c->btns[n].id = btnId;
+            c->btns[n].label = PoolAdd(label[0] ? label : verb);
+            c->btns[n].style = BTN_SECONDARY;
+            c->btns[n].widthPx = wpx;
+            c->btns[n].verb = PoolAdd(verb);
+            ZeroMemory(&c->btns[n].rc, sizeof(RECT));
+            n++;
+        }
+        if (n > 0) c->btnCount = n;
+    }
+    if (icon[0]) {
+        wchar_t iconsDir[MAX_PATH];
+        _snwprintf(iconsDir, MAX_PATH - 1, L"%s\\icons", g_localApp);
+        CreateDirectoryW(iconsDir, NULL);
+        _snwprintf(c->iconFile, MAX_PATH - 1, L"%s\\%s.ico", iconsDir, c->id);
+        if (!FileExistsW(c->iconFile)) {
+            wchar_t branch[64];
+            EnsureActiveBranch(branch, 64);
+            if (!DownloadRawRepoFile(branch, PoolAdd(icon), c->iconFile))
+                c->iconFile[0] = L'\0';
+        }
+        if (c->iconFile[0])
+            c->hIcon = (HICON)LoadImageW(NULL, c->iconFile, IMAGE_ICON, 0, 0,
+                                         LR_LOADFROMFILE | LR_DEFAULTSIZE);
+    }
 }
 
 static void AddCatalogCard(const char *obj) {
     char id[32], title[64], blurb[128], exe[128], dir[64], icon[128];
     char shortcut[64], buttons[256], args[64];
-    if (!JsonGet(obj, "id", id, sizeof(id)) || IsBuiltInId(id)) return;
-    if (!JsonGet(obj, "exe", exe, sizeof(exe))) return;
+    if (!JsonGet(obj, "id", id, sizeof(id))) return;
+    if (!JsonGet(obj, "exe", exe, sizeof(exe))) exe[0] = '\0';
     JsonGet(obj, "title", title, sizeof(title));
     JsonGet(obj, "blurb", blurb, sizeof(blurb));
     JsonGet(obj, "dir", dir, sizeof(dir));
@@ -1166,6 +1248,12 @@ static void AddCatalogCard(const char *obj) {
     JsonGet(obj, "shortcut", shortcut, sizeof(shortcut));
     JsonGet(obj, "buttons", buttons, sizeof(buttons));
     JsonGet(obj, "launchArgs", args, sizeof(args));
+    if (BuiltInSlot(id) >= 0) {
+        /* built-in card: refresh its definition from the catalog */
+        FillBuiltInDef(BuiltInSlot(id), id, title, blurb, icon, buttons);
+        return;
+    }
+    if (!exe[0]) return;
     if (g_cardCount >= MAX_APPS) return;
 
     ProjectCard *c = &g_cards[g_cardCount];
@@ -1263,6 +1351,12 @@ static void AddCatalogCard(const char *obj) {
 }
 
 static void RebuildExtraCards(const char *json) {
+    /* Built-in titles revert to their built-in literals first: any of them
+       missing from the catalog must not point at wiped pool strings. */
+    static const wchar_t *fallbackTitles[6] = {
+        L"Bluetooth Guard", L"Keyboard Lighting", L"Spatial HUD",
+        L"OrcaSlicer Plugins", L"DNS Pilot", L"Agent Notes" };
+    for (int i = 0; i < 6; i++) g_cards[i].title = fallbackTitles[i];
     /* Shrink first so a repaint mid-rebuild never reads half-built cards. */
     g_cardCount = 6;
     for (int i = 6; i < MAX_APPS; i++) {
@@ -2688,9 +2782,9 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
         };
         SmoothRoundRect(px, w, h, &barRc, (float)S(2, dpi), barCol, barCol, headerH + 1, footerTop - 1);
 
-        /* Embedded 32-bit RGBA Suite App Icon (catalog icon / letter tile) */
+        /* Catalog icon first (download_icons), then embedded, letter tile */
         {
-            HICON ico = g_cardIcons[c] ? g_cardIcons[c] : card->hIcon;
+            HICON ico = card->hIcon ? card->hIcon : g_cardIcons[c];
             int ix = card->rcCard.left + S(18, dpi);
             int iy = (card->rcCard.top + card->rcCard.bottom - cardIcoSz) / 2;
             if (ico) {
