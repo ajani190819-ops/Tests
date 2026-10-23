@@ -326,7 +326,7 @@ static DWORD WINAPI FlushThread(LPVOID unused) {
     } else if (failed > 0) {
         g_lastOk = 0;
         _snwprintf(g_status, 255,
-                   L"Agent not reachable  |  %d queued - delivers when the session is back.",
+                   L"Session link not answering - re-paste the current link if it changed  |  %d queued.",
                    left);
     } else {
         g_lastOk = 1;
@@ -498,8 +498,8 @@ static void EmbRect(RECT *r) {
 }
 
 static void BtnRect(int i, RECT *r) {
-    if (i == BTN_SAVE) SetRect(r, S(430), S(98), S(430) + S(120), S(98) + S(32));
-    else SetRect(r, S(20), S(354), S(20) + S(190), S(354) + S(38));
+    if (i == BTN_SAVE) SetRect(r, S(470), S(98), S(470) + S(120), S(98) + S(32));
+    else SetRect(r, S(20), S(380), S(20) + S(190), S(380) + S(38));
 }
 
 static void DrawBtn(HDC dc, int idx, const wchar_t *label, int primary) {
@@ -623,12 +623,12 @@ static void PaintAll(HWND hwnd) {
     DrawBtn(mem, BTN_SEND, L"Send to Agent", 1);
 
     /* Recent notes: live Sent/Queued state (outbox file exists = queued). */
-    RECT rl = { S(20), S(412), W - S(20), S(436) };
+    RECT rl = { S(20), S(438), W - S(20), S(462) };
     SetTextColor(mem, COL_MUTED);
     DrawTextW(mem, L"Recent notes", -1, &rl, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     SelectObject(mem, g_fontUI);
     for (int i = 0; i < HIST_SHOW && i < g_histN; i++) {
-        int y = S(440) + i * S(26);
+        int y = S(466) + i * S(26);
         wchar_t qp[MAX_PATH + 96];
         _snwprintf(qp, MAX_PATH + 95, L"%s\\%s", g_outboxDir, g_hist[i].name);
         int queued = FileExistsW(qp);
@@ -653,7 +653,7 @@ static void PaintAll(HWND hwnd) {
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     }
     if (g_histN == 0) {
-        RECT e = { S(42), S(440), W - S(24), S(461) };
+        RECT e = { S(42), S(466), W - S(24), S(487) };
         SetTextColor(mem, COL_MUTED);
         DrawTextW(mem, L"Notes you send will show up here.", -1, &e,
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE);
@@ -828,15 +828,23 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     wc.lpszClassName = L"AgentNotesWnd";
     RegisterClassExW(&wc);
 
-    RECT wrc = { 0, 0, S(580), S(576) };
-    AdjustWindowRectEx(&wrc, WS_OVERLAPPEDWINDOW, FALSE, 0);
+    /* Create first at a nominal size, then size to the true DPI: S() still
+       uses the default 96 dpi at this point, so sizing the window before
+       GetWinDpi would cut the layout off on any scaled display. */
     g_hwnd = CreateWindowExW(0, wc.lpszClassName, APP_TITLE_W, WS_OVERLAPPEDWINDOW,
                              CW_USEDEFAULT, CW_USEDEFAULT,
-                             wrc.right - wrc.left, wrc.bottom - wrc.top,
+                             S(620), S(600),
                              NULL, NULL, hInst, NULL);
     if (!g_hwnd) return 1;
 
     g_dpi = GetWinDpi(g_hwnd);
+    {
+        RECT wrc = { 0, 0, S(620), S(600) };
+        AdjustWindowRectEx(&wrc, WS_OVERLAPPEDWINDOW, FALSE, 0);
+        SetWindowPos(g_hwnd, NULL, 0, 0,
+                     wrc.right - wrc.left, wrc.bottom - wrc.top,
+                     SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
     g_bgBrush = CreateSolidBrush(COL_BG);
     g_fontUI = CreateFontW(-S(13), 0, 0, 0, FW_NORMAL, 0, 0, 0, 0, 0, 0, 0, 0, L"Segoe UI");
     g_fontTitle = CreateFontW(-S(22), 0, 0, 0, FW_SEMIBOLD, 0, 0, 0, 0, 0, 0, 0, 0, L"Segoe UI");
@@ -846,12 +854,12 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     LoadLibraryW(L"msftedit.dll");
     g_hLink = CreateWindowExW(0, L"RichEdit50W", g_link,
                               WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
-                              S(130), S(98), S(290), S(32),
+                              S(130), S(98), S(330), S(32),
                               g_hwnd, (HMENU)(INT_PTR)ID_EDIT_LINK, hInst, NULL);
     g_hNote = CreateWindowExW(0, L"RichEdit50W", L"",
                               WS_CHILD | WS_VISIBLE | WS_TABSTOP |
                               ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL,
-                              S(20), S(178), S(540), S(164),
+                              S(20), S(178), S(580), S(190),
                               g_hwnd, (HMENU)(INT_PTR)ID_EDIT_NOTE, hInst, NULL);
     if (g_hLink) {
         SendMessageW(g_hLink, EM_SETBKGNDCOLOR, 0, (LPARAM)COL_CARD);
