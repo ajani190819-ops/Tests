@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.17"
-#define HUB_VERSION_W     L"2.8.17"
+#define HUB_VERSION       "2.8.18"
+#define HUB_VERSION_W     L"2.8.18"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -551,19 +551,43 @@ static BOOL WriteBinaryFileAtomic(const wchar_t *dest, const BYTE *data, DWORD l
     return TRUE;
 }
 
+/* ---- HTTP layer: one shared WinHTTP session + per-host connection --------
+   Every request runs on the single hub worker thread, so plain lazy handles
+   are safe. Reusing the session and connection means steady-state checks
+   keep a warm TLS channel instead of paying fresh handshakes for every
+   probe (this used to open 8 brand-new sessions per 10-second cycle). */
+static HINTERNET g_httpSess = NULL;
+static HINTERNET g_httpConnRaw = NULL;
+static HINTERNET g_httpConnApi = NULL;
+
+static HINTERNET HttpSession(void) {
+    if (!g_httpSess) {
+        g_httpSess = WinHttpOpen(L"Tests-ProjectHub/2.3",
+                                 WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                 WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        if (g_httpSess) WinHttpSetTimeouts(g_httpSess, 8000, 10000, 15000, 30000);
+    }
+    return g_httpSess;
+}
+
+static HINTERNET HttpConnect(const wchar_t *host) {
+    HINTERNET *slot = (wcscmp(host, L"api.github.com") == 0) ? &g_httpConnApi : &g_httpConnRaw;
+    if (!*slot) {
+        HINTERNET s = HttpSession();
+        if (!s) return NULL;
+        *slot = WinHttpConnect(s, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
+    }
+    return *slot;
+}
+
 static BOOL HttpHeadSize(const wchar_t *host, const wchar_t *urlPath, DWORD *outSize) {
     *outSize = 0;
-    HINTERNET hSession = WinHttpOpen(L"Tests-ProjectHub/2.3",
-                                     WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-                                     WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!hSession) return FALSE;
-    WinHttpSetTimeouts(hSession, 8000, 10000, 15000, 30000);
-    HINTERNET hConnect = WinHttpConnect(hSession, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
-    if (!hConnect) { WinHttpCloseHandle(hSession); return FALSE; }
+    HINTERNET hConnect = HttpConnect(host);
+    if (!hConnect) return FALSE;
     HINTERNET hReq = WinHttpOpenRequest(hConnect, L"HEAD", urlPath, NULL,
                                         WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
                                         WINHTTP_FLAG_SECURE);
-    if (!hReq) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return FALSE; }
+    if (!hReq) return FALSE;
     BOOL ok = WinHttpSendRequest(hReq, L"User-Agent: Tests-ProjectHub/2.3\r\n", (DWORD)-1L,
                                  WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
               WinHttpReceiveResponse(hReq, NULL);
@@ -573,34 +597,33 @@ static BOOL HttpHeadSize(const wchar_t *host, const wchar_t *urlPath, DWORD *out
                                 WINHTTP_HEADER_NAME_BY_INDEX, &cl, &cls, WINHTTP_NO_HEADER_INDEX))
             *outSize = cl;
     }
-    WinHttpCloseHandle(hReq); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
+    WinHttpCloseHandle(hReq);
     return ok && *outSize > 0;
 }
 
-static BYTE *HttpGetBuffer(const wchar_t *host, const wchar_t *urlPath, DWORD *outSize, int *outStatus) {
+static BYTE *HttpGetBufferEx(const wchar_t *host, const wchar_t *urlPath, const wchar_t *extraHdr,
+                             DWORD *outSize, int *outStatus,
+                             wchar_t *outEtag, wchar_t *outLastMod, BOOL *outNotMod) {
     if (outSize) *outSize = 0;
     if (outStatus) *outStatus = 0;
+    if (outNotMod) *outNotMod = FALSE;
 
-    HINTERNET hSession = WinHttpOpen(L"Tests-ProjectHub/2.3",
-                                     WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-                                     WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!hSession) return NULL;
-    WinHttpSetTimeouts(hSession, 8000, 10000, 15000, 30000);
-
-    HINTERNET hConnect = WinHttpConnect(hSession, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
-    if (!hConnect) { WinHttpCloseHandle(hSession); return NULL; }
-
+    HINTERNET hConnect = HttpConnect(host);
+    if (!hConnect) return NULL;
     HINTERNET hReq = WinHttpOpenRequest(hConnect, L"GET", urlPath, NULL,
                                         WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
                                         WINHTTP_FLAG_SECURE);
-    if (!hReq) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return NULL; }
+    if (!hReq) return NULL;
 
-    BOOL sent = WinHttpSendRequest(hReq,
-                                   L"User-Agent: Tests-ProjectHub/2.3\r\nAccept: */*\r\n",
-                                   (DWORD)-1L, WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
+    wchar_t hdrs[768];
+    _snwprintf(hdrs, 767, L"User-Agent: Tests-ProjectHub/2.3\r\nAccept: */*\r\n%s",
+               extraHdr ? extraHdr : L"");
+    hdrs[767] = L'\0';
+
+    BOOL sent = WinHttpSendRequest(hReq, hdrs, (DWORD)-1L,
+                                   WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
     if (!sent || !WinHttpReceiveResponse(hReq, NULL)) {
-        WinHttpCloseHandle(hReq); WinHttpCloseHandle(hSession);
-        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hReq);
         return NULL;
     }
 
@@ -608,15 +631,32 @@ static BYTE *HttpGetBuffer(const wchar_t *host, const wchar_t *urlPath, DWORD *o
     WinHttpQueryHeaders(hReq, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
                         WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &scSize, WINHTTP_NO_HEADER_INDEX);
     if (outStatus) *outStatus = (int)statusCode;
-    if (statusCode != 200) {
-        WinHttpCloseHandle(hReq); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
+
+    if (statusCode == 304) {
+        if (outNotMod) *outNotMod = TRUE;
+        WinHttpCloseHandle(hReq);
         return NULL;
+    }
+    if (statusCode != 200) {
+        WinHttpCloseHandle(hReq);
+        return NULL;
+    }
+
+    if (outEtag && outLastMod) {
+        outEtag[0] = L'\0';
+        outLastMod[0] = L'\0';
+        DWORD n = 95;
+        WinHttpQueryHeaders(hReq, WINHTTP_QUERY_ETAG, WINHTTP_HEADER_NAME_BY_INDEX,
+                            outEtag, &n, WINHTTP_NO_HEADER_INDEX);
+        n = 63;
+        WinHttpQueryHeaders(hReq, WINHTTP_QUERY_LAST_MODIFIED, WINHTTP_HEADER_NAME_BY_INDEX,
+                            outLastMod, &n, WINHTTP_NO_HEADER_INDEX);
     }
 
     DWORD cap = 65536, len = 0;
     BYTE *buf = (BYTE *)malloc(cap);
     if (!buf) {
-        WinHttpCloseHandle(hReq); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
+        WinHttpCloseHandle(hReq);
         return NULL;
     }
 
@@ -635,14 +675,91 @@ static BYTE *HttpGetBuffer(const wchar_t *host, const wchar_t *urlPath, DWORD *o
     }
 
     WinHttpCloseHandle(hReq);
-    WinHttpCloseHandle(hConnect);
-    WinHttpCloseHandle(hSession);
 
     if (buf) {
         buf[len] = 0;
         if (outSize) *outSize = len;
     }
     return buf;
+}
+
+static BYTE *HttpGetBuffer(const wchar_t *host, const wchar_t *urlPath, DWORD *outSize, int *outStatus) {
+    return HttpGetBufferEx(host, urlPath, NULL, outSize, outStatus, NULL, NULL, NULL);
+}
+
+/* ---- version-probe cache: conditional GET (ETag / If-Modified-Since) ----
+   An unchanged file answers 304 with no body at all, so steady-state checks
+   transfer almost nothing instead of re-downloading ~200 KB of hub source
+   every cycle just to read one version string. */
+typedef struct {
+    wchar_t host[48];
+    wchar_t path[384];
+    wchar_t etag[96];
+    wchar_t lastMod[64];
+    BYTE   *body;
+    DWORD   len;
+} HttpCacheEnt;
+static HttpCacheEnt g_hcache[8];
+
+static BYTE *HttpGetCached(const wchar_t *host, const wchar_t *urlPath, DWORD *outSize, int *outStatus) {
+    HttpCacheEnt *ent = NULL;
+    for (int i = 0; i < 8; i++) {
+        if (g_hcache[i].path[0] && wcscmp(g_hcache[i].host, host) == 0 &&
+            wcscmp(g_hcache[i].path, urlPath) == 0) {
+            ent = &g_hcache[i];
+            break;
+        }
+    }
+    if (!ent) {
+        for (int i = 0; i < 8; i++) {
+            if (!g_hcache[i].path[0]) { ent = &g_hcache[i]; break; }
+        }
+        if (!ent) ent = &g_hcache[0];
+        free(ent->body);
+        ent->body = NULL;
+        ent->len = 0;
+        ent->etag[0] = L'\0';
+        ent->lastMod[0] = L'\0';
+        wcsncpy(ent->host, host, 47); ent->host[47] = L'\0';
+        wcsncpy(ent->path, urlPath, 383); ent->path[383] = L'\0';
+    }
+
+    wchar_t cond[256] = L"";
+    if (ent->etag[0])
+        _snwprintf(cond, 255, L"If-None-Match: %s\r\n", ent->etag);
+    if (ent->lastMod[0]) {
+        size_t used = wcslen(cond);
+        _snwprintf(cond + used, 255 - used, L"If-Modified-Since: %s\r\n", ent->lastMod);
+    }
+    cond[255] = L'\0';
+
+    DWORD sz = 0;
+    int st = 0;
+    BOOL notMod = FALSE;
+    BYTE *data = HttpGetBufferEx(host, urlPath, cond[0] ? cond : NULL, &sz, &st,
+                                 ent->etag, ent->lastMod, &notMod);
+
+    if (notMod && ent->body) {
+        BYTE *copy = (BYTE *)malloc(ent->len + 1);
+        if (!copy) return NULL;
+        memcpy(copy, ent->body, ent->len + 1);
+        if (outSize) *outSize = ent->len;
+        if (outStatus) *outStatus = 200;
+        return copy;
+    }
+    if (data && st == 200) {
+        free(ent->body);
+        ent->body = (BYTE *)malloc(sz + 1);
+        if (ent->body) {
+            memcpy(ent->body, data, sz + 1);
+            ent->len = sz;
+        } else {
+            ent->len = 0;
+        }
+    }
+    if (outSize) *outSize = sz;
+    if (outStatus) *outStatus = st;
+    return data;
 }
 
 static BOOL DownloadRawRepoFile(const wchar_t *branch, const wchar_t *relUrl, const wchar_t *destPath) {
@@ -1198,7 +1315,7 @@ static void WorkerCheckRemote(void) {
     DWORD sz = 0; int st = 0;
 
     _snwprintf(p, 255, L"/%s/%s/%s/project-hub/src/project_hub.c", REPO_OWNER_W, REPO_NAME_W, branch);
-    char *hubSrc = (char *)HttpGetBuffer(L"raw.githubusercontent.com", p, &sz, &st);
+    char *hubSrc = (char *)HttpGetCached(L"raw.githubusercontent.com", p, &sz, &st);
     if (hubSrc && st == 200) {
         char hv[32] = "";
         if (ExtractQuotedAfter(hubSrc, "#define HUB_VERSION", hv, sizeof(hv))) {
@@ -1210,7 +1327,7 @@ static void WorkerCheckRemote(void) {
     free(hubSrc);
 
     _snwprintf(p, 255, L"/%s/%s/%s/plugins.json", REPO_OWNER_W, REPO_NAME_W, branch);
-    char *manifest = (char *)HttpGetBuffer(L"raw.githubusercontent.com", p, &sz, &st);
+    char *manifest = (char *)HttpGetCached(L"raw.githubusercontent.com", p, &sz, &st);
     if (manifest && st == 200) {
         char wv[32] = "", iv[32] = "";
         const char *wpos = strstr(manifest, "\"wave-overhangs\"");
@@ -1252,7 +1369,7 @@ static void WorkerCheckRemote(void) {
     EnterCriticalSection(&g_cs);
     g_remHudSize = 0;   /* unknown until this lookup succeeds - never stale */
     LeaveCriticalSection(&g_cs);
-    char *rel = (char *)HttpGetBuffer(L"api.github.com", p, &sz, &st);
+    char *rel = (char *)HttpGetCached(L"api.github.com", p, &sz, &st);
     if (rel && st == 200) {
         const char *dlPos = strstr(rel, "\"browser_download_url\"");
         if (dlPos) {
@@ -2655,7 +2772,7 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
              * rotation: quietly re-check GitHub for Hub & app updates so
              * "Update Hub" lights up on its own. */
             static int tickN = 0;
-            if (++tickN >= 5) { tickN = 0; EnqueueTask(TASK_CHECK_REMOTE); }
+            if (++tickN >= 30) { tickN = 0; EnqueueTask(TASK_CHECK_REMOTE); }
         }
         return 0;
 
