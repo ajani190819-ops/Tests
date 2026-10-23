@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.24"
-#define HUB_VERSION_W     L"2.8.24"
+#define HUB_VERSION       "2.8.25"
+#define HUB_VERSION_W     L"2.8.25"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -1115,6 +1115,15 @@ static char *g_catalogJson = NULL;
 
 static void EnqueueTask(int task);
 
+/* Load a .ico at the exact card-icon draw size. The assets ship 256px
+   sources; LR_DEFAULTSIZE would pin 32px and blur when the card scales
+   it up to S(44, dpi). */
+static HICON LoadIconFilePx(const wchar_t *path) {
+    int dpi = GetWinDpi(g_hwnd);
+    int px = S(44, dpi);
+    return (HICON)LoadImageW(NULL, path, IMAGE_ICON, px, px, LR_LOADFROMFILE);
+}
+
 static wchar_t g_strPool[12288];
 static int     g_strPoolUsed = 0;
 
@@ -1231,8 +1240,7 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
                 c->iconFile[0] = L'\0';
         }
         if (c->iconFile[0])
-            c->hIcon = (HICON)LoadImageW(NULL, c->iconFile, IMAGE_ICON, 0, 0,
-                                         LR_LOADFROMFILE | LR_DEFAULTSIZE);
+            c->hIcon = LoadIconFilePx(c->iconFile);
     }
 }
 
@@ -1344,8 +1352,7 @@ static void AddCatalogCard(const char *obj) {
                 c->iconFile[0] = L'\0';
         }
         if (c->iconFile[0])
-            c->hIcon = (HICON)LoadImageW(NULL, c->iconFile, IMAGE_ICON, 0, 0,
-                                         LR_LOADFROMFILE | LR_DEFAULTSIZE);
+            c->hIcon = LoadIconFilePx(c->iconFile);
     }
     g_cardCount++;
 }
