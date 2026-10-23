@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.22"
-#define HUB_VERSION_W     L"2.8.22"
+#define HUB_VERSION       "2.8.23"
+#define HUB_VERSION_W     L"2.8.23"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -82,6 +82,10 @@
 #define ID_NOTES_UPDATE      1705
 #define ID_NOTES_FOLDER      1706
 
+/* Dynamic catalog button ids: ID_DYN_BASE + appIndex*10 + buttonIndex */
+#define ID_DYN_BASE          1800
+#define MAX_APPS             12
+
 /* Soft Slate Suite Palette (matches Keyboard Lighting, Bluetooth Guard & docs/UI_STYLE_GUIDE.md) */
 #define COL_BG               RGB(24, 27, 36)    /* #181B24 */
 #define COL_FOOTER_BG        RGB(20, 23, 31)    /* #14171F */
@@ -139,6 +143,8 @@ enum {
     TASK_OPEN_OR_INSTALL_DNS,
     TASK_INSTALL_NOTES,
     TASK_OPEN_OR_INSTALL_NOTES,
+    TASK_INSTALL_DYN,
+    TASK_OPEN_OR_INSTALL_DYN,
     TASK_UPDATE_ALL,
     TASK_SELF_UPDATE
 };
@@ -149,6 +155,7 @@ typedef struct {
     int            style;
     int            widthPx;
     RECT           rc;
+    const wchar_t *verb;   /* catalog action: open / update / folder / install / ... */
 } ActionBtn;
 
 typedef struct {
@@ -160,6 +167,17 @@ typedef struct {
     ActionBtn      btns[4];
     int            btnCount;
     RECT           rcCard;
+    /* catalog-driven app metadata (suite-apps.json) */
+    wchar_t        id[24];
+    const wchar_t *blurb;
+    wchar_t        appDir[MAX_PATH];
+    const wchar_t *exeRepo;      /* repo path of the main executable */
+    const wchar_t *exeName;      /* file name inside appDir */
+    const wchar_t *shortcutName;
+    const wchar_t *launchArgs;
+    wchar_t        iconFile[MAX_PATH];
+    HICON          hIcon;
+    DWORD          remSize;
 } ProjectCard;
 
 static HINSTANCE        g_hInst       = NULL;
@@ -172,20 +190,22 @@ static HFONT            g_fontBtn     = NULL;
 static HFONT            g_fontBadge   = NULL;
 static HICON            g_appIcon     = NULL;
 static HICON            g_hdrEmblem   = NULL;
-static HICON            g_cardIcons[5] = {NULL, NULL, NULL, NULL, NULL};
+static HICON            g_cardIcons[MAX_APPS];
 static HANDLE           g_showEvent   = NULL;
 static HANDLE           g_hMutex      = NULL;
 static CRITICAL_SECTION g_cs;
 
 static ActionBtn        g_topBtns[4] = {
-    { ID_BTN_REFRESH_ALL, L"Refresh",    BTN_SECONDARY, 92,  {0,0,0,0} },
-    { ID_BTN_SELF_UPDATE, L"Update Hub", BTN_AMBER,     112, {0,0,0,0} },
-    { ID_BTN_UPDATE_ALL,  L"Update All", BTN_PRIMARY,   108, {0,0,0,0} },
-    { ID_BTN_BRANCH,      L"Branch \x25BC", BTN_SECONDARY, 96, {0,0,0,0} }
+    { ID_BTN_REFRESH_ALL, L"Refresh",    BTN_SECONDARY, 92,  {0,0,0,0}, NULL },
+    { ID_BTN_SELF_UPDATE, L"Update Hub", BTN_AMBER,     112, {0,0,0,0}, NULL },
+    { ID_BTN_UPDATE_ALL,  L"Update All", BTN_PRIMARY,   108, {0,0,0,0}, NULL },
+    { ID_BTN_BRANCH,      L"Branch \x25BC", BTN_SECONDARY, 96, {0,0,0,0}, NULL }
 };
 static RECT             g_rcEmblem    = {0, 0, 0, 0};
 
-static ProjectCard      g_cards[6];
+static ProjectCard      g_cards[MAX_APPS];
+static int              g_cardCount = 6;   /* 6 built-ins + catalog extras */
+static int              g_dynIdx = 0;      /* target of TASK_*_DYN */
 static int              g_hoverId     = 0;
 static int              g_scrollY     = 0;
 static int              g_maxScrollY  = 0;
@@ -1086,52 +1106,295 @@ static BOOL CreateShortcutLink(const wchar_t *lnkPath, const wchar_t *targetExe,
     return ok;
 }
 
+/* ---------------- dynamic app catalog (suite-apps.json) ----------------
+   New suite apps are described in suite-apps.json on the active branch.
+   The hub fetches it during its quiet check and builds cards for any entry
+   it does not already know - so adding an app means dropping its files and
+   one JSON entry, never a hub update. */
+static char *g_catalogJson = NULL;
+
+static void EnqueueTask(int task);
+
+static wchar_t g_strPool[12288];
+static int     g_strPoolUsed = 0;
+
+static const wchar_t *PoolAdd(const char *utf8) {
+    wchar_t *w = &g_strPool[g_strPoolUsed];
+    int cap = (int)(sizeof(g_strPool) / sizeof(wchar_t)) - g_strPoolUsed;
+    if (cap < 8) return L"";
+    int n = MultiByteToWideChar(CP_UTF8, 0, utf8 ? utf8 : "", -1, w, cap);
+    if (n <= 0) return L"";
+    g_strPoolUsed += n;
+    return w;
+}
+
+static int JsonGet(const char *obj, const char *key, char *out, int cap) {
+    char pat[64];
+    out[0] = '\0';
+    _snprintf(pat, sizeof(pat) - 1, "\"%s\"", key);
+    pat[sizeof(pat) - 1] = '\0';
+    const char *p = strstr(obj, pat);
+    if (!p) return 0;
+    p += strlen(pat);
+    while (*p == ' ' || *p == '\t' || *p == ':') p++;
+    if (*p != '"') return 0;
+    p++;
+    int i = 0;
+    while (*p && *p != '"' && i + 1 < cap) {
+        if (*p == '\\' && p[1]) p++;
+        out[i++] = *p++;
+    }
+    out[i] = '\0';
+    return i > 0;
+}
+
+static int IsBuiltInId(const char *id) {
+    static const char *known[6] = { "btguard", "kbl", "hud", "orca", "dnspilot", "agentnotes" };
+    for (int i = 0; i < 6; i++) if (strcmp(id, known[i]) == 0) return 1;
+    return 0;
+}
+
+static void AddCatalogCard(const char *obj) {
+    char id[32], title[64], blurb[128], exe[128], dir[64], icon[128];
+    char shortcut[64], buttons[256], args[64];
+    if (!JsonGet(obj, "id", id, sizeof(id)) || IsBuiltInId(id)) return;
+    if (!JsonGet(obj, "exe", exe, sizeof(exe))) return;
+    JsonGet(obj, "title", title, sizeof(title));
+    JsonGet(obj, "blurb", blurb, sizeof(blurb));
+    JsonGet(obj, "dir", dir, sizeof(dir));
+    JsonGet(obj, "icon", icon, sizeof(icon));
+    JsonGet(obj, "shortcut", shortcut, sizeof(shortcut));
+    JsonGet(obj, "buttons", buttons, sizeof(buttons));
+    JsonGet(obj, "launchArgs", args, sizeof(args));
+    if (g_cardCount >= MAX_APPS) return;
+
+    ProjectCard *c = &g_cards[g_cardCount];
+    ZeroMemory(c, sizeof(*c));
+    MultiByteToWideChar(CP_UTF8, 0, id, -1, c->id, 23);
+    c->title = PoolAdd(title[0] ? title : id);
+    c->blurb = PoolAdd(blurb[0] ? blurb : "Suite app");
+    c->exeRepo = PoolAdd(exe);
+    {
+        const char *bs = strrchr(exe, '/');
+        c->exeName = PoolAdd(bs ? bs + 1 : exe);
+    }
+    c->shortcutName = PoolAdd(shortcut[0] ? shortcut : (title[0] ? title : id));
+    c->launchArgs = args[0] ? PoolAdd(args) : NULL;
+
+    /* resolve the install dir the same way the built-ins do */
+    wchar_t cand[MAX_PATH], parent[MAX_PATH], wtmp[64];
+    wcsncpy(parent, g_exeDir, MAX_PATH - 1);
+    parent[MAX_PATH - 1] = L'\0';
+    {
+        wchar_t *slash = wcsrchr(parent, L'\\');
+        if (slash) *slash = L'\0';
+    }
+    c->appDir[0] = L'\0';
+    _snwprintf(cand, MAX_PATH - 1, L"%s\\%s", g_exeDir, c->exeName);
+    if (FileExistsW(cand)) wcsncpy(c->appDir, g_exeDir, MAX_PATH - 1);
+    else {
+        const char *slash = strrchr(exe, '/');
+        if (slash) {
+            char folder[64];
+            size_t fl = (size_t)(slash - exe);
+            if (fl >= sizeof(folder)) fl = sizeof(folder) - 1;
+            memcpy(folder, exe, fl);
+            folder[fl] = '\0';
+            MultiByteToWideChar(CP_UTF8, 0, folder, -1, wtmp, 63);
+            _snwprintf(cand, MAX_PATH - 1, L"%s\\%s", parent, wtmp);
+            if (FileExistsW(cand)) wcsncpy(c->appDir, cand, MAX_PATH - 1);
+        }
+    }
+    if (!c->appDir[0]) {
+        MultiByteToWideChar(CP_UTF8, 0, dir[0] ? dir : (title[0] ? title : id), -1, wtmp, 63);
+        _snwprintf(c->appDir, MAX_PATH - 1, L"%s\\%s", g_suiteDir, wtmp);
+    }
+
+    /* buttons: "verb:Label:width,verb:Label:width" */
+    if (!buttons[0])
+        strncpy(buttons, "install:Install:68,update:Update:74,folder:Folder:68",
+                sizeof(buttons) - 1);
+    c->btnCount = 0;
+    char *bp = buttons;
+    while (*bp && c->btnCount < 4) {
+        char verb[24] = "", label[32] = "";
+        int wpx = 74, n = 0;
+        while (*bp && *bp != ':' && *bp != ',' && n < 23) verb[n++] = *bp++;
+        verb[n] = '\0';
+        if (*bp == ':') bp++;
+        n = 0;
+        while (*bp && *bp != ':' && *bp != ',' && n < 31) label[n++] = *bp++;
+        label[n] = '\0';
+        if (*bp == ':') {
+            bp++;
+            wpx = 0;
+            while (*bp >= '0' && *bp <= '9') wpx = wpx * 10 + (*bp++ - '0');
+            if (wpx < 40 || wpx > 160) wpx = 74;
+        }
+        while (*bp && *bp != ',') bp++;
+        if (*bp == ',') bp++;
+        if (!verb[0]) continue;
+        ActionBtn *btn = &c->btns[c->btnCount];
+        btn->id = ID_DYN_BASE + g_cardCount * 10 + c->btnCount;
+        btn->label = PoolAdd(label[0] ? label : verb);
+        btn->style = BTN_SECONDARY;
+        btn->widthPx = wpx;
+        btn->verb = PoolAdd(verb);
+        c->btnCount++;
+    }
+
+    /* icon: cached download of the catalog icon, letter tile until it lands */
+    if (icon[0]) {
+        wchar_t iconsDir[MAX_PATH];
+        _snwprintf(iconsDir, MAX_PATH - 1, L"%s\\icons", g_localApp);
+        CreateDirectoryW(iconsDir, NULL);
+        _snwprintf(c->iconFile, MAX_PATH - 1, L"%s\\%s.ico", iconsDir, c->id);
+        if (!FileExistsW(c->iconFile)) {
+            wchar_t branch[64];
+            EnsureActiveBranch(branch, 64);
+            if (!DownloadRawRepoFile(branch, PoolAdd(icon), c->iconFile))
+                c->iconFile[0] = L'\0';
+        }
+        if (c->iconFile[0])
+            c->hIcon = (HICON)LoadImageW(NULL, c->iconFile, IMAGE_ICON, 0, 0,
+                                         LR_LOADFROMFILE | LR_DEFAULTSIZE);
+    }
+    g_cardCount++;
+}
+
+static void RebuildExtraCards(const char *json) {
+    /* Shrink first so a repaint mid-rebuild never reads half-built cards. */
+    g_cardCount = 6;
+    for (int i = 6; i < MAX_APPS; i++) {
+        if (g_cards[i].hIcon) { DestroyIcon(g_cards[i].hIcon); g_cards[i].hIcon = NULL; }
+        ZeroMemory(&g_cards[i], sizeof(g_cards[i]));
+    }
+    g_strPoolUsed = 0;
+    const char *apps = json ? strstr(json, "\"apps\"") : NULL;
+    const char *p = apps ? strchr(apps, '[') : NULL;
+    while (p && *p && *p != ']') {
+        const char *b = strchr(p, '{');
+        if (!b) break;
+        int depth = 0;
+        const char *q = b;
+        for (; *q; q++) {
+            if (*q == '{') depth++;
+            else if (*q == '}') { depth--; if (depth == 0) break; }
+        }
+        if (*q != '}') break;
+        size_t len = (size_t)(q - b) + 1;
+        if (len < 1024) {
+            char obj[1024];
+            memcpy(obj, b, len);
+            obj[len] = '\0';
+            AddCatalogCard(obj);
+        }
+        p = q + 1;
+    }
+}
+
+static void WorkerInstallGeneric(int idx, BOOL launchAfter) {
+    if (idx < 0 || idx >= g_cardCount) return;
+    ProjectCard *c = &g_cards[idx];
+    if (!c->exeRepo || !c->exeName) return;
+    wchar_t branch[64];
+    EnsureActiveBranch(branch, 64);
+    EnsureDirTree(c->appDir);
+
+    wchar_t destExe[MAX_PATH], msg[256];
+    _snwprintf(destExe, MAX_PATH - 1, L"%s\\%s", c->appDir, c->exeName);
+    _snwprintf(msg, 255, L"Downloading %s from GitHub...", c->title ? c->title : L"app");
+    SetFooterStatus(msg, 60);
+    if (!DownloadRawRepoFile(branch, c->exeRepo, destExe)) {
+        SetFooterStatus(L"Could not save the file - close the app if it is open, then retry.", 0);
+        return;
+    }
+    wchar_t desk[MAX_PATH], lnk[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
+        _snwprintf(lnk, MAX_PATH - 1, L"%s\\%s.lnk", desk,
+                   c->shortcutName ? c->shortcutName : (c->title ? c->title : L"Suite App"));
+        CreateShortcutLink(lnk, destExe, c->appDir, c->title ? c->title : L"Suite App");
+        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+    }
+    if (launchAfter) {
+        ShellExecuteW(NULL, L"open", destExe, c->launchArgs, c->appDir, SW_SHOWNORMAL);
+        _snwprintf(msg, 255, L"%s installed and launched!", c->title ? c->title : L"App");
+    } else {
+        _snwprintf(msg, 255, L"%s is up to date.", c->title ? c->title : L"App");
+    }
+    SetFooterStatus(msg, 0);
+    if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
+}
+
+static void HandleVerb(int idx, const wchar_t *verb) {
+    if (idx < 0 || idx >= g_cardCount || !verb) return;
+    ProjectCard *c = &g_cards[idx];
+    if (wcscmp(verb, L"folder") == 0) {
+        EnsureDirTree(c->appDir);
+        ShellExecuteW(g_hwnd, L"open", c->appDir, NULL, NULL, SW_SHOWNORMAL);
+    } else if (wcscmp(verb, L"update") == 0 || wcscmp(verb, L"install") == 0) {
+        g_dynIdx = idx;
+        SetFooterStatus(L"Fetching the latest build from GitHub...", 25);
+        EnqueueTask(TASK_INSTALL_DYN);
+    } else if (wcscmp(verb, L"open") == 0) {
+        wchar_t p[MAX_PATH];
+        _snwprintf(p, MAX_PATH - 1, L"%s\\%s", c->appDir, c->exeName);
+        if (FileExistsW(p))
+            ShellExecuteW(g_hwnd, L"open", p, c->launchArgs, c->appDir, SW_SHOWNORMAL);
+        else {
+            g_dynIdx = idx;
+            SetFooterStatus(L"Fetching the latest build from GitHub...", 25);
+            EnqueueTask(TASK_OPEN_OR_INSTALL_DYN);
+        }
+    }
+}
+
 static void InitCardDefinitions(void) {
     ZeroMemory(g_cards, sizeof(g_cards));
 
     g_cards[0].resIconId = RES_ICON_BTG;
     g_cards[0].title     = L"Bluetooth Guard";
     g_cards[0].btnCount  = 4;
-    g_cards[0].btns[0]   = (ActionBtn){ ID_BTG_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0} };
-    g_cards[0].btns[1]   = (ActionBtn){ ID_BTG_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0} };
-    g_cards[0].btns[2]   = (ActionBtn){ ID_BTG_STOP,   L"Stop",   BTN_SECONDARY, 62, {0,0,0,0} };
-    g_cards[0].btns[3]   = (ActionBtn){ ID_BTG_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0} };
+    g_cards[0].btns[0]   = (ActionBtn){ ID_BTG_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[0].btns[1]   = (ActionBtn){ ID_BTG_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL };
+    g_cards[0].btns[2]   = (ActionBtn){ ID_BTG_STOP,   L"Stop",   BTN_SECONDARY, 62, {0,0,0,0}, NULL };
+    g_cards[0].btns[3]   = (ActionBtn){ ID_BTG_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
 
     g_cards[1].resIconId = RES_ICON_KBL;
     g_cards[1].title     = L"Keyboard Lighting";
     g_cards[1].btnCount  = 4;
-    g_cards[1].btns[0]   = (ActionBtn){ ID_KBL_OPEN,    L"Open",     BTN_SECONDARY, 68, {0,0,0,0} };
-    g_cards[1].btns[1]   = (ActionBtn){ ID_KBL_RESTART, L"Unfreeze", BTN_SECONDARY, 84, {0,0,0,0} };
-    g_cards[1].btns[2]   = (ActionBtn){ ID_KBL_UPDATE,  L"Update",   BTN_SECONDARY, 74, {0,0,0,0} };
-    g_cards[1].btns[3]   = (ActionBtn){ ID_KBL_FOLDER,  L"Folder",   BTN_SECONDARY, 68, {0,0,0,0} };
+    g_cards[1].btns[0]   = (ActionBtn){ ID_KBL_OPEN,    L"Open",     BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[1].btns[1]   = (ActionBtn){ ID_KBL_RESTART, L"Unfreeze", BTN_SECONDARY, 84, {0,0,0,0}, NULL };
+    g_cards[1].btns[2]   = (ActionBtn){ ID_KBL_UPDATE,  L"Update",   BTN_SECONDARY, 74, {0,0,0,0}, NULL };
+    g_cards[1].btns[3]   = (ActionBtn){ ID_KBL_FOLDER,  L"Folder",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
 
     g_cards[2].resIconId = RES_ICON_HUD;
     g_cards[2].title     = L"Spatial HUD";
     g_cards[2].btnCount  = 3;
-    g_cards[2].btns[0]   = (ActionBtn){ ID_HUD_UPDATE, L"Update Mod", BTN_SECONDARY, 98, {0,0,0,0} };
-    g_cards[2].btns[1]   = (ActionBtn){ ID_HUD_PICK,   L"Mods Dir",   BTN_SECONDARY, 84, {0,0,0,0} };
-    g_cards[2].btns[2]   = (ActionBtn){ ID_HUD_FOLDER, L"Folder",     BTN_SECONDARY, 68, {0,0,0,0} };
+    g_cards[2].btns[0]   = (ActionBtn){ ID_HUD_UPDATE, L"Update Mod", BTN_SECONDARY, 98, {0,0,0,0}, NULL };
+    g_cards[2].btns[1]   = (ActionBtn){ ID_HUD_PICK,   L"Mods Dir",   BTN_SECONDARY, 84, {0,0,0,0}, NULL };
+    g_cards[2].btns[2]   = (ActionBtn){ ID_HUD_FOLDER, L"Folder",     BTN_SECONDARY, 68, {0,0,0,0}, NULL };
 
     g_cards[3].resIconId = RES_ICON_ORCA;
     g_cards[3].title     = L"OrcaSlicer Plugins";
     g_cards[3].btnCount  = 3;
-    g_cards[3].btns[0]   = (ActionBtn){ ID_ORCA_UPDATE, L"Update", BTN_SECONDARY, 78, {0,0,0,0} };
-    g_cards[3].btns[1]   = (ActionBtn){ ID_ORCA_MENU,   L"Branch", BTN_SECONDARY, 78, {0,0,0,0} };
-    g_cards[3].btns[2]   = (ActionBtn){ ID_ORCA_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0} };
+    g_cards[3].btns[0]   = (ActionBtn){ ID_ORCA_UPDATE, L"Update", BTN_SECONDARY, 78, {0,0,0,0}, NULL };
+    g_cards[3].btns[1]   = (ActionBtn){ ID_ORCA_MENU,   L"Branch", BTN_SECONDARY, 78, {0,0,0,0}, NULL };
+    g_cards[3].btns[2]   = (ActionBtn){ ID_ORCA_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
 
     g_cards[4].resIconId = RES_ICON_DNS;
     g_cards[4].title     = L"DNS Pilot";
     g_cards[4].btnCount  = 3;
-    g_cards[4].btns[0]   = (ActionBtn){ ID_DNS_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0} };
-    g_cards[4].btns[1]   = (ActionBtn){ ID_DNS_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0} };
-    g_cards[4].btns[2]   = (ActionBtn){ ID_DNS_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0} };
+    g_cards[4].btns[0]   = (ActionBtn){ ID_DNS_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[4].btns[1]   = (ActionBtn){ ID_DNS_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL };
+    g_cards[4].btns[2]   = (ActionBtn){ ID_DNS_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
 
     g_cards[5].resIconId = RES_ICON_NOTES;
     g_cards[5].title     = L"Agent Notes";
     g_cards[5].btnCount  = 3;
-    g_cards[5].btns[0]   = (ActionBtn){ ID_NOTES_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0} };
-    g_cards[5].btns[1]   = (ActionBtn){ ID_NOTES_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0} };
-    g_cards[5].btns[2]   = (ActionBtn){ ID_NOTES_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0} };
+    g_cards[5].btns[0]   = (ActionBtn){ ID_NOTES_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[5].btns[1]   = (ActionBtn){ ID_NOTES_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL };
+    g_cards[5].btns[2]   = (ActionBtn){ ID_NOTES_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
 }
 
 static void RefreshProjectStatuses(void) {
@@ -1172,7 +1435,7 @@ static void RefreshProjectStatuses(void) {
     /* Recompute every button style from a neutral base each refresh. A
        button that turned amber for an update must go back to normal the
        moment the update lands, not stay yellow until the hub restarts. */
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i < g_cardCount; i++)
         for (int b = 0; b < g_cards[i].btnCount && b < 4; b++)
             g_cards[i].btns[b].style = BTN_SECONDARY;
 
@@ -1389,6 +1652,47 @@ static void RefreshProjectStatuses(void) {
         }
     }
 
+    /* 7+. Catalog extras: generic installed / update state */
+    for (int i = 6; i < g_cardCount; i++) {
+        ProjectCard *c = &g_cards[i];
+        wchar_t exePath[MAX_PATH];
+        _snwprintf(exePath, MAX_PATH - 1, L"%s\\%s", c->appDir, c->exeName);
+        BOOL has = FileExistsW(exePath);
+        DWORD locSz = LocalSizeOf(exePath);
+        BOOL known = (c->remSize > 0 && locSz > 0);
+        BOOL upd = has && known && locSz != c->remSize;
+        if (!has) {
+            wcsncpy(c->badge, L"Setup Ready", 47);
+            c->badgeKind = BADGE_WARN;
+            for (int b = 0; b < c->btnCount; b++)
+                if (c->btns[b].verb &&
+                    (wcscmp(c->btns[b].verb, L"install") == 0 ||
+                     wcscmp(c->btns[b].verb, L"open") == 0)) {
+                    c->btns[b].style = BTN_PRIMARY;
+                    break;
+                }
+            _snwprintf(c->detail, 255, L"%s  \x00B7  Click Install to set up",
+                       c->blurb ? c->blurb : L"Suite app");
+        } else {
+            wcsncpy(c->badge, L"Ready", 47);
+            c->badgeKind = BADGE_OK;
+            _snwprintf(c->detail, 255, L"%s  \x00B7  Installed locally",
+                       c->blurb ? c->blurb : L"Suite app");
+        }
+        if (has && known) {
+            wcsncat(c->badge, upd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
+            if (upd) {
+                c->badgeKind = BADGE_WARN;
+                for (int b = 0; b < c->btnCount; b++)
+                    if (c->btns[b].verb && wcscmp(c->btns[b].verb, L"update") == 0) {
+                        c->btns[b].style = BTN_AMBER;
+                        break;
+                    }
+            }
+        }
+        c->badge[47] = L'\0';
+    }
+
     if (g_hwnd) InvalidateRect(g_hwnd, NULL, FALSE);
 }
 
@@ -1428,6 +1732,20 @@ static void WorkerCheckRemote(void) {
     free(manifest);
     /* check continues - footer dot keeps pulsing, no step churn */
 
+    /* Dynamic app catalog: new suite apps appear on refresh with no hub
+       update needed. Built-in card ids are skipped here. */
+    _snwprintf(p, 255, L"/%s/%s/%s/suite-apps.json", REPO_OWNER_W, REPO_NAME_W, branch);
+    char *catalog = (char *)HttpGetCached(L"raw.githubusercontent.com", p, &sz, &st);
+    if (catalog && st == 200) {
+        RebuildExtraCards(catalog);
+        EnterCriticalSection(&g_cs);
+        free(g_catalogJson);
+        g_catalogJson = catalog;
+        LeaveCriticalSection(&g_cs);
+        catalog = NULL;
+    }
+    free(catalog);
+
     /* Remote build sizes: the installed file differing from the branch copy
        is what 'Update Ready' means for the EXE apps. */
     {
@@ -1452,6 +1770,15 @@ static void WorkerCheckRemote(void) {
         g_remDnsSize = szDns;
         g_remNotesSize = szNotes;
         LeaveCriticalSection(&g_cs);
+    }
+    /* generic catalog extras: remote size of each app's main exe */
+    for (int i = 6; i < g_cardCount; i++) {
+        DWORD szX = 0;
+        if (g_cards[i].exeRepo) {
+            _snwprintf(p, 255, L"/%s/%s/%s/%s", REPO_OWNER_W, REPO_NAME_W, branch, g_cards[i].exeRepo);
+            HttpHeadSize(L"raw.githubusercontent.com", p, &szX);
+        }
+        g_cards[i].remSize = szX;
     }
 
     _snwprintf(p, 255, L"/repos/%s/%s/releases/tags/spatial-hud-latest", REPO_OWNER_W, REPO_NAME_W);
@@ -2012,10 +2339,13 @@ static DWORD WINAPI HubWorkerThread(LPVOID unused) {
         case TASK_OPEN_OR_INSTALL_DNS: WorkerInstallDnsPilot(TRUE); break;
         case TASK_INSTALL_NOTES:         WorkerInstallNotes(FALSE); break;
         case TASK_OPEN_OR_INSTALL_NOTES: WorkerInstallNotes(TRUE); break;
+        case TASK_INSTALL_DYN:           WorkerInstallGeneric(g_dynIdx, FALSE); break;
+        case TASK_OPEN_OR_INSTALL_DYN:   WorkerInstallGeneric(g_dynIdx, TRUE); break;
         case TASK_UPDATE_ALL:
             WorkerInstallBluetoothGuard(FALSE);
             WorkerInstallKeyboardLighting();
             WorkerInstallOrcaPlugins();
+            for (int i = 6; i < g_cardCount; i++) WorkerInstallGeneric(i, FALSE);
             WorkerInstallSpatialHud();
             WorkerInstallDnsPilot(FALSE);
             WorkerCheckRemote();
@@ -2215,7 +2545,7 @@ static void ComputeLayout(HWND hwnd) {
 
     int startY = headerH + ((viewH > contentH) ? (viewH - contentH) / 2 + S(12, dpi) : S(12, dpi)) - g_scrollY;
     int btnH = S(30, dpi);
-    for (int c = 0; c < 6; c++) {
+    for (int c = 0; c < g_cardCount; c++) {
         SetRect(&g_cards[c].rcCard, pad, startY, w - pad, startY + cardH);
         int rx = w - pad - S(16, dpi);
         int by = startY + cardH - S(12, dpi) - btnH;
@@ -2235,7 +2565,7 @@ static int HitTestButtons(POINT pt, int headerBottom, int footerTop) {
         if (PtInRect(&g_topBtns[i].rc, pt)) return g_topBtns[i].id;
     }
     if (pt.y < headerBottom || pt.y > footerTop) return 0;
-    for (int c = 0; c < 6; c++) {
+    for (int c = 0; c < g_cardCount; c++) {
         for (int b = 0; b < g_cards[c].btnCount; b++) {
             if (PtInRect(&g_cards[c].btns[b].rc, pt)) return g_cards[c].btns[b].id;
         }
@@ -2331,7 +2661,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
     IntersectClipRect(hdc, 0, headerH + 1, w, footerTop - 1);
 
     int cardIcoSz = S(44, dpi);
-    for (int c = 0; c < 6; c++) {
+    for (int c = 0; c < g_cardCount; c++) {
         const ProjectCard *card = &g_cards[c];
         if (card->rcCard.bottom < headerH || card->rcCard.top > footerTop) continue;
 
@@ -2358,11 +2688,24 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
         };
         SmoothRoundRect(px, w, h, &barRc, (float)S(2, dpi), barCol, barCol, headerH + 1, footerTop - 1);
 
-        /* Embedded 32-bit RGBA Suite App Icon */
-        if (g_cardIcons[c]) {
+        /* Embedded 32-bit RGBA Suite App Icon (catalog icon / letter tile) */
+        {
+            HICON ico = g_cardIcons[c] ? g_cardIcons[c] : card->hIcon;
             int ix = card->rcCard.left + S(18, dpi);
             int iy = (card->rcCard.top + card->rcCard.bottom - cardIcoSz) / 2;
-            DrawIconEx(hdc, ix, iy, g_cardIcons[c], cardIcoSz, cardIcoSz, 0, NULL, DI_NORMAL);
+            if (ico) {
+                DrawIconEx(hdc, ix, iy, ico, cardIcoSz, cardIcoSz, 0, NULL, DI_NORMAL);
+            } else if (card->title && card->title[0]) {
+                RECT tile = { ix, iy, ix + cardIcoSz, iy + cardIcoSz };
+                SmoothRoundRect(px, w, h, &tile, (float)S(10, dpi),
+                                COL_SKY_BG, COL_SKY, headerH + 1, footerTop - 1);
+                wchar_t lt[2];
+                lt[0] = card->title[0];
+                lt[1] = L'\0';
+                SelectObject(hdc, g_fontBadge);
+                SetTextColor(hdc, COL_SKY);
+                DrawTextW(hdc, lt, -1, &tile, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            }
         }
 
         /* Smooth rounded status pill badge on top right */
@@ -2697,6 +3040,13 @@ static void HandleActionCommand(HWND hwnd, int id) {
         int idx = id - ID_MENU_BRANCH_BASE;
         if (idx >= 0 && idx < g_branchMenuN)
             SetActiveBranch(hwnd, g_branchMenuNames[idx]);
+        return;
+    }
+    if (id >= ID_DYN_BASE && id < ID_DYN_BASE + MAX_APPS * 10) {
+        int aidx = (id - ID_DYN_BASE) / 10;
+        int bidx = (id - ID_DYN_BASE) % 10;
+        if (aidx >= 0 && aidx < g_cardCount && bidx >= 0 && bidx < g_cards[aidx].btnCount)
+            HandleVerb(aidx, g_cards[aidx].btns[bidx].verb);
         return;
     }
     switch (id) {

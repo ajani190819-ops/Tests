@@ -6,69 +6,76 @@
 
 ## project-hub/src/project_hub.c
 
-- L232  f GetWinDpi
-- L247  f S
-- L249  f ApplyModernWindowFrame
-- L268  f RebuildFontsAndIcons
-- L311  f EmbRasterize
-- L388  f EmbCacheEnsure
-- L403  f EmbSpinDraw
-- L460  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
-- L465  f FileExistsW
-- L470  f LocalSizeOf
-- L477  f DirExistsW
-- L482  f EnsureDirTree
-- L504  f SetCheckPhase
-- L509  f SetFooterStatus
-- L518  f ReadTextFileUtf8
-- L534  f WriteBinaryFileAtomic
-- L572  f HttpSession
-- L582  f HttpConnect
-- L592  f HttpHeadSize
-- L613  f HttpGetBufferEx
-- L695  f HttpGetBuffer
-- L713  f HttpGetCached
-- L774  f DownloadRawRepoFile
-- L792  f BranchCfgPath
-- L797  f LoadBranchCfg
-- L805  f SaveBranchCfg
-- L814  f EnsureActiveBranch
-- L847  f ExtractQuotedAfter
-- L865  f VerNewer
-- L878  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
-- L908  f InitAllPaths
-- L1036  f CheckPidLockStatus
-- L1068  f CreateShortcutLink
-- L1089  f InitCardDefinitions
-- L1137  f RefreshProjectStatuses
-- L1395  f WorkerCheckRemote
-- L1504  f StopProcessFromLock
-- L1517  f WorkerInstallBluetoothGuard
-- L1578  f WorkerInstallNotes
-- L1618  f WorkerInstallDnsPilot
-- L1682  f WorkerInstallKeyboardLighting
-- L1767  f WorkerInstallSpatialHud
-- L1825  f WorkerInstallOrcaPlugins
-- L1922  f WorkerSelfUpdateHub
-- L1979  f EnqueueTask
-- L2031  f RestartKeyboardLightingCleanly
-- L2050  f PickSpatialHudModsFolder
-- L2091  f FillCanvasRect
-- L2104  f SmoothRoundRect
-- L2162  f DrawActionBtn
-- L2184  f ComputeLayout
-- L2232  f HitTestButtons
-- L2249  f PaintEmblemBlit
-- L2276  f PaintHubWindow
-- L2514  f ShowUtilityMenu
-- L2528  S download-branch picker
-- L2530  f FetchBranchNames  — ---- download-branch picker -------------------------------------------
-- L2555  f EnsureBranchInMenu
-- L2586  f PromptBranchName
-- L2639  f SetActiveBranch
-- L2657  f ShowBranchMenu
-- L2693  f HandleActionCommand
-- globals: g_hInst (L165), g_hwnd (L166), g_fontHero (L167), g_fontSub (L168), g_fontTitle (L169), g_fontBody (L170), g_fontBtn (L171), g_fontBadge (L172), g_appIcon (L173), g_hdrEmblem (L174), g_cardIcons (L175), g_showEvent (L176), g_hMutex (L177), g_cs (L178), g_topBtns (L180), g_rcEmblem (L186), g_cards (L188), g_hoverId (L189), g_scrollY (L190), g_maxScrollY (L191), g_exePath (L193), g_exeDir (L194), g_localApp (L195), g_roamApp (L196), g_suiteDir (L197), g_hubCfgDir (L198), g_btgDir (L199), g_btgExtraExe (L200), g_kblDir (L201), g_dnsDir (L202), g_notesDir (L203), g_modsDir (L204), g_orcaBatDir (L205), g_activeBranch (L208), g_branchMenuNames (L209), g_branchMenuN (L210), g_branchPromptOut (L211), g_remHubVer (L212), g_remWaveVer (L213), g_remInfillVer (L214), g_remHudName (L215), g_remHudPath (L216), g_remHudSize (L217), g_statusMsg (L218), g_progressVal (L219), g_hubUpdAvail (L220), g_taskQueue (L223), g_qHead (L224), g_qTail (L225), g_qSem (L226), g_running (L227), g_embCache (L386), g_checkActive (L497), g_remBtgSize (L498), g_rcFooterDot (L499), g_httpSess (L568), g_httpConnRaw (L569), g_httpConnApi (L570), g_hcache (L711), g_frameCache (L2273), g_fcW (L2274)
+- L252  f GetWinDpi
+- L267  f S
+- L269  f ApplyModernWindowFrame
+- L288  f RebuildFontsAndIcons
+- L331  f EmbRasterize
+- L408  f EmbCacheEnsure
+- L423  f EmbSpinDraw
+- L480  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
+- L485  f FileExistsW
+- L490  f LocalSizeOf
+- L497  f DirExistsW
+- L502  f EnsureDirTree
+- L524  f SetCheckPhase
+- L529  f SetFooterStatus
+- L538  f ReadTextFileUtf8
+- L554  f WriteBinaryFileAtomic
+- L592  f HttpSession
+- L602  f HttpConnect
+- L612  f HttpHeadSize
+- L633  f HttpGetBufferEx
+- L715  f HttpGetBuffer
+- L733  f HttpGetCached
+- L794  f DownloadRawRepoFile
+- L812  f BranchCfgPath
+- L817  f LoadBranchCfg
+- L825  f SaveBranchCfg
+- L834  f EnsureActiveBranch
+- L867  f ExtractQuotedAfter
+- L885  f VerNewer
+- L898  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
+- L928  f InitAllPaths
+- L1056  f CheckPidLockStatus
+- L1088  f CreateShortcutLink
+- L1121  f PoolAdd
+- L1131  f JsonGet
+- L1151  f IsBuiltInId
+- L1157  f AddCatalogCard
+- L1265  f RebuildExtraCards
+- L1296  f WorkerInstallGeneric
+- L1329  f HandleVerb
+- L1352  f InitCardDefinitions
+- L1400  f RefreshProjectStatuses
+- L1699  f WorkerCheckRemote
+- L1831  f StopProcessFromLock
+- L1844  f WorkerInstallBluetoothGuard
+- L1905  f WorkerInstallNotes
+- L1945  f WorkerInstallDnsPilot
+- L2009  f WorkerInstallKeyboardLighting
+- L2094  f WorkerInstallSpatialHud
+- L2152  f WorkerInstallOrcaPlugins
+- L2249  f WorkerSelfUpdateHub
+- L2306  f EnqueueTask
+- L2361  f RestartKeyboardLightingCleanly
+- L2380  f PickSpatialHudModsFolder
+- L2421  f FillCanvasRect
+- L2434  f SmoothRoundRect
+- L2492  f DrawActionBtn
+- L2514  f ComputeLayout
+- L2562  f HitTestButtons
+- L2579  f PaintEmblemBlit
+- L2606  f PaintHubWindow
+- L2857  f ShowUtilityMenu
+- L2871  S download-branch picker
+- L2873  f FetchBranchNames  — ---- download-branch picker -------------------------------------------
+- L2898  f EnsureBranchInMenu
+- L2929  f PromptBranchName
+- L2982  f SetActiveBranch
+- L3000  f ShowBranchMenu
+- L3036  f HandleActionCommand
+- globals: g_hInst (L183), g_hwnd (L184), g_fontHero (L185), g_fontSub (L186), g_fontTitle (L187), g_fontBody (L188), g_fontBtn (L189), g_fontBadge (L190), g_appIcon (L191), g_hdrEmblem (L192), g_cardIcons (L193), g_showEvent (L194), g_hMutex (L195), g_cs (L196), g_topBtns (L198), g_rcEmblem (L204), g_cards (L206), g_cardCount (L207), g_dynIdx (L208), g_hoverId (L209), g_scrollY (L210), g_maxScrollY (L211), g_exePath (L213), g_exeDir (L214), g_localApp (L215), g_roamApp (L216), g_suiteDir (L217), g_hubCfgDir (L218), g_btgDir (L219), g_btgExtraExe (L220), g_kblDir (L221), g_dnsDir (L222), g_notesDir (L223), g_modsDir (L224), g_orcaBatDir (L225), g_activeBranch (L228), g_branchMenuNames (L229), g_branchMenuN (L230), g_branchPromptOut (L231), g_remHubVer (L232), g_remWaveVer (L233), g_remInfillVer (L234), g_remHudName (L235), g_remHudPath (L236), g_remHudSize (L237), g_statusMsg (L238), g_progressVal (L239), g_hubUpdAvail (L240), g_taskQueue (L243), g_qHead (L244), g_qTail (L245), g_qSem (L246), g_running (L247), g_embCache (L406), g_checkActive (L517), g_remBtgSize (L518), g_rcFooterDot (L519), g_httpSess (L588), g_httpConnRaw (L589), g_httpConnApi (L590), g_hcache (L731), g_catalogJson (L1114), g_strPool (L1118), g_strPoolUsed (L1119), g_frameCache (L2603), g_fcW (L2604)
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
