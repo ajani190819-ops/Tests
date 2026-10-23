@@ -19,7 +19,6 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 NODEPS = pathlib.Path("/tmp/nodeps")
-ARENA_LINK = ROOT / "arena-link-windows"
 EXTERNAL_VENV_PY = pathlib.Path("/home/user/.venv/bin/python")
 CACHE_PATH = pathlib.Path("/home/user/.cache/tests_check_merkle.json")
 
@@ -116,7 +115,6 @@ def main():
     wave_key = wave_gcode_merkle_key() if deps else ""
 
     nodeps_env = make_nodeps()
-    has_arena = ARENA_LINK.exists() and bool(shutil.which("node"))
 
     max_workers = max(4, min(16, (os.cpu_count() or 4) * 2))
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
@@ -138,11 +136,6 @@ def main():
             tool_futs.append(
                 (label, pool.submit(exec_task, label, [sys.executable] + argv, ROOT, None))
             )
-        arena_fut = (
-            pool.submit(exec_task, "npm test", ["npm", "test"], ARENA_LINK, None)
-            if has_arena else None
-        )
-
         bad = []
         skipped = []
 
@@ -178,14 +171,6 @@ def main():
                 print(ln)
             if failed:
                 bad.append(label)
-
-        if arena_fut is not None:
-            print("arena-link-windows:")
-            failed, _s, lines = arena_fut.result()
-            for ln in lines:
-                print(ln)
-            if failed:
-                bad.append("arena-link-windows (npm test)")
 
     print()
     if bad:

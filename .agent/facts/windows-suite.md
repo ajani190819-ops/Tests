@@ -2,7 +2,7 @@
 
 - Status: confirmed
 - Last verified: 2026-10-22
-- Read when: touching `project-hub/`, `bluetooth-guard/`, `keyboard-lighting/`, `arena-link-windows/`, or `docs/brand/`
+- Read when: touching `project-hub/`, `bluetooth-guard/`, `keyboard-lighting/`, `dns-pilot/`, or `docs/brand/`
 
 ## Fast One-Shot Commands
 

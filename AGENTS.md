@@ -82,7 +82,6 @@ project-hub/                  Native Win32 Suite Control Center (ProjectHub.exe 
 bluetooth-guard/              High-priority native Win32 Bluetooth auto-connect blocker (BluetoothGuard.exe)
 keyboard-lighting/            ASUS ROG Strix G16 RGB tray & engine (strict 7-bit ASCII, C# 5.0)
 spatial-hud-template-26.3/    Minecraft 26.3 Fabric client mod + updater
-arena-link-windows/           Windows Electron developer companion app + node:test suite
 docs/
   UI_STYLE_GUIDE.md           Soft Slate UI palette, rounded geometry & icon specs
   brand/                      Master Tri-Spoke Core emblem & unified suite .ico/.png assets

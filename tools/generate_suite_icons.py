@@ -98,7 +98,7 @@ def trispoke_sdf_alpha(size: int, scale: float = 0.88, thickness_boost: float = 
 def make_squircle_base(size: int, tint_rgb: tuple, watermark: bool = True) -> Image.Image:
     """The suite app-icon plate: dark slate squircle medallion with brushed
     sheen, top-lit rim and the recessed Tri-Spoke watermark. Spatial HUD,
-    Orca Plugins and Arena Link all sit on this plate, and so do the rest of
+    Orca Plugins and DNS Pilot all sit on this plate, and so do the rest of
     the suite icons - a coloured elevated glyph floats on the medallion and
     the shared plate keeps every icon one visual family."""
     lin = np.linspace(-1.0, 1.0, size, dtype=np.float32)
@@ -407,24 +407,6 @@ def build_icon_dns_pilot(size: int = 512, small: bool = False) -> Image.Image:
     return composite_elevated_layer(base, globe_a, (165, 243, 252), (8, 145, 178), (34, 211, 238))
 
 
-def build_icon_arena_link(size: int = 512, small: bool = False) -> Image.Image:
-    base = make_squircle_base(size, (45, 212, 191))
-
-    def ring1(d: ImageDraw.ImageDraw, s: int):
-        d.rounded_rectangle([s * 0.22, s * 0.36, s * 0.59, s * 0.64],
-                            radius=s * 0.14, outline=255, width=int(s * 0.068))
-
-    def ring2(d: ImageDraw.ImageDraw, s: int):
-        d.rounded_rectangle([s * 0.41, s * 0.36, s * 0.78, s * 0.64],
-                            radius=s * 0.14, outline=255, width=int(s * 0.068))
-
-    a1 = draw_antialias_mask(size, ring1)
-    a2 = draw_antialias_mask(size, ring2)
-    composite_elevated_layer(base, a1, (153, 246, 228), (45, 212, 191), (45, 212, 191))
-    composite_elevated_layer(base, a2, (204, 251, 241), (20, 184, 166), None)
-    return base
-
-
 def save_multi_ico(build, ico_path: Path, png_path: Path = None):
     """Write a true multi-size ICO where EVERY size is rendered analytically
     at its own resolution (with small-size stroke boosts) instead of being
@@ -470,7 +452,6 @@ def main():
         ("Keyboard Lighting", build_icon_keyboard_lighting, ROOT / "keyboard-lighting" / "app.ico",         BRAND_DIR / "icon-keyboard-lighting.png"),
         ("Spatial HUD",       build_icon_spatial_hud,       BRAND_DIR / "spatial-hud.ico",                  BRAND_DIR / "icon-spatial-hud.png"),
         ("Orca Plugins",      build_icon_orca_plugins,      BRAND_DIR / "orca-plugins.ico",                 BRAND_DIR / "icon-orca-plugins.png"),
-        ("Arena Link",        build_icon_arena_link,        ROOT / "arena-link-windows" / "assets" / "icon.ico", BRAND_DIR / "icon-arena-link.png"),
         ("DNS Pilot",         build_icon_dns_pilot,         ROOT / "dns-pilot" / "dnspilot.ico",              BRAND_DIR / "icon-dns-pilot.png"),
     ]
 

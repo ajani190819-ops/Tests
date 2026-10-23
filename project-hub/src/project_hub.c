@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.16"
-#define HUB_VERSION_W     L"2.8.16"
+#define HUB_VERSION       "2.8.17"
+#define HUB_VERSION_W     L"2.8.17"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -41,7 +41,6 @@
 #define RES_ICON_KBL         4
 #define RES_ICON_HUD         5
 #define RES_ICON_ORCA        6
-#define RES_ICON_ARENA       7
 #define RES_ICON_DNS         8
 
 /* Action IDs */
@@ -73,9 +72,6 @@
 #define ID_ORCA_MENU         1402
 #define ID_ORCA_FOLDER       1403
 
-#define ID_ARENA_OPEN        1501
-#define ID_ARENA_SYNC        1502
-#define ID_ARENA_FOLDER      1503
 
 #define ID_DNS_OPEN          1701
 #define ID_DNS_UPDATE        1702
@@ -136,7 +132,6 @@ enum {
     TASK_INSTALL_ORCA,
     TASK_INSTALL_DNS,
     TASK_OPEN_OR_INSTALL_DNS,
-    TASK_SYNC_ARENA,
     TASK_UPDATE_ALL,
     TASK_SELF_UPDATE
 };
@@ -170,7 +165,7 @@ static HFONT            g_fontBtn     = NULL;
 static HFONT            g_fontBadge   = NULL;
 static HICON            g_appIcon     = NULL;
 static HICON            g_hdrEmblem   = NULL;
-static HICON            g_cardIcons[6] = {NULL, NULL, NULL, NULL, NULL, NULL};
+static HICON            g_cardIcons[5] = {NULL, NULL, NULL, NULL, NULL};
 static HANDLE           g_showEvent   = NULL;
 static CRITICAL_SECTION g_cs;
 
@@ -182,7 +177,7 @@ static ActionBtn        g_topBtns[4] = {
 };
 static RECT             g_rcEmblem    = {0, 0, 0, 0};
 
-static ProjectCard      g_cards[6];
+static ProjectCard      g_cards[5];
 static int              g_hoverId     = 0;
 static int              g_scrollY     = 0;
 static int              g_maxScrollY  = 0;
@@ -199,7 +194,6 @@ static wchar_t          g_kblDir[MAX_PATH];
 static wchar_t          g_dnsDir[MAX_PATH];
 static wchar_t          g_modsDir[MAX_PATH];
 static wchar_t          g_orcaBatDir[MAX_PATH];
-static wchar_t          g_arenaDir[MAX_PATH];
 
 /* Shared remote state protected by g_cs */
 static wchar_t          g_activeBranch[64]  = L"";
@@ -209,7 +203,6 @@ static wchar_t          g_branchPromptOut[64];
 static char             g_remHubVer[32]     = "";
 static char             g_remWaveVer[32]    = "";
 static char             g_remInfillVer[32]  = "";
-static char             g_remArenaVer[32]   = "";
 static wchar_t          g_remHudName[128]   = L"";
 static wchar_t          g_remHudPath[512]   = L"";
 static DWORD            g_remHudSize        = 0;
@@ -291,8 +284,8 @@ static void RebuildFontsAndIcons(HWND hwnd) {
                                     IMAGE_ICON, embPx, embPx, LR_DEFAULTCOLOR);
 
     int cardIcoPx = S(44, dpi);
-    const int ids[6] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA, RES_ICON_ARENA, RES_ICON_DNS };
-    for (int i = 0; i < 6; i++) {
+    const int ids[5] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA, RES_ICON_DNS };
+    for (int i = 0; i < 5; i++) {
         if (g_cardIcons[i]) { DestroyIcon(g_cardIcons[i]); g_cardIcons[i] = NULL; }
         g_cardIcons[i] = (HICON)LoadImageW(g_hInst, MAKEINTRESOURCEW(ids[i]),
                                            IMAGE_ICON, cardIcoPx, cardIcoPx, LR_DEFAULTCOLOR);
@@ -863,14 +856,10 @@ static void InitAllPaths(void) {
     }
     if (!g_dnsDir[0]) _snwprintf(g_dnsDir, MAX_PATH, L"%s\\DnsPilot", g_suiteDir);
 
-    /* 3. OrcaSlicer & Arena Link */
+    /* 3. OrcaSlicer plugins */
     _snwprintf(cand, MAX_PATH, L"%s\\Orca-Plugins.bat", parent);
     if (FileExistsW(cand)) wcsncpy(g_orcaBatDir, parent, MAX_PATH - 1);
     else _snwprintf(g_orcaBatDir, MAX_PATH, L"%s\\OrcaPlugins", g_suiteDir);
-
-    _snwprintf(cand, MAX_PATH, L"%s\\arena-link-windows\\package.json", parent);
-    if (FileExistsW(cand)) _snwprintf(g_arenaDir, MAX_PATH, L"%s\\arena-link-windows", parent);
-    else _snwprintf(g_arenaDir, MAX_PATH, L"%s\\ArenaLink", g_suiteDir);
 
     /* 4. Spatial HUD mods folder */
     wchar_t hudTargetTxt[MAX_PATH];
@@ -975,23 +964,16 @@ static void InitCardDefinitions(void) {
     g_cards[3].btns[1]   = (ActionBtn){ ID_ORCA_MENU,   L"Branch", BTN_SECONDARY, 78, {0,0,0,0} };
     g_cards[3].btns[2]   = (ActionBtn){ ID_ORCA_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0} };
 
-    g_cards[4].resIconId = RES_ICON_ARENA;
-    g_cards[4].title     = L"Arena Link";
+    g_cards[4].resIconId = RES_ICON_DNS;
+    g_cards[4].title     = L"DNS Pilot";
     g_cards[4].btnCount  = 3;
-    g_cards[4].btns[0]   = (ActionBtn){ ID_ARENA_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0} };
-    g_cards[4].btns[1]   = (ActionBtn){ ID_ARENA_SYNC,   L"Sync",   BTN_SECONDARY, 68, {0,0,0,0} };
-    g_cards[4].btns[2]   = (ActionBtn){ ID_ARENA_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0} };
-
-    g_cards[5].resIconId = RES_ICON_DNS;
-    g_cards[5].title     = L"DNS Pilot";
-    g_cards[5].btnCount  = 3;
-    g_cards[5].btns[0]   = (ActionBtn){ ID_DNS_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0} };
-    g_cards[5].btns[1]   = (ActionBtn){ ID_DNS_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0} };
-    g_cards[5].btns[2]   = (ActionBtn){ ID_DNS_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0} };
+    g_cards[4].btns[0]   = (ActionBtn){ ID_DNS_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0} };
+    g_cards[4].btns[1]   = (ActionBtn){ ID_DNS_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0} };
+    g_cards[4].btns[2]   = (ActionBtn){ ID_DNS_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0} };
 }
 
 static void RefreshProjectStatuses(void) {
-    char remHub[32], remWave[32], remInfill[32], remArena[32];
+    char remHub[32], remWave[32], remInfill[32];
     wchar_t remHud[128];
     DWORD remHudSz = 0;
 
@@ -999,7 +981,6 @@ static void RefreshProjectStatuses(void) {
     strncpy(remHub, g_remHubVer, 31); remHub[31] = '\0';
     strncpy(remWave, g_remWaveVer, 31); remWave[31] = '\0';
     strncpy(remInfill, g_remInfillVer, 31); remInfill[31] = '\0';
-    strncpy(remArena, g_remArenaVer, 31); remArena[31] = '\0';
     wcsncpy(remHud, g_remHudName, 127); remHud[127] = L'\0';
     remHudSz = g_remHudSize;
     LeaveCriticalSection(&g_cs);
@@ -1168,34 +1149,7 @@ static void RefreshProjectStatuses(void) {
                    locWave[0] ? locWave : "none", locInfill[0] ? locInfill : "none");
     }
 
-    /* 5. Arena Link */
-    char locArena[32] = "";
-    _snwprintf(path, MAX_PATH, L"%s\\package.json", g_arenaDir);
-    char *pkg = ReadTextFileUtf8(path, NULL);
-    if (pkg) { ExtractQuotedAfter(pkg, "\"version\"", locArena, sizeof(locArena)); free(pkg); }
-
-    int linkedRepos = 0;
-    _snwprintf(path, MAX_PATH, L"%s\\arena-link-windows\\arena-link-state.json", g_roamApp);
-    char *stJson = ReadTextFileUtf8(path, NULL);
-    if (stJson) {
-        const char *p = stJson;
-        while ((p = strstr(p, "\"localPath\"")) != NULL) { linkedRepos++; p += 11; }
-        free(stJson);
-    }
-    if (locArena[0]) {
-        BOOL upd = (remArena[0] && strcmp(locArena, remArena) != 0);
-        wcsncpy(g_cards[4].badge, upd ? L"Update Ready" : L"Up to Date", 47);
-        g_cards[4].badgeKind = upd ? BADGE_WARN : BADGE_SKY;
-        _snwprintf(g_cards[4].detail, 255, L"Local Git workspace bridge  \x00B7  v%S (%d linked)",
-                   locArena, linkedRepos);
-    } else {
-        wcsncpy(g_cards[4].badge, L"Ready", 47);
-        g_cards[4].badgeKind = BADGE_SKY;
-        _snwprintf(g_cards[4].detail, 255, L"Local Git workspace bridge  \x00B7  %d linked workspace%s",
-                   linkedRepos, linkedRepos == 1 ? L"" : L"s");
-    }
-
-    /* 6. DNS Pilot */
+    /* 5. DNS Pilot */
     wchar_t dnsExe[MAX_PATH];
     _snwprintf(dnsExe, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
     BOOL hasDns = FileExistsW(dnsExe);
@@ -1203,32 +1157,32 @@ static void RefreshProjectStatuses(void) {
     BOOL dnsKnown = (remDnsSz > 0 && locDnsSz > 0);
     BOOL dnsUpd = hasDns && dnsKnown && locDnsSz != remDnsSz;
     BOOL dnsRunning = (FindWindowW(L"KBLSuiteDnsPilotWindow", NULL) != NULL);
-    g_cards[5].btns[1].style = BTN_SECONDARY;
+    g_cards[4].btns[1].style = BTN_SECONDARY;
     if (!hasDns) {
-        wcsncpy(g_cards[5].badge, L"Setup Ready", 47);
-        g_cards[5].badgeKind = BADGE_WARN;
-        g_cards[5].btns[0].label = L"Install";
-        g_cards[5].btns[0].style = BTN_PRIMARY;
-        wcsncpy(g_cards[5].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Click Install to set up", 255);
+        wcsncpy(g_cards[4].badge, L"Setup Ready", 47);
+        g_cards[4].badgeKind = BADGE_WARN;
+        g_cards[4].btns[0].label = L"Install";
+        g_cards[4].btns[0].style = BTN_PRIMARY;
+        wcsncpy(g_cards[4].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Click Install to set up", 255);
     } else if (dnsRunning) {
-        wcsncpy(g_cards[5].badge, L"Active", 47);
-        g_cards[5].badgeKind = BADGE_OK;
-        g_cards[5].btns[0].label = L"Open";
-        g_cards[5].btns[0].style = BTN_SECONDARY;
-        wcsncpy(g_cards[5].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Running (window or tray)", 255);
+        wcsncpy(g_cards[4].badge, L"Active", 47);
+        g_cards[4].badgeKind = BADGE_OK;
+        g_cards[4].btns[0].label = L"Open";
+        g_cards[4].btns[0].style = BTN_SECONDARY;
+        wcsncpy(g_cards[4].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Running (window or tray)", 255);
     } else {
-        wcsncpy(g_cards[5].badge, L"Standby", 47);
-        g_cards[5].badgeKind = BADGE_IDLE;
-        g_cards[5].btns[0].label = L"Open";
-        g_cards[5].btns[0].style = BTN_SECONDARY;
-        wcsncpy(g_cards[5].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Installed locally", 255);
+        wcsncpy(g_cards[4].badge, L"Standby", 47);
+        g_cards[4].badgeKind = BADGE_IDLE;
+        g_cards[4].btns[0].label = L"Open";
+        g_cards[4].btns[0].style = BTN_SECONDARY;
+        wcsncpy(g_cards[4].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Installed locally", 255);
     }
     if (hasDns && dnsKnown) {
-        wcsncat(g_cards[5].badge, dnsUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
+        wcsncat(g_cards[4].badge, dnsUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
         if (dnsUpd) {
-            if (g_cards[5].badgeKind == BADGE_OK || g_cards[5].badgeKind == BADGE_IDLE)
-                g_cards[5].badgeKind = BADGE_WARN;
-            g_cards[5].btns[1].style = BTN_AMBER;
+            if (g_cards[4].badgeKind == BADGE_OK || g_cards[4].badgeKind == BADGE_IDLE)
+                g_cards[4].badgeKind = BADGE_WARN;
+            g_cards[4].btns[1].style = BTN_AMBER;
         }
     }
 
@@ -1270,18 +1224,6 @@ static void WorkerCheckRemote(void) {
     }
     free(manifest);
     /* check continues - footer dot keeps pulsing, no step churn */
-
-    _snwprintf(p, 255, L"/%s/%s/%s/arena-link-windows/package.json", REPO_OWNER_W, REPO_NAME_W, branch);
-    char *apkg = (char *)HttpGetBuffer(L"raw.githubusercontent.com", p, &sz, &st);
-    if (apkg && st == 200) {
-        char av[32] = "";
-        if (ExtractQuotedAfter(apkg, "\"version\"", av, sizeof(av))) {
-            EnterCriticalSection(&g_cs);
-            strncpy(g_remArenaVer, av, 31);
-            LeaveCriticalSection(&g_cs);
-        }
-    }
-    free(apkg);
 
     /* Remote build sizes: the installed file differing from the branch copy
        is what 'Update Ready' means for the EXE apps. */
@@ -1731,27 +1673,6 @@ static void WorkerInstallOrcaPlugins(void) {
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
 }
 
-static void WorkerSyncArenaLink(void) {
-    wchar_t branch[64];
-    EnsureActiveBranch(branch, 64);
-    const wchar_t *files[] = {
-        L"package.json", L"main.js", L"core.js", L"preload.js", L"README.md",
-        L"renderer/index.html", L"renderer/app.js", L"renderer/styles.css"
-    };
-    int n = (int)(sizeof(files) / sizeof(files[0]));
-    for (int i = 0; i < n; i++) {
-        wchar_t rel[128], sub[128], dest[MAX_PATH];
-        _snwprintf(rel, 127, L"arena-link-windows/%s", files[i]);
-        wcsncpy(sub, files[i], 127);
-        for (wchar_t *c = sub; *c; c++) if (*c == L'/') *c = L'\\';
-        _snwprintf(dest, MAX_PATH, L"%s\\%s", g_arenaDir, sub);
-        SetFooterStatus(L"Syncing Arena Link files from GitHub...", 15 + (i * 80) / n);
-        DownloadRawRepoFile(branch, rel, dest);
-    }
-    SetFooterStatus(L"Arena Link source files synced.", 0);
-    if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
-}
-
 static void WorkerSelfUpdateHub(void) {
     wchar_t branch[64];
     EnsureActiveBranch(branch, 64);
@@ -1843,14 +1764,12 @@ static DWORD WINAPI HubWorkerThread(LPVOID unused) {
         case TASK_INSTALL_ORCA:        WorkerInstallOrcaPlugins(); break;
         case TASK_INSTALL_DNS:         WorkerInstallDnsPilot(FALSE); break;
         case TASK_OPEN_OR_INSTALL_DNS: WorkerInstallDnsPilot(TRUE); break;
-        case TASK_SYNC_ARENA:          WorkerSyncArenaLink(); break;
         case TASK_UPDATE_ALL:
             WorkerInstallBluetoothGuard(FALSE);
             WorkerInstallKeyboardLighting();
             WorkerInstallOrcaPlugins();
             WorkerInstallSpatialHud();
             WorkerInstallDnsPilot(FALSE);
-            WorkerSyncArenaLink();
             WorkerCheckRemote();
             SetFooterStatus(L"All suite apps updated!", 0);
             break;
@@ -2048,7 +1967,7 @@ static void ComputeLayout(HWND hwnd) {
 
     int startY = headerH + ((viewH > contentH) ? (viewH - contentH) / 2 + S(12, dpi) : S(12, dpi)) - g_scrollY;
     int btnH = S(30, dpi);
-    for (int c = 0; c < 6; c++) {
+    for (int c = 0; c < 5; c++) {
         SetRect(&g_cards[c].rcCard, pad, startY, w - pad, startY + cardH);
         int rx = w - pad - S(16, dpi);
         int by = startY + cardH - S(12, dpi) - btnH;
@@ -2068,7 +1987,7 @@ static int HitTestButtons(POINT pt, int headerBottom, int footerTop) {
         if (PtInRect(&g_topBtns[i].rc, pt)) return g_topBtns[i].id;
     }
     if (pt.y < headerBottom || pt.y > footerTop) return 0;
-    for (int c = 0; c < 6; c++) {
+    for (int c = 0; c < 5; c++) {
         for (int b = 0; b < g_cards[c].btnCount; b++) {
             if (PtInRect(&g_cards[c].btns[b].rc, pt)) return g_cards[c].btns[b].id;
         }
@@ -2116,7 +2035,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc) {
     IntersectClipRect(hdc, 0, headerH + 1, w, footerTop - 1);
 
     int cardIcoSz = S(44, dpi);
-    for (int c = 0; c < 6; c++) {
+    for (int c = 0; c < 5; c++) {
         const ProjectCard *card = &g_cards[c];
         if (card->rcCard.bottom < headerH || card->rcCard.top > footerTop) continue;
 
@@ -2595,25 +2514,6 @@ static void HandleActionCommand(HWND hwnd, int id) {
         ShellExecuteW(hwnd, L"open", p, NULL, NULL, SW_SHOWNORMAL);
         break;
 
-    case ID_ARENA_OPEN: {
-        wchar_t installedExe[MAX_PATH];
-        _snwprintf(installedExe, MAX_PATH, L"%s\\Programs\\arena-link-windows\\Arena Link.exe", g_localApp);
-        if (FileExistsW(installedExe))
-            ShellExecuteW(hwnd, L"open", installedExe, NULL, NULL, SW_SHOWNORMAL);
-        else {
-            EnsureDirTree(g_arenaDir);
-            ShellExecuteW(hwnd, L"open", g_arenaDir, NULL, NULL, SW_SHOWNORMAL);
-        }
-        break;
-    }
-    case ID_ARENA_SYNC:
-        EnqueueTask(TASK_SYNC_ARENA);
-        break;
-    case ID_ARENA_FOLDER:
-        _snwprintf(p, MAX_PATH, L"%s\\arena-link-windows", g_roamApp);
-        EnsureDirTree(p);
-        ShellExecuteW(hwnd, L"open", p, NULL, NULL, SW_SHOWNORMAL);
-        break;
     }
 }
 

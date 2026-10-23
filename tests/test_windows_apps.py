@@ -523,7 +523,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("window.ready", setup)
         self.assertTrue((ROOT / "bluetooth-guard" / "Setup.bat").exists())
 
-    def test_project_hub_covers_all_five_projects(self):
+    def test_project_hub_covers_suite_projects(self):
         hub = (ROOT / "project-hub" / "ProjectHub.ps1").read_text(encoding="utf-8")
         hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
         setup = (ROOT / "project-hub" / "Setup.ps1").read_text(encoding="utf-8")
@@ -532,10 +532,10 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             "Bluetooth Guard",
             "Spatial HUD",
             "OrcaSlicer Plugins",
-            "Arena Link",
         ):
             self.assertIn(expected, hub)
             self.assertIn(expected, hub_c)
+        self.assertIn("DNS Pilot", hub_c)
         self.assertIn("CreateRunspace", hub)
         self.assertNotIn("$T::", hub, "Never use $Var::Member in PowerShell UI code (breaks Command Mode)")
         self.assertIn("window.ready", hub)
@@ -564,7 +564,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             "project-hub/hub.ico",
             "bluetooth-guard/btguard.ico",
             "keyboard-lighting/app.ico",
-            "arena-link-windows/assets/icon.ico",
+            "dns-pilot/dnspilot.ico",
             "docs/brand/spatial-hud.ico",
             "docs/brand/orca-plugins.ico",
         ):

@@ -26,8 +26,7 @@ Also here:
   `keyboard-lighting\Restart.bat`)
 * [`spatial-hud-template-26.3/`](spatial-hud-template-26.3/) — Minecraft 26.3
   Fabric mod placing the lower HUD in 3D world space + one-click Modrinth updater
-* [`arena-link-windows/`](arena-link-windows/) — local Git repository bridge
-  desktop app for Arena
+
 * [`tools/nonplanar-infill-tool/`](tools/nonplanar-infill-tool/) — standalone
   double-click G-code tool (the predecessor of the Unlayered Infill plugin)
 * [`docs/`](docs/) — the roadmap, OrcaSlicer facts, and the reference PDFs

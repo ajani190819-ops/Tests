@@ -19,7 +19,6 @@ Read only the files needed for the current task, and always read them in **one p
 | OrcaSlicer plugin behavior | `docs/ORCA-PLUGIN-FACTS.md` | `python3 tools/check_all.py` |
 | Orca plugin plans or open work | `docs/ROADMAP.md` | — |
 | Orca plugin release | `AGENTS.md` §5 and §5a, then the relevant plugin changelog | `python3 tools/check_all.py` |
-| Arena Link Electron companion | `arena-link-windows/README.md` | `(cd arena-link-windows && npm test)` |
 
 ## Maintenance rules
 
