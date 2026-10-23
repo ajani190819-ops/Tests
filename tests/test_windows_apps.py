@@ -447,6 +447,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             self.assertEqual(subsystem, 2, f"{rel} must use IMAGE_SUBSYSTEM_WINDOWS_GUI (no console window)")
             self.assertIn(b"PerMonitorV2", data, f"{rel} must embed PerMonitorV2 DPI manifest")
             self.assertIn(b"Microsoft.Windows.Common-Controls", data, f"{rel} must embed ComCtl32 v6 manifest")
+            self.assertIn(b"requireAdministrator", data, f"{rel} must require administrator - all suite apps start elevated")
 
             imp_rva, _ = struct.unpack_from("<II", data, opt_off + 112 + 8)
             sec_off = opt_off + struct.unpack_from("<H", data, pe_off + 20)[0]
