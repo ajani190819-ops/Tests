@@ -329,6 +329,16 @@ static void ProbeRow(Row *r) {
     int got = 0, strikes = 0;
     r->tested = 1;
     r->ok = 0;
+    /* No global IPv6 on this network: probing every v6 resolver would only
+       burn timeout budget and show a wall of mystery rows. Leave them
+       'not tested' and let the status line say why. */
+    if (r->family == 6 && !g_hasGlobalV6) {
+        r->tested = 0;
+        InterlockedIncrement((volatile LONG *)&g_testedCount);
+        if ((g_testedCount & 3) == 3 || g_testedCount >= g_rowCount)
+            InvalidateRect(g_hwnd, NULL, FALSE);
+        return;
+    }
     for (int k = 0; k < 3; k++) {
         if (InterlockedCompareExchange(&g_exitStop, 0, 0)) break;
         int ms = 0;
@@ -1449,12 +1459,31 @@ static void UpdateStatusAfterTest(void) {
         wcsncpy(g_status, L"No resolver answered over UDP or TCP port 53 - this network may block outside DNS.", 511);
     }
     {
-        int reach = 0;
-        wchar_t tail[80];
-        for (int i = 0; i < g_rowCount; i++) if (g_rows[i].tested && g_rows[i].ok) reach++;
+        int reach = 0, v6n = 0, v6ok = 0;
+        wchar_t tail[160];
+        for (int i = 0; i < g_rowCount; i++) {
+            Row *r = &g_rows[i];
+            if (r->tested && r->ok) reach++;
+            if (r->family == 6) { v6n++; if (r->tested && r->ok) v6ok++; }
+        }
         _snwprintf(tail, 79, L"  |  %d/%d endpoints reachable", reach, g_rowCount);
         tail[79] = L'\0';
         wcsncat(g_status, tail, 511 - wcslen(g_status));
+        /* Say WHY the IPv6 rows failed instead of leaving mystery timeouts. */
+        if (v6n > 0 && v6ok == 0) {
+            wcsncat(g_status,
+                g_hasGlobalV6
+                    ? L"  |  IPv6: this PC has a v6 address but no v6 DNS answered - the network filters or does not route IPv6 DNS (common on school/filtered Wi-Fi)"
+                    : L"  |  IPv6: no global IPv6 address on this network - v6 rows were skipped",
+                511 - wcslen(g_status));
+        } else if (v6n > 0 && v6ok < v6n) {
+            wchar_t d[112];
+            _snwprintf(d, 111,
+                       L"  |  IPv6 partial: %d/%d answered - far v6 resolvers are often unreachable on half-working IPv6",
+                       v6ok, v6n);
+            d[111] = L'\0';
+            wcsncat(g_status, d, 511 - wcslen(g_status));
+        }
     }
     g_status[511] = L'\0';
 }

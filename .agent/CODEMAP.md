@@ -228,48 +228,48 @@
 - L306  f BuildRows
 - L327  S benchmark run (background thread)
 - L328  f ProbeRow  — ---- benchmark run (background thread) ----
-- L428  f StartTest
-- L438  S active adapter discovery (iphlpapi; locale-proof)
-- L440  f FindActiveAdapter
-- L483  f CopySockIp
-- L497  f CaptureAdapterExtras
-- L525  S live stats strip: passive throughput + 1 Hz ping (tiny footprint)
-- L529  f PingV4Once
-- L546  f PingV6Once
-- L587  f FmtMs
-- L596  f FmtMbps
-- L662  S applying DNS (netsh with numeric ifIndex; needs elevation)
-- L663  f RunElevatedCmd  — ---- applying DNS (netsh with numeric ifIndex; needs elevation) ----
-- L680  f ApplyDns
-- L710  S elevation
-- L711  f IsElevated  — ---- elevation ----
-- L724  f RelaunchElevated
-- L736  f EnsureAutostart
-- L754  S config
-- L755  f LoadConfig  — ---- config ----
-- L778  f SaveConfig
-- L830  f AddWatch
-- L842  f RebuildWatchBody
-- L865  f RebuildWatch
-- L871  f WatchSwitch
-- L909  f WatchTickBody
-- L975  f WatchTick
-- L988  S UI
-- L999  f EmbRasterize
-- L1070  f EmbCacheEnsure
-- L1085  f EmbSpinDraw
-- L1139  f DrawWayfinderEmblem
-- L1146  f PaintEmblem
-- L1171  f BtnRect
-- L1178  f FillSolid
-- L1184  f DrawBtn
-- L1205  f ShowTrayContextMenu
-- L1221  f RowRect
-- L1231  f PaintAll
-- L1422  f HitBtn
-- L1433  f UpdateStatusAfterTest
-- L1462  f DoApplyFastest
-- globals: g_rows (L92), g_rowCount (L93), g_hwnd (L101), g_hIcon (L102), g_nid (L103), g_exitMsg (L104), g_quitting (L105), g_trayHinted (L106), g_fontUI (L107), g_dpi (L113), g_testing (L114), g_testedCount (L115), g_exitStop (L116), g_testNext (L117), g_topRow (L118), g_hoverBtn (L119), g_lastTestAt (L120), g_elevated (L121), g_auto (L122), g_intervalMin (L123), g_autoRun (L124), g_status (L125), g_adName (L126), g_ifIndex (L127), g_curV4 (L128), g_curV6 (L129), g_statsCs (L131), g_statsLine (L132), g_statsRun (L133), g_gwIp (L134), g_gwIsV6 (L135), g_srcV6 (L136), g_srcV6LL (L137), g_hasGlobalV6 (L138), g_cfgPath (L139), g_lastV4 (L140), g_best4 (L141), g_dpi (L143), g_watch (L814), g_watchN (L815), g_watchBusy (L816), g_watchCs (L817), g_lastSwitchAt (L818), g_switchedAt (L819), g_switchFam (L820), g_prevV4 (L821), g_rcEmblem (L997), g_embCache (L1068), g_frameCache (L1228), g_fcW (L1229)
+- L438  f StartTest
+- L448  S active adapter discovery (iphlpapi; locale-proof)
+- L450  f FindActiveAdapter
+- L493  f CopySockIp
+- L507  f CaptureAdapterExtras
+- L535  S live stats strip: passive throughput + 1 Hz ping (tiny footprint)
+- L539  f PingV4Once
+- L556  f PingV6Once
+- L597  f FmtMs
+- L606  f FmtMbps
+- L672  S applying DNS (netsh with numeric ifIndex; needs elevation)
+- L673  f RunElevatedCmd  — ---- applying DNS (netsh with numeric ifIndex; needs elevation) ----
+- L690  f ApplyDns
+- L720  S elevation
+- L721  f IsElevated  — ---- elevation ----
+- L734  f RelaunchElevated
+- L746  f EnsureAutostart
+- L764  S config
+- L765  f LoadConfig  — ---- config ----
+- L788  f SaveConfig
+- L840  f AddWatch
+- L852  f RebuildWatchBody
+- L875  f RebuildWatch
+- L881  f WatchSwitch
+- L919  f WatchTickBody
+- L985  f WatchTick
+- L998  S UI
+- L1009  f EmbRasterize
+- L1080  f EmbCacheEnsure
+- L1095  f EmbSpinDraw
+- L1149  f DrawWayfinderEmblem
+- L1156  f PaintEmblem
+- L1181  f BtnRect
+- L1188  f FillSolid
+- L1194  f DrawBtn
+- L1215  f ShowTrayContextMenu
+- L1231  f RowRect
+- L1241  f PaintAll
+- L1432  f HitBtn
+- L1443  f UpdateStatusAfterTest
+- L1491  f DoApplyFastest
+- globals: g_rows (L92), g_rowCount (L93), g_hwnd (L101), g_hIcon (L102), g_nid (L103), g_exitMsg (L104), g_quitting (L105), g_trayHinted (L106), g_fontUI (L107), g_dpi (L113), g_testing (L114), g_testedCount (L115), g_exitStop (L116), g_testNext (L117), g_topRow (L118), g_hoverBtn (L119), g_lastTestAt (L120), g_elevated (L121), g_auto (L122), g_intervalMin (L123), g_autoRun (L124), g_status (L125), g_adName (L126), g_ifIndex (L127), g_curV4 (L128), g_curV6 (L129), g_statsCs (L131), g_statsLine (L132), g_statsRun (L133), g_gwIp (L134), g_gwIsV6 (L135), g_srcV6 (L136), g_srcV6LL (L137), g_hasGlobalV6 (L138), g_cfgPath (L139), g_lastV4 (L140), g_best4 (L141), g_dpi (L143), g_watch (L824), g_watchN (L825), g_watchBusy (L826), g_watchCs (L827), g_lastSwitchAt (L828), g_switchedAt (L829), g_switchFam (L830), g_prevV4 (L831), g_rcEmblem (L1007), g_embCache (L1078), g_frameCache (L1238), g_fcW (L1239)
 
 ## tools/agent_map.py
 
