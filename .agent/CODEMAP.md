@@ -287,25 +287,37 @@
 
 ## agent-notes/src/agent_notes.c
 
-- L53  f S
-- L55  f GetWinDpi
-- L61  S config + outbox
-- L63  f InitPaths  — ---------------- config + outbox ----------------
-- L73  f LoadConfig
-- L77  f SaveConfig
-- L81  f OutboxCount
-- L94  f OutboxAdd
-- L114  S HTTP to the agent session
-- L116  f HttpPostNote  — ---------------- HTTP to the agent session ----------------
-- L156  f FlushOutbox
-- L216  f StartFlush
-- L224  S UI
-- L226  f BtnRect  — ---------------- UI ----------------
-- L232  f DrawBtn
-- L252  f HitBtn
-- L262  f PaintAll
-- L378  S entry
-- globals: g_hInst (L37), g_hwnd (L38), g_fontUI (L39), g_bgBrush (L40), g_dpi (L41), g_hoverBtn (L42), g_showEvent (L43), g_link (L45), g_cfgDir (L46), g_cfgPath (L47), g_outboxDir (L48), g_status (L49), g_lastOk (L50), g_sending (L51), g_dpi (L53)
+- L70  f S
+- L72  f GetWinDpi
+- L78  S config + outbox + history
+- L80  f InitPaths  — ---------------- config + outbox + history ----------------
+- L91  f LoadConfig
+- L95  f SaveConfig
+- L99  f OutboxCount
+- L112  f FileExistsW
+- L128  f HistSave
+- L150  f HistLoad
+- L186  f HistAdd
+- L197  f HistSnip
+- L207  f OutboxAdd
+- L235  S HTTP to the agent session
+- L237  f HttpPostNote  — ---------------- HTTP to the agent session ----------------
+- L277  f FlushOutbox
+- L340  f StartFlush
+- L356  f EmbRasterize
+- L427  f EmbCacheEnsure
+- L442  f EmbSpinDraw
+- L494  S UI
+- L496  f EmbRect  — ---------------- UI ----------------
+- L500  f BtnRect
+- L505  f DrawBtn
+- L525  f HitBtn
+- L535  f DrawDot
+- L547  f PaintAll
+- L681  f NoteSetHint
+- L688  f NowStamp
+- L801  S entry
+- globals: g_hInst (L51), g_hwnd (L52), g_fontUI (L53), g_bgBrush (L54), g_dpi (L55), g_hoverBtn (L56), g_showEvent (L57), g_link (L59), g_cfgDir (L60), g_cfgPath (L61), g_histPath (L62), g_outboxDir (L63), g_status (L64), g_lastOk (L65), g_sending (L66), g_noteHint (L67), g_lastSent (L68), g_dpi (L70), g_hist (L125), g_histN (L126), g_embCache (L424), g_spinAngle (L425)
 
 ## tools/agent_map.py
 
