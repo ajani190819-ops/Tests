@@ -274,13 +274,35 @@
 - L1594  f DoApplyFastest
 - globals: g_rows (L93), g_rowCount (L94), g_hwnd (L102), g_hIcon (L103), g_nid (L104), g_exitMsg (L105), g_quitting (L106), g_trayHinted (L107), g_fontUI (L108), g_dpi (L114), g_testing (L115), g_testedCount (L116), g_exitStop (L117), g_testNext (L118), g_topRow (L119), g_hoverBtn (L120), g_lastTestAt (L121), g_elevated (L122), g_auto (L123), g_intervalMin (L124), g_autoRun (L125), g_status (L126), g_adName (L127), g_ifIndex (L128), g_curV4 (L129), g_curV6 (L130), g_statsCs (L132), g_statsLine (L133), g_statsRun (L134), g_gwIp (L135), g_gwIsV6 (L136), g_srcV6 (L137), g_srcV6LL (L138), g_hasGlobalV6 (L139), g_cfgPath (L140), g_lastV4 (L141), g_best4 (L142), g_dpi (L144), g_speedBusy (L616), g_watch (L926), g_watchN (L927), g_watchBusy (L928), g_watchCs (L929), g_lastSwitchAt (L930), g_switchedAt (L931), g_switchFam (L932), g_prevV4 (L933), g_rcEmblem (L1109), g_embCache (L1180), g_frameCache (L1340), g_fcW (L1341)
 
+## agent-notes/src/agent_notes.c
+
+- L53  f S
+- L55  f GetWinDpi
+- L61  S config + outbox
+- L63  f InitPaths  — ---------------- config + outbox ----------------
+- L73  f LoadConfig
+- L77  f SaveConfig
+- L81  f OutboxCount
+- L94  f OutboxAdd
+- L114  S HTTP to the agent session
+- L116  f HttpPostNote  — ---------------- HTTP to the agent session ----------------
+- L156  f FlushOutbox
+- L216  f StartFlush
+- L224  S UI
+- L226  f BtnRect  — ---------------- UI ----------------
+- L232  f DrawBtn
+- L252  f HitBtn
+- L262  f PaintAll
+- L378  S entry
+- globals: g_hInst (L37), g_hwnd (L38), g_fontUI (L39), g_bgBrush (L40), g_dpi (L41), g_hoverBtn (L42), g_showEvent (L43), g_link (L45), g_cfgDir (L46), g_cfgPath (L47), g_outboxDir (L48), g_status (L49), g_lastOk (L50), g_sending (L51), g_dpi (L53)
+
 ## tools/agent_map.py
 
-- L41  f comment_purpose
-- L65  f scan_c
-- L90  f scan_py
-- L101  f build
-- L126  f main
+- L42  f comment_purpose
+- L66  f scan_c
+- L91  f scan_py
+- L102  f build
+- L127  f main
 
 ## tools/build_windows.py
 
@@ -327,6 +349,11 @@
 - L410  f save_multi_ico
 - L442  f main
 - L541  f export_spin_loops
+
+## tools/notes_server.py
+
+- L68  f Handler
+- L121  f main
 
 ## tools/sync_changelog.py
 

@@ -104,6 +104,15 @@ def main() -> int:
             ["-luser32", "-lgdi32", "-lshell32", "-ladvapi32",
              "-lcomctl32", "-lws2_32", "-liphlpapi", "-lwinhttp"],
         ),
+        (
+            "agentnotes",
+            ROOT / "agent-notes" / "src",
+            "notes.rc",
+            ROOT / "agent-notes" / "src" / "agent_notes.c",
+            ROOT / "agent-notes" / "AgentNotes.exe",
+            ["-luser32", "-lgdi32", "-lshell32", "-ladvapi32",
+             "-lcomctl32", "-lwinhttp"],
+        ),
     ]
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:

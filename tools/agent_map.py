@@ -24,6 +24,7 @@ C_FILES = [
     "bluetooth-guard/src/bluetooth_guard.c",
     "keyboard-lighting/src/keyboard_lighting.c",
     "dns-pilot/src/dns_pilot.c",
+    "agent-notes/src/agent_notes.c",
 ]
 
 PY_GLOBS = ["tools/*.py", "tests/*.py"]

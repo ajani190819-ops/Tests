@@ -433,6 +433,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             "bluetooth-guard/BluetoothGuard.exe",
             "keyboard-lighting/KeyboardLighting.exe",
             "dns-pilot/DnsPilot.exe",
+            "agent-notes/AgentNotes.exe",
         ):
             exe = ROOT / rel
             self.assertTrue(exe.exists(), f"Missing standalone native executable {rel}")
