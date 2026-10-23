@@ -102,7 +102,7 @@ def main() -> int:
             ROOT / "dns-pilot" / "src" / "dns_pilot.c",
             ROOT / "dns-pilot" / "DnsPilot.exe",
             ["-luser32", "-lgdi32", "-lshell32", "-ladvapi32",
-             "-lcomctl32", "-lws2_32", "-liphlpapi"],
+             "-lcomctl32", "-lws2_32", "-liphlpapi", "-lwinhttp"],
         ),
     ]
 

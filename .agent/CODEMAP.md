@@ -215,61 +215,64 @@
 
 ## dns-pilot/src/dns_pilot.c
 
-- L52  S resolver catalogue: primary + secondary per family
-- L109  f WCpy
-- L143  f S
-- L149  f ApplyModernWindowFrame
-- L168  f Widen
-- L174  S DNS query probe: real UDP/53 round trip
-- L175  f BuildQuery  — ---- DNS query probe: real UDP/53 round trip ----
-- L194  f DnsProbe
-- L233  f DnsProbeTcp
-- L298  f Median3
-- L306  f BuildRows
-- L327  S benchmark run (background thread)
-- L328  f ProbeRow  — ---- benchmark run (background thread) ----
-- L438  f StartTest
-- L448  S active adapter discovery (iphlpapi; locale-proof)
-- L450  f FindActiveAdapter
-- L493  f CopySockIp
-- L507  f CaptureAdapterExtras
-- L535  S live stats strip: passive throughput + 1 Hz ping (tiny footprint)
-- L539  f PingV4Once
-- L556  f PingV6Once
-- L597  f FmtMs
-- L606  f FmtMbps
-- L672  S applying DNS (netsh with numeric ifIndex; needs elevation)
-- L673  f RunElevatedCmd  — ---- applying DNS (netsh with numeric ifIndex; needs elevation) ----
-- L690  f ApplyDns
-- L720  S elevation
-- L721  f IsElevated  — ---- elevation ----
-- L734  f RelaunchElevated
-- L746  f EnsureAutostart
-- L764  S config
-- L765  f LoadConfig  — ---- config ----
-- L788  f SaveConfig
-- L840  f AddWatch
-- L852  f RebuildWatchBody
-- L875  f RebuildWatch
-- L881  f WatchSwitch
-- L919  f WatchTickBody
-- L985  f WatchTick
-- L998  S UI
-- L1009  f EmbRasterize
-- L1080  f EmbCacheEnsure
-- L1095  f EmbSpinDraw
-- L1149  f DrawWayfinderEmblem
-- L1156  f PaintEmblem
-- L1181  f BtnRect
-- L1188  f FillSolid
-- L1194  f DrawBtn
-- L1215  f ShowTrayContextMenu
-- L1231  f RowRect
-- L1241  f PaintAll
-- L1432  f HitBtn
-- L1443  f UpdateStatusAfterTest
-- L1491  f DoApplyFastest
-- globals: g_rows (L92), g_rowCount (L93), g_hwnd (L101), g_hIcon (L102), g_nid (L103), g_exitMsg (L104), g_quitting (L105), g_trayHinted (L106), g_fontUI (L107), g_dpi (L113), g_testing (L114), g_testedCount (L115), g_exitStop (L116), g_testNext (L117), g_topRow (L118), g_hoverBtn (L119), g_lastTestAt (L120), g_elevated (L121), g_auto (L122), g_intervalMin (L123), g_autoRun (L124), g_status (L125), g_adName (L126), g_ifIndex (L127), g_curV4 (L128), g_curV6 (L129), g_statsCs (L131), g_statsLine (L132), g_statsRun (L133), g_gwIp (L134), g_gwIsV6 (L135), g_srcV6 (L136), g_srcV6LL (L137), g_hasGlobalV6 (L138), g_cfgPath (L139), g_lastV4 (L140), g_best4 (L141), g_dpi (L143), g_watch (L824), g_watchN (L825), g_watchBusy (L826), g_watchCs (L827), g_lastSwitchAt (L828), g_switchedAt (L829), g_switchFam (L830), g_prevV4 (L831), g_rcEmblem (L1007), g_embCache (L1078), g_frameCache (L1238), g_fcW (L1239)
+- L53  S resolver catalogue: primary + secondary per family
+- L110  f WCpy
+- L144  f S
+- L150  f ApplyModernWindowFrame
+- L169  f Widen
+- L175  S DNS query probe: real UDP/53 round trip
+- L176  f BuildQuery  — ---- DNS query probe: real UDP/53 round trip ----
+- L195  f DnsProbe
+- L234  f DnsProbeTcp
+- L299  f Median3
+- L307  f BuildRows
+- L328  S benchmark run (background thread)
+- L329  f ProbeRow  — ---- benchmark run (background thread) ----
+- L439  f StartTest
+- L449  S active adapter discovery (iphlpapi; locale-proof)
+- L451  f FindActiveAdapter
+- L494  f CopySockIp
+- L508  f CaptureAdapterExtras
+- L536  S live stats strip: passive throughput + 1 Hz ping (tiny footprint)
+- L540  f PingV4Once
+- L557  f PingV6Once
+- L598  f FmtMs
+- L607  f FmtMbps
+- L615  S speed test: active line-capacity measurement (Cloudflare endpoints)
+- L618  f SpeedTransfer
+- L709  f StartSpeedTest
+- L774  S applying DNS (netsh with numeric ifIndex; needs elevation)
+- L775  f RunElevatedCmd  — ---- applying DNS (netsh with numeric ifIndex; needs elevation) ----
+- L792  f ApplyDns
+- L822  S elevation
+- L823  f IsElevated  — ---- elevation ----
+- L836  f RelaunchElevated
+- L848  f EnsureAutostart
+- L866  S config
+- L867  f LoadConfig  — ---- config ----
+- L890  f SaveConfig
+- L942  f AddWatch
+- L954  f RebuildWatchBody
+- L977  f RebuildWatch
+- L983  f WatchSwitch
+- L1021  f WatchTickBody
+- L1087  f WatchTick
+- L1100  S UI
+- L1111  f EmbRasterize
+- L1182  f EmbCacheEnsure
+- L1197  f EmbSpinDraw
+- L1251  f DrawWayfinderEmblem
+- L1258  f PaintEmblem
+- L1283  f BtnRect
+- L1290  f FillSolid
+- L1296  f DrawBtn
+- L1317  f ShowTrayContextMenu
+- L1333  f RowRect
+- L1343  f PaintAll
+- L1535  f HitBtn
+- L1546  f UpdateStatusAfterTest
+- L1594  f DoApplyFastest
+- globals: g_rows (L93), g_rowCount (L94), g_hwnd (L102), g_hIcon (L103), g_nid (L104), g_exitMsg (L105), g_quitting (L106), g_trayHinted (L107), g_fontUI (L108), g_dpi (L114), g_testing (L115), g_testedCount (L116), g_exitStop (L117), g_testNext (L118), g_topRow (L119), g_hoverBtn (L120), g_lastTestAt (L121), g_elevated (L122), g_auto (L123), g_intervalMin (L124), g_autoRun (L125), g_status (L126), g_adName (L127), g_ifIndex (L128), g_curV4 (L129), g_curV6 (L130), g_statsCs (L132), g_statsLine (L133), g_statsRun (L134), g_gwIp (L135), g_gwIsV6 (L136), g_srcV6 (L137), g_srcV6LL (L138), g_hasGlobalV6 (L139), g_cfgPath (L140), g_lastV4 (L141), g_best4 (L142), g_dpi (L144), g_speedBusy (L616), g_watch (L926), g_watchN (L927), g_watchBusy (L928), g_watchCs (L929), g_lastSwitchAt (L930), g_switchedAt (L931), g_switchFam (L932), g_prevV4 (L933), g_rcEmblem (L1109), g_embCache (L1180), g_frameCache (L1340), g_fcW (L1341)
 
 ## tools/agent_map.py
 

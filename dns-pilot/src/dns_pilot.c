@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <windowsx.h>
 #include <shellapi.h>
+#include <winhttp.h>
 #include <math.h>
 #include <stdint.h>
 
@@ -611,6 +612,107 @@ static void FmtMbps(double mbps, wchar_t *out, int n) {
     out[n - 1] = L'\0';
 }
 
+/* ---- speed test: active line-capacity measurement (Cloudflare endpoints) ---- */
+static volatile LONG g_speedBusy = 0;
+
+static int SpeedTransfer(int upload, LONGLONG want, double *mbps) {
+    /* One HTTPS transfer to speed.cloudflare.com. The rate is timed from
+       after the first chunk so TCP + TLS setup does not drag it down. */
+    HINTERNET ses = WinHttpOpen(L"DnsPilot-Speed/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!ses) return 0;
+    WinHttpSetTimeouts(ses, 8000, 8000, 15000, 60000);
+    HINTERNET con = WinHttpConnect(ses, L"speed.cloudflare.com",
+                                   INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (!con) { WinHttpCloseHandle(ses); return 0; }
+    HINTERNET req = WinHttpOpenRequest(con, upload ? L"POST" : L"GET",
+                                       upload ? L"/__up" : L"/__down?bytes=67108864",
+                                       NULL, WINHTTP_NO_REFERER,
+                                       WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+    if (!req) { WinHttpCloseHandle(con); WinHttpCloseHandle(ses); return 0; }
+    LARGE_INTEGER t0, t1, fq;
+    LONGLONG done = 0;
+    int started = 0, ok = 0;
+    char chunk[65536];
+    ZeroMemory(chunk, sizeof(chunk));
+    QueryPerformanceFrequency(&fq);
+    QueryPerformanceCounter(&t0);
+    t1 = t0;
+    if (upload) {
+        if (WinHttpSendRequest(req, L"Content-Type: application/octet-stream", (DWORD)-1L,
+                               WINHTTP_NO_REQUEST_DATA, 0, (DWORD)want, 0)) {
+            while (done < want) {
+                DWORD n = (DWORD)((want - done) > (LONGLONG)sizeof(chunk)
+                                      ? sizeof(chunk) : (DWORD)(want - done));
+                DWORD wrote = 0;
+                if (!WinHttpWriteData(req, chunk, n, &wrote)) break;
+                done += wrote;
+                if (!started) { started = 1; QueryPerformanceCounter(&t0); }
+            }
+            QueryPerformanceCounter(&t1);
+            WinHttpReceiveResponse(req, NULL);
+        }
+    } else {
+        if (WinHttpSendRequest(req, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                               WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+            WinHttpReceiveResponse(req, NULL)) {
+            for (;;) {
+                DWORD n = 0;
+                if (!WinHttpReadData(req, chunk, sizeof(chunk), &n)) break;
+                if (n == 0) break;
+                done += n;
+                if (!started) { started = 1; QueryPerformanceCounter(&t0); }
+                if (done >= want) break;
+            }
+            QueryPerformanceCounter(&t1);
+        }
+    }
+    if (done >= want && started) {
+        double secs = (double)(t1.QuadPart - t0.QuadPart) / (double)fq.QuadPart;
+        if (secs > 0.001) { *mbps = (double)done * 8.0 / secs / 1e6; ok = 1; }
+    }
+    WinHttpCloseHandle(req);
+    WinHttpCloseHandle(con);
+    WinHttpCloseHandle(ses);
+    return ok;
+}
+
+static DWORD WINAPI SpeedThread(LPVOID param) {
+    (void)param;
+    double dn = -1.0, up = -1.0;
+    wchar_t d[48], u[48];
+    wcsncpy(g_status, L"Speed test: downloading 64 MB ...", 511);
+    InvalidateRect(g_hwnd, NULL, FALSE);
+    SpeedTransfer(0, 64LL * 1024 * 1024, &dn);
+    if (!InterlockedCompareExchange(&g_exitStop, 0, 0)) {
+        wcsncpy(g_status, L"Speed test: uploading 16 MB ...", 511);
+        InvalidateRect(g_hwnd, NULL, FALSE);
+        SpeedTransfer(1, 16LL * 1024 * 1024, &up);
+    }
+    if (dn < 0.0 && up < 0.0) {
+        wcsncpy(g_status,
+                L"Speed test failed - could not reach speed.cloudflare.com (network or firewall).",
+                511);
+    } else {
+        FmtMbps(dn, d, 48);
+        FmtMbps(up, u, 48);
+        _snwprintf(g_status, 511,
+                   L"Line speed: down %s   up %s   (single stream, 64 MB down / 16 MB up via speed.cloudflare.com)",
+                   d, u);
+        g_status[511] = L'\0';
+    }
+    InterlockedExchange(&g_speedBusy, 0);
+    InvalidateRect(g_hwnd, NULL, FALSE);
+    return 0;
+}
+
+static void StartSpeedTest(void) {
+    if (InterlockedCompareExchange(&g_speedBusy, 1, 0) != 0) return;
+    HANDLE h = CreateThread(NULL, 0, SpeedThread, NULL, 0, NULL);
+    if (h) CloseHandle(h);
+    else InterlockedExchange(&g_speedBusy, 0);
+}
+
 static DWORD WINAPI StatsThread(LPVOID unused) {
     (void)unused;
     ULONGLONG lastTick = 0, lastIn = 0, lastOut = 0;
@@ -996,7 +1098,7 @@ static DWORD WINAPI WatchThread(LPVOID param) {
 }
 
 /* ---- UI ---- */
-enum { BTN_TEST = 0, BTN_APPLY, BTN_AUTO, BTN_INTERVAL, BTN_ADMIN, BTN_COUNT };
+enum { BTN_TEST = 0, BTN_APPLY, BTN_SPEED, BTN_AUTO, BTN_INTERVAL, BTN_ADMIN, BTN_COUNT };
 
 /* Spinning Tri-Spoke Core Emblem - analytic sub-pixel SDF renderer,
    identical to Project Hub (ported 1:1 from tools/generate_suite_icons.py).
@@ -1180,7 +1282,7 @@ static void PaintEmblem(HDC dc, int x, int y, int sz) {
 
 static void BtnRect(int i, RECT *r) {
     int x = S(20), y = S(96), h = S(36);
-    int w[BTN_COUNT] = { S(140), S(150), S(140), S(150), S(170) };
+    int w[BTN_COUNT] = { S(140), S(150), S(130), S(140), S(150), S(170) };
     for (int k = 0; k < i; k++) x += w[k] + S(10);
     SetRect(r, x, y, x + w[i], y + h);
 }
@@ -1312,6 +1414,7 @@ static void PaintAll(HWND hwnd) {
     intLabel[47] = L'\0';
     DrawBtn(mem, BTN_TEST, L"Test & Rank", 1, 0);
     DrawBtn(mem, BTN_APPLY, L"Apply Fastest", 0, 0);
+    DrawBtn(mem, BTN_SPEED, g_speedBusy ? L"Testing Speed..." : L"Speed Test", 0, g_speedBusy ? 1 : 0);
     DrawBtn(mem, BTN_AUTO, autoLabel, 0, g_auto);
     DrawBtn(mem, BTN_INTERVAL, intLabel, 0, 0);
     DrawBtn(mem, BTN_ADMIN, g_elevated ? L"Running as Admin" : L"Restart as Admin", 0, 0);
@@ -1549,6 +1652,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (b == BTN_APPLY) {
             DoApplyFastest(1);
+        } else if (b == BTN_SPEED) {
+            StartSpeedTest();
         } else if (b == BTN_AUTO) {
             g_auto = !g_auto;
             SaveConfig();
