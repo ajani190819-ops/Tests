@@ -1220,7 +1220,29 @@ static void TurnAllLightsOff(void) {
     wcsncpy(g_statusText, L"Lighting turned off  \x00B7  Click Lights toggle to resume", 255);
 }
 
-static BOOL QueryAutostart(void) {
+/* A user who turns the Startup toggle OFF gets a marker file so the logon
+   task is not silently re-created on the next elevated start. */
+static void MarkAutostartOff(BOOL off) {
+    wchar_t p[MAX_PATH];
+    _snwprintf(p, MAX_PATH - 1, L"%s\\autostart.off", g_cfgDir);
+    p[MAX_PATH - 1] = L'\0';
+    if (off) {
+        HANDLE hf = CreateFileW(p, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                                FILE_ATTRIBUTE_HIDDEN, NULL);
+        if (hf != INVALID_HANDLE_VALUE) CloseHandle(hf);
+    } else {
+        DeleteFileW(p);
+    }
+}
+
+static BOOL AutostartMarkedOff(void) {
+    wchar_t p[MAX_PATH];
+    _snwprintf(p, MAX_PATH - 1, L"%s\\autostart.off", g_cfgDir);
+    p[MAX_PATH - 1] = L'\0';
+    return GetFileAttributesW(p) != INVALID_FILE_ATTRIBUTES;
+}
+
+static BOOL TaskExists(const wchar_t *name) {
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
     ZeroMemory(&si, sizeof(si));
@@ -1228,7 +1250,9 @@ static BOOL QueryAutostart(void) {
     si.cb = sizeof(si);
     si.dwFlags = STARTF_USESHOWWINDOW;
     si.wShowWindow = SW_HIDE;
-    wchar_t cmd[] = L"schtasks.exe /Query /TN \"KeyboardLighting\"";
+    wchar_t cmd[MAX_PATH];
+    _snwprintf(cmd, MAX_PATH - 1, L"schtasks.exe /Query /TN \"%s\"", name);
+    cmd[MAX_PATH - 1] = L'\0';
     if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
         return FALSE;
     WaitForSingleObject(pi.hProcess, 2500);
@@ -1239,34 +1263,56 @@ static BOOL QueryAutostart(void) {
     return (code == 0);
 }
 
+static BOOL QueryAutostart(void) {
+    if (TaskExists(L"TestsSuite-KeyboardLighting")) return TRUE;
+    return TaskExists(L"KeyboardLighting");   /* pre-unification task name */
+}
+
 static BOOL SetKblAutostart(BOOL enable) {
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
-    ZeroMemory(&si, sizeof(si));
-    ZeroMemory(&pi, sizeof(pi));
-    si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_HIDE;
     wchar_t cmd[MAX_PATH * 2];
-    if (enable) {
-        _snwprintf(cmd, MAX_PATH * 2 - 1,
-                   L"schtasks.exe /Create /TN \"KeyboardLighting\" /TR \"\\\"%s\\\" -Silent\" /SC ONLOGON %s /F",
-                   g_exePath, g_isAdmin ? L"/RL HIGHEST" : L"");
-    } else {
-        _snwprintf(cmd, MAX_PATH * 2 - 1, L"schtasks.exe /Delete /TN \"KeyboardLighting\" /F");
-    }
-    if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
-        return FALSE;
-    WaitForSingleObject(pi.hProcess, 3500);
     DWORD code = 1;
-    GetExitCodeProcess(pi.hProcess, &code);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    if (code == 0) {
-        g_autostart = enable;
-        return TRUE;
+    if (enable) {
+        ZeroMemory(&si, sizeof(si));
+        ZeroMemory(&pi, sizeof(pi));
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+        /* One task for everything: the same name EnsureLogonTask keeps
+           fresh, started quietly in the tray at logon (no UAC, no window). */
+        _snwprintf(cmd, MAX_PATH * 2 - 1,
+                   L"schtasks.exe /Create /TN \"TestsSuite-KeyboardLighting\" /TR \"\\\"%s\\\" -Silent -NoElevate\" /SC ONLOGON %s /F",
+                   g_exePath, g_isAdmin ? L"/RL HIGHEST" : L"");
+        cmd[MAX_PATH * 2 - 1] = L'\0';
+        if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
+            return FALSE;
+        WaitForSingleObject(pi.hProcess, 3500);
+        GetExitCodeProcess(pi.hProcess, &code);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        if (code != 0) return FALSE;
+    } else {
+        /* disable: remove the unified task AND the legacy name */
+        const wchar_t *names[2] = { L"TestsSuite-KeyboardLighting", L"KeyboardLighting" };
+        for (int i = 0; i < 2; i++) {
+            ZeroMemory(&si, sizeof(si));
+            ZeroMemory(&pi, sizeof(pi));
+            si.cb = sizeof(si);
+            si.dwFlags = STARTF_USESHOWWINDOW;
+            si.wShowWindow = SW_HIDE;
+            _snwprintf(cmd, MAX_PATH * 2 - 1, L"schtasks.exe /Delete /TN \"%s\" /F", names[i]);
+            cmd[MAX_PATH * 2 - 1] = L'\0';
+            if (CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+                WaitForSingleObject(pi.hProcess, 3500);
+                CloseHandle(pi.hThread);
+                CloseHandle(pi.hProcess);
+            }
+        }
     }
-    return FALSE;
+    g_autostart = enable;
+    MarkAutostartOff(!enable);
+    return TRUE;
 }
 
 static void ScheduleLiveApply(void) {
@@ -2827,10 +2873,11 @@ static void EnsureLogonTask(void) {
        highest privileges so every future start of Keyboard Lighting is
        silent (tasks skip UAC) and fully functional. Re-registering is
        idempotent, so updates simply refresh the task. */
+    if (AutostartMarkedOff()) return;
     wchar_t cmd[640];
     _snwprintf(cmd, 639,
                L"schtasks /Create /F /SC ONLOGON /TN \"TestsSuite-KeyboardLighting\" "
-               L"/TR \"\\\"%s\\\" -NoElevate\" /RL HIGHEST", g_exePath);
+               L"/TR \"\\\"%s\\\" -Silent -NoElevate\" /RL HIGHEST", g_exePath);
     cmd[639] = L'\0';
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;

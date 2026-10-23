@@ -662,6 +662,25 @@ static void RelaunchElevated(const wchar_t *args) {
     ShellExecuteW(NULL, L"runas", path, args, NULL, SW_SHOWNORMAL);
 }
 
+/* Background suite apps start with Windows - quietly in the tray, like
+   Bluetooth Guard and Keyboard Lighting. Re-written every launch so an
+   updated install path stays correct. */
+static void EnsureAutostart(void) {
+    wchar_t exe[MAX_PATH];
+    if (!GetModuleFileNameW(NULL, exe, MAX_PATH)) return;
+    HKEY k = NULL;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER,
+                        L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                        0, NULL, 0, KEY_SET_VALUE, NULL, &k, NULL) != ERROR_SUCCESS)
+        return;
+    wchar_t cmd[MAX_PATH + 16];
+    _snwprintf(cmd, MAX_PATH + 15, L"\"%s\" -Silent", exe);
+    cmd[MAX_PATH + 15] = L'\0';
+    RegSetValueExW(k, L"TestsSuite-DnsPilot", 0, REG_SZ,
+                   (const BYTE *)cmd, (DWORD)((wcslen(cmd) + 1) * sizeof(wchar_t)));
+    RegCloseKey(k);
+}
+
 /* ---- config ---- */
 static void LoadConfig(void) {
     wchar_t dir[MAX_PATH];
@@ -1632,6 +1651,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
 
     g_elevated = IsElevated();
     LoadConfig();
+    EnsureAutostart();
     BuildRows();
     FindActiveAdapter();
 
