@@ -134,6 +134,8 @@ static volatile LONG g_statsRun = 1;
 static char         g_gwIp[64] = "";   /* default gateway, v4 or v6 */
 static int          g_gwIsV6 = 0;
 static char         g_srcV6[64] = "";  /* adapter's own v6 for ICMP6 source */
+static char         g_srcV6LL[64] = "";/* link-local v6 (fe80::) for LL targets */
+static int          g_hasGlobalV6 = 0; /* adapter has a global (2000::/3) v6 */
 static wchar_t     g_cfgPath[MAX_PATH];
 static char        g_lastV4[64] = "", g_lastV6[64] = "";
 static int         g_best4 = -1, g_best6 = -1;
@@ -497,12 +499,27 @@ static void CaptureAdapterExtras(const IP_ADAPTER_ADDRESSES *p) {
     if (p->FirstGatewayAddress)
         CopySockIp(&p->FirstGatewayAddress->Address, g_gwIp, 63, &isV6);
     g_gwIsV6 = isV6;
+    /* Prefer a GLOBAL v6 (2000::/3) as the ping source. Windows lists the
+       link-local fe80:: address first; using that as the source is what left
+       the v6 stats pings showing '-' - a link-local source cannot reach
+       global resolvers. Keep the link-local one for fe80 targets. */
+    g_srcV6[0] = '\0';
+    g_srcV6LL[0] = '\0';
+    g_hasGlobalV6 = 0;
     for (const IP_ADAPTER_UNICAST_ADDRESS *u = p->FirstUnicastAddress; u; u = u->Next) {
-        if (u->Address.lpSockaddr && u->Address.lpSockaddr->sa_family == AF_INET6) {
-            CopySockIp(&u->Address, g_srcV6, 63, NULL);
-            break;
+        char tmp[64];
+        if (!u->Address.lpSockaddr || u->Address.lpSockaddr->sa_family != AF_INET6)
+            continue;
+        CopySockIp(&u->Address, tmp, 63, NULL);
+        if (!tmp[0]) continue;
+        if (tmp[0] == 'f' && tmp[1] == 'e' && tmp[2] >= '8' && tmp[2] <= 'b') {
+            if (!g_srcV6LL[0]) { strncpy(g_srcV6LL, tmp, 63); g_srcV6LL[63] = '\0'; }
+        } else if (tmp[0] == '2' || tmp[0] == '3') {
+            if (!g_srcV6[0]) { strncpy(g_srcV6, tmp, 63); g_srcV6[63] = '\0'; }
+            g_hasGlobalV6 = 1;
         }
     }
+    if (!g_srcV6[0] && g_srcV6LL[0]) { strncpy(g_srcV6, g_srcV6LL, 63); g_srcV6[63] = '\0'; }
 }
 
 /* ---- live stats strip: passive throughput + 1 Hz ping (tiny footprint) ---- */
@@ -527,7 +544,7 @@ static DWORD PingV4Once(const char *ip, DWORD timeoutMs) {
 }
 
 static DWORD PingV6Once(const char *ip, const char *src, DWORD timeoutMs) {
-    if (!src || !src[0]) return PING_NONE;
+    if (!ip || !ip[0]) return PING_NONE;
     HANDLE h = Icmp6CreateFile();
     if (h == INVALID_HANDLE_VALUE) return PING_NONE;
     struct sockaddr_in6 dst, src6;
@@ -535,8 +552,22 @@ static DWORD PingV6Once(const char *ip, const char *src, DWORD timeoutMs) {
     ZeroMemory(&src6, sizeof(src6));
     dst.sin6_family = AF_INET6;
     src6.sin6_family = AF_INET6;
-    if (inet_pton(AF_INET6, ip, &dst.sin6_addr) != 1 ||
-        inet_pton(AF_INET6, src, &src6.sin6_addr) != 1) {
+    if (inet_pton(AF_INET6, ip, &dst.sin6_addr) != 1) {
+        IcmpCloseHandle(h);
+        return PING_NONE;
+    }
+    /* Pick the source to match the destination scope: fe80 targets need the
+       link-local source + interface scope, global targets need a global
+       source (never the link-local one Windows lists first). */
+    int dstIsLL = (ip[0] == 'f' && ip[1] == 'e' && ip[2] >= '8' && ip[2] <= 'b');
+    const char *useSrc = src;
+    if (dstIsLL) {
+        if (g_srcV6LL[0]) useSrc = g_srcV6LL;
+        dst.sin6_scope_id = (u_long)g_ifIndex;
+    } else {
+        if (!g_hasGlobalV6) { IcmpCloseHandle(h); return PING_NONE; }
+    }
+    if (!useSrc || !useSrc[0] || inet_pton(AF_INET6, useSrc, &src6.sin6_addr) != 1) {
         IcmpCloseHandle(h);
         return PING_NONE;
     }
