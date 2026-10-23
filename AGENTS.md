@@ -67,9 +67,9 @@ Every extra sequential round-trip or redundant rebuild adds seconds of wall-cloc
 3. **Keep tool environments & caches strictly outside `/home/user/Tests`.** Virtualenvs in `/home/user/.venv`, Zig/cache data in `/home/user/.cache` — never inside the worktree, so turn-end snapshots stay instantaneous.
 4. **Git: small commits, safe recovery, never force-push.**
    * The sandbox can rebuild `.git` between turns: HEAD falls back to the branch base while working files survive, and a commit made on that stale base pushes as non-fast-forward.
-   * **Turn start:** `git fetch origin <branch> && git reset origin <branch>` (mixed reset — working files untouched, stale-history confusion gone). `tools/sync_branch.sh` does the same thing; it is a turn-start tool only.
+   * **Turn start: `bash tools/sync_branch.sh`** — safe by design: fetch + re-align (working files never touched), installs the `.githooks/` commit guards, and leaves good unpushed commits alone.
    * **Crash isolation: ONE logical change per commit**, each with its own `build_windows.py` + `check_all.py` run, pushed immediately. Never bundle unrelated changes.
-   * **If a push rejects:** `git fetch origin <branch> && git reset origin <branch>` — your commit's content reappears as working diffs — then re-`git add`, re-`commit`, push again. Never `--force`. Never run any reset while holding unpushed commits you have not re-verified.
+   * **If a push rejects:** `bash tools/sync_branch.sh` (it detects the stale base and re-surfaces the commit content as working diffs), re-`git add`, re-`commit`, push again. Never `--force`.
 5. **Keep internal reasoning tight.** Decide the architecture once, batch edits, build + check once per change, push, answer concisely.
 
 ---

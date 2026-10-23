@@ -7,7 +7,7 @@
 ## Turn protocol (do this literally)
 
 1. **Live notes first** (before any other action): Drive doc "Agent Notes - Tests repo", id `1XRzQ4yhq2slvH1E2r2t9c7uK-vGcI1EBAxQOmSZArN8` (read via Drive connector `read_file_text`; newest at bottom; attached images = export DOCX, extract `word/media/*`). Re-read every 2-3 commits and before the final push; answer notes in the final message.
-2. **Git re-align** (sandbox rebuilds `.git` between turns; files survive): `git fetch origin arena/e895b94f-tests && git reset origin arena/e895b94f-tests`. Recovery after a rejected push is the same two-liner + re-commit (content survives as diffs). Never force-push. `tools/sync_branch.sh` = same mixed reset, turn-start only.
+2. **Git re-align:** `bash tools/sync_branch.sh` (safe: installs `.githooks/` commit guards, fetch + re-aligns the pointer; working files never touched; good unpushed commits left alone). The pre-commit guard refuses stale-base commits. Never force-push.
 3. One parallel read batch: this file + `.agent/CODEMAP.md` + only the task's topic doc (`.agent/INDEX.md`).
 4. One logical change per commit (own build+check), push immediately.
 5. Update this file whenever project state changes (it survives resets).

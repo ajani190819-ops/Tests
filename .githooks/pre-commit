@@ -1,0 +1,18 @@
+#!/bin/sh
+# Refuse to commit on a stale or missing origin base. The Arena sandbox
+# rebuilds .git between turns; committing on the stale base is what produced
+# rejected non-fast-forward pushes. Installed by tools/sync_branch.sh at
+# every turn start (a rebuild wipes .git/hooks) - run that first if this fires.
+BR=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+[ -z "$BR" ] || [ "$BR" = "HEAD" ] && exit 0
+if ! git rev-parse --verify -q "origin/$BR" >/dev/null; then
+  echo "pre-commit: origin/$BR is unknown - the sandbox git state was rebuilt." >&2
+  echo "pre-commit: run   bash tools/sync_branch.sh   then commit again." >&2
+  exit 1
+fi
+if ! git merge-base --is-ancestor "origin/$BR" HEAD 2>/dev/null; then
+  echo "pre-commit: HEAD is not based on origin/$BR (stale base)." >&2
+  echo "pre-commit: run   bash tools/sync_branch.sh   then commit again." >&2
+  exit 1
+fi
+exit 0
