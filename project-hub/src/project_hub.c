@@ -1122,6 +1122,14 @@ static void RefreshProjectStatuses(void) {
 
     g_hubUpdAvail = (remHub[0] != '\0' && strcmp(remHub, HUB_VERSION) != 0);
     g_topBtns[1].label = g_hubUpdAvail ? L"Update Hub \x25B2" : L"Update Hub";
+    g_topBtns[1].style = g_hubUpdAvail ? BTN_AMBER : BTN_SECONDARY;
+
+    /* Recompute every button style from a neutral base each refresh. A
+       button that turned amber for an update must go back to normal the
+       moment the update lands, not stay yellow until the hub restarts. */
+    for (int i = 0; i < 5; i++)
+        for (int b = 0; b < g_cards[i].btnCount && b < 4; b++)
+            g_cards[i].btns[b].style = BTN_SECONDARY;
 
     wchar_t path[MAX_PATH];
 
