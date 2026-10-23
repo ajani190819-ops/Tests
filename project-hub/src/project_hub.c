@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.14"
-#define HUB_VERSION_W     L"2.8.14"
+#define HUB_VERSION       "2.8.15"
+#define HUB_VERSION_W     L"2.8.15"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -1590,25 +1590,29 @@ static void WorkerInstallSpatialHud(void) {
     }
 
     EnsureDirTree(g_modsDir);
-    wchar_t pat[MAX_PATH];
-    _snwprintf(pat, MAX_PATH, L"%s\\spatial-hud*.jar", g_modsDir);
-    WIN32_FIND_DATAW fd;
-    HANDLE hf = FindFirstFileW(pat, &fd);
-    if (hf != INVALID_HANDLE_VALUE) {
-        do {
-            wchar_t oldJar[MAX_PATH];
-            _snwprintf(oldJar, MAX_PATH, L"%s\\%s", g_modsDir, fd.cFileName);
-            DeleteFileW(oldJar);
-        } while (FindNextFileW(hf, &fd));
-        FindClose(hf);
-    }
 
     wchar_t destJar[MAX_PATH];
     _snwprintf(destJar, MAX_PATH, L"%s\\%s", g_modsDir, jarName);
+    /* Land the NEW jar first. If the write fails (Minecraft holding a jar,
+       disk full, ...) every previously installed jar must survive - only
+       after the new jar is safely on disk do we retire the old versions. */
     BOOL ok = WriteBinaryFileAtomic(destJar, jarBytes, sz);
     free(jarBytes);
 
     if (ok) {
+        wchar_t pat[MAX_PATH];
+        _snwprintf(pat, MAX_PATH, L"%s\\spatial-hud*.jar", g_modsDir);
+        WIN32_FIND_DATAW fd;
+        HANDLE hf = FindFirstFileW(pat, &fd);
+        if (hf != INVALID_HANDLE_VALUE) {
+            do {
+                if (lstrcmpiW(fd.cFileName, jarName) == 0) continue;
+                wchar_t oldJar[MAX_PATH];
+                _snwprintf(oldJar, MAX_PATH, L"%s\\%s", g_modsDir, fd.cFileName);
+                DeleteFileW(oldJar);
+            } while (FindNextFileW(hf, &fd));
+            FindClose(hf);
+        }
         wchar_t msg[300];
         _snwprintf(msg, 299, L"Spatial HUD updated (%s).", jarName);
         SetFooterStatus(msg, 0);
