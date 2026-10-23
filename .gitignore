@@ -30,3 +30,6 @@ Unselected files/
 
 
 
+
+# private live-notes inbox (never commit owner notes to the public repo)
+.agent/INBOX.md

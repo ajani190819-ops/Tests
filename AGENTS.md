@@ -6,13 +6,17 @@ default assistant habits wherever the two disagree.
 
 **Turn start — in this exact order:**
 
-1. **Live notes first, before any other action.** Read the Google Drive doc
-   "Agent Notes - Tests repo" (Drive connector `read_file_text`, id
-   `1XRzQ4yhq2slvH1E2r2t9c7uK-vGcI1EBAxQOmSZArN8`; newest entries at the
-   bottom). During long multi-commit turns RE-READ at checkpoints: after
-   every 2-3 commits and once before the final push. Answer every note in
-   the turn's final message (simple answer first). If the doc has an
-   attached image, export the doc as DOCX and extract `word/media/*` to see it.
+1. **Live notes first, before any other action.** Read `.agent/INBOX.md`
+   (written by the owner's AgentNotes Windows app / the browser
+   quick-capture page via `tools/notes_server.py`; newest entries at the
+   bottom). Start the receiver at every turn start if it is not running:
+   `python3 tools/notes_server.py 8765` (background). During long
+   multi-commit turns RE-READ at checkpoints: after every 2-3 commits and
+   once before the final push. Answer every note in the turn's final
+   message (simple answer first). Transition fallback: the legacy Google
+   Drive doc "Agent Notes - Tests repo" (id
+   `1XRzQ4yhq2slvH1E2r2t9c7uK-vGcI1EBAxQOmSZArN8`) is checked too until the
+   owner retires it.
 2. **Re-align git history if needed** (the sandbox rebuilds `.git` between
    turns while working files survive) — see §0b.4.
 3. **One parallel read batch:** `.agent/STATE.md`, `.agent/CODEMAP.md`, and
