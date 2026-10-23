@@ -107,6 +107,8 @@ project-hub/                  Native Win32 Suite Control Center (ProjectHub.exe 
 bluetooth-guard/              High-priority native Win32 Bluetooth auto-connect blocker (BluetoothGuard.exe)
 keyboard-lighting/            ASUS ROG Strix G16 RGB tray & engine (strict 7-bit ASCII, C# 5.0)
 dns-pilot/                    DNS benchmark & auto-pilot (DnsPilot.exe, tray autostart)
+agent-notes/                  Quick-notes Windows app (AgentNotes.exe) -> session .agent/INBOX.md
+suite-apps.json               App catalog: one entry adds a hub card (Install + icon), no hub update needed
 spatial-hud-template-26.3/    Minecraft 26.3 Fabric client mod + updater
 docs/
   UI_STYLE_GUIDE.md           Soft Slate UI palette, rounded geometry & icon specs
