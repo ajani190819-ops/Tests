@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.19"
-#define HUB_VERSION_W     L"2.8.19"
+#define HUB_VERSION       "2.8.20"
+#define HUB_VERSION_W     L"2.8.20"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -167,6 +167,7 @@ static HICON            g_appIcon     = NULL;
 static HICON            g_hdrEmblem   = NULL;
 static HICON            g_cardIcons[5] = {NULL, NULL, NULL, NULL, NULL};
 static HANDLE           g_showEvent   = NULL;
+static HANDLE           g_hMutex      = NULL;
 static CRITICAL_SECTION g_cs;
 
 static ActionBtn        g_topBtns[4] = {
@@ -2818,10 +2819,20 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         InvalidateRect(hwnd, NULL, FALSE);
         return 0;
 
-    case WM_HUB_SELFUPD:
-        ShellExecuteW(NULL, L"open", g_exePath, NULL, g_exeDir, SW_SHOWNORMAL);
+    case WM_HUB_SELFUPD: {
+        /* Hand the single-instance lock over BEFORE spawning the new build.
+           If this old process still holds it, the new hub sees a duplicate
+           launch, forwards to us and exits - and once we exit too nothing is
+           left running. */
+        if (g_hMutex) { CloseHandle(g_hMutex); g_hMutex = NULL; }
+        HINSTANCE hi = ShellExecuteW(NULL, L"open", g_exePath, NULL, g_exeDir, SW_SHOWNORMAL);
+        if ((INT_PTR)hi <= 32) {
+            SetFooterStatus(L"Project Hub updated - please reopen it.", 0);
+            return 0;   /* stay up rather than vanish with no successor */
+        }
         DestroyWindow(hwnd);
         return 0;
+    }
 
     case WM_TIMER:
         if (wp == 2) {
@@ -2858,13 +2869,22 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     (void)hPrev; (void)cmdLine; (void)nShow;
     g_hInst = hInst;
 
-    HANDLE hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+    /* A hub that just updated itself spawns the new build while the old
+       process is still shutting down and holding this mutex. Wait briefly
+       for the lock instead of instantly treating the fresh copy as a second
+       click and quitting - that race is why the hub never reopened after an
+       update. A genuine duplicate launch still forwards and exits. */
+    BOOL solo = FALSE;
+    for (int mi = 0; mi < 12; mi++) {
+        g_hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
+        if (GetLastError() != ERROR_ALREADY_EXISTS) { solo = TRUE; break; }
+        CloseHandle(g_hMutex);
+        g_hMutex = NULL;
         HANDLE ev = OpenEventW(EVENT_MODIFY_STATE, FALSE, SHOW_EVENT_NAME);
         if (ev) { SetEvent(ev); CloseHandle(ev); }
-        if (hMutex) CloseHandle(hMutex);
-        return 0;
+        Sleep(250);
     }
+    if (!solo) return 0;
 
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     InitializeCriticalSection(&g_cs);
@@ -2916,7 +2936,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     if (hWorker) { WaitForSingleObject(hWorker, 1500); CloseHandle(hWorker); }
     CloseHandle(g_qSem);
     if (g_showEvent) CloseHandle(g_showEvent);
-    if (hMutex) CloseHandle(hMutex);
+    if (g_hMutex) CloseHandle(g_hMutex);
     DeleteCriticalSection(&g_cs);
     CoUninitialize();
     return 0;
