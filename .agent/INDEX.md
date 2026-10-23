@@ -6,7 +6,8 @@ Read only the files needed for the current task, and always read them in **one p
 
 1. `AGENTS.md` — permanent rules, **Fast Execution Protocol (§0b)**, and communication standards.
 2. `.agent/STATE.md` — current work, verified status, versions, and next action.
-3. Only the single topic file from the table below that matches the user's request.
+3. `.agent/CODEMAP.md` — generated function/line index (from `tools/agent_map.py`) for fast lookup.
+4. Only the single topic file from the table below that matches the user's request.
 
 ## Topic map
 
@@ -18,7 +19,7 @@ Read only the files needed for the current task, and always read them in **one p
 | Any change that might capture or affect other GUIs | `.agent/decisions/0001-selected-hud-only.md` | — |
 | OrcaSlicer plugin behavior | `docs/ORCA-PLUGIN-FACTS.md` | `python3 tools/check_all.py` |
 | Orca plugin plans or open work | `docs/ROADMAP.md` | — |
-| Orca plugin release | `AGENTS.md` §5 and §5a, then the relevant plugin changelog | `python3 tools/check_all.py` |
+| Orca plugin release | `AGENTS.md` §4 (Verification & Release Playbook), then the relevant plugin changelog | `python3 tools/check_all.py` |
 
 ## Maintenance rules
 

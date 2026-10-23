@@ -29,7 +29,8 @@ NODEPS_ONLY = ["test_plugin_runtime.py", "test_plugin_audit.py"]
 TOOLS = [["tools/sync_engine.py", "--check"],
          ["tools/sync_changelog.py", "--check"],
          ["tools/dump_default_config.py", "--check"],
-         ["tools/bump_version.py", "--check-docs"]]
+         ["tools/bump_version.py", "--check-docs"],
+         ["tools/agent_map.py", "--check"]]
 
 
 def have_deps():

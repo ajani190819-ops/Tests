@@ -2,50 +2,34 @@
 
 **Active Working Branch:** `arena/e895b94f-tests`
 **Last Updated:** 2026-10-23
-**Head (remote):** `b08d933` at last sync; always `bash tools/sync_branch.sh` first.
+**PR:** #10 open — every commit+push updates it.
 
 ## Turn protocol (do this literally)
 
-1. `bash tools/sync_branch.sh` — restores history continuity after the
-   cross-turn sandbox git reset (working files survive the reset, commit
-   objects may not). Any uncommitted work reappears as normal diffs.
-2. **Live-notes protocol** (Google Drive doc "Agent Notes - Tests repo", Drive
-   connector `read_file_text`, id `1XRzQ4yhq2slvH1E2r2t9c7uK-vGcI1EBAxQOmSZArN8`;
-   newest entries at the bottom):
-   - Read it FIRST at the start of every turn, before any other action.
-   - During long multi-commit turns, RE-READ at checkpoints: after every
-     2-3 commits and once before the final push. The agent cannot be
-     interrupted mid-edit; checkpoint polling is what guarantees a note
-     added while work is in flight is caught before the turn ends.
-   - Answer every note in the turn's final message (simple answer first).
-3. Read `AGENTS.md` + this file + only the topic facts for the task.
-4. Work, then ONE commit+push burst at turn end (push after every batch).
-5. Update this file whenever project state changes (it survives resets; keep
-   under 120 lines).
+1. **Live notes first** (before any other action): Drive doc "Agent Notes - Tests repo", id `1XRzQ4yhq2slvH1E2r2t9c7uK-vGcI1EBAxQOmSZArN8` (read via Drive connector `read_file_text`; newest at bottom; attached images = export DOCX, extract `word/media/*`). Re-read every 2-3 commits and before the final push; answer notes in the final message.
+2. **Git re-align** (sandbox rebuilds `.git` between turns; files survive): `git fetch origin arena/e895b94f-tests && git reset origin arena/e895b94f-tests`. Recovery after a rejected push is the same two-liner + re-commit (content survives as diffs). Never force-push. `tools/sync_branch.sh` = same mixed reset, turn-start only.
+3. One parallel read batch: this file + `.agent/CODEMAP.md` + only the task's topic doc (`.agent/INDEX.md`).
+4. One logical change per commit (own build+check), push immediately.
+5. Update this file whenever project state changes (it survives resets).
 
 ## Active Component Status
 
 | Component | Path | Version | Status |
 | :--- | :--- | :--- | :--- |
-| **Project Hub** | `project-hub/src/project_hub.c` + `ProjectHub.exe` | 2.8.20 | **GREEN** — Honest `Activity · Up to Date|Update Ready` badges, update buttons turn amber only while an update is ready, hub reliably reopens after self-update (mutex handover + retry), updates restore apps as they were (trayed→trayed), quiet 60s ETag update checks + shared TLS session, cached-frame spin paint, HUD jar swap is write-first, Arena Link card removed (5 cards) |
-| **Bluetooth Guard** | `bluetooth-guard/src/bluetooth_guard.c` + `BluetoothGuard.exe` | 2.8.7 | **GREEN** — Device list = only devices connected before (paired/connected scan + BTHPORT service-record evidence + rules-ghost hiding) |
-| **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `KeyboardLighting.exe` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 taps paced by engine; **hold modes** in `hold_mode.txt` (`KeyboardLighting.exe -HoldMode latch\|burst\|tap`, hot-swap): **latch = default** (press once to glide 5%/150ms, press again to stop; hardware sends ONE event per press so this is the closest real hold); seamless 52px tray emblem; G-Helper `Custom` + `ASUS services Stop` required |
-| **Brand / spin assets** | `docs/brand/`, `tools/generate_suite_icons.py` | 2026-10-22 | **GREEN** — `tri-spoke-spin-1024.webp` (full alpha quality master) + `-1024.gif` (narrow-band edge dither) + `spin.html` backdrop-switcher preview. Desktop viewers flatten transparency (the "brown background"); browsers + in-app emblem are the true-alpha surfaces |
-| **Agent tooling** | `AGENTS.md`, `tools/sync_branch.sh`, `tools/build_windows.py`, `tools/check_all.py` | 2026-10-22 | **GREEN** — One-shot build (~2s cached, ~130s cold), full suite (~4s cached, ~45s cold), icon regen (~80–130s) |
+| **Project Hub** | `project-hub/src/project_hub.c` + `ProjectHub.exe` | 2.8.21 | **GREEN** — update nag only for genuinely newer GitHub builds (numeric `VerNewer`), buttons amber only while update ready, reopens after self-update (mutex handover + retry), quiet 60s ETag checks, cached-frame spin paint, Arena Link removed (5 cards), requireAdministrator |
+| **Bluetooth Guard** | `bluetooth-guard/src/bluetooth_guard.c` + `BluetoothGuard.exe` | 2.8.7 | **GREEN** — rules-ghost device list; FastBoot task now `HighestAvailable` (elevated logon), requireAdministrator |
+| **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `KeyboardLighting.exe` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold modes (`-HoldMode latch\|burst\|tap`, latch default); logon task `/RL HIGHEST`; requireAdministrator |
+| **DNS Pilot** | `dns-pilot/src/dns_pilot.c` + `DnsPilot.exe` | size-tracked | **GREEN** — parallel rank test (seconds); benchmarks on EVERY start incl. tray; autostart = `TestsSuite-DnsPilot` ONLOGON task `/RL HIGHEST` (Run key migrated away); requireAdministrator |
+| **Agent tooling** | `AGENTS.md`, `.agent/CODEMAP.md`, `tools/` | 2026-10-23 | **GREEN** — `agent_map.py` code map (`--check` in suite), one-shot build (~2s cached) / full suite (~4s cached) |
 
-## Fast Verification & Build Commands
+## Fast Commands
 
-- Build all three Windows EXEs: `python3 tools/build_windows.py`
+- Build all four EXEs: `python3 tools/build_windows.py`
 - All verification suites: `python3 tools/check_all.py`
-- Icons + spin: `/home/user/.venv/bin/python3 tools/generate_suite_icons.py` (needs numpy+Pillow in `/home/user/.venv`)
-- Sync: `bash tools/sync_branch.sh`
+- Code map regen: `python3 tools/agent_map.py`
+- Icons + spin: `/home/user/.venv/bin/python3 tools/generate_suite_icons.py` (only when brand files change)
 
 ## Open Threads / Next Actions
 
-1. **PR #10** open on `arena/e895b94f-tests` — every session commit+push updates it.
-2. **User validation round (2026-10-23):** background apps auto-start to the
-   tray (KBL unified task + DNS Pilot Run key; hub stays manual), DNS Pilot
-   rank test is parallel (seconds, not minutes), spin repaints use the frame
-   cache, Arena Link removed per notes decision.
-3. Downloads are cache-busted `?v=<commit>`; new assets use NEW FILENAMES
-   (`-1024`) so stale caches cannot serve old pixels.
+1. **User validation round (2026-10-23 evening):** update buttons stop glowing when up to date; hub reopens after self-update (2.8.21); false "vX available" nag gone; DNS Pilot tests from tray startup; all apps elevated with no UAC at login.
+2. If the owner still sees a UAC prompt on manual double-click launches (UAC-on machines), offer routing shortcuts through a silent task launcher (`schtasks /Run`).
