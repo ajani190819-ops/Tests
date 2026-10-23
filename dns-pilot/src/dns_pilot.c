@@ -1133,6 +1133,12 @@ static void RowRect(int vis, RECT *r) {
     SetRect(r, S(20), S(166) + vis * S(34), S(960), S(166) + (vis + 1) * S(34));
 }
 
+/* Static-frame cache for the spin fast-path: the 50 ms emblem timer only
+   blits this snapshot plus the spinning square instead of re-rendering the
+   whole window (text, rows, stats) 20 times a second. */
+static HBITMAP g_frameCache = NULL;
+static int    g_fcW = 0, g_fcH = 0;
+
 static void PaintAll(HWND hwnd) {
     (void)hwnd;
     PAINTSTRUCT ps;
@@ -1140,6 +1146,26 @@ static void PaintAll(HWND hwnd) {
     RECT rc;
     GetClientRect(hwnd, &rc);
     int W = rc.right, H = rc.bottom;
+
+    /* Spin fast-path: an emblem-only update rect plus a cached frame means
+       we blit the snapshot and repaint just the spinning square. */
+    RECT ur = ps.rcPaint;
+    if (g_frameCache && g_fcW == W && g_fcH == H &&
+        ur.right > ur.left && ur.bottom > ur.top &&
+        g_rcEmblem.right > g_rcEmblem.left &&
+        ur.left >= g_rcEmblem.left && ur.top >= g_rcEmblem.top &&
+        ur.right <= g_rcEmblem.right && ur.bottom <= g_rcEmblem.bottom) {
+        HDC cacheDc = CreateCompatibleDC(dc);
+        HGDIOBJ oldc = SelectObject(cacheDc, g_frameCache);
+        BitBlt(dc, 0, 0, W, H, cacheDc, 0, 0, SRCCOPY);
+        SelectObject(cacheDc, oldc);
+        DeleteDC(cacheDc);
+        PaintEmblem(dc, g_rcEmblem.left, g_rcEmblem.top,
+                    g_rcEmblem.right - g_rcEmblem.left);
+        EndPaint(hwnd, &ps);
+        return;
+    }
+
     HDC mem = CreateCompatibleDC(dc);
     HBITMAP bmp = CreateCompatibleBitmap(dc, W, H);
     HGDIOBJ old = SelectObject(mem, bmp);
@@ -1281,6 +1307,21 @@ static void PaintAll(HWND hwnd) {
     SetRect(&fr, S(20), H - S(52), W - S(20), H - S(10));
     SetTextColor(mem, COL_TXT);
     DrawTextW(mem, g_status, -1, &fr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+    /* snapshot the composed frame for the spin fast-path */
+    if (!g_frameCache || g_fcW != W || g_fcH != H) {
+        if (g_frameCache) DeleteObject(g_frameCache);
+        g_frameCache = CreateCompatibleBitmap(dc, W, H);
+        g_fcW = W;
+        g_fcH = H;
+    }
+    if (g_frameCache) {
+        HDC cacheDc = CreateCompatibleDC(dc);
+        HGDIOBJ oldc = SelectObject(cacheDc, g_frameCache);
+        BitBlt(cacheDc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
+        SelectObject(cacheDc, oldc);
+        DeleteDC(cacheDc);
+    }
 
     BitBlt(dc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
     SelectObject(mem, old);

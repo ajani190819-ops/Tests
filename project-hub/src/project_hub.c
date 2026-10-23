@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.18"
-#define HUB_VERSION_W     L"2.8.18"
+#define HUB_VERSION       "2.8.19"
+#define HUB_VERSION_W     L"2.8.19"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -2112,7 +2112,37 @@ static int HitTestButtons(POINT pt, int headerBottom, int footerTop) {
     return 0;
 }
 
-static void PaintHubWindow(HWND hwnd, HDC targetDc) {
+/* Blit the spinning emblem square straight to a DC (spin fast-path). The
+   square is filled with the canvas background first - a raw COLORREF fill
+   would swap red/blue in the 32bpp DIB and show as a box. */
+static void PaintEmblemBlit(HDC dc, int x, int y, int sz) {
+    if (sz < 8 || sz > 512) return;
+    uint32_t *px = (uint32_t *)malloc((size_t)sz * sz * sizeof(uint32_t));
+    if (!px) return;
+    uint32_t bgP = ((uint32_t)GetRValue(COL_BG) << 16) |
+                   ((uint32_t)GetGValue(COL_BG) << 8) |
+                   (uint32_t)GetBValue(COL_BG);
+    for (int i = 0; i < sz * sz; i++) px[i] = bgP;
+    DrawWayfinderEmblem(px, sz, sz, 0, 0, sz);
+    BITMAPINFO bmi;
+    ZeroMemory(&bmi, sizeof(bmi));
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = sz;
+    bmi.bmiHeader.biHeight = -sz;
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+    SetDIBitsToDevice(dc, x, y, sz, sz, 0, 0, 0, sz, px, &bmi, DIB_RGB_COLORS);
+    free(px);
+}
+
+/* Static-frame cache for the spin fast-path: the 50 ms emblem timer blits
+   this snapshot plus the spinning square instead of re-rendering every
+   card, pill and row of text 20 times a second. */
+static HBITMAP g_frameCache = NULL;
+static int    g_fcW = 0, g_fcH = 0;
+
+static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
     int dpi = GetWinDpi(hwnd);
     RECT cli;
     GetClientRect(hwnd, &cli);
@@ -2121,6 +2151,24 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc) {
     if (w <= 0 || h <= 0) return;
 
     ComputeLayout(hwnd);
+
+    /* Spin fast-path: an emblem-only update rect plus a cached frame means
+       we blit the snapshot and repaint just the spinning square - no card
+       sweeps, no per-pixel roundrects, no text at 20 fps. */
+    if (updRc && g_frameCache && g_fcW == w && g_fcH == h &&
+        updRc->right > updRc->left && updRc->bottom > updRc->top &&
+        g_rcEmblem.right > g_rcEmblem.left &&
+        updRc->left >= g_rcEmblem.left && updRc->top >= g_rcEmblem.top &&
+        updRc->right <= g_rcEmblem.right && updRc->bottom <= g_rcEmblem.bottom) {
+        HDC cacheDc = CreateCompatibleDC(targetDc);
+        HGDIOBJ oldc = SelectObject(cacheDc, g_frameCache);
+        BitBlt(targetDc, 0, 0, w, h, cacheDc, 0, 0, SRCCOPY);
+        SelectObject(cacheDc, oldc);
+        DeleteDC(cacheDc);
+        PaintEmblemBlit(targetDc, g_rcEmblem.left, g_rcEmblem.top,
+                        g_rcEmblem.right - g_rcEmblem.left);
+        return;
+    }
 
     BITMAPINFO bmi;
     ZeroMemory(&bmi, sizeof(bmi));
@@ -2310,6 +2358,21 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc) {
     SetTextColor(hdc, g_hubUpdAvail ? COL_AMBER : COL_TEXT_SECONDARY);
     RECT fTxt = { pad + S(16, dpi), footerTop, w - pad, h };
     DrawTextW(hdc, footMsg, -1, &fTxt, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+
+    /* snapshot the composed frame for the spin fast-path */
+    if (!g_frameCache || g_fcW != w || g_fcH != h) {
+        if (g_frameCache) DeleteObject(g_frameCache);
+        g_frameCache = CreateCompatibleBitmap(targetDc, w, h);
+        g_fcW = w;
+        g_fcH = h;
+    }
+    if (g_frameCache) {
+        HDC cacheDc = CreateCompatibleDC(targetDc);
+        HGDIOBJ oldc = SelectObject(cacheDc, g_frameCache);
+        BitBlt(cacheDc, 0, 0, w, h, hdc, 0, 0, SRCCOPY);
+        SelectObject(cacheDc, oldc);
+        DeleteDC(cacheDc);
+    }
 
     BitBlt(targetDc, 0, 0, w, h, hdc, 0, 0, SRCCOPY);
     SelectObject(hdc, oldBmp);
@@ -2673,7 +2736,7 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
-        PaintHubWindow(hwnd, hdc);
+        PaintHubWindow(hwnd, hdc, &ps.rcPaint);
         EndPaint(hwnd, &ps);
         return 0;
     }
