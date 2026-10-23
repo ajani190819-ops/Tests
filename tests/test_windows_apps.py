@@ -523,6 +523,28 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("window.ready", setup)
         self.assertTrue((ROOT / "bluetooth-guard" / "Setup.bat").exists())
 
+    def test_project_hub_command_ids_do_not_collide(self):
+        """Guard the 'swallowed button' bug class: the branch-download menu
+        reserves a numeric command-ID range, and a button ID that lands
+        inside that range gets eaten as a bogus branch selection."""
+        src = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        ids = {}
+        for m in re.finditer(r"^#define\s+(ID_[A-Z0-9_]+)\s+(\d+)\s*$", src, re.M):
+            name, val = m.group(1), int(m.group(2))
+            self.assertNotIn(val, ids,
+                             f"command ID {val} claimed by both {ids.get(val)} and {name}")
+            ids[val] = name
+        self.assertGreaterEqual(len(ids), 20, "expected the full hub command-ID map")
+        self.assertIn("ID_MENU_BRANCH_BASE", ids.values())
+        self.assertIn("ID_MENU_BRANCH_CUSTOM", ids.values())
+        lo = min(v for v, n in ids.items() if n.startswith("ID_MENU_BRANCH"))
+        hi = max(v for v, n in ids.items() if n.startswith("ID_MENU_BRANCH"))
+        for val, name in ids.items():
+            if name.startswith("ID_MENU_BRANCH"):
+                continue
+            self.assertFalse(lo <= val <= hi,
+                             f"{name}={val} falls inside the branch-menu range {lo}-{hi}")
+
     def test_project_hub_covers_suite_projects(self):
         hub = (ROOT / "project-hub" / "ProjectHub.ps1").read_text(encoding="utf-8")
         hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
