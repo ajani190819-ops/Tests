@@ -2638,7 +2638,7 @@ static void ComputeLayout(HWND hwnd) {
         bx -= S(9, dpi);
     }
 
-    int contentH = 6 * cardH + 5 * gap + S(24, dpi);
+    int contentH = g_cardCount * cardH + (g_cardCount > 1 ? (g_cardCount - 1) : 0) * gap + S(24, dpi);
     int viewH = h - headerH - footerH;
     g_maxScrollY = (contentH > viewH) ? (contentH - viewH) : 0;
     if (g_scrollY > g_maxScrollY) g_scrollY = g_maxScrollY;
