@@ -235,7 +235,11 @@ public final class ExperimentalHudCapture {
 		int left = (int) Math.floor(Math.max(0.0f, centerX - halfWidth));
 		int right = (int) Math.ceil(Math.min(guiWidth, centerX + halfWidth));
 		int bottom = (int) Math.ceil(Math.min(guiHeight, plane.sourceBottom()));
-		int top = Math.max(0, bottom - PURPLE_SOURCE_HEIGHT);
+		// Height is the bounds control for the whole HUD picture: default 72
+		// (the historical PURPLE_SOURCE_HEIGHT), clamped like the width so a
+		// hand-edited file can neither crop the hotbar nor flood the panel.
+		int bandHeight = Math.max(56, Math.min(200, cfg.slotCyclingBandHeight));
+		int top = Math.max(0, bottom - bandHeight);
 		return new SourceRect(left, top, right, bottom);
 	}
 

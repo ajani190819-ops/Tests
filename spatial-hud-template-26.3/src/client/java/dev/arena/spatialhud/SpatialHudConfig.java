@@ -386,6 +386,18 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Gui.Tooltip
 	public int slotCyclingHalfWidth = 172;
 
+	/**
+	 * Height, in GUI pixels, of the band the purple panel samples and frames
+	 * from the bottom of the screen - the vertical companion of Slot Cycling
+	 * Half Width, and the bounds of the whole HUD picture. It is always active.
+	 * Raise it when content is clipped at the panel's edges, such as the bottom
+	 * edge of the hotbar's selection square.
+	 */
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.BoundedDiscrete(min = 56, max = 200)
+	@ConfigEntry.Gui.Tooltip
+	public int slotCyclingBandHeight = 72;
+
 	// Player-relative placement in block units. The default is in front of the
 	// player at waist height rather than fixed in screen/camera space.
 	@ConfigEntry.Category("setup")
