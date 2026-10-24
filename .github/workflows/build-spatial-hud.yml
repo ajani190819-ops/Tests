@@ -2,7 +2,7 @@ name: Build Spatial HUD
 
 on:
   push:
-    branches: [arena/c83497e6-tests]
+        branches: ['arena/**']
     paths:
       - 'spatial-hud-template-26.3/**'
       - '.github/workflows/build-spatial-hud.yml'
