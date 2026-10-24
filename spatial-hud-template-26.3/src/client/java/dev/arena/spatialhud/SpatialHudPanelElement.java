@@ -3,17 +3,31 @@ package dev.arena.spatialhud;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
 
 import net.minecraft.client.DeltaTracker;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
- * An optional translucent backing panel and a full-width method-colour band
- * beneath the spatial strip. It is also the single per-frame camera-pose
- * update point, before wrapped HUD elements read the shared pose.
+ * Starts the private capture for the active panel method and draws the purple
+ * identity into it. It is also the single per-frame camera-pose update point,
+ * before wrapped HUD elements read the shared pose, and it draws the failure
+ * indicator when the capture has latched a failure. The indicator is red for
+ * Method 3 and purple for Method 4, so the failing method shows at a glance.
+ *
+ * <p>Both panel methods use this private texture. Method 3 draws its purple
+ * border into the texture with the selected vanilla roots. Method 4 keeps its
+ * purple out of the texture, so the purple fill and white border are world
+ * geometry and the texture holds only HUD pixels.</p>
  */
 final class SpatialHudPanelElement implements HudElement {
+	// Failure indicator colours: red for Method 3, purple for Method 4.
+	private static final int RED_INDICATOR_OUTLINE = 0xFF3A0000;
+	private static final int RED_INDICATOR_FILL = 0xFFE53935;
+	private static final int PURPLE_INDICATOR_OUTLINE = 0xFF2A0A3D;
+	private static final int PURPLE_INDICATOR_FILL = 0xFFC75CFF;
+
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
+		// One-time log of the HUD registry, for finding other mods' elements. Never throws.
+		SpatialHudDiagnostics.dumpOnce();
 		if (!SpatialHud.isGameplayHudActive()) {
 			return;
 		}
@@ -24,76 +38,36 @@ final class SpatialHudPanelElement implements HudElement {
 		// before HOTBAR and gives every selected root one camera pitch value.
 		SpatialHud.updateViewPose();
 
-		// An error earlier in the frame paused us: skip our surfaces and let
-		// vanilla draw normally until the pause expires.
-		if (SpatialHud.isRenderPaused()) {
+		if (ExperimentalHudCapture.hasCaptureFailed()) {
+			drawFailureIndicator(graphics);
+		}
+
+		// Method 3 is viewport-culled like the rest of its physical plane. When
+		// it is out of view, nothing is drawn. Method 4 is never culled here.
+		if (!cfg.usesPurplePanel()
+				&& !SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
 			return;
 		}
 
-		if (cfg.usesPolygonTest()) {
-			// Method 4 is intentionally a single, self-contained purple test
-			// surface. Do not begin the lower-HUD texture capture here: that path
-			// adds a second dark panel and makes the editable target ambiguous.
-			try {
-				PolygonTestRenderer.drawGuide(graphics, cfg);
-			} catch (Throwable t) {
-				SpatialHud.safePause(t);
-			}
-			return;
-		}
-
-		// The physical-map methods keep finite-surface viewport culling.
-		if (!SpatialHud.isPhysicalPanelVisibleInGui(graphics.guiWidth(), graphics.guiHeight())) {
-			return;
-		}
-
-		// This prepares an isolated state only when the explicitly opt-in
-		// experiment is active. It never touches the main GUI extractor or a
-		// screen renderer; selected wrapped roots decide individually whether to
-		// feed it below.
 		ExperimentalHudCapture.beginFrame(graphics);
-
-		// In the texture modes, both the optional backing and wide coloured mode
-		// band are part of the same source texture as hotbar/status pixels. They
-		// must not also draw here, or an affine duplicate would diverge from the
-		// true projective/world surface.
-		if (ExperimentalHudCapture.capturePanelDecorations(cfg)) {
-			return;
-		}
-		if (cfg.usesPolygonTest()) {
-			// Capture failed or is unavailable. Never draw an unwarped duplicate
-			// of the test panel while Method 4 is selected.
-			return;
-		}
-
-		int w = graphics.guiWidth();
-		int h = graphics.guiHeight();
-
-		// The safe fallback uses the same source envelope and local tangent as
-		// the virtual plane. Its rectangle is intentionally affine; the capture
-		// path above is the only mode that can bend its pixels exactly.
-		int x0 = w / 2 - (int) VirtualHudPlane.SOURCE_HALF_WIDTH;
-		int x1 = w / 2 + (int) VirtualHudPlane.SOURCE_HALF_WIDTH;
-		int y0 = Math.max(0, h - (int) VirtualHudPlane.SOURCE_TOP_FROM_BOTTOM);
-		int y1 = h;
-
-		graphics.pose().pushMatrix();
-		try {
-			SpatialHudElement.applySpatialPose(graphics, cfg);
-			if (cfg.showPanel) {
-				graphics.fill(x0 - 6, y0 - 8, x1 + 6, y1 + 4, 0x80101018);
-				graphics.fill(x0 - 6, y0 - 8, x1 + 6, y0, 0x5038384A);
-			}
-			// A deliberately full-width, 8px mode band stays inside the physical
-			// source envelope, so the texture methods sample the exact same marker.
-			// Green is Method 1's affine fallback, blue is Method 2's projective
-			// mesh, and red is Method 3's world-space texture.
-			graphics.fill(x0, y0, x1, y0 + 8, cfg.modeIndicatorColor());
-		} catch (Throwable t) {
-			SpatialHud.safePause(t);
-		} finally {
-			graphics.pose().popMatrix();
-		}
+		// If the capture is not running, nothing is drawn here: SpatialHudElement
+		// then shows the untouched vanilla HUD.
+		ExperimentalHudCapture.capturePanelDecorations(cfg);
 	}
 
+	/**
+	 * A small square just above the hotbar's top-left corner. It appears only
+	 * after a capture failure, so a failed texture never looks like a working
+	 * one. Red marks a Method 3 failure; purple marks a Method 4 failure.
+	 */
+	private static void drawFailureIndicator(GuiGraphicsExtractor graphics) {
+		SpatialHudConfig.RenderMethod failed = ExperimentalHudCapture.failedMethod();
+		boolean purple = failed == SpatialHudConfig.RenderMethod.POLYGON_TEST;
+		int outline = purple ? PURPLE_INDICATOR_OUTLINE : RED_INDICATOR_OUTLINE;
+		int fill = purple ? PURPLE_INDICATOR_FILL : RED_INDICATOR_FILL;
+		int x0 = graphics.guiWidth() / 2 - 91 - 9;
+		int y0 = graphics.guiHeight() - 22 - 9;
+		graphics.fill(x0, y0, x0 + 8, y0 + 8, outline);
+		graphics.fill(x0 + 1, y0 + 1, x0 + 7, y0 + 7, fill);
+	}
 }

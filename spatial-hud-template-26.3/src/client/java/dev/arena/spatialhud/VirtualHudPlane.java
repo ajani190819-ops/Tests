@@ -3,10 +3,8 @@ package dev.arena.spatialhud;
 import net.minecraft.client.Minecraft;
 
 /**
- * One camera-yaw-local, waist-height flat map shared by the captured HUD
- * texture and the safe affine fallback. The experimental mesh consumes the
- * full projective mapping; the public HUD API can consume only its centre
- * tangent.
+ * One camera-yaw-local, waist-height flat map used by the Method 3 world
+ * panel. Its projection maps the captured texture onto the plane.
  *
  * <p>The plane stays in front as the player turns horizontally but never rotates
  * with camera pitch to remain visible. Its near-horizontal default resembles a
@@ -28,7 +26,6 @@ final class VirtualHudPlane {
 	private final int guiWidth;
 	private final int guiHeight;
 	private final float focalLength;
-	private final float cameraPitchDegrees;
 	private final float sourceLeft;
 	private final float sourceRight;
 	private final float sourceTop;
@@ -38,13 +35,11 @@ final class VirtualHudPlane {
 	private final float sourceWidth;
 	private final float sourceHeight;
 
-	private VirtualHudPlane(SpatialHudConfig cfg, int guiWidth, int guiHeight,
-			float focalLength, float cameraPitchDegrees) {
+	private VirtualHudPlane(SpatialHudConfig cfg, int guiWidth, int guiHeight, float focalLength) {
 		this.cfg = cfg;
 		this.guiWidth = guiWidth;
 		this.guiHeight = guiHeight;
 		this.focalLength = focalLength;
-		this.cameraPitchDegrees = cameraPitchDegrees;
 		this.sourceCenterX = guiWidth * 0.5f;
 		this.sourceCenterY = guiHeight - 33.0f;
 		this.sourceLeft = sourceCenterX - SOURCE_HALF_WIDTH;
@@ -55,18 +50,20 @@ final class VirtualHudPlane {
 		this.sourceHeight = sourceBottom - sourceTop;
 	}
 
-	static VirtualHudPlane forGui(SpatialHudConfig cfg, int guiWidth, int guiHeight,
-			double fovDegrees, float cameraPitchDegrees) {
-		double fov = clamp(fovDegrees, 30.0, 150.0);
-		float focal = (float) ((guiHeight * 0.5) / Math.tan(Math.toRadians(fov) * 0.5));
-		return new VirtualHudPlane(cfg, guiWidth, guiHeight, focal, cameraPitchDegrees);
+	static VirtualHudPlane forGui(SpatialHudConfig cfg, int guiWidth, int guiHeight) {
+		return new VirtualHudPlane(cfg, guiWidth, guiHeight, focalLengthFor(guiHeight));
 	}
 
-	static VirtualHudPlane forGui(SpatialHudConfig cfg, int guiWidth, int guiHeight) {
+	/**
+	 * The camera's focal length in GUI pixels, derived from the player's field
+	 * of view. Method 3's plane and Method 4's pitched card both project through
+	 * this one value, so all of Spatial HUD's perspective matches the world and
+	 * the FOV setting instead of using invented screen fractions.
+	 */
+	static float focalLengthFor(int guiHeight) {
 		Minecraft mc = Minecraft.getInstance();
-		double fov = mc == null ? 70.0 : clamp(mc.options.fov().get(), 30.0, 150.0);
-		float livePitch = (mc == null || mc.player == null) ? SpatialHud.pitch : mc.player.getXRot();
-		return forGui(cfg, guiWidth, guiHeight, fov, livePitch);
+		double fov = clamp(mc.options.fov().get(), 30.0, 150.0);
+		return (float) ((Math.max(1, guiHeight) * 0.5) / Math.tan(Math.toRadians(fov) * 0.5));
 	}
 
 	int guiWidth() {
@@ -111,23 +108,6 @@ final class VirtualHudPlane {
 	}
 
 	/**
-	 * Project a texture-mesh vertex as a readable flat map trapezoid. The real
-	 * 3D projection supplies its depth and vertical placement. An additional
-	 * width multiplier then pinches the far/top row and widens the near/bottom
-	 * row around that row's centre—explicitly bringing the top two corners closer
-	 * together rather than merely stretching pixels along the X/Y axes.
-	 */
-	Point projectWarped(float sourceX, float sourceY, float topEdgeWidth,
-			float bottomEdgeWidth) {
-		Point physical = project(sourceX, sourceY);
-		Point rowCentre = project(sourceCenterX, sourceY);
-		float v = (sourceY - sourceTop) / sourceHeight;
-		float widthMultiplier = lerp(topEdgeWidth, bottomEdgeWidth, v);
-		return new Point(rowCentre.x() + (physical.x() - rowCentre.x()) * widthMultiplier,
-				physical.y());
-	}
-
-	/**
 	 * True only when all four physical panel corners are in front of the camera
 	 * and their projected bounds intersect the current GUI viewport. This avoids
 	 * clamping behind-camera vertices into the giant screen-filling card that
@@ -144,24 +124,15 @@ final class VirtualHudPlane {
 		float minY = Float.POSITIVE_INFINITY;
 		float maxX = Float.NEGATIVE_INFINITY;
 		float maxY = Float.NEGATIVE_INFINITY;
-		int visibleCorners = 0;
 		for (Projection corner : corners) {
 			if (corner.depth() <= 0.08f) {
-				// Behind the near plane: this corner abstains instead of
-				// vetoing the whole panel. Looking far down swings the far/top
-				// edge behind the camera while most of the panel is still on
-				// screen - culling everything there made the HUD vanish.
-				continue;
+				return false;
 			}
-			visibleCorners++;
 			Point screen = toScreenPoint(corner);
 			minX = Math.min(minX, screen.x());
 			minY = Math.min(minY, screen.y());
 			maxX = Math.max(maxX, screen.x());
 			maxY = Math.max(maxY, screen.y());
-		}
-		if (visibleCorners == 0) {
-			return false;
 		}
 		return maxX >= 0.0f && minX <= guiWidth && maxY >= 0.0f && minY <= guiHeight;
 	}
@@ -189,7 +160,7 @@ final class VirtualHudPlane {
 	}
 
 	/**
-	 * Methods 1 and 2 use a camera-yaw map surface. Horizontal turns keep it in
+	 * Method 3 uses a camera-yaw map surface. Horizontal turns keep it in
 	 * front, but camera pitch only observes the fixed waist-height plane—it
 	 * never rotates the panel to keep it on-screen.
 	 */
@@ -202,7 +173,7 @@ final class VirtualHudPlane {
 
 		// This is a literal flat-map tilt around the panel's left-to-right axis.
 		// Positive tilt places the far/top edge farther away. A near-horizontal
-		// map remains a real plane—Method 2 still applies depth per mesh vertex.
+		// map remains a real plane, so its perspective is the world's own.
 		float planeTilt = radians(clamp(
 				cfg.virtualFaceOnLookDownPitch + cfg.virtualPitch, -89, 89));
 		float planeY = localY * cos(planeTilt) - yawZ * sin(planeTilt);
@@ -211,7 +182,12 @@ final class VirtualHudPlane {
 		float bodyX = (float) cfg.virtualOffsetX + yawX;
 		float bodyY = (float) cfg.virtualOffsetY + planeY;
 		float bodyZ = (float) Math.max(0.10, cfg.distance) + planeZ;
-		float cameraPitch = radians(clamp(cameraPitchDegrees, -80, 89));
+		// Read the live camera pitch here rather than using the prior frame's HUD
+		// extraction sample. Viewport culling and texture activation therefore
+		// change at the same instant the finite map crosses the screen edge.
+		Minecraft mc = Minecraft.getInstance();
+		float livePitch = mc.player == null ? SpatialHud.pitch : mc.player.getXRot();
+		float cameraPitch = radians(clamp(livePitch, -80, 89));
 		float cameraY = bodyY * cos(cameraPitch) + bodyZ * sin(cameraPitch);
 		float depth = -bodyY * sin(cameraPitch) + bodyZ * cos(cameraPitch);
 		return new Projection(bodyX, cameraY, depth);
@@ -230,10 +206,6 @@ final class VirtualHudPlane {
 	private record Projection(float x, float y, float depth) {
 	}
 
-	Point projectAt(float u, float v) {
-		return project(lerp(sourceLeft, sourceRight, u), lerp(sourceTop, sourceBottom, v));
-	}
-
 	float textureU(float sourceX) {
 		return sourceX / guiWidth;
 	}
@@ -246,10 +218,6 @@ final class VirtualHudPlane {
 		float amount = clamp(cfg.experimentalCaptureCurvaturePercent / 100.0f, 0.0f, 1.0f);
 		float x = u * 2.0f - 1.0f;
 		return x * x * amount * planeWidth * 0.25f;
-	}
-
-	private static float lerp(float from, float to, float amount) {
-		return from + (to - from) * amount;
 	}
 
 	private static float radians(float degrees) {

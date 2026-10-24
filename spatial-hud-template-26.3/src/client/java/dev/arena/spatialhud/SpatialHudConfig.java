@@ -58,18 +58,6 @@ public final class SpatialHudConfig implements ConfigData {
 	public transient String guideOverview = "";
 
 	@ConfigEntry.Category("guide")
-	@MethodGuideText(color = 0xFF38C172)
-	public transient String guideClassicAffine = "";
-
-	@ConfigEntry.Category("guide")
-	@MethodGuideText(color = 0xFF469AEF)
-	public transient String guideCapturedMesh = "";
-
-	@ConfigEntry.Category("guide")
-	@MethodGuideText(color = 0xFFEF5350)
-	public transient String guideWorldSpace = "";
-
-	@ConfigEntry.Category("guide")
 	@MethodGuideText(color = 0xFFC75CFF)
 	public transient String guidePolygonTest = "";
 
@@ -87,6 +75,7 @@ public final class SpatialHudConfig implements ConfigData {
 	public int fovBaseline = 70;
 
 	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
 	@ConfigEntry.Gui.Tooltip
 	public boolean showPanel = true;
 
@@ -95,296 +84,261 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean onlyDuringGameplay = true;
 
 	/**
-	 * Visible, deliberately simple 1–4 selector. Cloth Config renders this as a
-	 * bounded slider, which avoids relying on an enum dropdown in a large
-	 * modpack's config UI. The value is read live, so saving the config takes
-	 * effect immediately on the next HUD frame.
-	 */
-	@ConfigEntry.Category("setup")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 1, max = 4)
-	public int renderModePicker = 2;
-
-	/**
-	 * Legacy JSON/keybinding storage. The public slider above is the one visible
-	 * config control; this enum is retained so existing files and F6/F7/F8 keep
-	 * working without a destructive format change.
+	 * Method 3 selector (3 = real world-space panel, 4 = purple panel). Hidden
+	 * while Method 3 is shelved: the purple panel is always the active method, and
+	 * this value is ignored. Kept so old files still load.
 	 */
 	@ConfigEntry.Category("setup")
 	@ConfigEntry.Gui.Excluded
-	public RenderMethod renderMethod = RenderMethod.CAPTURED_MESH;
+	@ConfigEntry.BoundedDiscrete(min = 3, max = 4)
+	public int renderModePicker = 3;
+
+	/**
+	 * Legacy JSON/keybinding storage. The slider above is the visible control;
+	 * this enum is kept so existing files and F8/F9 stay in step with it.
+	 */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public RenderMethod renderMethod = RenderMethod.WORLD_SPACE_TEXTURE;
 
 	public enum RenderMethod {
-		/** Captured texture with a balanced, always-on projective mesh warp. */
-		CLASSIC_AFFINE,
-		/** Captured texture with an intentionally strong projective mesh warp. */
-		CAPTURED_MESH,
-		/** Captured texture drawn on a real plane in the rendered world. */
+		/** Method 3: the captured HUD on a real, flat, client-side world panel. */
 		WORLD_SPACE_TEXTURE,
-		/** Purple GUI test surface with four independently positioned corners. */
+		/** Method 4: the purple horizontal panel, anchored to the player's feet. */
 		POLYGON_TEST
 	}
 
 	/**
-	 * A broad, always-present panel-edge band makes the active renderer
-	 * unmistakable in screenshots and while switching methods. Its pixels enter
-	 * the same capture texture as the HUD in Methods 2 and 3, rather than being
-	 * drawn as an unrelated overlay.
+	 * Where Method 4 places the panel. Waist uses the distance and height below and
+	 * the body heading setting. Face and the two custom presets are locked to the
+	 * camera or the feet, as their own settings say. Each preset keeps the wiggle.
 	 */
-	int modeIndicatorColor() {
-		return switch (selectedRenderMethod()) {
-			case CLASSIC_AFFINE -> 0xE038C172; // green: balanced forced mesh warp
-			case CAPTURED_MESH -> 0xE0469AEF; // blue: strong forced mesh warp
-			case WORLD_SPACE_TEXTURE -> 0xE0EF5350; // red: physical world texture
-			case POLYGON_TEST -> 0xE0C75CFF; // purple: independently shaped test quad
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public PanelPreset horizontalPanelPreset = PanelPreset.WAIST;
+
+	/** Purple Method 4 placement. Waist preset: a flat sheet anchored to your feet and body heading. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelDistance = 1.25;
+
+	/** Height of the Waist panel above your feet. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelHeight = 0.9;
+
+	/** Width of the purple panel, in blocks, while the Waist preset is active. The height follows the HUD's proportions. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelWaistWidth = 1.45;
+
+	/** Face preset: how far in front of the camera the panel sits, in blocks. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelFaceDistance = 0.6;
+
+	/** Face preset: height of the panel relative to the camera, in blocks. Negative is below the camera. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelFaceHeight = -0.3;
+
+	/** Width of the purple panel, in blocks, while the Face preset is active. The height follows the HUD's proportions. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelFaceWidth = 1.45;
+
+	/** Custom preset 1: distance in front of its anchor, in blocks. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomOneDistance = 1.0;
+
+	/** Custom preset 1: height relative to its anchor, in blocks. For feet anchors this is above your feet. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomOneHeight = 0.6;
+
+	/** Width of the purple panel, in blocks, while the Custom 1 preset is active. The height follows the HUD's proportions. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomOneWidth = 1.45;
+
+	/** Custom preset 1: anchor the panel to the camera instead of your feet. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelCustomOneAttachToCamera = false;
+
+	/** Custom preset 2: distance in front of its anchor, in blocks. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomTwoDistance = 1.25;
+
+	/** Custom preset 2: height relative to its anchor, in blocks. For feet anchors this is above your feet. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomTwoHeight = 0.9;
+
+	/** Width of the purple panel, in blocks, while the Custom 2 preset is active. The height follows the HUD's proportions. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public double horizontalPanelCustomTwoWidth = 1.45;
+
+	/** Custom preset 2: anchor the panel to the camera instead of your feet. */
+	@ConfigEntry.Category("presets")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelCustomTwoAttachToCamera = false;
+
+	/**
+	 * Legacy shared width. Old files copy it into each preset's width once (see
+	 * migrateV03Defaults). Nothing reads it for the purple panel now.
+	 */
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.Gui.Excluded
+	public double planeWidth = 1.45;
+
+	/** The panel width for the active preset. */
+	double horizontalPanelWidth() {
+		return switch (horizontalPanelPreset) {
+			case FACE -> horizontalPanelFaceWidth;
+			case CUSTOM_ONE -> horizontalPanelCustomOneWidth;
+			case CUSTOM_TWO -> horizontalPanelCustomTwoWidth;
+			default -> horizontalPanelWaistWidth;
 		};
 	}
 
-	// Player-relative placement in block units. The default is in front of the
-	// player at waist height rather than fixed in screen/camera space.
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Tooltip
-	public double distance = 1.25;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Tooltip
-	public double planeWidth = 1.45;
 
 	/**
-	 * Legacy fields remain in old JSON files but are no longer exposed. The
-	 * virtual plane is always present now; migration translates placement into
-	 * the explicit X/Y/Z controls below instead of keeping a look-down reveal.
+	 * Which heading Method 4 turns with. Player Body keeps the panel at body
+	 * heading, so turning your head does not move it. Camera Yaw turns the panel
+	 * with your horizontal view. Method 3 has its own setting above.
 	 */
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public double height = 0.85;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public boolean revealWhenLookingDown = false;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public int revealStartPitch = 18;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public int revealFullPitch = 48;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public int hiddenBelowScreenPixels = 105;
-
-	/** Player-local placement: +X right, +Y up, and +Z forward. */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("panel")
 	@ConfigEntry.Gui.Tooltip
-	public double virtualOffsetX = 0.0;
+	public HorizontalPanelAnchor horizontalPanelAnchor = HorizontalPanelAnchor.PLAYER_BODY;
 
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("panel")
 	@ConfigEntry.Gui.Tooltip
-	public double virtualOffsetY = -0.72;
-
-	/** Fine adjustment on the same left-to-right axis as the primary map tilt. */
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
-	public int virtualPitch = 0;
+	@ConfigEntry.BoundedDiscrete(min = 20, max = 90)
+	public int horizontalPanelAngle = 90;
 
 	/**
-	 * Retained exclusively to read old JSON. Visibility is now controlled by
-	 * the physical panel's depth and viewport intersection, never by an angle.
+	 * Curves the purple panel around you, like a curved gaming monitor. 0 keeps it
+	 * flat. The panel keeps its width along the curve, so higher values shorten its
+	 * straight-line span. Applies to every preset.
 	 */
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public int minimumLookDownPitch = 0;
-
-	/** Retained only so v1.2 config files still load; it is no longer read. */
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public boolean virtualTiltWithLook = false;
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.BoundedDiscrete(min = 0, max = 120)
+	@ConfigEntry.Gui.Tooltip
+	public int horizontalPanelCurveDegrees = 0;
 
 	/**
-	 * Main map-surface tilt around the panel's left-to-right axis. A near-90°
-	 * value makes a flat Minecraft-map-like surface readable from above, while
-	 * still allowing a deliberate angled-paper view when reduced.
+	 * Over-the-shoulder cameras sit beside the player, so the body can hide the
+	 * feet-anchored panel. On, the panel moves sideways by the camera's offset
+	 * from your eye, so the camera has a clear view of it. Has no effect when the
+	 * camera sits at your eye, and no effect on the camera-anchored presets.
 	 */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("panel")
 	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 5, max = 89)
-	public int virtualFaceOnLookDownPitch = 85;
-
-	/** Retained for v1.4 JSON compatibility; fixed-plane perspective ignores it. */
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public int virtualHorizonPerspectivePitch = 80;
-
-	/** Turn around the player-local/world-up axis. Positive values turn right. */
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = -80, max = 80)
-	public int virtualYaw = 0;
+	public boolean horizontalPanelFollowShoulderCamera = true;
 
 	/**
-	 * Roll around the panel normal. Positive values raise the panel's right
-	 * edge; keep zero for a normal readable desk surface.
+	 * Whether Method 4 draws its purple fill. Off leaves only the white border
+	 * ring, so the panel's outline can be seen against the world without the fill.
 	 */
-	@ConfigEntry.Category("positioning")
+	@ConfigEntry.Category("panel")
 	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
-	public int virtualRoll = 0;
+	public boolean horizontalPanelFill = true;
 
-	/** These controls affect only Render Method: World-Space Texture. */
-	@ConfigEntry.Category("positioning")
+	/** Whether Method 4 draws the white border ring. Off leaves just the HUD picture (and the fill, if on). */
+	@ConfigEntry.Category("panel")
 	@ConfigEntry.Gui.Tooltip
-	public WorldSpaceAnchor worldSpaceAnchor = WorldSpaceAnchor.CAMERA_YAW;
+	public boolean horizontalPanelBorder = true;
 
-	@ConfigEntry.Category("positioning")
+	/** Makes the purple fill run under the border ring, so no purple line shows at the ring's edge. */
+	@ConfigEntry.Category("panel")
 	@ConfigEntry.Gui.Tooltip
-	public boolean worldSpaceOccludeBehindWorld = true;
-
-	public enum WorldSpaceAnchor {
-		/** Keep the plane in front as the camera turns horizontally. */
-		CAMERA_YAW,
-		/** Keep the plane at a heading fixed to the player body. */
-		PLAYER_BODY
-	}
-
-	// Legacy alternatives remain readable from JSON but are not part of the
-	// supported hologram model. The migration selects CAMERA_YAW.
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public VirtualAnchorMode virtualAnchorMode = VirtualAnchorMode.CAMERA_YAW;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public double virtualWorldParallaxStrength = 0.35;
-
-	public enum VirtualAnchorMode {
-		CAMERA_YAW,
-		PLAYER_BODY,
-		VIEW_LOCKED,
-		WORLD_LIKE
-	}
+	public boolean horizontalPanelHideEdges = true;
 
 	/**
-	 * Legacy affine-plane fields kept only to read existing JSON files. The
-	 * virtual plane and captured mesh supersede them; hiding them prevents two
-	 * competing placement models in Mod Menu.
+	 * Whether blocks and entities between you and the Method 4 panel hide it.
+	 * Off draws the panel over everything, and also keeps water and other
+	 * translucent world surfaces showing through it correctly.
 	 */
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public boolean lookDownPlaneTilt = false;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public int planeFaceOnPitch = 72;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public int planeHorizonHeightPercent = 18;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public boolean taperBackingPlate = true;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public int planeHorizonFarEdgeWidthPercent = 42;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public boolean projectiveIconScaling = true;
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelOcclusion = true;
 
 	/**
-	 * Legacy switch retained to migrate pre-v1.5 JSON files. Render Method is
-	 * now the only visible selector and any failure returns to Classic Affine.
+	 * Body exclusion, in first and third person. On, the panel ignores blocks and
+	 * mobs, and is drawn over your own body, hand, armour and particles, so it stays
+	 * visible. Applies only while occlusion is on. Off, blocks and mobs hide the
+	 * panel where they cover it, and in first person your hand can cover it too.
+	 * Note: this is broader than the body alone. The depth buffer cannot exempt
+	 * just the player's model.
 	 */
-	@ConfigEntry.Category("setup")
-	@ConfigEntry.Gui.Excluded
-	public boolean experimentalCaptureWarp = false;
-
-	/** Reserved for a later cylindrical mesh mode; normal hologram mode is flat. */
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public int experimentalCaptureCurvaturePercent = 0;
-
-	// Legacy motion fields retained for saved configurations. The supported
-	// Camera Yaw hologram uses the player's current view directly.
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public double sway = 0.35;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public int swayResponseMs = 85;
-
-	@ConfigEntry.Category("positioning")
-	@ConfigEntry.Gui.Excluded
-	public boolean rotateWithSway = true;
+	@ConfigEntry.Category("panel")
+	@ConfigEntry.Gui.Tooltip
+	public boolean horizontalPanelThirdPersonException = true;
 
 	/**
-	 * Compatibility fallback for a companion status-bar mod. Off by default so
-	 * health, armor, food, and air travel with the spatial panel in every method.
-	 * Turn it on only if a companion mod renders detached duplicate decorations.
+	 * Lets the Method 4 panel lag behind your movement and catch up, instead of
+	 * snapping. Only the parts ticked below move with a lag.
 	 */
-	@ConfigEntry.Category("setup")
+	@ConfigEntry.Category("wiggle")
 	@ConfigEntry.Gui.Tooltip
-	public boolean preserveCompanionStatusLayout = false;
+	public boolean panelWiggle = true;
 
 	/**
-	 * Purple test-mode controls. Values are percentages of the current GUI
-	 * viewport, so the four handles remain meaningful at every resolution.
-	 * Keep corners in top-left, top-right, bottom-right, bottom-left order for a
-	 * normal convex map surface; deliberate crossing is useful for stress tests.
+	 * How long the heading and height take to catch up, in seconds. About 63% of
+	 * the way in one catch-up time.
 	 */
-	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Category("wiggle")
 	@ConfigEntry.Gui.Tooltip
-	public boolean polygonFollowCameraPitch = true;
+	public double panelWiggleSeconds = 0.2;
 
-	@ConfigEntry.Category("polygon")
+	/** How long the position takes to catch up, in seconds. Set separately, so position can lag more or less. */
+	@ConfigEntry.Category("wiggle")
+	@ConfigEntry.Gui.Tooltip
+	public double panelWigglePositionSeconds = 0.1;
+
+	@ConfigEntry.Category("wiggle")
+	@ConfigEntry.Gui.Tooltip
+	public boolean panelWiggleHeading = true;
+
+	/**
+	 * How much of the heading lag is shown, as a percentage. 100 shows the full
+	 * lag; 0 keeps the panel's turn locked to your body. The lag is scaled, not
+	 * re-timed, so it still never overshoots.
+	 */
+	@ConfigEntry.Category("wiggle")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
-	public int polygonPitchResponsePercent = 100;
+	public int panelWiggleHeadingStrength = 100;
 
-	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Category("wiggle")
+	@ConfigEntry.Gui.Tooltip
+	public boolean panelWigglePosition = false;
+
+	/**
+	 * How much of the position (and height, when ticked) lag is shown, as a
+	 * percentage. 50 halves how far the panel trails behind you.
+	 */
+	@ConfigEntry.Category("wiggle")
 	@ConfigEntry.Gui.Tooltip
 	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
-	public int polygonTopLeftXPercent = 30;
+	public int panelWigglePositionStrength = 50;
 
-	@ConfigEntry.Category("polygon")
+	/**
+	 * The most the position lag may pull the panel away from its true place, in
+	 * blocks. Larger lag is clamped to this distance, so sprinting cannot pull
+	 * the panel far away.
+	 */
+	@ConfigEntry.Category("wiggle")
 	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
-	public int polygonTopLeftYPercent = 35;
+	public double panelWigglePositionMaxBlocks = 0.25;
 
-	@ConfigEntry.Category("polygon")
+	@ConfigEntry.Category("wiggle")
 	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
-	public int polygonTopRightXPercent = 70;
-
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
-	public int polygonTopRightYPercent = 35;
-
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
-	public int polygonBottomRightXPercent = 80;
-
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
-	public int polygonBottomRightYPercent = 70;
-
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
-	public int polygonBottomLeftXPercent = 20;
-
-	@ConfigEntry.Category("polygon")
-	@ConfigEntry.Gui.Tooltip
-	@ConfigEntry.BoundedDiscrete(min = 0, max = 100)
-	public int polygonBottomLeftYPercent = 70;
+	public boolean panelWiggleHeight = false;
 
 	@ConfigEntry.Category("contents")
 	@ConfigEntry.Gui.Tooltip
@@ -405,6 +359,277 @@ public final class SpatialHudConfig implements ConfigData {
 	@ConfigEntry.Category("contents")
 	@ConfigEntry.Gui.Tooltip
 	public boolean showHeldItemName = true;
+
+	/** Hotbar Slot Cycling's side display (the cycle slots beside the hotbar). Method 4 widens its picture to hold it. */
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.Gui.Tooltip
+	public boolean showSlotCycling = true;
+
+	/**
+	 * Moves the HUD picture inside the purple panel, in percent of the panel's
+	 * height. Negative and positive values move it in opposite directions. The
+	 * default is -4. -3 was the position confirmed in game.
+	 */
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.BoundedDiscrete(min = -10, max = 10)
+	@ConfigEntry.Gui.Tooltip
+	public int horizontalPanelPictureOffset = -4;
+
+	/**
+	 * Half-width, in GUI pixels from the centre of the hotbar, of the band the
+	 * purple panel samples while Slot Cycling is shown. The cycle slots sit about
+	 * 91 to 167 pixels out, so 172 holds them all. Lower it to narrow the panel,
+	 * which cuts off the outermost cycle slots.
+	 */
+	@ConfigEntry.Category("contents")
+	@ConfigEntry.BoundedDiscrete(min = 112, max = 200)
+	@ConfigEntry.Gui.Tooltip
+	public int slotCyclingHalfWidth = 172;
+
+	// Player-relative placement in block units. The default is in front of the
+	// player at waist height rather than fixed in screen/camera space.
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	@ConfigEntry.Gui.Tooltip
+	public double distance = 1.25;
+
+	/**
+	 * Legacy fields remain in old JSON files but are no longer exposed. The
+	 * virtual plane is always present now; migration translates placement into
+	 * the explicit X/Y/Z controls below instead of keeping a look-down reveal.
+	 */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public double height = 0.85;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public boolean revealWhenLookingDown = false;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int revealStartPitch = 18;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int revealFullPitch = 48;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int hiddenBelowScreenPixels = 105;
+
+	/** Player-local placement: +X right, +Y up, and +Z forward. */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	@ConfigEntry.Gui.Tooltip
+	public double virtualOffsetX = 0.0;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	@ConfigEntry.Gui.Tooltip
+	public double virtualOffsetY = -0.72;
+
+	/** Fine adjustment on the same left-to-right axis as the primary map tilt. */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
+	public int virtualPitch = 0;
+
+	/**
+	 * Retained exclusively to read old JSON. Visibility is now controlled by
+	 * the physical panel's depth and viewport intersection, never by an angle.
+	 */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int minimumLookDownPitch = 0;
+
+	/** Retained only so v1.2 config files still load; it is no longer read. */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public boolean virtualTiltWithLook = false;
+
+	/**
+	 * Main map-surface tilt around the panel's left-to-right axis. A near-90°
+	 * value makes a flat Minecraft-map-like surface readable from above, while
+	 * still allowing a deliberate angled-paper view when reduced.
+	 */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = 5, max = 89)
+	public int virtualFaceOnLookDownPitch = 85;
+
+	/** Retained for v1.4 JSON compatibility; fixed-plane perspective ignores it. */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int virtualHorizonPerspectivePitch = 80;
+
+	/** Turn around the player-local/world-up axis. Positive values turn right. */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = -80, max = 80)
+	public int virtualYaw = 0;
+
+	/**
+	 * Roll around the panel normal. Positive values raise the panel's right
+	 * edge; keep zero for a normal readable desk surface.
+	 */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	@ConfigEntry.Gui.Tooltip
+	@ConfigEntry.BoundedDiscrete(min = -45, max = 45)
+	public int virtualRoll = 0;
+
+	/** These controls affect only Render Method: World-Space Texture. */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	@ConfigEntry.Gui.Tooltip
+	public WorldSpaceAnchor worldSpaceAnchor = WorldSpaceAnchor.CAMERA_YAW;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	@ConfigEntry.Gui.Tooltip
+	public boolean worldSpaceOccludeBehindWorld = true;
+
+	public enum WorldSpaceAnchor {
+		/** Keep the plane in front as the camera turns horizontally. */
+		CAMERA_YAW,
+		/** Keep the plane at a heading fixed to the player body. */
+		PLAYER_BODY
+	}
+
+	/** Where Method 4 places its panel. Only the purple panel reads this. */
+	public enum PanelPreset {
+		/** Anchored to your feet, using the distance and height sliders. */
+		WAIST,
+		/** Locked to the camera's view: square to you, a set distance ahead and height above the view centre. */
+		FACE,
+		/** The first custom preset. */
+		CUSTOM_ONE,
+		/** The second custom preset. */
+		CUSTOM_TWO
+	}
+
+	/** Which heading Method 4 follows. Only the purple panel reads this. */
+	public enum HorizontalPanelAnchor {
+		/** Turns with the camera's horizontal view. */
+		CAMERA_YAW,
+		/** Keeps the panel at body heading, so turning your head does not move it. */
+		PLAYER_BODY
+	}
+
+	// Legacy alternatives remain readable from JSON but are not part of the
+	// supported hologram model. The migration selects CAMERA_YAW.
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public VirtualAnchorMode virtualAnchorMode = VirtualAnchorMode.CAMERA_YAW;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public double virtualWorldParallaxStrength = 0.35;
+
+	public enum VirtualAnchorMode {
+		CAMERA_YAW,
+		PLAYER_BODY,
+		VIEW_LOCKED,
+		WORLD_LIKE
+	}
+
+	/**
+	 * Legacy affine-plane fields kept only to read existing JSON files. The
+	 * virtual plane and captured mesh supersede them; hiding them prevents two
+	 * competing placement models in Mod Menu.
+	 */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public boolean lookDownPlaneTilt = false;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int planeFaceOnPitch = 72;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int planeHorizonHeightPercent = 18;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public boolean taperBackingPlate = true;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int planeHorizonFarEdgeWidthPercent = 42;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public boolean projectiveIconScaling = true;
+
+	/**
+	 * Legacy switch retained to migrate pre-v1.5 JSON files. Render Method is
+	 * now the only visible selector. A capture failure shows the vanilla HUD.
+	 */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public boolean experimentalCaptureWarp = false;
+
+	/** Reserved for a later cylindrical mesh mode; normal hologram mode is flat. */
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int experimentalCaptureCurvaturePercent = 0;
+
+	// Legacy motion fields retained for saved configurations. The supported
+	// Camera Yaw hologram uses the player's current view directly.
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public double sway = 0.35;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int swayResponseMs = 85;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public boolean rotateWithSway = true;
+
+	// Legacy corner controls from the GUI-layer warp that Method 4 used before
+	// v22. They stay in the JSON so older files still load, but nothing reads them.
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public boolean polygonFollowCameraPitch = true;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int polygonTopLeftXPercent = 30;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int polygonTopLeftYPercent = 35;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int polygonTopRightXPercent = 70;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int polygonTopRightYPercent = 35;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int polygonBottomRightXPercent = 80;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int polygonBottomRightYPercent = 70;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int polygonBottomLeftXPercent = 20;
+
+	@ConfigEntry.Category("setup")
+	@ConfigEntry.Gui.Excluded
+	public int polygonBottomLeftYPercent = 70;
 
 	// AutoConfig reflects fields when constructing Cloth Config. These are runtime
 	// singletons, never settings; excluding them prevents a config-screen error.
@@ -457,63 +682,41 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 	}
 
-	/** Maps the visible 1–4 slider to the one active renderer. */
+	/** Maps the visible 3–4 slider to the one active renderer. */
 	RenderMethod selectedRenderMethod() {
-		return switch (Math.max(1, Math.min(4, renderModePicker))) {
-			case 1 -> RenderMethod.CLASSIC_AFFINE;
-			case 2 -> RenderMethod.CAPTURED_MESH;
-			case 3 -> RenderMethod.WORLD_SPACE_TEXTURE;
-			default -> RenderMethod.POLYGON_TEST;
-		};
+		// The purple panel is the only active method while Method 3 is shelved.
+		return RenderMethod.POLYGON_TEST;
 	}
 
 	/** Synchronizes direct key selection with the visible slider and old JSON field. */
 	void selectRenderMethod(RenderMethod method) {
 		renderMethod = method;
 		renderModePicker = switch (method) {
-			case CLASSIC_AFFINE -> 1;
-			case CAPTURED_MESH -> 2;
 			case WORLD_SPACE_TEXTURE -> 3;
 			case POLYGON_TEST -> 4;
 		};
 	}
 
 	/**
-	 * The three HUD presentation modes use a private lower-HUD texture. Method
-	 * 4 is deliberately the single direct purple test surface, so it never
-	 * starts a second captured rectangle behind the editable outline.
+	 * Both panel methods present the selected lower HUD through the one private
+	 * captured texture, drawn on a world-space quad. Capture is therefore always
+	 * required while Spatial HUD is enabled.
 	 */
 	boolean capturesTexture() {
-		return !usesPolygonTest();
-	}
-
-	/** Method 4 draws the one editable GUI-space quad. */
-	boolean usesPolygonTest() {
-		return selectedRenderMethod() == RenderMethod.POLYGON_TEST;
+		return true;
 	}
 
 	/**
-	 * Extra horizontal far-edge pinch layered on the real plane projection.
-	 * This deliberately moves the two top corners toward one another, producing
-	 * the unmistakable map-like trapezoid that a general X/Y distortion lacks.
+	 * Method 4: the purple horizontal panel (saved as POLYGON_TEST, a name kept
+	 * so existing files still load).
 	 */
-	float meshTopEdgeWidthMultiplier() {
-		return selectedRenderMethod() == RenderMethod.CLASSIC_AFFINE ? 0.80f : 0.46f;
+	boolean usesPurplePanel() {
+		return selectedRenderMethod() == RenderMethod.POLYGON_TEST;
 	}
 
-	/** Matching near-edge widening for the same forced trapezoid. */
-	float meshBottomEdgeWidthMultiplier() {
-		return selectedRenderMethod() == RenderMethod.CLASSIC_AFFINE ? 1.10f : 1.22f;
-	}
-
-	/** Whether the captured texture is presented by the real world renderer. */
-	boolean usesWorldSpaceTexture() {
-		return selectedRenderMethod() == RenderMethod.WORLD_SPACE_TEXTURE;
-	}
-
-	/** Migrates legacy JSON fields to the current named rendering methods. */
+		/** Migrates legacy JSON fields to the current named rendering methods. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 21) {
+		if (cfg.configVersion >= 23) {
 			return;
 		}
 
@@ -525,12 +728,6 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.revealFullPitch = 48;
 			cfg.hiddenBelowScreenPixels = 105;
 			cfg.onlyDuringGameplay = true;
-		}
-
-		if (cfg.configVersion < 4) {
-			// This is deliberately narrow and applies only when a corresponding
-			// companion mod is actually loaded.
-			cfg.preserveCompanionStatusLayout = true;
 		}
 
 		if (cfg.configVersion < 5) {
@@ -621,11 +818,9 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 
 		if (cfg.configVersion < 15) {
-			// Preserve an explicit earlier capture choice. New installations stay on
-			// the original stable affine path until the player picks a method.
-			cfg.renderMethod = cfg.experimentalCaptureWarp
-					? RenderMethod.CAPTURED_MESH
-					: RenderMethod.CLASSIC_AFFINE;
+			// Any value written here is translated again by the v21 step at
+			// the end of this migration.
+			cfg.renderMethod = RenderMethod.WORLD_SPACE_TEXTURE;
 			cfg.worldSpaceAnchor = WorldSpaceAnchor.CAMERA_YAW;
 			cfg.worldSpaceOccludeBehindWorld = true;
 		}
@@ -652,7 +847,6 @@ public final class SpatialHudConfig implements ConfigData {
 				cfg.virtualFaceOnLookDownPitch = 85;
 			}
 			cfg.minimumLookDownPitch = 0;
-			cfg.preserveCompanionStatusLayout = false;
 		}
 
 		if (cfg.configVersion < 18) {
@@ -661,33 +855,46 @@ public final class SpatialHudConfig implements ConfigData {
 			// could appear to do nothing in a heavily modded HUD stack. Start at
 			// the unmistakably stronger blue mesh; users can still pick green or
 			// red explicitly afterwards.
-			cfg.renderMethod = RenderMethod.CAPTURED_MESH;
+			cfg.renderMethod = RenderMethod.WORLD_SPACE_TEXTURE;
 			cfg.experimentalCaptureWarp = true;
 		}
 
 		if (cfg.configVersion < 19) {
 			// v1.9 replaces the enum-dropdown dependency with a visible 1–4 slider.
 			// Translate the already-saved enum once so the old chosen mode remains
-			// selected while the new purple polygon test becomes available.
-			cfg.selectRenderMethod(cfg.renderMethod);
+			// selected while the purple Method 4 panel becomes available.
+			// An enum name removed in v21 loads as null; the v21 step fixes it.
+			if (cfg.renderMethod != null) {
+				cfg.selectRenderMethod(cfg.renderMethod);
+			}
 		}
 
 		if (cfg.configVersion < 20) {
 			// Purple Method 4 now has one visible test surface, whose configured
 			// corners respond continuously to look pitch by default.
 			cfg.polygonFollowCameraPitch = true;
-			cfg.polygonPitchResponsePercent = 100;
 		}
 
 		if (cfg.configVersion < 21) {
-			// The companion pin must not survive a stale config: the status
-			// bars are expected to travel with the panel like every other root
-			// ("they should float around like everything else"). The visible
-			// Setup toggle re-enables the native layout deliberately.
-			cfg.preserveCompanionStatusLayout = false;
+			// v2.0 keeps only Method 3 (real world-space panel) and Method 4
+			// (purple GUI approximation). Old slider values 1 and 2 were the
+			// archived affine and mesh methods, so they move to Method 3.
+			cfg.renderModePicker = Math.max(3, Math.min(4, cfg.renderModePicker));
+			cfg.selectRenderMethod(cfg.selectedRenderMethod());
 		}
 
-		cfg.configVersion = 21;
+		if (cfg.configVersion < 23) {
+			// v2.3: the panel width is set per preset. Carry the saved shared width into
+			// every preset, so an existing HUD keeps its size until it is changed.
+			cfg.horizontalPanelWaistWidth = cfg.planeWidth;
+			cfg.horizontalPanelFaceWidth = cfg.planeWidth;
+			cfg.horizontalPanelCustomOneWidth = cfg.planeWidth;
+			cfg.horizontalPanelCustomTwoWidth = cfg.planeWidth;
+		}
+
+		// v22: Method 4 became a purple horizontal world panel. Its settings are
+		// new fields, so older files receive the defaults automatically.
+		cfg.configVersion = 23;
 		save();
 	}
 
@@ -706,6 +913,9 @@ public final class SpatialHudConfig implements ConfigData {
 		}
 		if (id.equals(VanillaHudElements.HELD_ITEM_TOOLTIP)) {
 			return showHeldItemName;
+		}
+		if (id.equals(SpatialHud.SLOT_CYCLING_ELEMENT)) {
+			return showSlotCycling;
 		}
 		return showBars; // armor / health / food / air
 	}
