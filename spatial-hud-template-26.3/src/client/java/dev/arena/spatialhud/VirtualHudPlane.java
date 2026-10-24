@@ -28,6 +28,7 @@ final class VirtualHudPlane {
 	private final int guiWidth;
 	private final int guiHeight;
 	private final float focalLength;
+	private final float cameraPitchDegrees;
 	private final float sourceLeft;
 	private final float sourceRight;
 	private final float sourceTop;
@@ -37,11 +38,13 @@ final class VirtualHudPlane {
 	private final float sourceWidth;
 	private final float sourceHeight;
 
-	private VirtualHudPlane(SpatialHudConfig cfg, int guiWidth, int guiHeight, float focalLength) {
+	private VirtualHudPlane(SpatialHudConfig cfg, int guiWidth, int guiHeight,
+			float focalLength, float cameraPitchDegrees) {
 		this.cfg = cfg;
 		this.guiWidth = guiWidth;
 		this.guiHeight = guiHeight;
 		this.focalLength = focalLength;
+		this.cameraPitchDegrees = cameraPitchDegrees;
 		this.sourceCenterX = guiWidth * 0.5f;
 		this.sourceCenterY = guiHeight - 33.0f;
 		this.sourceLeft = sourceCenterX - SOURCE_HALF_WIDTH;
@@ -52,11 +55,18 @@ final class VirtualHudPlane {
 		this.sourceHeight = sourceBottom - sourceTop;
 	}
 
+	static VirtualHudPlane forGui(SpatialHudConfig cfg, int guiWidth, int guiHeight,
+			double fovDegrees, float cameraPitchDegrees) {
+		double fov = clamp(fovDegrees, 30.0, 150.0);
+		float focal = (float) ((guiHeight * 0.5) / Math.tan(Math.toRadians(fov) * 0.5));
+		return new VirtualHudPlane(cfg, guiWidth, guiHeight, focal, cameraPitchDegrees);
+	}
+
 	static VirtualHudPlane forGui(SpatialHudConfig cfg, int guiWidth, int guiHeight) {
 		Minecraft mc = Minecraft.getInstance();
-		double fov = clamp(mc.options.fov().get(), 30.0, 150.0);
-		float focal = (float) ((guiHeight * 0.5) / Math.tan(Math.toRadians(fov) * 0.5));
-		return new VirtualHudPlane(cfg, guiWidth, guiHeight, focal);
+		double fov = mc == null ? 70.0 : clamp(mc.options.fov().get(), 30.0, 150.0);
+		float livePitch = (mc == null || mc.player == null) ? SpatialHud.pitch : mc.player.getXRot();
+		return forGui(cfg, guiWidth, guiHeight, fov, livePitch);
 	}
 
 	int guiWidth() {
@@ -134,15 +144,24 @@ final class VirtualHudPlane {
 		float minY = Float.POSITIVE_INFINITY;
 		float maxX = Float.NEGATIVE_INFINITY;
 		float maxY = Float.NEGATIVE_INFINITY;
+		int visibleCorners = 0;
 		for (Projection corner : corners) {
 			if (corner.depth() <= 0.08f) {
-				return false;
+				// Behind the near plane: this corner abstains instead of
+				// vetoing the whole panel. Looking far down swings the far/top
+				// edge behind the camera while most of the panel is still on
+				// screen - culling everything there made the HUD vanish.
+				continue;
 			}
+			visibleCorners++;
 			Point screen = toScreenPoint(corner);
 			minX = Math.min(minX, screen.x());
 			minY = Math.min(minY, screen.y());
 			maxX = Math.max(maxX, screen.x());
 			maxY = Math.max(maxY, screen.y());
+		}
+		if (visibleCorners == 0) {
+			return false;
 		}
 		return maxX >= 0.0f && minX <= guiWidth && maxY >= 0.0f && minY <= guiHeight;
 	}
@@ -192,12 +211,7 @@ final class VirtualHudPlane {
 		float bodyX = (float) cfg.virtualOffsetX + yawX;
 		float bodyY = (float) cfg.virtualOffsetY + planeY;
 		float bodyZ = (float) Math.max(0.10, cfg.distance) + planeZ;
-		// Read the live camera pitch here rather than using the prior frame's HUD
-		// extraction sample. Viewport culling and texture activation therefore
-		// change at the same instant the finite map crosses the screen edge.
-		Minecraft mc = Minecraft.getInstance();
-		float livePitch = mc.player == null ? SpatialHud.pitch : mc.player.getXRot();
-		float cameraPitch = radians(clamp(livePitch, -80, 89));
+		float cameraPitch = radians(clamp(cameraPitchDegrees, -80, 89));
 		float cameraY = bodyY * cos(cameraPitch) + bodyZ * sin(cameraPitch);
 		float depth = -bodyY * sin(cameraPitch) + bodyZ * cos(cameraPitch);
 		return new Projection(bodyX, cameraY, depth);

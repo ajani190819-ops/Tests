@@ -6,7 +6,7 @@ rem Double-click this file to replace the Downloads copy with the latest
 rem successful Spatial HUD release. This batch file downloads the maintained
 rem PowerShell helper to a temporary file, runs it, and then deletes it.
 
-set "SPATIALHUD_PS_URL=https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/c83497e6-tests/spatial-hud-template-26.3/Get-Latest-SpatialHUD.ps1"
+set "SPATIALHUD_PS_URL=https://raw.githubusercontent.com/ajani190819-ops/Tests/main/spatial-hud-template-26.3/Get-Latest-SpatialHUD.ps1"
 set "SPATIALHUD_PS_SCRIPT=%TEMP%\Get-Latest-SpatialHUD.ps1"
 set "RESULT=1"
 

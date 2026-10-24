@@ -1,0 +1,88 @@
+name: Build Spatial HUD
+
+on:
+  push:
+    branches: [main, 'arena/**']
+    paths:
+      - 'spatial-hud-template-26.3/**'
+      - '.github/workflows/build-spatial-hud.yml'
+  pull_request:
+    paths:
+      - 'spatial-hud-template-26.3/**'
+      - '.github/workflows/build-spatial-hud.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: build-spatial-hud-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: spatial-hud-template-26.3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: gradle
+
+      - name: Build and run JUnit tests
+        run: |
+          chmod +x gradlew
+          ./gradlew build test --no-daemon
+
+      - name: Publish jar to release feed
+        if: success() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -f build/libs/*-sources.jar
+          JAR="$(ls build/libs/spatial-hud-*.jar 2>/dev/null | head -n 1 || true)"
+          if [ -z "$JAR" ] || [ ! -f "$JAR" ]; then
+            echo "No Spatial HUD jar was produced in build/libs; nothing published." >&2
+            exit 1
+          fi
+          REF="$GITHUB_REF_NAME"
+          SAFE="${REF//\//-}"
+          STAMP="$(date -u +%Y-%m-%dT%H:%MZ)"
+
+          # Update the shared rolling feed only when building released `main`.
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            if ! gh release view spatial-hud-latest > /dev/null 2>&1; then
+              gh release create spatial-hud-latest \
+                --target "$GITHUB_SHA" \
+                --title "Spatial HUD — latest build" \
+                --notes "Automated build from commit ${GITHUB_SHA:0:7}. Minecraft 26.3, Fabric." \
+                --prerelease
+            fi
+            gh release upload spatial-hud-latest "$JAR" --clobber
+            gh release edit spatial-hud-latest \
+              --notes "Newest released build: $REF at commit ${GITHUB_SHA:0:7} ($STAMP)."
+          fi
+
+          # Always publish a branch-scoped build feed so test branches never overwrite `main`
+          # yet remain selectable from `Update-SpatialHUD.bat`.
+          BUILD_TAG="spatial-hud-build-$SAFE"
+          if ! gh release view "$BUILD_TAG" > /dev/null 2>&1; then
+            gh release create "$BUILD_TAG" \
+              --target "$GITHUB_SHA" \
+              --title "Spatial HUD — $REF" \
+              --notes "Automated build." \
+              --prerelease
+          fi
+          gh release upload "$BUILD_TAG" "$JAR" --clobber
+          gh release edit "$BUILD_TAG" \
+            --title "Spatial HUD — $REF" \
+            --notes "$(printf 'Automated Spatial HUD build.\nBranch: %s\nCommit: %s\nBuilt: %s\n' "$REF" "${GITHUB_SHA:0:7}" "$STAMP")"

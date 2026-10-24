@@ -38,7 +38,7 @@ import argparse
 import os
 import sys
 
-TOOL_VERSION = "0.4.9"
+TOOL_VERSION = "0.4.10"
 
 # =============================================================================
 # ENGINE -- verbatim copy of the `nonplanar_core` source inlined in
@@ -175,7 +175,7 @@ DEFAULT_MAX_LIFT_MM = 0.0    # 0 = no clamp
 # upload are separate calls), and waving an already-waved file would double
 # every displacement.
 MARKER_PREFIX = "; unlayered-infill"
-MARKER_VERSION = "0.4.9"
+MARKER_VERSION = "0.4.10"
 MARKER = f"{MARKER_PREFIX} v{MARKER_VERSION} (non-planar sparse infill)\n"
 
 _WORD = re.compile(r"([A-Za-z])\s*([-+]?\d*\.?\d+)")
@@ -697,16 +697,27 @@ def check_nozzle_clearance(lines, cell_mm=None, clearance=0.05,
         top = {}                      # (ix, iy) -> highest material top Z
         x = y = z = None
         relative_e = True
+        prev_e = 0.0
         worst = 0.0
         hits = []
         checked = 0
         for raw in lines:
-            line = raw.strip()
+            line = raw.partition(";")[0].strip()
+            if not line:
+                continue
             if line.startswith("M83"):
                 relative_e = True
                 continue
             if line.startswith("M82"):
                 relative_e = False
+                continue
+            if line.startswith("G92"):
+                for token in line.split()[1:]:
+                    if token[:1] == "E":
+                        try:
+                            prev_e = float(token[1:])
+                        except ValueError:
+                            pass
                 continue
             if not line.startswith(("G0", "G1")):
                 continue
@@ -721,7 +732,12 @@ def check_nozzle_clearance(lines, cell_mm=None, clearance=0.05,
             ny = words.get("Y", y)
             nz = words.get("Z", z)
             e = words.get("E")
-            extruding = e is not None and (e > 0.0 if relative_e else True)
+            if relative_e:
+                extruding = e is not None and e > 0.0
+            else:
+                extruding = e is not None and e > prev_e + 1e-9
+                if e is not None:
+                    prev_e = e
             if None not in (x, y, nx, ny) and nz is not None:
                 checked += 1
                 length = math.hypot(nx - x, ny - y)
@@ -729,7 +745,7 @@ def check_nozzle_clearance(lines, cell_mm=None, clearance=0.05,
                 for i in range(steps + 1):
                     t = i / steps
                     px, py = x + (nx - x) * t, y + (ny - y) * t
-                    key = (int(px / cell), int(py / cell))
+                    key = (math.floor(px / cell), math.floor(py / cell))
                     already = top.get(key)
                     if already is not None and nz < already - clearance:
                         depth = already - nz
@@ -1052,16 +1068,49 @@ def describe(stats):
     return out
 
 
-def process_file(path, out_path, amplitude, frequency, inplace=False,
-                 dry_run=False, require_relative_e=True, full_strength=False,
-                 cell_mm=DEFAULT_CELL_MM, pattern=DEFAULT_PATTERN,
-                 wave_angle=DEFAULT_WAVE_ANGLE, shape=DEFAULT_SHAPE,
-                 layer_phase=DEFAULT_LAYER_PHASE,
-                 max_lift_mm=DEFAULT_MAX_LIFT_MM):
+def _write_lines_atomic(target, lines):
+    """Write lines via a same-directory temp file so an interruption cannot leave a 0-byte slice."""
+    parent = os.path.dirname(os.path.abspath(target)) or "."
+    tmp_path = os.path.join(
+        parent, f".{os.path.basename(target)}.{os.getpid()}.tmp")
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+        os.replace(tmp_path, target)
+    except OSError:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except OSError:
+            pass
+        with open(target, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+
+
+def _float_or_auto(raw):
+    if isinstance(raw, str) and raw.strip().lower() == "auto":
+        return "auto"
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"expected 'auto' or a number, got {raw!r}") from exc
+
+
+def process_file(path, out_path, amplitude, frequency=DEFAULT_FREQUENCY,
+                 inplace=False, dry_run=False, require_relative_e=True,
+                 full_strength=False, cell_mm=DEFAULT_CELL_MM,
+                 pattern=DEFAULT_PATTERN, wave_angle=DEFAULT_WAVE_ANGLE,
+                 shape=DEFAULT_SHAPE, layer_phase=DEFAULT_LAYER_PHASE,
+                 max_lift_mm=DEFAULT_MAX_LIFT_MM,
+                 segment_mm=DEFAULT_SEGMENT_MM,
+                 blend_mm=DEFAULT_BLEND_MM):
     """Run the engine over one file. Returns (stats, wrote_path_or_None)."""
     lines = read_lines(path)
     new_lines, stats = process(lines, amplitude_spec=amplitude,
                                frequency=frequency,
+                               segment_mm=segment_mm,
+                               blend_mm=blend_mm,
                                require_relative_e=require_relative_e,
                                full_strength=full_strength,
                                cell_mm=cell_mm, pattern=pattern,
@@ -1071,8 +1120,7 @@ def process_file(path, out_path, amplitude, frequency, inplace=False,
     if dry_run or stats["already_processed"] or not stats["moves"]:
         return stats, None
     target = path if inplace else out_path
-    with open(target, "w", encoding="utf-8") as f:
-        f.writelines(new_lines)
+    _write_lines_atomic(target, new_lines)
     return stats, target
 
 
@@ -1089,8 +1137,9 @@ def run_cli(argv=None):
                    help='a share of layer height (200%% of a 0.3 mm layer is '
                         '0.6 mm), a multiple (2x), or plain mm (0.6). '
                         'Default: %(default)s')
-    p.add_argument("-f", "--frequency", type=float, default=DEFAULT_FREQUENCY,
-                   help="ripples per mm along X (default: %(default)s)")
+    p.add_argument("-f", "--frequency", type=_float_or_auto,
+                   default=DEFAULT_FREQUENCY,
+                   help="ripples per mm along X, or 'auto' (default: %(default)s)")
     p.add_argument("-i", "--inplace", action="store_true",
                    help="rewrite the file itself -- what OrcaSlicer's "
                         "Post-processing scripts setting needs")
@@ -1110,9 +1159,9 @@ def run_cli(argv=None):
                         "is an egg-crate rippling along both, so an infill "
                         "line running in any direction still rises and falls "
                         "(default: %(default)s)")
-    p.add_argument("--angle", type=float, default=DEFAULT_WAVE_ANGLE,
-                   help="degrees to turn the ripples, counter-clockwise, 0 "
-                        "being along X. Aim them across your infill lines "
+    p.add_argument("--angle", type=_float_or_auto, default=DEFAULT_WAVE_ANGLE,
+                   help="degrees to turn the ripples counter-clockwise (0 = "
+                        "along X), or 'auto' to cross your infill lines "
                         "(default: %(default)s)")
     p.add_argument("--shape", default=DEFAULT_SHAPE, choices=SHAPES,
                    help="wave profile: smooth 'sine', sharp-peaked "
@@ -1124,10 +1173,10 @@ def run_cli(argv=None):
                         "walk sideways instead of stacking in a column. 180 "
                         "puts a crest over the trough below (default: "
                         "%(default)s)")
-    p.add_argument("--max-lift", type=float, default=DEFAULT_MAX_LIFT_MM,
-                   help="hard ceiling on the Z displacement in mm, whatever "
-                        "amplitude and taper work out to. 0 = no ceiling "
-                        "(default: %(default)s)")
+    p.add_argument("--max-lift", type=_float_or_auto,
+                   default=DEFAULT_MAX_LIFT_MM,
+                   help="hard ceiling on the Z displacement in mm, 'auto', "
+                        "or 0 for no ceiling (default: %(default)s)")
     p.add_argument("--allow-absolute-e", action="store_true",
                    help="do not refuse absolute-E (M82) G-code. Not "
                         "recommended: splitting moves under absolute E "

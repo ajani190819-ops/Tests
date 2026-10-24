@@ -20,8 +20,8 @@ its first run, it already targets the supplied F5W Modrinth profile:
 %APPDATA%\ModrinthApp\profiles\F5W\mods
 ```
 
-For `C:\Users\kamau`, that resolves to the requested
-`C:\Users\kamau\AppData\Roaming\ModrinthApp\profiles\F5W\mods`. Press
+For `C:\Users\<user>`, that resolves to the requested
+`C:\Users\<user>\AppData\Roaming\ModrinthApp\profiles\F5W\mods`. Press
 **Enter** (or choose **1**) to install the newest successful Spatial HUD build
 directly there. It does **not** open any folder afterward by default, and there
 is no manual "From file" step in Modrinth.

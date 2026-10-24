@@ -1,116 +1,55 @@
-# Current state
+# Repository Current State (`STATE.md`)
 
-- Last updated: 2026-10-07
-- Session branch: `arena/c83497e6-tests`
-- Read when: starting any task in this repository.
+**Active Working Branch:** `arena/e895b94f-tests`
+**Last Updated:** 2026-10-23
+**PR:** #10 open — every commit+push updates it.
 
-## Active work
+## Turn protocol (do this literally)
 
-### Spatial HUD render methods
+1. **Live notes first** (before any other action): `.agent/INBOX.md` - the
+   AgentNotes app / browser capture write here via `tools/notes_server.py`
+   (start it at turn start if down: `python3 tools/notes_server.py 8765`).
+   Re-read every 2-3 commits and before the final push; answer notes in the
+   final message. Transition fallback: Google Drive doc id
+   `1XRzQ4yhq2slvH1E2r2t9c7uK-vGcI1EBAxQOmSZArN8` until retired.
+2. **Git re-align:** `bash tools/sync_branch.sh` (safe: installs `.githooks/` commit guards, fetch + re-aligns the pointer; working files never touched; good unpushed commits left alone). The pre-commit guard refuses stale-base commits. Never force-push.
+3. One parallel read batch: this file + `.agent/CODEMAP.md` + only the task's topic doc (`.agent/INDEX.md`).
+4. One logical change per commit (own build+check), push immediately.
+5. Update this file whenever project state changes (it survives resets).
 
-- Status: all three methods compile and are published; every method still needs
-  real F5W runtime approval.
-- Goal: provide one clear render-method choice without mixing renderer paths:
-  1. Classic Affine (original stable HUD transform), 2. Captured Projective
-  Mesh (GUI-space texture warp), and 3. World-Space Texture (captured texture
-  on a real level quad).
-- `bb99cda` passed CI but its newer projective/PiP path regressed the actual
-  F5W renderer. Do not use it as a runtime baseline.
-- `5c245d5` restores `ExperimentalHudCapture.java` and its two mixin
-  registrations exactly from user-observed working camera-yaw revision
-  `46874e5`; it removes the PiP-map accessors introduced by `bb99cda`.
-- `d2308fb` adds `renderMethod`, migrates saved `experimentalCaptureWarp`
-  settings to Captured Projective Mesh, and reorganizes Cloth Config into clear
-  categories and localized descriptions. Method 3 uses the same selected-HUD
-  private capture but draws the completed previous-frame texture in the level.
-  It exposes Camera Yaw/Player Body anchor and world-occlusion settings.
-- The requested physical model is now an angled waist-height lectern, not an
-  always-visible camera card. Methods 1 and 2 remain Camera-Yaw anchored;
-  Method 3 retains its Camera-Yaw/Player-Body choice. The default primary
-  tilt is 45° around the panel left-to-right axis, with a 30° hard look-down
-  gate: while level or looking up, selected Spatial HUD roots are suppressed
-  and no texture capture/mesh/world-plane work begins.
-- The Positioning section exposes explicit three-axis adjustments: primary and
-  fine **Tilt** (left-to-right axis; positive moves far/top edge away), **Turn**
-  (up axis), and **Roll** (panel-normal axis; positive raises the right edge).
-  Method 1 stays the native affine compatibility approximation at this same
-  physical location; Method 2 is the actual per-pixel tapered mesh; Method 3
-  is the actual tapered world quad. GitHub Actions run `37730150490` compiled
-  and published `7964948` with JDK 25; the rolling JAR was updated at
-  2026-10-08 05:00 UTC. H opens settings; a separate unbound Toggle Spatial
-  HUD action remains in Minecraft Controls.
-- The attached log identifies the actual launch failure: custom pipeline
-  `spatialhud:world_texture_through_world` fails resource reload because its
-  cloned entity snippet requests undefined `Sampler1`. Fabric then aborts
-  loading, explaining the missing mod/UI and disturbed resource/animation
-  state. `036ca35` removes that custom shader pipeline completely: Method 3
-  now uses only vanilla `ENTITY_TRANSLUCENT` (depth on) and `GUI_TEXTURED`
-  (depth off) pipelines. No Spatial HUD custom pipeline is registered.
-- `d6aae3a` also excludes Cloth Config runtime singletons and keeps Method 3's
-  GPU buffer lazy. GitHub Actions run `37711539940` compiled and published
-  `036ca35` with JDK 25; the rolling JAR was updated at 2026-10-08 01:10 UTC.
-  A local Gradle build is unavailable because this sandbox has no Java runtime.
-- The configuration/UI has a read-only **Method Guide — Read This First** tab
-  ahead of its three settings sections—Setup & Render Method, Panel Positioning
-  & Orientation, and HUD Contents. The guide uses plain-language cards to
-  explain the green Classic Affine, blue Captured Projective Mesh, and red
-  World-Space Texture choices; it contains no editable values and is transient,
-  so it is never saved to config. The panel carries the same green/blue/red
-  top-edge marker, and texture methods capture that marker with the panel.
+## Active Component Status
 
-### Direct Modrinth updater
+| Component | Path | Version | Status |
+| :--- | :--- | :--- | :--- |
+| **Project Hub** | `project-hub/src/project_hub.c` + `ProjectHub.exe` | 2.8.21 | **GREEN** — update nag only for genuinely newer GitHub builds (numeric `VerNewer`), buttons amber only while update ready, reopens after self-update (mutex handover + retry), quiet 60s ETag checks, cached-frame spin paint, Arena Link removed (5 cards), requireAdministrator |
+| **Bluetooth Guard** | `bluetooth-guard/src/bluetooth_guard.c` + `BluetoothGuard.exe` | 2.8.7 | **GREEN** — rules-ghost device list; FastBoot task now `HighestAvailable` (elevated logon), requireAdministrator |
+| **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `KeyboardLighting.exe` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold modes (`-HoldMode latch\|burst\|tap`, latch default); logon task `/RL HIGHEST`; requireAdministrator |
+| **DNS Pilot** | `dns-pilot/src/dns_pilot.c` + `DnsPilot.exe` | size-tracked | **GREEN** — parallel rank test (seconds); benchmarks on EVERY start incl. tray; autostart = `TestsSuite-DnsPilot` ONLOGON task `/RL HIGHEST` (Run key migrated away); requireAdministrator |
+| **Agent Notes** | `agent-notes/src/agent_notes.c` + `AgentNotes.exe` | size-tracked | **GREEN** — direct quick-notes channel (no Google middleman): POSTs to `tools/notes_server.py` (live preview port 8765), queues in `%LOCALAPPDATA%\AgentNotes\outbox\` while the agent is offline, auto-delivers on reconnect; hub card #6 with Install; requireAdministrator |
+| **App catalog** | `suite-apps.json` + Hub 2.8.23+ | 2026-10-23 | **GREEN** — one JSON entry adds a hub card (title/blurb/buttons/icon + Install button); the hub fetches the catalog at refresh, so new apps need **no hub update**; icon = repo path, cached with letter-tile fallback; built-in card text/buttons also catalog-driven (2.8.24) |
+| **Agent tooling** | `AGENTS.md`, `.agent/CODEMAP.md`, `tools/` | 2026-10-23 | **GREEN** — `agent_map.py` code map (`--check` in suite), one-shot build (~2s cached) / full suite (~4s cached) |
 
-- Status: implemented; not the active task.
-- Target defaults to `%APPDATA%\ModrinthApp\profiles\F5W\mods` and is
-  remembered. Folder opening is optional and never forced to Windows Explorer.
-- The eventual branch picker must offer `main` plus five recent successfully
-  built branches, each with its own compiled JAR.
+## Fast Commands
 
-## Non-negotiable constraints
+- Build all four EXEs: `python3 tools/build_windows.py`
+- All verification suites: `python3 tools/check_all.py`
+- Code map regen: `python3 tools/agent_map.py`
+- Icons + spin: `/home/user/.venv/bin/python3 tools/generate_suite_icons.py` (only when brand files change)
 
-- Do not restore global GUI cancellation, whole-screen offscreen capture, or
-  a general GUI mixin. Only the selected lower HUD may be captured.
-- Do not claim F5W, Iris, AppleSkin, or Detail Armor compatibility without a
-  real test result.
-- AppleSkin and Detail Armor Bar Reconstructed pixels belong in the same
-  selected capture when their vanilla status root is captured.
-- Methods 1 and 2 must keep the waist-height, Camera-Yaw angled lectern: no
-  player-body rotation and no camera-pitch-following card. The hard 30°
-  look-down threshold suppresses it while looking level/up; Method 2 must show
-  a genuine narrowed far/top edge at the default 45° tilt. Method 1 remains
-  the native affine compatibility approximation. For Method 3, the user
-  selected a configurable Camera-Yaw/Player-Body anchor and terrain occlusion.
-- Keep all work on `arena/c83497e6-tests`; commit and push each completed
-  change.
+## Open Threads / Next Actions
 
-## Next action
+1. **User validation round (2026-10-23 evening):** update buttons stop glowing when up to date; hub reopens after self-update (2.8.21); false "vX available" nag gone; DNS Pilot tests from tray startup; all apps elevated with no UAC at login.
+2. If the owner still sees a UAC prompt on manual double-click launches (UAC-on machines), offer routing shortcuts through a silent task launcher (`schtasks /Run`).
 
-1. Install the rolling JAR updated at 2026-10-08 05:00 UTC in F5W, replacing
-   every older `spatial-hud` JAR. The new `latest.log` must contain
-   `Spatial HUD render-method build initialized` and must not contain
-   `spatialhud:world_texture_through_world` or `Sampler1`.
-2. Verify H opens the config without a `No GUI provider registered for field
-   ... SpatialHudConfig.instance` error. Confirm the three sections and all
-   three named methods with their long contextual descriptions: green Method 1,
-   blue Method 2, and red Method 3.
-3. At the default 30° minimum look-down angle, verify all selected Spatial HUD
-   roots are absent while looking level/up, then appear only when looking down
-   toward the waist-height lectern. Confirm this does not fall back to a flat
-   vanilla hotbar while Spatial HUD remains enabled.
-4. Test Method 1 as the compatibility baseline: it shares the physical
-   location/gate but remains affine. Test blue Method 2 at the default 45°
-   lectern tilt: its top/far edge must be visibly narrower than its near edge,
-   with backing, hotbar, and marker all using one trapezoid. Test red Method 3
-   separately with Camera Yaw, then Player Body, and with Occlude Behind World
-   both enabled and disabled. It will show the previous completed frame by
-   design; record any persistent loss/flicker or depth failure.
-5. For both texture methods, record hotbar slots/items, status bars, AppleSkin,
-   Detail Armor, XP, and held-item text separately; check the log for a
-   hotbar-root capture message and any capture failure latch.
+## CI / sandbox gotchas (2026-10-24)
 
-## Evidence
-
-- Supplied F5W log: `latest.log`.
-- Compatibility plan: `spatial-hud-template-26.3/COMPATIBILITY.md`.
-- Source root: `spatial-hud-template-26.3/`.
-- Technical summary: `.agent/facts/spatial-hud.md`.
+- The Arena GitHub integration CANNOT push changes to `.github/workflows/*`
+  (rejected: no `workflows` permission) and CANNOT `gh workflow run`
+  (HTTP 403). Mod fixes that need a new Spatial HUD jar require the user
+  to click **Actions -> Build Spatial HUD -> Run workflow** with branch
+  `arena/e895b94f-tests` selected - or a one-time web edit of
+  `.github/workflows/build-spatial-hud.yml` adding that branch to the
+  `on.push.branches` list. Do not retry programmatic dispatch.
+- `/home/user/.venv` does NOT survive sandbox rebuilds (excluded from
+  persistence): recreate with `python3 -m venv /home/user/.venv &&`
+  `/home/user/.venv/bin/python -m pip install -r requirements-dev.txt ziglang`.

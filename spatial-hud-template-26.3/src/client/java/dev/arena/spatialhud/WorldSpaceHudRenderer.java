@@ -20,6 +20,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.StagedVertexBuffer;
 import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -75,7 +76,7 @@ public final class WorldSpaceHudRenderer {
 	 * Reads player and configuration state during level extraction, then stores
 	 * four immutable world points for the later GPU drawing phase.
 	 */
-	private static void extractPlane(LevelExtractionContext ignored) {
+	private static void extractPlane(LevelExtractionContext context) {
 		if (!SpatialHud.isWorldSpaceTextureActive()) {
 			planeState = null;
 			return;
@@ -88,10 +89,11 @@ public final class WorldSpaceHudRenderer {
 			return;
 		}
 
+		float partialTick = context.deltaTracker().getGameTimeDeltaPartialTick(false);
 		SpatialHudConfig cfg = SpatialHudConfig.get();
 		float anchorYaw = cfg.worldSpaceAnchor == SpatialHudConfig.WorldSpaceAnchor.PLAYER_BODY
-				? player.yBodyRot
-				: player.getYRot();
+				? Mth.rotLerp(partialTick, player.yBodyRotO, player.yBodyRot)
+				: player.getViewYRot(partialTick);
 		float yaw = radians(anchorYaw);
 		float rightX = cos(yaw);
 		float rightZ = sin(yaw);
@@ -105,7 +107,7 @@ public final class WorldSpaceHudRenderer {
 		float panelForwardX = -rightX * sin(panelYaw) + forwardX * cos(panelYaw);
 		float panelForwardZ = -rightZ * sin(panelYaw) + forwardZ * cos(panelYaw);
 
-		Vec3 eye = player.getEyePosition();
+		Vec3 eye = player.getEyePosition(partialTick);
 		float centerX = (float) eye.x + rightX * (float) cfg.virtualOffsetX
 				+ forwardX * (float) Math.max(0.10, cfg.distance);
 		float centerY = (float) eye.y + (float) cfg.virtualOffsetY;

@@ -1,33 +1,35 @@
-# Python bytecode, e.g. from `python3 -m py_compile` on the plugin files.
-__pycache__/
-*.py[cod]
-
-# Runtime state a plugin writes in Orca's plugin storage ("Check setup" reads
-# these -- see docs/ORCA-PLUGIN-FACTS.md). They are
-# per-machine facts, never shipped, and must not land in the repo.
-*_state.json
-.install_state.json
-
-# Sliced output used for hand-testing the G-code tools. Keep the captured
-# regression fixture AND the owner's test prints under version control --
-# this rule was silently dropping every export uploaded to test-prints/,
-# so they only existed in the upload commits and vanished from the working
-# tree whenever the sandbox reset.
-*.gcode
-!tests/fixtures/*.gcode
-!test-prints/**/*.gcode
-
-# Runtime logs created by Orca/plugin tests; never source.
+# Runtime logs, crash dumps, and Python bytecode
+orca-plugins.log
 *.log
-*.log.*
+*.log.[0-9]*
+crash-*.txt
+hs_err_pid*.log
+plugins/*/*_state.json
+__pycache__/
+*.pyc
+.pytest_cache/
 
-# Local diagnostic renders and scratch scripts from the Wave geometry probes.
-# They are a debugging aid, not source, and must not land in the repo.
-/wave-diagnostics/
-.venv/
+# Java / Gradle / Fabric Loom builds
+.gradle/
+**/build/
+*.jar
+!**/gradle-wrapper.jar
+!archive/**/*.jar
 
-# Arena Link is a packaged Electron desktop app. Keep local dependencies,
-# installers, and any accidental local environment file out of Git.
-/arena-link-windows/node_modules/
-/arena-link-windows/dist/
-/arena-link-windows/.env
+# Desktop companion / Electron & compiled Windows helper binaries
+node_modules/
+dist/
+out/
+keyboard-lighting/*.dll
+bluetooth-guard/*.dll
+project-hub/*.dll
+*.new
+*.old
+*.hubtmp
+Unselected files/
+
+
+
+
+# private live-notes inbox (never commit owner notes to the public repo)
+.agent/INBOX.md

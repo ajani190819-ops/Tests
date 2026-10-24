@@ -1,0 +1,13 @@
+Agent Notes - Tests repo (arena/e895b94f-tests)
+
+Drop anything here while the agent is working. At the start of every turn the agent reads this document before doing anything else.
+
+Good things to put here:
+- New requests or changed priorities
+- Bugs you noticed (what you saw, where, which app)
+- Screenshots described in words or attached to this doc
+- "skip X" / "do Y instead" corrections
+
+---
+
+(Notes below - newest at the bottom)

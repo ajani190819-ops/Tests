@@ -45,6 +45,20 @@ dependencies {
 	// modCompileOnly alias). Gradle dependencies are not bundled in our jar;
 	// Mod Menu remains optional through fabric.mod.json's `suggests` entry.
 	clientImplementation "com.terraformersmc:modmenu:${project.modmenu_version}"
+
+	testImplementation sourceSets.client.output
+	testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+configurations {
+	testImplementation.extendsFrom(clientImplementation)
+	testCompileOnly.extendsFrom(clientCompileOnly)
+	testRuntimeOnly.extendsFrom(clientRuntimeOnly)
+}
+
+test {
+	useJUnitPlatform()
 }
 
 processResources {

@@ -250,6 +250,7 @@ public class SpatialHud implements ClientModInitializer {
 	/** Samples the current camera pitch once before the selected HUD roots extract. */
 	static void updateViewPose() {
 		Minecraft mc = Minecraft.getInstance();
+		tickRenderPause();
 		if (!isEnabled() || mc.player == null) {
 			pitch = 0.0f;
 			return;
@@ -261,11 +262,26 @@ public class SpatialHud implements ClientModInitializer {
 		pitch = 0.0f;
 	}
 
-	/** Self-protection: never keep the HUD broken over our own math. */
-	static void safeDisable(Throwable t) {
+	// Transient render errors pause our rendering briefly and then retry;
+	// vanilla draws normally meanwhile. The mod is never silently switched
+	// off - that was the "stopped at random times and stayed dead" bug.
+	private static int renderPauseFrames;
+
+	static void tickRenderPause() {
+		if (renderPauseFrames > 0) {
+			renderPauseFrames--;
+		}
+	}
+
+	static boolean isRenderPaused() {
+		return renderPauseFrames > 0;
+	}
+
+	/** Self-protection with self-healing: pause briefly and retry. */
+	static void safePause(Throwable t) {
 		resetSway();
-		SpatialHudConfig.get().enabled = false;
-		SpatialHudConfig.save();
-		LOGGER.error("Spatial HUD hit an error and disabled itself (vanilla HUD is restored):", t);
+		renderPauseFrames = renderPauseFrames == 0 ? 30 : Math.min(300, renderPauseFrames * 2);
+		LOGGER.error("Spatial HUD hit an error and paused its rendering for {} frames (vanilla HUD shows meanwhile):",
+				renderPauseFrames, t);
 	}
 }

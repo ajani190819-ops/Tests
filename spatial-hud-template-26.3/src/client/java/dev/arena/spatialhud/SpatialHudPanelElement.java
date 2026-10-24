@@ -24,11 +24,21 @@ final class SpatialHudPanelElement implements HudElement {
 		// before HOTBAR and gives every selected root one camera pitch value.
 		SpatialHud.updateViewPose();
 
+		// An error earlier in the frame paused us: skip our surfaces and let
+		// vanilla draw normally until the pause expires.
+		if (SpatialHud.isRenderPaused()) {
+			return;
+		}
+
 		if (cfg.usesPolygonTest()) {
 			// Method 4 is intentionally a single, self-contained purple test
 			// surface. Do not begin the lower-HUD texture capture here: that path
 			// adds a second dark panel and makes the editable target ambiguous.
-			PolygonTestRenderer.drawGuide(graphics, cfg);
+			try {
+				PolygonTestRenderer.drawGuide(graphics, cfg);
+			} catch (Throwable t) {
+				SpatialHud.safePause(t);
+			}
 			return;
 		}
 
@@ -80,7 +90,7 @@ final class SpatialHudPanelElement implements HudElement {
 			// mesh, and red is Method 3's world-space texture.
 			graphics.fill(x0, y0, x1, y0 + 8, cfg.modeIndicatorColor());
 		} catch (Throwable t) {
-			SpatialHud.safeDisable(t);
+			SpatialHud.safePause(t);
 		} finally {
 			graphics.pose().popMatrix();
 		}

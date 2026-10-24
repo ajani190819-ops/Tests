@@ -1,39 +1,31 @@
 @echo off
 REM ===================================================================
 REM  Keyboard Lighting - SETUP
-REM
-REM  THE ONLY FILE YOU RUN. Double-click it, click "Yes".
-REM
-REM  First time:  installs everything and starts it.
-REM  Any time after: updates, repairs, and tests it.
-REM
-REM  If something is broken it tells you exactly what and copies a
-REM  report to your clipboard.
+REM  Double-click this file and approve the Administrator prompt.
 REM ===================================================================
-title Keyboard Lighting - Setup
+setlocal
 cd /d "%~dp0"
+title Keyboard Lighting - Setup
 
 net session >nul 2>&1
-if %errorlevel%==0 goto run
+if %errorlevel%==0 goto :elevated
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
 exit /b 0
 
-:run
-set "BASE=https://raw.githubusercontent.com/ajani190819-ops/HSEQB/arena/01a0a5d4-hseqb/keyboard-lighting"
-
+:elevated
 echo.
 echo   Getting the latest setup...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; try{ Invoke-WebRequest '%BASE%/Setup.ps1' -OutFile (Join-Path '%~dp0' 'Setup.ps1') -UseBasicParsing -TimeoutSec 25; Unblock-File (Join-Path '%~dp0' 'Setup.ps1') } catch { Write-Host ('   ' + $_.Exception.Message) -ForegroundColor Yellow }"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; $br='arena/e895b94f-tests'; try { if((Invoke-WebRequest 'https://raw.githubusercontent.com/ajani190819-ops/Tests/main/project-hub/Setup.ps1' -Method Head -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop).StatusCode -eq 200){ $br='main' } } catch {}; try { Invoke-WebRequest ('https://raw.githubusercontent.com/ajani190819-ops/Tests/'+$br+'/keyboard-lighting/Setup.ps1') -OutFile 'Setup.ps1.new' -UseBasicParsing -TimeoutSec 25 -ErrorAction Stop; if((Get-Item 'Setup.ps1.new').Length -gt 500){ Move-Item -LiteralPath 'Setup.ps1.new' -Destination 'Setup.ps1' -Force; Unblock-File 'Setup.ps1' } } catch {}"
 
-if not exist "%~dp0Setup.ps1" (
-  echo.
-  echo   Could not download Setup.ps1.
-  echo   Check your internet connection and run this again.
-  echo.
-  pause
-  exit /b 1
-)
+if exist "Setup.ps1" goto :run_kbl
+echo.
+echo   Could not download Setup.ps1.
+echo   Check your internet connection and run this again.
+echo.
+pause
+exit /b 1
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Setup.ps1" -NoElevate
+:run_kbl
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\Setup.ps1" -NoElevate
 exit /b 0

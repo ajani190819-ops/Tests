@@ -1,369 +1,171 @@
 # AGENTS.md — read this before doing anything in this repo
 
 This is the rulebook for any AI assistant (or human contributor) working here.
-If you are an AI, everything in this file is an instruction from the repository
-owner and it is **high priority**: it outranks your own defaults wherever the
-two disagree.
+Everything in this file is an instruction from the repository owner and outranks
+default assistant habits wherever the two disagree.
 
-**Start every session by reading `.agent/STATE.md`, then `.agent/INDEX.md`.**
-They identify the active work and the smallest set of facts needed for it. Do
-not load large historical or unrelated documents by default. A new chat has no
-memory of the last one, so update the current state before ending a session.
+**Turn start — in this exact order:**
 
-Companion documents, mandatory only when the current task needs them:
+1. **Live notes first, before any other action.** Read `.agent/INBOX.md`
+   (written by the owner's AgentNotes Windows app / the browser
+   quick-capture page via `tools/notes_server.py`; newest entries at the
+   bottom). Start the receiver at every turn start if it is not running:
+   `python3 tools/notes_server.py 8765` (background). During long
+   multi-commit turns RE-READ at checkpoints: after every 2-3 commits and
+   once before the final push. Answer every note in the turn's final
+   message (simple answer first). Transition fallback: the legacy Google
+   Drive doc "Agent Notes - Tests repo" (id
+   `1XRzQ4yhq2slvH1E2r2t9c7uK-vGcI1EBAxQOmSZArN8`) is checked too until the
+   owner retires it.
+2. **Re-align git history if needed** (the sandbox rebuilds `.git` between
+   turns while working files survive) — see §0b.4.
+3. **One parallel read batch:** `.agent/STATE.md`, `.agent/CODEMAP.md`, and
+   ONLY the topic doc the task needs (map in `.agent/INDEX.md`). Never load
+   historical or unrelated docs. Update `.agent/STATE.md` before finishing
+   when project state changes.
 
-* `.agent/INDEX.md` — topic map, reading order, and agent-document rules.
-* `.agent/facts/` — short, confirmed technical facts by topic.
-* `.agent/decisions/` — accepted design constraints and their reasons.
-* `.agent/runbooks/` — repeatable test and release procedures.
-* `docs/ORCA-PLUGIN-FACTS.md` — binding OrcaSlicer facts. Read before changing
-  an Orca plugin; do not re-derive or contradict it.
-* `docs/ROADMAP.md` — Orca plugin plans and open questions. Read before
-  planning Orca work; update it when that plan changes.
-* `MEMORY.md` — a redirect to preserved history. Do not use as an active
-  handoff.
+Companion documents (read only when relevant):
 
-The division of labour: `.agent/STATE.md` is **where we are**,
-`.agent/facts/` is **what is known**, `.agent/decisions/` is **why a constraint
-exists**, and `docs/ROADMAP.md` is **where Orca work is going**. Keep them from
-contradicting each other.
+* `.agent/INDEX.md` — topic map and one-shot build/test table.
+* `.agent/CODEMAP.md` — generated function/landmark index (fast lookup).
+* `.agent/facts/windows-suite.md` — critical invariants & build commands for `ProjectHub.exe`, `BluetoothGuard.exe`, `Keyboard Lighting`, and suite icons.
+* `.agent/facts/spatial-hud.md` — Spatial HUD architecture and F5W constraints.
+* `docs/UI_STYLE_GUIDE.md` — shared Soft Slate UI tokens, rounded geometry, Tri-Spoke Core emblem, and unified suite icons.
+* `docs/ORCA-PLUGIN-FACTS.md` — binding OrcaSlicer plugin rules.
+* `docs/ROADMAP.md` — Orca plugin roadmap and open questions.
 
 ---
 
-## 1. Who you are working for
+## 0. Starter step — translate the owner's message internally (mandatory)
 
-The owner of this repo is **a beginner** at both Python and 3D-printing
-internals. That is a design constraint, not an apology:
+The owner often dictates by voice or types quickly. Treat fast/casual phrasing as normal input, never as ambiguity by itself.
 
-* **Explain plainly.** Short sentences. Define every piece of jargon the first
-  time it appears (there is a glossary at the bottom of this file — use and
-  extend it). "The .bat reads plugins.json" beats "the installer consumes the
-  manifest".
-* **Never hide a failure.** If something did not work, or was not tested, say
-  so in plain words. A honest "I could not test this because there is no
-  Windows here" is worth more than a green checkmark.
-* **Beginner-safe defaults.** Tools must never overwrite the user's input
-  files, must say exactly what they did, and must refuse (with a plain-English
-  fix) rather than produce broken output.
+1. **Mentally bucket every part of the message into:**
+   * **Do now** — concrete changes requested for this turn.
+   * **Do next (queued)** — follow-up items ("once we're done...", "after that..."). Record these in `.agent/STATE.md` instead of mixing half-finished work in.
+   * **Boundaries / constraints** — anything the owner asked to keep or avoid.
+   * **Genuine product choices** — ask only when behaviour genuinely forks.
+2. **Translate user symptoms into engineering root causes yourself** (Windows kernel/audio/Bluetooth APIs, WinForms/DWM, Python/Orca, Gradle/Fabric, Electron) without asking the owner technical internals questions.
+3. **Keep this translation strictly internal — NEVER echo or repeat a "Translated Instructions" or "What I understood" block in your visible reply.** Go straight to doing the work and reporting the result cleanly.
 
-## 2. How to work — the standards
+---
 
-These are the owner's explicit expectations for how AI assistance goes:
+## 0b. Fast Execution Protocol — minimize user wait time without sacrificing quality
 
-1. **Write out what is about to happen, before it happens.** For any task that
-   needs more than a couple of minutes of work: post a concise plan — what you
-   will do, what you will not do, and any material risk. Update
-   `.agent/STATE.md` when the active work changes. Update `docs/ROADMAP.md`
-   only for Orca plugin planning.
-2. **Ask instead of guessing.** Whenever a decision is user-facing, ambiguous,
-   or a matter of taste, ask a clarifying question with concrete options and a
-   recommended default — batch the questions so they can all be answered at
-   once. Asking one round of good questions is efficient, not annoying.
-3. **Work in small, reviewable steps.** One logical change at a time, verified
-   before moving on. If a step turns out wrong, it should be cheap to throw
-   away.
-4. **Verify, then say what you verified.** Run the repo's tests (`python3
-   tests/test_installer.py`) after touching the updater, the catalogue, or the
-   .bat. After any file edit, confirm the edit actually landed — silent
-   no-op edits happen. In your report, separate "verified" from "not tested".
-5. **Report in three parts:** what I did / what it means for you / what is
-   next. Keep it short enough to actually read.
-6. **Be honest about uncertainty.** Label guesses as guesses. If the docs say
-   something has never been tested on real hardware, keep saying so.
-7. **Leave usable context for the next session.** Before you finish, update
-   `.agent/STATE.md` with the active status and next action. Add a fact,
-   decision, runbook change, or dated history note only when it belongs in one
-   of those records. Do not turn the state file into a session diary.
+Every extra sequential round-trip or redundant rebuild adds seconds of wall-clock wait time for the owner. Follow every rule below on every turn:
 
-### 2a. How to communicate with the owner
+1. **Parallelize every independent tool call.** Batch `read_file`, `edit_file`, `write_file`, and independent `bash` calls in **one assistant response**; read whole target files (or whole sections) in one call instead of nibbling.
+2. **Use the repo's one-shot scripts instead of hand-crafted serial loops:**
+   * **Compile all four EXEs (Hub, BluetoothGuard, KeyboardLighting, DnsPilot), parallel, ~2s cached / ~130s cold:**
+     ```bash
+     python3 tools/build_windows.py
+     ```
+   * **Regenerate all multi-DPI `.ico` / `.png` suite icons + spin loops (~80–130s):** only when icon/brand files change.
+     ```bash
+     /home/user/.venv/bin/python3 tools/generate_suite_icons.py
+     ```
+   * **Run ALL repository verification suites concurrently (~4s cached):**
+     ```bash
+     python3 tools/check_all.py
+     ```
+3. **Keep tool environments & caches strictly outside `/home/user/Tests`.** Virtualenvs in `/home/user/.venv`, Zig/cache data in `/home/user/.cache` — never inside the worktree, so turn-end snapshots stay instantaneous.
+4. **Git: small commits, safe recovery, never force-push.**
+   * The sandbox can rebuild `.git` between turns: HEAD falls back to the branch base while working files survive, and a commit made on that stale base pushes as non-fast-forward.
+   * **Turn start: `bash tools/sync_branch.sh`** — safe by design: fetch + re-align (working files never touched), installs the `.githooks/` commit guards, and leaves good unpushed commits alone.
+   * **Crash isolation: ONE logical change per commit**, each with its own `build_windows.py` + `check_all.py` run, pushed immediately. Never bundle unrelated changes.
+   * **If a push rejects:** `bash tools/sync_branch.sh` (it detects the stale base and re-surfaces the commit content as working diffs), re-`git add`, re-`commit`, push again. Never `--force`.
+5. **Keep internal reasoning tight.** Decide the architecture once, batch edits, build + check once per change, push, answer concisely.
 
-Use direct, plain language. The owner wants useful answers, not an AI-style
-performance.
+---
 
-1. **Answer first.** State the result, decision, or limitation in the first
-   sentence. Do not open with praise, agreement, a recap, or filler.
-2. **Use only the detail needed to make the answer understandable.** Explain a
-   technical term when it matters, then use ordinary words. Do not restate the
-   whole request or narrate routine work.
-3. **Use factual status labels.** Separate `Done`, `Tested`, `Not tested`,
-   `Blocked`, and `Need from you` when they apply. Do not imply that a build
-   check proves a real-world result.
-4. **Do not manufacture certainty or enthusiasm.** Avoid phrases such as
-   "exactly", "great progress", "this is the missing piece", "rest assured",
-   or promises that have not been verified. State what the evidence supports.
-5. **Keep formatting functional.** Use short headings and bullets only when
-   they make instructions or status easier to scan. Do not add a conclusion,
-   motivational close, repeated summary, or generic offer of more help.
-6. **Give the next action only when the owner needs to take one.** Say what to
-   do, why, and what result to report. Otherwise stop after the useful answer.
-7. **Match the owner's level without talking down.** Explain enough context to
-   support a decision, but do not hide the answer behind jargon or a long
-   tutorial.
+## 1. Who you are working for & how to communicate
 
-## 3. Repo map
+The owner wants plain, direct, useful answers — zero filler, zero hype, zero AI-style fluff:
+
+* **Simple answer first.** Open every reply with the direct answer / status, then detail.
+* **Plain English.** Short sentences and scannable bullets. Explain a technical mechanism briefly in plain words when it helps.
+* **Honest status.** Separate `Tested` (automated suite / compiler) from `Needs test on Windows / in-game` whenever OS hardware interaction is involved.
+
+## 1b. Owner standing preferences
+
+* **Ask clarifying questions (`ask_user`) BEFORE creating anything new — be 100% certain of the ask.** Translate symptoms to root causes yourself; only ask when behaviour genuinely forks.
+* **Keep new creations simple and clean.**
+* **No wasted bandwidth or CPU.** Quiet background checks, cached repaints — never re-render a whole page just to animate one thing.
+* **One instance of every suite app;** a second launch brings the existing window forward. All apps run elevated (`requireAdministrator`) and autostart at login through highest-privilege scheduled tasks so the owner never touches UAC.
+* **After an update, apps restore exactly as they were** (open → open, tray → tray) and the hub reliably reopens after self-update.
+* **Update checks are honest:** "Update Ready" only for genuinely newer remote builds (numeric version / byte compare), and update buttons glow only while an update is really ready.
+* **The live-notes Drive doc is the interruption channel** (see Turn start) — notes added mid-turn must be caught at checkpoints before the turn ends.
+
+---
+
+## 2. Repo map
 
 ```
-Orca-Plugins.bat            THE ONE FILE A USER DOWNLOADS, the whole updater
-                            since 2.0.0, and the ONLY .bat in the repository
-                            since 2.1.0: the menu, the build picker (main or
-                            the five newest test branches), the OrcaSlicer
-                            folder picker, the remembered choices, the
-                            install engine and self-update all live in it.
-                            It hands over to a newer copy of itself rather
-                            than overwriting itself mid-run. The old
-                            Update-Orca-Plugins.bat and
-                            Choose-Orca-Plugin-Version.bat filenames were
-                            removed at 2.1.0 at the owner's request; copies
-                            on disk keep working (an old launcher
-                            self-updates into this file), so do not
-                            reintroduce them without the owner asking.
-plugins.json                the catalogue the updater reads (what + where + version)
-AGENTS.md                   permanent agent rules; read first
-MEMORY.md                   short redirect to the preserved legacy handoff
-.agent/
-  STATE.md                  active status and next action; read every session
-  INDEX.md                  agent topic map and document maintenance rules
-  facts/                    confirmed technical facts by topic
-  decisions/                accepted design constraints and their reasons
-  runbooks/                 repeatable agent test/release procedures
-  history/                  dated context; do not load by default
-README.md                   human-facing front door / tour
+Orca-Plugins.bat              ONLY top-level .bat in repo (CRLF): Orca plugin installer
+plugins.json                  Orca plugin catalogue (kept in lockstep with Orca-Plugins.bat)
+project-hub/                  Native Win32 Suite Control Center (ProjectHub.exe + self-update)
+bluetooth-guard/              High-priority native Win32 Bluetooth auto-connect blocker (BluetoothGuard.exe)
+keyboard-lighting/            ASUS ROG Strix G16 RGB tray & engine (strict 7-bit ASCII, C# 5.0)
+dns-pilot/                    DNS benchmark & auto-pilot (DnsPilot.exe, tray autostart)
+agent-notes/                  Quick-notes Windows app (AgentNotes.exe) -> session .agent/INBOX.md
+suite-apps.json               App catalog: one entry adds a hub card (Install + icon), no hub update needed
+spatial-hud-template-26.3/    Minecraft 26.3 Fabric client mod + updater
 docs/
-  ORCA-PLUGIN-FACTS.md      OrcaSlicer plugin-system facts (do not re-derive)
-  ROADMAP.md                what's planned and every open question
-  reference/                supplied OrcaSlicer wiki/PDF reference snapshots
-plugins/
-  wave-overhangs/           OrcaSlicer pipeline plugin: support-free steep overhangs
-  unlayered-infill/         OrcaSlicer pipeline plugin: non-planar interlocking infill
-archive/                    NOT shipped: work kept for reference, with its own
-                            README explaining why and how to revive it.
-                            wave-overhangs-geometry/ lives here (archived 2026-10-02)
+  UI_STYLE_GUIDE.md           Soft Slate UI palette, rounded geometry & icon specs
+  brand/                      Master Tri-Spoke Core emblem & unified suite .ico/.png assets
 tools/
-  nonplanar-infill-tool/    standalone double-click tool (the predecessor of the
-                            unlayered-infill plugin; kept as reference, GPL-3.0)
-  sync_engine.py            copy the shared engine between its two homes (--check)
-  sync_changelog.py         push the newest release notes into the plugin files
-keyboard-lighting/          unrelated personal project; DO NOT reorganize or "fix" it
-tests/
-  fake_orca.py              minimal stand-in for Orca's `orca` module
-  fixtures/                 supplied STL and captured real G-code regression input
-  test_installer.py         contract test: catalogue / .bat / files must agree
-  test_post_script.py       functional test: the engine really rewrites G-code
-  test_plugin_runtime.py    runtime test: the PLUGIN loads, runs and logs
-  test_plugin_audit.py      imports all shipped plugins under Orca's audit hook
-  test_wave_gcode.py        captured real-export Wave replacement regression
-  test_unlayered_waves.py   Unlayered Infill wave shaping: pattern, angle,
-                            shape, layer phase, Z ceiling, and that the
-                            defaults still reproduce the previous release
-  wave_cases.py             the synthetic Wave exports the Wave tests slice
+  build_windows.py            Parallel Zig compiler for all four EXEs
+  agent_map.py                Regenerates .agent/CODEMAP.md (fast lookup index)
+  generate_suite_icons.py     Analytic SDF emblem & multi-size .ico/.png generator
+  check_all.py                Concurrent runner for all Python, sync, Windows, & Node tests
+  bump_version.py             Locks plugin versions across code, .bat, JSON, & changelogs
+  sync_engine.py              Syncs shared nonplanar_core into unlayered-infill plugin
+  sync_changelog.py           Syncs recent changelog bullets into plugin Check setup
+  dump_default_config.py      Refreshes docs/config-reference/*.json
+tests/                        Automated regression & contract tests
+.agent/CODEMAP.md             GENERATED function/line index — regenerate after moving code
 ```
 
-The `plugins.json` entry `path` is a URL path into this repo (forward slashes,
-relative to the repo root). The updater downloads
-`https://raw.githubusercontent.com/ajani190819-ops/Tests/main/<path>`, so after
-moving a plugin file you must update `path` in `plugins.json` **and** the
-hardcoded fallback list inside the .bat — `tests/test_installer.py` fails if
-you forget, and it is the safety net for exactly this.
+---
 
-## 4. Hard rules — breaking these breaks real users
+## 3. Hard rules — breaking these breaks real users
 
-1. **The repo must stay public.** The updater makes unauthenticated
-   raw.githubusercontent.com downloads; a private repo 404s every file.
-2. **`Orca-Plugins.bat` must stay CRLF.** All lines, byte-exact.
-   `*.bat -text` in `.gitattributes` keeps git from re-normalizing it. Never
-   edit it with tools that convert line endings (Python `Path.write_text`
-   does — use binary mode). After editing, assert the CRLF count. It is the
-   only .bat in the repository; `tests/test_installer.py` fails if a second
-   top-level .bat appears.
-3. **Version bumps take edits in lockstep.** Update the plugin's PEP 723
-   `# version = "..."` header, its module-level `PLUGIN_VERSION`, the catalogue
-   entry, and the .bat fallback row. For Unlayered Infill also update
-   `TOOL_VERSION` and the standalone engine marker, then run
-   `python3 tools/sync_engine.py` so both engine copies move together. The
-   tests enforce every version surface, including exported G-code stamps.
-   **Never change the PEP 723 `name` casually.** The Plugin Development PDF
-   says Orca saves `plugin_name` inside preset/config identities. Both package
-   and capability names are permanently version-free: `Wave Overhangs` and
-   `Unlayered Infill`. Release numbers belong only in explicit version fields,
-   logs, Check setup, changelogs, tools and G-code stamps. The updater writes
-   that stable package name to its sidecar; it does not append the release
-   number to the identity. `tests/test_installer.py` enforces this — run it.
-   **Every bump also needs a changelog entry.** Add a `## <version> — <date>`
-   section at the top of `plugins/<id>/CHANGELOG.md` describing what the owner
-   will notice, add a dated entry to the root `CHANGELOG.md`, then run
-   `python3 tools/sync_changelog.py`. The generator copies the newest three
-   plugin releases into `CHANGELOG_RECENT` and refreshes the PEP 723 description.
-   `tests/test_installer.py` fails if the newest entry does not match the file.
-   **The version must never go into a capability name** — a process preset
-   stores that name as its value, so renaming it orphans the preset. See
-   `docs/ORCA-PLUGIN-FACTS.md`.
-4. **No `|`, `^`, `%`, `!` in any catalogue field** — they corrupt the .bat's
-   pipe-delimited plan or cmd.exe parsing.
-5. **Exactly two capabilities per plugin** in the catalogue — the .bat's plan
-   has two capability slots.
-6. **Never delete or rewrite `keyboard-lighting/`** — it is here for storage,
-   not review.
-7. **GPL-3.0 attribution must survive.** `unlayered-infill` and
-   `tools/nonplanar-infill-tool` derive from Roman Tenger's NonPlanarInfill
-   (GPL-3.0). Keep the copyright headers; keep the licence when distributing.
-8. **Git discipline:** all work happens on **the session branch you were
-   handed** (`arena/<id>-tests` — it is a different one every chat; session 1
-   was `arena/01a0f42b-tests`). Push only to that branch, open PRs only from
-   it, never commit straight to `main`, never force-push, never commit
-   credentials or generated junk. Don't trust a branch name hardcoded in a
-   doc — the current branch is whatever this session was given.
-9. **Orca plugin facts live in `docs/ORCA-PLUGIN-FACTS.md`** and they are
-   binding: e.g. import third-party deps at module load (never inside a
-   capability), never read `post_process_plugin` from config, G-code
-   transforms must be idempotent because the export step can run twice.
-10. **The shared engine exists twice, verbatim.** `nonplanar_core` lives as
-    plain source between the `BEGIN/END nonplanar_core` markers in
-    `plugins/unlayered-infill/unlayered_infill_post.py` (**edit this one**) and
-    as an escaped string literal in `unlayered_infill_orca.py`. After editing,
-    run `python3 tools/sync_engine.py` to push it across;
-    `tests/test_post_script.py` fails if they drift. Two front ends, one
-    engine; that is the whole point of decision C1.
-11. **Logging must never be able to break a print.** Every `_log()` call is
-    wrapped so that a full disk, a read-only folder or a missing Downloads
-    directory can only lose the log line, never fail the export. The log goes
-    to `<Downloads>/orca-plugins.log` because the owner has to be able to find
-    it; all plugins share the one file. Keep the step trace bounded (log each
-    pipeline step once) or it will fill their Downloads folder.
-12. **Never make the .bat overwrite itself while it runs.** `cmd.exe` streams
-    a batch file from disk by byte offset as it executes, so a self-overwrite
-    can jump into garbage mid-run, and a bad download would leave the owner
-    with no working updater. `:self_update` downloads the new copy to `%TEMP%`,
-    verifies it, and hands over to it; the file on disk is never touched.
-    `tests/test_installer.py` enforces this.
-13. **Never touch the filesystem at plugin import time.** Module level does
-    metadata, constants and `import` statements — nothing else. No log line,
-    no state file, no `open()`, no `print()`. OrcaSlicer installs a CPython
-    audit hook *before* it imports any plugin, and a write during import has
-    no plugin identity attached: it can throw a permission prompt in the
-    owner's face mid-install, or fail the load outright. A failed load is
-    invisible except in the Plugins dialog's **Diagnostics** tab, so it looks
-    to the owner like "it won't install". Log lazily instead — a
-    `_LOADED_LOGGED` flag plus `_log_loaded_once()` as the first statement of
-    every capability's `execute()`. v0.3.0 / v0.0.5 shipped this bug;
-    `tests/test_plugin_audit.py` is the regression guard and imports each
-    plugin under a hook that denies every write.
-14. **One entry file per plugin folder.** Orca picks a plugin's entry point by
-    scanning its folder for a single `.py` (or `.whl`). A second `.py` beside
-    it makes the entry ambiguous. This is why the standalone tools stage to
-    `Downloads\OrcaPlugins\tools\` (`%TOOLDIR%`) and never beside the plugin
-    copies.
+1. **The repo must stay public** (`Orca-Plugins.bat` and `ProjectHub.exe` fetch via `raw.githubusercontent.com`).
+2. **All `.bat` files must stay pure CRLF (`\r\n`) on every line**, and **`Orca-Plugins.bat` must remain the ONLY root `.bat`** (`Path.read_bytes`/`write_bytes` only — never text mode). Flat `goto` labels only in setup `.bat` files (no multiline `(` blocks).
+3. **Never disable Bluetooth service profiles (`BLUETOOTH_SERVICE_DISABLE`) in `bluetooth-guard/`.** Always keep profiles enabled (`EnsureProfilesEnabled`) and connect/disconnect via CoreAudio `KSPROPERTY_ONESHOT_RECONNECT` / `KSPROPERTY_ONESHOT_DISCONNECT` + `IOCTL_BTH_DISCONNECT_DEVICE` so manual connect always works.
+4. **Keep prominent `Update Hub` self-update working in `ProjectHub.exe`**, and bump `HUB_VERSION` **and** `HUB_VERSION_W` (two separate lines, bump both together) whenever shipping a new `ProjectHub.exe` binary.
+5. **Strict 7-bit ASCII & C# 5.0 in `keyboard-lighting/`** — no non-ASCII bytes, no C# 6+ syntax, and never `$Var::Member` in PowerShell. Do not touch `keyboard-lighting/` unless asked.
+6. **UI & Brand consistency (`docs/UI_STYLE_GUIDE.md`):** Soft rounded corners (`14px` cards, `9-11px` controls, `DWMWCP_ROUND = 2`), **Tri-Spoke Core Emblem** everywhere (**never** the old 8-point compass), and unified squircle `.ico` app icons.
+7. **OrcaSlicer plugin invariants (`docs/ORCA-PLUGIN-FACTS.md`):**
+   * Version bumps move in lockstep via `tools/bump_version.py`; never put versions inside plugin/capability `name` strings; keep `|`, `^`, `%`, `!` out of `plugins.json`; keep exactly 2 capabilities per plugin.
+   * Keep imports at module top level, zero disk I/O at import time, idempotent G-code rewrites, and `nonplanar_core` synced via `python3 tools/sync_engine.py`.
+   * Preserve GPL-3.0 attribution in `plugins/unlayered-infill/` and `tools/nonplanar-infill-tool/`.
+8. **Git discipline:** Commit and push strictly on the active `arena/<id>-tests` session branch (never push directly to `main`, never force-push).
 
-## 5. How to verify your work
+---
 
+## 4. Verification & Release Playbook
+
+Run before every commit:
 ```bash
-python3 tests/test_installer.py        # catalogue / .bat / files agree
-python3 tests/test_post_script.py      # the engine really rewrites G-code
-python3 tests/test_plugin_runtime.py   # the plugin loads, runs, and logs
-python3 tests/test_plugin_audit.py     # it imports under Orca's audit hook
-python3 tests/test_unlayered_waves.py  # Unlayered Infill wave shaping
-python3 tests/test_wave_gcode.py       # captured export; needs numpy + shapely
-                                      # -- it SKIPS without them. A skip is not
-                                      # a pass; install them before claiming it.
-python3 tools/sync_engine.py --check   # the two engine copies are identical
-python3 tools/sync_changelog.py --check  # changelogs match the plugins
-python3 tools/dump_default_config.py --check  # docs/config-reference is current
-python3 tools/check_all.py            # ALL of the above, both dependency sest already simulates
-the `for /f` tokenization the .bat performs — extend it rather than trusting
-your eyes).
-
-Anything touching real slicing behaviour is verified against a fake harness at
-best. Say so in the PR. The first real slice on real OrcaSlicer is the real
-test; `data_dir()/log/python_*.log` holds the traceback if it fails.
-
-## 5a. The release playbook — do a version bump THIS way
-
-Shipping a change touches ten files that must agree, and discovering the
-disagreement one failing test at a time is what makes a small change take an
-hour. Do it in this order, in as few tool calls as possible.
-
-**Before writing code**
-1. If anything about the request is ambiguous -- how aggressive a default
-   should be, which plugin first, whether a behaviour change is wanted --
-   **ask**. One round of 2-4 questions costs a minute. Guessing wrong costs a
-   rewrite, and the owner has said plainly that they want to be asked.
-2. Decide the version numbers now, not at the end.
-
-**Environment, once per session**
-```bash
-pip install --break-system-packages -q shapely numpy   # test_wave_gcode needs these
-mkdir -p /tmp/nodeps && printf 'raise ImportError("blocked")\n' > /tmp/nodeps/numpy.py \
-  && cp /tmp/nodeps/numpy.py /tmp/nodeps/shapely.py    # for the deps-absent path
+python3 tools/build_windows.py
+python3 tools/check_all.py
 ```
-The sandbox can be reset between turns and lose both. If a geometry test
-suddenly reports `'NoneType' object has no attribute 'geometry'`, shapely is
-gone -- reinstall, do not debug the plugin.
 
-**The bump itself**: one script, not ten edits. `tools/bump_version.py NAME
-VERSION` does every file below and refuses to half-finish:
+When bumping an Orca plugin version:
+1. Prepend `## <version> — YYYY-MM-DD` (starting with `*` bullets) to `plugins/<id>/CHANGELOG.md` and root `CHANGELOG.md`.
+2. Run:
+   ```bash
+   python3 tools/bump_version.py <plugin-id> <version>
+   python3 tools/sync_engine.py
+   python3 tools/sync_changelog.py
+   python3 tools/dump_default_config.py
+   python3 tools/check_all.py
+   ```
 
-| file | what must change |
-| --- | --- |
-| `plugins/<p>/<p>_orca.py` | PEP 723 `# version`, `PLUGIN_VERSION` |
-| `plugins/<p>/<p>_post.py` | `TOOL_VERSION`, `MARKER_VERSION` (Unlayered only) |
-| `plugins.json` | the catalogue entry |
-| `Orca-Plugins.bat` | the `^|`-joined fallback line |
-| `plugins/<p>/CHANGELOG.md` | a new entry, bullets FIRST |
-| `CHANGELOG.md` | one dated entry covering the release |
+---
 
-**Then, in one command:**
-```bash
-python3 tools/sync_engine.py && python3 tools/sync_changelog.py \
-  && python3 tools/dump_default_config.py && python3 tools/check_all.py
-```
-`tools/check_all.py` runs every test in both dependency states and prints one
-line per check. Use it instead of running six test files by hand.
+## 5. Fast lookup — the code map
 
-**Traps that have cost real time here, all now avoidable**
-* **Never write `Orca-Plugins.bat` with Python text mode.** `write_text`
-  converts CRLF to LF and the installer test fails with five errors at once.
-  Use `read_bytes`/`write_bytes`, or `sed -i` on a line number.
-* **`tools/sync_changelog.py` rewrites the PEP 723 `description`** from the
-  FIRST bullet of the new changelog entry. Write that bullet as a one-line
-  summary and the description comes out right with no hand-editing.
-* **Changelog entries must lead with `*` bullets**, prose after. The
-  generator reads the bullets.
-* **Test files are standalone scripts.** `python3 tests/test_x.py`. Never
-  pytest -- it dies with INTERNALERROR because they `sys.exit` at module
-  scope.
-* **A pinned geometry count in `test_wave_gcode.py` is measuring geometry,
-  not defaults.** If you change a default, run the fixture against the
-  explicit `LEGACY` config and give the new behaviour its own assertions;
-  do not just edit the pinned number.
-* **One edit, one verification.** Batch independent edits into a single
-  patch script and verify once, rather than edit-test-edit-test.
-
-## 6. Glossary (extend as needed)
-
-* **catalogue** — `plugins.json`: the list of plugins the updater can install.
-* **updater** — `Orca-Plugins.bat`. Double-clickable Windows script; menu,
-  build picker, folder picker and install engine in one file since 2.0.0,
-  and the only .bat in the repository since 2.1.0 (the old chooser/updater
-  filenames were removed then; copies already on disk keep working).
-* **PEP 723 header** — the `# /// script` comment block at the top of a
-  plugin file; carries the plugin's name/version/dependencies.
-* **sidecar** — Orca's `.install_state.json` next to a plugin; says it is
-  installed, enabled, and which capabilities are on. The updater writes it so
-  plugins appear already enabled.
-* **pipeline plugin** — an OrcaSlicer plugin that hooks into slicing steps
-  (e.g. `posSlice`, `psGCodePostProcess`). Needs Orca newer than 2.4.2 or a
-  nightly.
-* **post-processing script** — a plain script run on the finished G-code,
-  either by hand or via Orca's *Post-processing scripts* setting. Works on any
-  Orca version; this is what `tools/nonplanar-infill-tool` is.
-* **CRLF** — Windows line endings (`\r\n`). The .bat needs them.
-* **raw.githubusercontent.com** — GitHub's "give me this file as-is" URL
-  service; how the updater downloads.
-* **GPL-3.0** — a copyleft licence; derived code must keep attribution and the
-  same licence.
-sing scripts* setting. Works on any
-  Orca version; this is what `tools/nonplanar-infill-tool` is.
-* **CRLF** — Windows line endings (`\r\n`). The .bat needs them.
-* **raw.githubusercontent.com** — GitHub's "give me this file as-is" URL
-  service; how the updater downloads.
-* **GPL-3.0** — a copyleft licence; derived code must keep attribution and the
-  same licence.
+* **`.agent/CODEMAP.md`** lists every function, section banner, and `g_` global of the four C sources plus `tools/` and `tests/` Python files with exact line numbers. Read it before exploring; jump straight to the line.
+* Regenerate after adding/moving code: `python3 tools/agent_map.py` (its `--check` runs in `check_all.py`, so a stale map fails the suite).
