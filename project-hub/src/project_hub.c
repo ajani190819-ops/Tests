@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.30"
-#define HUB_VERSION_W     L"2.8.30"
+#define HUB_VERSION       "2.8.31"
+#define HUB_VERSION_W     L"2.8.31"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -595,8 +595,17 @@ static BOOL WriteBinaryFileAtomic(const wchar_t *dest, const BYTE *data, DWORD l
    keep a warm TLS channel instead of paying fresh handshakes for every
    probe (this used to open 8 brand-new sessions per 10-second cycle). */
 static HINTERNET g_httpSess = NULL;
-static HINTERNET g_httpConnRaw = NULL;
-static HINTERNET g_httpConnApi = NULL;
+/* One connection handle PER HOST. WinHttpConnect bakes the hostname into
+   the handle, so sharing one slot across hosts sends later requests to
+   whatever host connected first (that made the github.com jar download
+   land on raw.githubusercontent.com and 404 - "download failed"). */
+typedef struct { const wchar_t *host; HINTERNET conn; } HostConn;
+static HostConn g_httpConns[] = {
+    { L"raw.githubusercontent.com", NULL },
+    { L"api.github.com", NULL },
+    { L"github.com", NULL },
+    { NULL, NULL }
+};
 
 static HINTERNET HttpSession(void) {
     if (!g_httpSess) {
@@ -609,13 +618,16 @@ static HINTERNET HttpSession(void) {
 }
 
 static HINTERNET HttpConnect(const wchar_t *host) {
-    HINTERNET *slot = (wcscmp(host, L"api.github.com") == 0) ? &g_httpConnApi : &g_httpConnRaw;
-    if (!*slot) {
-        HINTERNET s = HttpSession();
-        if (!s) return NULL;
-        *slot = WinHttpConnect(s, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
+    for (HostConn *s = g_httpConns; s->host; s++) {
+        if (_wcsicmp(s->host, host) != 0) continue;
+        if (!s->conn) {
+            HINTERNET sess = HttpSession();
+            if (!sess) return NULL;
+            s->conn = WinHttpConnect(sess, s->host, INTERNET_DEFAULT_HTTPS_PORT, 0);
+        }
+        return s->conn;
     }
-    return *slot;
+    return NULL;
 }
 
 static BOOL HttpHeadSize(const wchar_t *host, const wchar_t *urlPath, DWORD *outSize) {
