@@ -84,6 +84,11 @@ public final class ExperimentalHudCapture {
 	 * No target is allocated and no GUI is intercepted here.
 	 */
 	static void beginFrame(GuiGraphicsExtractor sourceGraphics) {
+		if (frameActive) {
+			// Already started this frame by an earlier root: never reset state
+			// mid-frame or previously captured roots would be lost.
+			return;
+		}
 		frameActive = false;
 		frameHasContent = false;
 		frameCapturedHotbar = false;
@@ -249,44 +254,45 @@ public final class ExperimentalHudCapture {
 	 * any projection state.
 	 */
 	public static void renderAndComposite() {
-		if (!frameActive || !frameHasContent || sessionFallback) {
-			return;
-		}
-		if (SpatialHudConfig.get().showHotbar && !frameCapturedHotbar && !loggedMissingHotbar) {
-			loggedMissingHotbar = true;
-			SpatialHud.LOGGER.warn("Spatial HUD experimental capture did not receive the vanilla hotbar root. The backing may render without hotbar pixels; check the Hotbar and Spectator Menu setting and mod HUD replacement order.");
-		}
-
 		try {
-				ensureTarget();
-				clearTarget();
-				capturedRenderer.render();
-				capturedRenderer.endFrame();
+			if (!frameActive || !frameHasContent || sessionFallback) {
+				return;
+			}
+			if (SpatialHudConfig.get().showHotbar && !frameCapturedHotbar && !loggedMissingHotbar) {
+				loggedMissingHotbar = true;
+				SpatialHud.LOGGER.warn("Spatial HUD experimental capture did not receive the vanilla hotbar root. The backing may render without hotbar pixels; check the Hotbar and Spectator Menu setting and mod HUD replacement order.");
+			}
 
-				SpatialHudConfig cfg = SpatialHudConfig.get();
-				if (cfg.selectedRenderMethod() == SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE) {
-					// Level rendering happens before GUI extraction. The world renderer
-					// intentionally draws this finished texture on the next frame.
-					worldTextureReady = true;
-				} else if (cfg.usesPolygonTest()) {
-					worldTextureReady = false;
-					if (!loggedPolygonComposite) {
-						loggedPolygonComposite = true;
-						SpatialHud.LOGGER.info("Spatial HUD Method 4 is mapping the captured lower HUD to its four purple GUI corners.");
-					}
-					compositePolygonTestMesh(cfg);
-				} else {
-					// Both screen-space choices are mandatory texture meshes. Their
-					// different warp strengths make green and blue visibly different
-					// without ever falling back to a root-by-root flat card.
-					worldTextureReady = false;
-					compositeProjectiveMesh(cfg);
+			ensureTarget();
+			clearTarget();
+			capturedRenderer.render();
+			capturedRenderer.endFrame();
+
+			SpatialHudConfig cfg = SpatialHudConfig.get();
+			if (cfg.selectedRenderMethod() == SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE) {
+				// Level rendering happens before GUI extraction. The world renderer
+				// intentionally draws this finished texture on the next frame.
+				worldTextureReady = true;
+			} else if (cfg.usesPolygonTest()) {
+				worldTextureReady = false;
+				if (!loggedPolygonComposite) {
+					loggedPolygonComposite = true;
+					SpatialHud.LOGGER.info("Spatial HUD Method 4 is mapping the captured lower HUD to its four purple GUI corners.");
 				}
-			} catch (Throwable t) {
+				compositePolygonTestMesh(cfg);
+			} else {
+				// Both screen-space choices are mandatory texture meshes. Their
+				// different warp strengths make green and blue visibly different
+				// without ever falling back to a root-by-root flat card.
+				worldTextureReady = false;
+				compositeProjectiveMesh(cfg);
+			}
+		} catch (Throwable t) {
 			fallback(t, "rendering the selected bottom-HUD texture");
 		} finally {
-			// The isolated GuiRenderer has consumed this exact state. Always clear
-			// the identity gate so no later GUI draw can ever be redirected.
+			// The isolated GuiRenderer has consumed this exact state. Always
+			// clear - even for empty frames - so the next frame's lazy
+			// beginFrame starts fresh no matter which root asks first.
 			frameActive = false;
 			frameHasContent = false;
 			capturedGraphics = null;

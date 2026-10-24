@@ -42,6 +42,14 @@ final class SpatialHudElement implements HudElement {
 			return;
 		}
 
+		// Start the shared capture frame from whichever root extracts first -
+		// not only from the panel's registry position. A root extracting before
+		// HOTBAR would otherwise miss capture entirely and draw on the affine
+		// fallback while the hotbar rides the projective mesh, so the status
+		// bars would not follow the hotbar. Cheap and idempotent per frame.
+		SpatialHud.updateViewPose();
+		ExperimentalHudCapture.beginFrame(graphics);
+
 		// AppleSkin and Detail Armor Bar Reconstructed inject their pixels while
 		// the vanilla roots extract. Capture therefore runs first so a completed
 		// companion group enters one projective texture mesh. Safe affine mode
