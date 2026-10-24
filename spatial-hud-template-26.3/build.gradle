@@ -22,6 +22,16 @@ loom {
 	}
 }
 
+// Fill the real version into fabric.mod.json. Without this the jar ships
+// with the literal string "${version}" as its mod version, which confuses
+// launchers and mod managers (Modrinth App) that parse versions.
+processResources {
+	inputs.property "version", project.version
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version
+	}
+}
+
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
