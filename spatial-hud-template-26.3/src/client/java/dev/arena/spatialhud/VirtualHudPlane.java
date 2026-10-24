@@ -144,15 +144,24 @@ final class VirtualHudPlane {
 		float minY = Float.POSITIVE_INFINITY;
 		float maxX = Float.NEGATIVE_INFINITY;
 		float maxY = Float.NEGATIVE_INFINITY;
+		int visibleCorners = 0;
 		for (Projection corner : corners) {
 			if (corner.depth() <= 0.08f) {
-				return false;
+				// Behind the near plane: this corner abstains instead of
+				// vetoing the whole panel. Looking far down swings the far/top
+				// edge behind the camera while most of the panel is still on
+				// screen - culling everything there made the HUD vanish.
+				continue;
 			}
+			visibleCorners++;
 			Point screen = toScreenPoint(corner);
 			minX = Math.min(minX, screen.x());
 			minY = Math.min(minY, screen.y());
 			maxX = Math.max(maxX, screen.x());
 			maxY = Math.max(maxY, screen.y());
+		}
+		if (visibleCorners == 0) {
+			return false;
 		}
 		return maxX >= 0.0f && minX <= guiWidth && maxY >= 0.0f && minY <= guiHeight;
 	}
