@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.29"
-#define HUB_VERSION_W     L"2.8.29"
+#define HUB_VERSION       "2.8.30"
+#define HUB_VERSION_W     L"2.8.30"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -2581,14 +2581,7 @@ static void NormalizeDirPath(wchar_t *s) {
     while (n > 3 && (s[n - 1] == L'\\' || s[n - 1] == L'/')) s[--n] = L'\0';
 }
 
-static void PickSpatialHudModsFolder(void) {
-    wchar_t input[MAX_PATH];
-    wcsncpy(input, g_modsDir, MAX_PATH - 1);
-    input[MAX_PATH - 1] = L'\0';
-    if (PromptTextInput(g_hwnd,
-                        L"Mods folder path - paste or type it, or click Browse:",
-                        input, input, MAX_PATH, TRUE, L"Use Folder") != IDOK)
-        return;
+static void SaveModsDirFromInput(wchar_t *input) {
     NormalizeDirPath(input);
     if (!input[0]) return;
     DWORD attr = GetFileAttributesW(input);
@@ -2608,6 +2601,32 @@ static void PickSpatialHudModsFolder(void) {
     if (n > 1) WriteBinaryFileAtomic(saveFile, (const BYTE *)utf8, (DWORD)(n - 1));
     SetFooterStatus(L"Mods folder set.", 0);
     RefreshProjectStatuses();
+}
+
+static void PickSpatialHudModsFolder(void) {
+    wchar_t input[MAX_PATH];
+    wcsncpy(input, g_modsDir, MAX_PATH - 1);
+    input[MAX_PATH - 1] = L'\0';
+    INT_PTR r = PromptTextInput(g_hwnd,
+                        L"Mods folder path - paste or type it, or click Browse:",
+                        input, input, MAX_PATH, TRUE, L"Use Folder");
+    if (r == -1) {
+        /* Dialog could not be created - never leave the button dead. */
+        BROWSEINFOW bi;
+        ZeroMemory(&bi, sizeof(bi));
+        bi.hwndOwner = g_hwnd;
+        bi.lpszTitle = L"Select your Minecraft / Modrinth 'mods' folder:";
+        bi.ulFlags   = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_USENEWUI;
+        PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
+        if (pidl) {
+            if (SHGetPathFromIDListW(pidl, input) && input[0])
+                SaveModsDirFromInput(input);
+            CoTaskMemFree(pidl);
+        }
+        return;
+    }
+    if (r != IDOK) return;
+    SaveModsDirFromInput(input);
 }
 
 /* ============================================================================
@@ -3143,8 +3162,13 @@ static INT_PTR CALLBACK TextPromptProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp
             PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
             if (pidl) {
                 wchar_t picked[MAX_PATH];
-                if (SHGetPathFromIDListW(pidl, picked) && picked[0])
-                    SetDlgItemTextW(hDlg, 201, picked);
+                if (SHGetPathFromIDListW(pidl, picked) && picked[0]) {
+                    /* Selecting a folder in the picker is the decision:
+                       accept immediately - no second click needed. */
+                    wcsncpy(ctx->out, picked, ctx->outCap - 1);
+                    ctx->out[ctx->outCap - 1] = L'\0';
+                    EndDialog(hDlg, IDOK);
+                }
                 CoTaskMemFree(pidl);
             }
             return TRUE;
@@ -3174,6 +3198,7 @@ static INT_PTR PromptTextInput(HWND hwnd, const wchar_t *label, const wchar_t *p
     int cx = withBrowse ? 320 : 240;
     int cy = withBrowse ? 92 : 78;
     *(DWORD *)p = DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU; p += 4;
+    *(DWORD *)p = 0;             p += 4;   /* dwExtendedStyle (required!) */
     *(WORD *)p = (WORD)nItems; p += 2;
     *(WORD *)p = 10;   p += 2;
     *(WORD *)p = 10;   p += 2;
@@ -3199,26 +3224,30 @@ static INT_PTR PromptTextInput(HWND hwnd, const wchar_t *label, const wchar_t *p
         { WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
           (short)(withBrowse ? cx - 64 : 182), (short)(cy - 26), 48, 16, IDCANCEL, 0x0080, L"Cancel" }
     };
+    /* Without Browse the dialog is label, edit, OK, Cancel - skip item 2. */
+    const int order = withBrowse ? 1 : 0;
+    const int seq[2][5] = { { 0, 1, 3, 4, -1 }, { 0, 1, 2, 3, 4 } };
     for (int i = 0; i < nItems; i++) {
+        int it = seq[order][i];
         p = (BYTE *)(((ULONG_PTR)p + 3) & ~(ULONG_PTR)3);
-        *(DWORD *)p = items[i].style; p += 4;
+        *(DWORD *)p = items[it].style; p += 4;
         *(DWORD *)p = 0;             p += 4;
-        *(WORD *)p = (WORD)items[i].x;  p += 2;
-        *(WORD *)p = (WORD)items[i].y;  p += 2;
-        *(WORD *)p = (WORD)items[i].cx; p += 2;
-        *(WORD *)p = (WORD)items[i].cy; p += 2;
-        *(WORD *)p = items[i].id;    p += 2;
+        *(WORD *)p = (WORD)items[it].x;  p += 2;
+        *(WORD *)p = (WORD)items[it].y;  p += 2;
+        *(WORD *)p = (WORD)items[it].cx; p += 2;
+        *(WORD *)p = (WORD)items[it].cy; p += 2;
+        *(WORD *)p = items[it].id;    p += 2;
         *(WORD *)p = 0xFFFF;         p += 2;
-        *(WORD *)p = items[i].cls;   p += 2;
+        *(WORD *)p = items[it].cls;   p += 2;
         {
-            size_t n = wcslen(items[i].title) + 1;
-            CopyMemory(p, items[i].title, n * sizeof(WCHAR));
+            size_t n = wcslen(items[it].title) + 1;
+            CopyMemory(p, items[it].title, n * sizeof(WCHAR));
             p += n * sizeof(WCHAR);
         }
         *(WORD *)p = 0;              p += 2;
     }
     PromptCtx ctx = { preset, out, outCap > 0 ? outCap : 1, withBrowse };
-    out[0] = L'\0';
+    if (out != preset) out[0] = L'\0';   /* keep the preset when buffers alias */
     return DialogBoxIndirectParamW(g_hInst, (DLGTEMPLATE *)buf, hwnd,
                                    TextPromptProc, (LPARAM)&ctx);
 }
