@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.26"
-#define HUB_VERSION_W     L"2.8.26"
+#define HUB_VERSION       "2.8.27"
+#define HUB_VERSION_W     L"2.8.27"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -1249,6 +1249,38 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
         }
         if (n > 0) c->btnCount = n;
     }
+    /* Disable/Remove are hub features of the mod card: always present, even
+       if a stale catalog copy arrives without those verbs (the CDN in front
+       of raw.githubusercontent can serve older files for a few minutes).
+       Make room by dropping Folder first - the least essential of the four. */
+    if (slot == 2) {
+        static const struct { int id; const wchar_t *label; const wchar_t *verb; int w; } must[2] = {
+            { ID_HUD_DISABLE, L"Disable", L"disable", 78 },
+            { ID_HUD_REMOVE,  L"Remove",  L"remove",  74 }
+        };
+        for (int m = 0; m < 2; m++) {
+            int have = 0, drop = -1;
+            for (int b = 0; b < c->btnCount; b++) {
+                if (c->btns[b].id == must[m].id) have = 1;
+                if (c->btns[b].id == ID_HUD_FOLDER) drop = b;
+            }
+            if (have) continue;
+            if (drop >= 0) {
+                memmove(&c->btns[drop], &c->btns[drop + 1],
+                        (size_t)(c->btnCount - drop - 1) * sizeof(ActionBtn));
+                c->btnCount--;
+            }
+            if (c->btnCount >= 4) continue;
+            ActionBtn *btn = &c->btns[c->btnCount];
+            ZeroMemory(btn, sizeof(*btn));
+            btn->id = must[m].id;
+            btn->label = must[m].label;
+            btn->style = BTN_SECONDARY;
+            btn->widthPx = must[m].w;
+            btn->verb = must[m].verb;
+            c->btnCount++;
+        }
+    }
     if (icon[0]) {
         wchar_t iconsDir[MAX_PATH];
         _snwprintf(iconsDir, MAX_PATH - 1, L"%s\\icons", g_localApp);
@@ -1647,11 +1679,15 @@ static void RefreshProjectStatuses(void) {
         wcsncpy(g_cards[2].badge, L"Disabled", 47);
         g_cards[2].badgeKind = BADGE_IDLE;
         g_cards[2].btns[0].style = BTN_SECONDARY;
-        g_cards[2].btns[1].label = L"Enable";
+        for (int b = 0; b < g_cards[2].btnCount; b++)
+            if (g_cards[2].btns[b].id == ID_HUD_DISABLE)
+                g_cards[2].btns[b].label = L"Enable";
         wcsncpy(g_cards[2].detail,
                 L"Minecraft 26.3 Fabric mod  \x00B7  Disabled - will not install or update", 255);
     } else {
-        g_cards[2].btns[1].label = L"Disable";
+        for (int b = 0; b < g_cards[2].btnCount; b++)
+            if (g_cards[2].btns[b].id == ID_HUD_DISABLE)
+                g_cards[2].btns[b].label = L"Disable";
         wchar_t searchPat[MAX_PATH], foundJar[128] = L"";
         DWORD foundSize = 0;
         _snwprintf(searchPat, MAX_PATH, L"%s\\spatial-hud*.jar", g_modsDir);
@@ -1867,8 +1903,11 @@ static void WorkerCheckRemote(void) {
     /* check continues - footer dot keeps pulsing, no step churn */
 
     /* Dynamic app catalog: new suite apps appear on refresh with no hub
-       update needed. Built-in card ids are skipped here. */
-    _snwprintf(p, 255, L"/%s/%s/%s/suite-apps.json", REPO_OWNER_W, REPO_NAME_W, branch);
+       update needed. Built-in card ids are skipped here. The minute-
+       granularity cache buster keeps the raw.githubusercontent CDN from
+       serving stale copies of the catalog. */
+    _snwprintf(p, 255, L"/%s/%s/%s/suite-apps.json?t=%llu", REPO_OWNER_W, REPO_NAME_W, branch,
+               (unsigned long long)(GetTickCount64() / 60000ULL));
     char *catalog = (char *)HttpGetCached(L"raw.githubusercontent.com", p, &sz, &st);
     if (catalog && st == 200) {
         RebuildExtraCards(catalog);
