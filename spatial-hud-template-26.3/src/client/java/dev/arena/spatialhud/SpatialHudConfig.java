@@ -513,7 +513,7 @@ public final class SpatialHudConfig implements ConfigData {
 
 	/** Migrates legacy JSON fields to the current named rendering methods. */
 	private static void migrateV03Defaults(SpatialHudConfig cfg) {
-		if (cfg.configVersion >= 20) {
+		if (cfg.configVersion >= 21) {
 			return;
 		}
 
@@ -679,7 +679,15 @@ public final class SpatialHudConfig implements ConfigData {
 			cfg.polygonPitchResponsePercent = 100;
 		}
 
-		cfg.configVersion = 20;
+		if (cfg.configVersion < 21) {
+			// The companion pin must not survive a stale config: the status
+			// bars are expected to travel with the panel like every other root
+			// ("they should float around like everything else"). The visible
+			// Setup toggle re-enables the native layout deliberately.
+			cfg.preserveCompanionStatusLayout = false;
+		}
+
+		cfg.configVersion = 21;
 		save();
 	}
 
