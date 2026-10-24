@@ -289,37 +289,38 @@
 
 ## agent-notes/src/agent_notes.c
 
-- L70  f S
-- L72  f GetWinDpi
-- L78  S config + outbox + history
-- L80  f InitPaths  — ---------------- config + outbox + history ----------------
-- L91  f LoadConfig
-- L95  f SaveConfig
-- L99  f OutboxCount
-- L112  f FileExistsW
-- L128  f HistSave
-- L150  f HistLoad
-- L186  f HistAdd
-- L197  f HistSnip
-- L207  f OutboxAdd
-- L235  S HTTP to the agent session
-- L237  f HttpPostNote  — ---------------- HTTP to the agent session ----------------
-- L277  f FlushOutbox
-- L340  f StartFlush
-- L356  f EmbRasterize
-- L427  f EmbCacheEnsure
-- L442  f EmbSpinDraw
-- L494  S UI
-- L496  f EmbRect  — ---------------- UI ----------------
-- L500  f BtnRect
-- L505  f DrawBtn
-- L525  f HitBtn
-- L535  f DrawDot
-- L547  f PaintAll
-- L681  f NoteSetHint
-- L688  f NowStamp
-- L801  S entry
-- globals: g_hInst (L51), g_hwnd (L52), g_fontUI (L53), g_bgBrush (L54), g_dpi (L55), g_hoverBtn (L56), g_showEvent (L57), g_link (L59), g_cfgDir (L60), g_cfgPath (L61), g_histPath (L62), g_outboxDir (L63), g_status (L64), g_lastOk (L65), g_sending (L66), g_noteHint (L67), g_lastSent (L68), g_dpi (L70), g_hist (L125), g_histN (L126), g_embCache (L424), g_spinAngle (L425)
+- L75  f S
+- L82  f ApplyModernWindowFrame
+- L101  f GetWinDpi
+- L107  S config + outbox + history
+- L109  f InitPaths  — ---------------- config + outbox + history ----------------
+- L120  f LoadConfig
+- L124  f SaveConfig
+- L128  f OutboxCount
+- L141  f FileExistsW
+- L157  f HistSave
+- L179  f HistLoad
+- L215  f HistAdd
+- L226  f HistSnip
+- L236  f OutboxAdd
+- L264  S HTTP to the agent session
+- L266  f HttpPostNote  — ---------------- HTTP to the agent session ----------------
+- L306  f FlushOutbox
+- L369  f StartFlush
+- L385  f EmbRasterize
+- L456  f EmbCacheEnsure
+- L471  f EmbSpinDraw
+- L523  S UI
+- L525  f EmbRect  — ---------------- UI ----------------
+- L529  f BtnRect
+- L534  f DrawBtn
+- L554  f HitBtn
+- L564  f DrawDot
+- L576  f PaintAll
+- L744  f NoteSetHint
+- L751  f NowStamp
+- L864  S entry
+- globals: g_hInst (L55), g_hwnd (L56), g_fontUI (L57), g_bgBrush (L58), g_dpi (L59), g_fit (L60), g_hoverBtn (L61), g_showEvent (L62), g_link (L64), g_cfgDir (L65), g_cfgPath (L66), g_histPath (L67), g_outboxDir (L68), g_status (L69), g_lastOk (L70), g_sending (L71), g_noteHint (L72), g_lastSent (L73), g_hist (L154), g_histN (L155), g_embCache (L453), g_spinAngle (L454)
 
 ## tools/agent_map.py
 

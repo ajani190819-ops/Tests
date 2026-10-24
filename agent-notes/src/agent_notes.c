@@ -26,14 +26,18 @@
 #define MUTEX_NAME    L"Local\\Tests_AgentNotes_SingleInstance_v1"
 #define SHOW_EVENT    L"Local\\Tests_AgentNotes_Show_v1"
 
-#define COL_BG        RGB(24, 27, 36)
-#define COL_CARD      RGB(34, 39, 52)
-#define COL_TXT       RGB(232, 236, 245)
-#define COL_MUTED     RGB(139, 147, 168)
-#define COL_ACCENT    RGB(78, 161, 255)
-#define COL_WARN      RGB(245, 181, 68)
-#define COL_GOOD      RGB(52, 199, 120)
-#define COL_DIV       RGB(48, 55, 72)
+/* Soft Slate palette - exact tokens from docs/UI_STYLE_GUIDE.md */
+#define COL_BG        RGB(24, 27, 36)     /* Canvas Slate   #181B24 */
+#define COL_CARD      RGB(34, 39, 52)     /* Card Surface   #222734 */
+#define COL_INPUT     RGB(43, 49, 66)     /* Control Surface #2B3142 */
+#define COL_TXT       RGB(236, 239, 246)  /* Primary Text   #ECEFF6 */
+#define COL_MUTED     RGB(154, 163, 184)  /* Secondary Text #9AA3B8 */
+#define COL_ACCENT    RGB(56, 189, 248)   /* Primary Sky    #38BDF8 */
+#define COL_WARN      RGB(251, 191, 36)   /* Warm Amber     #FBBF24 */
+#define COL_GOOD      RGB(52, 211, 153)   /* Active Mint    #34D399 */
+#define COL_DIV       RGB(58, 66, 86)     /* Soft Hairline  #3A4256 */
+#define COL_HOT       RGB(82, 94, 122)    /* Hover Border   #525E7A */
+#define COL_CARD_BD   RGB(56, 64, 84)     /* Card border    #384054 */
 
 #ifndef EM_SETBKGNDCOLOR
 #define EM_SETBKGNDCOLOR (WM_USER + 67)   /* rich edit background color */
@@ -53,6 +57,7 @@ static HWND      g_hwnd, g_hNote, g_hLink;
 static HFONT     g_fontUI, g_fontTitle, g_fontBtn;
 static HBRUSH    g_bgBrush;
 static UINT      g_dpi = 96;
+static int       g_fit = 100;      /* uniform shrink so the window always fits the screen */
 static int       g_hoverBtn = -1;
 static HANDLE    g_showEvent = NULL;
 
@@ -67,7 +72,31 @@ static int       g_sending = 0;
 static int       g_noteHint = 1;         /* note box is showing the hint */
 static wchar_t   g_lastSent[16] = L"";
 
-static int S(int px) { return MulDiv(px, (int)g_dpi, 96); }
+static int S(int px) {
+    return MulDiv(MulDiv(px, (int)g_dpi, 96), g_fit, 100);
+}
+
+/* Dark title bar + full Windows 11 rounded corners (same as the hub). */
+typedef HRESULT (WINAPI *PFN_DwmSetWindowAttribute)(HWND, DWORD, LPCVOID, DWORD);
+
+static void ApplyModernWindowFrame(HWND hwnd) {
+    HMODULE dwm = LoadLibraryW(L"dwmapi.dll");
+    if (!dwm) return;
+    PFN_DwmSetWindowAttribute setAttr =
+        (PFN_DwmSetWindowAttribute)(void *)GetProcAddress(dwm, "DwmSetWindowAttribute");
+    if (setAttr) {
+        BOOL dark = TRUE;
+        DWORD cornerPref = 2;   /* DWMWCP_ROUND */
+        COLORREF captionCol = COL_BG;
+        COLORREF borderCol  = COL_DIV;
+        setAttr(hwnd, 20, &dark, sizeof(dark));
+        setAttr(hwnd, 19, &dark, sizeof(dark));
+        setAttr(hwnd, 33, &cornerPref, sizeof(cornerPref));
+        setAttr(hwnd, 35, &captionCol, sizeof(captionCol));
+        setAttr(hwnd, 34, &borderCol, sizeof(borderCol));
+    }
+    FreeLibrary(dwm);
+}
 
 static UINT GetWinDpi(HWND h) {
     UINT (WINAPI *pfn)(HWND) = (UINT (WINAPI *)(HWND))
@@ -505,8 +534,8 @@ static void BtnRect(int i, RECT *r) {
 static void DrawBtn(HDC dc, int idx, const wchar_t *label, int primary) {
     RECT r;
     BtnRect(idx, &r);
-    COLORREF fill = primary ? COL_ACCENT : COL_CARD;
-    COLORREF edge = (g_hoverBtn == idx) ? COL_ACCENT : COL_DIV;
+    COLORREF fill = primary ? COL_ACCENT : COL_INPUT;
+    COLORREF edge = (g_hoverBtn == idx) ? COL_HOT : COL_DIV;
     HBRUSH b = CreateSolidBrush(fill);
     HPEN p = CreatePen(PS_SOLID, 1, edge);
     HGDIOBJ ob = SelectObject(dc, b);
@@ -517,7 +546,7 @@ static void DrawBtn(HDC dc, int idx, const wchar_t *label, int primary) {
     DeleteObject(b);
     DeleteObject(p);
     SetBkMode(dc, TRANSPARENT);
-    SetTextColor(dc, COL_TXT);
+    SetTextColor(dc, primary ? COL_BG : COL_TXT);
     SelectObject(dc, g_fontBtn);
     DrawTextW(dc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 }
@@ -619,6 +648,23 @@ static void PaintAll(HWND hwnd) {
     RECT nlbl = { S(20), S(152), W - S(20), S(178) };
     DrawTextW(mem, L"New note", -1, &nlbl, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
+    /* Soft-slate rounded control surfaces. The RichEdit children paint on
+       top of these; the rounded fill shows at the corners. */
+    {
+        HBRUSH b = CreateSolidBrush(COL_INPUT);
+        HPEN p = CreatePen(PS_SOLID, 1, COL_DIV);
+        HGDIOBJ ob = SelectObject(mem, b);
+        HGDIOBJ op = SelectObject(mem, p);
+        RECT fr1 = { S(127), S(95), S(463), S(133) };
+        RoundRect(mem, fr1.left, fr1.top, fr1.right, fr1.bottom, S(10), S(10));
+        RECT fr2 = { S(17), S(175), S(603), S(371) };
+        RoundRect(mem, fr2.left, fr2.top, fr2.right, fr2.bottom, S(14), S(14));
+        SelectObject(mem, ob);
+        SelectObject(mem, op);
+        DeleteObject(b);
+        DeleteObject(p);
+    }
+
     DrawBtn(mem, BTN_SAVE, L"Save Link", 0);
     DrawBtn(mem, BTN_SEND, L"Send to Agent", 1);
 
@@ -626,6 +672,18 @@ static void PaintAll(HWND hwnd) {
     RECT rl = { S(20), S(438), W - S(20), S(462) };
     SetTextColor(mem, COL_MUTED);
     DrawTextW(mem, L"Recent notes", -1, &rl, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    {
+        HBRUSH b = CreateSolidBrush(COL_CARD);
+        HPEN p = CreatePen(PS_SOLID, 1, COL_CARD_BD);
+        HGDIOBJ ob = SelectObject(mem, b);
+        HGDIOBJ op = SelectObject(mem, p);
+        RECT cardRc = { S(17), S(462), W - S(17), S(550) };
+        RoundRect(mem, cardRc.left, cardRc.top, cardRc.right, cardRc.bottom, S(14), S(14));
+        SelectObject(mem, ob);
+        SelectObject(mem, op);
+        DeleteObject(b);
+        DeleteObject(p);
+    }
     SelectObject(mem, g_fontUI);
     for (int i = 0; i < HIST_SHOW && i < g_histN; i++) {
         int y = S(466) + i * S(26);
@@ -640,7 +698,7 @@ static void PaintAll(HWND hwnd) {
         HPEN p = CreatePen(PS_SOLID, 1, queued ? COL_WARN : COL_GOOD);
         HGDIOBJ op = SelectObject(mem, p);
         HGDIOBJ ob = SelectObject(mem, GetStockObject(NULL_BRUSH));
-        RoundRect(mem, chip.left, chip.top, chip.right, chip.bottom, S(8), S(8));
+        RoundRect(mem, chip.left, chip.top, chip.right, chip.bottom, S(10), S(10));
         SelectObject(mem, ob);
         SelectObject(mem, op);
         DeleteObject(p);
@@ -667,7 +725,12 @@ static void PaintAll(HWND hwnd) {
     SetTextColor(mem, (g_lastOk == 0) ? COL_WARN : ((g_lastOk == 1) ? COL_GOOD : COL_MUTED));
     DrawTextW(mem, g_status, -1, &fr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
-    if (bits) EmbSpinDraw(bits, W, H, er.left, er.top, er.right - er.left, g_spinAngle);
+    if (bits) {
+        /* GDI batches its draws - flush before touching the DIB pixels, or
+           the batched fills can land on top of the emblem as a ghost square. */
+        GdiFlush();
+        EmbSpinDraw(bits, W, H, er.left, er.top, er.right - er.left, g_spinAngle);
+    }
 
     BitBlt(dc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
     if (dib) {
@@ -772,7 +835,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         } else {
             SetTextColor(h, COL_TXT);
         }
-        SetBkColor(h, COL_CARD);
+        SetBkColor(h, COL_INPUT);
         return (LRESULT)g_bgBrush;
     }
     case WM_TIMER:
@@ -839,12 +902,30 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
 
     g_dpi = GetWinDpi(g_hwnd);
     {
+        /* Size to the true DPI, then shrink uniformly if that would not fit
+           the work area - the layout can never be cut off on any display. */
         RECT wrc = { 0, 0, S(620), S(600) };
         AdjustWindowRectEx(&wrc, WS_OVERLAPPEDWINDOW, FALSE, 0);
+        RECT wa;
+        SystemParametersInfoW(SPI_GETWORKAREA, 0, &wa, 0);
+        int workW = (wa.right - wa.left) - S(32);
+        int workH = (wa.bottom - wa.top) - S(32);
+        int winW = wrc.right - wrc.left, winH = wrc.bottom - wrc.top;
+        if (winW > workW || winH > workH) {
+            int fx = MulDiv(100, workW, winW);
+            int fy = MulDiv(100, workH, winH);
+            g_fit = (fx < fy) ? fx : fy;
+            if (g_fit < 50) g_fit = 50;
+            if (g_fit > 100) g_fit = 100;
+            RECT w2 = { 0, 0, S(620), S(600) };
+            AdjustWindowRectEx(&w2, WS_OVERLAPPEDWINDOW, FALSE, 0);
+            wrc = w2;
+        }
         SetWindowPos(g_hwnd, NULL, 0, 0,
                      wrc.right - wrc.left, wrc.bottom - wrc.top,
                      SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
     }
+    ApplyModernWindowFrame(g_hwnd);
     g_bgBrush = CreateSolidBrush(COL_BG);
     g_fontUI = CreateFontW(-S(13), 0, 0, 0, FW_NORMAL, 0, 0, 0, 0, 0, 0, 0, 0, L"Segoe UI");
     g_fontTitle = CreateFontW(-S(22), 0, 0, 0, FW_SEMIBOLD, 0, 0, 0, 0, 0, 0, 0, 0, L"Segoe UI");
@@ -862,12 +943,12 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
                               S(20), S(178), S(580), S(190),
                               g_hwnd, (HMENU)(INT_PTR)ID_EDIT_NOTE, hInst, NULL);
     if (g_hLink) {
-        SendMessageW(g_hLink, EM_SETBKGNDCOLOR, 0, (LPARAM)COL_CARD);
+        SendMessageW(g_hLink, EM_SETBKGNDCOLOR, 0, (LPARAM)COL_INPUT);
         SendMessageW(g_hLink, WM_SETFONT, (WPARAM)g_fontUI, TRUE);
         SendMessageW(g_hLink, EM_SETLIMITTEXT, 0, 255);
     }
     if (g_hNote) {
-        SendMessageW(g_hNote, EM_SETBKGNDCOLOR, 0, (LPARAM)COL_CARD);
+        SendMessageW(g_hNote, EM_SETBKGNDCOLOR, 0, (LPARAM)COL_INPUT);
         SendMessageW(g_hNote, WM_SETFONT, (WPARAM)g_fontUI, TRUE);
         SendMessageW(g_hNote, EM_SETLIMITTEXT, 0, 4000);
         NoteSetHint(1);
