@@ -869,9 +869,25 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
 
     CreateMutexW(NULL, FALSE, MUTEX_NAME);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        /* Normal case: nudge the running window forward and exit. But if
+           nothing answers - a hung half-dead process still holding the
+           mutex - start anyway, or the app looks like it 'won't open'. */
         g_showEvent = OpenEventW(EVENT_MODIFY_STATE, FALSE, SHOW_EVENT);
         if (g_showEvent) SetEvent(g_showEvent);
-        return 0;
+        HWND other = NULL;
+        for (int i = 0; i < 40; i++) {          /* up to ~2 s */
+            other = FindWindowW(L"AgentNotesWnd", NULL);
+            if (other) break;
+            Sleep(50);
+        }
+        if (other) {
+            DWORD_PTR reply = 0;
+            if (!SendMessageTimeoutW(other, WM_NULL, 0, 0,
+                                     SMTO_ABORTIFHUNG | SMTO_BLOCK, 400, &reply))
+                other = NULL;                   /* window exists but is hung */
+        }
+        if (other) return 0;                    /* healthy instance is up */
+        /* zombie or windowless leftover - fall through and open for real */
     }
     g_showEvent = CreateEventW(NULL, FALSE, FALSE, SHOW_EVENT);
 

@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.27"
-#define HUB_VERSION_W     L"2.8.27"
+#define HUB_VERSION       "2.8.28"
+#define HUB_VERSION_W     L"2.8.28"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -494,6 +494,13 @@ static DWORD LocalSizeOf(const wchar_t *p) {
     if (GetFileAttributesExW(p, GetFileExInfoStandard, &fad))
         return fad.nFileSizeLow;
     return 0;
+}
+
+/* Installed means usable: a 0-byte exe (interrupted copy, AV quarantine
+   remnant, ...) must not count as installed, or the update check stays
+   silent while the app cannot even open. */
+static BOOL FileHealthyW(const wchar_t *p) {
+    return FileExistsW(p) && LocalSizeOf(p) > 0;
 }
 
 static BOOL DirExistsW(const wchar_t *p) {
@@ -1598,7 +1605,7 @@ static void RefreshProjectStatuses(void) {
 
     /* 1. Bluetooth Guard */
     _snwprintf(path, MAX_PATH, L"%s\\BluetoothGuard.exe", g_btgDir);
-    BOOL hasBtg = FileExistsW(path) || (g_btgExtraExe[0] && FileExistsW(g_btgExtraExe));
+    BOOL hasBtg = FileHealthyW(path) || (g_btgExtraExe[0] && FileHealthyW(g_btgExtraExe));
     wchar_t btgLock[MAX_PATH];
     _snwprintf(btgLock, MAX_PATH, L"%s\\BluetoothGuard\\running.lock", g_localApp);
     int blocked = 0, total = 0;
@@ -1639,7 +1646,7 @@ static void RefreshProjectStatuses(void) {
     wchar_t kblExe[MAX_PATH];
     _snwprintf(kblExe, MAX_PATH, L"%s\\KeyboardLighting.exe", g_kblDir);
     _snwprintf(path, MAX_PATH, L"%s\\Tray.ps1", g_kblDir);
-    BOOL hasKbl = FileExistsW(kblExe) || FileExistsW(path);
+    BOOL hasKbl = FileHealthyW(kblExe) || FileHealthyW(path);
     wchar_t kblLock[MAX_PATH];
     _snwprintf(kblLock, MAX_PATH, L"%s\\KeyboardLighting\\running.lock", g_localApp);
     int kblState = CheckPidLockStatus(kblLock, 12.0, NULL, NULL);
@@ -1755,7 +1762,7 @@ static void RefreshProjectStatuses(void) {
     /* 5. DNS Pilot */
     wchar_t dnsExe[MAX_PATH];
     _snwprintf(dnsExe, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
-    BOOL hasDns = FileExistsW(dnsExe);
+    BOOL hasDns = FileHealthyW(dnsExe);
     DWORD locDnsSz = LocalSizeOf(dnsExe);
     BOOL dnsKnown = (remDnsSz > 0 && locDnsSz > 0);
     BOOL dnsUpd = hasDns && dnsKnown && locDnsSz != remDnsSz;
@@ -1794,7 +1801,7 @@ static void RefreshProjectStatuses(void) {
         DWORD remNotesSz = g_remNotesSize;
         wchar_t notesExe[MAX_PATH];
         _snwprintf(notesExe, MAX_PATH, L"%s\\AgentNotes.exe", g_notesDir);
-        BOOL hasNotes = FileExistsW(notesExe);
+        BOOL hasNotes = FileHealthyW(notesExe);
         DWORD locNotesSz = LocalSizeOf(notesExe);
         BOOL notesKnown = (remNotesSz > 0 && locNotesSz > 0);
         BOOL notesUpd = hasNotes && notesKnown && locNotesSz != remNotesSz;
@@ -1827,7 +1834,7 @@ static void RefreshProjectStatuses(void) {
         ProjectCard *c = &g_cards[i];
         wchar_t exePath[MAX_PATH];
         _snwprintf(exePath, MAX_PATH - 1, L"%s\\%s", c->appDir, c->exeName);
-        BOOL has = FileExistsW(exePath);
+        BOOL has = FileHealthyW(exePath);
         DWORD locSz = LocalSizeOf(exePath);
         BOOL known = (c->remSize > 0 && locSz > 0);
         BOOL upd = has && known && locSz != c->remSize;
