@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.25"
-#define HUB_VERSION_W     L"2.8.25"
+#define HUB_VERSION       "2.8.26"
+#define HUB_VERSION_W     L"2.8.26"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -68,6 +68,8 @@
 #define ID_HUD_UPDATE        1301
 #define ID_HUD_PICK          1302
 #define ID_HUD_FOLDER        1303
+#define ID_HUD_DISABLE       1304
+#define ID_HUD_REMOVE        1305
 
 #define ID_ORCA_UPDATE       1401
 #define ID_ORCA_MENU         1402
@@ -824,11 +826,29 @@ static BOOL LoadBranchCfg(wchar_t *out, size_t cap) {
 
 static void SaveBranchCfg(const wchar_t *branch) {
     wchar_t dir[MAX_PATH], ini[MAX_PATH];
-    _snwprintf(dir, MAX_PATH, L"%s\\ProjectHub", g_localApp);
+    _snwprintf(dir, MAX_PATH - 1, L"%s\\ProjectHub", g_localApp);
     dir[MAX_PATH - 1] = L'\0';
     CreateDirectoryW(dir, NULL);
     BranchCfgPath(ini, MAX_PATH);
     WritePrivateProfileStringW(L"Update", L"Branch", branch, ini);
+}
+
+/* Per-app opt-outs. The mod card (and only it, per the owner's choice)
+   can be disabled: no install, no update, Update All skips it. */
+static int g_hudDisabled = 0;
+
+static void LoadAppsCfg(void) {
+    wchar_t ini[MAX_PATH], buf[8];
+    BranchCfgPath(ini, MAX_PATH);
+    GetPrivateProfileStringW(L"Apps", L"HudDisabled", L"0", buf, 7, ini);
+    g_hudDisabled = (buf[0] == L'1');
+}
+
+static void SaveAppsCfg(void) {
+    wchar_t ini[MAX_PATH];
+    BranchCfgPath(ini, MAX_PATH);
+    WritePrivateProfileStringW(L"Apps", L"HudDisabled",
+                               g_hudDisabled ? L"1" : L"0", ini);
 }
 
 static void EnsureActiveBranch(wchar_t *outBranch, size_t cap) {
@@ -1165,13 +1185,14 @@ static int BuiltInSlot(const char *id) {
 
 static int BuiltInBtnId(int slot, const char *verb) {
     /* verb -> the control id the existing WM_COMMAND switch understands */
-    static const struct { const char *verb; int id; } map[20] = {
+    static const struct { const char *verb; int id; } map[22] = {
         { "open",      ID_BTG_OPEN },     { "update",    ID_BTG_UPDATE },
         { "stop",      ID_BTG_STOP },     { "folder",    ID_BTG_FOLDER },
         { "open",      ID_KBL_OPEN },     { "unfreeze",  ID_KBL_RESTART },
         { "update",    ID_KBL_UPDATE },   { "folder",    ID_KBL_FOLDER },
         { "updatemod", ID_HUD_UPDATE },   { "modsdir",   ID_HUD_PICK },
-        { "folder",    ID_HUD_FOLDER },
+        { "folder",    ID_HUD_FOLDER },   { "disable",   ID_HUD_DISABLE },
+        { "remove",    ID_HUD_REMOVE },
         { "update",    ID_ORCA_UPDATE },  { "branch",    ID_ORCA_MENU },
         { "folder",    ID_ORCA_FOLDER },
         { "open",      ID_DNS_OPEN },     { "update",    ID_DNS_UPDATE },
@@ -1179,7 +1200,7 @@ static int BuiltInBtnId(int slot, const char *verb) {
         { "open",      ID_NOTES_OPEN },   { "update",    ID_NOTES_UPDATE },
         { "folder",    ID_NOTES_FOLDER }
     };
-    static const int off[7] = { 0, 4, 8, 11, 14, 17, 20 };
+    static const int off[7] = { 0, 4, 8, 13, 16, 19, 22 };
     if (slot < 0 || slot > 5) return 0;
     for (int i = off[slot]; i < off[slot + 1]; i++)
         if (strcmp(map[i].verb, verb) == 0) return map[i].id;
@@ -1471,10 +1492,11 @@ static void InitCardDefinitions(void) {
 
     g_cards[2].resIconId = RES_ICON_HUD;
     g_cards[2].title     = L"Spatial HUD";
-    g_cards[2].btnCount  = 3;
-    g_cards[2].btns[0]   = (ActionBtn){ ID_HUD_UPDATE, L"Update Mod", BTN_SECONDARY, 98, {0,0,0,0}, NULL };
-    g_cards[2].btns[1]   = (ActionBtn){ ID_HUD_PICK,   L"Mods Dir",   BTN_SECONDARY, 84, {0,0,0,0}, NULL };
-    g_cards[2].btns[2]   = (ActionBtn){ ID_HUD_FOLDER, L"Folder",     BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[2].btnCount  = 4;
+    g_cards[2].btns[0]   = (ActionBtn){ ID_HUD_UPDATE,  L"Update Mod", BTN_SECONDARY, 98, {0,0,0,0}, NULL };
+    g_cards[2].btns[1]   = (ActionBtn){ ID_HUD_DISABLE, L"Disable",    BTN_SECONDARY, 78, {0,0,0,0}, NULL };
+    g_cards[2].btns[2]   = (ActionBtn){ ID_HUD_PICK,    L"Mods Dir",   BTN_SECONDARY, 84, {0,0,0,0}, NULL };
+    g_cards[2].btns[3]   = (ActionBtn){ ID_HUD_REMOVE,  L"Remove",     BTN_SECONDARY, 74, {0,0,0,0}, NULL };
 
     g_cards[3].resIconId = RES_ICON_ORCA;
     g_cards[3].title     = L"OrcaSlicer Plugins";
@@ -1621,33 +1643,44 @@ static void RefreshProjectStatuses(void) {
     }
 
     /* 3. Spatial HUD */
-    wchar_t searchPat[MAX_PATH], foundJar[128] = L"";
-    DWORD foundSize = 0;
-    _snwprintf(searchPat, MAX_PATH, L"%s\\spatial-hud*.jar", g_modsDir);
-    WIN32_FIND_DATAW fd;
-    HANDLE hf = FindFirstFileW(searchPat, &fd);
-    if (hf != INVALID_HANDLE_VALUE) {
-        wcsncpy(foundJar, fd.cFileName, 127);
-        foundSize = fd.nFileSizeLow;
-        FindClose(hf);
-    }
-    if (!foundJar[0]) {
-        wcsncpy(g_cards[2].badge, L"Update Ready", 47);
-        g_cards[2].badgeKind = BADGE_WARN;
-        g_cards[2].btns[0].style = BTN_PRIMARY;
-        wcsncpy(g_cards[2].detail, L"Minecraft 26.3 Fabric mod  \x00B7  Click Update Mod to install", 255);
-    } else if (remHudSz > 0 && foundSize != remHudSz) {
-        wcsncpy(g_cards[2].badge, L"Update Ready", 47);
-        g_cards[2].badgeKind = BADGE_WARN;
-        g_cards[2].btns[0].style = BTN_PRIMARY;
-        _snwprintf(g_cards[2].detail, 255, L"Minecraft 26.3 Fabric mod  \x00B7  Newer build (%s)", remHud);
-    } else {
-        wcsncpy(g_cards[2].badge, L"Up to Date", 47);
-        g_cards[2].badgeKind = BADGE_OK;
+    if (g_hudDisabled) {
+        wcsncpy(g_cards[2].badge, L"Disabled", 47);
+        g_cards[2].badgeKind = BADGE_IDLE;
         g_cards[2].btns[0].style = BTN_SECONDARY;
-        _snwprintf(g_cards[2].detail, 255, L"Minecraft 26.3 Fabric mod  \x00B7  %s", foundJar);
-    }
+        g_cards[2].btns[1].label = L"Enable";
+        wcsncpy(g_cards[2].detail,
+                L"Minecraft 26.3 Fabric mod  \x00B7  Disabled - will not install or update", 255);
+    } else {
+        g_cards[2].btns[1].label = L"Disable";
+        wchar_t searchPat[MAX_PATH], foundJar[128] = L"";
+        DWORD foundSize = 0;
+        _snwprintf(searchPat, MAX_PATH, L"%s\\spatial-hud*.jar", g_modsDir);
+        WIN32_FIND_DATAW fd;
+        HANDLE hf = FindFirstFileW(searchPat, &fd);
+        if (hf != INVALID_HANDLE_VALUE) {
+            wcsncpy(foundJar, fd.cFileName, 127);
+            foundSize = fd.nFileSizeLow;
+            FindClose(hf);
+        }
+        if (!foundJar[0]) {
+            wcsncpy(g_cards[2].badge, L"Update Ready", 47);
+            g_cards[2].badgeKind = BADGE_WARN;
+            g_cards[2].btns[0].style = BTN_PRIMARY;
+            wcsncpy(g_cards[2].detail, L"Minecraft 26.3 Fabric mod  \x00B7  Click Update Mod to install", 255);
+        } else if (remHudSz > 0 && foundSize != remHudSz) {
+            wcsncpy(g_cards[2].badge, L"Update Ready", 47);
+            g_cards[2].badgeKind = BADGE_WARN;
+            g_cards[2].btns[0].style = BTN_PRIMARY;
+            _snwprintf(g_cards[2].detail, 255, L"Minecraft 26.3 Fabric mod  \x00B7  Newer build (%s)", remHud);
+        } else {
+            wcsncpy(g_cards[2].badge, L"Up to Date", 47);
+            g_cards[2].badgeKind = BADGE_OK;
+            g_cards[2].btns[0].style = BTN_SECONDARY;
+            _snwprintf(g_cards[2].detail, 255, L"Minecraft 26.3 Fabric mod  \x00B7  %s", foundJar);
+        }
 
+
+    }
     /* 4. OrcaSlicer Plugins */
     char locWave[32] = "", locInfill[32] = "";
     const wchar_t *probeRel[] = {
@@ -2193,6 +2226,10 @@ static void WorkerInstallKeyboardLighting(void) {
 }
 
 static void WorkerInstallSpatialHud(void) {
+    if (g_hudDisabled) {
+        SetFooterStatus(L"Spatial HUD is disabled - click Enable on its card first.", 0);
+        return;
+    }
     SetCheckPhase(TRUE);
     if (!g_remHudPath[0]) WorkerCheckRemote();
 
@@ -3278,6 +3315,41 @@ static void HandleActionCommand(HWND hwnd, int id) {
         ShellExecuteW(hwnd, L"open", g_modsDir, NULL, NULL, SW_SHOWNORMAL);
         break;
 
+    case ID_HUD_DISABLE:
+        g_hudDisabled = !g_hudDisabled;
+        SaveAppsCfg();
+        SetFooterStatus(g_hudDisabled
+                            ? L"Spatial HUD disabled - it will not be installed or updated."
+                            : L"Spatial HUD enabled.", 0);
+        RefreshProjectStatuses();
+        break;
+
+    case ID_HUD_REMOVE: {
+        wchar_t pat[MAX_PATH + 32], path[MAX_PATH + 64];
+        WIN32_FIND_DATAW rfd;
+        int removed = 0, blocked = 0;
+        _snwprintf(pat, MAX_PATH + 31, L"%s\\spatial-hud*.jar", g_modsDir);
+        HANDLE rh = FindFirstFileW(pat, &rfd);
+        if (rh != INVALID_HANDLE_VALUE) {
+            do {
+                _snwprintf(path, MAX_PATH + 63, L"%s\\%s", g_modsDir, rfd.cFileName);
+                if (DeleteFileW(path)) removed++;
+                else blocked++;
+            } while (FindNextFileW(rh, &rfd));
+            FindClose(rh);
+        }
+        if (removed > 0 && blocked == 0)
+            SetFooterStatus(L"Mod removed from your mods folder.", 0);
+        else if (removed > 0)
+            SetFooterStatus(L"Some mod files removed - close Minecraft to remove the rest.", 0);
+        else if (blocked > 0)
+            SetFooterStatus(L"Could not remove the mod - close Minecraft first, then retry.", 0);
+        else
+            SetFooterStatus(L"Nothing to remove - the mod is not in your mods folder.", 0);
+        RefreshProjectStatuses();
+        break;
+    }
+
     case ID_ORCA_UPDATE:
         EnqueueTask(TASK_INSTALL_ORCA);
         break;
@@ -3301,6 +3373,7 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_CREATE:
         ApplyModernWindowFrame(hwnd);
         RebuildFontsAndIcons(hwnd);
+        LoadAppsCfg();
         InitCardDefinitions();
         RefreshProjectStatuses();
         SetTimer(hwnd, 1, 2000, NULL);

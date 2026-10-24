@@ -32,7 +32,7 @@
       "dir": "SpatialHudUpdater",
       "icon": "docs/brand/spatial-hud.ico",
       "shortcut": "Spatial HUD Updater",
-      "buttons": "updatemod:Update Mod:98,modsdir:Mods Dir:84,folder:Folder:68",
+      "buttons": "updatemod:Update Mod:98,disable:Disable:78,modsdir:Mods Dir:84,remove:Remove:74",
       "state": "hud",
       "worker": "hud"
     },
