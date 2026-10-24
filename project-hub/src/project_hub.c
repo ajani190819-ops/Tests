@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.28"
-#define HUB_VERSION_W     L"2.8.28"
+#define HUB_VERSION       "2.8.29"
+#define HUB_VERSION_W     L"2.8.29"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -2561,28 +2561,53 @@ static void RestartKeyboardLightingCleanly(void) {
     SetFooterStatus(L"Restarted Keyboard Lighting cleanly.", 0);
 }
 
-static void PickSpatialHudModsFolder(void) {
-    BROWSEINFOW bi;
-    ZeroMemory(&bi, sizeof(bi));
-    bi.hwndOwner = g_hwnd;
-    bi.lpszTitle = L"Select your Minecraft / Modrinth 'mods' folder:";
-    bi.ulFlags   = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_USENEWUI;
-    PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
-    if (pidl) {
-        wchar_t picked[MAX_PATH];
-        if (SHGetPathFromIDListW(pidl, picked) && picked[0]) {
-            wcsncpy(g_modsDir, picked, MAX_PATH - 1);
-            wchar_t saveDir[MAX_PATH], saveFile[MAX_PATH];
-            _snwprintf(saveDir, MAX_PATH, L"%s\\SpatialHudUpdater", g_localApp);
-            EnsureDirTree(saveDir);
-            _snwprintf(saveFile, MAX_PATH, L"%s\\target-directory.txt", saveDir);
-            char utf8[MAX_PATH * 3];
-            int n = WideCharToMultiByte(CP_UTF8, 0, g_modsDir, -1, utf8, sizeof(utf8), NULL, NULL);
-            if (n > 1) WriteBinaryFileAtomic(saveFile, (const BYTE *)utf8, (DWORD)(n - 1));
-            RefreshProjectStatuses();
-        }
-        CoTaskMemFree(pidl);
+static INT_PTR PromptTextInput(HWND hwnd, const wchar_t *label, const wchar_t *preset,
+                               wchar_t *out, int outCap, BOOL withBrowse,
+                               const wchar_t *okLabel);
+
+static void NormalizeDirPath(wchar_t *s) {
+    /* People paste from Explorer: quotes, stray spaces and a trailing
+       backslash all happen. Clean them so the path is usable as-is. */
+    int n = 0;
+    while (s[n] == L' ' || s[n] == L'\t') n++;
+    if (n > 0) memmove(s, s + n, (wcslen(s + n) + 1) * sizeof(wchar_t));
+    n = (int)wcslen(s);
+    while (n > 0 && (s[n - 1] == L' ' || s[n - 1] == L'\t')) s[--n] = L'\0';
+    if (n >= 2 && s[0] == L'"' && s[n - 1] == L'"') {
+        memmove(s, s + 1, (size_t)(n - 2) * sizeof(wchar_t));
+        s[n - 2] = L'\0';
     }
+    n = (int)wcslen(s);
+    while (n > 3 && (s[n - 1] == L'\\' || s[n - 1] == L'/')) s[--n] = L'\0';
+}
+
+static void PickSpatialHudModsFolder(void) {
+    wchar_t input[MAX_PATH];
+    wcsncpy(input, g_modsDir, MAX_PATH - 1);
+    input[MAX_PATH - 1] = L'\0';
+    if (PromptTextInput(g_hwnd,
+                        L"Mods folder path - paste or type it, or click Browse:",
+                        input, input, MAX_PATH, TRUE, L"Use Folder") != IDOK)
+        return;
+    NormalizeDirPath(input);
+    if (!input[0]) return;
+    DWORD attr = GetFileAttributesW(input);
+    if (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY)) {
+        SetFooterStatus(L"That is a file - enter the folder that contains your mods.", 0);
+        return;
+    }
+    wcsncpy(g_modsDir, input, MAX_PATH - 1);
+    g_modsDir[MAX_PATH - 1] = L'\0';
+    EnsureDirTree(g_modsDir);
+    wchar_t saveDir[MAX_PATH], saveFile[MAX_PATH];
+    _snwprintf(saveDir, MAX_PATH, L"%s\\SpatialHudUpdater", g_localApp);
+    EnsureDirTree(saveDir);
+    _snwprintf(saveFile, MAX_PATH, L"%s\\target-directory.txt", saveDir);
+    char utf8[MAX_PATH * 3];
+    int n = WideCharToMultiByte(CP_UTF8, 0, g_modsDir, -1, utf8, sizeof(utf8), NULL, NULL);
+    if (n > 1) WriteBinaryFileAtomic(saveFile, (const BYTE *)utf8, (DWORD)(n - 1));
+    SetFooterStatus(L"Mods folder set.", 0);
+    RefreshProjectStatuses();
 }
 
 /* ============================================================================
@@ -3089,15 +3114,44 @@ static void EnsureBranchInMenu(const wchar_t *name) {
     g_branchMenuN++;
 }
 
-static INT_PTR CALLBACK BranchPromptProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp) {
+/* Generic one-field text prompt (in-memory dialog template: the C struct has
+   no members for the trailing menu/class/title). Optional Browse button
+   fills the edit via the standard folder picker - so a path can be pasted,
+   typed, or browsed in one place. */
+typedef struct {
+    const wchar_t *preset;
+    wchar_t      *out;
+    int           outCap;
+    BOOL          withBrowse;
+} PromptCtx;
+
+static INT_PTR CALLBACK TextPromptProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp) {
+    PromptCtx *ctx = (PromptCtx *)GetWindowLongPtrW(hDlg, GWLP_USERDATA);
     switch (msg) {
     case WM_INITDIALOG:
-        SetDlgItemTextW(hDlg, 201, (const wchar_t *)lp);
+        ctx = (PromptCtx *)lp;
+        SetWindowLongPtrW(hDlg, GWLP_USERDATA, (LONG_PTR)ctx);
+        if (ctx && ctx->preset && ctx->preset[0]) SetDlgItemTextW(hDlg, 201, ctx->preset);
         return TRUE;
     case WM_COMMAND:
-        if (LOWORD(wp) == IDOK) {
-            GetDlgItemTextW(hDlg, 201, g_branchPromptOut, 63);
-            g_branchPromptOut[63] = L'\0';
+        if (LOWORD(wp) == 202 && ctx && ctx->withBrowse) {
+            BROWSEINFOW bi;
+            ZeroMemory(&bi, sizeof(bi));
+            bi.hwndOwner = hDlg;
+            bi.lpszTitle = L"Select the folder:";
+            bi.ulFlags   = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_USENEWUI;
+            PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
+            if (pidl) {
+                wchar_t picked[MAX_PATH];
+                if (SHGetPathFromIDListW(pidl, picked) && picked[0])
+                    SetDlgItemTextW(hDlg, 201, picked);
+                CoTaskMemFree(pidl);
+            }
+            return TRUE;
+        }
+        if (LOWORD(wp) == IDOK && ctx && ctx->out) {
+            GetDlgItemTextW(hDlg, 201, ctx->out, ctx->outCap - 1);
+            ctx->out[ctx->outCap - 1] = L'\0';
             EndDialog(hDlg, IDOK);
             return TRUE;
         }
@@ -3110,37 +3164,42 @@ static INT_PTR CALLBACK BranchPromptProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM 
     return FALSE;
 }
 
-static INT_PTR PromptBranchName(HWND hwnd, const wchar_t *preset) {
-    /* In-memory dialog template built byte-by-byte (the C struct has no
-       members for the trailing menu/class/title): label + edit + OK/Cancel. */
-    static BYTE buf[1024];
+static INT_PTR PromptTextInput(HWND hwnd, const wchar_t *label, const wchar_t *preset,
+                               wchar_t *out, int outCap, BOOL withBrowse,
+                               const wchar_t *okLabel) {
+    static BYTE buf[1400];
     ZeroMemory(buf, sizeof(buf));
     BYTE *p = buf;
+    int nItems = withBrowse ? 5 : 4;
+    int cx = withBrowse ? 320 : 240;
+    int cy = withBrowse ? 92 : 78;
     *(DWORD *)p = DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU; p += 4;
-    *(WORD *)p = 4;    p += 2;   /* cdit */
-    *(WORD *)p = 10;   p += 2;   /* x */
-    *(WORD *)p = 10;   p += 2;   /* y */
-    *(WORD *)p = 240;  p += 2;   /* cx */
-    *(WORD *)p = 78;   p += 2;   /* cy */
-    *(WORD *)p = 0;    p += 2;   /* no menu */
-    *(WORD *)p = 0;    p += 2;   /* no class */
-    *(WCHAR *)p = 0;   p += 2;   /* title "" */
-    *(WORD *)p = 9;    p += 2;   /* font size */
+    *(WORD *)p = (WORD)nItems; p += 2;
+    *(WORD *)p = 10;   p += 2;
+    *(WORD *)p = 10;   p += 2;
+    *(WORD *)p = (WORD)cx; p += 2;
+    *(WORD *)p = (WORD)cy; p += 2;
+    *(WORD *)p = 0;    p += 2;
+    *(WORD *)p = 0;    p += 2;
+    *(WCHAR *)p = 0;   p += 2;
+    *(WORD *)p = 9;    p += 2;
     {
         static const WCHAR face[] = L"Segoe UI";
         CopyMemory(p, face, sizeof(face));
         p += sizeof(face);
     }
-    struct { DWORD style; short x, y, cx, cy; WORD id; WORD cls; const WCHAR *title; } items[4] = {
-        { WS_CHILD | WS_VISIBLE | SS_LEFT, 8, 12, 224, 12, 101, 0x0082, L"GitHub branch name:" },
+    struct { DWORD style; short x, y, cx, cy; WORD id; WORD cls; const WCHAR *title; } items[5] = {
+        { WS_CHILD | WS_VISIBLE | SS_LEFT, 8, 12, (short)(cx - 16), 12, 101, 0x0082, label },
         { WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL,
-          8, 28, 224, 14, 201, 0x0081, L"" },
-        { WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
-          128, 52, 48, 16, IDOK, 0x0080, L"OK" },
+          8, 28, (short)(cx - 16), 14, 201, 0x0081, L"" },
         { WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
-          182, 52, 48, 16, IDCANCEL, 0x0080, L"Cancel" },
+          8, (short)(cy - 26), 56, 16, 202, 0x0080, L"Browse..." },
+        { WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
+          (short)(withBrowse ? cx - 126 : 128), (short)(cy - 26), 56, 16, IDOK, 0x0080, okLabel },
+        { WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+          (short)(withBrowse ? cx - 64 : 182), (short)(cy - 26), 48, 16, IDCANCEL, 0x0080, L"Cancel" }
     };
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < nItems; i++) {
         p = (BYTE *)(((ULONG_PTR)p + 3) & ~(ULONG_PTR)3);
         *(DWORD *)p = items[i].style; p += 4;
         *(DWORD *)p = 0;             p += 4;
@@ -3158,9 +3217,15 @@ static INT_PTR PromptBranchName(HWND hwnd, const wchar_t *preset) {
         }
         *(WORD *)p = 0;              p += 2;
     }
-    g_branchPromptOut[0] = L'\0';
+    PromptCtx ctx = { preset, out, outCap > 0 ? outCap : 1, withBrowse };
+    out[0] = L'\0';
     return DialogBoxIndirectParamW(g_hInst, (DLGTEMPLATE *)buf, hwnd,
-                                   BranchPromptProc, (LPARAM)preset);
+                                   TextPromptProc, (LPARAM)&ctx);
+}
+
+static INT_PTR PromptBranchName(HWND hwnd, const wchar_t *preset) {
+    return PromptTextInput(hwnd, L"GitHub branch name:", preset,
+                           g_branchPromptOut, 64, FALSE, L"OK");
 }
 
 static void SetActiveBranch(HWND hwnd, const wchar_t *branch) {
