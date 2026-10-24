@@ -40,3 +40,16 @@
 
 1. **User validation round (2026-10-23 evening):** update buttons stop glowing when up to date; hub reopens after self-update (2.8.21); false "vX available" nag gone; DNS Pilot tests from tray startup; all apps elevated with no UAC at login.
 2. If the owner still sees a UAC prompt on manual double-click launches (UAC-on machines), offer routing shortcuts through a silent task launcher (`schtasks /Run`).
+
+## CI / sandbox gotchas (2026-10-24)
+
+- The Arena GitHub integration CANNOT push changes to `.github/workflows/*`
+  (rejected: no `workflows` permission) and CANNOT `gh workflow run`
+  (HTTP 403). Mod fixes that need a new Spatial HUD jar require the user
+  to click **Actions -> Build Spatial HUD -> Run workflow** with branch
+  `arena/e895b94f-tests` selected - or a one-time web edit of
+  `.github/workflows/build-spatial-hud.yml` adding that branch to the
+  `on.push.branches` list. Do not retry programmatic dispatch.
+- `/home/user/.venv` does NOT survive sandbox rebuilds (excluded from
+  persistence): recreate with `python3 -m venv /home/user/.venv &&`
+  `/home/user/.venv/bin/python -m pip install -r requirements-dev.txt ziglang`.
