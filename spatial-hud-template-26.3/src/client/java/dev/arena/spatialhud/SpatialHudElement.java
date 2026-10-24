@@ -25,6 +25,12 @@ final class SpatialHudElement implements HudElement {
 			vanilla.extractRenderState(graphics, deltaTracker);
 			return;
 		}
+		// While an error pause is active, vanilla draws normally: the player
+		// always has a HUD, and we retry automatically when the pause expires.
+		if (SpatialHud.isRenderPaused()) {
+			vanilla.extractRenderState(graphics, deltaTracker);
+			return;
+		}
 		// Enabled Spatial HUD owns these selected roots. Method 4 deliberately
 		// bypasses physical-map FOV culling because its target quad is placed by
 		// four GUI-space handles; the other methods retain normal viewport culling.
@@ -62,7 +68,7 @@ final class SpatialHudElement implements HudElement {
 			applySpatialPose(graphics, cfg, id);
 			vanilla.extractRenderState(graphics, deltaTracker);
 		} catch (Throwable t) {
-			SpatialHud.safeDisable(t);
+			SpatialHud.safePause(t);
 		} finally {
 			graphics.pose().popMatrix();
 		}

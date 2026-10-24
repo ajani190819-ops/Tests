@@ -52,6 +52,11 @@ New Purple Polygon Test controls in `SpatialHudConfig`:
 
 Implementation is in `PolygonTestRenderer.respondToPitch(...)`; it reads the per-frame `SpatialHud.pitch`. The panel now calls `SpatialHud.updateViewPose()` before drawing the guide, so it is current-frame rather than one-frame stale.
 
+## Reliability fixes (2026-10-24)
+
+- **Near-plane culling:** `VirtualHudPlane.intersectsViewport()` used to hide the whole panel when ANY corner crossed the camera near plane - looking far down swung the top edge behind the camera and the HUD vanished. Near corners now abstain from the bounds vote; the panel is culled only when nothing is in front of the camera or the remaining corners project off-screen.
+- **Error recovery:** `safeDisable` (any Throwable silently set `enabled=false` and saved it - the "stops at random times and stays dead" bug) is replaced by `safePause`: rendering pauses for 30-300 frames (exponential), vanilla HUD shows meanwhile, and the mod retries automatically. Method 4's `drawGuide` is now wrapped in the same guard.
+
 ## Enable/disable fix
 
 The Setup **Enable Spatial HUD** toggle previously looked ineffective because `SpatialHud` had an independent static `enabled` value loaded only at startup. That duplicate state was removed.
