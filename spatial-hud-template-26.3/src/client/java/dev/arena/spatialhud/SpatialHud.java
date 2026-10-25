@@ -12,12 +12,15 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.fabricmc.fabric.impl.client.rendering.hud.HudElementRegistryImpl;
+import net.fabricmc.fabric.impl.client.rendering.hud.HudLayer;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Spatial HUD — a compact, smooth Spatial-GUI-style panel for the vanilla
@@ -167,7 +170,48 @@ public class SpatialHud implements ClientModInitializer {
 				LOGGER.warn("Spatial HUD could not reinforce its capture wrapper for {}.", id, t);
 			}
 		}
+		wrapCompanionLayers();
 		wrapSlotCycling();
+	}
+
+	/**
+	 * Wraps companion-mod layers attached to the strip roots. A layer is a
+	 * sibling of the root's vanilla element, so wrapping only the root leaves
+	 * the companion drawing on the vanilla HUD at screen positions while the
+	 * panel shows its own captured copy - the status bars flickering between
+	 * the two. Replacing each layer's element puts its pixels into the private
+	 * capture instead. Our own layers (the panel element and the root wrappers
+	 * themselves) are skipped; a double wrap would be harmless but wasteful.
+	 */
+	private static void wrapCompanionLayers() {
+		try {
+			Map<Identifier, HudElementRegistryImpl.RootLayer> roots = HudElementRegistryImpl.ROOT_ELEMENTS;
+			for (Identifier rootId : STRIP_ELEMENTS) {
+				HudElementRegistryImpl.RootLayer root = roots.get(rootId);
+				if (root == null) {
+					continue;
+				}
+				for (HudLayer layer : List.copyOf(root.layers())) {
+					if (layer.isRemoved()) {
+						continue;
+					}
+					Identifier layerId = layer.id();
+					if (layerId.equals(rootId) || layerId.equals(SLOT_CYCLING_ELEMENT)
+							|| layerId.getNamespace().equals("spatialhud")) {
+						continue;
+					}
+					try {
+						HudElementRegistry.replaceElement(layerId,
+								vanilla -> new SpatialHudElement(rootId, vanilla));
+						LOGGER.info("Spatial HUD captured companion HUD layer {} into the panel texture.", layerId);
+					} catch (Throwable t) {
+						LOGGER.warn("Spatial HUD could not wrap companion HUD layer {}.", layerId, t);
+					}
+				}
+			}
+		} catch (Throwable t) {
+			LOGGER.warn("Spatial HUD could not scan the HUD registry for companion layers.", t);
+		}
 	}
 
 	/** The config instance is the sole live source of truth for the Enable toggle. */
