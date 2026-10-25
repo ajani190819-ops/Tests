@@ -557,19 +557,25 @@ public final class WorldSpaceHudRenderer {
 		double curveRadians = Math.toRadians(clamp(cfg.horizontalPanelCurveDegrees, 0, 180));
 		WorldSpaceSolidQuad.Shape shape = WorldSpaceSolidQuad.Shape.of(
 				toVec(bottomLeft), toVec(bottomRight), toVec(topLeft), curveRadians, cameraPos);
-		// Sample the band's border rows and columns at their centres, not their
-		// edges. The band sits inside a cleared full-window texture, so a
-		// picture edge that lands exactly on a texel edge blends the outermost
-		// HUD row with the transparent padding around the band: that faded the
-		// hotbar's bottom outline and the selection square's bottom frame at
-		// the picture's bottom edge (they looked cut off). Half a texel in
-		// keeps every band row and column at full strength.
+		// Map GUI pixels through the frame buffer the GUI projection actually
+		// draws into: guiWidth*guiScale x guiHeight*guiScale physical pixels,
+		// which can be a few pixels smaller than the window the capture
+		// texture covers. Dividing by the GUI size instead drifted every
+		// sample toward the texture's empty bottom edge: the hotbar's bottom
+		// rows faded (the persistent cut) and the bottom margin strip sampled
+		// that transparency (the picture changing transparency). Sampling the
+		// band's border rows and columns at their centres keeps every texel
+		// at full strength.
 		// The capture texture is stored bottom-up, but GUI coordinates run
 		// top-down, so the vertical texture axis is flipped here.
-		float uLeft = (band.left() + 0.5f) / (float) guiWidth;
-		float uRight = (band.right() - 0.5f) / (float) guiWidth;
-		float vTop = 1.0f - (band.top() + 0.5f) / (float) guiHeight;
-		float vBottom = 1.0f - (band.bottom() - 0.5f) / (float) guiHeight;
+		var window = Minecraft.getInstance().getWindow();
+		double guiScale = window.getGuiScale();
+		float spanX = (float) Math.max(1.0, window.getWidth() / guiScale);
+		float spanY = (float) Math.max(1.0, window.getHeight() / guiScale);
+		float uLeft = (band.left() + 0.5f) / spanX;
+		float uRight = (band.right() - 0.5f) / spanX;
+		float vTop = 1.0f - (band.top() + 0.5f) / spanY;
+		float vBottom = 1.0f - (band.bottom() - 0.5f) / spanY;
 		return new PlaneState(toPoint(shape.at(0f, 0f)), toPoint(shape.at(1f, 0f)),
 				toPoint(shape.at(1f, 1f)), toPoint(shape.at(0f, 1f)),
 				uLeft, uRight, vTop, vBottom,
