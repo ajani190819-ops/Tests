@@ -82,3 +82,18 @@ hunger/health bars flicker.
   `spatial-hud-latest`** (workflow `--clobber` does not remove them and
   the hub would pick the oldest).
 - Tests 10/10 OK. Awaiting user test round 3.
+
+## Modrinth App fingerprint gotcha (2026-10-24 night)
+
+Modrinth App 0.22.0 bulk updates refuse to run when a pack-tracked mod file
+hash no longer matches its recorded fingerprint:
+"restore or repair mods/spatial-hud-1.0.0.jar ... cannot be backed up safely"
+(`modrinth/code` packages/app-lib/src/install/recovery.rs, prepare_instance_update_backup;
+Missing files are tolerated, Modified ones are not). Cause: hub Update Mod
+replaced the bytes of the tracked `spatial-hud-1.0.0.jar` in place (the old
+release asset name). Remedy: run hub Update Mod first (it deletes
+`spatial-hud*.jar` and installs the new version under a NEW name) - the
+tracked file becomes Missing, which the backup accepts. After any Modrinth
+pack update, check the mods folder for a restored `spatial-hud-1.0.0.jar`
+and delete it (two jars break Fabric startup). Future jar bumps use new
+asset names so the conflict does not recur.
