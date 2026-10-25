@@ -33,6 +33,8 @@ public class SpatialHud implements ClientModInitializer {
 
 	private static KeyMapping openConfigKey;
 	private static KeyMapping toggleHudKey;
+	/** One-shot guard for the late wrapper reinforce pass. */
+	private static boolean reinforcedWrappers;
 
 	// The panel samples camera pitch once before every selected HUD extraction,
 	// so the backing and all captured roots share one mesh pose for that frame.
@@ -95,6 +97,14 @@ public class SpatialHud implements ClientModInitializer {
 				new SpatialHudPanelElement());
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			// One-shot, on the first tick after every mod has finished
+			// registering HUD elements: put our capture wrappers back on the
+			// outside. See reinforceStripWrappers().
+			if (!reinforcedWrappers) {
+				reinforcedWrappers = true;
+				reinforceStripWrappers();
+			}
+
 			while (openConfigKey.consumeClick()) {
 				client.setScreenAndShow(
 						me.shedaniel.autoconfig.AutoConfigClient
@@ -135,6 +145,29 @@ public class SpatialHud implements ClientModInitializer {
 		} catch (Throwable t) {
 			LOGGER.error("Spatial HUD could not register Hotbar Slot Cycling's cycle slots; they stay on the vanilla HUD.", t);
 		}
+	}
+
+	/**
+	 * Re-applies the capture wrappers once, on the first client tick after all
+	 * mods have registered their HUD elements. A companion mod that replaces a
+	 * vanilla root after our first wrap ends up outside it and then draws its
+	 * copy on the vanilla HUD (the status bars "snapping" back to screen
+	 * positions) while only the inner, wrapped vanilla root is captured.
+	 * Replacing again puts SpatialHudElement back on the outside: a pure
+	 * companion replacement draws its bars into the private texture instead of
+	 * the screen, and a companion that delegates to the vanilla root is
+	 * captured with it. Each pass nests one more wrapper; the nested capture
+	 * extracts every root once into the same private texture.
+	 */
+	private static void reinforceStripWrappers() {
+		for (Identifier id : STRIP_ELEMENTS) {
+			try {
+				HudElementRegistry.replaceElement(id, vanilla -> new SpatialHudElement(id, vanilla));
+			} catch (Throwable t) {
+				LOGGER.warn("Spatial HUD could not reinforce its capture wrapper for {}.", id, t);
+			}
+		}
+		wrapSlotCycling();
 	}
 
 	/** The config instance is the sole live source of truth for the Enable toggle. */
