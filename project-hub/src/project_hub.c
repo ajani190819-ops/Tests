@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.31"
-#define HUB_VERSION_W     L"2.8.31"
+#define HUB_VERSION       "2.8.32"
+#define HUB_VERSION_W     L"2.8.32"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -1163,6 +1163,33 @@ static HICON LoadIconFilePx(const wchar_t *path) {
     return (HICON)LoadImageW(NULL, path, IMAGE_ICON, px, px, LR_LOADFROMFILE);
 }
 
+static const wchar_t *PoolAdd(const char *utf8);
+
+/* Cached download of a catalog icon. The cache file name carries a short
+   hash of the catalog's icon path, so when an app's icon changes in the
+   catalog the hub fetches the new art exactly once instead of showing the
+   old cached .ico forever. On a failed download the card falls back to its
+   embedded resource / letter tile. */
+static void LoadCardIcon(ProjectCard *c, const char *icon) {
+    wchar_t iconsDir[MAX_PATH];
+    unsigned long key = 2166136261UL; /* FNV-1a of the catalog icon path */
+    for (const unsigned char *p = (const unsigned char *)icon; *p; p++) {
+        key ^= (unsigned long)*p;
+        key *= 16777619UL;
+    }
+    _snwprintf(iconsDir, MAX_PATH - 1, L"%s\\icons", g_localApp);
+    CreateDirectoryW(iconsDir, NULL);
+    _snwprintf(c->iconFile, MAX_PATH - 1, L"%s\\%s-%08lx.ico", iconsDir, c->id, key);
+    if (!FileExistsW(c->iconFile)) {
+        wchar_t branch[64];
+        EnsureActiveBranch(branch, 64);
+        if (!DownloadRawRepoFile(branch, PoolAdd(icon), c->iconFile))
+            c->iconFile[0] = L'\0';
+    }
+    if (c->iconFile[0])
+        c->hIcon = LoadIconFilePx(c->iconFile);
+}
+
 static wchar_t g_strPool[12288];
 static int     g_strPoolUsed = 0;
 
@@ -1300,20 +1327,8 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
             c->btnCount++;
         }
     }
-    if (icon[0]) {
-        wchar_t iconsDir[MAX_PATH];
-        _snwprintf(iconsDir, MAX_PATH - 1, L"%s\\icons", g_localApp);
-        CreateDirectoryW(iconsDir, NULL);
-        _snwprintf(c->iconFile, MAX_PATH - 1, L"%s\\%s.ico", iconsDir, c->id);
-        if (!FileExistsW(c->iconFile)) {
-            wchar_t branch[64];
-            EnsureActiveBranch(branch, 64);
-            if (!DownloadRawRepoFile(branch, PoolAdd(icon), c->iconFile))
-                c->iconFile[0] = L'\0';
-        }
-        if (c->iconFile[0])
-            c->hIcon = LoadIconFilePx(c->iconFile);
-    }
+    if (icon[0])
+        LoadCardIcon(c, icon);
 }
 
 static void AddCatalogCard(const char *obj) {
@@ -1412,20 +1427,8 @@ static void AddCatalogCard(const char *obj) {
     }
 
     /* icon: cached download of the catalog icon, letter tile until it lands */
-    if (icon[0]) {
-        wchar_t iconsDir[MAX_PATH];
-        _snwprintf(iconsDir, MAX_PATH - 1, L"%s\\icons", g_localApp);
-        CreateDirectoryW(iconsDir, NULL);
-        _snwprintf(c->iconFile, MAX_PATH - 1, L"%s\\%s.ico", iconsDir, c->id);
-        if (!FileExistsW(c->iconFile)) {
-            wchar_t branch[64];
-            EnsureActiveBranch(branch, 64);
-            if (!DownloadRawRepoFile(branch, PoolAdd(icon), c->iconFile))
-                c->iconFile[0] = L'\0';
-        }
-        if (c->iconFile[0])
-            c->hIcon = LoadIconFilePx(c->iconFile);
-    }
+    if (icon[0])
+        LoadCardIcon(c, icon);
     g_cardCount++;
 }
 

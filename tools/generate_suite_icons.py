@@ -407,6 +407,47 @@ def build_icon_dns_pilot(size: int = 512, small: bool = False) -> Image.Image:
     return composite_elevated_layer(base, globe_a, (165, 243, 252), (8, 145, 178), (34, 211, 238))
 
 
+def build_icon_agent_notes(size: int = 512, small: bool = False) -> Image.Image:
+    base = make_squircle_base(size, (251, 191, 36))
+
+    # A small pile of amber notes fanned up-right: two sheets peek out behind
+    # the front page. Each sheet is its own elevated layer so the stacking
+    # shadows separate the paper at full size and merge into one bold glyph
+    # at 16px. Pale ruled lines on the front sheet sell "note" at size and
+    # drop to a bold pair in the tiny frames, like the keycaps do.
+    if small:
+        sheets = [
+            ((0.315, 0.155, 0.735, 0.565), (232, 172, 70), (176, 104, 20)),
+            ((0.265, 0.275, 0.755, 0.685), (250, 210, 118), (212, 136, 26)),
+            ((0.215, 0.405, 0.795, 0.855), (254, 238, 178), (242, 170, 40)),
+        ]
+    else:
+        sheets = [
+            ((0.295, 0.155, 0.735, 0.565), (232, 172, 70), (176, 104, 20)),
+            ((0.255, 0.265, 0.745, 0.675), (250, 210, 118), (212, 136, 26)),
+            ((0.215, 0.385, 0.785, 0.845), (254, 238, 178), (242, 170, 40)),
+        ]
+    for idx, ((x0, y0, x1, y1), c_top, c_bot) in enumerate(sheets):
+        rect = (x0, y0, x1, y1)
+        sheet_a = draw_antialias_mask(size, lambda d, s, r=rect: d.rounded_rectangle(
+            [s * r[0], s * r[1], s * r[2], s * r[3]], radius=s * 0.045, fill=255))
+        # One soft amber halo under the whole pile, on the front sheet only.
+        composite_elevated_layer(base, sheet_a, c_top, c_bot,
+                                 (251, 191, 36) if idx == len(sheets) - 1 else None)
+
+    if small:
+        lines = ((0.315, 0.535, 0.705, 0.595), (0.315, 0.665, 0.585, 0.725))
+    else:
+        lines = ((0.305, 0.515, 0.705, 0.565), (0.305, 0.615, 0.705, 0.665),
+                 (0.305, 0.715, 0.555, 0.765))
+    for x0, y0, x1, y1 in lines:
+        rect = (x0, y0, x1, y1)
+        line_a = draw_antialias_mask(size, lambda d, s, r=rect: d.rounded_rectangle(
+            [s * r[0], s * r[1], s * r[2], s * r[3]], radius=s * 0.018, fill=255))
+        composite_elevated_layer(base, line_a, (255, 252, 242), (232, 218, 190))
+    return base
+
+
 def save_multi_ico(build, ico_path: Path, png_path: Path = None):
     """Write a true multi-size ICO where EVERY size is rendered analytically
     at its own resolution (with small-size stroke boosts) instead of being
@@ -453,6 +494,7 @@ def main():
         ("Spatial HUD",       build_icon_spatial_hud,       BRAND_DIR / "spatial-hud.ico",                  BRAND_DIR / "icon-spatial-hud.png"),
         ("Orca Plugins",      build_icon_orca_plugins,      BRAND_DIR / "orca-plugins.ico",                 BRAND_DIR / "icon-orca-plugins.png"),
         ("DNS Pilot",         build_icon_dns_pilot,         ROOT / "dns-pilot" / "dnspilot.ico",              BRAND_DIR / "icon-dns-pilot.png"),
+        ("Agent Notes",       build_icon_agent_notes,       ROOT / "agent-notes" / "agent-notes.ico",         BRAND_DIR / "icon-agent-notes.png"),
     ]
 
     for _, build, ico_p, png_p in icons:

@@ -66,7 +66,7 @@
       "blurb": "Quick notes straight to the agent",
       "exe": "agent-notes/AgentNotes.exe",
       "dir": "AgentNotes",
-      "icon": "docs/brand/emblem.ico",
+      "icon": "agent-notes/agent-notes.ico",
       "shortcut": "Agent Notes",
       "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
       "state": "agentnotes",
