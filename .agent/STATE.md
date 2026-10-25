@@ -104,3 +104,13 @@ asset names so the conflict does not recur.
 - **1.0.4 fix:** `purplePanelState` maps the band through the real span in GUI pixels (`window.getWidth()/getGuiScale()`, `getHeight()/getGuiScale()`) and keeps the half-GUI-pixel centre samples. Stale 1.0.3 asset deleted — release = `spatial-hud-1.0.4.jar` only.
 - Method 3 (`VirtualHudPlane.textureU/V`) has the same `guiWidth/guiHeight` UV denominators — not fixed (user is on Method 4; fix there first if Method 3 ever reports the same).
 - If anything remains after 1.0.4: ask for `latest.log` (diagnostics list every root+layer; `getGuiScale()` compile result is in the build log if this ever re-breaks).
+
+## Icon checkpoint (2026-10-25) — Agent Notes own icon (`311ec9e`, pushed)
+- Agent Notes now has its own icon: stacked amber notes on the suite's dark slate medallion, tri-spoke core faintly behind it (`docs/brand/icon-agent-notes.png` + multi-frame `agent-notes/agent-notes.ico`), built by `tools/generate_suite_icons.py` — every size rendered at its own resolution.
+- Wired everywhere: `suite-apps.json` card icon → `agent-notes/agent-notes.ico`; `project-hub/src/hub.rc` RES_ICON_NOTES → `../../agent-notes/agent-notes.ico`; `agent-notes/src/notes.rc` → `../agent-notes.ico` (AgentNotes.exe carries its own resource); `tests/test_windows_apps.py` icon test covers `agent-notes.ico`.
+- Hub 2.8.32: `LoadCardIcon()` caches `icons\<id>-<fnv1a(catalog path)>.ico` so changing an app's icon fetches the new art once instead of serving the old cached .ico forever; both icon blocks replaced with the shared helper. `ProjectHub.exe` rebuilt (597 KB).
+- Build green (`python3 tools/build_windows.py`: all 5 suite exes OK), tests 10/10, pushed to origin/arena/e895b94f-tests.
+
+## State summary (this turn)
+1. Spatial HUD 1.0.4 (`d9c7088`, pushed, release asset spatial-hud-1.0.4.jar only — stale 1.0.3 deleted) fixes the bottom cut-off + transparency change via span-based UV mapping in `purplePanelState`. Flicker was already fixed (user confirmed 1.0.3).
+2. Agent Notes icon shipped as 2.8.32 (`311ec9e`, pushed).
