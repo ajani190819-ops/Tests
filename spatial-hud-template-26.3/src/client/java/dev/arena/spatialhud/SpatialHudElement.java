@@ -39,8 +39,15 @@ final class SpatialHudElement implements HudElement {
 
 		// The selected root goes into the private capture; the texture is then
 		// drawn on the world panel (Method 3) or the purple quad (Method 4).
-		if (ExperimentalHudCapture.isFrameActive()
-				&& ExperimentalHudCapture.capture(id, (isolated, tracker) -> vanilla.extractRenderState(isolated, tracker), deltaTracker)) {
+		// Start the capture here when no earlier element did: a root that
+		// extracts outside the panel element's start window (registry order,
+		// companion layers) must not fall back to the vanilla screen
+		// positions - that was the bars flickering back to their defaults.
+		// The begin is idempotent within a frame.
+		if (!ExperimentalHudCapture.isFrameActive()) {
+			ExperimentalHudCapture.beginFrame(graphics);
+		}
+		if (ExperimentalHudCapture.capture(id, (isolated, tracker) -> vanilla.extractRenderState(isolated, tracker), deltaTracker)) {
 			return;
 		}
 

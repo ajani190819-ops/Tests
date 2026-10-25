@@ -76,6 +76,13 @@ public final class ExperimentalHudCapture {
 	 * No target is allocated and no GUI is intercepted here.
 	 */
 	static void beginFrame(GuiGraphicsExtractor sourceGraphics) {
+		if (frameActive) {
+			// Already collecting this frame. A second start (a wrapped element
+			// that extracted before the panel element, or a re-extraction)
+			// must not reset the counters or replace the isolated extractor
+			// mid-frame.
+			return;
+		}
 		frameActive = false;
 		frameHasContent = false;
 		frameCapturedHotbar = false;
