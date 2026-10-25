@@ -557,12 +557,22 @@ public final class WorldSpaceHudRenderer {
 		double curveRadians = Math.toRadians(clamp(cfg.horizontalPanelCurveDegrees, 0, 180));
 		WorldSpaceSolidQuad.Shape shape = WorldSpaceSolidQuad.Shape.of(
 				toVec(bottomLeft), toVec(bottomRight), toVec(topLeft), curveRadians, cameraPos);
+		// Sample the band's border rows and columns at their centres, not their
+		// edges. The band sits inside a cleared full-window texture, so a
+		// picture edge that lands exactly on a texel edge blends the outermost
+		// HUD row with the transparent padding around the band: that faded the
+		// hotbar's bottom outline and the selection square's bottom frame at
+		// the picture's bottom edge (they looked cut off). Half a texel in
+		// keeps every band row and column at full strength.
+		// The capture texture is stored bottom-up, but GUI coordinates run
+		// top-down, so the vertical texture axis is flipped here.
+		float uLeft = (band.left() + 0.5f) / (float) guiWidth;
+		float uRight = (band.right() - 0.5f) / (float) guiWidth;
+		float vTop = 1.0f - (band.top() + 0.5f) / (float) guiHeight;
+		float vBottom = 1.0f - (band.bottom() - 0.5f) / (float) guiHeight;
 		return new PlaneState(toPoint(shape.at(0f, 0f)), toPoint(shape.at(1f, 0f)),
 				toPoint(shape.at(1f, 1f)), toPoint(shape.at(0f, 1f)),
-				band.left() / (float) guiWidth, band.right() / (float) guiWidth,
-				// The capture texture is stored bottom-up, but GUI coordinates run
-				// top-down, so the vertical texture axis is flipped here.
-				1.0f - band.top() / (float) guiHeight, 1.0f - band.bottom() / (float) guiHeight,
+				uLeft, uRight, vTop, vBottom,
 				occlude, shape, overHand);
 	}
 
