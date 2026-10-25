@@ -1,7 +1,7 @@
 # Repository Current State (`STATE.md`)
 
 **Active Working Branch:** `arena/e895b94f-tests`
-**Last Updated:** 2026-10-23
+**Last Updated:** 2026-10-24
 **PR:** #10 open — every commit+push updates it.
 
 ## Turn protocol (do this literally)
@@ -53,3 +53,32 @@
 - `/home/user/.venv` does NOT survive sandbox rebuilds (excluded from
   persistence): recreate with `python3 -m venv /home/user/.venv &&`
   `/home/user/.venv/bin/python -m pip install -r requirements-dev.txt ziglang`.
+
+## Spatial HUD 1.0.1 checkpoint (2026-10-24 late)
+
+User round-2 report (screenshot `/tmp/arena-coding-uploads/image-1.png`,
+747x190 crop of the panel picture, ~3.36 img px per GUI px, hotbar
+182x22 GUI at x=55..666 rows 98..171): (1) selection overlay cut off at
+the bottom + black hotbar outline broken at the selected slot; (2) XP/
+hunger/health bars flicker.
+
+- ROOT CAUSE (1), pixel-proven: `WorldSpaceSolidQuad.submitCapturedRect`
+  fed RAW panel fractions to the texture lerp (`lerp(uLeft,uRight,a)` with
+  a = 0.03..0.97). The picture is inset at 3% and can hang below the panel
+  (negative picture offset), so the band was cut on all four edges and
+  squeezed ~3-6%; the selection sprite's bottom frame landed ~2 GUI above
+  the picture's bottom edge and the hotbar outline rows showed the sprite's
+  translucent interior (lum 60) instead of the frame. Fix `cc4826e`:
+  normalize UVs over the picture sub-rect (u spans s0..s1, v spans t0..t1).
+- Fix `df1dde7` (1.0.1): one-shot `reinforceStripWrappers()` on first
+  END_CLIENT_TICK re-applies `replaceElement` wrappers so companion
+  replacements (bars drawn at vanilla screen positions = the flicker /
+  snap-back) land inside the private capture. Nested capture is safe.
+- Build green (run 40145988728), `spatial-hud-latest` now ONLY
+  `spatial-hud-1.0.1.jar` (1,585,056 B) - deleted stale 1.0.0 asset with
+  `gh release delete-asset` because the hub reads the FIRST
+  `browser_download_url` of the release (`WorkerInstallSpatialHud`).
+  **After every future jar publish, delete old assets from
+  `spatial-hud-latest`** (workflow `--clobber` does not remove them and
+  the hub would pick the oldest).
+- Tests 10/10 OK. Awaiting user test round 3.
