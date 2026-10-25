@@ -208,10 +208,19 @@ final class WorldSpaceSolidQuad {
 
 		float f = BORDER_FRACTION;
 		float inner = 1.0f - f;
-		// Band: inside the border on the sides and top; above the fill strip at the bottom.
+		// Band: inside the border on the sides and top; above the fill strip at
+		// the bottom.
 		float bandBottom = f + gap;
+		// The band's last row (the hotbar's bottom outline and the selection
+		// square's bottom frame) lands exactly on the picture's bottom edge:
+		// edge sampling faded it and an inset shaved it away. A short flat
+		// strip under the picture repeats that last row at full strength, so
+		// the outline runs into a solid margin instead of being cut.
+		float margin = Math.max(0.012f, (inner - bandBottom) * 0.02f);
 		submitCapturedRect(collector, pose, normal, lift, open, shape,
-				f, inner, bandBottom, inner, uLeft, uRight, vBottom, vTop);
+				f, inner, bandBottom, bandBottom + margin, uLeft, uRight, vBottom, vBottom);
+		submitCapturedRect(collector, pose, normal, lift, open, shape,
+				f, inner, bandBottom + margin, inner, uLeft, uRight, vBottom, vTop);
 	}
 
 	/**
