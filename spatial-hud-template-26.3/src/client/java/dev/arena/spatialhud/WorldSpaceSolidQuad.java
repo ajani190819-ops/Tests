@@ -233,10 +233,19 @@ final class WorldSpaceSolidQuad {
 			Vec3 p10 = offset(shape.at(b, t0), lift);
 			Vec3 p11 = offset(shape.at(b, t1), lift);
 			Vec3 p01 = offset(shape.at(a, t1), lift);
-			float u0 = lerp(uLeft, uRight, a);
-			float u1 = lerp(uLeft, uRight, b);
-			float v0 = lerp(vBottom, vTop, t0);
-			float v1 = lerp(vBottom, vTop, t1);
+			// The band's texture coordinates span the whole picture: uLeft..uRight
+			// across the picture's s0..s1, and vBottom..vTop across its t0..t1.
+			// The panel fractions themselves are not texture fractions (the
+			// picture sits inset at 3% and may hang below the panel edge when
+			// the picture offset is negative), so they must be normalized over
+			// the picture's sub-rectangle. Feeding them to lerp raw cut the
+			// band on all four edges and squeezed it, which clipped the
+			// selection square's bottom frame and broke the hotbar's bottom
+			// outline at the picture's bottom edge.
+			float u0 = lerp(uLeft, uRight, k / (float) segments);
+			float u1 = lerp(uLeft, uRight, (k + 1) / (float) segments);
+			float v0 = vBottom;
+			float v1 = vTop;
 			collector.submitCustom(SubmitRenderPhases.TRANSLUCENT_CUSTOM_GEOMETRY, new TexturedSubmit(mode, pose, normal, WHITE,
 					new Corner(p00, u0, v0), new Corner(p10, u1, v0),
 					new Corner(p11, u1, v1), new Corner(p01, u0, v1)));
