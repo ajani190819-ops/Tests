@@ -97,3 +97,10 @@ tracked file becomes Missing, which the backup accepts. After any Modrinth
 pack update, check the mods folder for a restored `spatial-hud-1.0.0.jar`
 and delete it (two jars break Fabric startup). Future jar bumps use new
 asset names so the conflict does not recur.
+
+## Round-4 checkpoint (2026-10-25) — Spatial HUD 1.0.4 (`132c75f`, built run 40156759689)
+- **User confirmed: flicker is FIXED (1.0.3, `5c5c335`).** Remaining report: "it changes transparency and the bottom is still cutoff" — ONE root cause, finally identified:
+- The GUI projection draws into `guiWidth*guiScale x guiHeight*guiScale` physical pixels; the capture texture is the WHOLE window (which can be a few pixels bigger when the window doesn't divide evenly by the GUI scale). All UVs divided by the GUI size, so every sample drifted toward the texture's transparent bottom edge: the hotbar's bottom rows faded ("still cut") and the bottom margin strip sampled that transparency ("changes transparency"). The earlier band fixes (UV normalize `cc4826e`, half-texel `6b6f6b6`, margin strip `de13a5c`) were all real bugs but all pre-dated this mapping error.
+- **1.0.4 fix:** `purplePanelState` maps the band through the real span in GUI pixels (`window.getWidth()/getGuiScale()`, `getHeight()/getGuiScale()`) and keeps the half-GUI-pixel centre samples. Stale 1.0.3 asset deleted — release = `spatial-hud-1.0.4.jar` only.
+- Method 3 (`VirtualHudPlane.textureU/V`) has the same `guiWidth/guiHeight` UV denominators — not fixed (user is on Method 4; fix there first if Method 3 ever reports the same).
+- If anything remains after 1.0.4: ask for `latest.log` (diagnostics list every root+layer; `getGuiScale()` compile result is in the build log if this ever re-breaks).
