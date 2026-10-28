@@ -1261,14 +1261,14 @@ static int JsonGet(const char *obj, const char *key, char *out, int cap) {
 }
 
 static int BuiltInSlot(const char *id) {
-    static const char *known[7] = { "btguard", "kbl", "hud", "orca", "dnspilot", "agentnotes", "audioswitcher" };
-    for (int i = 0; i < 6; i++) if (strcmp(id, known[i]) == 0) return i;
+    static const char *known[8] = { "btguard", "kbl", "hud", "orca", "dnspilot", "agentnotes", "audioswitcher", "clipboardmemory" };
+    for (int i = 0; i < 8; i++) if (strcmp(id, known[i]) == 0) return i;
     return -1;
 }
 
 static int BuiltInBtnId(int slot, const char *verb) {
     /* verb -> the control id the existing WM_COMMAND switch understands */
-    static const struct { const char *verb; int id; } map[25] = {
+    static const struct { const char *verb; int id; } map[31] = {
         { "open",      ID_BTG_OPEN },     { "update",    ID_BTG_UPDATE },
         { "stop",      ID_BTG_STOP },     { "folder",    ID_BTG_FOLDER },
         { "open",      ID_KBL_OPEN },     { "unfreeze",  ID_KBL_RESTART },
@@ -1283,10 +1283,12 @@ static int BuiltInBtnId(int slot, const char *verb) {
         { "open",      ID_NOTES_OPEN },   { "update",    ID_NOTES_UPDATE },
         { "folder",    ID_NOTES_FOLDER },
         { "open",      ID_AUDIOSWITCHER_OPEN },  { "update",    ID_AUDIOSWITCHER_UPDATE },
-        { "folder",    ID_AUDIOSWITCHER_FOLDER }
+        { "folder",    ID_AUDIOSWITCHER_FOLDER },
+        { "open",      ID_CLIPBOARDMEMORY_OPEN }, { "update",   ID_CLIPBOARDMEMORY_UPDATE },
+        { "folder",    ID_CLIPBOARDMEMORY_FOLDER }
     };
-    static const int off[8] = { 0, 4, 8, 13, 16, 19, 22, 25 };
-    if (slot < 0 || slot > 5) return 0;
+    static const int off[10] = { 0, 4, 8, 11, 14, 17, 20, 23, 26, 31 };
+    if (slot < 0 || slot > 7) return 0;
     for (int i = off[slot]; i < off[slot + 1]; i++)
         if (strcmp(map[i].verb, verb) == 0) return map[i].id;
     return 0;

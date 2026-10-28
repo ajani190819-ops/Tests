@@ -431,7 +431,6 @@ static void do_paste(int idx) {
     ui_rebuild();
 
     ShowWindow(g_hwnd, SW_HIDE);
-    ShowWindow(g_hwnd, SW_HIDE);
     clip_paste();
 }
 
@@ -466,7 +465,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         clip_start_listening(hwnd);
 
         /* Header area */
-        CreateWindowExW(0, L"BUTTON", L"\\u21BB Refresh",
+        CreateWindowExW(0, L"BUTTON", L"\u21BB Refresh",
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
             S(20), S(16), S(96), S(28),
             hwnd, (HMENU)4001, g_hInst, NULL);
@@ -675,6 +674,20 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         EndPaint(hwnd, &ps);
         return 0;
+    }
+
+    case WM_CTLCOLORSTATIC: {
+        HDC hdc = (HDC)wp;
+        (void)lp;
+        SetBkColor(hdc, COL_CARD);
+        SetTextColor(hdc, COL_TEXT);
+        return (INT_PTR)CreateSolidBrush(COL_CARD);
+    }
+
+    case WM_CTLCOLORBTN: {
+        HDC hdc = (HDC)wp;
+        SetBkColor(hdc, COL_CARD);
+        return (INT_PTR)CreateSolidBrush(COL_CARD);
     }
 
     default:
