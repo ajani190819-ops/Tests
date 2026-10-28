@@ -7,4 +7,5 @@
 8 ICON "../../dns-pilot/dnspilot.ico"
 9 ICON "../../agent-notes/agent-notes.ico"
 10 ICON "../../audio-switcher/audio-switcher.ico"
+11 ICON "../../clipboard-memory/clipboard-memory.ico"
 1 24 "manifest.xml"

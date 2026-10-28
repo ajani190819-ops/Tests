@@ -44,6 +44,7 @@
 #define RES_ICON_DNS         8
 #define RES_ICON_NOTES       9
 #define RES_ICON_AUDIOSWITCHER 10
+#define RES_ICON_CLIPBOARDMEMORY 11
 
 /* Action IDs */
 #define ID_BTN_REFRESH_ALL   1001
@@ -88,6 +89,9 @@
 #define ID_AUDIOSWITCHER_OPEN   1707
 #define ID_AUDIOSWITCHER_UPDATE 1708
 #define ID_AUDIOSWITCHER_FOLDER 1709
+#define ID_CLIPBOARDMEMORY_OPEN   1710
+#define ID_CLIPBOARDMEMORY_UPDATE 1711
+#define ID_CLIPBOARDMEMORY_FOLDER 1712
 
 /* Dynamic catalog button ids: ID_DYN_BASE + appIndex*10 + buttonIndex */
 #define ID_DYN_BASE          1800
@@ -229,6 +233,7 @@ static wchar_t          g_kblDir[MAX_PATH];
 static wchar_t          g_dnsDir[MAX_PATH];
 static wchar_t          g_notesDir[MAX_PATH];
 static wchar_t          g_audioSwitcherDir[MAX_PATH];
+static wchar_t          g_clipboardMemoryDir[MAX_PATH];
 static wchar_t          g_modsDir[MAX_PATH];
 static wchar_t          g_orcaBatDir[MAX_PATH];
 
@@ -321,7 +326,7 @@ static void RebuildFontsAndIcons(HWND hwnd) {
                                     IMAGE_ICON, embPx, embPx, LR_DEFAULTCOLOR);
 
     int cardIcoPx = S(44, dpi);
-    const int ids[7] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA, RES_ICON_DNS, RES_ICON_NOTES, RES_ICON_AUDIOSWITCHER };
+    const int ids[8] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA, RES_ICON_DNS, RES_ICON_NOTES, RES_ICON_AUDIOSWITCHER, RES_ICON_CLIPBOARDMEMORY };
     for (int i = 0; i < 6; i++) {
         if (g_cardIcons[i]) { DestroyIcon(g_cardIcons[i]); g_cardIcons[i] = NULL; }
         g_cardIcons[i] = (HICON)LoadImageW(g_hInst, MAKEINTRESOURCEW(ids[i]),
@@ -530,7 +535,7 @@ static void EnsureDirTree(const wchar_t *dir) {
 }
 
 static volatile LONG g_checkActive = 0;
-static DWORD g_remBtgSize = 0, g_remKblSize = 0, g_remKblPs1Size = 0, g_remDnsSize = 0, g_remNotesSize = 0, g_remAudioSwitcherSize = 0;
+static DWORD g_remBtgSize = 0, g_remKblSize = 0, g_remKblPs1Size = 0, g_remDnsSize = 0, g_remNotesSize = 0, g_remAudioSwitcherSize = 0, g_remClipboardMemorySize = 0;
 static RECT           g_rcFooterDot = { 0, 0, 0, 0 };
 
 /* Quiet update-check phase: the periodic version check gets a small
@@ -1089,6 +1094,19 @@ static void InitAllPaths(void) {
     }
     if (!g_audioSwitcherDir[0]) _snwprintf(g_audioSwitcherDir, MAX_PATH, L"%s\\AudioSwitcher", g_suiteDir);
 
+    /* 3a. Locate Clipboard Memory (sibling of the hub, repo checkout, or suite dir) */
+    g_clipboardMemoryDir[0] = L'\0';
+    _snwprintf(cand, MAX_PATH, L"%s\\ClipboardMemory.exe", g_exeDir);
+    if (FileExistsW(cand)) {
+        wcsncpy(g_clipboardMemoryDir, g_exeDir, MAX_PATH - 1);
+    } else {
+        _snwprintf(cand, MAX_PATH, L"%s\\clipboard-memory\\ClipboardMemory.exe", parent);
+        if (FileExistsW(cand)) {
+            wcsncpy(g_clipboardMemoryDir, parent, MAX_PATH - 1);
+        }
+    }
+    if (!g_clipboardMemoryDir[0]) _snwprintf(g_clipboardMemoryDir, MAX_PATH, L"%s\\ClipboardMemory", g_suiteDir);
+
     /* 3. OrcaSlicer plugins */
     _snwprintf(cand, MAX_PATH, L"%s\\Orca-Plugins.bat", parent);
     if (FileExistsW(cand)) wcsncpy(g_orcaBatDir, parent, MAX_PATH - 1);
@@ -1456,13 +1474,14 @@ static void AddCatalogCard(const char *obj) {
 static void RebuildExtraCards(const char *json) {
     /* Built-in titles revert to their built-in literals first: any of them
        missing from the catalog must not point at wiped pool strings. */
-    static const wchar_t *fallbackTitles[7] = {
+    static const wchar_t *fallbackTitles[8] = {
         L"Bluetooth Guard", L"Keyboard Lighting", L"Spatial HUD",
-        L"OrcaSlicer Plugins", L"DNS Pilot", L"Agent Notes", L"Audio Switcher" };
+        L"OrcaSlicer Plugins", L"DNS Pilot", L"Agent Notes", L"Audio Switcher",
+        L"Clipboard Memory" };
     for (int i = 0; i < 6; i++) g_cards[i].title = fallbackTitles[i];
     /* Shrink first so a repaint mid-rebuild never reads half-built cards. */
-    g_cardCount = 6;
-    for (int i = 6; i < MAX_APPS; i++) {
+    g_cardCount = 7;
+    for (int i = 7; i < MAX_APPS; i++) {
         if (g_cards[i].hIcon) { DestroyIcon(g_cards[i].hIcon); g_cards[i].hIcon = NULL; }
         ZeroMemory(&g_cards[i], sizeof(g_cards[i]));
     }
@@ -1600,6 +1619,13 @@ static void InitCardDefinitions(void) {
     g_cards[6].btns[0]   = (ActionBtn){ ID_AUDIOSWITCHER_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
     g_cards[6].btns[1]   = (ActionBtn){ ID_AUDIOSWITCHER_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL };
     g_cards[6].btns[2]   = (ActionBtn){ ID_AUDIOSWITCHER_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+
+    g_cards[7].resIconId = RES_ICON_CLIPBOARDMEMORY;
+    g_cards[7].title     = L"Clipboard Memory";
+    g_cards[7].btnCount  = 3;
+    g_cards[7].btns[0]   = (ActionBtn){ ID_CLIPBOARDMEMORY_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[7].btns[1]   = (ActionBtn){ ID_CLIPBOARDMEMORY_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL };
+    g_cards[7].btns[2]   = (ActionBtn){ ID_CLIPBOARDMEMORY_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
 }
 
 static void RefreshProjectStatuses(void) {
@@ -1912,6 +1938,46 @@ static void RefreshProjectStatuses(void) {
         }
     }
 
+    /* 8. Clipboard Memory */
+    {
+        DWORD remCmSz = g_remClipboardMemorySize;
+        wchar_t cmExe[MAX_PATH];
+        _snwprintf(cmExe, MAX_PATH, L"%s\\ClipboardMemory.exe", g_clipboardMemoryDir);
+        BOOL hasCm = FileHealthyW(cmExe);
+        DWORD locCmSz = LocalSizeOf(cmExe);
+        BOOL cmKnown = (remCmSz > 0 && locCmSz > 0);
+        BOOL cmUpd = hasCm && cmKnown && locCmSz != remCmSz;
+        BOOL cmRunning = (FindWindowW(L"TestsClipboardMemoryWnd", NULL) != NULL);
+        g_cards[7].btns[1].style = BTN_SECONDARY;
+        if (!hasCm) {
+            wcsncpy(g_cards[7].badge, L"Setup Ready", 47);
+            g_cards[7].badgeKind = BADGE_WARN;
+            g_cards[7].btns[0].label = L"Install";
+            g_cards[7].btns[0].style = BTN_PRIMARY;
+            wcsncpy(g_cards[7].detail, L"Disk-persisted clipboard history, last 20 items  \x00B7  Click Install to set up", 255);
+        } else if (cmRunning) {
+            wcsncpy(g_cards[7].badge, L"Active", 47);
+            g_cards[7].badgeKind = BADGE_OK;
+            g_cards[7].btns[0].label = L"Open";
+            g_cards[7].btns[0].style = BTN_SECONDARY;
+            wcsncpy(g_cards[7].detail, L"Disk-persisted clipboard history, last 20 items  \x00B7  Running (window or tray)", 255);
+        } else {
+            wcsncpy(g_cards[7].badge, L"Standby", 47);
+            g_cards[7].badgeKind = BADGE_IDLE;
+            g_cards[7].btns[0].label = L"Open";
+            g_cards[7].btns[0].style = BTN_SECONDARY;
+            wcsncpy(g_cards[7].detail, L"Disk-persisted clipboard history, last 20 items  \x00B7  Installed locally", 255);
+        }
+        if (hasCm && cmKnown) {
+            wcsncat(g_cards[7].badge, cmUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
+            if (cmUpd) {
+                if (g_cards[7].badgeKind == BADGE_OK || g_cards[7].badgeKind == BADGE_IDLE)
+                    g_cards[7].badgeKind = BADGE_WARN;
+                g_cards[7].btns[1].style = BTN_AMBER;
+            }
+        }
+    }
+
     /* 7+. Catalog extras: generic installed / update state */
     for (int i = 6; i < g_cardCount; i++) {
         ProjectCard *c = &g_cards[i];
@@ -2012,7 +2078,7 @@ static void WorkerCheckRemote(void) {
     /* Remote build sizes: the installed file differing from the branch copy
        is what 'Update Ready' means for the EXE apps. */
     {
-        DWORD szBtg = 0, szKbl = 0, szPs1 = 0, szDns = 0, szNotes = 0, szAs = 0;
+        DWORD szBtg = 0, szKbl = 0, szPs1 = 0, szDns = 0, szNotes = 0, szAs = 0, szCm = 0;
         _snwprintf(p, 255, L"/%s/%s/%s/bluetooth-guard/BluetoothGuard.exe", REPO_OWNER_W, REPO_NAME_W, branch);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szBtg);
         _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/KeyboardLighting.exe", REPO_OWNER_W, REPO_NAME_W, branch);
@@ -2025,6 +2091,8 @@ static void WorkerCheckRemote(void) {
         HttpHeadSize(L"raw.githubusercontent.com", p, &szNotes);
         _snwprintf(p, 255, L"/%s/%s/%s/audio-switcher/AudioSwitcher.exe", REPO_OWNER_W, REPO_NAME_W, branch);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szAs);
+        _snwprintf(p, 255, L"/%s/%s/%s/clipboard-memory/ClipboardMemory.exe", REPO_OWNER_W, REPO_NAME_W, branch);
+        HttpHeadSize(L"raw.githubusercontent.com", p, &szCm);
         /* Always record the result: a failed HEAD means "unknown" (0), never
            "keep the old number". Stale cached sizes are what left Update Ready
            badges stuck yellow after an update already said up to date. */
@@ -2035,6 +2103,7 @@ static void WorkerCheckRemote(void) {
         g_remDnsSize = szDns;
         g_remNotesSize = szNotes;
         g_remAudioSwitcherSize = szAs;
+        g_remClipboardMemorySize = szCm;
         LeaveCriticalSection(&g_cs);
     }
     /* generic catalog extras: remote size of each app's main exe */
