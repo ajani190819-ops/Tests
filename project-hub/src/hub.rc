@@ -6,4 +6,5 @@
 6 ICON "../../docs/brand/orca-plugins.ico"
 8 ICON "../../dns-pilot/dnspilot.ico"
 9 ICON "../../agent-notes/agent-notes.ico"
+10 ICON "../../audio-switcher/audio-switcher.ico"
 1 24 "manifest.xml"

@@ -43,6 +43,7 @@
 #define RES_ICON_ORCA        6
 #define RES_ICON_DNS         8
 #define RES_ICON_NOTES       9
+#define RES_ICON_AUDIOSWITCHER 10
 
 /* Action IDs */
 #define ID_BTN_REFRESH_ALL   1001
@@ -83,6 +84,10 @@
 #define ID_NOTES_OPEN        1704
 #define ID_NOTES_UPDATE      1705
 #define ID_NOTES_FOLDER      1706
+
+#define ID_AUDIOSWITCHER_OPEN   1707
+#define ID_AUDIOSWITCHER_UPDATE 1708
+#define ID_AUDIOSWITCHER_FOLDER 1709
 
 /* Dynamic catalog button ids: ID_DYN_BASE + appIndex*10 + buttonIndex */
 #define ID_DYN_BASE          1800
@@ -223,6 +228,7 @@ static wchar_t          g_btgExtraExe[MAX_PATH];
 static wchar_t          g_kblDir[MAX_PATH];
 static wchar_t          g_dnsDir[MAX_PATH];
 static wchar_t          g_notesDir[MAX_PATH];
+static wchar_t          g_audioSwitcherDir[MAX_PATH];
 static wchar_t          g_modsDir[MAX_PATH];
 static wchar_t          g_orcaBatDir[MAX_PATH];
 
@@ -315,7 +321,7 @@ static void RebuildFontsAndIcons(HWND hwnd) {
                                     IMAGE_ICON, embPx, embPx, LR_DEFAULTCOLOR);
 
     int cardIcoPx = S(44, dpi);
-    const int ids[6] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA, RES_ICON_DNS, RES_ICON_NOTES };
+    const int ids[7] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA, RES_ICON_DNS, RES_ICON_NOTES, RES_ICON_AUDIOSWITCHER };
     for (int i = 0; i < 6; i++) {
         if (g_cardIcons[i]) { DestroyIcon(g_cardIcons[i]); g_cardIcons[i] = NULL; }
         g_cardIcons[i] = (HICON)LoadImageW(g_hInst, MAKEINTRESOURCEW(ids[i]),
@@ -524,7 +530,7 @@ static void EnsureDirTree(const wchar_t *dir) {
 }
 
 static volatile LONG g_checkActive = 0;
-static DWORD g_remBtgSize = 0, g_remKblSize = 0, g_remKblPs1Size = 0, g_remDnsSize = 0, g_remNotesSize = 0;
+static DWORD g_remBtgSize = 0, g_remKblSize = 0, g_remKblPs1Size = 0, g_remDnsSize = 0, g_remNotesSize = 0, g_remAudioSwitcherSize = 0;
 static RECT           g_rcFooterDot = { 0, 0, 0, 0 };
 
 /* Quiet update-check phase: the periodic version check gets a small
@@ -1070,6 +1076,19 @@ static void InitAllPaths(void) {
     }
     if (!g_notesDir[0]) _snwprintf(g_notesDir, MAX_PATH, L"%s\\AgentNotes", g_suiteDir);
 
+    /* 2d. Locate Audio Switcher (sibling of the hub, repo checkout, or suite dir) */
+    g_audioSwitcherDir[0] = L'\0';
+    _snwprintf(cand, MAX_PATH, L"%s\\AudioSwitcher.exe", g_exeDir);
+    if (FileExistsW(cand)) {
+        wcsncpy(g_audioSwitcherDir, g_exeDir, MAX_PATH - 1);
+    } else {
+        _snwprintf(cand, MAX_PATH, L"%s\\audio-switcher\\AudioSwitcher.exe", parent);
+        if (FileExistsW(cand)) {
+            wcsncpy(g_audioSwitcherDir, parent, MAX_PATH - 1);
+        }
+    }
+    if (!g_audioSwitcherDir[0]) _snwprintf(g_audioSwitcherDir, MAX_PATH, L"%s\\AudioSwitcher", g_suiteDir);
+
     /* 3. OrcaSlicer plugins */
     _snwprintf(cand, MAX_PATH, L"%s\\Orca-Plugins.bat", parent);
     if (FileExistsW(cand)) wcsncpy(g_orcaBatDir, parent, MAX_PATH - 1);
@@ -1224,14 +1243,14 @@ static int JsonGet(const char *obj, const char *key, char *out, int cap) {
 }
 
 static int BuiltInSlot(const char *id) {
-    static const char *known[6] = { "btguard", "kbl", "hud", "orca", "dnspilot", "agentnotes" };
+    static const char *known[7] = { "btguard", "kbl", "hud", "orca", "dnspilot", "agentnotes", "audioswitcher" };
     for (int i = 0; i < 6; i++) if (strcmp(id, known[i]) == 0) return i;
     return -1;
 }
 
 static int BuiltInBtnId(int slot, const char *verb) {
     /* verb -> the control id the existing WM_COMMAND switch understands */
-    static const struct { const char *verb; int id; } map[22] = {
+    static const struct { const char *verb; int id; } map[25] = {
         { "open",      ID_BTG_OPEN },     { "update",    ID_BTG_UPDATE },
         { "stop",      ID_BTG_STOP },     { "folder",    ID_BTG_FOLDER },
         { "open",      ID_KBL_OPEN },     { "unfreeze",  ID_KBL_RESTART },
@@ -1244,9 +1263,11 @@ static int BuiltInBtnId(int slot, const char *verb) {
         { "open",      ID_DNS_OPEN },     { "update",    ID_DNS_UPDATE },
         { "folder",    ID_DNS_FOLDER },
         { "open",      ID_NOTES_OPEN },   { "update",    ID_NOTES_UPDATE },
-        { "folder",    ID_NOTES_FOLDER }
+        { "folder",    ID_NOTES_FOLDER },
+        { "open",      ID_AUDIOSWITCHER_OPEN },  { "update",    ID_AUDIOSWITCHER_UPDATE },
+        { "folder",    ID_AUDIOSWITCHER_FOLDER }
     };
-    static const int off[7] = { 0, 4, 8, 13, 16, 19, 22 };
+    static const int off[8] = { 0, 4, 8, 13, 16, 19, 22, 25 };
     if (slot < 0 || slot > 5) return 0;
     for (int i = off[slot]; i < off[slot + 1]; i++)
         if (strcmp(map[i].verb, verb) == 0) return map[i].id;
@@ -1435,9 +1456,9 @@ static void AddCatalogCard(const char *obj) {
 static void RebuildExtraCards(const char *json) {
     /* Built-in titles revert to their built-in literals first: any of them
        missing from the catalog must not point at wiped pool strings. */
-    static const wchar_t *fallbackTitles[6] = {
+    static const wchar_t *fallbackTitles[7] = {
         L"Bluetooth Guard", L"Keyboard Lighting", L"Spatial HUD",
-        L"OrcaSlicer Plugins", L"DNS Pilot", L"Agent Notes" };
+        L"OrcaSlicer Plugins", L"DNS Pilot", L"Agent Notes", L"Audio Switcher" };
     for (int i = 0; i < 6; i++) g_cards[i].title = fallbackTitles[i];
     /* Shrink first so a repaint mid-rebuild never reads half-built cards. */
     g_cardCount = 6;
@@ -1572,6 +1593,13 @@ static void InitCardDefinitions(void) {
     g_cards[5].btns[0]   = (ActionBtn){ ID_NOTES_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
     g_cards[5].btns[1]   = (ActionBtn){ ID_NOTES_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL };
     g_cards[5].btns[2]   = (ActionBtn){ ID_NOTES_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+
+    g_cards[6].resIconId = RES_ICON_AUDIOSWITCHER;
+    g_cards[6].title     = L"Audio Switcher";
+    g_cards[6].btnCount  = 3;
+    g_cards[6].btns[0]   = (ActionBtn){ ID_AUDIOSWITCHER_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[6].btns[1]   = (ActionBtn){ ID_AUDIOSWITCHER_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL };
+    g_cards[6].btns[2]   = (ActionBtn){ ID_AUDIOSWITCHER_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
 }
 
 static void RefreshProjectStatuses(void) {
@@ -1844,6 +1872,46 @@ static void RefreshProjectStatuses(void) {
         }
     }
 
+    /* 7. Audio Switcher */
+    {
+        DWORD remAsSz = g_remAudioSwitcherSize;
+        wchar_t asExe[MAX_PATH];
+        _snwprintf(asExe, MAX_PATH, L"%s\\AudioSwitcher.exe", g_audioSwitcherDir);
+        BOOL hasAs = FileHealthyW(asExe);
+        DWORD locAsSz = LocalSizeOf(asExe);
+        BOOL asKnown = (remAsSz > 0 && locAsSz > 0);
+        BOOL asUpd = hasAs && asKnown && locAsSz != remAsSz;
+        BOOL asRunning = (FindWindowW(L"TestsAudioSwitcherWnd", NULL) != NULL);
+        g_cards[6].btns[1].style = BTN_SECONDARY;
+        if (!hasAs) {
+            wcsncpy(g_cards[6].badge, L"Setup Ready", 47);
+            g_cards[6].badgeKind = BADGE_WARN;
+            g_cards[6].btns[0].label = L"Install";
+            g_cards[6].btns[0].style = BTN_PRIMARY;
+            wcsncpy(g_cards[6].detail, L"Per-app volume & audio output switching  \x00B7  Click Install to set up", 255);
+        } else if (asRunning) {
+            wcsncpy(g_cards[6].badge, L"Active", 47);
+            g_cards[6].badgeKind = BADGE_OK;
+            g_cards[6].btns[0].label = L"Open";
+            g_cards[6].btns[0].style = BTN_SECONDARY;
+            wcsncpy(g_cards[6].detail, L"Per-app volume & audio output switching  \x00B7  Running (window or tray)", 255);
+        } else {
+            wcsncpy(g_cards[6].badge, L"Standby", 47);
+            g_cards[6].badgeKind = BADGE_IDLE;
+            g_cards[6].btns[0].label = L"Open";
+            g_cards[6].btns[0].style = BTN_SECONDARY;
+            wcsncpy(g_cards[6].detail, L"Per-app volume & audio output switching  \x00B7  Installed locally", 255);
+        }
+        if (hasAs && asKnown) {
+            wcsncat(g_cards[6].badge, asUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
+            if (asUpd) {
+                if (g_cards[6].badgeKind == BADGE_OK || g_cards[6].badgeKind == BADGE_IDLE)
+                    g_cards[6].badgeKind = BADGE_WARN;
+                g_cards[6].btns[1].style = BTN_AMBER;
+            }
+        }
+    }
+
     /* 7+. Catalog extras: generic installed / update state */
     for (int i = 6; i < g_cardCount; i++) {
         ProjectCard *c = &g_cards[i];
@@ -1944,7 +2012,7 @@ static void WorkerCheckRemote(void) {
     /* Remote build sizes: the installed file differing from the branch copy
        is what 'Update Ready' means for the EXE apps. */
     {
-        DWORD szBtg = 0, szKbl = 0, szPs1 = 0, szDns = 0, szNotes = 0;
+        DWORD szBtg = 0, szKbl = 0, szPs1 = 0, szDns = 0, szNotes = 0, szAs = 0;
         _snwprintf(p, 255, L"/%s/%s/%s/bluetooth-guard/BluetoothGuard.exe", REPO_OWNER_W, REPO_NAME_W, branch);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szBtg);
         _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/KeyboardLighting.exe", REPO_OWNER_W, REPO_NAME_W, branch);
@@ -1955,6 +2023,8 @@ static void WorkerCheckRemote(void) {
         HttpHeadSize(L"raw.githubusercontent.com", p, &szDns);
         _snwprintf(p, 255, L"/%s/%s/%s/agent-notes/AgentNotes.exe", REPO_OWNER_W, REPO_NAME_W, branch);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szNotes);
+        _snwprintf(p, 255, L"/%s/%s/%s/audio-switcher/AudioSwitcher.exe", REPO_OWNER_W, REPO_NAME_W, branch);
+        HttpHeadSize(L"raw.githubusercontent.com", p, &szAs);
         /* Always record the result: a failed HEAD means "unknown" (0), never
            "keep the old number". Stale cached sizes are what left Update Ready
            badges stuck yellow after an update already said up to date. */
@@ -1964,6 +2034,7 @@ static void WorkerCheckRemote(void) {
         g_remKblPs1Size = szPs1;
         g_remDnsSize = szDns;
         g_remNotesSize = szNotes;
+        g_remAudioSwitcherSize = szAs;
         LeaveCriticalSection(&g_cs);
     }
     /* generic catalog extras: remote size of each app's main exe */
