@@ -23,8 +23,7 @@ $Exe       = Join-Path $Here 'BluetoothGuard.exe'
 $Dll       = Join-Path $Here 'BluetoothCore.dll'
 $Script    = Join-Path $Here 'BluetoothGuard.ps1'
 $CoreCs    = Join-Path $Here 'BluetoothCore.cs'
-$RunKey    = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-$RunName   = 'BluetoothGuard'
+$TaskName  = 'BluetoothGuard'
 $Files     = @('BluetoothGuard.ps1', 'BluetoothCore.cs', 'Setup.ps1', 'Setup.bat', 'README.md')
 $RepoSlug  = 'ajani190819-ops/Tests'
 $Fallback  = 'arena/e895b94f-tests'
@@ -206,10 +205,33 @@ Write-Host '   [OK]   Shortcuts ready on Desktop and Start Menu.' -ForegroundCol
 
 if (-not $NoAutostart) {
     try {
-        $cmd = if (Test-Path $Exe) { '"{0}" -Silent' -f $Exe } else { 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -Silent' -f $Script }
-        Set-ItemProperty -Path $RunKey -Name $RunName -Value $cmd -ErrorAction Stop
-        Write-Host '   [OK]   Automatic Windows startup enabled.' -ForegroundColor Green
-    } catch { }
+        # Migrate away from the old HKCU Run entry: a Run-key launch trips
+        # a UAC prompt at every boot now that the exe requires administrator.
+        # Use a silent, elevated scheduled task instead - no prompt, high
+        # priority, starts on battery, zero post-boot delay.
+        Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'BluetoothGuard' -ErrorAction SilentlyContinue
+
+        $usePs = -not (Test-Path $Exe)
+        if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+            Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+        }
+        if ($usePs) {
+            $act = New-ScheduledTaskAction -Execute 'powershell.exe' `
+                   -Argument ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" --silent' -f $Script) `
+                   -WorkingDirectory $Here
+        } else {
+            $act = New-ScheduledTaskAction -Execute $Exe -Argument '--silent' -WorkingDirectory $Here
+        }
+        $trg  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+        $prin = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
+        $set  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+                -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable
+        Register-ScheduledTask -TaskName $TaskName -Action $act -Trigger $trg `
+            -Principal $prin -Settings $set -Description 'Bluetooth Guard' -Force | Out-Null
+        Write-Host '   [OK]   Automatic Windows startup enabled (elevated, no prompt).' -ForegroundColor Green
+    } catch {
+        Write-Host ('   [WARN] Autostart could not be set: ' + $_.Exception.Message) -ForegroundColor Yellow
+    }
 }
 
 if (-not $NoLaunch) {
