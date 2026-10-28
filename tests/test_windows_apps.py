@@ -593,6 +593,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             "docs/brand/orca-plugins.ico",
             "agent-notes/agent-notes.ico",
             "audio-switcher/audio-switcher.ico",
+            "clipboard-memory/clipboard-memory.ico",
         ):
             raw = (ROOT / rel_ico).read_bytes()
             self.assertEqual(raw[:4], b"\x00\x00\x01\x00", f"{rel_ico} missing valid Windows ICO header")

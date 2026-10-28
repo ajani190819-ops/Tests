@@ -468,6 +468,36 @@ def build_icon_audio_switcher(size: int = 512, small: bool = False) -> Image.Ima
     return composite_elevated_layer(base, speaker_a, (212, 170, 254), (139, 92, 246), (168, 85, 247))
 
 
+def build_icon_clipboard_memory(size: int = 512, small: bool = False) -> Image.Image:
+    base = make_squircle_base(size, (211, 114, 182))  # Soft Rose-Pink (#D376B6 -> #BE185D)
+
+    # Clipboard page glyph: a rounded rectangle with a paperclip + stack lines
+    def clip_fn(d: ImageDraw.ImageDraw, s: int):
+        w = int(s * (0.07 if small else 0.05))
+        cx, cy = s * 0.50, s * 0.52
+        # Clipboard page
+        d.rounded_rectangle([s * 0.24, s * 0.24, s * 0.76, s * 0.76], radius=s * 0.06, fill=255)
+        # Paperclip wire loop
+        pts = []
+        for k in range(41):
+            t = k / 40.0
+            ang = t * 4.2
+            r_ell = s * 0.09
+            x = cx + math.cos(ang) * r_ell
+            y = cy + math.sin(ang) * r_ell * 0.55
+            pts.append((x, y))
+        d.line(pts, fill=255, width=w, joint="curve")
+        for px0, py0 in (pts[0], pts[-1]):
+            rr = w * 0.5
+            d.ellipse([px0 - rr, py0 - rr, px0 + rr, py0 + rr], fill=255)
+        # Two text lines at bottom of page
+        d.rounded_rectangle([s * 0.34, s * 0.60, s * 0.66, s * 0.64], radius=s * 0.02, fill=255)
+        d.rounded_rectangle([s * 0.34, s * 0.68, s * 0.60, s * 0.72], radius=s * 0.02, fill=255)
+
+    clip_a = draw_antialias_mask(size, clip_fn)
+    return composite_elevated_layer(base, clip_a, (236, 170, 214), (168, 85, 247), (211, 114, 182))
+
+
 def save_multi_ico(build, ico_path: Path, png_path: Path = None):
     """Write a true multi-size ICO where EVERY size is rendered analytically
     at its own resolution (with small-size stroke boosts) instead of being
@@ -516,6 +546,7 @@ def main():
         ("DNS Pilot",         build_icon_dns_pilot,         ROOT / "dns-pilot" / "dnspilot.ico",              BRAND_DIR / "icon-dns-pilot.png"),
         ("Agent Notes",       build_icon_agent_notes,       ROOT / "agent-notes" / "agent-notes.ico",         BRAND_DIR / "icon-agent-notes.png"),
         ("Audio Switcher",    build_icon_audio_switcher,    ROOT / "audio-switcher" / "audio-switcher.ico",   BRAND_DIR / "icon-audio-switcher.png"),
+        ("Clipboard Memory",  build_icon_clipboard_memory,  ROOT / "clipboard-memory" / "clipboard-memory.ico", BRAND_DIR / "icon-clipboard-memory.png"),
     ]
 
     for _, build, ico_p, png_p in icons:
