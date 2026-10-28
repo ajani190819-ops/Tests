@@ -726,7 +726,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
         CW_USEDEFAULT, CW_USEDEFAULT, S(720), S(620),
         NULL, NULL, hInst, NULL);
 
-    if (!g_silent) ShowWindow(hwnd, SW_SHOWNORMAL);
+    /* Start hidden in tray - user opens from tray icon or Win+V hotkey */
+    ShowWindow(hwnd, SW_HIDE);
 
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0) > 0) {

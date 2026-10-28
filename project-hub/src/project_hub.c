@@ -215,7 +215,7 @@ static ActionBtn        g_topBtns[4] = {
 static RECT             g_rcEmblem    = {0, 0, 0, 0};
 
 static ProjectCard      g_cards[MAX_APPS];
-static int              g_cardCount = 6;   /* 6 built-ins + catalog extras */
+static int              g_cardCount = 8;   /* 8 built-ins + catalog extras */
 static int              g_dynIdx = 0;      /* target of TASK_*_DYN */
 static int              g_hoverId     = 0;
 static int              g_scrollY     = 0;
@@ -327,7 +327,7 @@ static void RebuildFontsAndIcons(HWND hwnd) {
 
     int cardIcoPx = S(44, dpi);
     const int ids[8] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA, RES_ICON_DNS, RES_ICON_NOTES, RES_ICON_AUDIOSWITCHER, RES_ICON_CLIPBOARDMEMORY };
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 8; i++) {
         if (g_cardIcons[i]) { DestroyIcon(g_cardIcons[i]); g_cardIcons[i] = NULL; }
         g_cardIcons[i] = (HICON)LoadImageW(g_hInst, MAKEINTRESOURCEW(ids[i]),
                                            IMAGE_ICON, cardIcoPx, cardIcoPx, LR_DEFAULTCOLOR);
@@ -1480,8 +1480,8 @@ static void RebuildExtraCards(const char *json) {
         L"Clipboard Memory" };
     for (int i = 0; i < 6; i++) g_cards[i].title = fallbackTitles[i];
     /* Shrink first so a repaint mid-rebuild never reads half-built cards. */
-    g_cardCount = 7;
-    for (int i = 7; i < MAX_APPS; i++) {
+    g_cardCount = 8;
+    for (int i = 8; i < MAX_APPS; i++) {
         if (g_cards[i].hIcon) { DestroyIcon(g_cards[i].hIcon); g_cards[i].hIcon = NULL; }
         ZeroMemory(&g_cards[i], sizeof(g_cards[i]));
     }
