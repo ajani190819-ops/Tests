@@ -114,3 +114,27 @@ asset names so the conflict does not recur.
 ## State summary (this turn)
 1. Spatial HUD 1.0.4 (`d9c7088`, pushed, release asset spatial-hud-1.0.4.jar only — stale 1.0.3 deleted) fixes the bottom cut-off + transparency change via span-based UV mapping in `purplePanelState`. Flicker was already fixed (user confirmed 1.0.3).
 2. Agent Notes icon shipped as 2.8.32 (`311ec9e`, pushed).
+
+## Startup/tray checkpoint (2026-10-25) — all three autostart apps verified/fixed
+
+**Keyboard Lighting** (already correct, no change):
+- Setup.ps1 creates scheduled task `KeyboardLighting`, `-Silent`, `RunLevel Highest`, `-AtLogOn` trigger
+- Tray.ps1 runs in tray via NotifyIcon, single instance with bring-forward
+- Manifest: requireAdministrator
+
+**Bluetooth Guard** (`65f7f25`, pushed):
+- Setup.ps1 was using HKCU Run key (not elevated, would trip UAC at boot, and passed wrong flag `-Silent` vs source's `--silent`)
+- Replaced with scheduled task `BluetoothGuard`, `--silent`, `RunLevel Highest`, `-AtLogOn`
+- Also removes old Run value on migration
+- Source already self-registers via SetAutostart(TRUE) in WorkerThread (schtasks, RunLevel HighestAvailable, --silent)
+- Tray: Shell_NotifyIconW NIM_ADD, single instance via mutex + SHOW_EVENT
+
+**DNS Pilot** (`b2709a3`, pushed):
+- Had NO Setup.bat/Setup.ps1 at all
+- Added Setup.bat (elevation + download Setup.ps1 from GitHub) + Setup.ps1 (shortcuts, scheduled task `TestsSuite-DnsPilot` with `-Silent` `RunLevel Highest`, launch + verify)
+- Source already had EnsureAutostart() (schtasks `/RL HIGHEST`), tray, single instance, `-Silent`
+- Manifest: requireAdministrator
+
+**Hub**: does NOT autostart (per constraints). **Agent Notes**: not in autostart group per user request ("Lighting, Bluetooth, and Pilot").
+
+Tests: 10/10 pass. Both commits pushed to origin/arena/e895b94f-tests.
