@@ -448,6 +448,26 @@ def build_icon_agent_notes(size: int = 512, small: bool = False) -> Image.Image:
     return base
 
 
+def build_icon_audio_switcher(size: int = 512, small: bool = False) -> Image.Image:
+    base = make_squircle_base(size, (168, 85, 247))
+
+    # Speaker cone with three sound arcs radiating right - the audio glyph.
+    # Arcs vanish at small sizes where they would smear into mush.
+    def speaker_fn(d: ImageDraw.ImageDraw, s: int):
+        w = int(s * (0.07 if small else 0.05))
+        cx, cy = s * 0.42, s * 0.52
+        # Speaker cone
+        d.rounded_rectangle([s * 0.22, s * 0.30, s * 0.62, s * 0.74], radius=s * 0.06, fill=255)
+        d.ellipse([cx - s * 0.06, cy - s * 0.06, cx + s * 0.06, cy + s * 0.06], fill=255)
+        if not small:
+            sw = max(2, int(w * 0.9))
+            for rad in (s * 0.14, s * 0.24, s * 0.34):
+                d.arc([cx - rad, cy - rad, cx + rad, cy + rad], -30, 30, fill=255, width=sw)
+
+    speaker_a = draw_antialias_mask(size, speaker_fn)
+    return composite_elevated_layer(base, speaker_a, (212, 170, 254), (139, 92, 246), (168, 85, 247))
+
+
 def save_multi_ico(build, ico_path: Path, png_path: Path = None):
     """Write a true multi-size ICO where EVERY size is rendered analytically
     at its own resolution (with small-size stroke boosts) instead of being
@@ -495,6 +515,7 @@ def main():
         ("Orca Plugins",      build_icon_orca_plugins,      BRAND_DIR / "orca-plugins.ico",                 BRAND_DIR / "icon-orca-plugins.png"),
         ("DNS Pilot",         build_icon_dns_pilot,         ROOT / "dns-pilot" / "dnspilot.ico",              BRAND_DIR / "icon-dns-pilot.png"),
         ("Agent Notes",       build_icon_agent_notes,       ROOT / "agent-notes" / "agent-notes.ico",         BRAND_DIR / "icon-agent-notes.png"),
+        ("Audio Switcher",    build_icon_audio_switcher,    ROOT / "audio-switcher" / "audio-switcher.ico",   BRAND_DIR / "icon-audio-switcher.png"),
     ]
 
     for _, build, ico_p, png_p in icons:

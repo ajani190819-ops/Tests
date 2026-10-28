@@ -69,6 +69,15 @@ def main() -> int:
 
     targets = [
         (
+            "audioswitcher",
+            ROOT / "audio-switcher" / "src",
+            "audio-switcher.rc",
+            ROOT / "audio-switcher" / "src" / "audio_switcher.c",
+            ROOT / "audio-switcher" / "AudioSwitcher.exe",
+            ["-luser32", "-lgdi32", "-lshell32", "-lole32", "-luuid",
+             "-lcomctl32", "-lshlwapi", "-ladvapi32"],
+        ),
+        (
             "hub",
             ROOT / "project-hub" / "src",
             "hub.rc",
