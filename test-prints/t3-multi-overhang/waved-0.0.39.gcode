@@ -61220,8 +61220,8 @@ M73 P100 R0
 ; auxiliary_fan = 0
 ; bbl_calib_mark_logo = 1
 ; bbl_use_printhost = 0
-; bed_custom_model = C:\\Users\\kamau\\Downloads\\Bed.stl
-; bed_custom_texture = C:\\Users\\kamau\\Downloads\\New Project.svg
+; bed_custom_model = C:\\Users\\<user>\\Downloads\\Bed.stl
+; bed_custom_texture = C:\\Users\\<user>\\Downloads\\New Project.svg
 ; bed_exclude_area = 0x0
 ; bed_mesh_max = 99999,99999
 ; bed_mesh_min = -99999,-99999

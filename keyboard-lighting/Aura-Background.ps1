@@ -166,6 +166,32 @@ if (-not ('HidNative' -as [type])) {
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
+
+public static class AuraPowerWatch {
+  static int _wakes = 0;
+  static bool _hooked = false;
+  public static void Start() {
+    if (_hooked) return;
+    _hooked = true;
+    try { Microsoft.Win32.SystemEvents.PowerModeChanged += OnPower; } catch { }
+    try { Microsoft.Win32.SystemEvents.SessionSwitch += OnSession; } catch { }
+  }
+  public static void Stop() {
+    if (!_hooked) return;
+    _hooked = false;
+    try { Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPower; } catch { }
+    try { Microsoft.Win32.SystemEvents.SessionSwitch -= OnSession; } catch { }
+  }
+  static void OnPower(object s, Microsoft.Win32.PowerModeChangedEventArgs e) {
+    if (e.Mode == Microsoft.Win32.PowerModes.Resume) Interlocked.Increment(ref _wakes);
+  }
+  static void OnSession(object s, Microsoft.Win32.SessionSwitchEventArgs e) {
+    Interlocked.Increment(ref _wakes);
+  }
+  public static int ConsumeWakes() { return Interlocked.Exchange(ref _wakes, 0); }
+}
+
 public static class HidNative {
   [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
   public static extern IntPtr CreateFileW(string path, uint access, uint share, IntPtr sa, uint disp, uint flags, IntPtr tmpl);
@@ -230,7 +256,7 @@ public class Zone {
   public double Speed  = 1.0;
   public double Brightness = 1.0;   // this group's own slider, 0..1
   public double Master     = 1.0;   // master slider / Fn keys, 0..1
-  public bool   Mirror = false, Reverse = false, Equalise = true, Loop = false;
+  public bool   Mirror = false, Reverse = false, Equalise = true, Loop = false, SoftBlend = true;
   public bool   Enabled = true;
   public double Dir { get { return Reverse ? -1.0 : 1.0; } }
 
@@ -442,33 +468,52 @@ public class LampEngine {
   }
 
 
-  // Battery as a filling bar: green when full, red when nearly empty.
-  // While charging a bright head runs along the bar.
-  // Battery as a filling bar: green when full, red when nearly empty.
-  // While charging a bright head runs along the bar.
+  // Battery meter: a left-to-right fill across the zone, as you look at
+  // the laptop. The lit span IS the charge level, and the fill is a
+  // gradient that LEADS UP TO green at its head - so 75% charge glows a
+  // gradient ending in green three-quarters of the way across the board.
+  // As the battery tops up the whole gradient slides towards green as
+  // well, so a full battery reads as solid green. While charging a bright
+  // pulse runs along the fill like charge flowing in; below 15% on
+  // battery the fill breathes slowly instead of blinking hard.
   void DrawBattery(Zone gr) {
     int pct = (Sys != null) ? Sys.Battery : -1;
     bool chg = (Sys != null) && Sys.Charging;
     if (pct < 0) pct = 100;
+    if (pct > 100) pct = 100;
     double f = pct / 100.0;
-    double hr, hg, hb;
-    Hsv(120.0 * f, 1.0, 1.0, out hr, out hg, out hb);
-    double head = chg ? ((Now * 0.5) % 1.0) : -1.0;
+    if (f < 0.025) f = 0.025;   // keep a visible toe even at 2%
+    // Start hue slides up with charge: red when nearly empty, reaching
+    // solid green exactly at 100%.
+    double hueStart = 120.0 * Math.Max(0.0, 2.0 * f - 1.0);
+    double head = chg ? ((Now * 0.4) % 1.0) : -1.0;
     bool low = (!chg && f <= 0.15);
-    double blink = low ? (0.35 + 0.65 * (0.5 + 0.5 * Math.Sin(Now * 5.0))) : 1.0;
+    double breathe = low ? (0.55 + 0.45 * (0.5 + 0.5 * Math.Sin(Now * 2.2))) : 1.0;
     for (int i = 0; i < gr.N; i++) {
-      double u = PosOf(gr, i);
+      // Always the physical left-to-right axis, ignoring Mirror/Reverse:
+      // a battery meter must read as a level from where you sit, and a
+      // mirrored or reversed fill is unreadable as one.
+      double u = (gr.PosAcross != null && gr.PosAcross.Length == gr.N)
+               ? gr.PosAcross[i] : gr.Pos[i];
       double on;
       if (u <= f) on = 1.0;
-      else { double d = (u - f) / 0.05; on = (d < 1.0) ? (1.0 - d) : 0.0; }
+      else { double d = (u - f) / 0.06; on = (d < 1.0) ? (1.0 - d) : 0.0; }
+      double t = (u <= f) ? (u / f) : 1.0;
+      double hue = hueStart + (120.0 - hueStart) * t;
+      double hr, hg, hb;
+      Hsv(hue, 0.92, 1.0, out hr, out hg, out hb);
       double r = hr * on, g = hg * on, b = hb * on;
-      if (on < 0.02) { r = 6; g = 6; b = 6; }
+      // Green cap light right at the fill level, so the "leads up to
+      // green" end stays readable even on a 4-lamp keyboard zone.
+      double cap = Math.Exp(-Math.Abs(u - f) * 22.0);
+      r += 70 * cap; g += 150 * cap; b += 70 * cap;
       if (chg && head >= 0) {
         double d2 = Math.Abs(u - head * f);
-        double w = Math.Exp(-d2 * 20.0);
-        r += 255 * w * 0.8; g += 255 * w * 0.8; b += 200 * w * 0.8;
+        double w = Math.Exp(-d2 * 16.0);
+        r += 225 * w; g += 225 * w; b += 195 * w;
       }
-      SetZoneG(gr, i, r * blink, g * blink, b * blink);
+      if (on < 0.02) { r += 5; g += 6; b += 8; }
+      SetZoneG(gr, i, r * breathe, g * breathe, b * breathe);
     }
   }
 
@@ -516,11 +561,22 @@ public class LampEngine {
     // (the all-off path, for one) that never touch PrepPaletteG, and a
     // null table would be a crash rather than a wrong colour.
     double br = gr.Brightness * gr.Master;
-    if (br < 0.999) {
-      BuildTables();
-      r = ToSrgb(ToLin(r) * br);
-      g = ToSrgb(ToLin(g) * br);
-      b = ToSrgb(ToLin(b) * br);
+    if (br <= 0.0005) {
+      fr[i] = 0.0; fg[i] = 0.0; fb[i] = 0.0;
+      er[i] = 0.0; eg[i] = 0.0; eb[i] = 0.0;
+      return;
+    }
+    if (br < 0.9995) {
+      // Direct hardware PWM dimming curve for human night/day perception:
+      // Previously ToSrgb(0.05) sent 65/255 (25.5% LED duty cycle!) at the
+      // bottom of the slider. This perceptual curve maps 100% -> 255/255,
+      // 50% -> ~66/255, 10% -> ~3.4/255, 4% -> ~1.0/255, 1% -> ~0.59/255,
+      // and 0% -> exact 0/255 blackout.
+      double ramp = (br < 0.01) ? (br / 0.01) : 1.0;
+      double gain = 0.0022 * ramp + 0.9978 * Math.Pow(br, 1.95);
+      r *= gain;
+      g *= gain;
+      b *= gain;
     }
     if (r < 0) r = 0; else if (r > 255) r = 255;
     if (g < 0) g = 0; else if (g > 255) g = 255;
@@ -565,7 +621,7 @@ public class LampEngine {
                   out La, out Aa, out Ba);
           ToOklab(gr.plR[i]*ng, gr.plG[i]*ng, gr.plB[i]*ng,
                   out Lb, out Ab, out Bb);
-          MixOklab(La, Aa, Ba, Lb, Ab, Bb, u0, out mr, out mg, out mb);
+          MixOklch(La, Aa, Ba, Lb, Ab, Bb, u0, out mr, out mg, out mb);
           fr2[i] = mr; fg2[i] = mg; fb2[i] = mb; fgain[i] = 1.0;
         }
         gr.oldR = fr2; gr.oldG = fg2; gr.oldB = fb2; gr.oldGain = fgain;
@@ -643,6 +699,50 @@ public class LampEngine {
   // bright enough turns pink rather than just dimmer. Instead keep the
   // lightness and the hue direction and ease the saturation back until it
   // fits, which is the smallest change that stays honest to the colour.
+  // Palette CHANGEOVER blend in OKLCh: lightness and chroma blended
+  // straight, hue taken along the short arc. A line blend in OKLab between
+  // opposite hues (red->green, orange->blue) passes through a washed-out
+  // near-grey midpoint at constant lightness - which on bright palettes is
+  // a visible pale/white flash every time a colour is changed. LCh keeps
+  // the saturation of the pair, so the changeover travels through the
+  // saturated colour between them (red->green goes through rich yellow)
+  // and reads as "the colours changed", never as a white blink.
+  static void MixOklch(double L1, double A1, double B1,
+                       double L2, double A2, double B2, double w,
+                       out double r, out double g, out double b) {
+    double c1 = Math.Sqrt(A1 * A1 + B1 * B1);
+    double c2 = Math.Sqrt(A2 * A2 + B2 * B2);
+    double h1 = Math.Atan2(B1, A1), h2 = Math.Atan2(B2, A2);
+    double dh = h2 - h1;
+    while (dh >  Math.PI) dh -= 2.0 * Math.PI;
+    while (dh < -Math.PI) dh += 2.0 * Math.PI;
+    double Lm = L1 + (L2 - L1) * w;
+    double Cm = c1 + (c2 - c1) * w;
+    double hm = h1 + dh * w;
+    double am = Cm * Math.Cos(hm), bm = Cm * Math.Sin(hm);
+    FromOklab(Lm, am, bm, out r, out g, out b);
+    // Only pull the chroma back when a channel goes NEGATIVE. Values over
+    // 1 are real in this pipeline (the palette gain runs past unity and
+    // the lamp path clips at 255), and treating them as out of gamut
+    // collapsed every bright mix toward zero chroma - the other half of
+    // what read as white.
+    if (r < -1e-9 || g < -1e-9 || b < -1e-9) {
+      double lo = 0.0, hi = 1.0;
+      for (int it = 0; it < 12; it++) {
+        double mid = (lo + hi) * 0.5;
+        FromOklab(Lm, am * mid, bm * mid, out r, out g, out b);
+        if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9) lo = mid;
+        else hi = mid;
+      }
+      FromOklab(Lm, am * lo, bm * lo, out r, out g, out b);
+    }
+    // No top clamp: over-1 is the gain path's legitimate output and must
+    // survive to the lamp clip, or bright mixes flatten to white.
+    if (r < 0) r = 0;
+    if (g < 0) g = 0;
+    if (b < 0) b = 0;
+  }
+
   static void MixOklab(double L1, double A1, double B1,
                        double L2, double A2, double B2, double w,
                        out double r, out double g, out double b) {
@@ -650,20 +750,20 @@ public class LampEngine {
     double A = A1 + (A2 - A1) * w;
     double B = B1 + (B2 - B1) * w;
     FromOklab(L, A, B, out r, out g, out b);
-    if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9 &&
-        r <= 1.000000001 && g <= 1.000000001 && b <= 1.000000001) return;
+    // Same gamut rule as MixOklch: negatives pull the chroma back, over-1
+    // is legal (gain space) and is clipped later at the lamp.
+    if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9) return;
     double lo = 0.0, hi = 1.0;
     for (int it = 0; it < 18; it++) {
       double mid = (lo + hi) * 0.5;
       FromOklab(L, A * mid, B * mid, out r, out g, out b);
-      if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9 &&
-          r <= 1.000000001 && g <= 1.000000001 && b <= 1.000000001) lo = mid;
+      if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9) lo = mid;
       else hi = mid;
     }
     FromOklab(L, A * lo, B * lo, out r, out g, out b);
-    if (r < 0) r = 0; else if (r > 1) r = 1;
-    if (g < 0) g = 0; else if (g > 1) g = 1;
-    if (b < 0) b = 0; else if (b > 1) b = 1;
+    if (r < 0) r = 0;
+    if (g < 0) g = 0;
+    if (b < 0) b = 0;
   }
 
   static void ToOklab(double r, double g, double b,
@@ -719,9 +819,15 @@ public class LampEngine {
     // a straight line in sRGB dips in brightness through the middle, which
     // would read as a dim pulse - precisely the artefact being removed.
     double La, Aa, Ba, Lb, Ab, Bb, mr, mg, mb;
-    ToOklab(o_r, o_g, o_b, out La, out Aa, out Ba);
-    ToOklab(n_r, n_g, n_b, out Lb, out Ab, out Bb);
-    MixOklab(La, Aa, Ba, Lb, Ab, Bb, u, out mr, out mg, out mb);
+    // SamplePal answers in lamp bytes (0-255, gamma-encoded); OKLab works
+    // in linear 0-1. Feeding the bytes straight in drove every midpoint's
+    // lightness far past 1.0, and the clip in MixOklch then flattened the
+    // whole crossfade to white - the white flash between colour changes,
+    // and a board parked white while a slider drag kept restarting the
+    // fade every 40ms. Convert at the boundary both ways.
+    ToOklab(ToLin(o_r), ToLin(o_g), ToLin(o_b), out La, out Aa, out Ba);
+    ToOklab(ToLin(n_r), ToLin(n_g), ToLin(n_b), out Lb, out Ab, out Bb);
+    MixOklch(La, Aa, Ba, Lb, Ab, Bb, u, out mr, out mg, out mb);
     r = ToSrgb(mr); g = ToSrgb(mg); b = ToSrgb(mb);
   }
 
@@ -776,9 +882,13 @@ public class LampEngine {
     // with a worst per-frame step of 7.7/255, still smooth.
     double nlamp = (double)gr.N;
     double trans;
-    if (nlamp >= 12.0) trans = 0.35;
-    else if (nlamp <= 4.0) trans = 0.50;
-    else trans = 0.50 + (0.35 - 0.50) * ((nlamp - 4.0) / 8.0);
+    if (gr.SoftBlend) {
+      trans = 0.92;
+    } else {
+      if (nlamp >= 12.0) trans = 0.24;
+      else if (nlamp <= 4.0) trans = 0.40;
+      else trans = 0.40 + (0.24 - 0.40) * ((nlamp - 4.0) / 8.0);
+    }
 
     // Lay the cycle out as: hold colour 0, fade, hold colour 1, fade, ...
     // Every fade is the same length; the holds are what the width sliders
@@ -879,17 +989,36 @@ public class LampEngine {
       PalSet ps = gr.LivePal;
       if (ps != null && ps.Count > 0 &&
           ps.G.Length == ps.Count && ps.B.Length == ps.Count) {
-        gr.PalR = ps.R; gr.PalG = ps.G; gr.PalB = ps.B;
-        // Widths travel with the colours, so they can never be applied
-        // against a palette of a different size.
-        gr.PalW = (ps.W != null && ps.W.Length == ps.Count) ? ps.W : null;
-        repal = true;
+        // Only count this as a colour CHANGE when the colours actually
+        // differ from the ones on screen. The panel re-sends the palette
+        // with every theme write, and slider drags write every ~40ms, so
+        // taking each write as a change restarted the 300ms changeover on
+        // every tick - the board sat mid-fade (white, before the scale fix)
+        // for the whole drag instead of just getting brighter. An identical
+        // palette is not a change; widths alone can move with no fade.
+        bool samePal = (gr.PalR != null && gr.PalR.Length == ps.Count);
+        if (samePal) {
+          for (int i = 0; i < ps.Count; i++) {
+            if (gr.PalR[i] != ps.R[i] || gr.PalG[i] != ps.G[i] ||
+                gr.PalB[i] != ps.B[i]) { samePal = false; break; }
+          }
+        }
+        if (!samePal) {
+          gr.PalR = ps.R; gr.PalG = ps.G; gr.PalB = ps.B;
+          // Widths travel with the colours, so they can never be applied
+          // against a palette of a different size.
+          gr.PalW = (ps.W != null && ps.W.Length == ps.Count) ? ps.W : null;
+          repal = true;
+        } else {
+          gr.PalW = (ps.W != null && ps.W.Length == ps.Count) ? ps.W : null;
+        }
       }
 
       int lf = gr.LiveFlags;
       if (lf >= 0) {
-        gr.Mirror  = (lf & 1) != 0;
-        gr.Reverse = (lf & 2) != 0;
+        gr.Mirror    = (lf & 1) != 0;
+        gr.Reverse   = (lf & 2) != 0;
+        gr.SoftBlend = (lf & 16) != 0;
         bool eq = (lf & 4) != 0;
         if (eq != gr.Equalise) { gr.Equalise = eq; repal = true; }
         bool lp = (lf & 8) != 0;
@@ -925,6 +1054,7 @@ public class LampEngine {
   public volatile int  WriteFails = 0;
   int overrun = 0;                      // consecutive frames whose writes overflowed
   double[] er, eg, eb;     // carried quantisation error, for temporal dither
+  double[] frPrev, fgPrev, fbPrev;   // last targets, for moving-only dither
 
   // ---- live frame publishing -------------------------------------
   // The control panel used to redraw the preview by re-implementing the
@@ -1150,7 +1280,10 @@ public class LampEngine {
     // Staging buffers for what this frame WANTS to send. pr/pg/pb must keep
     // describing what the device actually has until the writes come back
     // clean - see the promotion step at the bottom.
-    if (nr == null) { nr = new int[LampCount]; ng = new int[LampCount]; nb2 = new int[LampCount]; }
+    if (nr == null) {
+      nr = new int[LampCount]; ng = new int[LampCount]; nb2 = new int[LampCount];
+      frPrev = new double[LampCount]; fgPrev = new double[LampCount]; fbPrev = new double[LampCount];
+    }
 
     for (int bi = 0; bi < nbatch; bi++) {
       byte[] b = bufs[bi];
@@ -1159,9 +1292,21 @@ public class LampEngine {
       for (int s = 0; s < n; s++) {
         int i = first + s;
         int st = Interleaved ? s*4 : s;
-        int qr = Dither(fr[i], MaxR, ref er[i], dith);
-        int qg = Dither(fg[i], MaxG, ref eg[i], dith);
-        int qb = Dither(fb[i], MaxB, ref eb[i], dith);
+        double peak = Math.Max(fr[i], Math.Max(fg[i], fb[i]));
+        // Dither only while this lamp's target is actually creeping. A held
+        // colour sitting on x.5 used to flip x/x+1 every frame (the 40,41,
+        // 40,41 shimmer), while a creeping gradient without dither stepped
+        // visibly through the few codes it has at low brightness - which is
+        // the fast "flicker" seen while a pattern scrolls. Moving values get
+        // error feedback (smooth travel); held values round straight (dead
+        // solid, and the transfer is skipped entirely when nothing changed).
+        double df0 = fr[i] - frPrev[i], df1 = fg[i] - fgPrev[i], df2 = fb[i] - fbPrev[i];
+        frPrev[i] = fr[i]; fgPrev[i] = fg[i]; fbPrev[i] = fb[i];
+        bool moving = df0 > 0.05 || df0 < -0.05 || df1 > 0.05 || df1 < -0.05 || df2 > 0.05 || df2 < -0.05;
+        bool lampDith = (peak <= 0.0005) ? false : (moving && (dith || peak < 14.0));
+        int qr = Dither(fr[i], MaxR, ref er[i], lampDith);
+        int qg = Dither(fg[i], MaxG, ref eg[i], lampDith);
+        int qb = Dither(fb[i], MaxB, ref eb[i], lampDith);
         if (qr != pr[i] || qg != pg[i] || qb != pb[i]) changed = true;
         nr[i] = qr; ng[i] = qg; nb2[i] = qb;
         b[OffR + st] = (byte)qr;
@@ -1204,6 +1349,22 @@ public class LampEngine {
       failRun++;
       if (failRun >= 8) { DeviceLost = true; failRun = 0; }
     }
+  }
+
+  // Re-assert the EC's 0..3 hardware brightness gate on the same vendor
+  // feature channel G-Helper drives. The software master paints frames;
+  // this packet stops G-Helper's idle timer / Fn keys from stepping the
+  // hardware cap back down under it. WMI Set-KbdBacklight is the second,
+  // independent pin - belt and braces on purpose.
+  public bool PinGate(int level) {
+    try {
+      if (h == IntPtr.Zero) return false;
+      int len = ReportLen < 5 ? 5 : ReportLen;
+      byte[] pkt = new byte[len];
+      pkt[0] = 0x5a; pkt[1] = 0xBA; pkt[2] = 0xC5; pkt[3] = 0xC4;
+      pkt[4] = (byte)(level & 0x03);
+      return HidD_SetFeature(h, pkt, len);
+    } catch { return false; }
   }
 
   // Re-send the "host is in charge" control report. This is the only thing
@@ -3434,7 +3595,8 @@ Seed-Zone $zBar $barEff $barSpd $barBrt ($BarMirror.IsPresent) ($BarReverse.IsPr
 # A saved zone map is the user telling us the real shape of their hardware,
 # so it wins over the panel's Wrap-around box. This has to run after
 # Seed-Zone, which sets Loop from -BarLayout and would otherwise wipe it.
-if ($null -ne $zoneRingOverride) {
+# Only apply saved ring override when no explicit -BarLayout was requested
+if ($null -ne $zoneRingOverride -and -not $PSBoundParameters.ContainsKey('BarLayout')) {
     $zBar.Loop = $zoneRingOverride
     if ($zBar.Loop -and $zBar.PosLoop) { $zBar.Pos = $zBar.PosLoop } else { $zBar.Pos = $zBar.PosAcross }
     Say ("  Light bar ring: {0} (from your saved zone map)." -f $(if ($zBar.Loop) { 'on' } else { 'off' })) 'Yellow'
@@ -3579,9 +3741,10 @@ try {
     $logDir = Join-Path $stateDir 'logs'
     try { if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null } } catch { }
 }
-$engLog    = Join-Path $logDir 'engine.log'
-$liveFile  = Join-Path $stateDir 'live.txt'
-$themeFile = Join-Path $stateDir 'theme.json'
+$engLog     = Join-Path $logDir 'engine.log'
+$liveFile   = Join-Path $stateDir 'live.txt'
+$themeFile  = Join-Path $stateDir 'theme.json'
+$fnStampFile = Join-Path $stateDir 'fnstamp.txt'
 
 # Same shape as the panel's logger, including the trim: this file is
 # appended to for as long as the engine runs, and without a cap it would
@@ -3598,6 +3761,7 @@ function Write-Log($msg, $level = 'INFO') {
     } catch { }
 }
 $script:SysTick = 0
+$script:GateTick = 0
 $script:LastAc  = $null
 $script:LastPct = 100
 
@@ -3624,18 +3788,25 @@ $script:LastPct = 100
 # rather than test it first.
 $script:AtkInst  = $null
 $script:AtkTried = $false
+$script:AtkRetryAt = [DateTime]::MinValue
 function Set-KbdBacklight([int]$level) {
     if ($level -lt 0) { return $false }        # negative means leave it alone
     if ($level -gt 3) { $level = 3 }
 
-    if (-not $script:AtkTried) {
+    if (-not $script:AtkInst -and [DateTime]::UtcNow -ge $script:AtkRetryAt) {
+        $firstProbe = -not $script:AtkTried
         $script:AtkTried = $true
         try {
             $script:AtkInst = @(Get-CimInstance -Namespace 'root/wmi' `
                 -ClassName 'AsusAtkWmi_WMNB' -ErrorAction Stop)[0]
         } catch { $script:AtkInst = $null }
         if ($script:AtkInst) { Write-Log 'hardware backlight level: control available' }
-        else { Write-Log 'hardware backlight level: ASUS ATK WMI not present - leaving it to the Fn keys' 'WARN' }
+        elseif ($firstProbe) { Write-Log 'hardware backlight level: ASUS ATK WMI not present - leaving it to the Fn keys' 'WARN' }
+        # Re-probe slowly instead of giving up for the whole session: one
+        # transient ACPI error must not leave the EC 0..3 gate unpinned
+        # forever, or the keyboard dims on its own and can then never
+        # brighten again until the engine is restarted.
+        if (-not $script:AtkInst) { $script:AtkRetryAt = [DateTime]::UtcNow.AddSeconds(60) }
     }
     if (-not $script:AtkInst) { return $false }
 
@@ -3648,14 +3819,19 @@ function Set-KbdBacklight([int]$level) {
         return $true
     } catch {
         Write-Log ("could not set hardware backlight level: {0}" -f $_.Exception.Message) 'WARN'
-        # Do not retry a broken interface every second for the rest of the
-        # session; one complaint in the log is enough.
+        # Drop the interface but keep the door open - re-probe in a minute.
+        # The old give-up-forever behaviour left the EC gate unpinned after a
+        # single hiccup: the lights could be dimmed but never brightened.
         $script:AtkInst = $null
+        $script:AtkRetryAt = [DateTime]::UtcNow.AddSeconds(60)
         return $false
     }
 }
 
 $script:LiveLevel = [int]([Math]::Round($Master * 1000))
+# Last level the lights were on at, so the toggle key can come back to it
+# instead of always jumping to full.
+$script:LastOnLevel = if ($script:LiveLevel -gt 0) { $script:LiveLevel } else { 1000 }
 # Ignore whatever theme file is already on disk: the arguments we were
 # launched with already describe it. Only react to later writes.
 $script:ThemeStamp = 0
@@ -3674,6 +3850,13 @@ function Set-Live([int]$level) {
         $z.LiveDirty = $true
     }
     try { Set-Content -Path $liveFile -Value $level -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
+    # Raising the software master is pointless while the EC 0..3 gate sits
+    # low - the hardware range would clamp it. Re-assert the full gate on
+    # every brightness move so "up" always actually goes up.
+    if ($level -gt 0) {
+        [void](Set-KbdBacklight 3)
+        [void]$eng.PinGate(3)
+    }
 }
 
 # --- wake from sleep -------------------------------------------------
@@ -3682,24 +3865,13 @@ function Set-Live([int]$level) {
 # writes on its own, but this makes it immediate rather than ~8 frames
 # later, and covers the case where the device stops ACKing without
 # actually failing.
-$resumeOk  = $false
-$sessionOk = $false
+$resumeOk = $false
 try {
-    Register-ObjectEvent -InputObject ([Microsoft.Win32.SystemEvents]) `
-        -EventName PowerModeChanged -SourceIdentifier 'AuraPower' `
-        -ErrorAction Stop | Out-Null
+    [AuraPowerWatch]::Start()
     $resumeOk = $true
 } catch {
     Say "  Sleep/resume watch: unavailable." 'DarkGray'
 }
-# Lid close / lock / unlock often raises this when PowerModeChanged stays
-# silent, which is exactly the Modern Standby case.
-try {
-    Register-ObjectEvent -InputObject ([Microsoft.Win32.SystemEvents]) `
-        -EventName SessionSwitch -SourceIdentifier 'AuraSession' `
-        -ErrorAction Stop | Out-Null
-    $sessionOk = $true
-} catch { }
 
 # --- hardware backlight keys via ASUS ATK WMI ---
 $wmiOk = $false
@@ -3720,12 +3892,46 @@ try {
 $script:TimingAt = [DateTime]::UtcNow.AddSeconds(5)
 $script:TimingDone = $false
 
-$step = 125    # 8 steps across the full range, like the firmware
+# Smooth master-brightness steps for the Fn F2 / F3 keys. 50/1000 = 5% per
+# press, so the keys sweep 0..100% in 20 fine steps - the same shape of
+# control as screen brightness - instead of the firmware's 4 coarse levels.
+$step = 50
 # The app asks us to stop by creating this file. Being killed outright
 # skips the cleanup below, which is what used to leave the last frame
 # frozen on the keyboard.
 $stopFile = Join-Path $stateDir 'stop.flag'
 if (Test-Path $stopFile) { Remove-Item $stopFile -Force -ErrorAction SilentlyContinue }
+# One-shot brightness taps written by KeyboardLighting.exe -BrightUp / -BrightDown
+# (the G-Helper M4/M5 'Custom' actions). Each token is one tap; a held key
+# repeats those taps and they are paced into a smooth sweep (one step every
+# 150ms) exactly like holding the screen-brightness keys, instead of every
+# repeat collapsing into one engine tick. Never touches G-Helper's 4-step
+# gate - the software master is the only brightness that moves.
+$brightUpFile = Join-Path $stateDir 'bright_up.flag'
+$brightDownFile = Join-Path $stateDir 'bright_down.flag'
+$brightStepMs = 150
+$brightHoldMs = 400
+$holdModeFile = Join-Path $stateDir 'hold_mode.txt'
+# Seed with the CURRENT token values so a restart never replays the last
+# press as a phantom tap (that was the 'slider moves on its own' bug).
+$script:brightUpSeen = ''
+$script:brightDownSeen = ''
+try {
+    $t = (Get-Content $brightUpFile -Raw -ErrorAction Stop).Trim()
+    if ($t) { $script:brightUpSeen = $t }
+} catch { }
+try {
+    $t = (Get-Content $brightDownFile -Raw -ErrorAction Stop).Trim()
+    if ($t) { $script:brightDownSeen = $t }
+} catch { }
+$script:brightRampDir = 0
+$script:brightRampNext = [DateTime]::UtcNow
+$script:brightRampLast = [DateTime]::UtcNow
+$script:brightPending = $false
+$script:brightBurst = 0
+$script:brightLatch = $false
+$enginePidFile = Join-Path $stateDir 'engine.pid'
+try { Set-Content -Path $enginePidFile -Value $PID -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
 
 # Take a handle to the owning app once, so the check in the loop is a cheap
 # flag read rather than a process lookup sixty times a second. If the owner
@@ -3778,6 +3984,108 @@ try {
             break
         }
 
+        # --- M4/M5 brightness taps: paced like screen brightness -------
+        $nowU = [DateTime]::UtcNow
+        $tapDir = 0
+        if (Test-Path $brightUpFile) {
+            $tok = ''
+            try { $tok = (Get-Content $brightUpFile -Raw -ErrorAction Stop).Trim() } catch { }
+            if ($tok -ne '' -and $tok -ne $script:brightUpSeen) {
+                $script:brightUpSeen = $tok
+                $tapDir = 1
+            }
+        }
+        if (Test-Path $brightDownFile) {
+            $tok = ''
+            try { $tok = (Get-Content $brightDownFile -Raw -ErrorAction Stop).Trim() } catch { }
+            if ($tok -ne '' -and $tok -ne $script:brightDownSeen) {
+                $script:brightDownSeen = $tok
+                $tapDir = -1
+            }
+        }
+        if ($tapDir -ne 0) {
+            # Hold modes (hold_mode.txt, written by KeyboardLighting.exe
+            # -HoldMode):
+            #   tap   = DEFAULT: one 5% step per tap token. The Keyboard
+            #           Lighting app streams extra tokens while the key is
+            #           held (learned keyboard scancode), so a real hold
+            #           glides and releasing stops it.
+            #   latch = press once to glide, press again to stop
+            #   burst = every press glides 4 steps (20%) at the same cadence
+            $mode = 'tap'
+            try {
+                $m = (Get-Content $holdModeFile -Raw -ErrorAction Stop).Trim()
+                if ($m -eq 'tap' -or $m -eq 'burst' -or $m -eq 'latch') { $mode = $m }
+            } catch { }
+            if ($mode -eq 'latch') {
+                if ($script:brightRampDir -eq $tapDir -and $script:brightLatch) {
+                    $script:brightRampDir = 0
+                    $script:brightLatch = $false
+                    $script:brightPending = $false
+                    $script:brightBurst = 0
+                } else {
+                    Set-Live ($script:LiveLevel + $tapDir * $step)
+                    if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                    $script:brightRampDir = $tapDir
+                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                    $script:brightLatch = $true
+                    $script:brightPending = $false
+                    $script:brightBurst = 0
+                }
+            } elseif ($mode -eq 'burst') {
+                Set-Live ($script:LiveLevel + $tapDir * $step)
+                if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                $script:brightRampDir = $tapDir
+                $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                $script:brightBurst = 3
+                $script:brightLatch = $false
+                $script:brightPending = $false
+                $script:brightRampLast = $nowU
+            } else {
+                if ($tapDir -ne $script:brightRampDir -or $nowU -ge $script:brightRampNext) {
+                    Set-Live ($script:LiveLevel + $tapDir * $step)
+                    if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                    $script:brightPending = $false
+                } else {
+                    $script:brightPending = $true
+                }
+                $script:brightLatch = $false
+                $script:brightRampDir = $tapDir
+                $script:brightRampLast = $nowU
+            }
+        } elseif ($script:brightRampDir -ne 0) {
+            if ($script:brightBurst -gt 0) {
+                if ($nowU -ge $script:brightRampNext) {
+                    Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
+                    if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                    $script:brightBurst--
+                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                }
+            } elseif ($script:brightLatch) {
+                if ($nowU -ge $script:brightRampNext) {
+                    if (($script:brightRampDir -gt 0 -and $script:LiveLevel -lt 1000) -or
+                        ($script:brightRampDir -lt 0 -and $script:LiveLevel -gt 0)) {
+                        Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
+                        if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                        $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                    } else {
+                        $script:brightRampDir = 0
+                        $script:brightLatch = $false
+                    }
+                }
+            } elseif ($script:brightPending) {
+                if ($nowU -ge $script:brightRampLast.AddMilliseconds($brightHoldMs)) {
+                    $script:brightPending = $false
+                } elseif ($nowU -ge $script:brightRampNext) {
+                    Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
+                    if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                    $script:brightPending = $false
+                }
+            }
+        }
+
         # The app that owns us has gone. Leave by the same door as a normal
         # stop, so -OnExit is honoured and the device is released instead of
         # being left frozen on the last frame.
@@ -3811,26 +4119,11 @@ try {
             $eng.LateFrames = 0
             $eng.WriteFails = 0
         }
-        # --- resume from sleep / display wake ---
+        # --- resume from sleep / display wake / session switch ---
         if ($resumeOk) {
-            $pe = Get-Event -SourceIdentifier 'AuraPower' -ErrorAction SilentlyContinue
-            while ($pe) {
-                $mode = ''
-                try { $mode = [string]$pe.SourceEventArgs.Mode } catch { }
-                Remove-Event -EventIdentifier $pe.EventIdentifier -ErrorAction SilentlyContinue
-                if ($mode -eq 'Resume') {
-                    # Do not force a Reopen here: after Modern Standby the
-                    # handle is usually still valid and only ownership was
-                    # lost. ReAssert covers that; genuine disconnects are
-                    # still caught by failed writes in Push().
-                    #
-                    # No sleep. Sleeping here stalled the whole loop - the
-                    # theme and brightness files stop being read too - and
-                    # still only bought one attempt. Queue several instead.
-                    Write-Log 'resume - scheduling lighting repair'
-                    Schedule-Repair
-                }
-                $pe = Get-Event -SourceIdentifier 'AuraPower' -ErrorAction SilentlyContinue
+            if ([AuraPowerWatch]::ConsumeWakes() -gt 0) {
+                Write-Log 'wake/session event - scheduling lighting repair'
+                Schedule-Repair
             }
         }
 
@@ -3857,28 +4150,21 @@ try {
                     foreach ($thr in 20, 10, 5) {
                         if ($b -le $thr -and $script:LastPct -gt $thr) {
                             $eng.OverlayMode  = 1
-                            $eng.OverlayUntil = $now + 6.0
+                            $eng.OverlayUntil = $now + 5.0
+                        }
+                    }
+                }
+                # charging milestones: show the fill while it climbs past
+                # 80% and again when it reaches full
+                if ($ac -and $b -ge 0) {
+                    foreach ($thr in 80, 100) {
+                        if ($b -ge $thr -and $script:LastPct -lt $thr) {
+                            $eng.OverlayMode  = 1
+                            $eng.OverlayUntil = $now + 5.0
                         }
                     }
                 }
                 if ($b -ge 0) { $script:LastPct = $b }
-            }
-        }
-
-        # --- lock / unlock / lid ---
-        # Opening the lid often shows up here rather than as a power event,
-        # so this gets the same staggered repair.
-        if ($sessionOk) {
-            $se = Get-Event -SourceIdentifier 'AuraSession' -ErrorAction SilentlyContinue
-            $any = $false
-            while ($se) {
-                Remove-Event -EventIdentifier $se.EventIdentifier -ErrorAction SilentlyContinue
-                $any = $true
-                $se = Get-Event -SourceIdentifier 'AuraSession' -ErrorAction SilentlyContinue
-            }
-            if ($any) {
-                Write-Log 'session change - scheduling lighting repair'
-                Schedule-Repair
             }
         }
 
@@ -3910,6 +4196,7 @@ try {
             }
             if ($due) {
                 [void](Set-KbdBacklight $KbdBacklight)
+                [void]$eng.PinGate(3)
                 $eng.ReAssert()
                 foreach ($z in $eng.Groups) { $z.LiveDirty = $true }
             }
@@ -3921,17 +4208,65 @@ try {
                 $code = 0
                 try { $code = [int]$ev.SourceEventArgs.NewEvent.EventID } catch { }
                 Remove-Event -EventIdentifier $ev.EventIdentifier -ErrorAction SilentlyContinue
-                switch ($code) {
-                    0xC4 { Set-Live ($script:LiveLevel + $step) }
-                    0xC5 { Set-Live ($script:LiveLevel - $step) }
-                    0xC7 {
-                        $nl = 0
-                        if ($script:LiveLevel -le 0) { $nl = 1000 }
-                        Set-Live $nl
+                # One physical press must move the level exactly once. The
+                # same keys also arrive on the app's ASUS HID listener, so
+                # whoever gets there first stamps fnstamp.txt and the other
+                # path stands down instead of double-stepping.
+                $fnNow = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+                $fnDup = $false
+                if (Test-Path $fnStampFile) {
+                    try {
+                        $fnPrev = [long]((Get-Content $fnStampFile -Raw -ErrorAction Stop).Trim())
+                        if ($fnPrev -gt 0 -and ($fnNow - $fnPrev) -lt 200) { $fnDup = $true }
+                    } catch { }
+                }
+                if (-not $fnDup) {
+                    try { Set-Content -Path $fnStampFile -Value $fnNow -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
+                    switch ($code) {
+                        0xC4 {
+                            Set-Live ($script:LiveLevel + $step)
+                            if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                        }
+                        0xC5 {
+                            Set-Live ($script:LiveLevel - $step)
+                            if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                        }
+                        0xC7 {
+                            if ($script:LiveLevel -gt 0) {
+                                $script:LastOnLevel = $script:LiveLevel
+                                Set-Live 0
+                            } else {
+                                Set-Live $script:LastOnLevel
+                            }
+                        }
                     }
                 }
+                # G-Helper and similar tools hear these same keys and step the
+                # EC's own 0..3 backlight gate - which gates EVERYTHING (its
+                # level 0 blacks the keyboard out under us) and is exactly the
+                # clashing the smooth master is meant to replace. Pin the gate
+                # back to full now, and again shortly after, so our software
+                # master stays the only brightness that moves.
+                [void](Set-KbdBacklight 3)
+                [void]$eng.PinGate(3)
+                [void]$script:repairAt.Add([DateTime]::UtcNow.AddMilliseconds(200))
+                [void]$script:repairAt.Add([DateTime]::UtcNow.AddMilliseconds(600))
                 $ev = Get-Event -SourceIdentifier 'AuraAtk' -ErrorAction SilentlyContinue
             }
+        }
+
+        # Keep the EC 0..3 backlight gate pinned at full. G-Helper's 4-step
+        # keys and its idle-timeout timer can drop that gate at any moment,
+        # and the smooth master needs the whole range underneath at all
+        # times - so lock it on a slow cycle as well as on every Fn event.
+        # The HID gate pin is a cheap 51-byte feature report: hold it every
+        # tick so G-Helper's Fn steps and idle timer never win the 0..3 gate
+        # for more than a blink. The WMI pin stays on the slower cycle.
+        [void]$eng.PinGate(3)
+        $script:GateTick++
+        if ($script:GateTick -ge 8) {
+            $script:GateTick = 0
+            [void](Set-KbdBacklight 3)
         }
 
         # --- panel-written brightness file (kept: the Fn keys use it too) ---
@@ -3946,6 +4281,7 @@ try {
                             $z.LiveMaster = $val
                             $z.LiveDirty = $true
                         }
+                        if ($val -gt 0) { [void](Set-KbdBacklight 3) }
                     }
                 }
             } catch { }
@@ -4075,10 +4411,13 @@ try {
                         $rv = $blk.Reverse;  if ($null -eq $rv) { $rv = $root.Reverse }
                         $qv = $blk.Equalise; if ($null -eq $qv) { $qv = $root.Equalise }
                         $lv = $blk.Loop;     if ($null -eq $lv) { $lv = $root.Loop }
-                        if ([bool]$mv) { $fl = $fl -bor 1 }
-                        if ([bool]$rv) { $fl = $fl -bor 2 }
-                        if ([bool]$qv) { $fl = $fl -bor 4 }
-                        if ([bool]$lv) { $fl = $fl -bor 8 }
+                        $sbv = $root.Smooth; if ($null -ne $blk.SoftBlend) { $sbv = $blk.SoftBlend }
+                        if ($null -eq $sbv) { $sbv = $true }
+                        if ([bool]$mv)  { $fl = $fl -bor 1 }
+                        if ([bool]$rv)  { $fl = $fl -bor 2 }
+                        if ([bool]$qv)  { $fl = $fl -bor 4 }
+                        if ([bool]$lv)  { $fl = $fl -bor 8 }
+                        if ([bool]$sbv) { $fl = $fl -bor 16 }
                         $z.LiveFlags = $fl
 
                         $onv = $blk.On
@@ -4111,18 +4450,25 @@ try {
                         }
                     }
 
-                    Sync-Sources2 $needAud $needScr
+                    # A source-sync failure (no audio device yet, no
+                    # screen ready) must not swallow the settings that
+                    # were already applied above, and must not stay
+                    # invisible when it happens.
+                    try { Sync-Sources2 $needAud $needScr } catch {
+                        Write-Log ('source sync failed: ' + $_.Exception.Message)
+                    }
                 }
-            } catch { }
+            } catch {
+                Write-Log ('theme apply failed: ' + $_.Exception.Message)
+            }
         }
 
-        Start-Sleep -Milliseconds 120
+        Start-Sleep -Milliseconds 70
     }
 }
 finally {
+    try { [AuraPowerWatch]::Stop() } catch { }
     Unregister-Event -SourceIdentifier 'AuraAtk' -ErrorAction SilentlyContinue
-    Unregister-Event -SourceIdentifier 'AuraPower' -ErrorAction SilentlyContinue
-    Unregister-Event -SourceIdentifier 'AuraSession' -ErrorAction SilentlyContinue
     Say ""
     switch ($OnExit) {
         'white'    { Say "  Stopping. Leaving the keyboard plain white." 'Yellow' }
@@ -4140,6 +4486,8 @@ finally {
     try {
         $ff = Join-Path $env:LOCALAPPDATA 'KeyboardLighting\frame.txt'
         if (Test-Path $ff) { Remove-Item $ff -Force -ErrorAction SilentlyContinue }
+        $ep = Join-Path $env:LOCALAPPDATA 'KeyboardLighting\engine.pid'
+        if (Test-Path $ep) { Remove-Item $ep -Force -ErrorAction SilentlyContinue }
     } catch { }
     # Only hand control back to the keyboard's own firmware when that is
     # what was asked for. Re-enabling autonomous mode makes the firmware

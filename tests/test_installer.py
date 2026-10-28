@@ -910,6 +910,19 @@ with tempfile.TemporaryDirectory() as tmp:
     check(len(only) == 1 and only[0]["id"] == ready[0]["id"], "PLUGIN_ONLY filtering is broken")
 
 
+# HTML error pages (e.g. bitsadmin saving a 404 page) must be rejected, tools
+# must check TOOL_VERSION before overwriting, branch commit dates must be cached
+# by SHA to avoid GitHub's 60/hr unauthenticated rate limit, and :self_update
+# must never downgrade a newer local copy.
+check('findstr /i /r "^.!doctype ^.html" "%~2"' in bat,
+      ":download_check does not reject HTML 404/captive-portal pages")
+check('findstr /b /c:"TOOL_VERSION = "' in bat,
+      ":stage_one_tool does not verify TOOL_VERSION before installing a tool")
+check("branch_cache.json" in bat and "$b.name -eq 'ci-reports'" in bat,
+      ":pick_version does not cache commit dates by SHA or skip ci-reports")
+check("[version]'%NEW_FV%' -le [version]'%FRONTDOOR_VERSION%'" in bat,
+      ":self_update can downgrade a newer local copy to an older remote copy")
+
 # --------------------------------------------------------------------------
 if failures:
     report_and_exit()

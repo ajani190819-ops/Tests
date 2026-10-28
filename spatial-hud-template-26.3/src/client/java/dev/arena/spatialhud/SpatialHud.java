@@ -6,26 +6,29 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.fabricmc.fabric.impl.client.rendering.hud.HudElementRegistryImpl;
+import net.fabricmc.fabric.impl.client.rendering.hud.HudLayer;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Spatial HUD — a compact, smooth Spatial-GUI-style panel for the vanilla
  * bottom HUD strip (hotbar, bars, XP and held-item name).
  *
  * <p>The render path intentionally uses Fabric's HUD API for its selected
- * vanilla roots. Safe mode re-extracts them under one affine tangent; the
- * opt-in capture mode composites their completed texture through one
- * projective mesh. Disabling the mod immediately delegates every element back
+ * vanilla roots. The captured texture is drawn on the Method 3 world panel or
+ * the Method 4 purple quad. Disabling the mod immediately delegates every element back
  * to vanilla.</p>
  */
 public class SpatialHud implements ClientModInitializer {
@@ -33,19 +36,19 @@ public class SpatialHud implements ClientModInitializer {
 
 	private static KeyMapping openConfigKey;
 	private static KeyMapping toggleHudKey;
-	private static KeyMapping selectMethodOneKey;
-	private static KeyMapping selectMethodTwoKey;
-	private static KeyMapping selectMethodThreeKey;
-
-	// These two mods add their visual details by injecting inside vanilla's
-	// status-bar extraction methods. Their exact 26.3 Fabric releases are
-	// AppleSkin 3.0.10 and Detail Armor Bar Reconstructed 5.3.2.
-	private static boolean appleSkinLoaded;
-	private static boolean detailArmorBarLoaded;
+	/** One-shot guard for the late wrapper reinforce pass. */
+	private static boolean reinforcedWrappers;
 
 	// The panel samples camera pitch once before every selected HUD extraction,
 	// so the backing and all captured roots share one mesh pose for that frame.
 	static float pitch;
+
+	/**
+	 * Hotbar Slot Cycling's cycle-slot display. It is attached after the hotbar
+	 * by that mod's own client setup, so it is wrapped once the client starts.
+	 */
+	static final Identifier SLOT_CYCLING_ELEMENT =
+			Identifier.fromNamespaceAndPath("hotbarslotcycling", "cycling_slots");
 
 	/** The vanilla elements that make up the bottom HUD strip. */
 	private static final List<Identifier> STRIP_ELEMENTS = List.of(
@@ -64,16 +67,7 @@ public class SpatialHud implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		SpatialHudConfig cfg = SpatialHudConfig.registerAndLoad();
-		appleSkinLoaded = FabricLoader.getInstance().isModLoaded("appleskin");
-		detailArmorBarLoaded = FabricLoader.getInstance().isModLoaded("detailabreconst");
 		WorldSpaceHudRenderer.initialize();
-
-		if (cfg.preserveCompanionStatusLayout && (appleSkinLoaded || detailArmorBarLoaded)) {
-			String companions = appleSkinLoaded && detailArmorBarLoaded
-					? "AppleSkin and Detail Armor Bar Reconstructed"
-					: (appleSkinLoaded ? "AppleSkin" : "Detail Armor Bar Reconstructed");
-			LOGGER.info("Spatial HUD compatibility layout enabled for {}; affected status bars remain in their native layout while revealed.", companions);
-		}
 
 		// H is deliberately reserved for rapid HUD tuning. The HUD enable switch
 		// remains available in its configuration screen; this key only opens that
@@ -92,17 +86,11 @@ public class SpatialHud implements ClientModInitializer {
 				InputConstants.UNKNOWN.getValue(),
 				KeyMapping.Category.MISC));
 
-		// Render mode is deliberately selected through these direct Controls-menu
-		// bindings rather than a persistent config dropdown. F6/F7/F8 avoid the
-		// hotbar number keys while providing an immediate 1/2/3 selection; users
-		// can rebind any conflict in the normal Minecraft Controls screen.
-		selectMethodOneKey = registerMethodKey("key.spatialhud.select_method_1", SDLScancode.SDL_SCANCODE_F6);
-		selectMethodTwoKey = registerMethodKey("key.spatialhud.select_method_2", SDLScancode.SDL_SCANCODE_F7);
-		selectMethodThreeKey = registerMethodKey("key.spatialhud.select_method_3", SDLScancode.SDL_SCANCODE_F8);
-
 		for (Identifier id : STRIP_ELEMENTS) {
 			HudElementRegistry.replaceElement(id, vanilla -> new SpatialHudElement(id, vanilla));
 		}
+
+		ClientLifecycleEvents.CLIENT_STARTED.register(client -> wrapSlotCycling());
 
 		// The panel is extracted before HOTBAR. It also marks the start of our
 		// render-frame update, eliminating the old 20 Hz (tick-only) sway.
@@ -112,6 +100,14 @@ public class SpatialHud implements ClientModInitializer {
 				new SpatialHudPanelElement());
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			// One-shot, on the first tick after every mod has finished
+			// registering HUD elements: put our capture wrappers back on the
+			// outside. See reinforceStripWrappers().
+			if (!reinforcedWrappers) {
+				reinforcedWrappers = true;
+				reinforceStripWrappers();
+			}
+
 			while (openConfigKey.consumeClick()) {
 				client.setScreenAndShow(
 						me.shedaniel.autoconfig.AutoConfigClient
@@ -128,45 +124,94 @@ public class SpatialHud implements ClientModInitializer {
 				LOGGER.info("Spatial HUD toggled {}.", toggleConfig.enabled ? "on" : "off");
 			}
 
-			while (selectMethodOneKey.consumeClick()) {
-				selectRenderMethod(SpatialHudConfig.RenderMethod.CLASSIC_AFFINE, 1,
-						"green balanced trapezoid warp");
-			}
-			while (selectMethodTwoKey.consumeClick()) {
-				selectRenderMethod(SpatialHudConfig.RenderMethod.CAPTURED_MESH, 2,
-						"blue strong trapezoid warp");
-			}
-			while (selectMethodThreeKey.consumeClick()) {
-				selectRenderMethod(SpatialHudConfig.RenderMethod.WORLD_SPACE_TEXTURE, 3,
-						"red real world map");
-			}
-
 			if (client.player == null) {
 				resetSway();
 			}
 		});
 
-		LOGGER.info("Spatial HUD forced-warp build initialized. Press H for the read-only guide; bind direct Method 1/2/3 keys in Controls.");
+		LOGGER.info("Spatial HUD initialized. Press H for the settings and guide.");
 	}
 
-	private static KeyMapping registerMethodKey(String translationKey, int defaultScancode) {
-		return KeyMappingHelper.registerKeyMapping(new KeyMapping(
-				translationKey,
-				InputConstants.Type.KEYBOARD,
-				defaultScancode,
-				KeyMapping.Category.MISC));
-	}
-
-	private static void selectRenderMethod(SpatialHudConfig.RenderMethod method, int number,
-			String description) {
-		SpatialHudConfig cfg = SpatialHudConfig.get();
-		if (cfg.selectedRenderMethod() != method) {
-			cfg.selectRenderMethod(method);
-			SpatialHudConfig.save();
+	/**
+	 * Wraps the slot cycler's element so its cycle slots are captured with the
+	 * hotbar. Skipped when that mod is not installed. If the replacement fails,
+	 * its slots stay on the vanilla HUD, outside the panel.
+	 */
+	private static void wrapSlotCycling() {
+		if (!FabricLoader.getInstance().isModLoaded("hotbarslotcycling")) {
+			return;
 		}
-		// The full-width green/blue/red band is the deliberately on-panel visual
-		// confirmation; logging also gives modpack troubleshooting an exact trace.
-		LOGGER.info("Spatial HUD Method {} selected: {}.", number, description);
+		try {
+			HudElementRegistry.replaceElement(SLOT_CYCLING_ELEMENT,
+					vanilla -> new SpatialHudElement(SLOT_CYCLING_ELEMENT, vanilla));
+			LOGGER.info("Spatial HUD registered Hotbar Slot Cycling's cycle slots for the panel capture.");
+		} catch (Throwable t) {
+			LOGGER.error("Spatial HUD could not register Hotbar Slot Cycling's cycle slots; they stay on the vanilla HUD.", t);
+		}
+	}
+
+	/**
+	 * Re-applies the capture wrappers once, on the first client tick after all
+	 * mods have registered their HUD elements. A companion mod that replaces a
+	 * vanilla root after our first wrap ends up outside it and then draws its
+	 * copy on the vanilla HUD (the status bars "snapping" back to screen
+	 * positions) while only the inner, wrapped vanilla root is captured.
+	 * Replacing again puts SpatialHudElement back on the outside: a pure
+	 * companion replacement draws its bars into the private texture instead of
+	 * the screen, and a companion that delegates to the vanilla root is
+	 * captured with it. Each pass nests one more wrapper; the nested capture
+	 * extracts every root once into the same private texture.
+	 */
+	private static void reinforceStripWrappers() {
+		for (Identifier id : STRIP_ELEMENTS) {
+			try {
+				HudElementRegistry.replaceElement(id, vanilla -> new SpatialHudElement(id, vanilla));
+			} catch (Throwable t) {
+				LOGGER.warn("Spatial HUD could not reinforce its capture wrapper for {}.", id, t);
+			}
+		}
+		wrapCompanionLayers();
+		wrapSlotCycling();
+	}
+
+	/**
+	 * Wraps companion-mod layers attached to the strip roots. A layer is a
+	 * sibling of the root's vanilla element, so wrapping only the root leaves
+	 * the companion drawing on the vanilla HUD at screen positions while the
+	 * panel shows its own captured copy - the status bars flickering between
+	 * the two. Replacing each layer's element puts its pixels into the private
+	 * capture instead. Our own layers (the panel element and the root wrappers
+	 * themselves) are skipped; a double wrap would be harmless but wasteful.
+	 */
+	private static void wrapCompanionLayers() {
+		try {
+			Map<Identifier, HudElementRegistryImpl.RootLayer> roots = HudElementRegistryImpl.ROOT_ELEMENTS;
+			for (Identifier rootId : STRIP_ELEMENTS) {
+				HudElementRegistryImpl.RootLayer root = roots.get(rootId);
+				if (root == null) {
+					continue;
+				}
+				for (HudLayer layer : List.copyOf(root.layers())) {
+					if (layer.isRemoved()) {
+						continue;
+					}
+					Identifier layerId = layer.id();
+					if (layerId.equals(rootId) || layerId.equals(SLOT_CYCLING_ELEMENT)
+							|| layerId.getNamespace().equals("spatialhud")) {
+						continue;
+					}
+					try {
+						HudElementRegistry.replaceElement(layerId,
+								vanilla -> new SpatialHudElement(rootId, vanilla));
+						LOGGER.info("Spatial HUD captured companion HUD layer {} into the panel texture.", layerId);
+					} catch (Throwable t) {
+						LOGGER.warn("Spatial HUD could not wrap companion HUD layer {}.", layerId, t);
+					}
+				}
+			}
+		} catch (Throwable t) {
+			LOGGER.warn("Spatial HUD could not scan the HUD registry for companion layers.", t);
+		}
 	}
 
 	/** The config instance is the sole live source of truth for the Enable toggle. */
@@ -197,54 +242,23 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/**
-	 * Both texture methods have a stricter boundary than Classic Affine: they
-	 * are gameplay-only even if a user turns off the normal Gameplay Only
-	 * preference. This keeps the private capture separate from every screen.
+	 * Both panel methods present the captured texture. The Gameplay Only
+	 * preference is the single gate: with it on, nothing draws over a screen;
+	 * with it off, the capture also runs over screens. Only Method 3 is culled by
+	 * the physical-plane viewport test. Method 4 is placed by its own feet anchor.
 	 */
 	static boolean isTextureCaptureActive() {
 		Minecraft mc = Minecraft.getInstance();
 		SpatialHudConfig cfg = SpatialHudConfig.get();
 		return isGameplayHudActive()
 					&& cfg.capturesTexture()
-					&& mc.gui.screen() == null
-					&& (cfg.usesPolygonTest() || isPhysicalPanelVisibleInGui(
+					&& (cfg.usesPurplePanel() || isPhysicalPanelVisibleInGui(
 							mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight()));
 	}
 
-	/** True only for the third renderer: a captured texture on a world-space quad. */
+	/** Both panel methods draw the captured texture on a world-space quad. */
 	static boolean isWorldSpaceTextureActive() {
-		return isTextureCaptureActive() && SpatialHudConfig.get().usesWorldSpaceTexture();
-	}
-
-	/**
-	 * AppleSkin 3.0.10 injects its saturation/food/health decorations inside
-	 * {@code Hud.extractFood}/{@code extractHearts}; Detail Armor Bar
-	 * Reconstructed 5.3.2 injects inside {@code Hud.extractArmor}. Keeping those
-	 * roots native while they are revealed makes their complete, already-laid-out
-	 * groups draw together. It avoids assuming a registration order for either
-	 * mod and does not hook any unrelated HUD/GUI layer.
-	 */
-	static boolean shouldPreserveNativeStatusLayout(Identifier id, SpatialHudConfig cfg) {
-		if (!cfg.preserveCompanionStatusLayout) {
-			return false;
-		}
-		if (!appleSkinLoaded && !detailArmorBarLoaded) {
-			return false;
-		}
-		// Preserve the whole adjacent group. Keeping only one root native would
-		// allow a custom armor-row height or air bar to split the group again.
-		return id.equals(VanillaHudElements.ARMOR_BAR)
-				|| id.equals(VanillaHudElements.HEALTH_BAR)
-				|| id.equals(VanillaHudElements.FOOD_BAR)
-				|| id.equals(VanillaHudElements.AIR_BAR);
-	}
-
-	/**
-	 * The virtual-plane refactor is always visible. This method remains only so
-	 * a pre-v1.1 JSON field cannot reintroduce a hidden companion status group.
-	 */
-	static boolean isStatusLayoutRevealed(SpatialHudConfig cfg) {
-		return true;
+		return isTextureCaptureActive();
 	}
 
 	/** Samples the current camera pitch once before the selected HUD roots extract. */

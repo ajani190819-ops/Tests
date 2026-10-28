@@ -301,6 +301,16 @@ with tempfile.TemporaryDirectory() as tmp:
     check(not (d / "cube3_unlayered.gcode").exists(),
           "--inplace should not also write a sidecar copy")
 
+    # --auto values work on CLI flags too (-f auto --angle auto --max-lift auto)
+    src_auto = d / "cube_auto.gcode"
+    src_auto.write_text(src, encoding="utf-8")
+    r = subprocess.run(
+        [sys.executable, str(TOOL), "-f", "auto", "--angle", "auto",
+         "--max-lift", "auto", str(src_auto)],
+        capture_output=True, text=True)
+    check(r.returncode == 0 and (d / "cube_auto_unlayered.gcode").exists(),
+          f"CLI rejected 'auto' flags: rc={r.returncode} stderr={r.stderr[:240]}")
+
     # a missing file is a clean error, not a traceback
     r = subprocess.run([sys.executable, str(TOOL), str(d / "nope.gcode")],
                        capture_output=True, text=True)
@@ -317,6 +327,34 @@ check(thin_stats["moves"] == 0, "a wall-only file should wave nothing")
 report = "\n".join(tool.describe(thin_stats))
 check("NOTHING WAS CHANGED" in report and "infill" in report.lower(),
       "the report does not explain why nothing happened")
+
+# --------------------------------------------------------------------------
+# 9. check_nozzle_clearance: inline comments, negative XY around (0, 0), M82 retracts
+# --------------------------------------------------------------------------
+comment_and_retract_gcode = [
+    "M82\n",
+    "G92 E0\n",
+    "G1 X0.0 Y0.0 Z0.600 E1.0 ; extrude Z9.999 E9.999 inline comment\n",
+    "G1 X5.0 Y0.0 Z0.600 E0.2 ; retract move under M82 is NOT plastic\n",
+    "G1 X3.0 Y0.0 Z0.200 E0.2 ; travel under retract height must NOT collide\n",
+]
+worst_c, hits_c, _ = tool.check_nozzle_clearance(
+    comment_and_retract_gcode, cell_mm=0.4, clearance=0.05)
+check(worst_c == 0.0 and not hits_c,
+      f"M82 retract/inline comments falsely triggered collision: {hits_c}")
+
+neg_origin_gcode = [
+    "M83\n",
+    "G1 X0.10 Y0.10 Z0.800 F1200\n",
+    "G1 X0.30 Y0.10 Z0.800 E0.2 ; positive cell (0, 0)\n",
+    "G0 X-0.30 Y-0.10 Z0.900 F6000 ; travel safely over positive cell\n",
+    "G0 X-0.30 Y-0.10 Z0.200 F6000 ; lower inside negative cell (-1, -1)\n",
+    "G1 X-0.10 Y-0.10 Z0.200 E0.2 ; negative cell (-1, -1) must stay distinct\n",
+]
+worst_n, hits_n, _ = tool.check_nozzle_clearance(
+    neg_origin_gcode, cell_mm=0.4, clearance=0.05)
+check(worst_n == 0.0 and not hits_n,
+      f"negative XY cell (-0.3..-0.1) collided with positive cell (0.1..0.3): {hits_n}")
 
 # --------------------------------------------------------------------------
 if failures:

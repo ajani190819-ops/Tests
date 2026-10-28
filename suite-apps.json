@@ -1,0 +1,99 @@
+{
+  "apps": [
+    {
+      "id": "btguard",
+      "title": "Bluetooth Guard",
+      "blurb": "Phone audio protection",
+      "exe": "bluetooth-guard/BluetoothGuard.exe",
+      "dir": "BluetoothGuard",
+      "icon": "bluetooth-guard/btguard.ico",
+      "shortcut": "Bluetooth Guard",
+      "buttons": "open:Open:68,update:Update:74,stop:Stop:62,folder:Folder:68",
+      "state": "btguard",
+      "worker": "btguard"
+    },
+    {
+      "id": "kbl",
+      "title": "Keyboard Lighting",
+      "blurb": "ROG Strix G16 RGB lighting",
+      "exe": "keyboard-lighting/KeyboardLighting.exe",
+      "dir": "KeyboardLighting",
+      "icon": "keyboard-lighting/app.ico",
+      "shortcut": "Keyboard Lighting",
+      "buttons": "open:Open:68,unfreeze:Unfreeze:84,update:Update:74,folder:Folder:68",
+      "state": "kbl",
+      "worker": "kbl"
+    },
+    {
+      "id": "hud",
+      "title": "Spatial HUD",
+      "blurb": "Minecraft 26.3 Fabric mod",
+      "exe": "",
+      "dir": "SpatialHudUpdater",
+      "icon": "docs/brand/spatial-hud.ico",
+      "shortcut": "Spatial HUD Updater",
+      "buttons": "updatemod:Update Mod:98,disable:Disable:78,modsdir:Mods Dir:84,remove:Remove:74",
+      "state": "hud",
+      "worker": "hud"
+    },
+    {
+      "id": "orca",
+      "title": "OrcaSlicer Plugins",
+      "blurb": "Wave Overhangs & Unlayered Infill",
+      "exe": "",
+      "dir": "OrcaPlugins",
+      "icon": "docs/brand/orca-plugins.ico",
+      "shortcut": "Orca Plugins",
+      "buttons": "update:Update:78,branch:Branch:78,folder:Folder:68",
+      "state": "orca",
+      "worker": "orca"
+    },
+    {
+      "id": "dnspilot",
+      "title": "DNS Pilot",
+      "blurb": "Fast DNS benchmark & auto-pilot",
+      "exe": "dns-pilot/DnsPilot.exe",
+      "dir": "DnsPilot",
+      "icon": "dns-pilot/dnspilot.ico",
+      "shortcut": "DNS Pilot",
+      "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
+      "state": "dnspilot",
+      "worker": "dnspilot"
+    },
+    {
+      "id": "agentnotes",
+      "title": "Agent Notes",
+      "blurb": "Quick notes straight to the agent",
+      "exe": "agent-notes/AgentNotes.exe",
+      "dir": "AgentNotes",
+      "icon": "agent-notes/agent-notes.ico",
+      "shortcut": "Agent Notes",
+      "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
+      "state": "agentnotes",
+      "worker": "agentnotes"
+    },
+    {
+      "id": "clipboardmemory",
+      "title": "Clipboard Memory",
+      "blurb": "Disk-persisted clipboard history",
+      "exe": "clipboard-memory/ClipboardMemory.exe",
+      "dir": "ClipboardMemory",
+      "icon": "clipboard-memory/clipboard-memory.ico",
+      "shortcut": "Clipboard Memory",
+      "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
+      "state": "clipboardmemory",
+      "worker": "clipboardmemory"
+    },
+    {
+      "title": "Audio Switcher",
+      "blurb": "Per-app volume & audio output switching",
+      "exe": "audio-switcher/AudioSwitcher.exe",
+      "dir": "AudioSwitcher",
+      "icon": "audio-switcher/audio-switcher.ico",
+      "shortcut": "Audio Switcher",
+      "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
+      "state": "audioswitcher",
+      "worker": "audioswitcher"
+    }
+  ]
+}

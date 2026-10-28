@@ -69,10 +69,10 @@ rem with two version numbers; they are one file now, so there is one version.
 rem The four lines below are the machine-readable copies :self_update and the
 rem old two-file launcher compares against; tests/test_installer.py keeps
 rem all four equal. Never bump one without the others.
-rem FRONTDOOR_VERSION 2.1.0 end
-set "FRONTDOOR_VERSION=2.1.0"
-rem UPDATER_VERSION 2.1.0 end
-set UPDATER_VERSION=2.1.0
+rem FRONTDOOR_VERSION 2.2.0 end
+set "FRONTDOOR_VERSION=2.2.0"
+rem UPDATER_VERSION 2.2.0 end
+set UPDATER_VERSION=2.2.0
 
 set "REPO=ajani190819-ops/Tests"
 set "MANIFEST_PATH=plugins.json"
@@ -196,7 +196,7 @@ rem ---------------------------------------------------------------------------
 del "%BRANCHES%" 2>nul
 echo.
 echo Fetching the live branch list from GitHub...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; try { $h=@{'User-Agent'='OrcaPlugins'}; $bs=Invoke-RestMethod -Headers $h -Uri 'https://api.github.com/repos/%REPO%/branches?per_page=100'; $now=[DateTimeOffset]::UtcNow; $rows=@(); foreach($b in $bs){ if($b.name -notmatch '^[A-Za-z0-9][A-Za-z0-9._/-]*$' -or $b.name.Contains('..')){continue}; $c=Invoke-RestMethod -Headers $h -Uri ([string]$b.commit.url); $d=[DateTimeOffset]::Parse($c.commit.committer.date); $age=$now-$d; if($age.TotalMinutes -lt 2){$a='updated just now'}elseif($age.TotalHours -lt 1){$a=('updated {0} minutes ago' -f [math]::Floor($age.TotalMinutes))}elseif($age.TotalDays -lt 1){$a=('updated {0} hours ago' -f [math]::Floor($age.TotalHours))}else{$a=('updated {0} days ago' -f [math]::Floor($age.TotalDays))}; $rows += [pscustomobject]@{Name=$b.name; Date=$d; Age=$a} }; $ordered=@($rows|Where-Object Name -eq 'main')+@($rows|Where-Object Name -ne 'main'|Sort-Object Date -Descending); [IO.File]::WriteAllLines('%BRANCHES%', @($ordered|ForEach-Object{$_.Name+'|'+$_.Age}), [Text.Encoding]::ASCII) } catch { Write-Host ('GitHub branch list failed: '+$_.Exception.Message); exit 1 }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; try { $h=@{'User-Agent'='OrcaPlugins'}; $cf='%STATE_DIR%\branch_cache.json'; $cache=@{}; if(Test-Path -LiteralPath $cf){ try { (Get-Content -Raw -LiteralPath $cf | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $cache[$_.Name]=[string]$_.Value } } catch {} }; $bs=Invoke-RestMethod -Headers $h -Uri 'https://api.github.com/repos/%REPO%/branches?per_page=100'; $now=[DateTimeOffset]::UtcNow; $rows=@(); foreach($b in $bs){ if($b.name -eq 'ci-reports' -or $b.name -notmatch '^[A-Za-z0-9][A-Za-z0-9._/-]*$' -or $b.name.Contains('..')){continue}; $sha=[string]$b.commit.sha; if($sha -and $cache.ContainsKey($sha)){ $ds=$cache[$sha] } else { $c=Invoke-RestMethod -Headers $h -Uri ([string]$b.commit.url); $ds=[string]$c.commit.committer.date; if($sha){ $cache[$sha]=$ds } }; $d=[DateTimeOffset]::Parse($ds); $age=$now-$d; if($age.TotalMinutes -lt 2){$a='updated just now'}elseif($age.TotalHours -lt 1){$a=('updated {0} minutes ago' -f [math]::Floor($age.TotalMinutes))}elseif($age.TotalDays -lt 1){$a=('updated {0} hours ago' -f [math]::Floor($age.TotalHours))}else{$a=('updated {0} days ago' -f [math]::Floor($age.TotalDays))}; $rows += [pscustomobject]@{Name=$b.name; Date=$d; Age=$a} }; try { if(-not (Test-Path -LiteralPath '%STATE_DIR%')){ [IO.Directory]::CreateDirectory('%STATE_DIR%') | Out-Null }; [IO.File]::WriteAllText($cf, ($cache | ConvertTo-Json -Compress), [Text.Encoding]::UTF8) } catch {}; $ordered=@($rows|Where-Object Name -eq 'main')+@($rows|Where-Object Name -ne 'main'|Sort-Object Date -Descending); [IO.File]::WriteAllLines('%BRANCHES%', @($ordered|ForEach-Object{$_.Name+'|'+$_.Age}), [Text.Encoding]::ASCII) } catch { Write-Host ('GitHub branch list failed: '+$_.Exception.Message); exit 1 }"
 if errorlevel 1 goto :offline
 if not exist "%BRANCHES%" goto :offline
 
@@ -607,8 +607,8 @@ rem  writes, and this way it lands on a field nothing reads.
 rem ---------------------------------------------------------------------------
 :fallback_plan
 echo   Using the fallback plan built into this file.
->  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.50^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Settings guide & check^|end
->> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.4.9^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
+>  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.51^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Settings guide & check^|end
+>> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.4.10^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
 exit /b 0
 
 rem ---------------------------------------------------------------------------
@@ -635,6 +635,13 @@ echo   All download methods failed.
 exit /b 1
 
 :download_check
+rem Reject HTML error pages / captive portals saved by bitsadmin on HTTP 404.
+findstr /i /r "^.!doctype ^.html" "%~2" >nul 2>nul
+if not errorlevel 1 (
+    echo   Downloaded file is an HTML error page, not the requested file.
+    del "%~2" 2>nul
+    exit /b 1
+)
 rem Reject empty / truncated files (e.g. an error page saved as the plugin).
 for %%A in ("%~2") do if %%~zA GEQ %DL_MIN% exit /b 0
 echo   Downloaded file looks empty or truncated.
@@ -832,6 +839,8 @@ set "NEW_FV=?"
 rem "rem FRONTDOOR_VERSION 2.0.0 end" -- token 3 is the version, and the
 rem trailing "end" absorbs the CR so it never lands in the variable.
 for /f "usebackq tokens=3" %%V in (`findstr /b /c:"rem FRONTDOOR_VERSION " "%NEWBAT%"`) do set "NEW_FV=%%V"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { if ([version]'%NEW_FV%' -le [version]'%FRONTDOOR_VERSION%') { exit 1 } } catch { exit 1 }"
+if errorlevel 1 goto :su_skip
 echo  This copy is v%FRONTDOOR_VERSION%, v%NEW_FV% is available.
 echo  Running the newer one for this update. Your .bat file is left as it is
 echo  -- it will keep fetching the newest version every time you run it.
@@ -865,11 +874,18 @@ call :stage_one_tool "plugins/unlayered-infill/unlayered_infill_post.py" "unlaye
 exit /b 0
 
 :stage_one_tool
-call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%~1" "%TOOLDIR%\%~2"
+call :download "https://raw.githubusercontent.com/%REPO%/%REF_1%/%~1" "%TOOLDIR%\%~2.tmp"
 if errorlevel 1 (
     echo  - tool %~2: download failed, skipped
     exit /b 0
 )
+findstr /b /c:"TOOL_VERSION = " "%TOOLDIR%\%~2.tmp" >nul 2>nul
+if errorlevel 1 (
+    del "%TOOLDIR%\%~2.tmp" 2>nul
+    echo  - tool %~2: invalid file skipped
+    exit /b 0
+)
+move /Y "%TOOLDIR%\%~2.tmp" "%TOOLDIR%\%~2" >nul
 echo  - tool %~2: saved to "%TOOLDIR%"
 exit /b 0
 

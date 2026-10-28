@@ -32,8 +32,8 @@ Run `Orca-Plugins.bat` (repo root). It lands here:
    step actually fired.
 
 The plugin appears as *Unlayered Infill* in the Plugins dialog. Its separate
-Version column currently reads **0.4.2**, and exported G-code is stamped with
-`; unlayered-infill v0.4.2`. The package and capability names stay version-free
+Version column currently reads **0.4.10**, and exported G-code is stamped with
+`; unlayered-infill v0.4.10`. The package and capability names stay version-free
 so an update never orphans your process preset.
 
 ## Configuration
@@ -50,9 +50,13 @@ so an update never orphans your process preset.
 | wave_angle | 0.0 | degrees to turn the ripples, counter-clockwise, 0 = along X. Aim them across your infill lines |
 | shape | `"sine"` | `sine`, `triangle` (straight flanks, sharper peaks) or `square` (flat crests, short ramps — a saturated sine, never a Z step) |
 | layer_phase | 0.0 | degrees of extra phase per waved layer, so crests walk sideways instead of stacking. 180 puts a crest over the trough below; 360 is a full turn and does nothing |
-| max_lift_mm | 0.0 | hard ceiling on the Z displacement in mm, whatever amplitude and taper work out to. 0 = no ceiling |
+| max_lift_mm | `"auto"` | hard ceiling on the Z displacement in mm (`"auto"` = half a layer height, `0` = no ceiling) |
+| collision_check | `"warn"` | `warn` reports moves whose nozzle passes too far beneath already-printed plastic, `refuse` aborts export without modifying the file, `off` skips checking |
+| nozzle_clearance | `"auto"` | allowed key-in depth below printed plastic before `collision_check` reports it (`"auto"` = `1.25x` layer height, or mm) |
 | require_relative_e | true | refuse M82 rather than corrupt it |
 | log | true | append a readable record of every run to the plugin-storage `orca-plugins.log` |
+| auto_restore_settings | true | automatically put back your remembered settings on the next slice if a plugin update resets the Config panel to defaults |
+| restore_backup | false | one-shot manual undo: set `true` and slice once to restore your last backed-up settings, then resets itself to `false` |
 
 Set these per process preset via the plugin's config in Orca. Defaults are
 used when you set nothing.

@@ -22,13 +22,23 @@ param(
 $ErrorActionPreference = 'Continue'
 
 $Here     = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Base     = 'https://raw.githubusercontent.com/ajani190819-ops/HSEQB/arena/01a0a5d4-hseqb/keyboard-lighting'
+$Base     = $env:KEYBOARD_LIGHTING_BASE
+if (-not $Base) {
+    try { [Net.ServicePointManager]::SecurityProtocol = 'Tls12' } catch { }
+    $Base = 'https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/e895b94f-tests/keyboard-lighting'
+    try {
+        $probe = Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/ajani190819-ops/Tests/main/project-hub/Setup.ps1' -Method Head -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
+        if ($probe.StatusCode -eq 200) {
+            $Base = 'https://raw.githubusercontent.com/ajani190819-ops/Tests/main/keyboard-lighting'
+        }
+    } catch { }
+}
 $TaskName = 'KeyboardLighting'
 $ExePath  = Join-Path $Here 'KeyboardLighting.exe'
 $TrayPs   = Join-Path $Here 'Tray.ps1'
 $Engine   = Join-Path $Here 'Aura-Background.ps1'
 
-$Files = @('Aura-Background.ps1', 'Tray.ps1', 'ui_controls.cs.txt', 'app.ico', 'Setup.ps1', 'Setup.bat', 'Zones.ps1', 'Zones.bat', 'MyEffect.ps1', 'README.md')
+$Files = @('KeyboardLighting.exe', 'Aura-Background.ps1', 'Tray.ps1', 'ui_controls.cs.txt', 'app.ico', 'Setup.ps1', 'Setup.bat', 'Restart.bat', 'Zones.ps1', 'Zones.bat', 'MyEffect.ps1', 'README.md')
 
 # --------------------------------------------------------------- output
 $script:Report   = New-Object System.Collections.ArrayList
@@ -107,6 +117,12 @@ if (-not $TestOnly) {
         $tmp  = Join-Path $env:TEMP ('kbl_' + $f)
         try {
             Invoke-WebRequest "$Base/$f" -OutFile $tmp -UseBasicParsing -TimeoutSec 25
+            $head = ''
+            try { $head = [string](Get-Content $tmp -TotalCount 3 -ErrorAction SilentlyContinue) } catch { }
+            if ((Get-Item $tmp).Length -lt 16 -or $head -match '(?i)^\s*<(?:!doctype|html)') {
+                Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+                throw 'Downloaded file was an HTML error page'
+            }
             $nh = (Get-FileHash $tmp -Algorithm SHA256).Hash
             $oh = ''
             if (Test-Path $dest) { $oh = (Get-FileHash $dest -Algorithm SHA256).Hash }
@@ -171,7 +187,9 @@ if (-not $TestOnly) {
         "$env:WinDir\Microsoft.NET\Framework\v4.0.30319\csc.exe")) {
         if (Test-Path $cand) { $csc = $cand; break }
     }
-    if (-not $csc) {
+    if ((Test-Path $ExePath) -and (Get-Item $ExePath).Length -gt 65536) {
+        Ok ('Native KeyboardLighting.exe ready ({0} bytes).' -f (Get-Item $ExePath).Length)
+    } elseif (-not $csc) {
         Warn 'No C# compiler found - a shortcut will be used instead.'
     } else {
         $src  = Join-Path $env:TEMP 'kbl_launcher.cs'
@@ -393,7 +411,18 @@ if (-not (Test-Path $ghCfg) -and -not $ghRunning) {
         Warn 'G-Helper config.json could not be read.'
     }
 
-    if ($skip -eq 1) {
+    # skip_aura alone is NOT enough any more: the brightness-gate pins and
+    # the idle-timeout kill came later, and machines that set skip_aura in
+    # an earlier era were skipping straight past them - G-Helper then kept
+    # stepping the EC 0..3 gate and dimming on its own. Only treat the
+    # containment as done when every key is actually in place.
+    $done = $false
+    if ($cfg -and $skip -eq 1) {
+        $done = ($null -ne $cfg.keyboard_brightness -and [int]$cfg.keyboard_brightness -eq 3 -and
+                 $null -ne $cfg.max_brightness -and [int]$cfg.max_brightness -eq 3 -and
+                 $null -ne $cfg.keyboard_timeout -and [int]$cfg.keyboard_timeout -eq 0)
+    }
+    if ($done) {
         Ok 'G-Helper is already set to leave the keyboard colours alone.'
     } elseif ($TestOnly) {
         Warn 'G-Helper will re-apply its own colours on startup.'
@@ -404,12 +433,33 @@ if (-not (Test-Path $ghCfg) -and -not $ghRunning) {
             if ($null -ne $cfg.skip_aura) { $cfg.skip_aura = 1 }
             else { Add-Member -InputObject $cfg -MemberType NoteProperty -Name 'skip_aura' -Value 1 -Force }
 
+            # Keep G-Helper's own 4-step backlight gate pinned at full (3).
+            # Fn F2 / F3 now drive OUR smooth 0-100% brightness; if G-Helper
+            # steps this gate to 0 the keyboard goes black under us, so hold
+            # it at the top and let the app be the only brightness that moves.
+            foreach ($bk in 'keyboard_brightness', 'keyboard_brightness_ac') {
+                if ($null -ne $cfg.$bk) { $cfg.$bk = 3 }
+                else { Add-Member -InputObject $cfg -MemberType NoteProperty -Name $bk -Value 3 -Force }
+            }
+            if ($null -ne $cfg.max_brightness) { $cfg.max_brightness = 3 }
+            else { Add-Member -InputObject $cfg -MemberType NoteProperty -Name 'max_brightness' -Value 3 -Force }
+
+            # G-Helper's idle-timeout timer dims the keyboard to 0 on its own
+            # (keyboard_timeout defaults to 60s on battery) - one more way its
+            # coarse control steals the lights out from under the smooth
+            # master. Disable both timers.
+            foreach ($tk in 'keyboard_timeout', 'keyboard_ac_timeout') {
+                if ($null -ne $cfg.$tk) { $cfg.$tk = 0 }
+                else { Add-Member -InputObject $cfg -MemberType NoteProperty -Name $tk -Value 0 -Force }
+            }
+
             $dir = Split-Path -Parent $ghCfg
             if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
             if (Test-Path $ghCfg) { Copy-Item $ghCfg ($ghCfg + '.bak') -Force -ErrorAction SilentlyContinue }
             ($cfg | ConvertTo-Json -Depth 10) | Set-Content -Path $ghCfg -Encoding UTF8 -ErrorAction Stop
             Ok 'G-Helper set to leave the keyboard colours to us (skip_aura).'
             Info 'Everything else in G-Helper is untouched.'
+            Info 'Fn F2 / F3 now control this app''s brightness smoothly (0-100%), like screen brightness.'
 
             # G-Helper only reads this at startup, and it rewrites the file
             # when it exits, so it has to be restarted for this to hold.
@@ -581,6 +631,9 @@ if ($script:Problems.Count -eq 0) {
     Line '   The tray icon (bottom-right, may be under the ^ arrow):'
     Line '     double-click   open the control panel'
     Line '     right-click    menu'
+    Line ''
+    Line '   Fn F2 / F3 change lighting brightness smoothly (0-100%),'
+    Line '   in step with the Master Brightness slider in the app.'
     Line ''
     Line '   To pin it: Start menu, right-click "Keyboard Lighting",'
     Line '   then Pin to Start or Pin to taskbar.'

@@ -2215,3 +2215,41 @@ assert not wave._contour_finish_paths(
 
 print("ok -- contour_finish: opt-in, adds a bead along a far boundary the "
       "fronts never reached, adds nothing where they already cover it")
+
+# --- WaveOverhangsCheck must read backed-up settings without overwriting ---
+import json
+import os
+import tempfile
+
+with tempfile.TemporaryDirectory() as _chk_dir:
+    _old_log_dir = os.environ.get("ORCA_PLUGIN_LOG_DIR")
+    _old_store = os.environ.get("ORCA_PLUGIN_STORAGE_DIR")
+    os.environ["ORCA_PLUGIN_STORAGE_DIR"] = _chk_dir
+    try:
+        slicing_cap = wave.WaveOverhangsSlicing()
+        custom_panel = wave.annotated_defaults()
+        custom_panel["print_speed"] = 7.5
+        custom_panel["time_budget"] = 45.0
+        slicing_cap.get_config = lambda: json.dumps(custom_panel)
+        slicing_cap.save_config = lambda _raw: True
+        slicing_cap.migrate_config_if_needed()
+
+        backups_before = json.loads(json.dumps(wave._load_state()["settings_backups"]))
+        check_cap = wave.WaveOverhangsCheck()
+        check_cap.get_config = lambda: json.dumps({"settings_guide": True})
+        check_cap.save_config = lambda _raw: True
+        chk_res = check_cap.execute()
+        assert chk_res.ok, chk_res.message
+        assert "time budget: 45.0s" in chk_res.message, chk_res.message
+        assert 'print_speed = 7.5   (default "orca")' in chk_res.message, chk_res.message
+        assert wave._load_state()["settings_backups"] == backups_before, (
+            "WaveOverhangsCheck polluted settings_backups with defaults")
+    finally:
+        if _old_store is None:
+            os.environ.pop("ORCA_PLUGIN_STORAGE_DIR", None)
+        else:
+            os.environ["ORCA_PLUGIN_STORAGE_DIR"] = _old_store
+        if _old_log_dir is not None:
+            os.environ["ORCA_PLUGIN_LOG_DIR"] = _old_log_dir
+
+print("ok -- WaveOverhangsCheck shows backed-up settings without polluting backups")

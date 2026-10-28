@@ -5,6 +5,7 @@
 	"name": "Spatial HUD",
 	"description": "Renders your hotbar, hearts, hunger, XP and mount bars as a panel floating in front of you — Spatial GUI, but for the HUD.",
 	"license": "MIT",
+	"icon": "assets/spatialhud/icon.png",
 	"environment": "client",
 	"entrypoints": {
 		"client": [

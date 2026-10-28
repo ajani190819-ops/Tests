@@ -6,6 +6,18 @@ OrcaSlicer's **Plugins** dialog in its separate Version column, and running
 
 Dates are the day the change was made, not a release date.
 
+## 0.4.10 — 2026-10-20
+
+* Fixes settings recovery when Orca clears the Config panel to `{}` after
+  an update, makes setting `restore_backup: true` take effect on the very
+  next slice without restarting OrcaSlicer, and sharpens the nozzle
+  clearance check.
+* Standalone CLI now accepts `"auto"` on `-f`, `--angle`, and `--max-lift`,
+  and G-code rewrites replace files atomically via a temporary file so an
+  interrupted write cannot leave a 0-byte slice.
+* Clarifies in the Config panel note that `nozzle_clearance = "auto"` allows
+  `1.25x` layer height of key-in depth before warning (matching the code).
+
 ## 0.4.9 — 2026-10-02
 
 * Settings now come back by themselves after an update. If the Config

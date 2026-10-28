@@ -10,146 +10,141 @@ GitHub Actions builds every change and replaces the jar at this fixed link:
 **Download (always the newest successful build):**
 https://github.com/ajani190819-ops/Tests/releases/download/spatial-hud-latest/spatial-hud-1.0.0.jar
 
-### Windows: one-click Modrinth install / update
+### Windows: one-click install into Modrinth
 
-For the simplest route, save [`Update-SpatialHUD.bat`](Update-SpatialHUD.bat)
-to your computer once, then double-click it whenever you want an update. On
-its first run, it already targets the supplied F5W Modrinth profile:
+Save [`Update-SpatialHUD.bat`](Update-SpatialHUD.bat) once, then double-click it
+whenever you want the newest build. It is the Spatial HUD **installer**: one
+file, the same shape as `Orca-Plugins.bat`. It installs into your F5W Modrinth
+profile:
 
 ```text
 %APPDATA%\ModrinthApp\profiles\F5W\mods
 ```
 
-For `C:\Users\kamau`, that resolves to the requested
-`C:\Users\kamau\AppData\Roaming\ModrinthApp\profiles\F5W\mods`. Press
-**Enter** (or choose **1**) to install the newest successful Spatial HUD build
-directly there. It does **not** open any folder afterward by default, and there
-is no manual "From file" step in Modrinth.
+Press **Enter** to install. The menu:
 
-The menu remembers its folder, release feed, and optional folder opener under
-`%LOCALAPPDATA%\SpatialHudUpdater`, and lets you:
+```text
+ [1] Install or update Spatial HUD now
+ [2] Choose the build - main or one of the five newest branches
+ [3] Change the Modrinth mods folder
+ [4] Forget my choices - newest build and the default folder
+ [Q] Quit
+```
 
-- change the profile's `mods` folder at any time;
-- choose a different published GitHub build/release feed after validating it;
-- leave the post-install folder opener disabled (the default), or ask it to
-  auto-detect **OneCommander** / save a custom file-manager `.exe`;
-- inspect the current JAR name, build time, and size; and
-- restore the default F5W folder, `spatial-hud-latest` feed, and no-opener
-  setting.
+Each install runs in three steps:
 
-When a OneCommander path is configured, the updater opens the profile's `mods`
-folder in OneCommander after a successful install. It never invokes Windows
-Explorer. If OneCommander is installed in an unusual portable or Microsoft
-Store location, choose **[4]** and paste the full path to `OneCommander.exe`.
+1. **Download and check.** The jar is downloaded from GitHub. Its size must match
+   what GitHub reported, and it must be the Spatial HUD mod (its
+   `fabric.mod.json` id is `spatialhud`). Nothing on your computer changes until
+   this passes.
+2. **Swap the jar.** Your old `spatial-hud-*.jar` moves to
+   `%LOCALAPPDATA%\SpatialHudUpdater\backup`, and the new jar is copied in. If
+   the copy fails, the old jar is put back. Spatial GUI and other mods are not
+   touched.
+3. **Save your choices.** The build and folder are remembered only after steps 1
+   and 2 succeed, so a branch name that does not work is never remembered.
 
-It downloads and verifies the replacement before touching the profile, then
-identifies old copies through their own `fabric.mod.json` mod id (`spatialhud`),
-not just their filenames. It replaces every old Spatial HUD copy it finds and
-leaves Spatial GUI and every unrelated mod alone. If the download, validation,
-or move fails, it restores any copies already moved out of the way.
+Close Minecraft before installing, so Windows cannot hold the old jar open.
 
-Close Minecraft before updating so Windows cannot hold the old JAR open.
+**Choosing a build (option 2).** The list is built from GitHub's published
+builds: `main` first, then the five most recently built branches. Each row has a
+number; type the number shown. **[L]** installs the newest build from any
+branch, and **[T]** lets you type a branch name. A branch appears only after its
+own build has succeeded.
 
-The build selector is intentionally based on **published build/release feeds**,
-not a fake source-branch download: Minecraft JARs are compiled artifacts, while
-a Git branch only contains source. The default `spatial-hud-latest` feed is
-updated by the successful GitHub Actions build from this branch. When a
-branch-specific build is published as its own release feed, choose it through
-**[3]** (or enter that published tag); a raw branch is never mislabeled as an
-installable JAR.
+**Updating the installer itself.** On each run it looks for a newer copy of
+itself on the session branch. If it finds one, that copy runs the update, and
+your saved file keeps working on its own. `--no-self-update` turns this off.
 
-The batch file temporarily refreshes its maintained PowerShell helper from
-GitHub before each run, then deletes that temporary helper. Its
-ExecutionPolicy bypass applies only to that updater process and does not change
-the computer's permanent policy. The old
-[`Get-Latest-SpatialHUD.bat`](Get-Latest-SpatialHUD.bat) remains available when
-you specifically want a Downloads copy instead of a direct Modrinth install.
+**Where to get it:**
+<https://raw.githubusercontent.com/ajani190819-ops/Tests/arena/b4016c28-tests/spatial-hud-template-26.3/Update-SpatialHUD.bat>
+Save it anywhere convenient (for example your Desktop) and double-click it.
+Until this branch is merged, use that link; the copy on `main` is stale.
+
+**Old copies.** If your saved copy shows **[4] Configure optional folder opener**
+or **[7] Restore**, it is an older installer. Download it again from the link
+above. Windows may show an "Unknown Publisher" prompt the first time: that is
+expected for a downloaded `.bat`.
+
+Builds come from GitHub releases. The rolling `spatial-hud-latest` release
+always holds the newest successful build of any branch; each branch gets its own
+`spatial-hud-build-<branch>` release (for example
+`spatial-hud-build-arena-b4016c28-tests`), which is what option 2 lists. The
+repository must stay public, because the installer downloads without a login.
 
 ## Render methods and placement
 
-Spatial HUD treats the selected bottom strip as one panel at a player-relative
-location. Use the single **Render Mode Slider** in the Setup config tab to
-choose a presentation; F6/F7/F8 remain optional direct keys for the first
-three modes:
+Spatial HUD has two presentations. Pick one with the **Render Mode Slider** in
+the Setup config tab, or with the direct keys **F8** (Method 3) and **F9**
+(Method 4):
 
-1. **Balanced Captured Warp (green marker)** — captures the selected gameplay
-   lower HUD into a private texture and applies a balanced forced projective
-   mesh. It is no longer a flat root-by-root fallback: hearts, slots, icons,
-   bars, and glyphs all receive a real pixel warp.
-2. **Strong Projective Warp (blue marker; default)** — captures the same lower
-   HUD, then applies an intentionally stronger forced projection through a
-   dense **32 × 24** GUI-space mesh. Its exaggeration makes the perspective
-   unmistakable even at camera angles where natural taper would be subtle.
-3. **World-Space Texture (red marker)** — captures the same
-   selected texture but draws it on a real quad in the rendered level. It
-   supports a separate **Camera Yaw** or **Player Body** horizontal anchor and
-   an **Occlude Behind World** switch. It intentionally displays the completed
-   previous-frame texture, avoiding global GUI redirection while the current
-   GUI is captured.
-4. **Four-Corner Polygon Test (purple)** — shows one direct purple/white
-   four-corner test surface and never adds a second dark captured-HUD rectangle.
-   Its tab exposes one X/Y percentage pair per handle. At level view those saved
-   positions are exact; optional live pitch response moves the corners as the
-   player looks up or down.
+3. **Real 3D Panel (Method 3)** — the selected lower HUD is captured into a
+   private texture and drawn on a real, flat, client-side panel in the game
+   world. The panel is anchored to your position and to your camera's yaw. It
+   floats at the **Forward Distance** and **Vertical Offset** you set, and it
+   comes into view as you look down. Its **Primary Flat-Map Tilt** (rotation
+   around the panel's left-to-right axis) sets the look-down angle at which you
+   face it square-on. The default is 85°, so the panel is close to flat.
+   Its purple border frames the captured HUD, and it is lifted onto the world
+   surface with that HUD.
+4. **Purple Horizontal Panel (Method 4)** — the same captured HUD drawn on a
+   purple panel that lies flat in the game world, like a sheet on a table in
+   front of you. It is anchored to your feet and to your body heading, so it
+   stays put when you turn your head, and you see it when you look down. Set its
+   **Panel Distance**, **Panel Height Above Feet**, and **Panel Angle** in the
+   **Purple Horizontal Panel** tab. An angle of 90 lies it flat, so it is
+   face-on when you look straight down. Smaller angles tilt its near edge toward
+   you. Its purple border is part of the captured texture.
 
-Every HUD method draws a **full-width, eight-pixel colour band** inside the panel's
-source rectangle: green for Method 1, blue for Method 2, and red for Method 3.
-The band is part of the captured texture in Methods 2 and 3, so it follows the
-same mesh or world plane rather than becoming a separate screen overlay.
+**Failure indicator.** If the capture fails, the untouched vanilla HUD is shown
+in place of the panel, and a small square appears just outside the hotbar's
+top-left corner: **red** if Method 3 failed, **purple** if Method 4 failed. The
+selected method is kept, so restarting the game or picking the method again
+retries it.
 
-The **Panel Positioning & Orientation** controls are shared by all three
-methods and model a real waist-height **flat Minecraft-map surface** rather
-than a card that follows camera pitch:
+The **Panel Positioning & Orientation** controls belong to Method 3. They model
+a waist-height flat surface, not a card that follows camera pitch:
 
 - **Forward Distance**, **Horizontal Offset**, and **Vertical Offset** place
-  the panel around the player. The default vertical offset is waist-high.
-- There is **no look-down-angle gate**. The selected roots and texture capture
-  remain active while any part of the finite, positive-depth panel intersects
-  the screen, and are culled only once the complete surface leaves the field of
+  the panel around the player.
+- There is **no look-down-angle gate**. The panel stays live while any part of
+  it is in the field of view. It is culled once the whole surface leaves the
   view or passes behind the camera.
 - **Panel Width** controls physical size.
-- **Primary Flat-Map Tilt — Left ↔ Right Axis** defaults to **85°**, producing
-  a near-horizontal surface that reads like a Minecraft map viewed from above.
-  Lower it when a deliberately steep paper-like angle is preferred.
-- **Fine Tilt Offset** uses that same left-to-right axis; **Turn — Up Axis**
-  angles the panel left/right; **Roll — Panel-Normal Axis** raises the right
-  edge for a deliberate slant. Their in-game tooltips define each positive
-  direction exactly.
+- **Primary Flat-Map Tilt — Left ↔ Right Axis** defaults to **85°**. Lower it
+  to make the panel steeper, so you face it square-on at a shallower look-down
+  angle.
+- **Fine Tilt Offset** uses that same axis; **Turn — Up Axis** angles the panel
+  left or right; **Roll — Panel-Normal Axis** raises the right edge. Their
+  in-game tooltips define each positive direction.
 
-Methods 1 and 2 both apply genuine per-pixel projective perspective through
-captured meshes: Method 1 is balanced; Method 2 is deliberately stronger and
-the default. Both explicitly pinch the far/top row horizontally and widen the
-near/bottom row, so their top two corners move toward each other as a proper
-map trapezoid rather than merely stretching in independent X/Y directions.
-Method 3 is a true world quad and samples the same lower-HUD source rectangle
-rather than a full-window texture; Methods 1 and 2 are camera-yaw anchored,
-while Method 3 exposes its anchor as a separate setting so it can instead
-remain fixed to player-body yaw.
+Method 3 samples only the selected lower-HUD source rectangle, not a
+full-window texture. Its anchor (camera yaw or player body) and its terrain
+occlusion are set in the same tab, and their tooltips say they apply only to
+Method 3.
 
 ### Companion-mod baseline
 
-AppleSkin and Detail Armor Bar Reconstructed are captured before the optional
-native-layout fallback. Their injected pixels therefore stay with the vanilla
-hearts, hunger, armor, and air roots in every captured method. The green
-balanced mesh also transforms those status roots by default. Enable **Keep
-Companion Bars Native in Method 1** only when a companion mod visibly produces
-detached or duplicated decorations. The supplied F5W modpack also includes Bedrock Hotbar,
-Immersive Hotbar, DualBar, Armor Indicator, Status Effect Bars, Mount Opacity,
-Durability Warner HUD, Async Hotbars, and Spatial GUI; these are tracked as
-bottom-HUD compatibility candidates rather than being globally intercepted.
+AppleSkin and Detail Armor Bar Reconstructed are captured with the vanilla
+roots they decorate, so their injected pixels stay with the hearts, hunger,
+armor, and air they belong to. The supplied F5W modpack also includes Bedrock
+Hotbar, Immersive Hotbar, DualBar, Armor Indicator, Status Effect Bars, Mount
+Opacity, Durability Warner HUD, Async Hotbars, and Spatial GUI. These are
+tracked as bottom-HUD compatibility candidates rather than being globally
+intercepted.
 
-See [`COMPATIBILITY.md`](COMPATIBILITY.md) for the test order and the exact
+See [`COMPATIBILITY.md`](../docs/spatial-hud/COMPATIBILITY.md) for the test order and the exact
 compatibility boundary. No normal Screen, minimap, chat, debug/FPS text, or
 separately registered overlay enters the capture target.
 
 ### Compatibility boundary
 
-**Balanced Captured Warp**, **Strong Projective Warp**, and **World-Space
-Texture** use two narrowly scoped renderer hooks solely for their private
-bottom-HUD renderer; normal GUI renderers never meet their identity check.
-World-Space Texture additionally submits only that finished private texture to
-the level render pass. With **Gameplay Only** enabled (the default), all three
-methods bypass private capture whenever another screen is open. That includes:
+**Real 3D Panel** and the **Purple Horizontal Panel** both use the same two
+narrowly scoped renderer hooks solely for their private bottom-HUD renderer;
+normal GUI renderers never meet their identity check. Both panels submit only
+that finished private texture to the level render pass. With
+**Gameplay Only** enabled (the default), both methods bypass private capture
+whenever another screen is open. That includes:
 
 - inventory, creative inventory, chest, crafting, furnace, anvil, and other
   container screens
@@ -179,22 +174,23 @@ let a companion mod own a part if two mods draw it twice.
 
 Open **Mod Menu → Spatial HUD → Configure** or press **H**. The underlying
 configuration file is `config/spatialhud.json`. The screen has one read-only
-explanation tab plus three focused settings sections:
+explanation tab plus four focused settings sections:
 
 - **Method Guide — Read This First** is a plain-language, read-only comparison
-  of the green stable path, blue true projective mesh, and red real world panel.
-  It contains no settings and is never saved into the configuration file.
+  of the real 3D panel (Method 3) and the purple horizontal panel (Method 4). It
+  contains no settings and is never saved into the configuration file.
 - **Setup** combines the enable switch, panel visibility, gameplay boundary,
-  companion-bar safeguard, and one simple **Render Mode Slider**.
-- **Panel Positioning & Orientation** keeps every geometric control together:
+  and the **Render Mode Slider** (3 or 4).
+- **Panel Positioning & Orientation** keeps Method 3's geometric controls together:
   distance, size, offsets, three-axis rotation, the flat-map tilt, and the
   Method 3 anchor and terrain-occlusion choices. The Method 3-only tooltips
   explicitly say when a setting is ignored by the other two methods.
-- **Purple Polygon Test** provides eight percentage sliders—X and Y for each
-  top-left, top-right, bottom-right, and bottom-left handle. They affect only
-  Method 4's one direct purple/white target. **Follow Camera Pitch** enables
-  live motion as the player looks up or down, and **Pitch Response Strength**
-  controls its amount; disable pitch following for a perfectly fixed target.
+- **Purple Horizontal Panel** holds the three Method 4 placement controls:
+  **Panel Distance**, **Panel Height Above Feet**, and **Panel Angle**. They
+  affect only Method 4. **Show Backing Panel** is Method 3's translucent purple
+  interior; Method 4 has no backing, and its fill is **Show Purple Fill**.
+  Method 4 samples the full captured strip, the same source as Method 3, so
+  anything another mod draws in that strip is included.
 - **HUD Contents** chooses which lower-HUD roots Spatial HUD owns.
 
 Minecraft Controls contains:
@@ -202,10 +198,8 @@ Minecraft Controls contains:
 - **Open Spatial HUD Settings** — defaults to **H** and can be rebound.
 - **Toggle Spatial HUD** — unbound by default, so you can assign a rapid
   test key without replacing a modpack binding.
-- **Spatial HUD — Select Method 1 / 2 / 3** — default to **F6 / F7 / F8**,
-  avoiding the hotbar number keys. Rebind any conflict in Controls. Each press
-  changes the on-panel band to the chosen green balanced warp, blue strong warp,
-  or red world-map mode.
+- **Spatial HUD — Select Method 3 / 4** — default to **F8 / F9**, avoiding the
+  hotbar number keys. Rebind any conflict in Controls.
 
 ## Requirements
 

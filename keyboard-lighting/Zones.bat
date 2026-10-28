@@ -1,23 +1,24 @@
 @echo off
 REM Zone checker - work out which light is which, and correct it.
 setlocal
-set BASE=https://raw.githubusercontent.com/ajani190819-ops/HSEQB/arena/01a0a5d4-hseqb/keyboard-lighting
+cd /d "%~dp0"
+title Keyboard Lighting - Zone Checker
 
 net session >nul 2>&1
-if %errorlevel% neq 0 (
-  echo   Asking for administrator access...
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
-  exit /b
-)
+if %errorlevel%==0 goto :elevated
 
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+exit /b 0
+
+:elevated
 echo   Getting the latest zone checker...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; try{ Invoke-WebRequest '%BASE%/Zones.ps1' -OutFile (Join-Path '%~dp0' 'Zones.ps1') -UseBasicParsing -TimeoutSec 25; Unblock-File (Join-Path '%~dp0' 'Zones.ps1') } catch { Write-Host ('   ' + $_.Exception.Message) -ForegroundColor Yellow }"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; foreach($b in @('main','arena/e895b94f-tests')){ try { Invoke-WebRequest ('https://raw.githubusercontent.com/ajani190819-ops/Tests/'+$b+'/keyboard-lighting/Zones.ps1') -OutFile 'Zones.ps1.new' -UseBasicParsing -TimeoutSec 25 -ErrorAction Stop; if((Get-Item 'Zones.ps1.new').Length -gt 200){ Move-Item -LiteralPath 'Zones.ps1.new' -Destination 'Zones.ps1' -Force; Unblock-File 'Zones.ps1'; break } } catch {} }"
 
-if not exist "%~dp0Zones.ps1" (
-  echo   Could not download Zones.ps1 and no local copy was found.
-  pause
-  exit /b 1
-)
+if exist "Zones.ps1" goto :run_zones
+echo   Could not download Zones.ps1 and no local copy was found.
+pause
+exit /b 1
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Zones.ps1"
+:run_zones
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\Zones.ps1"
 pause

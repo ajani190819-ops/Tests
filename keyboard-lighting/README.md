@@ -21,9 +21,10 @@ It is one normal program. A window with the controls, and an icon in the
 system tray next to the clock.
 
 * **Closing the window** puts it in the tray. It keeps running.
-* **Double-click the tray icon** to bring the window back.
+* **Double-click the tray icon** to bring the window back (and if a previous session ever hung, re-launching automatically clears the stuck process and restarts cleanly).
 * **Right-click the tray icon** for the menu (restart, turn off, updates,
   log file, exit).
+* **Double-click `Restart.bat`** (or use **Project Hub**) any time to immediately force-stop any stuck background/tray instance and restart cleanly in one click.
 
 Everything you change applies to the keyboard immediately. There is no
 Apply button and nothing restarts while you adjust things.
