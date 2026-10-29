@@ -1981,7 +1981,7 @@ static void RefreshProjectStatuses(void) {
     }
 
     /* 7+. Catalog extras: generic installed / update state */
-    for (int i = 6; i < g_cardCount; i++) {
+    for (int i = 8; i < g_cardCount; i++) {
         ProjectCard *c = &g_cards[i];
         wchar_t exePath[MAX_PATH];
         _snwprintf(exePath, MAX_PATH - 1, L"%s\\%s", c->appDir, c->exeName);
