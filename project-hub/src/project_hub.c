@@ -209,10 +209,10 @@ static HANDLE           g_hMutex      = NULL;
 static CRITICAL_SECTION g_cs;
 
 static ActionBtn        g_topBtns[4] = {
-    { ID_BTN_REFRESH_ALL, L"Refresh",    BTN_SECONDARY, 92,  {0,0,0,0}, NULL },
-    { ID_BTN_SELF_UPDATE, L"Update Hub", BTN_AMBER,     112, {0,0,0,0}, NULL },
-    { ID_BTN_UPDATE_ALL,  L"Update All", BTN_PRIMARY,   108, {0,0,0,0}, NULL },
-    { ID_BTN_BRANCH,      L"Branch \x25BC", BTN_SECONDARY, 96, {0,0,0,0}, NULL }
+    { ID_BTN_REFRESH_ALL, L"Refresh",    BTN_SECONDARY, 92,  {0,0,0,0}, NULL, FALSE },
+    { ID_BTN_SELF_UPDATE, L"Update Hub", BTN_AMBER,     112, {0,0,0,0}, NULL, FALSE },
+    { ID_BTN_UPDATE_ALL,  L"Update All", BTN_PRIMARY,   108, {0,0,0,0}, NULL, FALSE },
+    { ID_BTN_BRANCH,      L"Branch \x25BC", BTN_SECONDARY, 96, {0,0,0,0}, NULL, FALSE }
 };
 static RECT             g_rcEmblem    = {0, 0, 0, 0};
 
@@ -1694,7 +1694,7 @@ static void InitCardDefinitions(void) {
         }
         if (builtinExe[i].dir && g_suiteDir[0]) {
             _snwprintf(c->appDir, MAX_PATH - 1, L"%s\\\\%s", g_suiteDir, builtinExe[i].dir);
-            c->appDir[MAX_PATH - 1] = L'\\0';
+            c->appDir[MAX_PATH - 1] = L'\0';
         }
     }
     /* Cards 6-7 (Audio Switcher, Clipboard Memory): appDir must match the
@@ -1703,11 +1703,11 @@ static void InitCardDefinitions(void) {
        the hub, not g_suiteDir. Otherwise Open finds nothing even when installed. */
     if (g_audioSwitcherDir[0]) {
         wcsncpy(g_cards[6].appDir, g_audioSwitcherDir, MAX_PATH - 1);
-        g_cards[6].appDir[MAX_PATH - 1] = L'\\0';
+        g_cards[6].appDir[MAX_PATH - 1] = L'\0';
     }
     if (g_clipboardMemoryDir[0]) {
         wcsncpy(g_cards[7].appDir, g_clipboardMemoryDir, MAX_PATH - 1);
-        g_cards[7].appDir[MAX_PATH - 1] = L'\\0';
+        g_cards[7].appDir[MAX_PATH - 1] = L'\0';
     }
 }
 
