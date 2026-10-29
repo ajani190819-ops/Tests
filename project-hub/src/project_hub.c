@@ -1685,6 +1685,18 @@ static void InitCardDefinitions(void) {
             c->appDir[MAX_PATH - 1] = L'\\0';
         }
     }
+    /* Cards 6-7 (Audio Switcher, Clipboard Memory): appDir must match the
+       directory RefreshProjectStatuses scans (g_audioSwitcherDir /
+       g_clipboardMemoryDir), which may be g_exeDir if the exe sits next to
+       the hub, not g_suiteDir. Otherwise Open finds nothing even when installed. */
+    if (g_audioSwitcherDir[0]) {
+        wcsncpy(g_cards[6].appDir, g_audioSwitcherDir, MAX_PATH - 1);
+        g_cards[6].appDir[MAX_PATH - 1] = L'\\0';
+    }
+    if (g_clipboardMemoryDir[0]) {
+        wcsncpy(g_cards[7].appDir, g_clipboardMemoryDir, MAX_PATH - 1);
+        g_cards[7].appDir[MAX_PATH - 1] = L'\\0';
+    }
 }
 
 static void RefreshProjectStatuses(void) {
