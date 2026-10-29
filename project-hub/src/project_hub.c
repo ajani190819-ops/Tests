@@ -1399,7 +1399,16 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
             L"AudioSwitcher", L"ClipboardMemory"
         };
         if (dirs[slot][0]) {
-            _snwprintf(c->appDir, MAX_PATH - 1, L"%s\\%s", g_suiteDir, dirs[slot]);
+            /* Cards 6-7: appDir must match the directory RefreshProjectStatuses
+               scans (g_audioSwitcherDir / g_clipboardMemoryDir), which may be
+               g_exeDir if the exe sits next to the hub, not g_suiteDir. */
+            if (slot == 6 && g_audioSwitcherDir[0]) {
+                wcsncpy(c->appDir, g_audioSwitcherDir, MAX_PATH - 1);
+            } else if (slot == 7 && g_clipboardMemoryDir[0]) {
+                wcsncpy(c->appDir, g_clipboardMemoryDir, MAX_PATH - 1);
+            } else {
+                _snwprintf(c->appDir, MAX_PATH - 1, L"%s\\%s", g_suiteDir, dirs[slot]);
+            }
             c->appDir[MAX_PATH - 1] = L'\0';
         }
     }
@@ -1547,7 +1556,10 @@ static void RebuildExtraCards(const char *json) {
 static void WorkerInstallGeneric(int idx, BOOL launchAfter) {
     if (idx < 0 || idx >= g_cardCount) return;
     ProjectCard *c = &g_cards[idx];
-    if (!c->exeRepo || !c->exeName) return;
+    if (!c->exeRepo || !c->exeName) {
+        SetFooterStatus(L"Install not configured for this app - check hub configuration.", 0);
+        return;
+    }
     wchar_t branch[64];
     EnsureActiveBranch(branch, 64);
     EnsureDirTree(c->appDir);
