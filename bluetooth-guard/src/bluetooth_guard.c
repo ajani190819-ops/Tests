@@ -843,32 +843,31 @@ static void PollPairedDevices(void) {
 
                     if (g_guardOn && !d->allowAuto) {
                         if (d->connected) {
-                            /* Approve manual session if user clicked Connect either in our UI OR in Windows Quick Settings / Settings! */
-                            if (inWindowsManualUi && !d->sessionAllowed) {
-                                d->sessionAllowed = TRUE;
-                                d->sessionStartTick = nowTick;
-                            }
-                            if (d->sessionAllowed) {
-                                d->seenConnected = TRUE;
-                            } else {
-                                ULONGLONG addrCopy = d->address;
-                                wchar_t kindCopy[16], nameCopy[128];
-                                wcsncpy(kindCopy, d->kind, 15); kindCopy[15] = L'\0';
-                                wcsncpy(nameCopy, d->name, 127); nameCopy[127] = L'\0';
-                                LeaveCriticalSection(&g_lock);
-                                DoDisconnectOnly(addrCopy, kindCopy, nameCopy);
-                                EnterCriticalSection(&g_lock);
-                                d->connected = FALSE;
-                            }
-                        } else {
-                            if (d->sessionAllowed) {
-                                ULONGLONG elapsed = nowTick - d->sessionStartTick;
-                                if (d->seenConnected || elapsed > 35000ULL) {
-                                    d->sessionAllowed = FALSE;
-                                    d->seenConnected = FALSE;
+                            /* Manual connect via Windows Settings is always allowed.
+                               If the user opened Settings/Quick Settings and connected,
+                               grant a persistent session so the device stays connected
+                               even after disconnect/reconnect cycles. */
+                            if (!d->sessionAllowed) {
+                                if (inWindowsManualUi) {
+                                    /* User manually connected via Windows Settings - allow it */
+                                    d->sessionAllowed = TRUE;
+                                } else {
+                                    /* Auto-connection outside manual UI - disconnect it */
+                                    ULONGLONG addrCopy = d->address;
+                                    wchar_t kindCopy[16], nameCopy[128];
+                                    wcsncpy(kindCopy, d->kind, 15); kindCopy[15] = L'\0';
+                                    wcsncpy(nameCopy, d->name, 127); nameCopy[127] = L'\0';
+                                    LeaveCriticalSection(&g_lock);
+                                    DoDisconnectOnly(addrCopy, kindCopy, nameCopy);
+                                    EnterCriticalSection(&g_lock);
+                                    d->connected = FALSE;
                                 }
                             }
+                            /* sessionAllowed is TRUE - leave connected (manual session active) */
                         }
+                        /* Device not connected - do nothing. Wait for the next
+                           connection attempt; manual connects via Windows Settings
+                           will be caught by inWindowsManualUi above. */
                     }
                 }
             }
