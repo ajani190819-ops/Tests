@@ -68,6 +68,7 @@
 #define ID_HOTKEY_SHOW      300
 #define ID_BTN_PASTE_BASE   1000
 #define ID_BTN_DELETE_BASE  2000
+#define ID_BTN_REFRESH      4001
 #define ID_BTN_CLEAR_ALL    3000
 
 /* ============================================================================
@@ -156,11 +157,10 @@ static int hist_find_dup(const wchar_t *text, size_t len) {
 
 static void hist_add(const wchar_t *text, size_t len) {
     if (len == 0) return;
-    if (hist_find_dup(text, len) >= 0) return;  /* no consecutive/any dup */
+    if (hist_find_dup(text, len) >= 0) return;  /* no dup */
 
     /* Shift everything down to make room at index 0 (most recent first) */
     if (g_hist_count == MAX_HISTORY) {
-        /* Drop the oldest */
         memmove(&g_hist[1], &g_hist[0], (size_t)(MAX_HISTORY - 1) * sizeof(HistItem));
         g_hist_count = MAX_HISTORY - 1;
     }
@@ -259,7 +259,6 @@ static void clip_set_text(const wchar_t *text) {
 
 /* Paste the current clipboard into the active window using SendInput */
 static void clip_paste(void) {
-    /* Alt+Space to dismiss any menu, then Ctrl+V */
     INPUT inputs[2] = {0};
     inputs[0].type = INPUT_KEYBOARD;
     inputs[0].ki.wVk = VK_CONTROL;
@@ -293,6 +292,7 @@ static HWND   g_scroll = NULL;      /* scrollable history container */
 static HWND   g_item_hwnds[MAX_HISTORY][3];  /* [idx][0]=pasteBtn [1]=delBtn [2]=label */
 static int    g_item_hwnd_count = 0;
 static int    g_dpi = 96;
+static int    g_hover_row = -1;     /* which history row is hovered */
 static int S(int x) { return MulDiv(x, g_dpi, 96); }
 
 static void draw_suite_emblem(HDC hdc, int x, int y, int size) {
@@ -333,6 +333,7 @@ static void draw_suite_emblem(HDC hdc, int x, int y, int size) {
     DeleteObject(hBrush);
 }
 
+/* Draw a rounded card background for a history item */
 static int GetWinDpi(HWND hwnd) {
     HDC hdc = GetDC(hwnd);
     int dpi = GetDeviceCaps(hdc, LOGPIXELSX);
@@ -353,24 +354,29 @@ static void ui_rebuild(void) {
     g_item_hwnd_count = 0;
 
     int y = 12;
-    int row_h = S(66);
-    int row_w = S(600);
+    int row_h = S(72);
+    int row_w = S(620);
+    int card_x = 12;
+    int card_w = row_w - 24;
 
     for (int i = 0; i < g_hist_count; i++) {
         int base_y = y;
 
-        /* Paste button (left) - clicking pastes this item */
+        /* Draw card background (handled in WM_PAINT of scroll, but we
+           also draw per-row here via owner-draw style on the label) */
+
+        /* Paste button (left side of card) */
         g_item_hwnds[i][0] = CreateWindowExW(
             0, L"BUTTON", L"Paste",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_CENTER,
-            12, base_y + S(8), S(72), S(24),
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_CENTER | BS_VCENTER,
+            card_x + S(16), base_y + S(20), S(80), S(32),
             g_scroll, (HMENU)(INT_PTR)(ID_BTN_PASTE_BASE + i), g_hInst, NULL);
 
-        /* Delete button (right) */
+        /* Delete button (right side of card) */
         g_item_hwnds[i][1] = CreateWindowExW(
-            0, L"BUTTON", L"×",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_CENTER,
-            row_w - S(40), base_y + S(8), S(28), S(24),
+            0, L"BUTTON", L"\u00D7",
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_CENTER | BS_VCENTER,
+            card_x + card_w - S(96), base_y + S(20), S(80), S(32),
             g_scroll, (HMENU)(INT_PTR)(ID_BTN_DELETE_BASE + i), g_hInst, NULL);
 
         /* Label: preview text + timestamp */
@@ -384,19 +390,8 @@ static void ui_rebuild(void) {
         g_item_hwnds[i][2] = CreateWindowExW(
             0, L"STATIC", label,
             WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP,
-            S(96), base_y + S(8), row_w - S(96) - S(48), S(24),
+            card_x + S(112), base_y + S(24), card_w - S(112) - S(96), S(24),
             g_scroll, NULL, g_hInst, NULL);
-
-        /* Separator line */
-        {
-            HDC hdc = GetDC(g_scroll);
-            HPEN pen = CreatePen(PS_SOLID, 1, COL_BORDER);
-            SelectObject(hdc, pen);
-            MoveToEx(hdc, 12, base_y + row_h - 2, NULL);
-            LineTo(hdc, row_w - 12, base_y + row_h - 2);
-            DeleteObject(pen);
-            ReleaseDC(g_scroll, hdc);
-        }
 
         g_item_hwnd_count++;
         y += row_h;
@@ -464,11 +459,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         /* Start clipboard monitoring */
         clip_start_listening(hwnd);
 
-        /* Header area */
+        /* Header buttons */
         CreateWindowExW(0, L"BUTTON", L"\u21BB Refresh",
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
             S(20), S(16), S(96), S(28),
-            hwnd, (HMENU)4001, g_hInst, NULL);
+            hwnd, (HMENU)ID_BTN_REFRESH, g_hInst, NULL);
 
         CreateWindowExW(0, L"BUTTON", L"Clear All",
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
@@ -477,7 +472,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         /* Scrollable container for history items */
         g_scroll = CreateWindowExW(
-            WS_EX_CLIENTEDGE, L"STATIC", L"",
+            0, L"STATIC", L"",
             WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP,
             S(20), S(104), S(660), S(440),
             hwnd, NULL, g_hInst, NULL);
@@ -554,7 +549,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             ui_rebuild();
             return 0;
         }
-        if (id == 4001) {  /* Refresh */
+        if (id == ID_BTN_REFRESH) {  /* Refresh */
             wchar_t text[MAX_ITEM_CHARS];
             if (clip_get_text(text, MAX_ITEM_CHARS)) {
                 size_t len = wcslen(text);
@@ -649,6 +644,38 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         break;
     }
 
+    case WM_MOUSEMOVE: {
+        /* Detect which row the mouse is over for hover effects */
+        if (!g_scroll) break;
+        POINT pt;
+        GetCursorPos(&pt);
+        ScreenToClient(g_scroll, &pt);
+        SCROLLINFO si = {0};
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_POS;
+        GetScrollInfo(g_scroll, SB_VERT, &si);
+        int row_h = S(72);
+        int row_idx = (pt.y + si.nPos - 12) / row_h;
+        if (row_idx >= 0 && row_idx < g_hist_count) {
+            if (row_idx != g_hover_row) {
+                g_hover_row = row_idx;
+                InvalidateRect(g_scroll, NULL, FALSE);
+            }
+        } else if (g_hover_row != -1) {
+            g_hover_row = -1;
+            InvalidateRect(g_scroll, NULL, FALSE);
+        }
+        break;
+    }
+
+    case WM_MOUSELEAVE: {
+        if (g_hover_row != -1) {
+            g_hover_row = -1;
+            InvalidateRect(g_scroll, NULL, FALSE);
+        }
+        break;
+    }
+
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
@@ -714,7 +741,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
 
     g_hInst = hInst;
 
-    INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_WIN95_CLASSES };
+    INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_BAR_CLASSES };
     InitCommonControlsEx(&icc);
 
     hist_path_init();
