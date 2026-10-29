@@ -75,6 +75,7 @@
 
 #define ID_ORCA_UPDATE       1401
 #define ID_ORCA_MENU         1402
+#define ID_ORCA_DISABLE      1404
 #define ID_ORCA_FOLDER       1403
 
 
@@ -167,6 +168,7 @@ typedef struct {
     int            widthPx;
     RECT           rc;
     const wchar_t *verb;   /* catalog action: open / update / folder / install / ... */
+    BOOL           hidden; /* set TRUE to skip this button in layout & drawing */
 } ActionBtn;
 
 typedef struct {
@@ -866,6 +868,7 @@ static void SaveBranchCfg(const wchar_t *branch) {
 /* Per-app opt-outs. The mod card (and only it, per the owner's choice)
    can be disabled: no install, no update, Update All skips it. */
 static int g_hudDisabled = 0;
+static int g_orcaDisabled = 0;
 
 static void LoadAppsCfg(void) {
     wchar_t ini[MAX_PATH], buf[8];
@@ -1277,7 +1280,7 @@ static int BuiltInBtnId(int slot, const char *verb) {
         { "folder",    ID_HUD_FOLDER },   { "disable",   ID_HUD_DISABLE },
         { "remove",    ID_HUD_REMOVE },
         { "update",    ID_ORCA_UPDATE },  { "branch",    ID_ORCA_MENU },
-        { "folder",    ID_ORCA_FOLDER },
+        { "folder",    ID_ORCA_FOLDER },  { "disable",   ID_ORCA_DISABLE },
         { "open",      ID_DNS_OPEN },     { "update",    ID_DNS_UPDATE },
         { "folder",    ID_DNS_FOLDER },
         { "open",      ID_NOTES_OPEN },   { "update",    ID_NOTES_UPDATE },
@@ -1287,7 +1290,7 @@ static int BuiltInBtnId(int slot, const char *verb) {
         { "open",      ID_CLIPBOARDMEMORY_OPEN }, { "update",   ID_CLIPBOARDMEMORY_UPDATE },
         { "folder",    ID_CLIPBOARDMEMORY_FOLDER }
     };
-    static const int off[10] = { 0, 4, 8, 11, 14, 17, 20, 23, 26, 31 };
+    static const int off[10] = { 0, 4, 8, 13, 17, 20, 23, 26, 29, 31 };
     if (slot < 0 || slot > 7) return 0;
     for (int i = off[slot]; i < off[slot + 1]; i++)
         if (strcmp(map[i].verb, verb) == 0) return map[i].id;
@@ -1301,6 +1304,23 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
     MultiByteToWideChar(CP_UTF8, 0, id, -1, c->id, 23);
     if (title[0]) c->title = PoolAdd(title);
     if (blurb[0]) c->blurb = PoolAdd(blurb);
+
+    /* Set exeRepo/exeName so install/update/open work for built-in cards.
+       These must match the suite-apps.json entries exactly. */
+    static const struct { const char *repo; const char *name; } exeMap[8] = {
+        { "bluetooth-guard/BluetoothGuard.exe", "BluetoothGuard.exe" },
+        { "keyboard-lighting/KeyboardLighting.exe", "KeyboardLighting.exe" },
+        { "", "" },                                          /* HUD - no exe */
+        { "", "" },                                          /* Orca - no exe */
+        { "dns-pilot/DnsPilot.exe", "DnsPilot.exe" },
+        { "agent-notes/AgentNotes.exe", "AgentNotes.exe" },
+        { "audio-switcher/AudioSwitcher.exe", "AudioSwitcher.exe" },
+        { "clipboard-memory/ClipboardMemory.exe", "ClipboardMemory.exe" },
+    };
+    if (slot >= 0 && slot < 8 && exeMap[slot].repo[0]) {
+        c->exeRepo = PoolAdd(exeMap[slot].repo);
+        c->exeName = PoolAdd(exeMap[slot].name);
+    }
     if (buttons[0]) {
         char list[256];
         strncpy(list, buttons, sizeof(list) - 1);
@@ -1370,6 +1390,19 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
     }
     if (icon[0])
         LoadCardIcon(c, icon);
+
+    /* Set appDir for built-in cards so Folder/Open work */
+    if (slot >= 0 && slot < 8) {
+        static const wchar_t *dirs[8] = {
+            L"BluetoothGuard", L"KeyboardLighting", L"SpatialHudUpdater",
+            L"OrcaPlugins", L"DnsPilot", L"AgentNotes",
+            L"AudioSwitcher", L"ClipboardMemory"
+        };
+        if (dirs[slot][0]) {
+            _snwprintf(c->appDir, MAX_PATH - 1, L"%s\\%s", g_suiteDir, dirs[slot]);
+            c->appDir[MAX_PATH - 1] = L'\0';
+        }
+    }
 }
 
 static void AddCatalogCard(const char *obj) {
@@ -1573,61 +1606,85 @@ static void InitCardDefinitions(void) {
     g_cards[0].resIconId = RES_ICON_BTG;
     g_cards[0].title     = L"Bluetooth Guard";
     g_cards[0].btnCount  = 4;
-    g_cards[0].btns[0]   = (ActionBtn){ ID_BTG_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
-    g_cards[0].btns[1]   = (ActionBtn){ ID_BTG_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL };
-    g_cards[0].btns[2]   = (ActionBtn){ ID_BTG_STOP,   L"Stop",   BTN_SECONDARY, 62, {0,0,0,0}, NULL };
-    g_cards[0].btns[3]   = (ActionBtn){ ID_BTG_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[0].btns[0]   = (ActionBtn){ ID_BTG_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[0].btns[1]   = (ActionBtn){ ID_BTG_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[0].btns[2]   = (ActionBtn){ ID_BTG_STOP,   L"Stop",   BTN_SECONDARY, 62, {0,0,0,0}, NULL, FALSE };
+    g_cards[0].btns[3]   = (ActionBtn){ ID_BTG_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
 
     g_cards[1].resIconId = RES_ICON_KBL;
     g_cards[1].title     = L"Keyboard Lighting";
     g_cards[1].btnCount  = 4;
-    g_cards[1].btns[0]   = (ActionBtn){ ID_KBL_OPEN,    L"Open",     BTN_SECONDARY, 68, {0,0,0,0}, NULL };
-    g_cards[1].btns[1]   = (ActionBtn){ ID_KBL_RESTART, L"Unfreeze", BTN_SECONDARY, 84, {0,0,0,0}, NULL };
-    g_cards[1].btns[2]   = (ActionBtn){ ID_KBL_UPDATE,  L"Update",   BTN_SECONDARY, 74, {0,0,0,0}, NULL };
-    g_cards[1].btns[3]   = (ActionBtn){ ID_KBL_FOLDER,  L"Folder",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[1].btns[0]   = (ActionBtn){ ID_KBL_OPEN,    L"Open",     BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[1].btns[1]   = (ActionBtn){ ID_KBL_RESTART, L"Unfreeze", BTN_SECONDARY, 84, {0,0,0,0}, NULL, FALSE };
+    g_cards[1].btns[2]   = (ActionBtn){ ID_KBL_UPDATE,  L"Update",   BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[1].btns[3]   = (ActionBtn){ ID_KBL_FOLDER,  L"Folder",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
 
     g_cards[2].resIconId = RES_ICON_HUD;
     g_cards[2].title     = L"Spatial HUD";
     g_cards[2].btnCount  = 4;
-    g_cards[2].btns[0]   = (ActionBtn){ ID_HUD_UPDATE,  L"Update Mod", BTN_SECONDARY, 98, {0,0,0,0}, NULL };
-    g_cards[2].btns[1]   = (ActionBtn){ ID_HUD_DISABLE, L"Disable",    BTN_SECONDARY, 78, {0,0,0,0}, NULL };
-    g_cards[2].btns[2]   = (ActionBtn){ ID_HUD_PICK,    L"Mods Dir",   BTN_SECONDARY, 84, {0,0,0,0}, NULL };
-    g_cards[2].btns[3]   = (ActionBtn){ ID_HUD_REMOVE,  L"Remove",     BTN_SECONDARY, 74, {0,0,0,0}, NULL };
+    g_cards[2].btns[0]   = (ActionBtn){ ID_HUD_UPDATE,  L"Update Mod", BTN_SECONDARY, 98, {0,0,0,0}, NULL, FALSE };
+    g_cards[2].btns[1]   = (ActionBtn){ ID_HUD_DISABLE, L"Disable",    BTN_SECONDARY, 78, {0,0,0,0}, NULL, FALSE };
+    g_cards[2].btns[2]   = (ActionBtn){ ID_HUD_PICK,    L"Mods Dir",   BTN_SECONDARY, 84, {0,0,0,0}, NULL, FALSE };
+    g_cards[2].btns[3]   = (ActionBtn){ ID_HUD_REMOVE,  L"Remove",     BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
 
     g_cards[3].resIconId = RES_ICON_ORCA;
     g_cards[3].title     = L"OrcaSlicer Plugins";
-    g_cards[3].btnCount  = 3;
-    g_cards[3].btns[0]   = (ActionBtn){ ID_ORCA_UPDATE, L"Update", BTN_SECONDARY, 78, {0,0,0,0}, NULL };
-    g_cards[3].btns[1]   = (ActionBtn){ ID_ORCA_MENU,   L"Branch", BTN_SECONDARY, 78, {0,0,0,0}, NULL };
-    g_cards[3].btns[2]   = (ActionBtn){ ID_ORCA_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[3].btnCount  = 4;
+    g_cards[3].btns[0]   = (ActionBtn){ ID_ORCA_UPDATE, L"Update", BTN_SECONDARY, 78, {0,0,0,0}, NULL, FALSE };
+    g_cards[3].btns[1]   = (ActionBtn){ ID_ORCA_MENU,   L"Branch", BTN_SECONDARY, 78, {0,0,0,0}, NULL, FALSE };
+    g_cards[3].btns[2]   = (ActionBtn){ ID_ORCA_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[3].btns[3]   = (ActionBtn){ ID_ORCA_DISABLE, L"Disable", BTN_SECONDARY, 78, {0,0,0,0}, NULL, FALSE };
 
     g_cards[4].resIconId = RES_ICON_DNS;
     g_cards[4].title     = L"DNS Pilot";
     g_cards[4].btnCount  = 3;
-    g_cards[4].btns[0]   = (ActionBtn){ ID_DNS_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
-    g_cards[4].btns[1]   = (ActionBtn){ ID_DNS_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL };
-    g_cards[4].btns[2]   = (ActionBtn){ ID_DNS_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[4].btns[0]   = (ActionBtn){ ID_DNS_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[4].btns[1]   = (ActionBtn){ ID_DNS_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[4].btns[2]   = (ActionBtn){ ID_DNS_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
 
     g_cards[5].resIconId = RES_ICON_NOTES;
     g_cards[5].title     = L"Agent Notes";
     g_cards[5].btnCount  = 3;
-    g_cards[5].btns[0]   = (ActionBtn){ ID_NOTES_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
-    g_cards[5].btns[1]   = (ActionBtn){ ID_NOTES_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL };
-    g_cards[5].btns[2]   = (ActionBtn){ ID_NOTES_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[5].btns[0]   = (ActionBtn){ ID_NOTES_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[5].btns[1]   = (ActionBtn){ ID_NOTES_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[5].btns[2]   = (ActionBtn){ ID_NOTES_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
 
     g_cards[6].resIconId = RES_ICON_AUDIOSWITCHER;
     g_cards[6].title     = L"Audio Switcher";
     g_cards[6].btnCount  = 3;
-    g_cards[6].btns[0]   = (ActionBtn){ ID_AUDIOSWITCHER_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
-    g_cards[6].btns[1]   = (ActionBtn){ ID_AUDIOSWITCHER_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL };
-    g_cards[6].btns[2]   = (ActionBtn){ ID_AUDIOSWITCHER_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[6].btns[0]   = (ActionBtn){ ID_AUDIOSWITCHER_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[6].btns[1]   = (ActionBtn){ ID_AUDIOSWITCHER_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[6].btns[2]   = (ActionBtn){ ID_AUDIOSWITCHER_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
 
     g_cards[7].resIconId = RES_ICON_CLIPBOARDMEMORY;
     g_cards[7].title     = L"Clipboard Memory";
     g_cards[7].btnCount  = 3;
-    g_cards[7].btns[0]   = (ActionBtn){ ID_CLIPBOARDMEMORY_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL };
-    g_cards[7].btns[1]   = (ActionBtn){ ID_CLIPBOARDMEMORY_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL };
-    g_cards[7].btns[2]   = (ActionBtn){ ID_CLIPBOARDMEMORY_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL };
+    g_cards[7].btns[0]   = (ActionBtn){ ID_CLIPBOARDMEMORY_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[7].btns[1]   = (ActionBtn){ ID_CLIPBOARDMEMORY_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[7].btns[2]   = (ActionBtn){ ID_CLIPBOARDMEMORY_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+
+    /* exeRepo/exeName/appDir so Install/Update/Open/Folder work for built-in cards */
+    static const struct { const char *repo; const char *name; const wchar_t *dir; } builtinExe[8] = {
+        { "bluetooth-guard/BluetoothGuard.exe", "BluetoothGuard.exe", L"BluetoothGuard" },
+        { "keyboard-lighting/KeyboardLighting.exe", "KeyboardLighting.exe", L"KeyboardLighting" },
+        { NULL, NULL, L"SpatialHudUpdater" },
+        { NULL, NULL, L"OrcaPlugins" },
+        { "dns-pilot/DnsPilot.exe", "DnsPilot.exe", L"DnsPilot" },
+        { "agent-notes/AgentNotes.exe", "AgentNotes.exe", L"AgentNotes" },
+        { "audio-switcher/AudioSwitcher.exe", "AudioSwitcher.exe", L"AudioSwitcher" },
+        { "clipboard-memory/ClipboardMemory.exe", "ClipboardMemory.exe", L"ClipboardMemory" },
+    };
+    for (int i = 0; i < 8; i++) {
+        ProjectCard *c = &g_cards[i];
+        if (builtinExe[i].repo) {
+            c->exeRepo = PoolAdd(builtinExe[i].repo);
+            c->exeName = PoolAdd(builtinExe[i].name);
+        }
+        if (builtinExe[i].dir && g_suiteDir[0]) {
+            _snwprintf(c->appDir, MAX_PATH - 1, L"%s\\\\%s", g_suiteDir, builtinExe[i].dir);
+            c->appDir[MAX_PATH - 1] = L'\\0';
+        }
+    }
 }
 
 static void RefreshProjectStatuses(void) {
@@ -1710,7 +1767,12 @@ static void RefreshProjectStatuses(void) {
             if (g_cards[0].badgeKind == BADGE_OK || g_cards[0].badgeKind == BADGE_IDLE)
                 g_cards[0].badgeKind = BADGE_WARN;
             g_cards[0].btns[1].style = BTN_AMBER;
+            g_cards[0].btns[1].hidden = FALSE;
+        } else {
+            g_cards[0].btns[1].hidden = TRUE;
         }
+    } else {
+        g_cards[0].btns[1].hidden = TRUE;
     }
 
     /* 2. Keyboard Lighting */
@@ -1749,7 +1811,12 @@ static void RefreshProjectStatuses(void) {
             if (g_cards[1].badgeKind == BADGE_OK || g_cards[1].badgeKind == BADGE_IDLE)
                 g_cards[1].badgeKind = BADGE_WARN;
             g_cards[1].btns[2].style = BTN_AMBER;
+            g_cards[1].btns[2].hidden = FALSE;
+        } else {
+            g_cards[1].btns[2].hidden = TRUE;
         }
+    } else {
+        g_cards[1].btns[2].hidden = TRUE;
     }
 
     /* 3. Spatial HUD */
@@ -1826,6 +1893,7 @@ static void RefreshProjectStatuses(void) {
         wcsncpy(g_cards[3].badge, upd ? L"Update Ready" : L"Up to Date", 47);
         g_cards[3].badgeKind = upd ? BADGE_WARN : BADGE_OK;
         g_cards[3].btns[0].style = upd ? BTN_PRIMARY : BTN_SECONDARY;
+        g_cards[3].btns[0].hidden = !upd;
         _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S & Unlayered Infill %S",
                    locWave[0] ? locWave : "none", locInfill[0] ? locInfill : "none");
     }
@@ -1864,7 +1932,12 @@ static void RefreshProjectStatuses(void) {
             if (g_cards[4].badgeKind == BADGE_OK || g_cards[4].badgeKind == BADGE_IDLE)
                 g_cards[4].badgeKind = BADGE_WARN;
             g_cards[4].btns[1].style = BTN_AMBER;
+            g_cards[4].btns[1].hidden = FALSE;
+        } else {
+            g_cards[4].btns[1].hidden = TRUE;
         }
+    } else {
+        g_cards[4].btns[1].hidden = TRUE;
     }
 
     /* 6. Agent Notes */
@@ -1896,7 +1969,12 @@ static void RefreshProjectStatuses(void) {
                 if (g_cards[5].badgeKind == BADGE_OK || g_cards[5].badgeKind == BADGE_IDLE)
                     g_cards[5].badgeKind = BADGE_WARN;
                 g_cards[5].btns[1].style = BTN_AMBER;
+                g_cards[5].btns[1].hidden = FALSE;
+            } else {
+                g_cards[5].btns[1].hidden = TRUE;
             }
+        } else {
+            g_cards[5].btns[1].hidden = TRUE;
         }
     }
 
@@ -1936,7 +2014,12 @@ static void RefreshProjectStatuses(void) {
                 if (g_cards[6].badgeKind == BADGE_OK || g_cards[6].badgeKind == BADGE_IDLE)
                     g_cards[6].badgeKind = BADGE_WARN;
                 g_cards[6].btns[1].style = BTN_AMBER;
+                g_cards[6].btns[1].hidden = FALSE;
+            } else {
+                g_cards[6].btns[1].hidden = TRUE;
             }
+        } else {
+            g_cards[6].btns[1].hidden = TRUE;
         }
     }
 
@@ -1976,7 +2059,12 @@ static void RefreshProjectStatuses(void) {
                 if (g_cards[7].badgeKind == BADGE_OK || g_cards[7].badgeKind == BADGE_IDLE)
                     g_cards[7].badgeKind = BADGE_WARN;
                 g_cards[7].btns[1].style = BTN_AMBER;
+                g_cards[7].btns[1].hidden = FALSE;
+            } else {
+                g_cards[7].btns[1].hidden = TRUE;
             }
+        } else {
+            g_cards[7].btns[1].hidden = TRUE;
         }
     }
 
@@ -2935,6 +3023,7 @@ static void ComputeLayout(HWND hwnd) {
         int rx = w - pad - S(16, dpi);
         int by = startY + cardH - S(12, dpi) - btnH;
         for (int b = g_cards[c].btnCount - 1; b >= 0; b--) {
+            if (g_cards[c].btns[b].hidden) continue;
             int bw = S(g_cards[c].btns[b].widthPx, dpi);
             rx -= bw;
             SetRect(&g_cards[c].btns[b].rc, rx, by, rx + bw, by + btnH);
@@ -2952,6 +3041,7 @@ static int HitTestButtons(POINT pt, int headerBottom, int footerTop) {
     if (pt.y < headerBottom || pt.y > footerTop) return 0;
     for (int c = 0; c < g_cardCount; c++) {
         for (int b = 0; b < g_cards[c].btnCount; b++) {
+            if (g_cards[c].btns[b].hidden) continue;
             if (PtInRect(&g_cards[c].btns[b].rc, pt)) return g_cards[c].btns[b].id;
         }
     }
@@ -3137,6 +3227,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
         for (int b = 0; b < card->btnCount; b++) {
+            if (card->btns[b].hidden) continue;
             DrawActionBtn(hdc, px, w, h, &card->btns[b], dpi, headerH + 1, footerTop - 1);
         }
     }
@@ -3660,6 +3751,49 @@ static void HandleActionCommand(HWND hwnd, int id) {
         if (!DirExistsW(p)) _snwprintf(p, MAX_PATH, L"%s\\OrcaSlicer\\plugins", g_roamApp);
         EnsureDirTree(p);
         ShellExecuteW(hwnd, L"open", p, NULL, NULL, SW_SHOWNORMAL);
+        break;
+
+    case ID_ORCA_DISABLE:
+        g_orcaDisabled = !g_orcaDisabled;
+        SaveAppsCfg();
+        SetFooterStatus(g_orcaDisabled
+                            ? L"OrcaSlicer Plugins disabled - will not be installed or updated."
+                            : L"OrcaSlicer Plugins enabled.", 0);
+        RefreshProjectStatuses();
+        break;
+
+    case ID_AUDIOSWITCHER_OPEN: {
+        wchar_t pp[MAX_PATH];
+        _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", g_cards[6].appDir, g_cards[6].exeName);
+        if (FileExistsW(pp))
+            ShellExecuteW(hwnd, L"open", pp, NULL, g_cards[6].appDir, SW_SHOWNORMAL);
+        else
+            HandleVerb(6, L"install");
+        break;
+    }
+    case ID_AUDIOSWITCHER_UPDATE:
+        HandleVerb(6, L"update");
+        break;
+    case ID_AUDIOSWITCHER_FOLDER:
+        EnsureDirTree(g_cards[6].appDir);
+        ShellExecuteW(hwnd, L"open", g_cards[6].appDir, NULL, NULL, SW_SHOWNORMAL);
+        break;
+
+    case ID_CLIPBOARDMEMORY_OPEN: {
+        wchar_t pp[MAX_PATH];
+        _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", g_cards[7].appDir, g_cards[7].exeName);
+        if (FileExistsW(pp))
+            ShellExecuteW(hwnd, L"open", pp, NULL, g_cards[7].appDir, SW_SHOWNORMAL);
+        else
+            HandleVerb(7, L"install");
+        break;
+    }
+    case ID_CLIPBOARDMEMORY_UPDATE:
+        HandleVerb(7, L"update");
+        break;
+    case ID_CLIPBOARDMEMORY_FOLDER:
+        EnsureDirTree(g_cards[7].appDir);
+        ShellExecuteW(hwnd, L"open", g_cards[7].appDir, NULL, NULL, SW_SHOWNORMAL);
         break;
 
     }

@@ -451,20 +451,26 @@ def build_icon_agent_notes(size: int = 512, small: bool = False) -> Image.Image:
 def build_icon_audio_switcher(size: int = 512, small: bool = False) -> Image.Image:
     base = make_squircle_base(size, (56, 189, 248))  # Primary Sky blue - distinct from violet
 
-    # Speaker icon: cone on left, three concentric sound arcs radiating right.
-    # Clear audio symbol at all sizes.
+    # Speaker / volume icon: trapezoid speaker body pointing right,
+    # dust cap at the narrow end, three sound arcs radiating outward.
+    # Reads as "volume" at all sizes, distinct from the spinning suite logo.
     def speaker_fn(d: ImageDraw.ImageDraw, s: int):
         w = int(s * (0.07 if small else 0.05))
-        cx, cy = s * 0.40, s * 0.52
-        # Speaker cabinet / cone body
-        d.rounded_rectangle([s * 0.20, s * 0.32, s * 0.58, s * 0.72], radius=s * 0.05, fill=255)
-        # Speaker cone center dust cap
-        d.ellipse([cx - s * 0.05, cy - s * 0.05, cx + s * 0.05, cy + s * 0.05], fill=255)
-        # Three sound waves radiating to the right
+        cx, cy = s * 0.46, s * 0.52
+        # Speaker body: trapezoid, wide on left, tapering right
+        d.polygon([
+            (s * 0.22, s * 0.30),
+            (s * 0.52, s * 0.20),
+            (s * 0.52, s * 0.84),
+            (s * 0.22, s * 0.70),
+        ], fill=255)
+        # Dust cap at speaker narrow end
+        d.ellipse([cx - s * 0.055, cy - s * 0.055, cx + s * 0.055, cy + s * 0.055], fill=255)
+        # Three sound waves radiating to the right from dust cap
         if not small:
             sw = max(2, int(w * 0.9))
-            for rad in (s * 0.12, s * 0.22, s * 0.32):
-                d.arc([cx - rad, cy - rad, cx + rad, cy + rad], -25, 25, fill=255, width=sw)
+            for rad in (s * 0.14, s * 0.26, s * 0.38):
+                d.arc([cx - rad, cy - rad, cx + rad, cy + rad], -22, 22, fill=255, width=sw)
 
     speaker_a = draw_antialias_mask(size, speaker_fn)
     return composite_elevated_layer(base, speaker_a, (165, 243, 252), (37, 99, 235), (56, 189, 248))
