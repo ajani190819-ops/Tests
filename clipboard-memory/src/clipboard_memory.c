@@ -595,21 +595,26 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         /* Start clipboard monitoring */
         clip_start_listening(hwnd);
 
-        /* Header buttons */
+        /* Header buttons - right side, side by side before the emblem */
+        int hdrBtnY = S(16);
+        int hdrBtnW = S(96);
+        int hdrBtnH = S(28);
+        int emblemX = S(720) - S(48) - S(8);  /* emblem x-position, matches WM_PAINT */
+
         CreateWindowExW(0, L"BUTTON", L"\u21BB Refresh",
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            S(20), S(16), S(96), S(28),
+            emblemX - hdrBtnW - S(100), hdrBtnY, hdrBtnW, hdrBtnH,
             hwnd, (HMENU)ID_BTN_REFRESH, g_hInst, NULL);
 
         CreateWindowExW(0, L"BUTTON", L"Clear All",
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            S(20), S(56), S(96), S(28),
+            emblemX - hdrBtnW, hdrBtnY, hdrBtnW, hdrBtnH,
             hwnd, (HMENU)ID_BTN_CLEAR_ALL, g_hInst, NULL);
 
         /* Scrollable container for history items */
         g_scroll = CreateWindowExW(
             0, L"STATIC", L"",
-            WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP,
+            WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP | WS_CLIPCHILDREN,
             S(20), S(104), S(660), S(440),
             hwnd, NULL, g_hInst, NULL);
 
@@ -838,14 +843,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         FillRect(hdc, &hdr, CreateSolidBrush(COL_FOOTER_BG));
         SetBkColor(hdc, COL_FOOTER_BG);
         SetTextColor(hdc, COL_TEXT);
-        DrawTextW(hdc, APP_TITLE, -1, &(RECT){ S(20), S(8), rc.right, S(32) },
-                  DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
         /* Spinning emblem in top-right corner of header */
         int embSz = S(48);
         int embX = rc.right - embSz - S(8);
         int embY = S(6);
         SetRect(&g_rcEmblem, embX, embY, embX + embSz, embY + embSz);
+
+        DrawTextW(hdc, APP_TITLE, -1, &(RECT){ S(20), S(8), embX - S(120), S(32) },
+                  DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
         PaintEmblemBlit(hdc, embX, embY, embSz);
 
         RECT div = { 0, S(60), rc.right, S(62) };
