@@ -319,13 +319,15 @@ static BOOL HasConnectedBefore(ULONGLONG addr) {
     _snwprintf(path, 160, L"SYSTEM\\CurrentControlSet\\Services\\BTHPORT\\Parameters\\Devices\\%s", folder);
     path[159] = L'\0';
     HKEY hKey = NULL;
+    /* Key missing = never connected = STRANGER, never show it */
     if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, path, 0, KEY_READ, &hKey) != ERROR_SUCCESS)
-        return TRUE;
+        return FALSE;
     DWORD subKeys = 0;
     LONG rc = RegQueryInfoKeyW(hKey, NULL, NULL, NULL, &subKeys, NULL, NULL,
                                NULL, NULL, NULL, NULL, NULL);
     RegCloseKey(hKey);
-    if (rc != ERROR_SUCCESS) return TRUE;
+    if (rc != ERROR_SUCCESS) return FALSE;
+    /* profile subkeys exist = this machine actually connected before */
     return subKeys > 0;
 }
 
@@ -769,10 +771,6 @@ static void PollPairedDevices(void) {
         return;
     }
 
-    CheckForegroundManualIntent();
-    ULONGLONG nowTick = GetTickCount64();
-    BOOL inWindowsManualUi = (nowTick < g_manualGraceUntil);
-
     BLUETOOTH_FIND_RADIO_PARAMS rp;
     rp.dwSize = sizeof(rp);
     HANDLE hRadio = NULL;
@@ -843,32 +841,13 @@ static void PollPairedDevices(void) {
 
                     if (g_guardOn && !d->allowAuto) {
                         if (d->connected) {
-                            /* Approve manual session if user clicked Connect either in our UI OR in Windows Quick Settings / Settings! */
-                            if (inWindowsManualUi && !d->sessionAllowed) {
-                                d->sessionAllowed = TRUE;
-                                d->sessionStartTick = nowTick;
-                            }
-                            if (d->sessionAllowed) {
-                                d->seenConnected = TRUE;
-                            } else {
-                                ULONGLONG addrCopy = d->address;
-                                wchar_t kindCopy[16], nameCopy[128];
-                                wcsncpy(kindCopy, d->kind, 15); kindCopy[15] = L'\0';
-                                wcsncpy(nameCopy, d->name, 127); nameCopy[127] = L'\0';
-                                LeaveCriticalSection(&g_lock);
-                                DoDisconnectOnly(addrCopy, kindCopy, nameCopy);
-                                EnterCriticalSection(&g_lock);
-                                d->connected = FALSE;
-                            }
-                        } else {
-                            if (d->sessionAllowed) {
-                                ULONGLONG elapsed = nowTick - d->sessionStartTick;
-                                if (d->seenConnected || elapsed > 35000ULL) {
-                                    d->sessionAllowed = FALSE;
-                                    d->seenConnected = FALSE;
-                                }
-                            }
+                            /* Manual user choice is always allowed.
+                               The guard prevents auto-connection, not manual
+                               connects via taskbar flyout, Settings, etc. */
+                            d->sessionAllowed = TRUE;
+                            d->seenConnected = TRUE;
                         }
+                        /* Don't disconnect - user's manual choice stands. */
                     }
                 }
             }
@@ -1024,13 +1003,13 @@ static void SmoothRoundRect(uint32_t *px, int W, int H, const RECT *rc, float ra
 #define EMB_SDF_BOOST 0.012
 
 static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
+    (void)bg;
     const double scale = EMB_SDF_SCALE, b = EMB_SDF_BOOST;
     const double pxSize = 2.0 / (double)n;
     const double aa = (pxSize * 1.35 > 1e-4) ? (pxSize * 1.35) : 1e-4;
     const double deg = 0.017453292519943295;
     static const double gaps[3] = { -90.0, 30.0, 150.0 };
     static const double nrm[3] = { 90.0, -150.0, -30.0 };
-    int bgR = GetRValue(bg), bgG = GetGValue(bg), bgB = GetBValue(bg);
     for (int j = 0; j < n; j++) {
         double y0 = ((double)j + 0.5) / (double)n;
         double y = -1.0 + 2.0 * y0;
@@ -1081,10 +1060,11 @@ static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
             double fr = 246.0 * (1 - t) + 196.0 * t;
             double fg = 249.0 * (1 - t) + 212.0 * t;
             double fb = 254.0 * (1 - t) + 234.0 * t;
-            int rr = (int)(fr * alpha + bgR * (1 - alpha) + 0.5);
-            int gg = (int)(fg * alpha + bgG * (1 - alpha) + 0.5);
-            int bb = (int)(fb * alpha + bgB * (1 - alpha) + 0.5);
-            dst[j * n + i] = RGB(rr, gg, bb);
+            /* Store colour + REAL alpha in the top byte; the blit blends
+               over whatever is behind, so no flat cache box can ever show
+               as a demarcation square around the emblem. */
+            dst[j * n + i] = RGB((int)(fr + 0.5), (int)(fg + 0.5), (int)(fb + 0.5)) |
+                             ((DWORD)(int)(alpha * 255.0 + 0.5) << 24);
         }
     }
 }
@@ -1153,12 +1133,23 @@ static void EmbSpinDraw(uint32_t *px, int W, int H, int x, int y, int sz, COLORR
                        ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
             double b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
                        ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
-            px[ty * W + tx] = RGB((int)(r + 0.5), (int)(g + 0.5), (int)(b + 0.5));
+            double a = ((c00 >> 24) & 255) * w00 + ((c10 >> 24) & 255) * w10 +
+                       ((c01 >> 24) & 255) * w01 + ((c11 >> 24) & 255) * w11;
+            int ai = (int)(a + 0.5);
+            uint32_t d = px[ty * W + tx];
+            if (ai >= 255) {
+                px[ty * W + tx] = RGB((int)(r + 0.5), (int)(g + 0.5), (int)(b + 0.5));
+            } else if (ai > 0) {
+                int dr = (int)(d & 255), dg = (int)((d >> 8) & 255), db = (int)((d >> 16) & 255);
+                px[ty * W + tx] = RGB(((int)(r + 0.5) * ai + dr * (255 - ai) + 127) / 255,
+                                      ((int)(g + 0.5) * ai + dg * (255 - ai) + 127) / 255,
+                                      ((int)(b + 0.5) * ai + db * (255 - ai) + 127) / 255);
+            }
         }
     }
 }
 
-/* Kept as symbol reference for suite emblem tests - draws the embedded 32-bit Tri-Spoke Core Emblem */
+/* Exposed symbol reference kept in sync with suite style tests */
 
 static void DrawWayfinderEmblem(uint32_t *px, int W, int H, int x, int y, int sz) {
     EmbCacheEnsure(sz, COL_BG);

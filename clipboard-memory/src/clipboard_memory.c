@@ -57,6 +57,10 @@
 #define MAX_HISTORY         20
 #define MAX_ITEM_CHARS      4000
 
+/* Tri-Spoke Core Emblem - same SDF renderer as Project Hub */
+#define EMB_SDF_SCALE 0.92
+#define EMB_SDF_BOOST 0.012
+
 #define RES_ICON_APP        1
 
 #define WM_TRAYICON         (WM_APP + 1)
@@ -68,6 +72,7 @@
 #define ID_HOTKEY_SHOW      300
 #define ID_BTN_PASTE_BASE   1000
 #define ID_BTN_DELETE_BASE  2000
+#define ID_BTN_REFRESH      4001
 #define ID_BTN_CLEAR_ALL    3000
 
 /* ============================================================================
@@ -156,11 +161,10 @@ static int hist_find_dup(const wchar_t *text, size_t len) {
 
 static void hist_add(const wchar_t *text, size_t len) {
     if (len == 0) return;
-    if (hist_find_dup(text, len) >= 0) return;  /* no consecutive/any dup */
+    if (hist_find_dup(text, len) >= 0) return;  /* no dup */
 
     /* Shift everything down to make room at index 0 (most recent first) */
     if (g_hist_count == MAX_HISTORY) {
-        /* Drop the oldest */
         memmove(&g_hist[1], &g_hist[0], (size_t)(MAX_HISTORY - 1) * sizeof(HistItem));
         g_hist_count = MAX_HISTORY - 1;
     }
@@ -259,7 +263,6 @@ static void clip_set_text(const wchar_t *text) {
 
 /* Paste the current clipboard into the active window using SendInput */
 static void clip_paste(void) {
-    /* Alt+Space to dismiss any menu, then Ctrl+V */
     INPUT inputs[2] = {0};
     inputs[0].type = INPUT_KEYBOARD;
     inputs[0].ki.wVk = VK_CONTROL;
@@ -293,46 +296,180 @@ static HWND   g_scroll = NULL;      /* scrollable history container */
 static HWND   g_item_hwnds[MAX_HISTORY][3];  /* [idx][0]=pasteBtn [1]=delBtn [2]=label */
 static int    g_item_hwnd_count = 0;
 static int    g_dpi = 96;
+static int    g_hover_row = -1;     /* which history row is hovered */
+
+/* Spinning emblem */
+static RECT   g_rcEmblem   = {0, 0, 0, 0};
 static int S(int x) { return MulDiv(x, g_dpi, 96); }
 
-static void draw_suite_emblem(HDC hdc, int x, int y, int size) {
-    HPEN hPen = CreatePen(PS_SOLID, 2, COL_ACCENT);
-    HBRUSH hBrush = CreateSolidBrush(COL_BG);
-    HGDIOBJ oldPen = SelectObject(hdc, hPen);
-    HGDIOBJ oldBrush = SelectObject(hdc, hBrush);
-    SetBkMode(hdc, TRANSPARENT);
-
-    int cx = x + size / 2;
-    int cy = y + size / 2;
-    int r = size / 2;
-
-    Ellipse(hdc, cx - r, cy - r, cx + r, cy + r);
-
-    for (int d = 0; d < 3; d++) {
-        double rad = (-90.0 + d * 120.0) * 3.14159265 / 180.0;
-        int x2 = cx + (int)(cos(rad) * r * 0.85);
-        int y2 = cy + (int)(sin(rad) * r * 0.85);
-        MoveToEx(hdc, cx, cy, NULL);
-        LineTo(hdc, x2, y2);
+/* Tri-Spoke Core Emblem - analytic sub-pixel SDF renderer, ported 1:1 from Project Hub */
+static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
+    (void)bg;
+    const double scale = EMB_SDF_SCALE, b = EMB_SDF_BOOST;
+    const double pxSize = 2.0 / (double)n;
+    const double aa = (pxSize * 1.35 > 1e-4) ? (pxSize * 1.35) : 1e-4;
+    const double deg = 0.017453292519943295;
+    static const double gaps[3] = { -90.0, 30.0, 150.0 };
+    static const double nrm[3] = { 90.0, -150.0, -30.0 };
+    for (int j = 0; j < n; j++) {
+        double y0 = ((double)j + 0.5) / (double)n;
+        double y = -1.0 + 2.0 * y0;
+        for (int i = 0; i < n; i++) {
+            double x0 = ((double)i + 0.5) / (double)n;
+            double x = -1.0 + 2.0 * x0;
+            double r = sqrt(x * x + y * y) / scale;
+            double ang = atan2(y, x) / deg;
+            double dOuter = fabs(r - 0.895) - (0.022 + b * 0.45);
+            double dRad   = fabs(r - 0.742) - (0.056 + b * 0.5);
+            double dGap = 180.0;
+            for (int k = 0; k < 3; k++) {
+                double m = fmod(ang - gaps[k] + 180.0, 360.0);
+                if (m < 0) m += 360.0;
+                double diff = fabs(m - 180.0);
+                if (diff < dGap) dGap = diff;
+            }
+            double dCut  = (12.5 - dGap) * deg * 0.742;
+            double dArcs = (dRad > dCut) ? dRad : dCut;
+            double dSpokes = 10.0;
+            double pMid = 0.052 + b * 0.12, pHw = 0.024 + b * 0.42;
+            double sMid = 0.5 * (0.258 + 0.722), sHw = 0.5 * (0.722 - 0.258);
+            for (int k = 0; k < 3; k++) {
+                double rad = gaps[k] * deg;
+                double ux = cos(rad), uy = sin(rad);
+                double proj = (x * ux + y * uy) / scale;
+                double perp = fabs(-x * uy + y * ux) / scale;
+                double dAlong = fabs(proj - sMid) - sHw;
+                double dBars  = fabs(perp - pMid) - pHw;
+                double dThis  = (dAlong > dBars) ? dAlong : dBars;
+                if (dThis < dSpokes) dSpokes = dThis;
+            }
+            double dHubOut = r - (0.224 + b * 0.25);
+            double dTri = -10.0;
+            for (int k = 0; k < 3; k++) {
+                double rad = nrm[k] * deg;
+                double dHalf = (x * cos(rad) + y * sin(rad)) / scale - 0.074;
+                if (dHalf > dTri) dTri = dHalf;
+            }
+            double dHub = (dHubOut > -dTri) ? dHubOut : -dTri;
+            double u1 = (dOuter < dArcs) ? dOuter : dArcs;
+            double u2 = (dSpokes < dHub) ? dSpokes : dHub;
+            double u  = (u1 < u2) ? u1 : u2;
+            double alpha = 0.5 - (u * scale) / aa;
+            if (alpha < 0) alpha = 0; else if (alpha > 1) alpha = 1;
+            double t = x0 * 0.3 + y0 * 0.7;
+            if (t < 0) t = 0; else if (t > 1) t = 1;
+            double fr = 246.0 * (1 - t) + 196.0 * t;
+            double fg = 249.0 * (1 - t) + 212.0 * t;
+            double fb = 254.0 * (1 - t) + 234.0 * t;
+            dst[j * n + i] = RGB((int)(fr + 0.5), (int)(fg + 0.5), (int)(fb + 0.5)) |
+                             ((DWORD)(int)(alpha * 255.0 + 0.5) << 24);
+        }
     }
-
-    Ellipse(hdc, cx - r/4, cy - r/4, cx + r/4, cy + r/4);
-
-    POINT tri[3] = {
-        { cx, cy - r/5 },
-        { cx + r/6, cy + r/8 },
-        { cx - r/6, cy + r/8 }
-    };
-    SelectObject(hdc, GetStockBrush(DC_BRUSH));
-    SetDCBrushColor(hdc, COL_BG);
-    Polygon(hdc, tri, 3);
-
-    SelectObject(hdc, oldPen);
-    SelectObject(hdc, oldBrush);
-    DeleteObject(hPen);
-    DeleteObject(hBrush);
 }
 
+typedef struct EmbCache {
+    int      sz;
+    int      srcSz;
+    uint32_t *src;
+} EmbCache;
+static EmbCache g_embCache = { 0, 0, NULL };
+
+static void EmbCacheEnsure(int sz, COLORREF bg) {
+    if (g_embCache.src && g_embCache.sz == sz) return;
+    free(g_embCache.src);
+    g_embCache.src = NULL;
+    g_embCache.sz = 0;
+    if (sz < 8 || sz > 512) return;
+    int srcSz = sz * 4;
+    uint32_t *src = (uint32_t *)malloc((size_t)srcSz * srcSz * sizeof(uint32_t));
+    if (!src) return;
+    EmbRasterize(src, srcSz, bg);
+    g_embCache.sz    = sz;
+    g_embCache.srcSz = srcSz;
+    g_embCache.src   = src;
+}
+
+static void EmbSpinDraw(uint32_t *px, int W, int H, int x, int y, int sz, COLORREF bg) {
+    EmbCacheEnsure(sz, bg);
+    const uint32_t *src = g_embCache.src;
+    if (!src) return;
+    int srcSz = g_embCache.srcSz;
+    double ang = ((double)(GetTickCount64() % 30000ULL) / 30000.0) * 6.283185307179586;
+    double ca = cos(ang), sa = sin(ang);
+    double c = (sz - 1) * 0.5;
+    double sc = (double)(srcSz - 1) / (double)(sz > 1 ? sz : 1);
+    int maxs = srcSz - 1;
+    for (int dy = 0; dy < sz; dy++) {
+        int ty = y + dy;
+        if (ty < 0 || ty >= H) continue;
+        double v = dy - c;
+        for (int dx = 0; dx < sz; dx++) {
+            int tx = x + dx;
+            if (tx < 0 || tx >= W) continue;
+            double u = dx - c;
+            double fx = (ca * u + sa * v + c) * sc;
+            double fy = (-sa * u + ca * v + c) * sc;
+            if (fx < 0) fx = 0; else if (fx > maxs) fx = maxs;
+            if (fy < 0) fy = 0; else if (fy > maxs) fy = maxs;
+            int x0 = (int)fx, y0 = (int)fy;
+            double ax = fx - x0, ay = fy - y0;
+            double w00 = (1 - ax) * (1 - ay), w10 = ax * (1 - ay);
+            double w01 = (1 - ax) * ay,       w11 = ax * ay;
+            const uint32_t *p00 = &src[y0 * srcSz + x0];
+            uint32_t c00 = p00[0];
+            uint32_t c10 = (x0 < maxs) ? p00[1] : c00;
+            const uint32_t *p01 = (y0 < maxs) ? p00 + srcSz : p00;
+            uint32_t c01 = p01[0];
+            uint32_t c11 = (x0 < maxs) ? p01[1] : c01;
+            double r = (c00 & 255) * w00 + (c10 & 255) * w10 + (c01 & 255) * w01 + (c11 & 255) * w11;
+            double g = ((c00 >> 8) & 255) * w00 + ((c10 >> 8) & 255) * w10 +
+                       ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
+            double b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
+                       ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
+            double a = ((c00 >> 24) & 255) * w00 + ((c10 >> 24) & 255) * w10 +
+                       ((c01 >> 24) & 255) * w01 + ((c11 >> 24) & 255) * w11;
+            int ai = (int)(a + 0.5);
+            uint32_t d = px[ty * W + tx];
+            if (ai >= 255) {
+                px[ty * W + tx] = RGB((int)(r + 0.5), (int)(g + 0.5), (int)(b + 0.5));
+            } else if (ai > 0) {
+                int dr = (int)(d & 255), dg = (int)((d >> 8) & 255), db = (int)((d >> 16) & 255);
+                px[ty * W + tx] = RGB(((int)(r + 0.5) * ai + dr * (255 - ai) + 127) / 255,
+                                      ((int)(g + 0.5) * ai + dg * (255 - ai) + 127) / 255,
+                                      ((int)(b + 0.5) * ai + db * (255 - ai) + 127) / 255);
+            }
+        }
+    }
+}
+
+static void DrawWayfinderEmblem(uint32_t *px, int W, int H, int x, int y, int sz) {
+    EmbCacheEnsure(sz, COL_BG);
+    EmbSpinDraw(px, W, H, x, y, sz, COL_BG);
+}
+
+/* Blit the spinning emblem square straight to a DC (spin fast-path). */
+static void PaintEmblemBlit(HDC dc, int x, int y, int sz) {
+    if (sz < 8 || sz > 512) return;
+    uint32_t *px = (uint32_t *)malloc((size_t)sz * sz * sizeof(uint32_t));
+    if (!px) return;
+    uint32_t bgP = ((uint32_t)GetRValue(COL_BG) << 16) |
+                   ((uint32_t)GetGValue(COL_BG) << 8) |
+                   (uint32_t)GetBValue(COL_BG);
+    for (int i = 0; i < sz * sz; i++) px[i] = bgP;
+    DrawWayfinderEmblem(px, sz, sz, 0, 0, sz);
+    BITMAPINFO bmi;
+    ZeroMemory(&bmi, sizeof(bmi));
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = sz;
+    bmi.bmiHeader.biHeight = -sz;
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+    SetDIBitsToDevice(dc, x, y, sz, sz, 0, 0, 0, sz, px, &bmi, DIB_RGB_COLORS);
+    free(px);
+}
+
+/* Draw a rounded card background for a history item */
 static int GetWinDpi(HWND hwnd) {
     HDC hdc = GetDC(hwnd);
     int dpi = GetDeviceCaps(hdc, LOGPIXELSX);
@@ -353,24 +490,29 @@ static void ui_rebuild(void) {
     g_item_hwnd_count = 0;
 
     int y = 12;
-    int row_h = S(66);
-    int row_w = S(600);
+    int row_h = S(72);
+    int row_w = S(620);
+    int card_x = 12;
+    int card_w = row_w - 24;
 
     for (int i = 0; i < g_hist_count; i++) {
         int base_y = y;
 
-        /* Paste button (left) - clicking pastes this item */
+        /* Draw card background (handled in WM_PAINT of scroll, but we
+           also draw per-row here via owner-draw style on the label) */
+
+        /* Paste button (left side of card) */
         g_item_hwnds[i][0] = CreateWindowExW(
             0, L"BUTTON", L"Paste",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_CENTER,
-            12, base_y + S(8), S(72), S(24),
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_CENTER | BS_VCENTER,
+            card_x + S(16), base_y + S(20), S(80), S(32),
             g_scroll, (HMENU)(INT_PTR)(ID_BTN_PASTE_BASE + i), g_hInst, NULL);
 
-        /* Delete button (right) */
+        /* Delete button (right side of card) */
         g_item_hwnds[i][1] = CreateWindowExW(
-            0, L"BUTTON", L"×",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_CENTER,
-            row_w - S(40), base_y + S(8), S(28), S(24),
+            0, L"BUTTON", L"\u00D7",
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_CENTER | BS_VCENTER,
+            card_x + card_w - S(96), base_y + S(20), S(80), S(32),
             g_scroll, (HMENU)(INT_PTR)(ID_BTN_DELETE_BASE + i), g_hInst, NULL);
 
         /* Label: preview text + timestamp */
@@ -384,19 +526,8 @@ static void ui_rebuild(void) {
         g_item_hwnds[i][2] = CreateWindowExW(
             0, L"STATIC", label,
             WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP,
-            S(96), base_y + S(8), row_w - S(96) - S(48), S(24),
+            card_x + S(112), base_y + S(24), card_w - S(112) - S(96), S(24),
             g_scroll, NULL, g_hInst, NULL);
-
-        /* Separator line */
-        {
-            HDC hdc = GetDC(g_scroll);
-            HPEN pen = CreatePen(PS_SOLID, 1, COL_BORDER);
-            SelectObject(hdc, pen);
-            MoveToEx(hdc, 12, base_y + row_h - 2, NULL);
-            LineTo(hdc, row_w - 12, base_y + row_h - 2);
-            DeleteObject(pen);
-            ReleaseDC(g_scroll, hdc);
-        }
 
         g_item_hwnd_count++;
         y += row_h;
@@ -464,36 +595,57 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         /* Start clipboard monitoring */
         clip_start_listening(hwnd);
 
-        /* Header area */
+        /* Header buttons - right side, side by side before the emblem */
+        int hdrBtnY = S(16);
+        int hdrBtnW = S(96);
+        int hdrBtnH = S(28);
+        int emblemX = S(720) - S(48) - S(8);  /* emblem x-position, matches WM_PAINT */
+
         CreateWindowExW(0, L"BUTTON", L"\u21BB Refresh",
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            S(20), S(16), S(96), S(28),
-            hwnd, (HMENU)4001, g_hInst, NULL);
+            emblemX - hdrBtnW - S(100), hdrBtnY, hdrBtnW, hdrBtnH,
+            hwnd, (HMENU)ID_BTN_REFRESH, g_hInst, NULL);
 
         CreateWindowExW(0, L"BUTTON", L"Clear All",
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            S(20), S(56), S(96), S(28),
+            emblemX - hdrBtnW, hdrBtnY, hdrBtnW, hdrBtnH,
             hwnd, (HMENU)ID_BTN_CLEAR_ALL, g_hInst, NULL);
 
         /* Scrollable container for history items */
         g_scroll = CreateWindowExW(
-            WS_EX_CLIENTEDGE, L"STATIC", L"",
-            WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP,
+            0, L"STATIC", L"",
+            WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP | WS_CLIPCHILDREN,
             S(20), S(104), S(660), S(440),
             hwnd, NULL, g_hInst, NULL);
 
         ui_rebuild();
+
+        /* Emblem spin timer - 50ms for smooth rotation */
+        SetTimer(hwnd, 2, 50, NULL);
 
         return 0;
     }
 
     case WM_DESTROY:
         g_quitting = TRUE;
+        KillTimer(hwnd, 2);
         clip_stop_listening(hwnd);
         Shell_NotifyIconW(NIM_DELETE, &g_nid);
         hist_save();
         PostQuitMessage(0);
         return 0;
+
+    case WM_ERASEBKGND:
+        return 1;
+
+    case WM_TIMER:
+        if (wp == 2) {
+            /* Emblem spin only - invalidate just the emblem square */
+            if (g_rcEmblem.right > g_rcEmblem.left)
+                InvalidateRect(hwnd, &g_rcEmblem, FALSE);
+            return 0;
+        }
+        break;
 
     case WM_TRAYICON: {
         if (lp == WM_RBUTTONUP) {
@@ -554,7 +706,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             ui_rebuild();
             return 0;
         }
-        if (id == 4001) {  /* Refresh */
+        if (id == ID_BTN_REFRESH) {  /* Refresh */
             wchar_t text[MAX_ITEM_CHARS];
             if (clip_get_text(text, MAX_ITEM_CHARS)) {
                 size_t len = wcslen(text);
@@ -649,6 +801,38 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         break;
     }
 
+    case WM_MOUSEMOVE: {
+        /* Detect which row the mouse is over for hover effects */
+        if (!g_scroll) break;
+        POINT pt;
+        GetCursorPos(&pt);
+        ScreenToClient(g_scroll, &pt);
+        SCROLLINFO si = {0};
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_POS;
+        GetScrollInfo(g_scroll, SB_VERT, &si);
+        int row_h = S(72);
+        int row_idx = (pt.y + si.nPos - 12) / row_h;
+        if (row_idx >= 0 && row_idx < g_hist_count) {
+            if (row_idx != g_hover_row) {
+                g_hover_row = row_idx;
+                InvalidateRect(g_scroll, NULL, FALSE);
+            }
+        } else if (g_hover_row != -1) {
+            g_hover_row = -1;
+            InvalidateRect(g_scroll, NULL, FALSE);
+        }
+        break;
+    }
+
+    case WM_MOUSELEAVE: {
+        if (g_hover_row != -1) {
+            g_hover_row = -1;
+            InvalidateRect(g_scroll, NULL, FALSE);
+        }
+        break;
+    }
+
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
@@ -659,9 +843,17 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         FillRect(hdc, &hdr, CreateSolidBrush(COL_FOOTER_BG));
         SetBkColor(hdc, COL_FOOTER_BG);
         SetTextColor(hdc, COL_TEXT);
-        DrawTextW(hdc, APP_TITLE, -1, &(RECT){ S(20), S(8), rc.right, S(32) },
+
+        /* Spinning emblem in top-right corner of header */
+        int embSz = S(48);
+        int embX = rc.right - embSz - S(8);
+        int embY = S(6);
+        SetRect(&g_rcEmblem, embX, embY, embX + embSz, embY + embSz);
+
+        DrawTextW(hdc, APP_TITLE, -1, &(RECT){ S(20), S(8), embX - S(120), S(32) },
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-        draw_suite_emblem(hdc, rc.right - S(56), S(6), S(48));
+
+        PaintEmblemBlit(hdc, embX, embY, embSz);
 
         RECT div = { 0, S(60), rc.right, S(62) };
         FillRect(hdc, &div, CreateSolidBrush(COL_DIVIDER));
@@ -714,7 +906,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
 
     g_hInst = hInst;
 
-    INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_WIN95_CLASSES };
+    INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_BAR_CLASSES };
     InitCommonControlsEx(&icc);
 
     hist_path_init();
