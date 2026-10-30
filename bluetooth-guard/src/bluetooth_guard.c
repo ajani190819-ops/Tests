@@ -319,13 +319,15 @@ static BOOL HasConnectedBefore(ULONGLONG addr) {
     _snwprintf(path, 160, L"SYSTEM\\CurrentControlSet\\Services\\BTHPORT\\Parameters\\Devices\\%s", folder);
     path[159] = L'\0';
     HKEY hKey = NULL;
+    /* Key missing = never connected = STRANGER, never show it */
     if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, path, 0, KEY_READ, &hKey) != ERROR_SUCCESS)
-        return TRUE;
+        return FALSE;
     DWORD subKeys = 0;
     LONG rc = RegQueryInfoKeyW(hKey, NULL, NULL, NULL, &subKeys, NULL, NULL,
                                NULL, NULL, NULL, NULL, NULL);
     RegCloseKey(hKey);
-    if (rc != ERROR_SUCCESS) return TRUE;
+    if (rc != ERROR_SUCCESS) return FALSE;
+    /* profile subkeys exist = this machine actually connected before */
     return subKeys > 0;
 }
 
