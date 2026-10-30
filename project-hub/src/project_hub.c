@@ -28,7 +28,7 @@
 
 #define REPO_OWNER_W      L"ajani190819-ops"
 #define REPO_NAME_W       L"Tests"
-#define FALLBACK_BRANCH_W L"arena/e895b94f-tests"
+#define FALLBACK_BRANCH_W L"arena/b6d41021-tests"
 
 #define WM_HUB_REFRESH    (WM_APP + 10)
 #define WM_HUB_STATUS     (WM_APP + 11)
@@ -903,10 +903,10 @@ static void EnsureActiveBranch(wchar_t *outBranch, size_t cap) {
         DWORD sz = 0;
         int st = 0;
         wchar_t probePath[256];
-        _snwprintf(probePath, 255, L"/%s/%s/main/bluetooth-guard/README.md", REPO_OWNER_W, REPO_NAME_W);
+        _snwprintf(probePath, 255, L"/%s/%s/main/audio-switcher/AudioSwitcher.exe", REPO_OWNER_W, REPO_NAME_W);
         BYTE *probe = HttpGetBuffer(L"raw.githubusercontent.com", probePath, &sz, &st);
         free(probe);
-        chosen = (st == 200 && sz > 20) ? L"main" : FALLBACK_BRANCH_W;
+        chosen = (st == 200 && sz > 1000) ? L"main" : FALLBACK_BRANCH_W;
     }
     EnterCriticalSection(&g_cs);
     wcsncpy(g_activeBranch, chosen, 63);
