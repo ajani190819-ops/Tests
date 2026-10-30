@@ -894,12 +894,25 @@ static void EnsureActiveBranch(wchar_t *outBranch, size_t cap) {
     }
     LeaveCriticalSection(&g_cs);
 
-    /* Saved user choice wins; only auto-probe when never chosen. */
+    /* Saved user choice wins; only auto-probe when never chosen.
+       But validate the saved branch actually has app binaries - a stale
+       saved branch (from an older hub run) would otherwise make Install
+       download from a branch where no exes exist, silently failing. */
     wchar_t chosenBuf[64];
-    const wchar_t *chosen;
+    const wchar_t *chosen = NULL;
     if (LoadBranchCfg(chosenBuf, 64)) {
-        chosen = chosenBuf;
-    } else {
+        DWORD sz = 0; int st = 0;
+        wchar_t probePath[256];
+        _snwprintf(probePath, 255, L"/%s/%s/%s/audio-switcher/AudioSwitcher.exe",
+                   REPO_OWNER_W, REPO_NAME_W, chosenBuf);
+        BYTE *probe = HttpGetBuffer(L"raw.githubusercontent.com", probePath, &sz, &st);
+        free(probe);
+        if (st == 200 && sz > 1000) {
+            chosen = chosenBuf;
+        }
+        /* else: saved branch has no exes, fall through to probing below */
+    }
+    if (!chosen) {
         DWORD sz = 0;
         int st = 0;
         wchar_t probePath[256];
