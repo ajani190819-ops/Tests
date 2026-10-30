@@ -903,10 +903,21 @@ static void EnsureActiveBranch(wchar_t *outBranch, size_t cap) {
         DWORD sz = 0;
         int st = 0;
         wchar_t probePath[256];
-        _snwprintf(probePath, 255, L"/%s/%s/main/audio-switcher/AudioSwitcher.exe", REPO_OWNER_W, REPO_NAME_W);
+        /* Prefer the session branch where builds actually live;
+           only fall back to main if the session branch has no exes. */
+        _snwprintf(probePath, 255, L"/%s/%s/%s/audio-switcher/AudioSwitcher.exe",
+                   REPO_OWNER_W, REPO_NAME_W, FALLBACK_BRANCH_W);
         BYTE *probe = HttpGetBuffer(L"raw.githubusercontent.com", probePath, &sz, &st);
         free(probe);
-        chosen = (st == 200 && sz > 1000) ? L"main" : FALLBACK_BRANCH_W;
+        if (st == 200 && sz > 1000) {
+            chosen = FALLBACK_BRANCH_W;
+        } else {
+            _snwprintf(probePath, 255, L"/%s/%s/main/audio-switcher/AudioSwitcher.exe",
+                       REPO_OWNER_W, REPO_NAME_W);
+            probe = HttpGetBuffer(L"raw.githubusercontent.com", probePath, &sz, &st);
+            free(probe);
+            chosen = (st == 200 && sz > 1000) ? L"main" : FALLBACK_BRANCH_W;
+        }
     }
     EnterCriticalSection(&g_cs);
     wcsncpy(g_activeBranch, chosen, 63);
