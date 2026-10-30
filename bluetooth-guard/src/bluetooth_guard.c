@@ -771,10 +771,6 @@ static void PollPairedDevices(void) {
         return;
     }
 
-    CheckForegroundManualIntent();
-    ULONGLONG nowTick = GetTickCount64();
-    BOOL inWindowsManualUi = (nowTick < g_manualGraceUntil);
-
     BLUETOOTH_FIND_RADIO_PARAMS rp;
     rp.dwSize = sizeof(rp);
     HANDLE hRadio = NULL;
@@ -845,31 +841,13 @@ static void PollPairedDevices(void) {
 
                     if (g_guardOn && !d->allowAuto) {
                         if (d->connected) {
-                            /* Manual connect via Windows Settings is always allowed.
-                               If the user opened Settings/Quick Settings and connected,
-                               grant a persistent session so the device stays connected
-                               even after disconnect/reconnect cycles. */
-                            if (!d->sessionAllowed) {
-                                if (inWindowsManualUi) {
-                                    /* User manually connected via Windows Settings - allow it */
-                                    d->sessionAllowed = TRUE;
-                                } else {
-                                    /* Auto-connection outside manual UI - disconnect it */
-                                    ULONGLONG addrCopy = d->address;
-                                    wchar_t kindCopy[16], nameCopy[128];
-                                    wcsncpy(kindCopy, d->kind, 15); kindCopy[15] = L'\0';
-                                    wcsncpy(nameCopy, d->name, 127); nameCopy[127] = L'\0';
-                                    LeaveCriticalSection(&g_lock);
-                                    DoDisconnectOnly(addrCopy, kindCopy, nameCopy);
-                                    EnterCriticalSection(&g_lock);
-                                    d->connected = FALSE;
-                                }
-                            }
-                            /* sessionAllowed is TRUE - leave connected (manual session active) */
+                            /* Manual user choice is always allowed.
+                               The guard prevents auto-connection, not manual
+                               connects via taskbar flyout, Settings, etc. */
+                            d->sessionAllowed = TRUE;
+                            d->seenConnected = TRUE;
                         }
-                        /* Device not connected - do nothing. Wait for the next
-                           connection attempt; manual connects via Windows Settings
-                           will be caught by inWindowsManualUi above. */
+                        /* Don't disconnect - user's manual choice stands. */
                     }
                 }
             }
@@ -1031,7 +1009,7 @@ static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
     const double deg = 0.017453292519943295;
     static const double gaps[3] = { -90.0, 30.0, 150.0 };
     static const double nrm[3] = { 90.0, -150.0, -30.0 };
-    int bgR = GetRValue(bg), bgG = GetGValue(bg), bgB = GetBValue(bg);
+    (void)bg;
     for (int j = 0; j < n; j++) {
         double y0 = ((double)j + 0.5) / (double)n;
         double y = -1.0 + 2.0 * y0;
@@ -1082,10 +1060,12 @@ static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
             double fr = 246.0 * (1 - t) + 196.0 * t;
             double fg = 249.0 * (1 - t) + 212.0 * t;
             double fb = 254.0 * (1 - t) + 234.0 * t;
-            int rr = (int)(fr * alpha + bgR * (1 - alpha) + 0.5);
-            int gg = (int)(fg * alpha + bgG * (1 - alpha) + 0.5);
-            int bb = (int)(fb * alpha + bgB * (1 - alpha) + 0.5);
-            dst[j * n + i] = RGB(rr, gg, bb);
+            int a = (int)(alpha * 255.0 + 0.5);
+            /* Premultiplied alpha RGBA: 0xAARRGGBB */
+            dst[j * n + i] = ((uint32_t)a << 24) |
+                             ((uint32_t)((int)(fr * alpha + 0.5)) << 16) |
+                             ((uint32_t)((int)(fg * alpha + 0.5)) << 8) |
+                             ((uint32_t)((int)(fb * alpha + 0.5)));
         }
     }
 }
@@ -1137,24 +1117,35 @@ static void EmbSpinDraw(uint32_t *px, int W, int H, int x, int y, int sz, COLORR
             double u = dx - c;
             double fx = (ca * u + sa * v + c) * sc;
             double fy = (-sa * u + ca * v + c) * sc;
-            if (fx < 0) fx = 0; else if (fx > maxs) fx = maxs;
-            if (fy < 0) fy = 0; else if (fy > maxs) fy = maxs;
+            if (fx < 0 || fx > maxs || fy < 0 || fy > maxs) continue; /* transparent edge */
             int x0 = (int)fx, y0 = (int)fy;
             double ax = fx - x0, ay = fy - y0;
             double w00 = (1 - ax) * (1 - ay), w10 = ax * (1 - ay);
             double w01 = (1 - ax) * ay,       w11 = ax * ay;
             const uint32_t *p00 = &src[y0 * srcSz + x0];
-            uint32_t c00 = p00[0];
-            uint32_t c10 = (x0 < maxs) ? p00[1] : c00;
+            uint32_t s00 = p00[0];
+            uint32_t s10 = (x0 < maxs) ? p00[1] : s00;
             const uint32_t *p01 = (y0 < maxs) ? p00 + srcSz : p00;
-            uint32_t c01 = p01[0];
-            uint32_t c11 = (x0 < maxs) ? p01[1] : c01;
-            double r = (c00 & 255) * w00 + (c10 & 255) * w10 + (c01 & 255) * w01 + (c11 & 255) * w11;
-            double g = ((c00 >> 8) & 255) * w00 + ((c10 >> 8) & 255) * w10 +
-                       ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
-            double b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
-                       ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
-            px[ty * W + tx] = RGB((int)(r + 0.5), (int)(g + 0.5), (int)(b + 0.5));
+            uint32_t s01 = p01[0];
+            uint32_t s11 = (x0 < maxs) ? p01[1] : s01;
+            /* Bilinear-interpolate premultiplied alpha RGBA */
+            double a = ((s00 >> 24) & 255) * w00 + ((s10 >> 24) & 255) * w10 +
+                       ((s01 >> 24) & 255) * w01 + ((s11 >> 24) & 255) * w11;
+            double r = ((s00 >> 16) & 255) * w00 + ((s10 >> 16) & 255) * w10 +
+                       ((s01 >> 16) & 255) * w01 + ((s11 >> 16) & 255) * w11;
+            double g = ((s00 >> 8) & 255) * w00 + ((s10 >> 8) & 255) * w10 +
+                       ((s01 >> 8) & 255) * w01 + ((s11 >> 8) & 255) * w11;
+            double b = (s00 & 255) * w00 + (s10 & 255) * w10 +
+                       (s01 & 255) * w01 + (s11 & 255) * w11;
+            if (a <= 0.0) continue; /* fully transparent, keep canvas */
+            double ia = 255.0 - a;
+            uint32_t dst = px[ty * W + tx];
+            /* Alpha composite: out = src * (a/255) + dst * (1 - a/255) */
+            double fa = a / 255.0;
+            uint32_t nr = (uint32_t)(r * fa + (dst & 255) * ia + 0.5);
+            uint32_t ng = (uint32_t)(g * fa + ((dst >> 8) & 255) * ia + 0.5);
+            uint32_t nb = (uint32_t)(b * fa + ((dst >> 16) & 255) * ia + 0.5);
+            px[ty * W + tx] = RGB((int)nr, (int)ng, (int)nb);
         }
     }
 }
