@@ -1003,13 +1003,13 @@ static void SmoothRoundRect(uint32_t *px, int W, int H, const RECT *rc, float ra
 #define EMB_SDF_BOOST 0.012
 
 static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
+    (void)bg;
     const double scale = EMB_SDF_SCALE, b = EMB_SDF_BOOST;
     const double pxSize = 2.0 / (double)n;
     const double aa = (pxSize * 1.35 > 1e-4) ? (pxSize * 1.35) : 1e-4;
     const double deg = 0.017453292519943295;
     static const double gaps[3] = { -90.0, 30.0, 150.0 };
     static const double nrm[3] = { 90.0, -150.0, -30.0 };
-    (void)bg;
     for (int j = 0; j < n; j++) {
         double y0 = ((double)j + 0.5) / (double)n;
         double y = -1.0 + 2.0 * y0;
@@ -1060,12 +1060,11 @@ static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
             double fr = 246.0 * (1 - t) + 196.0 * t;
             double fg = 249.0 * (1 - t) + 212.0 * t;
             double fb = 254.0 * (1 - t) + 234.0 * t;
-            int a = (int)(alpha * 255.0 + 0.5);
-            /* Premultiplied alpha RGBA: 0xAARRGGBB */
-            dst[j * n + i] = ((uint32_t)a << 24) |
-                             ((uint32_t)((int)(fr * alpha + 0.5)) << 16) |
-                             ((uint32_t)((int)(fg * alpha + 0.5)) << 8) |
-                             ((uint32_t)((int)(fb * alpha + 0.5)));
+            /* Store colour + REAL alpha in the top byte; the blit blends
+               over whatever is behind, so no flat cache box can ever show
+               as a demarcation square around the emblem. */
+            dst[j * n + i] = RGB((int)(fr + 0.5), (int)(fg + 0.5), (int)(fb + 0.5)) |
+                             ((DWORD)(int)(alpha * 255.0 + 0.5) << 24);
         }
     }
 }
@@ -1117,40 +1116,40 @@ static void EmbSpinDraw(uint32_t *px, int W, int H, int x, int y, int sz, COLORR
             double u = dx - c;
             double fx = (ca * u + sa * v + c) * sc;
             double fy = (-sa * u + ca * v + c) * sc;
-            if (fx < 0 || fx > maxs || fy < 0 || fy > maxs) continue; /* transparent edge */
+            if (fx < 0) fx = 0; else if (fx > maxs) fx = maxs;
+            if (fy < 0) fy = 0; else if (fy > maxs) fy = maxs;
             int x0 = (int)fx, y0 = (int)fy;
             double ax = fx - x0, ay = fy - y0;
             double w00 = (1 - ax) * (1 - ay), w10 = ax * (1 - ay);
             double w01 = (1 - ax) * ay,       w11 = ax * ay;
             const uint32_t *p00 = &src[y0 * srcSz + x0];
-            uint32_t s00 = p00[0];
-            uint32_t s10 = (x0 < maxs) ? p00[1] : s00;
+            uint32_t c00 = p00[0];
+            uint32_t c10 = (x0 < maxs) ? p00[1] : c00;
             const uint32_t *p01 = (y0 < maxs) ? p00 + srcSz : p00;
-            uint32_t s01 = p01[0];
-            uint32_t s11 = (x0 < maxs) ? p01[1] : s01;
-            /* Bilinear-interpolate premultiplied alpha RGBA */
-            double a = ((s00 >> 24) & 255) * w00 + ((s10 >> 24) & 255) * w10 +
-                       ((s01 >> 24) & 255) * w01 + ((s11 >> 24) & 255) * w11;
-            double r = ((s00 >> 16) & 255) * w00 + ((s10 >> 16) & 255) * w10 +
-                       ((s01 >> 16) & 255) * w01 + ((s11 >> 16) & 255) * w11;
-            double g = ((s00 >> 8) & 255) * w00 + ((s10 >> 8) & 255) * w10 +
-                       ((s01 >> 8) & 255) * w01 + ((s11 >> 8) & 255) * w11;
-            double b = (s00 & 255) * w00 + (s10 & 255) * w10 +
-                       (s01 & 255) * w01 + (s11 & 255) * w11;
-            if (a <= 0.0) continue; /* fully transparent, keep canvas */
-            double ia = 255.0 - a;
-            uint32_t dst = px[ty * W + tx];
-            /* Alpha composite: out = src * (a/255) + dst * (1 - a/255) */
-            double fa = a / 255.0;
-            uint32_t nr = (uint32_t)(r * fa + (dst & 255) * ia + 0.5);
-            uint32_t ng = (uint32_t)(g * fa + ((dst >> 8) & 255) * ia + 0.5);
-            uint32_t nb = (uint32_t)(b * fa + ((dst >> 16) & 255) * ia + 0.5);
-            px[ty * W + tx] = RGB((int)nr, (int)ng, (int)nb);
+            uint32_t c01 = p01[0];
+            uint32_t c11 = (x0 < maxs) ? p01[1] : c01;
+            double r = (c00 & 255) * w00 + (c10 & 255) * w10 + (c01 & 255) * w01 + (c11 & 255) * w11;
+            double g = ((c00 >> 8) & 255) * w00 + ((c10 >> 8) & 255) * w10 +
+                       ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
+            double b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
+                       ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
+            double a = ((c00 >> 24) & 255) * w00 + ((c10 >> 24) & 255) * w10 +
+                       ((c01 >> 24) & 255) * w01 + ((c11 >> 24) & 255) * w11;
+            int ai = (int)(a + 0.5);
+            uint32_t d = px[ty * W + tx];
+            if (ai >= 255) {
+                px[ty * W + tx] = RGB((int)(r + 0.5), (int)(g + 0.5), (int)(b + 0.5));
+            } else if (ai > 0) {
+                int dr = (int)(d & 255), dg = (int)((d >> 8) & 255), db = (int)((d >> 16) & 255);
+                px[ty * W + tx] = RGB(((int)(r + 0.5) * ai + dr * (255 - ai) + 127) / 255,
+                                      ((int)(g + 0.5) * ai + dg * (255 - ai) + 127) / 255,
+                                      ((int)(b + 0.5) * ai + db * (255 - ai) + 127) / 255);
+            }
         }
     }
 }
 
-/* Kept as symbol reference for suite emblem tests - draws the embedded 32-bit Tri-Spoke Core Emblem */
+/* Exposed symbol reference kept in sync with suite style tests */
 
 static void DrawWayfinderEmblem(uint32_t *px, int W, int H, int x, int y, int sz) {
     EmbCacheEnsure(sz, COL_BG);
