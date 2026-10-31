@@ -2,7 +2,11 @@
 """Real-export regression for Wave's one-pass bridge replacement.
 
 Run with numpy and shapely available (the same dependencies Orca installs):
-  PYTHONPATH=/tmp/wavedeps python3 tests/test_wave_gcode.py
+  pip install -r requirements-dev.txt
+  python3 tests/test_wave_gcode.py
+
+Without them it prints SKIP and exits 0 - a skip is not a pass, and
+tools/check_all.py treats it as a failure for exactly that reason.
 """
 import importlib.util
 import math

@@ -465,33 +465,33 @@
 
 ## tests/test_wave_gcode.py
 
-- L77  f as_absolute_e
-- L204  f wave_polylines
-- L225  f wave_path_length
-- L268  f wave_e_per_mm_values
-- L360  f _is_motion
-- L470  f endpoints_along
-- L506  f ends_just_short
-- L526  f bead_share
-- L547  f hole_paths
-- L613  f arc_points
-- L643  f wave_blocks_of
-- L745  f unfilled_slivers
-- L767  f near_tip
-- L900  f noop_moves_in
-- L918  f wave_extrusion_in
-- L1035  f _bridge_feedrates
-- L1321  f wall_order
-- L1334  f total_e
-- L1460  f xy_moves
-- L1472  f wave_e_ratios
-- L1542  f front_density
-- L1628  f after_first_wave_block
-- L1677  f holey_export
-- L1852  f turn_angles
-- L1912  f p90
-- L2030  f travel_after_waves
-- L2092  f stranded_wipes
+- L81  f as_absolute_e
+- L208  f wave_polylines
+- L229  f wave_path_length
+- L272  f wave_e_per_mm_values
+- L364  f _is_motion
+- L474  f endpoints_along
+- L510  f ends_just_short
+- L530  f bead_share
+- L551  f hole_paths
+- L617  f arc_points
+- L647  f wave_blocks_of
+- L749  f unfilled_slivers
+- L771  f near_tip
+- L904  f noop_moves_in
+- L922  f wave_extrusion_in
+- L1039  f _bridge_feedrates
+- L1325  f wall_order
+- L1338  f total_e
+- L1464  f xy_moves
+- L1476  f wave_e_ratios
+- L1546  f front_density
+- L1632  f after_first_wave_block
+- L1681  f holey_export
+- L1856  f turn_angles
+- L1916  f p90
+- L2034  f travel_after_waves
+- L2096  f stranded_wipes
 
 ## tests/test_windows_apps.py
 

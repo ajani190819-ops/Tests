@@ -226,17 +226,31 @@ rung that is continuous along the whole stretch of wall being hugged.
 
 ## Verification commands
 
+The canonical runner is `python3 tools/check_all.py` — it runs every suite
+concurrently, in BOTH dependency states, plus the repository consistency
+checks. The individual commands below are for narrowing down one failure.
+
 ```bash
+pip install -r requirements-dev.txt      # numpy + shapely, for the geometry suite
 python3 tests/test_installer.py
 python3 tests/test_post_script.py
-python3 tests/test_plugin_runtime.py
 python3 tests/test_plugin_audit.py
 python3 tests/test_unlayered_waves.py
-PYTHONPATH=/tmp/wavedeps python3 tests/test_wave_gcode.py
-PYTHONPATH=/tmp/wavedeps python3 archive/tests/test_wave_geometry.py  # archived
+python3 tests/test_wave_gcode.py         # SKIPs (exit 0) without numpy + shapely
 python3 tools/sync_engine.py --check
 python3 tools/sync_changelog.py --check
 python3 -m py_compile plugins/wave-overhangs/wave_overhangs_orca.py
+```
+
+`tests/test_plugin_runtime.py` asserts the FIRST-RUN path, where numpy and
+shapely are absent, so running it with them installed makes its
+dependency-absent checks fail. `check_all.py` runs it inside a PYTHONPATH that
+blocks both imports; to reproduce that by hand:
+
+```bash
+mkdir -p /tmp/nodeps
+printf 'raise ImportError("blocked")\n' | tee /tmp/nodeps/numpy.py /tmp/nodeps/shapely.py >/dev/null
+PYTHONPATH=/tmp/nodeps python3 tests/test_plugin_runtime.py
 ```
 
 The Wave regression needs `numpy` and `shapely`. The `.bat` files need a raw
