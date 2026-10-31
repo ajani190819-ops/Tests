@@ -566,7 +566,6 @@ def main():
 
     # Build a crisp showcase sheet so the user can inspect the entire icon family side by side
     cols = 3
-    rows = 3
     sheet_w, sheet_h = 1140, 960
     sheet = Image.new("RGBA", (sheet_w, sheet_h), (22, 25, 34, 255))
     draw = ImageDraw.Draw(sheet)

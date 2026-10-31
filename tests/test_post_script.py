@@ -245,7 +245,7 @@ check("".join(again_lines) == out_text, "a second pass changed the file")
 check(tool.MARKER_PREFIX == "; unlayered-infill",
       f"MARKER_PREFIX changed to {tool.MARKER_PREFIX!r}. G-code stamped by an "
       f"earlier version would no longer be recognised and would be waved twice.")
-old_stamped = f"; unlayered-infill v0.0.1-ancient\n" + src
+old_stamped = "; unlayered-infill v0.0.1-ancient\n" + src
 _, old_stats = tool.process(old_stamped.splitlines(keepends=True))
 check(old_stats["already_processed"] is True,
       "a file stamped by an older version was not recognised as already done")

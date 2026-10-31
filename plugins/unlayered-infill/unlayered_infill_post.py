@@ -1008,9 +1008,9 @@ def describe(stats):
     noz = stats.get("nozzle_mm")
     out = [
         f"extrusion mode ....... {stats['extrusion_mode']}",
-        f"layer height ......... "
+        "layer height ......... "
         + (f"{lh:.3f} mm" if lh else "not stated in the G-code"),
-        f"nozzle ............... "
+        "nozzle ............... "
         + (f"{noz:.3f} mm" if noz else "not stated in the G-code"),
         f"grid columns ......... {stats.get('cell_desc', '')}",
         f"amplitude ............ {stats['amplitude_desc']}",

@@ -6,86 +6,88 @@
 
 ## project-hub/src/project_hub.c
 
-- L254  f GetWinDpi
-- L269  f S
-- L271  f ApplyModernWindowFrame
-- L290  f RebuildFontsAndIcons
-- L333  f EmbRasterize
-- L410  f EmbCacheEnsure
-- L425  f EmbSpinDraw
-- L482  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
-- L487  f FileExistsW
-- L492  f LocalSizeOf
-- L502  f FileHealthyW
-- L506  f DirExistsW
-- L511  f EnsureDirTree
-- L533  f SetCheckPhase
-- L538  f SetFooterStatus
-- L547  f ReadTextFileUtf8
-- L563  f WriteBinaryFileAtomic
-- L610  f HttpSession
-- L620  f HttpConnect
-- L633  f HttpHeadSize
-- L654  f HttpGetBufferEx
-- L736  f HttpGetBuffer
-- L754  f HttpGetCached
-- L815  f DownloadRawRepoFile
-- L833  f BranchCfgPath
-- L838  f LoadBranchCfg
-- L846  f SaveBranchCfg
-- L859  f LoadAppsCfg
-- L866  f SaveAppsCfg
-- L873  f EnsureActiveBranch
-- L906  f ExtractQuotedAfter
-- L924  f VerNewer
-- L937  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
-- L967  f InitAllPaths
-- L1095  f CheckPidLockStatus
-- L1127  f CreateShortcutLink
-- L1160  f LoadIconFilePx
-- L1169  f PoolAdd
-- L1179  f JsonGet
-- L1199  f BuiltInSlot
-- L1205  f BuiltInBtnId
-- L1229  f FillBuiltInDef
-- L1319  f AddCatalogCard
-- L1432  f RebuildExtraCards
-- L1469  f WorkerInstallGeneric
-- L1502  f HandleVerb
-- L1525  f InitCardDefinitions
-- L1574  f RefreshProjectStatuses
-- L1888  f WorkerCheckRemote
-- L2023  f StopProcessFromLock
-- L2036  f WorkerInstallBluetoothGuard
-- L2097  f WorkerInstallNotes
-- L2137  f WorkerInstallDnsPilot
-- L2201  f WorkerInstallKeyboardLighting
-- L2286  f WorkerInstallSpatialHud
-- L2348  f WorkerInstallOrcaPlugins
-- L2445  f WorkerSelfUpdateHub
-- L2502  f EnqueueTask
-- L2557  f RestartKeyboardLightingCleanly
-- L2576  f PromptTextInput
-- L2580  f NormalizeDirPath
-- L2596  f SaveModsDirFromInput
-- L2618  f PickSpatialHudModsFolder
-- L2661  f FillCanvasRect
-- L2674  f SmoothRoundRect
-- L2732  f DrawActionBtn
-- L2754  f ComputeLayout
-- L2802  f HitTestButtons
-- L2819  f PaintEmblemBlit
-- L2846  f PaintHubWindow
-- L3097  f ShowUtilityMenu
-- L3111  S download-branch picker
-- L3113  f FetchBranchNames  — ---- download-branch picker -------------------------------------------
-- L3138  f EnsureBranchInMenu
-- L3203  f PromptTextInput
-- L3267  f PromptBranchName
-- L3272  f SetActiveBranch
-- L3290  f ShowBranchMenu
-- L3326  f HandleActionCommand
-- globals: g_hInst (L185), g_hwnd (L186), g_fontHero (L187), g_fontSub (L188), g_fontTitle (L189), g_fontBody (L190), g_fontBtn (L191), g_fontBadge (L192), g_appIcon (L193), g_hdrEmblem (L194), g_cardIcons (L195), g_showEvent (L196), g_hMutex (L197), g_cs (L198), g_topBtns (L200), g_rcEmblem (L206), g_cards (L208), g_cardCount (L209), g_dynIdx (L210), g_hoverId (L211), g_scrollY (L212), g_maxScrollY (L213), g_exePath (L215), g_exeDir (L216), g_localApp (L217), g_roamApp (L218), g_suiteDir (L219), g_hubCfgDir (L220), g_btgDir (L221), g_btgExtraExe (L222), g_kblDir (L223), g_dnsDir (L224), g_notesDir (L225), g_modsDir (L226), g_orcaBatDir (L227), g_activeBranch (L230), g_branchMenuNames (L231), g_branchMenuN (L232), g_branchPromptOut (L233), g_remHubVer (L234), g_remWaveVer (L235), g_remInfillVer (L236), g_remHudName (L237), g_remHudPath (L238), g_remHudSize (L239), g_statusMsg (L240), g_progressVal (L241), g_hubUpdAvail (L242), g_taskQueue (L245), g_qHead (L246), g_qTail (L247), g_qSem (L248), g_running (L249), g_embCache (L408), g_checkActive (L526), g_remBtgSize (L527), g_rcFooterDot (L528), g_httpSess (L597), g_httpConns (L603), g_hcache (L752), g_hudDisabled (L857), g_catalogJson (L1153), g_strPool (L1166), g_strPoolUsed (L1167), g_frameCache (L2843), g_fcW (L2844)
+- L267  f GetWinDpi
+- L282  f S
+- L284  f ApplyModernWindowFrame
+- L303  f RebuildFontsAndIcons
+- L346  f EmbRasterize
+- L423  f EmbCacheEnsure
+- L438  f EmbSpinDraw
+- L495  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
+- L500  f FileExistsW
+- L505  f LocalSizeOf
+- L515  f FileHealthyW
+- L519  f DirExistsW
+- L524  f EnsureDirTree
+- L546  f SetCheckPhase
+- L551  f SetFooterStatus
+- L560  f ReadTextFileUtf8
+- L576  f WriteBinaryFileAtomic
+- L623  f HttpSession
+- L633  f HttpConnect
+- L646  f HttpHeadSize
+- L667  f HttpGetBufferEx
+- L749  f HttpGetBuffer
+- L767  f HttpGetCached
+- L828  f DownloadRawRepoFile
+- L846  f BranchCfgPath
+- L851  f LoadBranchCfg
+- L859  f SaveBranchCfg
+- L873  f LoadAppsCfg
+- L880  f SaveAppsCfg
+- L887  f EnsureActiveBranch
+- L944  f ExtractQuotedAfter
+- L962  f VerNewer
+- L975  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
+- L1005  f InitAllPaths
+- L1159  f CheckPidLockStatus
+- L1191  f CreateShortcutLink
+- L1224  f LoadIconFilePx
+- L1237  f LoadCardIcon
+- L1260  f PoolAdd
+- L1286  f JsonGet
+- L1415  f BuiltInSlot
+- L1421  f BuiltInBtnId
+- L1449  f FillBuiltInDef
+- L1566  f AddCatalogCard
+- L1702  f RestoreBuiltInCardText
+- L1749  f RebuildExtraCards
+- L1783  f WorkerInstallGeneric
+- L1819  f HandleVerb
+- L1842  f InitCardDefinitions
+- L1941  f RefreshProjectStatuses
+- L2366  f WorkerCheckRemote
+- L2507  f StopProcessFromLock
+- L2520  f WorkerInstallBluetoothGuard
+- L2581  f WorkerInstallNotes
+- L2621  f WorkerInstallDnsPilot
+- L2685  f WorkerInstallKeyboardLighting
+- L2770  f WorkerInstallSpatialHud
+- L2832  f WorkerInstallOrcaPlugins
+- L2929  f WorkerSelfUpdateHub
+- L2986  f EnqueueTask
+- L3041  f RestartKeyboardLightingCleanly
+- L3060  f PromptTextInput
+- L3064  f NormalizeDirPath
+- L3080  f SaveModsDirFromInput
+- L3102  f PickSpatialHudModsFolder
+- L3145  f FillCanvasRect
+- L3158  f SmoothRoundRect
+- L3216  f DrawActionBtn
+- L3238  f ComputeLayout
+- L3287  f HitTestButtons
+- L3305  f PaintEmblemBlit
+- L3332  f PaintHubWindow
+- L3584  f ShowUtilityMenu
+- L3598  S download-branch picker
+- L3600  f FetchBranchNames  — ---- download-branch picker -------------------------------------------
+- L3625  f EnsureBranchInMenu
+- L3690  f PromptTextInput
+- L3754  f PromptBranchName
+- L3759  f SetActiveBranch
+- L3777  f ShowBranchMenu
+- L3813  f HandleActionCommand
+- globals: g_hInst (L196), g_hwnd (L197), g_fontHero (L198), g_fontSub (L199), g_fontTitle (L200), g_fontBody (L201), g_fontBtn (L202), g_fontBadge (L203), g_appIcon (L204), g_hdrEmblem (L205), g_cardIcons (L206), g_showEvent (L207), g_hMutex (L208), g_cs (L209), g_topBtns (L211), g_rcEmblem (L217), g_cards (L219), g_cardCount (L220), g_dynIdx (L221), g_hoverId (L222), g_scrollY (L223), g_maxScrollY (L224), g_exePath (L226), g_exeDir (L227), g_localApp (L228), g_roamApp (L229), g_suiteDir (L230), g_hubCfgDir (L231), g_btgDir (L232), g_btgExtraExe (L233), g_kblDir (L234), g_dnsDir (L235), g_notesDir (L236), g_audioSwitcherDir (L237), g_clipboardMemoryDir (L238), g_modsDir (L239), g_orcaBatDir (L240), g_activeBranch (L243), g_branchMenuNames (L244), g_branchMenuN (L245), g_branchPromptOut (L246), g_remHubVer (L247), g_remWaveVer (L248), g_remInfillVer (L249), g_remHudName (L250), g_remHudPath (L251), g_remHudSize (L252), g_statusMsg (L253), g_progressVal (L254), g_hubUpdAvail (L255), g_taskQueue (L258), g_qHead (L259), g_qTail (L260), g_qSem (L261), g_running (L262), g_embCache (L421), g_checkActive (L539), g_remBtgSize (L540), g_rcFooterDot (L541), g_httpSess (L610), g_httpConns (L616), g_hcache (L765), g_hudDisabled (L870), g_orcaDisabled (L871), g_catalogJson (L1217), g_strPool (L1257), g_strPoolUsed (L1258), g_frameCache (L3329), g_fcW (L3330)
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
@@ -98,40 +100,40 @@
 - L274  f ApplyModernWindowFrame
 - L290  f InitBluetoothApis
 - L311  f HasConnectedBefore
-- L332  f FormatMac
-- L340  f FormatCompactHex
-- L345  f ContainsCI
-- L355  f CheckForegroundManualIntent  — Detect when the user is actively clicking inside Windows Settings or Windows 11 Quick Settings flyou
-- L375  f ClassifyDevice
-- L398  f EnsureProfilesEnabled  — Keep Windows Bluetooth service profiles ENABLED so manual Connect in Windows Settings ALWAYS works!
-- L418  f EndpointMatchesName  — Match endpoint adapter friendly name (covers HFP / LE Audio when PnP ID lacks classic hex MAC)
-- L440  f TriggerBtAudioKsProperty  — Native Windows KSPROPERTY_ONESHOT_RECONNECT / DISCONNECT — exact API used by Windows 11 Settings!
-- L513  f DoDisconnectOnly  — Disconnect active link cleanly WITHOUT disabling Bluetooth profiles!
-- L538  f DoConnectNow  — Actively connect device right now!
-- L543  f InitPaths
-- L553  f WriteHeartbeat
-- L574  f IsAutostartEnabled
-- L587  f RunHiddenCmd
-- L606  f SetAutostart  — Install both:
-- L690  f SaveRules
-- L709  f LoadRules
-- L748  f EnqueueWork
-- L764  f PollPairedDevices
-- L884  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
-- L948  f FillCanvasRect
-- L961  f SmoothRoundRect
-- L1026  f EmbRasterize
-- L1102  f EmbCacheEnsure
-- L1117  f EmbSpinDraw
-- L1163  f DrawWayfinderEmblem  — Kept as symbol reference for suite emblem tests - draws the embedded 32-bit Tri-Spoke Core Emblem
-- L1168  f DrawStatusTag
-- L1194  f DrawActionBtn  — style: 0=soft secondary, 1=primary cobalt, 2=coral disconnect, 3=primary connect
-- L1217  f DrawPillToggle  — Smooth rounded pill switch control with label + sliding circular knob
-- L1245  f AddHit
-- L1254  f RenderWindow
-- L1501  f HandleHitClick
-- L1571  f ShowTrayMenu
-- globals: g_hwnd (L144), g_appIcon (L145), g_devNotifyIface (L146), g_devNotifyRadio (L147), g_radioNotifyHandle (L148), g_nid (L149), g_quitting (L150), g_guardOn (L151), g_autostart (L152), g_autostartExplicit (L153), g_radioOn (L154), g_trayHinted (L155), g_showEvent (L156), g_lock (L157), g_devices (L159), g_devCount (L160), g_hits (L162), g_hitCount (L163), g_hoverIdx (L164), g_scrollY (L165), g_contentH (L166), g_fastBurstUntil (L168), g_manualGraceUntil (L169), g_queue (L248), g_qHead (L249), g_qTail (L250), g_qSem (L251), g_workerRun (L252), g_cfgDir (L253), g_rulesPath (L254), g_lockPath (L255), g_embCache (L1100)
+- L334  f FormatMac
+- L342  f FormatCompactHex
+- L347  f ContainsCI
+- L357  f CheckForegroundManualIntent  — Detect when the user is actively clicking inside Windows Settings or Windows 11 Quick Settings flyou
+- L377  f ClassifyDevice
+- L400  f EnsureProfilesEnabled  — Keep Windows Bluetooth service profiles ENABLED so manual Connect in Windows Settings ALWAYS works!
+- L420  f EndpointMatchesName  — Match endpoint adapter friendly name (covers HFP / LE Audio when PnP ID lacks classic hex MAC)
+- L442  f TriggerBtAudioKsProperty  — Native Windows KSPROPERTY_ONESHOT_RECONNECT / DISCONNECT — exact API used by Windows 11 Settings!
+- L515  f DoDisconnectOnly  — Disconnect active link cleanly WITHOUT disabling Bluetooth profiles!
+- L540  f DoConnectNow  — Actively connect device right now!
+- L545  f InitPaths
+- L555  f WriteHeartbeat
+- L576  f IsAutostartEnabled
+- L589  f RunHiddenCmd
+- L608  f SetAutostart  — Install both:
+- L692  f SaveRules
+- L711  f LoadRules
+- L750  f EnqueueWork
+- L766  f PollPairedDevices
+- L863  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
+- L927  f FillCanvasRect
+- L940  f SmoothRoundRect
+- L1005  f EmbRasterize
+- L1082  f EmbCacheEnsure
+- L1097  f EmbSpinDraw
+- L1154  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
+- L1159  f DrawStatusTag
+- L1185  f DrawActionBtn  — style: 0=soft secondary, 1=primary cobalt, 2=coral disconnect, 3=primary connect
+- L1208  f DrawPillToggle  — Smooth rounded pill switch control with label + sliding circular knob
+- L1236  f AddHit
+- L1245  f RenderWindow
+- L1492  f HandleHitClick
+- L1562  f ShowTrayMenu
+- globals: g_hwnd (L144), g_appIcon (L145), g_devNotifyIface (L146), g_devNotifyRadio (L147), g_radioNotifyHandle (L148), g_nid (L149), g_quitting (L150), g_guardOn (L151), g_autostart (L152), g_autostartExplicit (L153), g_radioOn (L154), g_trayHinted (L155), g_showEvent (L156), g_lock (L157), g_devices (L159), g_devCount (L160), g_hits (L162), g_hitCount (L163), g_hoverIdx (L164), g_scrollY (L165), g_contentH (L166), g_fastBurstUntil (L168), g_manualGraceUntil (L169), g_queue (L248), g_qHead (L249), g_qTail (L250), g_qSem (L251), g_workerRun (L252), g_cfgDir (L253), g_rulesPath (L254), g_lockPath (L255), g_embCache (L1080)
 
 ## keyboard-lighting/src/keyboard_lighting.c
 
@@ -356,7 +358,7 @@
 - L73  f save_cache
 - L81  f make_nodeps
 - L91  f exec_task
-- L109  f main
+- L116  f main
 
 ## tools/dump_default_config.py
 
@@ -377,14 +379,19 @@
 - L328  f build_icon_spatial_hud
 - L360  f build_icon_orca_plugins
 - L388  f build_icon_dns_pilot
-- L410  f save_multi_ico
-- L442  f main
-- L541  f export_spin_loops
+- L410  f build_icon_agent_notes
+- L451  f build_icon_audio_switcher
+- L479  f build_icon_clipboard_memory
+- L513  f save_multi_ico
+- L545  f main
+- L646  f export_spin_loops
 
 ## tools/notes_server.py
 
-- L68  f Handler
-- L121  f main
+- L124  f sanitize_note
+- L142  f rate_limit_allow
+- L159  f Handler
+- L278  f main
 
 ## tools/sync_changelog.py
 
@@ -488,9 +495,9 @@
 
 ## tests/test_windows_apps.py
 
-- L26  f strip_cs_comments_and_strings
-- L148  f lex_powershell
-- L283  f WindowsDesktopAppsTests
+- L27  f strip_cs_comments_and_strings
+- L149  f lex_powershell
+- L284  f WindowsDesktopAppsTests
 
 ## tests/wave_cases.py
 
