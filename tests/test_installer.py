@@ -47,11 +47,6 @@ GATTR = REPO / ".gitattributes"
 
 failures: list[str] = []
 
-# Issues no commit can fix -- they need a human with the GitHub web UI. Printed
-# loudly at the end, but deliberately NOT counted as failures: a red gate that
-# only a human can clear would block every unrelated commit behind it.
-advisories: list[str] = []
-
 
 def check(cond: bool, msg: str) -> bool:
     if not cond:
@@ -929,22 +924,25 @@ check("[version]'%NEW_FV%' -le [version]'%FRONTDOOR_VERSION%'" in bat,
       ":self_update can downgrade a newer local copy to an older remote copy")
 
 # --------------------------------------------------------------------------
-# 6. The CI workflows: enforce docs/ci/, and loudly report .github/workflows/.
+# 6. docs/ci/ and .github/workflows/ must not drift apart.
 #
-# docs/ci/ is the authoritative copy -- it is the one CI-SETUP.md tells you to
-# paste into .github/workflows/, and it is the only one this repository can
-# always write. GitHub refuses workflow-file writes from a token that lacks the
-# special `workflows` permission, so .github/workflows/ can legitimately lag
-# behind and no commit can close the gap. That lag is reported as an ADVISORY
-# rather than a failure: failing a gate that only a human with the web UI can
-# clear would block every unrelated commit behind it.
+# docs/ci/ is the authoritative copy -- the one CI-SETUP.md tells you to paste
+# into .github/workflows/, and the only one this repository can always write.
+# GitHub refuses workflow-file writes from a token that lacks the special
+# `workflows` permission, so closing a gap here needs a human with the web UI.
 #
-# What IS enforced is that docs/ci/ is correct, so the copy a human pastes can
-# never be the broken one. This split rotted silently once before: the live
-# build-spatial-hud.yml lost `main`, `pull_request` and its concurrency group
-# while docs/ci/ kept all three, and the rolling release accumulated stale jar
-# assets the hub would install in preference to the newest build. ci.yml never
-# reached .github/workflows/ at all, so nothing ran on push.
+# Both directions are enforced as hard failures. That is deliberate: the check
+# only ever fires when someone edits docs/ci/, which is precisely the moment a
+# paste is needed, so a red gate is the truthful signal -- it is what stops the
+# fix from being committed on paper and never going live. The cost is that the
+# gate stays red for unrelated commits too until the paste happens; that window
+# is short and the failure text names the exact file to paste.
+#
+# This split rotted silently once before: the live build-spatial-hud.yml lost
+# `main`, `pull_request` and its concurrency group while docs/ci/ kept all
+# three, and the rolling release accumulated stale jar assets the hub would
+# install in preference to the newest build. ci.yml never reached
+# .github/workflows/ at all, so nothing ran on push.
 
 # The rolling release the hub installs from must never keep more than one jar:
 # WorkerInstallSpatialHud takes the FIRST browser_download_url, and GitHub
@@ -975,29 +973,21 @@ for _name in ("ci.yml", "build-spatial-hud.yml"):
     _live = REPO / ".github" / "workflows" / _name
     if not _doc.exists():
         continue
-    if not _live.exists():
-        advisories.append(
-            f".github/workflows/{_name} does not exist, so that workflow is not "
-            f"running at all. Paste docs/ci/{_name} in by hand via the GitHub web "
-            f"UI: see docs/spatial-hud/CI-SETUP.md.")
-    elif _doc.read_bytes() != _live.read_bytes():
-        advisories.append(
-            f".github/workflows/{_name} differs from docs/ci/{_name}. The live one "
-            f"is what GitHub actually runs, so the fix is not applied until you "
-            f"paste docs/ci/{_name} over it: see docs/spatial-hud/CI-SETUP.md.")
+    check(_live.exists(),
+          f".github/workflows/{_name} does not exist, so that workflow is not "
+          f"running at all. GitHub refuses workflow-file writes from a token "
+          f"without the `workflows` permission, so this needs a human: paste "
+          f"docs/ci/{_name} in via the web UI -- see docs/spatial-hud/CI-SETUP.md")
+    if _live.exists():
+        check(_doc.read_bytes() == _live.read_bytes(),
+              f".github/workflows/{_name} differs from docs/ci/{_name}. The live "
+              f"one is what GitHub actually runs, so the documented copy is not "
+              f"applied and the two have started to rot apart. Paste "
+              f"docs/ci/{_name} over it: see docs/spatial-hud/CI-SETUP.md")
 
 # --------------------------------------------------------------------------
 if failures:
     report_and_exit()
-
-if advisories:
-    print()
-    print("!" * 72)
-    print("!! ACTION REQUIRED -- manual step, cannot be fixed by a commit:")
-    for _a in advisories:
-        print(f"!!   - {_a}")
-    print("!" * 72)
-    print()
 
 print(f"ok -- catalogue, .bat fallback list, CRLF discipline and install replay "
       f"all agree ({len(ready)} ready plugin(s), {len(plugins)} listed)")
