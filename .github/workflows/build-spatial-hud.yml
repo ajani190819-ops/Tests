@@ -2,11 +2,19 @@ name: Build Spatial HUD
 
 on:
   push:
-    branches: ['arena/**']
+    branches: [main, 'arena/**']
+    paths:
+      - 'spatial-hud-template-26.3/**'
+      - '.github/workflows/build-spatial-hud.yml'
+  pull_request:
     paths:
       - 'spatial-hud-template-26.3/**'
       - '.github/workflows/build-spatial-hud.yml'
   workflow_dispatch:
+
+concurrency:
+  group: build-spatial-hud-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -29,22 +37,71 @@ jobs:
           java-version: 25
           cache: gradle
 
-      - name: Build
+      # `build` already depends on `test`; `test` is named explicitly so the
+      # step keeps working when JUnit sources are added under src/test/.
+      - name: Build and run tests
         run: |
           chmod +x gradlew
-          ./gradlew build --no-daemon
+          ./gradlew build test --no-daemon
 
-      - name: Publish jar to rolling release
-        if: success()
+      - name: Publish jar to release feed
+        if: success() && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           rm -f build/libs/*-sources.jar
-          if ! gh release view spatial-hud-latest > /dev/null 2>&1; then
-            gh release create spatial-hud-latest \
-              --target "$GITHUB_SHA" \
-              --title "Spatial HUD — latest build" \
-              --notes "Automated build from commit ${GITHUB_SHA::7}. Minecraft 26.3, Fabric." \
-              --prerelease
+          JAR="$(ls build/libs/spatial-hud-*.jar 2>/dev/null | head -n 1 || true)"
+          if [ -z "$JAR" ] || [ ! -f "$JAR" ]; then
+            echo "No Spatial HUD jar was produced in build/libs; nothing published." >&2
+            exit 1
           fi
-          gh release upload spatial-hud-latest build/libs/spatial-hud-*.jar --clobber
+          JAR_BASE="$(basename "$JAR")"
+          REF="$GITHUB_REF_NAME"
+          SAFE="${REF//\//-}"
+          STAMP="$(date -u +%Y-%m-%dT%H:%MZ)"
+
+          # publish <tag> <title> <notes>
+          #
+          # Uploads the jar, then DELETES every other asset on the release.
+          # `gh release upload --clobber` overwrites same-named files but never
+          # removes old ones, and ProjectHub's WorkerInstallSpatialHud takes the
+          # FIRST browser_download_url it is given. Assets come back sorted by
+          # name, so a leftover `spatial-hud-1.0.0.jar` outranks
+          # `spatial-hud-1.0.4.jar` forever and the hub installs the oldest
+          # build. This used to be a manual `gh release delete-asset` step after
+          # every publish; it is now part of the publish itself.
+          publish() {
+            tag="$1"; title="$2"; notes="$3"
+            if ! gh release view "$tag" > /dev/null 2>&1; then
+              gh release create "$tag" \
+                --target "$GITHUB_SHA" \
+                --title "$title" \
+                --notes "$notes" \
+                --prerelease
+            fi
+            gh release upload "$tag" "$JAR" --clobber
+            for asset in $(gh release view "$tag" --json assets -q '.assets[].name'); do
+              if [ "$asset" != "$JAR_BASE" ]; then
+                echo "removing stale asset from $tag: $asset"
+                gh release delete-asset "$tag" "$asset" --yes || true
+              fi
+            done
+            gh release edit "$tag" --title "$title" --notes "$notes"
+            echo "published $JAR_BASE to $tag"
+            gh release view "$tag" --json assets -q '.assets[].name'
+          }
+
+          # The shared rolling feed is only ever updated from released `main`,
+          # so a scratch branch can never overwrite what users install.
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            publish spatial-hud-latest \
+              "Spatial HUD — latest build" \
+              "$(printf 'Newest released build: %s at commit %s (%s).\nMinecraft 26.3, Fabric.\n' "$REF" "${GITHUB_SHA:0:7}" "$STAMP")"
+          fi
+
+          # Always publish a branch-scoped feed too, so test builds stay
+          # selectable from Update-SpatialHUD.bat's build picker.
+          publish "spatial-hud-build-$SAFE" \
+            "Spatial HUD — $REF" \
+            "$(printf 'Automated Spatial HUD build.\nBranch: %s\nCommit: %s\nBuilt: %s\n' "$REF" "${GITHUB_SHA:0:7}" "$STAMP")"
