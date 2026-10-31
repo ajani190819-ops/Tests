@@ -17,6 +17,7 @@ Enforces:
      project-hub (no UI-thread deadlocks, no stale HSEQB URLs, no personal path PII).
 """
 from pathlib import Path
+import json
 import re
 import unittest
 
@@ -599,6 +600,146 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             self.assertEqual(raw[:4], b"\x00\x00\x01\x00", f"{rel_ico} missing valid Windows ICO header")
             count = int.from_bytes(raw[4:6], "little")
             self.assertGreaterEqual(count, 5, f"{rel_ico} should include multi-DPI icon frames")
+
+    def test_suite_apps_catalog_is_complete_and_matches_the_hub(self):
+        """suite-apps.json is the hub's data-driven extension point: one entry
+        adds a card with no hub rebuild. It had no test coverage at all, which
+        is how an entry shipped without an `id` -- and AddCatalogCard returns
+        early on a missing id, so that card silently stopped being refreshed
+        from the catalog and kept pointers into a string pool the next rebuild
+        had already reset."""
+        catalog = json.loads((ROOT / "suite-apps.json").read_text(encoding="utf-8"))
+        apps = catalog["apps"]
+        self.assertTrue(apps, "suite-apps.json lists no apps")
+
+        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+
+        # The ids the hub recognises as built-in cards, read out of BuiltInSlot
+        # so this test follows the source instead of duplicating a list.
+        m = re.search(r'static const char \*known\[\d+\]\s*=\s*\{([^}]*)\}', hub_c)
+        self.assertIsNotNone(m, "BuiltInSlot's known[] table changed shape - update this test")
+        known = re.findall(r'"([^"]+)"', m.group(1))
+        self.assertTrue(known, "could not read the hub's built-in id list")
+
+        ids = []
+        for i, app in enumerate(apps):
+            where = f"suite-apps.json apps[{i}]"
+
+            # `id` first: everything else is unreachable without it, because
+            # AddCatalogCard does `if (!JsonGet(obj, "id", ...)) return;`.
+            self.assertIn("id", app,
+                          f"{where} ({app.get('title', '<no title>')}) has no `id` - "
+                          f"AddCatalogCard returns before reading ANY other field, so "
+                          f"this card is never refreshed from the catalog")
+            app_id = app["id"]
+            ids.append(app_id)
+            where = f"suite-apps.json '{app_id}'"
+
+            for field in ("title", "blurb", "dir", "icon", "shortcut", "buttons"):
+                self.assertIn(field, app, f"{where} is missing `{field}`")
+                self.assertTrue(str(app.get(field, "")).strip(),
+                                f"{where} has an empty `{field}`")
+
+            # A built-in id must be one the hub actually recognises, or the
+            # entry is treated as a new dynamic card and duplicates the card.
+            if app_id in known:
+                self.assertLess(known.index(app_id), 8,
+                                f"{where} maps outside the 8 built-in slots")
+            # An exe-backed app must point at a file that exists in the repo:
+            # the hub downloads this exact path from raw.githubusercontent.
+            if app.get("exe"):
+                self.assertTrue((ROOT / app["exe"]).exists(),
+                                f"{where} exe `{app['exe']}` does not exist in the repo")
+            self.assertTrue((ROOT / app["icon"]).exists(),
+                            f"{where} icon `{app['icon']}` does not exist in the repo")
+
+            # Every verb must be one BuiltInBtnId can map to a WM_COMMAND id,
+            # otherwise FillBuiltInDef drops the button silently.
+            slots = app["buttons"].split(",")
+            self.assertLessEqual(len(slots), 4,
+                                 f"{where} declares {len(slots)} buttons; ActionBtn holds 4")
+            for slot in slots:
+                parts = slot.split(":")
+                self.assertGreaterEqual(len(parts), 2,
+                                        f"{where} button `{slot}` is not verb:Label[:width]")
+                verb = parts[0].strip()
+                self.assertTrue(verb, f"{where} button `{slot}` has an empty verb")
+                if app_id in known:
+                    # BuiltInBtnId's map entries look like: { "open", ID_BTG_OPEN },
+                    self.assertRegex(hub_c, rf'\{{\s*"{re.escape(verb)}",',
+                                     f"{where} verb `{verb}` is not in BuiltInBtnId's map, "
+                                     f"so FillBuiltInDef drops the button silently")
+                if len(parts) > 2:
+                    self.assertTrue(parts[2].isdigit(),
+                                    f"{where} button width `{parts[2]}` is not a number")
+
+        self.assertEqual(len(ids), len(set(ids)),
+                         f"duplicate ids in suite-apps.json: {ids}")
+        # Every built-in card the hub renders should be described by the
+        # catalog, so its text survives a catalog refresh.
+        self.assertEqual(sorted(known), sorted(ids),
+                         f"suite-apps.json and the hub's built-in slots disagree.\n"
+                         f"  hub knows:      {sorted(known)}\n"
+                         f"  catalog lists:  {sorted(ids)}\n"
+                         f"A built-in card missing from the catalog is never "
+                         f"repopulated after the string pool is reset.")
+
+    def test_hub_restores_every_pool_backed_card_field_before_a_rebuild(self):
+        """RebuildExtraCards resets g_strPoolUsed, which invalidates EVERY
+        pool-backed pointer on the built-in cards. Titles alone used to be
+        restored (and only 6 of 8), so a card absent from the catalog came back
+        pointing at recycled pool memory and drew another app's text."""
+        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+
+        self.assertIn("RestoreBuiltInCardText", hub_c,
+                      "the pool-backed card fields are not restored before the "
+                      "string pool is reset")
+        rebuild = hub_c[hub_c.index("static void RebuildExtraCards"):]
+        rebuild = rebuild[:rebuild.index("\nstatic ")]
+        restore_at = rebuild.index("RestoreBuiltInCardText();")
+        reset_at = rebuild.index("g_strPoolUsed = 0;")
+        self.assertLess(restore_at, reset_at,
+                        "RestoreBuiltInCardText() must run BEFORE g_strPoolUsed = 0, "
+                        "otherwise the literals are written and then invalidated")
+
+        body = hub_c[hub_c.index("static void RestoreBuiltInCardText"):]
+        body = body[:body.index("\nstatic ")]
+        for field in ("title", "blurb", "exeRepo", "exeName", "shortcutName",
+                      "launchArgs"):
+            self.assertIn(f"c->{field}", body,
+                          f"RestoreBuiltInCardText does not reset `{field}`, which is "
+                          f"a pool-backed pointer left dangling across a rebuild")
+        for field in ("label", "verb"):
+            self.assertIn(f".{field}", body,
+                          f"RestoreBuiltInCardText does not reset button `{field}`, "
+                          f"which DrawActionBtn hands straight to DrawTextW")
+        # The restore must cover all 8 built-in slots, not the first 6.
+        self.assertRegex(body, r"for \(int i = 0; i < 8; i\+\+\)",
+                         "RestoreBuiltInCardText must cover all 8 built-in slots; "
+                         "the old title-only loop stopped at 6 and left Audio "
+                         "Switcher and Clipboard Memory dangling")
+
+    def test_hub_version_constants_are_paired_and_well_formed(self):
+        """AGENTS.md hard rule 3.4: HUB_VERSION and HUB_VERSION_W are two
+        separate lines that must be bumped TOGETHER whenever a new
+        ProjectHub.exe ships. HUB_VERSION drives the numeric VerNewer update
+        check and is what a self-update reads out of the remote source;
+        HUB_VERSION_W is what the header draws. A pair that disagrees makes the
+        hub advertise one version while checking for updates against another.
+        Nothing enforced this before."""
+        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        narrow = re.findall(r'(?m)^#define HUB_VERSION\s+"([^"]+)"\s*$', hub_c)
+        wide = re.findall(r'(?m)^#define HUB_VERSION_W\s+L"([^"]+)"\s*$', hub_c)
+        self.assertEqual(len(narrow), 1,
+                         f"expected exactly one `#define HUB_VERSION \"x.y.z\"`, got {narrow}")
+        self.assertEqual(len(wide), 1,
+                         f"expected exactly one `#define HUB_VERSION_W L\"x.y.z\"`, got {wide}")
+        self.assertEqual(narrow[0], wide[0],
+                         f"HUB_VERSION ({narrow[0]}) and HUB_VERSION_W ({wide[0]}) "
+                         f"disagree - bump both together (AGENTS.md hard rule 3.4)")
+        self.assertRegex(narrow[0], r'^\d+\.\d+\.\d+$',
+                         f"HUB_VERSION {narrow[0]!r} is not x.y.z, so VerNewer's "
+                         f"numeric compare cannot order it")
 
     def test_setup_bat_files_avoid_cmd_parenthesized_if_blocks(self):
         for rel in (
