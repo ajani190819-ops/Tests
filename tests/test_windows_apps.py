@@ -757,5 +757,278 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                 )
 
 
+    # ------------------------------------------------------------------
+    # AudioSwitcher: hand-declared Core Audio COM interfaces
+    # ------------------------------------------------------------------
+
+    # The real Windows Core Audio vtable orders, IUnknown (slots 0-2) first.
+    # AudioSwitcher builds against mingw headers that do not ship these
+    # interfaces, so it declares them by hand -- and COM dispatches by slot
+    # POSITION, never by name.
+    AUDIO_COM_VTABLES = {
+        "IMMDeviceEnumerator": [
+            "QueryInterface", "AddRef", "Release",
+            "EnumAudioEndpoints", "GetDefaultAudioEndpoint", "GetDevice",
+            "RegisterEndpointNotificationCallback",
+            "UnregisterEndpointNotificationCallback",
+        ],
+        "IMMDevice": [
+            "QueryInterface", "AddRef", "Release",
+            "Activate", "OpenPropertyStore", "GetId", "GetState",
+        ],
+        "IMMDeviceCollection": [
+            "QueryInterface", "AddRef", "Release", "GetCount", "Item",
+        ],
+        "IAudioEndpointVolume": [
+            "QueryInterface", "AddRef", "Release",
+            "RegisterControlChangeNotify", "UnregisterControlChangeNotify",
+            "GetChannelCount", "SetMasterVolumeLevel",
+            "SetMasterVolumeLevelScalar", "GetMasterVolumeLevel",
+            "GetMasterVolumeLevelScalar", "SetChannelVolumeLevel",
+            "SetChannelVolumeLevelScalar", "GetChannelVolumeLevel",
+            "GetChannelVolumeLevelScalar", "SetMute", "GetMute",
+        ],
+        "IAudioSessionManager2": [
+            "QueryInterface", "AddRef", "Release",
+            "GetAudioSessionControl", "GetSimpleAudioVolume",
+            "GetSessionEnumerator", "RegisterSessionNotification",
+            "UnregisterSessionNotification", "RegisterDuckNotification",
+            "UnregisterDuckNotification",
+        ],
+        "IAudioSessionEnumerator": [
+            "QueryInterface", "AddRef", "Release", "GetCount", "GetSession",
+        ],
+        "IAudioSessionControl": [
+            "QueryInterface", "AddRef", "Release",
+            "GetState", "GetDisplayName", "SetDisplayName", "GetIconPath",
+            "SetIconPath", "GetGroupingParam", "SetGroupingParam",
+            "RegisterAudioSessionNotification",
+            "UnregisterAudioSessionNotification",
+        ],
+        "IAudioSessionControl2": [
+            "QueryInterface", "AddRef", "Release",
+            "GetState", "GetDisplayName", "SetDisplayName", "GetIconPath",
+            "SetIconPath", "GetGroupingParam", "SetGroupingParam",
+            "RegisterAudioSessionNotification",
+            "UnregisterAudioSessionNotification",
+            "GetSessionIdentifier", "GetSessionInstanceIdentifier",
+            "GetProcessId", "IsSystemSoundsSession", "SetDuckingPreference",
+        ],
+        "ISimpleAudioVolume": [
+            "QueryInterface", "AddRef", "Release",
+            "SetMasterVolume", "GetMasterVolume", "SetMute", "GetMute",
+        ],
+        "IPolicyConfig": [
+            "QueryInterface", "AddRef", "Release",
+            "GetMixFormat", "GetDeviceFormat", "ResetDeviceFormat",
+            "SetDeviceFormat", "GetProcessingPeriod", "SetProcessingPeriod",
+            "GetShareMode", "SetShareMode", "GetPropertyValue",
+            "SetPropertyValue", "SetDefaultEndpoint", "SetEndpointVisibility",
+        ],
+    }
+
+    @staticmethod
+    def _audio_switcher_src() -> str:
+        return (ROOT / "audio-switcher" / "src" / "audio_switcher.c").read_text(
+            encoding="utf-8")
+
+    @classmethod
+    def _declared_vtable(cls, src: str, name: str):
+        """Method names in declared order for `typedef struct <name>Vtbl {...}`."""
+        m = re.search(r"typedef struct " + name + r"Vtbl \{(.*?)\} " + name + r"Vtbl;",
+                      src, re.S)
+        if not m:
+            return None
+        # Matches "(__stdcall *MethodName)(" but not parameters such as
+        # "void** ppvObject)" or "const GUID* pguidEventContext)", which always
+        # have a space before the name.
+        return re.findall(r"\*([A-Za-z_][A-Za-z0-9_]*)\)\s*\(", m.group(1))
+
+    def test_audio_switcher_com_vtables_match_windows_slot_order(self):
+        """Four of AudioSwitcher's seven hand-written COM vtables were misaligned,
+        which broke the app completely while still compiling and linking:
+
+          IMMDevice            GetId at 3, Activate at 4 -- really Activate at 3,
+                               OpenPropertyStore at 4, GetId at 5. So every
+                               Activate call invoked OpenPropertyStore (no device
+                               ids, no friendly names, no endpoint volume, no
+                               session manager) and every GetId call invoked
+                               Activate.
+          IAudioEndpointVolume SetMasterVolumeLevelScalar at 3 -- really
+                               RegisterControlChangeNotify, so a master volume
+                               slider drag passed a float where a callback
+                               pointer belongs.
+          IAudioSessionManager2 GetSessionEnumerator at 3 -- really
+                               GetAudioSessionControl, so no app was ever listed.
+          IAudioSessionControl2 GetProcessId at 3 -- really GetState, so each
+                               "PID" was the session state (0/1/2), OpenProcess
+                               failed, and every app row came up blank.
+
+        The C source also carries _Static_assert()s that fail the build. This is
+        the readable, build-free half of the same guard.
+        """
+        src = self._audio_switcher_src()
+
+        for name, real in self.AUDIO_COM_VTABLES.items():
+            declared = self._declared_vtable(src, name)
+            self.assertIsNotNone(declared, f"{name}Vtbl is no longer declared in audio_switcher.c")
+            self.assertLessEqual(
+                len(declared), len(real),
+                f"{name}Vtbl declares {len(declared)} methods but Windows only has "
+                f"{len(real)}; extra entries shift every later slot")
+            for slot, method in enumerate(declared):
+                self.assertEqual(
+                    method, real[slot],
+                    f"{name}::{method} is declared at slot {slot}, but Windows puts "
+                    f"{real[slot]} there. COM dispatches by position, so calling "
+                    f"{method} would really invoke {real[slot]} with the wrong "
+                    f"arguments.")
+
+    def test_audio_switcher_static_asserts_agree_with_windows_slot_order(self):
+        """The C _Static_assert()s are the build-time half of the vtable guard.
+        Cross-check every one of them against the independent table above, so a
+        wrong assertion cannot be used to "fix" a build error caused by a right
+        one."""
+        src = self._audio_switcher_src()
+        asserts = re.findall(
+            r"_Static_assert\(\s*VTBL_SLOT\(\s*(\w+)\s*,\s*(\w+)\s*\)\s*==\s*(\d+)", src)
+        self.assertGreaterEqual(
+            len(asserts), 20,
+            "the compile-time vtable slot assertions have largely disappeared")
+
+        for vtbl, method, slot in asserts:
+            name = vtbl[:-4] if vtbl.endswith("Vtbl") else vtbl
+            real = self.AUDIO_COM_VTABLES.get(name)
+            self.assertIsNotNone(real, f"_Static_assert names unknown vtable {vtbl}")
+            self.assertLess(int(slot), len(real),
+                            f"_Static_assert puts {name}::{method} at slot {slot}, "
+                            f"beyond the end of the real {len(real)}-slot vtable")
+            self.assertEqual(
+                real[int(slot)], method,
+                f"_Static_assert claims {name} slot {slot} is {method}, but Windows "
+                f"puts {real[int(slot)]} there")
+
+            declared = self._declared_vtable(src, name)
+            self.assertIsNotNone(declared, f"{name}Vtbl is not declared")
+            self.assertLess(int(slot), len(declared),
+                            f"_Static_assert references slot {slot} of {name}, which "
+                            f"declares only {len(declared)} methods")
+            self.assertEqual(
+                declared[int(slot)], method,
+                f"_Static_assert claims {name} slot {slot} is {method}, but the "
+                f"declaration puts {declared[int(slot)]} there")
+
+    def test_audio_switcher_switches_the_default_device_for_real(self):
+        """The "Set Default" button used to do this and nothing else:
+
+            g_default_endpoint_idx = idx;
+            g_endpoints[i].is_default = (i == idx);
+            refresh_ui();
+
+        -- mutate its own variables and repaint. The badge said "Default" while
+        Windows kept routing audio to the previous device. There is no documented
+        API for this, so real switching has to go through IPolicyConfig.
+        """
+        src = self._audio_switcher_src()
+
+        m = re.search(r"if \(id >= 3000 && id < 3100\) \{(.*?)\n        \}", src, re.S)
+        self.assertIsNotNone(m, "the 3000-range WM_COMMAND handler (Set Default) is gone")
+        handler = m.group(1)
+        self.assertIn(
+            "endpoint_make_default", handler,
+            "the Set Default handler never calls endpoint_make_default, so it can "
+            "only repaint the button without switching any audio")
+        self.assertNotIn(
+            "g_default_endpoint_idx = idx;", handler,
+            "the handler assigns g_default_endpoint_idx directly instead of "
+            "re-reading the default device from Windows after a switch")
+
+        start = src.index("static HRESULT endpoint_make_default")
+        fn = src[start:src.index("\n}\n", start)]
+        self.assertIn("SetDefaultEndpoint", fn,
+                      "endpoint_make_default does not call IPolicyConfig::SetDefaultEndpoint")
+        for role in ("eConsole", "eMultimedia", "eCommunications"):
+            self.assertIn(
+                role, fn,
+                f"switching never sets the {role} role, so apps pinned to that role "
+                f"stay on the old device and the switch reads as half-working")
+        self.assertIn(
+            "g_last_switch_hr", fn,
+            "endpoint_make_default does not record its HRESULT, so a refused switch "
+            "would be indistinguishable from a successful one in the UI")
+        self.assertIn(
+            "policy_activate", fn,
+            "endpoint_make_default does not obtain IPolicyConfig before using it")
+
+    def test_audio_switcher_releases_com_references_between_refreshes(self):
+        """endpoints_refresh() and sessions_refresh() overwrite their global
+        arrays on every call, and sessions_refresh runs on a two-second timer.
+        Without releasing the previous COM references first, that leaks one
+        ISimpleAudioVolume per app per poll for as long as the window is open.
+        """
+        src = self._audio_switcher_src()
+
+        for fn_name, release_of in (
+            ("endpoints_refresh", "g_endpoints[i].device"),
+            ("sessions_refresh", "g_sessions[i].svol"),
+        ):
+            start = src.index("static HRESULT " + fn_name)
+            body = src[start:src.index("\n}\n", start)]
+
+            count_var = "g_endpoint_count = 0;" if "endpoint" in fn_name else "g_session_count = 0;"
+            reset_at = body.find(count_var)
+            self.assertNotEqual(
+                reset_at, -1,
+                f"{fn_name} no longer resets {count_var}, so the guard cannot locate "
+                f"where the array is recycled")
+
+            release_at = body.find(release_of)
+            self.assertNotEqual(
+                release_at, -1,
+                f"{fn_name} never releases {release_of}, so every refresh leaks the "
+                f"previous COM references (sessions_refresh runs on a two-second "
+                f"timer, so that is one leak per app per poll, forever)")
+
+            self.assertLess(
+                release_at, reset_at,
+                f"{fn_name} resets its count before releasing {release_of}, so the "
+                f"previous COM references are leaked on every refresh")
+
+    def test_audio_switcher_rebuilds_controls_only_when_the_set_changes(self):
+        """The old refresh_ui() destroyed and recreated all 32 endpoint and 128
+        session controls on every call, and WM_TIMER called it every two seconds
+        -- so dragging a volume slider had the slider destroyed under the mouse.
+        Rebuilding must now be gated on an identity signature, and a slider the
+        user is dragging must be left alone.
+        """
+        src = self._audio_switcher_src()
+
+        start = src.index("static void refresh_ui(void)")
+        fn = src[start:src.index("\n}\n", start)]
+        self.assertIn("endpoints_signature", fn,
+                      "refresh_ui no longer compares an endpoint identity signature")
+        self.assertIn("sessions_signature", fn,
+                      "refresh_ui no longer compares a session identity signature")
+        self.assertIn("ui_destroy_all", fn,
+                      "refresh_ui no longer rebuilds the control tree at all")
+        self.assertIn("ui_update_values", fn,
+                      "refresh_ui no longer updates existing controls in place")
+
+        # Identity signatures must not include volume/mute, or every poll would
+        # look like a change and rebuild anyway.
+        for fn_name in ("endpoints_signature", "sessions_signature"):
+            s = src.index("static uint64_t " + fn_name)
+            body = src[s:src.index("\n}\n", s)]
+            self.assertNotIn("volume", body,
+                             f"{fn_name} hashes volume, so every level change would "
+                             f"force a full control rebuild")
+
+        update = src[src.index("static void ui_update_values"):]
+        update = update[:update.index("\n}\n")]
+        self.assertIn("GetCapture()", update,
+                      "ui_update_values moves sliders without checking GetCapture(), "
+                      "so it would fight the user mid-drag")
+
+
 if __name__ == "__main__":
     unittest.main()

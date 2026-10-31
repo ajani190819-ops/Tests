@@ -11,6 +11,8 @@
 #include <shellapi.h>
 #include <shlobj.h>
 #include <objbase.h>
+#include <stdarg.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -98,12 +100,21 @@ typedef struct IMMDeviceEnumeratorVtbl {
 } IMMDeviceEnumeratorVtbl;
 typedef struct IMMDeviceEnumerator { const struct IMMDeviceEnumeratorVtbl* lpVtbl; } IMMDeviceEnumerator;
 
+/* IMMDevice -- the vtable MUST list every method in Windows' real order.
+ * COM dispatches by slot position, not by name, so declaring only the methods
+ * we call silently shifts them onto the wrong functions. Activate is slot 3
+ * here; an earlier version put GetId at 3 and Activate at 4, so every Activate
+ * call actually invoked OpenPropertyStore and every GetId call invoked
+ * Activate. That made device ids, friendly names, endpoint volumes and the
+ * whole per-app session list fail at once. */
 typedef struct IMMDeviceVtbl {
     HRESULT (__stdcall *QueryInterface)(void* This, const IID* riid, void** ppvObject);
     ULONG   (__stdcall *AddRef)(void* This);
     ULONG   (__stdcall *Release)(void* This);
-    HRESULT (__stdcall *GetId)(void* This, LPWSTR* ppstrId);
     HRESULT (__stdcall *Activate)(void* This, const IID* iid, DWORD dwClsCtx, void* pActivationParams, void** ppInterface);
+    HRESULT (__stdcall *OpenPropertyStore)(void* This, DWORD stgmAccess, void** ppProperties);
+    HRESULT (__stdcall *GetId)(void* This, LPWSTR* ppstrId);
+    HRESULT (__stdcall *GetState)(void* This, DWORD* pdwState);
 } IMMDeviceVtbl;
 typedef struct IMMDevice { const struct IMMDeviceVtbl* lpVtbl; } IMMDevice;
 
@@ -116,22 +127,45 @@ typedef struct IMMDeviceCollectionVtbl {
 } IMMDeviceCollectionVtbl;
 typedef struct IMMDeviceCollection { const struct IMMDeviceCollectionVtbl* lpVtbl; } IMMDeviceCollection;
 
+/* IAudioEndpointVolume -- full vtable in real slot order. Only
+ * SetMasterVolumeLevelScalar (7), GetMasterVolumeLevelScalar (9), SetMute (14)
+ * and GetMute (15) are called; the rest are declared so those four land on the
+ * right slots. An earlier version declared SetMasterVolumeLevelScalar at slot
+ * 3, which is really RegisterControlChangeNotify -- dragging a master volume
+ * slider would have passed a float where a callback pointer is expected. */
 typedef struct IAudioEndpointVolumeVtbl {
     HRESULT (__stdcall *QueryInterface)(void* This, const IID* riid, void** ppvObject);
     ULONG   (__stdcall *AddRef)(void* This);
     ULONG   (__stdcall *Release)(void* This);
+    HRESULT (__stdcall *RegisterControlChangeNotify)(void* This, void* pNotify);
+    HRESULT (__stdcall *UnregisterControlChangeNotify)(void* This, void* pNotify);
+    HRESULT (__stdcall *GetChannelCount)(void* This, UINT* pnChannelCount);
+    HRESULT (__stdcall *SetMasterVolumeLevel)(void* This, float fLevelDB, const GUID* pguidEventContext);
     HRESULT (__stdcall *SetMasterVolumeLevelScalar)(void* This, float fLevel, const GUID* pguidEventContext);
+    HRESULT (__stdcall *GetMasterVolumeLevel)(void* This, float* pfLevelDB);
     HRESULT (__stdcall *GetMasterVolumeLevelScalar)(void* This, float* pfLevel);
+    HRESULT (__stdcall *SetChannelVolumeLevel)(void* This, UINT nChannel, float fLevelDB, const GUID* pguidEventContext);
+    HRESULT (__stdcall *SetChannelVolumeLevelScalar)(void* This, UINT nChannel, float fLevel, const GUID* pguidEventContext);
+    HRESULT (__stdcall *GetChannelVolumeLevel)(void* This, UINT nChannel, float* pfLevelDB);
+    HRESULT (__stdcall *GetChannelVolumeLevelScalar)(void* This, UINT nChannel, float* pfLevel);
     HRESULT (__stdcall *SetMute)(void* This, BOOL bMute, const GUID* pguidEventContext);
     HRESULT (__stdcall *GetMute)(void* This, BOOL* pbMute);
 } IAudioEndpointVolumeVtbl;
 typedef struct IAudioEndpointVolume { const struct IAudioEndpointVolumeVtbl* lpVtbl; } IAudioEndpointVolume;
 
+/* IAudioSessionManager2 inherits IAudioSessionManager, whose two methods
+ * occupy slots 3 and 4; GetSessionEnumerator is therefore slot 5, not 3. */
 typedef struct IAudioSessionManager2Vtbl {
     HRESULT (__stdcall *QueryInterface)(void* This, const IID* riid, void** ppvObject);
     ULONG   (__stdcall *AddRef)(void* This);
     ULONG   (__stdcall *Release)(void* This);
+    HRESULT (__stdcall *GetAudioSessionControl)(void* This, const GUID* AudioSessionGuid, DWORD StreamFlags, void** SessionControl);
+    HRESULT (__stdcall *GetSimpleAudioVolume)(void* This, const GUID* AudioSessionGuid, DWORD StreamFlags, void** AudioVolume);
     HRESULT (__stdcall *GetSessionEnumerator)(void* This, void** SessionEnumerator);
+    HRESULT (__stdcall *RegisterSessionNotification)(void* This, void* SessionNotification);
+    HRESULT (__stdcall *UnregisterSessionNotification)(void* This, void* SessionNotification);
+    HRESULT (__stdcall *RegisterDuckNotification)(void* This, void* DuckNotification);
+    HRESULT (__stdcall *UnregisterDuckNotification)(void* This, void* DuckNotification);
 } IAudioSessionManager2Vtbl;
 typedef struct IAudioSessionManager2 { const struct IAudioSessionManager2Vtbl* lpVtbl; } IAudioSessionManager2;
 
@@ -144,11 +178,48 @@ typedef struct IAudioSessionEnumeratorVtbl {
 } IAudioSessionEnumeratorVtbl;
 typedef struct IAudioSessionEnumerator { const struct IAudioSessionEnumeratorVtbl* lpVtbl; } IAudioSessionEnumerator;
 
+/* IAudioSessionControl -- the base interface. Declared so its slots are
+ * accounted for, and because GetDisplayName (slot 4) is the useful fallback
+ * for labelling a session whose process we cannot open. */
+typedef struct IAudioSessionControlVtbl {
+    HRESULT (__stdcall *QueryInterface)(void* This, const IID* riid, void** ppvObject);
+    ULONG   (__stdcall *AddRef)(void* This);
+    ULONG   (__stdcall *Release)(void* This);
+    HRESULT (__stdcall *GetState)(void* This, int* pRetVal);
+    HRESULT (__stdcall *GetDisplayName)(void* This, LPWSTR* pRetVal);
+    HRESULT (__stdcall *SetDisplayName)(void* This, LPCWSTR Value, const GUID* EventContext);
+    HRESULT (__stdcall *GetIconPath)(void* This, LPWSTR* pRetVal);
+    HRESULT (__stdcall *SetIconPath)(void* This, LPCWSTR Value, const GUID* EventContext);
+    HRESULT (__stdcall *GetGroupingParam)(void* This, GUID* pRetVal);
+    HRESULT (__stdcall *SetGroupingParam)(void* This, const GUID* Override, const GUID* EventContext);
+    HRESULT (__stdcall *RegisterAudioSessionNotification)(void* This, void* NewNotifications);
+    HRESULT (__stdcall *UnregisterAudioSessionNotification)(void* This, void* NewNotifications);
+} IAudioSessionControlVtbl;
+typedef struct IAudioSessionControl { const struct IAudioSessionControlVtbl* lpVtbl; } IAudioSessionControl;
+
+/* IAudioSessionControl2 inherits all of IAudioSessionControl (slots 3-11), so
+ * GetProcessId is slot 14. Declaring it at slot 3 put it on GetState: the value
+ * read back was the session state (0 inactive, 1 active, 2 expired), which the
+ * caller treated as a PID. OpenProcess then failed, every app row came up
+ * blank, and inactive sessions were skipped by the `if (pid == 0)` guard. */
 typedef struct IAudioSessionControl2Vtbl {
     HRESULT (__stdcall *QueryInterface)(void* This, const IID* riid, void** ppvObject);
     ULONG   (__stdcall *AddRef)(void* This);
     ULONG   (__stdcall *Release)(void* This);
-    HRESULT (__stdcall *GetProcessId)(void* This, DWORD* ProcessId);
+    HRESULT (__stdcall *GetState)(void* This, int* pRetVal);
+    HRESULT (__stdcall *GetDisplayName)(void* This, LPWSTR* pRetVal);
+    HRESULT (__stdcall *SetDisplayName)(void* This, LPCWSTR Value, const GUID* EventContext);
+    HRESULT (__stdcall *GetIconPath)(void* This, LPWSTR* pRetVal);
+    HRESULT (__stdcall *SetIconPath)(void* This, LPCWSTR Value, const GUID* EventContext);
+    HRESULT (__stdcall *GetGroupingParam)(void* This, GUID* pRetVal);
+    HRESULT (__stdcall *SetGroupingParam)(void* This, const GUID* Override, const GUID* EventContext);
+    HRESULT (__stdcall *RegisterAudioSessionNotification)(void* This, void* NewNotifications);
+    HRESULT (__stdcall *UnregisterAudioSessionNotification)(void* This, void* NewNotifications);
+    HRESULT (__stdcall *GetSessionIdentifier)(void* This, LPWSTR* pRetVal);
+    HRESULT (__stdcall *GetSessionInstanceIdentifier)(void* This, LPWSTR* pRetVal);
+    HRESULT (__stdcall *GetProcessId)(void* This, DWORD* pRetVal);
+    HRESULT (__stdcall *IsSystemSoundsSession)(void* This);
+    HRESULT (__stdcall *SetDuckingPreference)(void* This, BOOL optOut);
 } IAudioSessionControl2Vtbl;
 typedef struct IAudioSessionControl2 { const struct IAudioSessionControl2Vtbl* lpVtbl; } IAudioSessionControl2;
 
@@ -162,7 +233,86 @@ typedef struct ISimpleAudioVolumeVtbl {
     HRESULT (__stdcall *GetMute)(void* This, BOOL* pbMute);
 } ISimpleAudioVolumeVtbl;
 typedef struct ISimpleAudioVolume { const struct ISimpleAudioVolumeVtbl* lpVtbl; } ISimpleAudioVolume;
+
+/* --- IPolicyConfig: the only way to set the default audio endpoint ---
+ *
+ * There is NO documented public API for this. IMMDeviceEnumerator can read the
+ * default endpoint but not set it, which is why the old "Set Default" button
+ * only repainted its own label. Every audio switcher on Windows goes through
+ * this undocumented-but-stable COM interface, present since Vista and still
+ * shipping in Windows 11.
+ *
+ * Only SetDefaultEndpoint (slot 13) is called. The surrounding methods are
+ * declared with placeholder signatures so that slot 13 lands correctly; they
+ * must never be invoked through this struct.
+ *
+ * The interface IID differs between Windows versions, so policy_activate()
+ * tries each known one in turn and --diag reports which succeeded. */
+static const CLSID CLSID_PolicyConfig =
+    { 0x870AF99C, 0x171D, 0x4F9E, { 0xAF, 0x0D, 0xE6, 0x3D, 0xF4, 0x0C, 0x2B, 0xC9 } };
+static const IID   IID_IPolicyConfig =
+    { 0xF8679F50, 0x850A, 0x41CF, { 0x9C, 0x72, 0x43, 0x0F, 0x29, 0x02, 0x90, 0xC8 } };
+static const IID   IID_IPolicyConfigVista =
+    { 0x568B9108, 0x44BF, 0x40B4, { 0x90, 0x06, 0x86, 0xAF, 0xE5, 0xB5, 0xA6, 0x20 } };
+
+typedef struct IPolicyConfigVtbl {
+    HRESULT (__stdcall *QueryInterface)(void* This, const IID* riid, void** ppvObject);
+    ULONG   (__stdcall *AddRef)(void* This);
+    ULONG   (__stdcall *Release)(void* This);
+    HRESULT (__stdcall *GetMixFormat)(void* This, void* a, void* b);
+    HRESULT (__stdcall *GetDeviceFormat)(void* This, void* a, void* b, void* c);
+    HRESULT (__stdcall *ResetDeviceFormat)(void* This, void* a);
+    HRESULT (__stdcall *SetDeviceFormat)(void* This, void* a, void* b, void* c);
+    HRESULT (__stdcall *GetProcessingPeriod)(void* This, void* a, void* b, void* c, void* d);
+    HRESULT (__stdcall *SetProcessingPeriod)(void* This, void* a, void* b);
+    HRESULT (__stdcall *GetShareMode)(void* This, void* a, void* b);
+    HRESULT (__stdcall *SetShareMode)(void* This, void* a, void* b);
+    HRESULT (__stdcall *GetPropertyValue)(void* This, void* a, void* b, void* c);
+    HRESULT (__stdcall *SetPropertyValue)(void* This, void* a, void* b, void* c);
+    HRESULT (__stdcall *SetDefaultEndpoint)(void* This, LPCWSTR pszDeviceName, enum ERole role);
+    HRESULT (__stdcall *SetEndpointVisibility)(void* This, void* a, void* b);
+} IPolicyConfigVtbl;
+typedef struct IPolicyConfig { const struct IPolicyConfigVtbl* lpVtbl; } IPolicyConfig;
+
 typedef struct ComBase { const void* lpVtbl; } ComBase;
+
+/* ============================================================================
+ *  Compile-time vtable slot assertions
+ *
+ *  COM dispatches by slot position, so a hand-written vtable that drops or
+ *  reorders a method silently calls a different function with the wrong
+ *  arguments -- it compiles, links, and then corrupts state or fails quietly.
+ *  That is exactly how this app shipped with four broken interfaces. These
+ *  assertions turn the whole class of bug into a build error.
+ * ============================================================================ */
+#define VTBL_SLOT(VtblType, field) \
+    ((int)(offsetof(VtblType, field) / sizeof(void*)))
+
+_Static_assert(VTBL_SLOT(IMMDeviceEnumeratorVtbl, EnumAudioEndpoints) == 3,      "IMMDeviceEnumerator::EnumAudioEndpoints must be slot 3");
+_Static_assert(VTBL_SLOT(IMMDeviceEnumeratorVtbl, GetDefaultAudioEndpoint) == 4, "IMMDeviceEnumerator::GetDefaultAudioEndpoint must be slot 4");
+_Static_assert(VTBL_SLOT(IMMDeviceVtbl, Activate) == 3,                          "IMMDevice::Activate must be slot 3");
+_Static_assert(VTBL_SLOT(IMMDeviceVtbl, OpenPropertyStore) == 4,                 "IMMDevice::OpenPropertyStore must be slot 4");
+_Static_assert(VTBL_SLOT(IMMDeviceVtbl, GetId) == 5,                             "IMMDevice::GetId must be slot 5");
+_Static_assert(VTBL_SLOT(IMMDeviceVtbl, GetState) == 6,                          "IMMDevice::GetState must be slot 6");
+_Static_assert(VTBL_SLOT(IMMDeviceCollectionVtbl, GetCount) == 3,                "IMMDeviceCollection::GetCount must be slot 3");
+_Static_assert(VTBL_SLOT(IMMDeviceCollectionVtbl, Item) == 4,                    "IMMDeviceCollection::Item must be slot 4");
+_Static_assert(VTBL_SLOT(IAudioEndpointVolumeVtbl, SetMasterVolumeLevelScalar) == 7,  "IAudioEndpointVolume::SetMasterVolumeLevelScalar must be slot 7");
+_Static_assert(VTBL_SLOT(IAudioEndpointVolumeVtbl, GetMasterVolumeLevelScalar) == 9,  "IAudioEndpointVolume::GetMasterVolumeLevelScalar must be slot 9");
+_Static_assert(VTBL_SLOT(IAudioEndpointVolumeVtbl, SetMute) == 14,               "IAudioEndpointVolume::SetMute must be slot 14");
+_Static_assert(VTBL_SLOT(IAudioEndpointVolumeVtbl, GetMute) == 15,               "IAudioEndpointVolume::GetMute must be slot 15");
+_Static_assert(VTBL_SLOT(IAudioSessionManager2Vtbl, GetSessionEnumerator) == 5,  "IAudioSessionManager2::GetSessionEnumerator must be slot 5");
+_Static_assert(VTBL_SLOT(IAudioSessionEnumeratorVtbl, GetCount) == 3,            "IAudioSessionEnumerator::GetCount must be slot 3");
+_Static_assert(VTBL_SLOT(IAudioSessionEnumeratorVtbl, GetSession) == 4,          "IAudioSessionEnumerator::GetSession must be slot 4");
+_Static_assert(VTBL_SLOT(IAudioSessionControlVtbl, GetState) == 3,               "IAudioSessionControl::GetState must be slot 3");
+_Static_assert(VTBL_SLOT(IAudioSessionControlVtbl, GetDisplayName) == 4,         "IAudioSessionControl::GetDisplayName must be slot 4");
+_Static_assert(VTBL_SLOT(IAudioSessionControl2Vtbl, GetSessionIdentifier) == 12, "IAudioSessionControl2::GetSessionIdentifier must be slot 12");
+_Static_assert(VTBL_SLOT(IAudioSessionControl2Vtbl, GetProcessId) == 14,         "IAudioSessionControl2::GetProcessId must be slot 14");
+_Static_assert(VTBL_SLOT(IAudioSessionControl2Vtbl, IsSystemSoundsSession) == 15,"IAudioSessionControl2::IsSystemSoundsSession must be slot 15");
+_Static_assert(VTBL_SLOT(ISimpleAudioVolumeVtbl, SetMasterVolume) == 3,          "ISimpleAudioVolume::SetMasterVolume must be slot 3");
+_Static_assert(VTBL_SLOT(ISimpleAudioVolumeVtbl, GetMasterVolume) == 4,          "ISimpleAudioVolume::GetMasterVolume must be slot 4");
+_Static_assert(VTBL_SLOT(ISimpleAudioVolumeVtbl, SetMute) == 5,                  "ISimpleAudioVolume::SetMute must be slot 5");
+_Static_assert(VTBL_SLOT(ISimpleAudioVolumeVtbl, GetMute) == 6,                  "ISimpleAudioVolume::GetMute must be slot 6");
+_Static_assert(VTBL_SLOT(IPolicyConfigVtbl, SetDefaultEndpoint) == 13,           "IPolicyConfig::SetDefaultEndpoint must be slot 13");
 
 typedef void (__stdcall *ReleaseFn)(void*);
 
@@ -187,10 +337,13 @@ typedef struct {
 } AudioEndpoint;
 
 typedef struct {
-    wchar_t      name[256];
+    wchar_t      name[256];        /* label shown in the UI */
+    wchar_t      key[256];         /* lowercase exe basename: the persistence key */
+    wchar_t      exe_path[MAX_PATH]; /* full image path, surfaced by --diag */
     DWORD        process_id;
     float        volume;           /* 0.0 .. 1.0 */
     BOOL         mute;
+    BOOL         named_from_session; /* TRUE when the label came from GetDisplayName */
     ISimpleAudioVolume *svol;
 } AudioSession;
 
@@ -200,9 +353,28 @@ static int             g_default_endpoint_idx = -1;
 static AudioSession    g_sessions[128];
 static int             g_session_count = 0;
 
+/* PIDs we have already restored a remembered level for. Without this, the
+ * 2-second poll would fight the user: they drag a slider, the next tick snaps
+ * it back to the stored value. A remembered level is applied once per process
+ * lifetime, when that process is first seen. */
+#define MAX_APPLIED_PIDS 512
+static DWORD           g_applied_pids[MAX_APPLIED_PIDS];
+static int             g_applied_pid_count = 0;
+
 static IMMDeviceEnumerator *g_enum = NULL;
 static IMMDevice           *g_default_device = NULL;
 static IAudioSessionManager2 *g_session_mgr = NULL;
+static IPolicyConfig       *g_policy = NULL;
+
+/* Which IPolicyConfig IID CoCreateInstance accepted: 0 = none (switching
+ * unavailable), 1 = the Win7..Win11 IID, 2 = the Vista IID. Reported by --diag
+ * and by the status line, because a failed switch must never look like a
+ * successful one. */
+static int                  g_policy_variant = 0;
+
+/* Last switching outcome, surfaced in the UI status line. */
+static HRESULT              g_last_switch_hr = S_OK;
+static int                  g_last_switch_idx = -1;
 
 static HRESULT com_create_enumerator(void) {
     HRESULT hr = CoCreateInstance(
@@ -213,6 +385,69 @@ static HRESULT com_create_enumerator(void) {
 
 static void com_release_enumerator(void) {
     if (g_enum) { CALL_VTBL0(g_enum, Release); g_enum = NULL; }
+    if (g_policy) { CALL_VTBL0(g_policy, Release); g_policy = NULL; }
+    g_policy_variant = 0;
+}
+
+/* Obtain IPolicyConfig. The IID is not stable across Windows versions, so try
+ * each known one and remember which worked. Returns S_OK only if we actually
+ * hold a usable interface -- callers must check, never assume. */
+static HRESULT policy_activate(void) {
+    if (g_policy) return S_OK;
+
+    const IID *candidates[2] = { &IID_IPolicyConfig, &IID_IPolicyConfigVista };
+    for (int i = 0; i < 2; i++) {
+        void *p = NULL;
+        HRESULT hr = CoCreateInstance(&CLSID_PolicyConfig, NULL, CLSCTX_ALL,
+                                      candidates[i], &p);
+        if (SUCCEEDED(hr) && p) {
+            g_policy = (IPolicyConfig*)p;
+            g_policy_variant = i + 1;
+            return S_OK;
+        }
+    }
+    g_policy = NULL;
+    g_policy_variant = 0;
+    return E_NOINTERFACE;
+}
+
+/* Make endpoint `idx` the system default for ALL THREE roles.
+ *
+ * Setting only eConsole leaves apps pinned to Multimedia or Communications on
+ * the old device, which reads to the user as "the switch half-worked". The
+ * returned HRESULT is the first failure, or S_OK if all three were set;
+ * g_last_switch_hr records it so the UI can report honestly instead of
+ * repainting a "Default" badge over a device Windows never switched to. */
+static HRESULT endpoint_make_default(int idx) {
+    g_last_switch_idx = idx;
+    g_last_switch_hr = S_OK;
+
+    if (idx < 0 || idx >= g_endpoint_count) {
+        g_last_switch_hr = E_INVALIDARG;
+        return g_last_switch_hr;
+    }
+    if (!g_endpoints[idx].id[0]) {
+        /* No device id means SetDefaultEndpoint has nothing to name. This is
+         * what the broken GetId slot used to produce for every device. */
+        g_last_switch_hr = E_FAIL;
+        return g_last_switch_hr;
+    }
+
+    HRESULT hr = policy_activate();
+    if (FAILED(hr)) {
+        g_last_switch_hr = hr;
+        return hr;
+    }
+
+    static const enum ERole roles[3] = { eConsole, eMultimedia, eCommunications };
+    HRESULT first_fail = S_OK;
+    for (int r = 0; r < 3; r++) {
+        HRESULT h = CALL_VTBL2(g_policy, SetDefaultEndpoint,
+                               g_endpoints[idx].id, roles[r]);
+        if (FAILED(h) && SUCCEEDED(first_fail)) first_fail = h;
+    }
+    g_last_switch_hr = first_fail;
+    return first_fail;
 }
 
 static HRESULT endpoints_refresh(void) {
@@ -227,10 +462,25 @@ static HRESULT endpoints_refresh(void) {
     UINT count = 0;
     cv->GetCount(coll, &count);
 
+    /* Release the previous refresh's COM references before overwriting them.
+     * Without this, every refresh leaked one IMMDevice and one
+     * IAudioEndpointVolume per endpoint, plus the default-device reference. */
+    for (int i = 0; i < g_endpoint_count; i++) {
+        if (g_endpoints[i].vol)    { CALL_VTBL0(g_endpoints[i].vol, Release);    g_endpoints[i].vol = NULL; }
+        if (g_endpoints[i].device) { CALL_VTBL0(g_endpoints[i].device, Release); g_endpoints[i].device = NULL; }
+    }
+    if (g_default_device) { CALL_VTBL0(g_default_device, Release); g_default_device = NULL; }
+
     g_endpoint_count = 0;
     g_default_endpoint_idx = -1;
 
-    GUID fmtid = { 0xA45C254E, 0xDF1C, 0x4EFD, { 0x80, 0x20, 0x67, 0xD1, 0x46, 0xA8, 0x50, 0xE0 } };
+    /* PKEY_Device_FriendlyName. A PROPERTYKEY is a GUID *plus* a property id;
+     * passing only the GUID made GetValue read `pid` from whatever followed it
+     * on the stack, so the friendly-name lookup could never succeed. */
+    PROPERTYKEY pkeyName = {
+        { 0xA45C254E, 0xDF1C, 0x4EFD, { 0x80, 0x20, 0x67, 0xD1, 0x46, 0xA8, 0x50, 0xE0 } },
+        14
+    };
 
     for (UINT i = 0; i < count && g_endpoint_count < 32; i++) {
         IMMDevice *dev = NULL;
@@ -247,22 +497,25 @@ static HRESULT endpoints_refresh(void) {
             g_endpoints[g_endpoint_count].id[0] = L'\0';
         }
 
-        /* Friendly name via IPropertyStore */
+        /* Friendly name via IPropertyStore. This is OpenPropertyStore (slot 4),
+         * NOT Activate -- the two were transposed in the old IMMDevice vtable. */
         IPropertyStore *ps = NULL;
-        hr = CALL_VTBL4(dev, Activate, &IID_IPropertyStore, 0, NULL, (void**)&ps);
+        hr = CALL_VTBL2(dev, OpenPropertyStore, 0x00000000u /* STGM_READ */, (void**)&ps);
         if (SUCCEEDED(hr) && ps) {
-            typedef HRESULT (__stdcall *GetValueFn)(void*, const GUID*, PROPVARIANT*);
-            GetValueFn getval = (GetValueFn)((void**)ps->lpVtbl)[5];
+            typedef HRESULT (__stdcall *GetValueFn)(void*, const PROPERTYKEY*, PROPVARIANT*);
+            GetValueFn getval = (GetValueFn)((void**)ps->lpVtbl)[VTBL_SLOT(IPropertyStoreVtbl, GetValue)];
             PROPVARIANT pv = {0};
-            getval(ps, &fmtid, &pv);
+            getval(ps, &pkeyName, &pv);
             if (pv.vt == VT_LPWSTR && pv.pwszVal) {
                 wcsncpy(g_endpoints[g_endpoint_count].name, pv.pwszVal, 255);
                 g_endpoints[g_endpoint_count].name[255] = L'\0';
+            } else {
+                _snwprintf(g_endpoints[g_endpoint_count].name, 256, L"Audio Output %u", i + 1);
             }
             PropVariantClear(&pv);
             CALL_VTBL0(ps, Release);
         } else {
-            wcscpy(g_endpoints[g_endpoint_count].name, L"Audio Output");
+            _snwprintf(g_endpoints[g_endpoint_count].name, 256, L"Audio Output %u", i + 1);
         }
 
         g_endpoints[g_endpoint_count].device = dev;
@@ -315,6 +568,172 @@ static void endpoints_cleanup(void) {
     if (g_default_device) { CALL_VTBL0(g_default_device, Release); g_default_device = NULL; }
 }
 
+/* ============================================================================
+ *  Remembered per-app levels
+ *
+ *  Stored as UTF-8 in %LOCALAPPDATA%\AudioSwitcher\levels.txt, matching the
+ *  suite convention (ProjectHub uses %LOCALAPPDATA%\ProjectHub). One line per
+ *  app, keyed by lowercase exe basename so the level survives restarts and PID
+ *  changes:
+ *
+ *      spotify.exe=40,0        volume 40%, not muted
+ *
+ *  A line-based format is deliberate: it is human-readable, hand-editable, and
+ *  needs no JSON parser or escaping rules in C.
+ * ============================================================================ */
+
+#define MAX_REMEMBERED 256
+
+typedef struct {
+    wchar_t key[256];
+    int     percent;
+    BOOL    mute;
+} RememberedLevel;
+
+static RememberedLevel g_remembered[MAX_REMEMBERED];
+static int             g_remembered_count = 0;
+static wchar_t         g_levels_path[MAX_PATH] = L"";
+static BOOL            g_levels_enabled = TRUE;
+
+/* Lowercased exe basename: the identity an app keeps across launches. */
+static void key_from_path(const wchar_t *full, wchar_t *key, size_t cap) {
+    const wchar_t *base = wcsrchr(full, L'\\');
+    base = base ? base + 1 : full;
+    if (cap == 0) return;
+    wcsncpy(key, base, cap - 1);
+    key[cap - 1] = L'\0';
+    for (wchar_t *p = key; *p; p++)
+        if (*p >= L'A' && *p <= L'Z') *p = (wchar_t)(*p - L'A' + L'a');
+}
+
+static void levels_path_init(void) {
+    wchar_t local[MAX_PATH] = L"";
+    if (FAILED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, local)) || !local[0])
+        GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH);
+    if (!local[0]) {
+        g_levels_enabled = FALSE;   /* nowhere to write; run without persistence */
+        return;
+    }
+    wchar_t dir[MAX_PATH];
+    _snwprintf(dir, MAX_PATH, L"%s\\AudioSwitcher", local);
+    CreateDirectoryW(dir, NULL);    /* fails harmlessly if it already exists */
+    _snwprintf(g_levels_path, MAX_PATH, L"%s\\levels.txt", dir);
+}
+
+static RememberedLevel *levels_find(const wchar_t *key) {
+    if (!key || !key[0]) return NULL;
+    for (int i = 0; i < g_remembered_count; i++)
+        if (wcscmp(g_remembered[i].key, key) == 0) return &g_remembered[i];
+    return NULL;
+}
+
+static void levels_load(void) {
+    g_remembered_count = 0;
+    if (!g_levels_enabled || !g_levels_path[0]) return;
+
+    FILE *f = _wfopen(g_levels_path, L"rb");
+    if (!f) return;                 /* first run: no file yet is normal */
+
+    char buf[65536];
+    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+
+    /* Strip a UTF-8 BOM if a text editor added one. */
+    char *p = buf;
+    if (n >= 3 && (unsigned char)p[0] == 0xEF && (unsigned char)p[1] == 0xBB
+               && (unsigned char)p[2] == 0xBF) p += 3;
+
+    wchar_t wide[65536];
+    int wn = MultiByteToWideChar(CP_UTF8, 0, p, -1, wide, 65536);
+    if (wn <= 0) return;
+
+    wchar_t *line = wide;
+    while (line && *line && g_remembered_count < MAX_REMEMBERED) {
+        wchar_t *nl = wcschr(line, L'\n');
+        if (nl) *nl = L'\0';
+        wchar_t *cr = wcschr(line, L'\r');
+        if (cr) *cr = L'\0';
+
+        if (line[0] && line[0] != L'#') {
+            wchar_t *eq = wcschr(line, L'=');
+            if (eq) {
+                *eq = L'\0';
+                int percent = 0, mute = 0;
+                if (swscanf(eq + 1, L"%d,%d", &percent, &mute) >= 1) {
+                    if (percent < 0) percent = 0;
+                    if (percent > 100) percent = 100;
+                    wcsncpy(g_remembered[g_remembered_count].key, line, 255);
+                    g_remembered[g_remembered_count].key[255] = L'\0';
+                    g_remembered[g_remembered_count].percent = percent;
+                    g_remembered[g_remembered_count].mute = mute ? TRUE : FALSE;
+                    g_remembered_count++;
+                }
+            }
+        }
+        line = nl ? nl + 1 : NULL;
+    }
+}
+
+static void levels_save(void) {
+    if (!g_levels_enabled || !g_levels_path[0]) return;
+
+    /* Build the whole file in memory, then write it in one go: a half-written
+     * levels file would be worse than none, since it is read at every start. */
+    static char out[MAX_REMEMBERED * 320];
+    int off = 0;
+    off += _snprintf(out + off, sizeof(out) - off,
+                     "# Audio Switcher remembered per-app levels\n"
+                     "# <exe-name>=<volume percent 0-100>,<muted 0|1>\n"
+                     "# Hand-editable. Delete a line to forget that app.\n");
+    for (int i = 0; i < g_remembered_count && off < (int)sizeof(out) - 320; i++) {
+        char keyu8[512];
+        int kn = WideCharToMultiByte(CP_UTF8, 0, g_remembered[i].key, -1,
+                                     keyu8, sizeof(keyu8), NULL, NULL);
+        if (kn <= 0) continue;
+        off += _snprintf(out + off, sizeof(out) - off, "%s=%d,%d\n",
+                         keyu8, g_remembered[i].percent,
+                         g_remembered[i].mute ? 1 : 0);
+    }
+
+    FILE *f = _wfopen(g_levels_path, L"wb");
+    if (!f) return;
+    fwrite(out, 1, (size_t)off, f);
+    fclose(f);
+}
+
+/* Record a level the user set, and persist it. */
+static void levels_remember(const wchar_t *key, float volume, BOOL mute) {
+    if (!g_levels_enabled || !key || !key[0]) return;
+    int percent = (int)(volume * 100.0f + 0.5f);
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+
+    RememberedLevel *slot = levels_find(key);
+    if (!slot) {
+        if (g_remembered_count >= MAX_REMEMBERED) return;
+        slot = &g_remembered[g_remembered_count++];
+        wcsncpy(slot->key, key, 255);
+        slot->key[255] = L'\0';
+    }
+    slot->percent = percent;
+    slot->mute = mute;
+    levels_save();
+}
+
+static BOOL pid_already_applied(DWORD pid) {
+    for (int i = 0; i < g_applied_pid_count; i++)
+        if (g_applied_pids[i] == pid) return TRUE;
+    return FALSE;
+}
+
+static void mark_pid_applied(DWORD pid) {
+    if (g_applied_pid_count < MAX_APPLIED_PIDS)
+        g_applied_pids[g_applied_pid_count++] = pid;
+    else
+        g_applied_pids[0] = pid;    /* ring over the oldest; bounds, not correctness */
+}
+
 static HRESULT sessions_refresh(void) {
     IMMDeviceEnumerator *e = g_enum;
     if (!e) return E_FAIL;
@@ -339,85 +758,117 @@ static HRESULT sessions_refresh(void) {
         return hr;
     }
 
+    /* The enumerator vtable is declared correctly now, so call it by name
+     * instead of re-declaring a duplicate struct at the call site. */
     int count = 0;
-    typedef struct IAudioSessionEnumeratorVtbl2 {
-        HRESULT (__stdcall *QueryInterface)(void* This, const IID* riid, void** ppvObject);
-        ULONG   (__stdcall *AddRef)(void* This);
-        ULONG   (__stdcall *Release)(void* This);
-        HRESULT (__stdcall *GetCount)(void* This, int* SessionCount);
-        HRESULT (__stdcall *GetSession)(void* This, int SessionIndex, void** Session);
-    } IAudioSessionEnumeratorVtbl2;
-    IAudioSessionEnumeratorVtbl2 *ev2 = (IAudioSessionEnumeratorVtbl2*)enum_sessions->lpVtbl;
-    ev2->GetCount(enum_sessions, &count);
+    CALL_VTBL1(enum_sessions, GetCount, &count);
+
+    /* Release the previous poll's ISimpleAudioVolume references. This runs on
+     * a two-second timer, so the old code leaked one COM reference per app per
+     * poll for as long as the window was open. */
+    for (int i = 0; i < g_session_count; i++) {
+        if (g_sessions[i].svol) { CALL_VTBL0(g_sessions[i].svol, Release); g_sessions[i].svol = NULL; }
+    }
 
     g_session_count = 0;
     for (int i = 0; i < count && g_session_count < 128; i++) {
         void *session = NULL;
-        ev2->GetSession(enum_sessions, i, &session);
+        CALL_VTBL2(enum_sessions, GetSession, i, &session);
         if (!session) continue;
 
-        void *iface2 = NULL;
-        typedef HRESULT (__stdcall *QIFn)(void*, REFIID, void**);
-        QIFn qifn = (QIFn)((void**)((ComBase*)session)->lpVtbl)[0];
-        hr = qifn(session, &IID_IAudioSessionControl2, &iface2);
-        if (FAILED(hr)) {
+        IAudioSessionControl2 *ctl2 = NULL;
+        hr = CALL_VTBL2((IUnknown*)session, QueryInterface,
+                        &IID_IAudioSessionControl2, (void**)&ctl2);
+        if (FAILED(hr) || !ctl2) {
             CALL_VTBL0((IUnknown*)session, Release);
             continue;
         }
-        IAudioSessionControl2 *ctl2 = (IAudioSessionControl2*)iface2;
 
-        DWORD pid = 0;
-        typedef HRESULT (__stdcall *GetPidFn)(void*, DWORD*);
-        typedef HRESULT (__stdcall *GetPidFn)(void*, DWORD*);
-        GetPidFn getpid = (GetPidFn)ctl2->lpVtbl->GetProcessId;
-        getpid(ctl2, &pid);
-
-        if (pid == 0) {
+        /* Skip System Sounds: not an app, and nothing useful to control.
+         * IsSystemSoundsSession returns S_OK when it IS system sounds and
+         * S_FALSE otherwise, so compare exactly -- SUCCEEDED() would match
+         * both and drop every session. */
+        if (CALL_VTBL0(ctl2, IsSystemSoundsSession) == S_OK) {
             CALL_VTBL0(ctl2, Release);
             CALL_VTBL0((IUnknown*)session, Release);
             continue;
         }
 
-        wchar_t proc_name[256] = L"";
-        HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-        if (hProc) {
-            DWORD size = 256;
-            QueryFullProcessImageNameW(hProc, 0, proc_name, &size);
-            const wchar_t *slash = wcsrchr(proc_name, L'\\');
-            if (slash) wcscpy(proc_name, slash + 1);
-            CloseHandle(hProc);
+        AudioSession *s = &g_sessions[g_session_count];
+        memset(s, 0, sizeof(*s));
+
+        /* GetProcessId is slot 14 of IAudioSessionControl2. It used to be
+         * declared at slot 3, which is really GetState, so this "PID" was the
+         * session state (0/1/2): OpenProcess then failed and every app row
+         * came up blank, while `if (pid == 0)` silently skipped inactive
+         * sessions for the wrong reason. */
+        CALL_VTBL1(ctl2, GetProcessId, &s->process_id);
+
+        if (s->process_id != 0) {
+            HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,
+                                       FALSE, s->process_id);
+            if (hProc) {
+                DWORD size = MAX_PATH;
+                if (QueryFullProcessImageNameW(hProc, 0, s->exe_path, &size)) {
+                    const wchar_t *slash = wcsrchr(s->exe_path, L'\\');
+                    wcsncpy(s->name, slash ? slash + 1 : s->exe_path, 255);
+                    s->name[255] = L'\0';
+                    key_from_path(s->exe_path, s->key, 256);
+                }
+                CloseHandle(hProc);
+            }
         }
+
+        /* Fall back to the session's own display name when the process could
+         * not be opened (elevated app, or a session with no owning process). */
+        if (!s->name[0]) {
+            LPWSTR disp = NULL;
+            if (SUCCEEDED(CALL_VTBL1(ctl2, GetDisplayName, &disp)) && disp && disp[0]) {
+                wcsncpy(s->name, disp, 255);
+                s->name[255] = L'\0';
+                s->named_from_session = TRUE;
+            }
+            if (disp) CoTaskMemFree(disp);
+        }
+        if (!s->name[0])
+            _snwprintf(s->name, 256, L"Unknown app (PID %lu)",
+                       (unsigned long)s->process_id);
 
         ISimpleAudioVolume *svol = NULL;
-        void *svol_iface = NULL;
-        qifn(ctl2, &IID_ISimpleAudioVolume, &svol_iface);
-        svol = (ISimpleAudioVolume*)svol_iface;
-
-        float vol = 0.0f;
-        BOOL mute = FALSE;
-        if (svol) {
-            typedef HRESULT (__stdcall *GetVolFn)(void*, float*);
-            GetVolFn getvol = (GetVolFn)((void**)svol->lpVtbl)[4];
-            getvol(svol, &vol);
-            typedef HRESULT (__stdcall *GetMuteFn)(void*, BOOL*);
-            GetMuteFn getmute = (GetMuteFn)((void**)svol->lpVtbl)[6];
-            getmute(svol, &mute);
+        hr = CALL_VTBL2(ctl2, QueryInterface, &IID_ISimpleAudioVolume, (void**)&svol);
+        if (FAILED(hr) || !svol) {
+            /* No volume interface means the row would have a dead slider;
+             * better to not show it at all. */
+            CALL_VTBL0(ctl2, Release);
+            CALL_VTBL0((IUnknown*)session, Release);
+            continue;
         }
+        s->svol = svol;
 
-        wcsncpy(g_sessions[g_session_count].name, proc_name, 255);
-        g_sessions[g_session_count].name[255] = L'\0';
-        g_sessions[g_session_count].process_id = pid;
-        g_sessions[g_session_count].volume = vol;
-        g_sessions[g_session_count].mute = mute;
-        g_sessions[g_session_count].svol = svol;
-        g_session_count++;
+        CALL_VTBL1(svol, GetMasterVolume, &s->volume);
+        CALL_VTBL1(svol, GetMute, &s->mute);
+
+        /* Restore a remembered level the first time we see this process, and
+         * only then: re-applying on every 2-second poll would snap the slider
+         * back out from under the user while they dragged it. */
+        if (s->key[0] && s->process_id != 0 && !pid_already_applied(s->process_id)) {
+            RememberedLevel *mem = levels_find(s->key);
+            if (mem) {
+                float want = mem->percent / 100.0f;
+                CALL_VTBL2(svol, SetMasterVolume, want, NULL);
+                CALL_VTBL2(svol, SetMute, mem->mute, NULL);
+                s->volume = want;
+                s->mute = mem->mute;
+            }
+            mark_pid_applied(s->process_id);
+        }
 
         CALL_VTBL0(ctl2, Release);
         CALL_VTBL0((IUnknown*)session, Release);
+        g_session_count++;
     }
 
-    ReleaseFn rel2 = (ReleaseFn)((void**)enum_sessions->lpVtbl)[2];
-    rel2(enum_sessions);
+    CALL_VTBL0(enum_sessions, Release);
 
     return S_OK;
 }
@@ -694,127 +1145,280 @@ static void update_volume_text(HWND hwnd_txt, float vol) {
     SetWindowTextW(hwnd_txt, text);
 }
 
-static void refresh_ui(void) {
-    if (!g_hwnd) return;
+/* ---------------------------------------------------------------------------
+ *  UI reconciliation
+ *
+ *  The old refresh_ui() destroyed and recreated all 32 endpoint and 128 session
+ *  controls on every call -- and WM_TIMER called it every two seconds. Dragging
+ *  a volume slider therefore had the slider destroyed underneath the mouse,
+ *  focus was lost, and the panel flickered twice a second forever.
+ *
+ *  Now the control tree is rebuilt ONLY when the set of devices or apps
+ *  actually changes (detected by a hash over their identities). Otherwise the
+ *  existing controls are updated in place, and a slider the user is currently
+ *  dragging is left alone: a trackbar holds the mouse capture while its thumb
+ *  is down, so GetCapture() is a reliable "hands off" signal.
+ * ------------------------------------------------------------------------- */
 
+static uint64_t g_ui_endpoint_sig = 0;
+static uint64_t g_ui_session_sig  = 0;
+
+/* Layout captured while building, so WM_PAINT can draw section headers and the
+ * footer status line at the same positions the controls actually occupy. */
+static int g_y_outputs_header = 0;
+static int g_y_apps_header    = 0;
+static int g_y_footer         = 0;
+static int g_truncated_endpoints = 0;
+static int g_truncated_sessions  = 0;
+
+static uint64_t ui_hash_wstr(uint64_t h, const wchar_t *s) {
+    for (; s && *s; s++) { h ^= (uint64_t)*s; h *= 1099511628211ULL; }
+    return h;
+}
+
+static uint64_t ui_mix(uint64_t h, uint64_t v) {
+    return (h ^ v) * 1099511628211ULL;
+}
+
+/* Identity only -- deliberately excludes volume and mute, which change
+ * constantly and must be updated in place rather than trigger a rebuild. */
+static uint64_t endpoints_signature(void) {
+    uint64_t h = 1469598103934665603ULL;
+    h = ui_mix(h, (uint64_t)g_endpoint_count);
+    for (int i = 0; i < g_endpoint_count; i++) {
+        h = ui_hash_wstr(h, g_endpoints[i].id);
+        h = ui_mix(h, (uint64_t)(g_endpoints[i].is_default ? 1 : 0));
+        h = ui_mix(h, (uint64_t)(g_endpoints[i].vol ? 1 : 0));
+    }
+    return h;
+}
+
+static uint64_t sessions_signature(void) {
+    uint64_t h = 1469598103934665603ULL;
+    h = ui_mix(h, (uint64_t)g_session_count);
+    for (int i = 0; i < g_session_count; i++) {
+        h = ui_mix(h, (uint64_t)g_sessions[i].process_id);
+        h = ui_hash_wstr(h, g_sessions[i].key);
+        h = ui_hash_wstr(h, g_sessions[i].name);
+        h = ui_mix(h, (uint64_t)(g_sessions[i].svol ? 1 : 0));
+    }
+    return h;
+}
+
+static void ui_destroy_all(void) {
     for (int i = 0; i < 32; i++) {
-        if (g_endpoint_ctrls[i].hwnd_btn) DestroyWindow(g_endpoint_ctrls[i].hwnd_btn);
-        if (g_endpoint_ctrls[i].hwnd_vol) DestroyWindow(g_endpoint_ctrls[i].hwnd_vol);
-        if (g_endpoint_ctrls[i].hwnd_mute) DestroyWindow(g_endpoint_ctrls[i].hwnd_mute);
-        if (g_endpoint_ctrls[i].hwnd_label) DestroyWindow(g_endpoint_ctrls[i].hwnd_label);
+        if (g_endpoint_ctrls[i].hwnd_btn)    DestroyWindow(g_endpoint_ctrls[i].hwnd_btn);
+        if (g_endpoint_ctrls[i].hwnd_vol)    DestroyWindow(g_endpoint_ctrls[i].hwnd_vol);
+        if (g_endpoint_ctrls[i].hwnd_mute)   DestroyWindow(g_endpoint_ctrls[i].hwnd_mute);
+        if (g_endpoint_ctrls[i].hwnd_label)  DestroyWindow(g_endpoint_ctrls[i].hwnd_label);
         if (g_endpoint_ctrls[i].hwnd_voltxt) DestroyWindow(g_endpoint_ctrls[i].hwnd_voltxt);
         memset(&g_endpoint_ctrls[i], 0, sizeof(g_endpoint_ctrls[i]));
+        g_endpoint_ctrls[i].endpoint_idx = -1;
     }
     for (int i = 0; i < 128; i++) {
-        if (g_session_ctrls[i].hwnd_label) DestroyWindow(g_session_ctrls[i].hwnd_label);
-        if (g_session_ctrls[i].hwnd_vol) DestroyWindow(g_session_ctrls[i].hwnd_vol);
-        if (g_session_ctrls[i].hwnd_mute) DestroyWindow(g_session_ctrls[i].hwnd_mute);
+        if (g_session_ctrls[i].hwnd_label)  DestroyWindow(g_session_ctrls[i].hwnd_label);
+        if (g_session_ctrls[i].hwnd_vol)    DestroyWindow(g_session_ctrls[i].hwnd_vol);
+        if (g_session_ctrls[i].hwnd_mute)   DestroyWindow(g_session_ctrls[i].hwnd_mute);
         if (g_session_ctrls[i].hwnd_voltxt) DestroyWindow(g_session_ctrls[i].hwnd_voltxt);
         memset(&g_session_ctrls[i], 0, sizeof(g_session_ctrls[i]));
+        g_session_ctrls[i].session_idx = -1;
     }
+}
 
-    int y = PANEL_Y;
+static void ui_build_controls(void) {
+    RECT rc; GetClientRect(g_hwnd, &rc);
+    int bottom = rc.bottom - S(34);       /* room for the footer status line */
 
-    /* Endpoints section */
-    {
-        HDC hdc = GetDC(g_hwnd);
-        SetBkColor(hdc, COL_CARD);
-        SetTextColor(hdc, COL_TEXT);
-        DrawTextW(hdc, L"Audio Outputs", -1, &(RECT){PANEL_X, y, PANEL_X + PANEL_W, y + S(28)}, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-        ReleaseDC(g_hwnd, hdc);
-    }
-    y += S(34);
+    int ep_h  = S(52);
+    int ss_h  = S(44);
+    int hdr_h = S(34);
 
-    for (int i = 0; i < g_endpoint_count; i++) {
-        int row_h = S(52);
-        g_endpoint_ctrls[i].hwnd_label = CreateWindowExW(
+    g_y_outputs_header = PANEL_Y;
+    int y = PANEL_Y + hdr_h;
+
+    /* Reserve space for at least four app rows, so a long device list can never
+     * push the per-app section off the window entirely. */
+    int reserve = hdr_h + 4 * ss_h + S(16);
+    int ep_avail = bottom - reserve - y;
+    int ep_max = ep_avail > 0 ? ep_avail / ep_h : 0;
+    if (ep_max > g_endpoint_count) ep_max = g_endpoint_count;
+    if (ep_max > 32) ep_max = 32;
+    g_truncated_endpoints = g_endpoint_count - ep_max;
+
+    for (int i = 0; i < ep_max; i++) {
+        EndpointCtrl *c = &g_endpoint_ctrls[i];
+        c->endpoint_idx = i;
+
+        c->hwnd_label = CreateWindowExW(
             0, L"STATIC", g_endpoints[i].name,
             WS_CHILD | WS_VISIBLE,
             PANEL_X, y, PANEL_W - S(160), S(24),
             g_hwnd, NULL, g_hInst, NULL);
 
-        g_endpoint_ctrls[i].hwnd_vol = CreateWindowExW(
+        c->hwnd_vol = CreateWindowExW(
             0, TRACKBAR_CLASS, L"",
-            WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS | TBS_ENABLESELRANGE,
+            WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS,
             PANEL_X, y + S(28), PANEL_W - S(260), S(20),
             g_hwnd, (HMENU)(INT_PTR)(1000 + i), g_hInst, NULL);
-        SendMessageW(g_endpoint_ctrls[i].hwnd_vol, TBM_SETRANGE, FALSE, MAKELONG(0, 100));
-        int vol_pct = (int)(endpoint_get_volume(i) * 100.0f + 0.5f);
-        SendMessageW(g_endpoint_ctrls[i].hwnd_vol, TBM_SETPOS, TRUE, vol_pct);
+        SendMessageW(c->hwnd_vol, TBM_SETRANGE, FALSE, MAKELONG(0, 100));
 
-        g_endpoint_ctrls[i].hwnd_mute = CreateWindowExW(
-            0, L"BUTTON", endpoint_get_mute(i) ? L"Unmute" : L"Mute",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            PANEL_W - S(200), y + S(26), S(80), S(24),
-            g_hwnd, (HMENU)(INT_PTR)(2000 + i), g_hInst, NULL);
-
-        g_endpoint_ctrls[i].hwnd_btn = CreateWindowExW(
-            0, L"BUTTON", (i == g_default_endpoint_idx) ? L"Default" : L"Set Default",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            PANEL_W - S(110), y + S(26), S(96), S(24),
-            g_hwnd, (HMENU)(INT_PTR)(3000 + i), g_hInst, NULL);
-
-        wchar_t vtext[32];
-        swprintf(vtext, 32, L"%d%%", vol_pct);
-        g_endpoint_ctrls[i].hwnd_voltxt = CreateWindowExW(
-            0, L"STATIC", vtext,
+        c->hwnd_voltxt = CreateWindowExW(
+            0, L"STATIC", L"",
             WS_CHILD | WS_VISIBLE | SS_RIGHT,
             PANEL_W - S(170), y + S(2), S(50), S(20),
             g_hwnd, NULL, g_hInst, NULL);
 
-        g_endpoint_ctrls[i].endpoint_idx = i;
-        y += row_h;
+        c->hwnd_mute = CreateWindowExW(
+            0, L"BUTTON", L"Mute",
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            PANEL_W - S(200), y + S(26), S(80), S(24),
+            g_hwnd, (HMENU)(INT_PTR)(2000 + i), g_hInst, NULL);
+
+        c->hwnd_btn = CreateWindowExW(
+            0, L"BUTTON", L"Set Default",
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            PANEL_W - S(110), y + S(26), S(96), S(24),
+            g_hwnd, (HMENU)(INT_PTR)(3000 + i), g_hInst, NULL);
+
+        y += ep_h;
     }
 
     y += S(16);
+    g_y_apps_header = y;
+    y += hdr_h;
 
-    /* Sessions section */
-    {
-        HDC hdc = GetDC(g_hwnd);
-        SetBkColor(hdc, COL_CARD);
-        SetTextColor(hdc, COL_TEXT);
-        DrawTextW(hdc, L"App Volume", -1, &(RECT){PANEL_X, y, PANEL_X + PANEL_W, y + S(28)}, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-        ReleaseDC(g_hwnd, hdc);
-    }
-    y += S(34);
+    int ss_avail = bottom - y;
+    int ss_max = ss_avail > 0 ? ss_avail / ss_h : 0;
+    if (ss_max > g_session_count) ss_max = g_session_count;
+    if (ss_max > 128) ss_max = 128;
+    g_truncated_sessions = g_session_count - ss_max;
 
-    for (int i = 0; i < g_session_count; i++) {
-        int row_h = S(44);
-        g_session_ctrls[i].hwnd_label = CreateWindowExW(
+    for (int i = 0; i < ss_max; i++) {
+        SessionCtrl *c = &g_session_ctrls[i];
+        c->session_idx = i;
+
+        c->hwnd_label = CreateWindowExW(
             0, L"STATIC", g_sessions[i].name,
             WS_CHILD | WS_VISIBLE,
             PANEL_X, y, PANEL_W - S(260), S(20),
             g_hwnd, NULL, g_hInst, NULL);
 
-        g_session_ctrls[i].hwnd_vol = CreateWindowExW(
+        c->hwnd_vol = CreateWindowExW(
             0, TRACKBAR_CLASS, L"",
-            WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS | TBS_ENABLESELRANGE,
+            WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS,
             PANEL_X, y + S(22), PANEL_W - S(320), S(20),
             g_hwnd, (HMENU)(INT_PTR)(4000 + i), g_hInst, NULL);
-        SendMessageW(g_session_ctrls[i].hwnd_vol, TBM_SETRANGE, FALSE, MAKELONG(0, 100));
-        int vol_pct = (int)(g_sessions[i].volume * 100.0f + 0.5f);
-        SendMessageW(g_session_ctrls[i].hwnd_vol, TBM_SETPOS, TRUE, vol_pct);
+        SendMessageW(c->hwnd_vol, TBM_SETRANGE, FALSE, MAKELONG(0, 100));
 
-        g_session_ctrls[i].hwnd_mute = CreateWindowExW(
-            0, L"BUTTON", g_sessions[i].mute ? L"Unmute" : L"Mute",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            PANEL_W - S(200), y + S(20), S(80), S(22),
-            g_hwnd, (HMENU)(INT_PTR)(5000 + i), g_hInst, NULL);
-
-        wchar_t vtext[32];
-        swprintf(vtext, 32, L"%d%%", vol_pct);
-        g_session_ctrls[i].hwnd_voltxt = CreateWindowExW(
-            0, L"STATIC", vtext,
+        c->hwnd_voltxt = CreateWindowExW(
+            0, L"STATIC", L"",
             WS_CHILD | WS_VISIBLE | SS_RIGHT,
             PANEL_W - S(170), y + S(2), S(50), S(18),
             g_hwnd, NULL, g_hInst, NULL);
 
-        g_session_ctrls[i].session_idx = i;
-        y += row_h;
+        c->hwnd_mute = CreateWindowExW(
+            0, L"BUTTON", L"Mute",
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            PANEL_W - S(200), y + S(20), S(80), S(22),
+            g_hwnd, (HMENU)(INT_PTR)(5000 + i), g_hInst, NULL);
+
+        y += ss_h;
     }
 
+    g_y_footer = rc.bottom - S(30);
+}
+
+static void ui_update_values(void) {
+    wchar_t label[320];
+
+    for (int i = 0; i < 32; i++) {
+        EndpointCtrl *c = &g_endpoint_ctrls[i];
+        if (!c->hwnd_vol) continue;
+        int idx = c->endpoint_idx;
+        if (idx < 0 || idx >= g_endpoint_count) continue;
+
+        BOOL is_def = (idx == g_default_endpoint_idx);
+        _snwprintf(label, 320, L"%s%s", g_endpoints[idx].name,
+                   is_def ? L"   \u25CF current output" : L"");
+        label[319] = L'\0';
+        if (c->hwnd_label) SetWindowTextW(c->hwnd_label, label);
+
+        /* Leave a slider alone while the user is dragging it. */
+        if (GetCapture() != c->hwnd_vol) {
+            float v = endpoint_get_volume(idx);
+            int pct = (int)(v * 100.0f + 0.5f);
+            SendMessageW(c->hwnd_vol, TBM_SETPOS, TRUE, pct);
+            if (c->hwnd_voltxt) update_volume_text(c->hwnd_voltxt, v);
+        }
+        if (c->hwnd_mute)
+            SetWindowTextW(c->hwnd_mute, endpoint_get_mute(idx) ? L"Unmute" : L"Mute");
+        if (c->hwnd_btn)
+            SetWindowTextW(c->hwnd_btn, is_def ? L"Default" : L"Set Default");
+    }
+
+    for (int i = 0; i < 128; i++) {
+        SessionCtrl *c = &g_session_ctrls[i];
+        if (!c->hwnd_vol) continue;
+        int idx = c->session_idx;
+        if (idx < 0 || idx >= g_session_count) continue;
+
+        if (c->hwnd_label) SetWindowTextW(c->hwnd_label, g_sessions[idx].name);
+        if (GetCapture() != c->hwnd_vol) {
+            SendMessageW(c->hwnd_vol, TBM_SETPOS, TRUE,
+                         (int)(g_sessions[idx].volume * 100.0f + 0.5f));
+            if (c->hwnd_voltxt) update_volume_text(c->hwnd_voltxt, g_sessions[idx].volume);
+        }
+        if (c->hwnd_mute)
+            SetWindowTextW(c->hwnd_mute, g_sessions[idx].mute ? L"Unmute" : L"Mute");
+    }
+}
+
+static void refresh_ui(void) {
+    if (!g_hwnd) return;
+
+    uint64_t esig = endpoints_signature();
+    uint64_t ssig = sessions_signature();
+
+    if (esig != g_ui_endpoint_sig || ssig != g_ui_session_sig) {
+        ui_destroy_all();
+        ui_build_controls();
+        g_ui_endpoint_sig = esig;
+        g_ui_session_sig  = ssig;
+    }
+
+    ui_update_values();
     InvalidateRect(g_hwnd, NULL, FALSE);
 }
+
+/* Footer status line. Reports what actually happened rather than implying
+ * success: a switch that Windows refused must say so, because the old code
+ * repainted a "Default" badge over a device it had never switched to. */
+static void ui_status_text(wchar_t *out, size_t cap) {
+    wchar_t detail[256];
+
+    if (g_last_switch_idx >= 0 && FAILED(g_last_switch_hr)) {
+        _snwprintf(detail, 256,
+                   L"Switch FAILED (0x%08lX) \u2014 audio is still on the previous device",
+                   (unsigned long)g_last_switch_hr);
+    } else if (g_policy_variant == 0) {
+        wcscpy(detail, L"Device switching unavailable: IPolicyConfig could not be created");
+    } else if (g_last_switch_idx >= 0 && g_last_switch_idx < g_endpoint_count) {
+        _snwprintf(detail, 256, L"Switched to %s", g_endpoints[g_last_switch_idx].name);
+    } else {
+        _snwprintf(detail, 256, L"%d output(s)  \u00B7  %d app(s)  \u00B7  %d remembered level(s)",
+                   g_endpoint_count, g_session_count, g_remembered_count);
+    }
+    detail[255] = L'\0';
+
+    int n = _snwprintf(out, cap, L"%s", detail);
+    if (n < 0) n = 0;
+    if (g_truncated_endpoints > 0 || g_truncated_sessions > 0) {
+        _snwprintf(out + n, cap - (size_t)n, L"   \u00B7  %d hidden (window too small)",
+                   g_truncated_endpoints + g_truncated_sessions);
+    }
+    out[cap - 1] = L'\0';
+}
+
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
@@ -841,6 +1445,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
         com_create_enumerator();
+        levels_path_init();
+        levels_load();
         endpoints_refresh();
         sessions_refresh();
 
@@ -912,9 +1518,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         if (id >= 3000 && id < 3100) {
             int idx = id - 3000;
-            g_default_endpoint_idx = idx;
-            for (int i = 0; i < g_endpoint_count; i++)
-                g_endpoints[i].is_default = (i == idx);
+            /* Actually switch the device, then re-read the truth from Windows
+             * instead of trusting our own bookkeeping. The old handler only set
+             * g_default_endpoint_idx and repainted, so the button said "Default"
+             * while audio kept playing through the previous device. */
+            HRESULT hr = endpoint_make_default(idx);
+            if (SUCCEEDED(hr)) {
+                endpoints_refresh();
+                sessions_refresh();   /* sessions live on the new default device */
+            }
             refresh_ui();
             return 0;
         }
@@ -926,8 +1538,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         if (id >= 5000 && id < 5200) {
             int idx = id - 5000;
-            session_set_mute(idx, !g_sessions[idx].mute);
-            refresh_ui();
+            /* Bounds-check before reading g_sessions[idx]: the 2-second poll
+             * can shrink the session list while a stale button id is still in
+             * flight, which made this an out-of-bounds read. */
+            if (idx >= 0 && idx < g_session_count) {
+                BOOL now_muted = !g_sessions[idx].mute;
+                session_set_mute(idx, now_muted);
+                levels_remember(g_sessions[idx].key, g_sessions[idx].volume, now_muted);
+                refresh_ui();
+            }
             return 0;
         }
         return 0;
@@ -951,6 +1570,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         } else if (id >= 4000 && id < 4200) {
             int idx = id - 4000;
             session_set_volume(idx, level);
+            if (idx >= 0 && idx < g_session_count)
+                levels_remember(g_sessions[idx].key, level, g_sessions[idx].mute);
             for (int i = 0; i < 128; i++) {
                 if (g_session_ctrls[i].session_idx == idx && g_session_ctrls[i].hwnd_voltxt) {
                     update_volume_text(g_session_ctrls[i].hwnd_voltxt, level);
@@ -963,6 +1584,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_TIMER:
         if (wp == 1) {
+            /* Re-read endpoints too, not just sessions: plugging in headphones
+             * must appear without a manual Refresh, and if the user switches
+             * the default device in Windows' own settings the "current output"
+             * marker has to follow. Safe to poll now that both refresh paths
+             * release their previous COM references instead of leaking them. */
+            endpoints_refresh();
             sessions_refresh();
             refresh_ui();
         } else if (wp == 2) {
@@ -996,11 +1623,44 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         RECT div = { 0, S(60), rc.right, S(62) };
         FillRect(hdc, &div, CreateSolidBrush(COL_DIVIDER));
 
-        wchar_t status[256];
-        swprintf(status, 256, L"%d output(s)  \u00B7  %d app(s)",
-                 g_endpoint_count, g_session_count);
-        SetTextColor(hdc, COL_MUTED);
-        DrawTextW(hdc, status, -1, &(RECT){ PANEL_X, S(68), PANEL_W, S(88) }, DT_LEFT | DT_TOP | DT_SINGLELINE);
+        /* Section headers, drawn at the positions ui_build_controls() actually
+         * laid the controls out at. Guarded because WM_PAINT can arrive before
+         * the first build. */
+        SetBkMode(hdc, TRANSPARENT);
+        if (g_y_outputs_header > 0) {
+            SetTextColor(hdc, COL_MUTED);
+            DrawTextW(hdc, L"OUTPUT DEVICES", -1,
+                      &(RECT){ PANEL_X, g_y_outputs_header, PANEL_X + PANEL_W,
+                               g_y_outputs_header + S(26) },
+                      DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        }
+        if (g_y_apps_header > 0) {
+            SetTextColor(hdc, COL_MUTED);
+            DrawTextW(hdc, L"APP VOLUME", -1,
+                      &(RECT){ PANEL_X, g_y_apps_header, PANEL_X + PANEL_W,
+                               g_y_apps_header + S(26) },
+                      DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        }
+
+        /* Footer status line: the honest report of what the last action did. */
+        if (g_y_footer > 0) {
+            RECT fdiv = { 0, g_y_footer - S(6), rc.right, g_y_footer - S(5) };
+            FillRect(hdc, &fdiv, CreateSolidBrush(COL_DIVIDER));
+
+            wchar_t status[320];
+            ui_status_text(status, 320);
+
+            COLORREF col = COL_MUTED;
+            if (g_last_switch_idx >= 0 && FAILED(g_last_switch_hr)) col = COL_DANGER;
+            else if (g_policy_variant == 0)                         col = COL_WARN;
+            else if (g_last_switch_idx >= 0)                        col = COL_GOOD;
+
+            SetTextColor(hdc, col);
+            DrawTextW(hdc, status, -1,
+                      &(RECT){ PANEL_X, g_y_footer, PANEL_X + PANEL_W,
+                               g_y_footer + S(24) },
+                      DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        }
 
         EndPaint(hwnd, &ps);
         return 0;
@@ -1011,10 +1671,250 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
 }
 
+/* ============================================================================
+ *  --diag : report what the Core Audio APIs actually returned.
+ *
+ *  This app cannot be tested on the build machine (it needs a real Windows
+ *  audio stack), so the COM plumbing is unverifiable by inspection alone --
+ *  which is exactly how four misaligned vtables shipped. --diag prints every
+ *  HRESULT, device id, PID and volume it sees, so a single run on a real
+ *  machine shows whether the interfaces are genuinely working rather than
+ *  merely compiling.
+ *
+ *    AudioSwitcher.exe --diag              report only, changes nothing
+ *    AudioSwitcher.exe --diag-switch=2     also switch default to endpoint 2
+ *                                          and re-read what Windows reports
+ *
+ *  Output goes to the console AND to %TEMP%\AudioSwitcher-diag.txt.
+ *  --diag-switch is deliberately a separate, explicit flag: it really does
+ *  change the system default device, so it must never happen by accident.
+ * ============================================================================ */
+
+static FILE   *g_diag_fp = NULL;
+static wchar_t g_diag_path[MAX_PATH] = L"";
+
+static void w2u8(const wchar_t *w, char *out, size_t cap) {
+    if (cap == 0) return;
+    if (!w || !w[0]) { out[0] = '\0'; return; }
+    int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, out, (int)cap, NULL, NULL);
+    if (n <= 0) { out[0] = '?'; out[1] = '\0'; }
+}
+
+static void diag(const char *fmt, ...) {
+    char buf[3072];
+    va_list ap;
+    va_start(ap, fmt);
+    _vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
+    va_end(ap);
+    buf[sizeof(buf) - 1] = '\0';
+    if (g_diag_fp) { fputs(buf, g_diag_fp); fputc('\n', g_diag_fp); fflush(g_diag_fp); }
+    printf("%s\n", buf);
+}
+
+static void diag_dump_role_defaults(const char *when) {
+    static const char *rname[3] = { "eConsole", "eMultimedia", "eCommunications" };
+    for (int r = 0; r < 3; r++) {
+        IMMDevice *d = NULL;
+        HRESULT h = CALL_VTBL3(g_enum, GetDefaultAudioEndpoint, eRender,
+                               (enum ERole)r, (void**)&d);
+        if (SUCCEEDED(h) && d) {
+            LPWSTR wid = NULL;
+            CALL_VTBL1(d, GetId, &wid);
+            char idu[1024];
+            w2u8(wid ? wid : L"(null)", idu, sizeof(idu));
+            diag("  default[%s] %s = %s", rname[r], when, idu);
+            if (wid) CoTaskMemFree(wid);
+            CALL_VTBL0(d, Release);
+        } else {
+            diag("  default[%s] %s = none (0x%08lX)", rname[r], when, (unsigned long)h);
+        }
+    }
+}
+
+static int run_diagnostics(int switch_idx) {
+    wchar_t temp[MAX_PATH] = L"";
+    GetEnvironmentVariableW(L"TEMP", temp, MAX_PATH);
+    if (!temp[0]) wcscpy(temp, L".");
+    _snwprintf(g_diag_path, MAX_PATH, L"%s\\AudioSwitcher-diag.txt", temp);
+
+    /* A GUI-subsystem process has no console; make one so the report is
+     * visible even when launched from Explorer. */
+    AllocConsole();
+    if (!freopen("CONOUT$", "w", stdout)) printf("(console unavailable)\n");
+
+    g_diag_fp = _wfopen(g_diag_path, L"wb");
+
+    diag("Audio Switcher -- diagnostics");
+    diag("=============================");
+    char dp[2048];
+    w2u8(g_diag_path, dp, sizeof(dp));
+    diag("report file: %s", g_diag_fp ? dp : "(could not open; console only)");
+    diag("");
+
+    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    diag("CoInitializeEx                        : 0x%08lX", (unsigned long)hr);
+
+    hr = com_create_enumerator();
+    diag("IMMDeviceEnumerator                   : 0x%08lX %s",
+         (unsigned long)hr, SUCCEEDED(hr) ? "OK" : "FAILED");
+    if (FAILED(hr) || !g_enum) {
+        diag("");
+        diag("FATAL: no device enumerator, nothing else can be probed.");
+        goto done;
+    }
+
+    /* Which IPolicyConfig IID this Windows build accepts. */
+    {
+        const IID *cands[2] = { &IID_IPolicyConfig, &IID_IPolicyConfigVista };
+        const char *cname[2] = { "IID_IPolicyConfig (Win7..Win11)",
+                                 "IID_IPolicyConfigVista" };
+        diag("");
+        diag("IPolicyConfig IID probe (device switching):");
+        for (int i = 0; i < 2; i++) {
+            void *p = NULL;
+            HRESULT h = CoCreateInstance(&CLSID_PolicyConfig, NULL, CLSCTX_ALL,
+                                         cands[i], &p);
+            diag("  %-34s: 0x%08lX %s", cname[i], (unsigned long)h,
+                 SUCCEEDED(h) ? "OK" : "failed");
+            if (p) CALL_VTBL0((IUnknown*)p, Release);
+        }
+        hr = policy_activate();
+        diag("  policy_activate() -> 0x%08lX, variant=%d %s",
+             (unsigned long)hr, g_policy_variant,
+             g_policy_variant ? "(switching available)"
+                              : "(switching NOT available)");
+    }
+
+    levels_path_init();
+    levels_load();
+
+    diag("");
+    diag("Output endpoints:");
+    hr = endpoints_refresh();
+    diag("  endpoints_refresh() -> 0x%08lX, count=%d, default_idx=%d",
+         (unsigned long)hr, g_endpoint_count, g_default_endpoint_idx);
+
+    for (int i = 0; i < g_endpoint_count; i++) {
+        char nm[512], idu[1024];
+        w2u8(g_endpoints[i].name, nm, sizeof(nm));
+        w2u8(g_endpoints[i].id, idu, sizeof(idu));
+        diag("  [%d] name  = %s", i, nm);
+        diag("      id    = %s", idu[0] ? idu : "(EMPTY)");
+        diag("      volume_iface=%s volume=%d%% mute=%d is_default=%d",
+             g_endpoints[i].vol ? "present" : "NULL",
+             (int)(endpoint_get_volume(i) * 100.0f + 0.5f),
+             (int)endpoint_get_mute(i), (int)g_endpoints[i].is_default);
+        if (g_endpoints[i].device) {
+            DWORD st = 0;
+            CALL_VTBL1(g_endpoints[i].device, GetState, &st);
+            diag("      device_state=%lu (1=ACTIVE)", (unsigned long)st);
+        }
+        if (!g_endpoints[i].id[0])
+            diag("      WARNING: empty id -- SetDefaultEndpoint cannot name this device");
+        if (!g_endpoints[i].vol)
+            diag("      WARNING: no IAudioEndpointVolume -- its slider would be dead");
+    }
+    if (g_endpoint_count == 0)
+        diag("  WARNING: no endpoints found at all");
+
+    diag("");
+    diag("Windows' own view of the default device:");
+    diag_dump_role_defaults("(before)");
+
+    diag("");
+    diag("Audio sessions (per-app volume):");
+    hr = sessions_refresh();
+    diag("  sessions_refresh() -> 0x%08lX, count=%d",
+         (unsigned long)hr, g_session_count);
+
+    for (int i = 0; i < g_session_count; i++) {
+        char nm[512], key[512], exep[2048];
+        w2u8(g_sessions[i].name, nm, sizeof(nm));
+        w2u8(g_sessions[i].key, key, sizeof(key));
+        w2u8(g_sessions[i].exe_path, exep, sizeof(exep));
+        diag("  [%d] name=%s", i, nm);
+        diag("      key=%s pid=%lu volume=%d%% mute=%d label_from_session=%d",
+             key[0] ? key : "(none)", (unsigned long)g_sessions[i].process_id,
+             (int)(g_sessions[i].volume * 100.0f + 0.5f),
+             (int)g_sessions[i].mute, (int)g_sessions[i].named_from_session);
+        diag("      exe=%s", exep[0] ? exep : "(unavailable)");
+        if (!key[0])
+            diag("      NOTE: no key -- this app's level cannot be remembered");
+    }
+    if (g_session_count == 0)
+        diag("  WARNING: no sessions. Either nothing is playing audio, or");
+    if (g_session_count == 0)
+        diag("           GetSessionEnumerator/GetProcessId is still failing.");
+
+    diag("");
+    char lp[2048];
+    w2u8(g_levels_path, lp, sizeof(lp));
+    diag("Remembered levels: enabled=%d count=%d file=%s",
+         (int)g_levels_enabled, g_remembered_count, lp);
+    for (int i = 0; i < g_remembered_count; i++) {
+        char k[512];
+        w2u8(g_remembered[i].key, k, sizeof(k));
+        diag("  %s = %d%%, mute=%d", k, g_remembered[i].percent,
+             (int)g_remembered[i].mute);
+    }
+
+    if (switch_idx >= 0) {
+        diag("");
+        diag("=== LIVE SWITCH TEST: endpoint_make_default(%d) ===", switch_idx);
+        if (switch_idx >= g_endpoint_count) {
+            diag("  index %d out of range (have %d endpoints)",
+                 switch_idx, g_endpoint_count);
+        } else {
+            char nm[512];
+            w2u8(g_endpoints[switch_idx].name, nm, sizeof(nm));
+            diag("  target: [%d] %s", switch_idx, nm);
+            HRESULT h = endpoint_make_default(switch_idx);
+            diag("  endpoint_make_default -> 0x%08lX (%s)", (unsigned long)h,
+                 SUCCEEDED(h) ? "S_OK: all three roles set" : "FAILED");
+            endpoints_refresh();
+            diag("  after switch: default_idx=%d", g_default_endpoint_idx);
+            diag_dump_role_defaults("(after)");
+            diag("  Compare the before/after ids above: if they are unchanged,");
+            diag("  SetDefaultEndpoint is not taking effect on this Windows build.");
+        }
+    } else {
+        diag("");
+        diag("No switch performed. To test switching for real, run:");
+        diag("  AudioSwitcher.exe --diag --diag-switch=<index>");
+    }
+
+done:
+    diag("");
+    diag("=== end of report ===");
+    if (g_diag_fp) { fclose(g_diag_fp); g_diag_fp = NULL; }
+
+    sessions_cleanup();
+    endpoints_cleanup();
+    com_release_enumerator();
+    CoUninitialize();
+
+    printf("\nReport written to: %ls\n", g_diag_path);
+    printf("Press Enter to close...");
+    fflush(stdout);
+    (void)getchar();
+    return 0;
+}
+
+
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
     (void)hPrev; (void)nShow;
 
     g_silent = (cmdLine && (wcsstr(cmdLine, L"--silent") != NULL || wcsstr(cmdLine, L"-Silent") != NULL));
+
+    /* --diag is handled BEFORE the single-instance mutex on purpose: the app is
+     * usually already running in the tray, and a diagnostics run must not
+     * silently bounce off the existing instance and report nothing. */
+    if (cmdLine && wcsstr(cmdLine, L"--diag") != NULL) {
+        int switch_idx = -1;
+        const wchar_t *sw = wcsstr(cmdLine, L"--diag-switch=");
+        if (sw) switch_idx = _wtoi(sw + 14);   /* len(L"--diag-switch=") == 14 */
+        return run_diagnostics(switch_idx);
+    }
 
     HANDLE hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
