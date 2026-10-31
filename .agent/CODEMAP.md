@@ -425,13 +425,13 @@
 
 ## tests/test_installer.py
 
-- L51  f check
-- L57  f cmd_tokens
-- L326  f _static_bat_checks
-- L754  f replay_branch_preflight
-- L775  f report_and_exit
-- L789  f build_plan
-- L801  f install_one
+- L56  f check
+- L62  f cmd_tokens
+- L331  f _static_bat_checks
+- L759  f replay_branch_preflight
+- L780  f report_and_exit
+- L794  f build_plan
+- L806  f install_one
 
 ## tests/test_plugin_audit.py
 
