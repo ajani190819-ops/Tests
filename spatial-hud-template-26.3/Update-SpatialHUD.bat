@@ -9,7 +9,7 @@ rem  install itself. The same shape as Orca-Plugins.bat.
 rem
 rem  Double-click it and press Enter. It installs the newest Spatial HUD build
 rem  into your Modrinth F5W mods folder. Press 2 to install a test branch
-rem  instead, for example arena/b4016c28-tests.
+rem  instead, for example a branch name from the build picker.
 rem
 rem  It checks the download before it changes anything: the jar must be the
 rem  size GitHub reported and must be the Spatial HUD mod. Your old jar is
@@ -29,14 +29,14 @@ rem  prompt the first time a downloaded .bat runs: right-click the file,
 rem  Properties, tick Unblock, and it never appears again.
 rem ===========================================================================
 
-rem UPDATER_VERSION 3 end
-set "UPDATER_VERSION=3"
+rem UPDATER_VERSION 4 end
+set "UPDATER_VERSION=4"
 
 set "REPO=ajani190819-ops/Tests"
-set "SELF_REF=arena/b4016c28-tests"
+set "SELF_REF=main"
 set "BUILD_PREFIX=spatial-hud-build-"
 set "LATEST_TAG=spatial-hud-latest"
-set "JAR_NAME=spatial-hud-1.0.0.jar"
+set "JAR_NAME_TMP=%TEMP%\spatial-hud-jarname-%RANDOM%.txt"
 set "DEFAULT_MODS=%APPDATA%\ModrinthApp\profiles\F5W\mods"
 set "STATE_DIR=%LOCALAPPDATA%\SpatialHudUpdater"
 set "BUILD_STATE=%STATE_DIR%\build.txt"
@@ -204,7 +204,7 @@ goto :install
 :type_branch
 set "CHOSEN="
 echo.
-echo Type the branch name exactly, for example arena/b4016c28-tests
+echo Type the branch name exactly, as it appears in the build list above
 set /p "CHOSEN=Branch: "
 if not defined CHOSEN goto :build_menu
 echo(%CHOSEN%| findstr /r /x "[A-Za-z0-9][A-Za-z0-9._/-]*" >nul
@@ -259,7 +259,7 @@ echo ===============================================================
 echo.
 echo Step 1 of 3: downloading and checking the jar...
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $ErrorActionPreference='Stop'; try { $h=@{'User-Agent'='SpatialHUD-Updater'}; $r=Invoke-RestMethod -Headers $h -Uri ('https://api.github.com/repos/%REPO%/releases/tags/%RELEASE_TAG%'); $j=@($r.assets | Where-Object { $_.name -like 'spatial-hud-*.jar' })[0]; if($j -eq $null){ throw 'that build has no Spatial HUD jar published yet' }; Invoke-WebRequest -UseBasicParsing -Headers $h -Uri $j.browser_download_url -OutFile '%JAR_TMP%'; $n=(Get-Item '%JAR_TMP%').Length; if($n -lt 1024 -or $n -ne [int64]$j.size){ throw 'the download was incomplete' }; Add-Type -AssemblyName System.IO.Compression.FileSystem; $z=[IO.Compression.ZipFile]::OpenRead('%JAR_TMP%'); try { $e=$z.GetEntry('fabric.mod.json'); if($e -eq $null){ throw 'the file is not a Fabric mod' }; $sr=New-Object IO.StreamReader($e.Open()); $txt=$sr.ReadToEnd(); $sr.Close() } finally { $z.Dispose() }; $meta=ConvertFrom-Json $txt; if($meta.id -ne 'spatialhud'){ throw 'the file is not the Spatial HUD mod' }; Write-Host ('  Checked: '+$n+' bytes, built '+([DateTimeOffset]::Parse([string]$j.updated_at)).ToString('u')) } catch { Write-Host ('  Download check failed: '+$_.Exception.Message); exit 1 }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $ErrorActionPreference='Stop'; try { $h=@{'User-Agent'='SpatialHUD-Updater'}; $r=Invoke-RestMethod -Headers $h -Uri ('https://api.github.com/repos/%REPO%/releases/tags/%RELEASE_TAG%'); $j=@($r.assets | Where-Object { $_.name -like 'spatial-hud-*.jar' })[0]; if($j -eq $null){ throw 'that build has no Spatial HUD jar published yet' };[IO.File]::WriteAllText('%JAR_NAME_TMP%',[string]$j.name); Invoke-WebRequest -UseBasicParsing -Headers $h -Uri $j.browser_download_url -OutFile '%JAR_TMP%'; $n=(Get-Item '%JAR_TMP%').Length; if($n -lt 1024 -or $n -ne [int64]$j.size){ throw 'the download was incomplete' }; Add-Type -AssemblyName System.IO.Compression.FileSystem; $z=[IO.Compression.ZipFile]::OpenRead('%JAR_TMP%'); try { $e=$z.GetEntry('fabric.mod.json'); if($e -eq $null){ throw 'the file is not a Fabric mod' }; $sr=New-Object IO.StreamReader($e.Open()); $txt=$sr.ReadToEnd(); $sr.Close() } finally { $z.Dispose() }; $meta=ConvertFrom-Json $txt; if($meta.id -ne 'spatialhud'){ throw 'the file is not the Spatial HUD mod' }; Write-Host ('  Checked: '+$n+' bytes, built '+([DateTimeOffset]::Parse([string]$j.updated_at)).ToString('u')) } catch { Write-Host ('  Download check failed: '+$_.Exception.Message); exit 1 }"
 if errorlevel 1 goto :install_failed
 
 if not exist "%MODS_DIR%" (
@@ -273,9 +273,17 @@ echo.
 echo Step 2 of 3: putting the jar in your mods folder...
 if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%" 2>nul
 move /y "%MODS_DIR%\spatial-hud-*.jar" "%BACKUP_DIR%\" >nul 2>nul
-copy /y "%JAR_TMP%" "%MODS_DIR%\%JAR_NAME%" >nul
+rem Install under the jar's own published name. A hardcoded name here put a
+rem newer build on disk under an older version's file name, which is what
+rem tripped Modrinth's pack fingerprint check ("cannot be backed up safely").
+set "JAR_NAME="
+if exist "%JAR_NAME_TMP%" set /p JAR_NAME=<"%JAR_NAME_TMP%"
+del "%JAR_NAME_TMP%" 2>nul
+echo(!JAR_NAME!| findstr /r /x "spatial-hud-[A-Za-z0-9._+-]*\.jar" >nul
+if errorlevel 1 set "JAR_NAME=spatial-hud.jar"
+copy /y "%JAR_TMP%" "%MODS_DIR%\!JAR_NAME!" >nul
 if errorlevel 1 goto :install_restore
-if not exist "%MODS_DIR%\%JAR_NAME%" goto :install_restore
+if not exist "%MODS_DIR%\!JAR_NAME!" goto :install_restore
 
 echo.
 echo Step 3 of 3: saving your choices...
@@ -285,7 +293,7 @@ if not exist "%STATE_DIR%" mkdir "%STATE_DIR%" 2>nul
 del "%JAR_TMP%" 2>nul
 
 echo.
-echo Spatial HUD installed: %BUILD%
+echo Spatial HUD installed: %BUILD%  (!JAR_NAME!)
 echo Your old jar, if there was one, is in: %BACKUP_DIR%
 echo Start the game from Modrinth.
 goto :finish
@@ -314,7 +322,7 @@ exit /b 0
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem  Self-update. A newer copy of this file on the session branch takes over
+rem  Self-update. A newer copy of this file on `main` takes over
 rem  the run. It is run only if it is a unified installer with a higher
 rem  UPDATER_VERSION, so a 404 page or an old file can never run.
 rem ---------------------------------------------------------------------------
