@@ -35,7 +35,7 @@ jobs:
       - name: Install Python test dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Run full repository verification (Orca plugins, Windows apps, .bat contract, docs, Arena Link)
+      - name: Run full repository verification (Orca plugins, Windows apps, .bat contract, docs sync)
         run: python3 tools/check_all.py
 
   windows-desktop-compile:
