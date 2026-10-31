@@ -429,7 +429,7 @@ python3 tests/test_installer.py          # catalogue / updater / files agree
 python3 tests/test_post_script.py        # the engine really does rewrite G-code
 python3 tests/test_plugin_runtime.py     # the plugin itself runs, and logs
 python3 tests/test_plugin_audit.py       # import-time writes are blocked
-PYTHONPATH=/tmp/wavedeps python3 tests/test_wave_gcode.py  # real fixture
+python3 tests/test_wave_gcode.py         # real fixture (needs requirements-dev.txt)
 python3 tools/sync_engine.py --check     # the two engine copies match
 python3 tools/sync_changelog.py --check  # embedded plugin notes match source
 ```

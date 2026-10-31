@@ -14,14 +14,26 @@
 # `.git/hooks/`, so every turn start puts them back).
 #
 # Usage:  bash tools/sync_branch.sh [branch]
-# Default branch: arena/e895b94f-tests (the current Arena session branch).
+# Default branch: the CURRENT branch, which on an Arena session checkout is
+# the `arena/<id>-tests` branch this session is tied to. It is read from git
+# rather than hardcoded: a hardcoded default silently synced (and could
+# reset) the wrong branch as soon as a new session started, because every
+# session gets a fresh `arena/<id>-tests` name.
 set -euo pipefail
-BRANCH="${1:-arena/e895b94f-tests}"
 cd "$(dirname "$0")/.."
+
+CURRENT="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+BRANCH="${1:-$CURRENT}"
+
+if [ -z "$BRANCH" ] || [ "$BRANCH" = "HEAD" ]; then
+  echo "cannot determine the current branch (detached HEAD?) - pass one explicitly:" >&2
+  echo "  bash tools/sync_branch.sh arena/<id>-tests" >&2
+  exit 1
+fi
 
 case "$BRANCH" in
   arena/*-tests) ;;
-  *) echo "refusing to sync non-session branch '$BRANCH'"; exit 1 ;;
+  *) echo "refusing to sync non-session branch '$BRANCH'" >&2; exit 1 ;;
 esac
 
 # Keep the commit guards installed (the sandbox rebuild wipes .git/hooks).
@@ -32,6 +44,16 @@ if [ -d .githooks ]; then
     chmod +x ".git/hooks/$(basename "$h")"
   done
   echo "installed commit guards: $(ls .githooks | tr '\n' ' ')"
+fi
+
+# Bootstrap: a brand-new session branch has no remote counterpart yet, and the
+# pre-commit guard refuses to commit while `origin/$BRANCH` is unknown. Creating
+# the remote branch here is what lets the first commit of a session through.
+if ! git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+  echo "origin/$BRANCH does not exist yet - new session branch, publishing it."
+  git push -u origin "$BRANCH"
+  echo "clean: origin/$BRANCH created at $(git rev-parse --short HEAD)."
+  exit 0
 fi
 
 git fetch origin "$BRANCH"

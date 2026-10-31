@@ -85,6 +85,7 @@
       "worker": "clipboardmemory"
     },
     {
+      "id": "audioswitcher",
       "title": "Audio Switcher",
       "blurb": "Per-app volume & audio output switching",
       "exe": "audio-switcher/AudioSwitcher.exe",

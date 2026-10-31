@@ -20,8 +20,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.33"
-#define HUB_VERSION_W     L"2.8.33"
+#define HUB_VERSION       "2.8.34"
+#define HUB_VERSION_W     L"2.8.34"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -1267,24 +1267,149 @@ static const wchar_t *PoolAdd(const char *utf8) {
     return w;
 }
 
+/* Read one string value out of a flat JSON object slice.
+   `obj` is a single `{...}` slice (RebuildExtraCards brace-matches it), so
+   only top-level `"key": "value"` pairs have to be understood.
+
+   Two things a bare strstr() gets wrong, both handled here:
+     - the match has to be a KEY. `"id"` also matches inside a value such as
+       `"blurb": "pick an id"`, and the old code then read whatever followed
+       that text as the value. A key sits after `{` or `,` and before `:`.
+     - escapes have to be decoded. The old code dropped the backslash and
+       copied the next byte verbatim, which happens to work for `\"` and `\\`
+       but turns `\n` into the letter n and `\u00e9` into `u00e9`. Every
+       caller feeds the result to MultiByteToWideChar(CP_UTF8, ...), so
+       `\uXXXX` is re-encoded as UTF-8 here, surrogate pairs included.
+
+   Returns 1 and fills `out` when the key holds a non-empty string value,
+   otherwise 0 with out[0] = '\0'. */
 static int JsonGet(const char *obj, const char *key, char *out, int cap) {
     char pat[64];
+    int patLen;
+    if (!obj || !key || !out || cap <= 1) {
+        if (out && cap > 0) out[0] = '\0';
+        return 0;
+    }
     out[0] = '\0';
     _snprintf(pat, sizeof(pat) - 1, "\"%s\"", key);
     pat[sizeof(pat) - 1] = '\0';
-    const char *p = strstr(obj, pat);
-    if (!p) return 0;
-    p += strlen(pat);
-    while (*p == ' ' || *p == '\t' || *p == ':') p++;
-    if (*p != '"') return 0;
-    p++;
-    int i = 0;
-    while (*p && *p != '"' && i + 1 < cap) {
-        if (*p == '\\' && p[1]) p++;
-        out[i++] = *p++;
+    patLen = (int)strlen(pat);
+    if (patLen < 3 || patLen >= (int)sizeof(pat) - 1) return 0;
+
+    const char *p = obj;
+    for (;;) {
+        p = strstr(p, pat);
+        if (!p) return 0;
+        const char *next = p + patLen;
+
+        /* A key is preceded by `{` or `,` (whitespace allowed) ... */
+        int isKey = 0;
+        if (p > obj) {
+            const char *b = p - 1;
+            while (b > obj && (*b == ' ' || *b == '\t' || *b == '\r' || *b == '\n')) b--;
+            isKey = (*b == '{' || *b == ',');
+        }
+
+        /* ... and followed by whitespace then `:`. Anything else is this same
+           text occurring inside a value: keep scanning. */
+        const char *q = next;
+        while (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n') q++;
+        if (!isKey || *q != ':') { p = next; continue; }
+        q++;
+        while (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n') q++;
+        if (*q != '"') return 0;   /* key present, but its value is not a string */
+        q++;
+
+        int i = 0;
+        while (*q && *q != '"') {
+            unsigned long cp;
+            if (*q == '\\') {
+                q++;
+                switch (*q) {
+                    case 'n':  cp = 0x0AUL; break;
+                    case 't':  cp = 0x09UL; break;
+                    case 'r':  cp = 0x0DUL; break;
+                    case 'b':  cp = 0x08UL; break;
+                    case 'f':  cp = 0x0CUL; break;
+                    case '"':  cp = '"';    break;
+                    case '\\': cp = '\\';   break;
+                    case '/':  cp = '/';    break;
+                    case 'u': {
+                        unsigned long v = 0;
+                        int h;
+                        for (h = 0; h < 4; h++) {
+                            char c = *++q;
+                            if (!c) break;
+                            v <<= 4;
+                            if (c >= '0' && c <= '9') v |= (unsigned long)(c - '0');
+                            else if (c >= 'a' && c <= 'f') v |= (unsigned long)(c - 'a' + 10);
+                            else if (c >= 'A' && c <= 'F') v |= (unsigned long)(c - 'A' + 10);
+                            else { v = 0xFFFDUL; break; }
+                        }
+                        if (h < 4 && v != 0xFFFDUL) v = 0xFFFDUL;
+                        /* Combine a UTF-16 surrogate pair; q sits on the last
+                           hex digit, so the low surrogate starts at q[1]. */
+                        if (v >= 0xD800UL && v <= 0xDBFFUL &&
+                            q[1] == '\\' && q[2] == 'u') {
+                            unsigned long lo = 0;
+                            int k;
+                            for (k = 0; k < 4; k++) {
+                                char c = q[3 + k];
+                                if (!c) break;
+                                lo <<= 4;
+                                if (c >= '0' && c <= '9') lo |= (unsigned long)(c - '0');
+                                else if (c >= 'a' && c <= 'f') lo |= (unsigned long)(c - 'a' + 10);
+                                else if (c >= 'A' && c <= 'F') lo |= (unsigned long)(c - 'A' + 10);
+                                else break;
+                            }
+                            if (k == 4 && lo >= 0xDC00UL && lo <= 0xDFFFUL) {
+                                v = 0x10000UL + ((v - 0xD800UL) << 10) + (lo - 0xDC00UL);
+                                q += 6;
+                            } else {
+                                v = 0xFFFDUL;      /* unpaired high surrogate */
+                            }
+                        } else if (v >= 0xD800UL && v <= 0xDFFFUL) {
+                            v = 0xFFFDUL;          /* unpaired low surrogate */
+                        }
+                        cp = v;
+                        break;
+                    }
+                    case '\0': return 0;                            /* truncated */
+                    default:   cp = (unsigned char)*q; break;       /* keep the char */
+                }
+                if (*q) q++;
+            } else {
+                cp = (unsigned char)*q;
+                q++;
+            }
+
+            /* Encode the code point as UTF-8: every caller converts the result
+               with CP_UTF8, so this is the encoding it expects. */
+            {
+                char tmp[4];
+                int tn = 0, k;
+                if (cp < 0x80UL) {
+                    tmp[tn++] = (char)cp;
+                } else if (cp < 0x800UL) {
+                    tmp[tn++] = (char)(0xC0UL | (cp >> 6));
+                    tmp[tn++] = (char)(0x80UL | (cp & 0x3FUL));
+                } else if (cp < 0x10000UL) {
+                    tmp[tn++] = (char)(0xE0UL | (cp >> 12));
+                    tmp[tn++] = (char)(0x80UL | ((cp >> 6) & 0x3FUL));
+                    tmp[tn++] = (char)(0x80UL | (cp & 0x3FUL));
+                } else {
+                    tmp[tn++] = (char)(0xF0UL | (cp >> 18));
+                    tmp[tn++] = (char)(0x80UL | ((cp >> 12) & 0x3FUL));
+                    tmp[tn++] = (char)(0x80UL | ((cp >> 6) & 0x3FUL));
+                    tmp[tn++] = (char)(0x80UL | (cp & 0x3FUL));
+                }
+                if (i + tn >= cap) break;        /* leave room for the NUL */
+                for (k = 0; k < tn; k++) out[i++] = tmp[k];
+            }
+        }
+        out[i] = '\0';
+        return i > 0;
     }
-    out[i] = '\0';
-    return i > 0;
 }
 
 static int BuiltInSlot(const char *id) {
@@ -1539,20 +1664,98 @@ static void AddCatalogCard(const char *obj) {
     g_cardCount++;
 }
 
-static void RebuildExtraCards(const char *json) {
-    /* Built-in titles revert to their built-in literals first: any of them
-       missing from the catalog must not point at wiped pool strings. */
-    static const wchar_t *fallbackTitles[8] = {
+/* Built-in card text as static literals, so a catalog entry that is missing
+   or malformed still leaves a card that can be drawn and clicked.
+   Every pool-backed field is listed here; `label` must never be NULL because
+   DrawActionBtn hands it straight to DrawTextW. */
+static const struct { int id; const wchar_t *label; const wchar_t *verb; } g_btnFallback[] = {
+    { ID_BTG_OPEN,   L"Open",   L"open"   }, { ID_BTG_UPDATE, L"Update", L"update" },
+    { ID_BTG_STOP,   L"Stop",   L"stop"   }, { ID_BTG_FOLDER, L"Folder", L"folder" },
+    { ID_KBL_OPEN,   L"Open",   L"open"   }, { ID_KBL_RESTART, L"Unfreeze", L"unfreeze" },
+    { ID_KBL_UPDATE, L"Update", L"update" }, { ID_KBL_FOLDER, L"Folder",  L"folder" },
+    { ID_HUD_UPDATE, L"Update Mod", L"updatemod" }, { ID_HUD_PICK, L"Mods Dir", L"modsdir" },
+    { ID_HUD_FOLDER, L"Folder", L"folder" }, { ID_HUD_DISABLE, L"Disable", L"disable" },
+    { ID_HUD_REMOVE, L"Remove", L"remove" },
+    { ID_ORCA_UPDATE, L"Update", L"update" }, { ID_ORCA_MENU, L"Branch", L"branch" },
+    { ID_ORCA_FOLDER, L"Folder", L"folder" }, { ID_ORCA_DISABLE, L"Disable", L"disable" },
+    { ID_DNS_OPEN,   L"Open",   L"open"   }, { ID_DNS_UPDATE, L"Update", L"update" },
+    { ID_DNS_FOLDER, L"Folder", L"folder" },
+    { ID_NOTES_OPEN, L"Open",   L"open"   }, { ID_NOTES_UPDATE, L"Update", L"update" },
+    { ID_NOTES_FOLDER, L"Folder", L"folder" },
+    { ID_AUDIOSWITCHER_OPEN, L"Open", L"open" },
+    { ID_AUDIOSWITCHER_UPDATE, L"Update", L"update" },
+    { ID_AUDIOSWITCHER_FOLDER, L"Folder", L"folder" },
+    { ID_CLIPBOARDMEMORY_OPEN, L"Open", L"open" },
+    { ID_CLIPBOARDMEMORY_UPDATE, L"Update", L"update" },
+    { ID_CLIPBOARDMEMORY_FOLDER, L"Folder", L"folder" },
+};
+
+/* Revert every pool-backed field of the 8 built-in cards to its literal.
+   Called just before the string pool is reset: a card whose catalog entry is
+   absent (or whose "id" failed to parse) is never repopulated by
+   FillBuiltInDef, so without this its pointers would survive the reset and
+   then read whatever the NEXT rebuild happens to write at those offsets -
+   which is how the Audio Switcher card came to show another app's blurb.
+   Button order, ids, widths and `hidden` are deliberately left alone:
+   RefreshProjectStatuses mutates them at runtime ("Open" -> "Install",
+   "Disable" -> "Enable"), and only the two string pointers go stale. */
+static void RestoreBuiltInCardText(void) {
+    static const wchar_t *titles[8] = {
         L"Bluetooth Guard", L"Keyboard Lighting", L"Spatial HUD",
         L"OrcaSlicer Plugins", L"DNS Pilot", L"Agent Notes", L"Audio Switcher",
         L"Clipboard Memory" };
-    for (int i = 0; i < 6; i++) g_cards[i].title = fallbackTitles[i];
+    static const wchar_t *blurbs[8] = {
+        L"Phone audio protection", L"ROG Strix G16 RGB lighting",
+        L"Minecraft 26.3 Fabric mod", L"Wave Overhangs & Unlayered Infill",
+        L"Fast DNS benchmark & auto-pilot", L"Quick notes straight to the agent",
+        L"Per-app volume & audio output switching",
+        L"Disk-persisted clipboard history" };
+    /* Must mirror BuiltInSlot's known[] / FillBuiltInDef's exeMap ordering. */
+    static const wchar_t *exeRepo[8] = {
+        L"bluetooth-guard/BluetoothGuard.exe", L"keyboard-lighting/KeyboardLighting.exe",
+        NULL, NULL,
+        L"dns-pilot/DnsPilot.exe", L"agent-notes/AgentNotes.exe",
+        L"audio-switcher/AudioSwitcher.exe", L"clipboard-memory/ClipboardMemory.exe" };
+    static const wchar_t *exeName[8] = {
+        L"BluetoothGuard.exe", L"KeyboardLighting.exe", NULL, NULL,
+        L"DnsPilot.exe", L"AgentNotes.exe",
+        L"AudioSwitcher.exe", L"ClipboardMemory.exe" };
+    for (int i = 0; i < 8; i++) {
+        ProjectCard *c = &g_cards[i];
+        c->title = titles[i];
+        c->blurb = blurbs[i];
+        c->exeRepo = exeRepo[i];
+        c->exeName = exeName[i];
+        c->shortcutName = titles[i];
+        c->launchArgs = NULL;
+        for (int b = 0; b < c->btnCount && b < 4; b++) {
+            const wchar_t *label = NULL, *verb = NULL;
+            for (size_t k = 0; k < sizeof(g_btnFallback) / sizeof(g_btnFallback[0]); k++) {
+                if (g_btnFallback[k].id == c->btns[b].id) {
+                    label = g_btnFallback[k].label;
+                    verb = g_btnFallback[k].verb;
+                    break;
+                }
+            }
+            /* Unknown id (a verb the catalog invented): drop the button rather
+               than leave DrawActionBtn holding a pointer into a wiped pool. */
+            if (!label) { c->btnCount = b; break; }
+            c->btns[b].label = label;
+            c->btns[b].verb = verb;
+        }
+    }
+}
+
+static void RebuildExtraCards(const char *json) {
     /* Shrink first so a repaint mid-rebuild never reads half-built cards. */
     g_cardCount = 8;
     for (int i = 8; i < MAX_APPS; i++) {
         if (g_cards[i].hIcon) { DestroyIcon(g_cards[i].hIcon); g_cards[i].hIcon = NULL; }
         ZeroMemory(&g_cards[i], sizeof(g_cards[i]));
     }
+    /* Revert the built-ins to their literals BEFORE wiping the pool, so no
+       pointer is left aimed at memory the next pass is about to reuse. */
+    RestoreBuiltInCardText();
     g_strPoolUsed = 0;
     const char *apps = json ? strstr(json, "\"apps\"") : NULL;
     const char *p = apps ? strchr(apps, '[') : NULL;

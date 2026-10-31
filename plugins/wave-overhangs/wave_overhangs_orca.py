@@ -1017,19 +1017,6 @@ def _gwords(line):
     return {k: float(v) for k, v in _GWORD.findall(line.split(";", 1)[0])}
 
 
-def _line_parts(geom):
-    if geom is None or geom.is_empty:
-        return []
-    if geom.geom_type == "LineString":
-        return [geom]
-    if geom.geom_type in ("MultiLineString", "GeometryCollection"):
-        out = []
-        for g in geom.geoms:
-            out.extend(_line_parts(g))
-        return out
-    return []
-
-
 _MOVE_CODE = re.compile(r"^G([0123])(?![0-9])")
 
 

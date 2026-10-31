@@ -12,7 +12,7 @@ import hashlib
 import json
 import os
 import pathlib
-import shutil
+import re
 import subprocess
 import sys
 import tempfile
@@ -95,7 +95,14 @@ def exec_task(label, cmd, cwd=ROOT, env=None):
         result = subprocess.run(cmd, cwd=cwd, env=run_env,
                                 capture_output=True, text=True)
     body = (result.stdout or "") + (result.stderr or "")
-    failed = result.returncode != 0 or "FAILED" in body
+    # Both harnesses exit non-zero on failure (report_and_exit -> sys.exit(1),
+    # unittest -> exit 1), so the return code is the real signal. The text
+    # match is a safety net for a harness that forgets to exit non-zero; it is
+    # anchored to a line START because a bare "FAILED" substring also matches
+    # a passing test that merely quotes a failure message - which these suites
+    # do, since several assertions print the word in their own diagnostics.
+    failed = (result.returncode != 0
+              or re.search(r"(?m)^FAILED\b", body) is not None)
     skipped = body.lstrip().startswith("SKIP")
     mark = "FAIL" if failed else ("SKIP" if skipped else "ok  ")
     last = [ln for ln in body.strip().splitlines() if ln.strip()]

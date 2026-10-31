@@ -47,6 +47,11 @@ GATTR = REPO / ".gitattributes"
 
 failures: list[str] = []
 
+# Issues no commit can fix -- they need a human with the GitHub web UI. Printed
+# loudly at the end, but deliberately NOT counted as failures: a red gate that
+# only a human can clear would block every unrelated commit behind it.
+advisories: list[str] = []
+
 
 def check(cond: bool, msg: str) -> bool:
     if not cond:
@@ -924,8 +929,75 @@ check("[version]'%NEW_FV%' -le [version]'%FRONTDOOR_VERSION%'" in bat,
       ":self_update can downgrade a newer local copy to an older remote copy")
 
 # --------------------------------------------------------------------------
+# 6. The CI workflows: enforce docs/ci/, and loudly report .github/workflows/.
+#
+# docs/ci/ is the authoritative copy -- it is the one CI-SETUP.md tells you to
+# paste into .github/workflows/, and it is the only one this repository can
+# always write. GitHub refuses workflow-file writes from a token that lacks the
+# special `workflows` permission, so .github/workflows/ can legitimately lag
+# behind and no commit can close the gap. That lag is reported as an ADVISORY
+# rather than a failure: failing a gate that only a human with the web UI can
+# clear would block every unrelated commit behind it.
+#
+# What IS enforced is that docs/ci/ is correct, so the copy a human pastes can
+# never be the broken one. This split rotted silently once before: the live
+# build-spatial-hud.yml lost `main`, `pull_request` and its concurrency group
+# while docs/ci/ kept all three, and the rolling release accumulated stale jar
+# assets the hub would install in preference to the newest build. ci.yml never
+# reached .github/workflows/ at all, so nothing ran on push.
+
+# The rolling release the hub installs from must never keep more than one jar:
+# WorkerInstallSpatialHud takes the FIRST browser_download_url, and GitHub
+# returns assets sorted by name, so a leftover spatial-hud-1.0.0.jar outranks
+# spatial-hud-1.0.4.jar forever. `--clobber` does not remove old assets, so the
+# publish step has to delete them itself.
+_hud_doc = REPO / "docs" / "ci" / "build-spatial-hud.yml"
+for _name in ("ci.yml", "build-spatial-hud.yml"):
+    check((REPO / "docs" / "ci" / _name).exists(),
+          f"docs/ci/{_name} is missing - there is no paste-by-hand source for "
+          f"the workflow GitHub is supposed to run (see CI-SETUP.md)")
+if _hud_doc.exists():
+    _wf = _hud_doc.read_text(encoding="utf-8")
+    check("delete-asset" in _wf,
+          "docs/ci/build-spatial-hud.yml uploads with --clobber but never deletes "
+          "stale assets, so the hub can keep installing an older jar than the "
+          "newest build (it reads the FIRST browser_download_url, assets sort by "
+          "name)")
+    check("--clobber" in _wf,
+          "docs/ci/build-spatial-hud.yml no longer re-uploads over an existing "
+          "asset")
+    check('refs/heads/main' in _wf,
+          "docs/ci/build-spatial-hud.yml would let a scratch branch overwrite the "
+          "spatial-hud-latest release that users install from")
+
+for _name in ("ci.yml", "build-spatial-hud.yml"):
+    _doc = REPO / "docs" / "ci" / _name
+    _live = REPO / ".github" / "workflows" / _name
+    if not _doc.exists():
+        continue
+    if not _live.exists():
+        advisories.append(
+            f".github/workflows/{_name} does not exist, so that workflow is not "
+            f"running at all. Paste docs/ci/{_name} in by hand via the GitHub web "
+            f"UI: see docs/spatial-hud/CI-SETUP.md.")
+    elif _doc.read_bytes() != _live.read_bytes():
+        advisories.append(
+            f".github/workflows/{_name} differs from docs/ci/{_name}. The live one "
+            f"is what GitHub actually runs, so the fix is not applied until you "
+            f"paste docs/ci/{_name} over it: see docs/spatial-hud/CI-SETUP.md.")
+
+# --------------------------------------------------------------------------
 if failures:
     report_and_exit()
+
+if advisories:
+    print()
+    print("!" * 72)
+    print("!! ACTION REQUIRED -- manual step, cannot be fixed by a commit:")
+    for _a in advisories:
+        print(f"!!   - {_a}")
+    print("!" * 72)
+    print()
 
 print(f"ok -- catalogue, .bat fallback list, CRLF discipline and install replay "
       f"all agree ({len(ready)} ready plugin(s), {len(plugins)} listed)")
