@@ -372,6 +372,15 @@ static IPolicyConfig       *g_policy = NULL;
  * successful one. */
 static int                  g_policy_variant = 0;
 
+/* The HRESULT of the most recent attempt to obtain IPolicyConfig. The status
+ * line must show this: claiming "could not be created" without ever having
+ * tried is exactly the kind of false alarm that makes a tool untrustworthy. */
+static HRESULT              g_policy_hr = S_OK;
+
+/* Outcome of the last session enumeration, so an empty APP VOLUME list can say
+ * whether that is "nothing is playing" or "this is broken, here is the code". */
+static HRESULT              g_sessions_hr = S_OK;
+
 /* Last switching outcome, surfaced in the UI status line. */
 static HRESULT              g_last_switch_hr = S_OK;
 static int                  g_last_switch_idx = -1;
@@ -395,6 +404,7 @@ static void com_release_enumerator(void) {
 static HRESULT policy_activate(void) {
     if (g_policy) return S_OK;
 
+    HRESULT last = E_NOINTERFACE;
     const IID *candidates[2] = { &IID_IPolicyConfig, &IID_IPolicyConfigVista };
     for (int i = 0; i < 2; i++) {
         void *p = NULL;
@@ -403,12 +413,15 @@ static HRESULT policy_activate(void) {
         if (SUCCEEDED(hr) && p) {
             g_policy = (IPolicyConfig*)p;
             g_policy_variant = i + 1;
+            g_policy_hr = S_OK;
             return S_OK;
         }
+        last = hr;
     }
     g_policy = NULL;
     g_policy_variant = 0;
-    return E_NOINTERFACE;
+    g_policy_hr = last;      /* the real reason, for the status line and --diag */
+    return last;
 }
 
 /* Make endpoint `idx` the system default for ALL THREE roles.
@@ -524,7 +537,7 @@ static HRESULT endpoints_refresh(void) {
         g_endpoint_count++;
 
         IAudioEndpointVolume *ev = NULL;
-        hr = CALL_VTBL4(dev, Activate, &IID_IAudioEndpointVolume, 0, NULL, (void**)&ev);
+        hr = CALL_VTBL4(dev, Activate, &IID_IAudioEndpointVolume, CLSCTX_ALL, NULL, (void**)&ev);
         if (SUCCEEDED(hr) && ev) {
             g_endpoints[g_endpoint_count - 1].vol = ev;
         }
@@ -740,12 +753,12 @@ static HRESULT sessions_refresh(void) {
 
     IMMDevice *dev = NULL;
     HRESULT hr = CALL_VTBL3(e, GetDefaultAudioEndpoint, eRender, eConsole, (void**)&dev);
-    if (FAILED(hr)) return hr;
+    if (FAILED(hr)) { g_sessions_hr = hr; return hr; }
 
     IAudioSessionManager2 *mgr = NULL;
-    hr = CALL_VTBL4(dev, Activate, &IID_IAudioSessionManager2, 0, NULL, (void**)&mgr);
+    hr = CALL_VTBL4(dev, Activate, &IID_IAudioSessionManager2, CLSCTX_ALL, NULL, (void**)&mgr);
     CALL_VTBL0(dev, Release);
-    if (FAILED(hr)) return hr;
+    if (FAILED(hr)) { g_sessions_hr = hr; return hr; }
 
     if (g_session_mgr) { CALL_VTBL0(g_session_mgr, Release); }
     g_session_mgr = mgr;
@@ -755,6 +768,7 @@ static HRESULT sessions_refresh(void) {
     if (FAILED(hr)) {
         CALL_VTBL0(mgr, Release);
         g_session_mgr = NULL;
+        g_sessions_hr = hr;
         return hr;
     }
 
@@ -870,6 +884,7 @@ static HRESULT sessions_refresh(void) {
 
     CALL_VTBL0(enum_sessions, Release);
 
+    g_sessions_hr = S_OK;
     return S_OK;
 }
 
@@ -964,6 +979,95 @@ static int S(int x) { return MulDiv(x, g_dpi, 96); }
 
 /* Spinning emblem */
 static RECT   g_rcEmblem   = {0, 0, 0, 0};
+
+/* ============================================================================
+ *  Control theming
+ *
+ *  Stock Win32 buttons and trackbars render with the light OS chrome, which on
+ *  the Soft Slate dark canvas looked like unfinished controls dropped onto a
+ *  finished background. Everything user-facing here is drawn from the palette:
+ *  buttons are owner-drawn, sliders are custom-drawn, and text uses Segoe UI at
+ *  consistent sizes instead of the default 8px system font.
+ * ============================================================================ */
+
+static HFONT  g_font_ui    = NULL;   /* Segoe UI 9pt            */
+static HFONT  g_font_head  = NULL;   /* Segoe UI 9pt semibold   */
+static HFONT  g_font_small = NULL;   /* Segoe UI 8pt            */
+static HWND   g_hover_btn  = NULL;   /* button currently under the cursor */
+
+/* Small brush cache: WM_DRAWITEM and WM_PAINT fire constantly, and creating a
+ * brush per paint would leak GDI objects until the desktop ran out. */
+static struct { COLORREF c; HBRUSH b; } g_brush_cache[24];
+
+static HBRUSH ui_brush(COLORREF c) {
+    for (int i = 0; i < 24; i++) {
+        if (g_brush_cache[i].b && g_brush_cache[i].c == c) return g_brush_cache[i].b;
+    }
+    for (int i = 0; i < 24; i++) {
+        if (!g_brush_cache[i].b) {
+            g_brush_cache[i].c = c;
+            g_brush_cache[i].b = CreateSolidBrush(c);
+            return g_brush_cache[i].b;
+        }
+    }
+    return (HBRUSH)GetStockObject(WHITE_BRUSH);
+}
+
+static void ui_fonts_create(void) {
+    LOGFONTW lf = {0};
+    wcscpy(lf.lfFaceName, L"Segoe UI");
+    lf.lfQuality = CLEARTYPE_QUALITY;
+    lf.lfCharSet = DEFAULT_CHARSET;
+    lf.lfHeight = -MulDiv(9, g_dpi, 72);
+    lf.lfWeight = FW_NORMAL;
+    g_font_ui = CreateFontIndirectW(&lf);
+    lf.lfWeight = FW_SEMIBOLD;
+    g_font_head = CreateFontIndirectW(&lf);
+    lf.lfHeight = -MulDiv(8, g_dpi, 72);
+    lf.lfWeight = FW_NORMAL;
+    g_font_small = CreateFontIndirectW(&lf);
+}
+
+static void ui_fonts_destroy(void) {
+    if (g_font_ui)    { DeleteObject(g_font_ui);    g_font_ui = NULL; }
+    if (g_font_head)  { DeleteObject(g_font_head);  g_font_head = NULL; }
+    if (g_font_small) { DeleteObject(g_font_small); g_font_small = NULL; }
+    for (int i = 0; i < 24; i++) {
+        if (g_brush_cache[i].b) { DeleteObject(g_brush_cache[i].b); g_brush_cache[i].b = NULL; }
+    }
+}
+
+/* Hover tracking for owner-drawn buttons: ODS_HOTLIGHT is not reliably set for
+ * BS_OWNERDRAW, so track the cursor ourselves and invalidate. */
+static LRESULT CALLBACK BtnHoverProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,
+                                     UINT_PTR uid, DWORD_PTR ref) {
+    (void)uid; (void)ref;
+    if (msg == WM_MOUSEMOVE && g_hover_btn != hwnd) {
+        g_hover_btn = hwnd;
+        TRACKMOUSEEVENT tme = { sizeof(tme), TME_LEAVE, hwnd, 0 };
+        TrackMouseEvent(&tme);
+        InvalidateRect(hwnd, NULL, FALSE);
+    } else if (msg == WM_MOUSELEAVE && g_hover_btn == hwnd) {
+        g_hover_btn = NULL;
+        InvalidateRect(hwnd, NULL, FALSE);
+    }
+    return DefSubclassProc(hwnd, msg, wp, lp);
+}
+
+/* A trackbar paints its own background in light chrome. Take the erase over so
+ * the whole control sits on the card colour, and let NM_CUSTOMDRAW paint the
+ * channel and thumb. */
+static LRESULT CALLBACK TrackbarSkinProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,
+                                         UINT_PTR uid, DWORD_PTR ref) {
+    (void)uid; (void)ref;
+    if (msg == WM_ERASEBKGND) {
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        FillRect((HDC)wp, &rc, ui_brush((COLORREF)ref ? COL_CARD : COL_BG));
+        return 1;
+    }
+    return DefSubclassProc(hwnd, msg, wp, lp);
+}
 
 /* Tri-Spoke Core Emblem - analytic sub-pixel SDF renderer, ported 1:1 from Project Hub */
 static void EmbRasterize(uint32_t *dst, int n, COLORREF bg) {
@@ -1171,6 +1275,13 @@ static int g_y_footer         = 0;
 static int g_truncated_endpoints = 0;
 static int g_truncated_sessions  = 0;
 
+/* Card rectangles, captured at build time so WM_PAINT can draw the card
+ * background behind each row at exactly the geometry the controls use. */
+static RECT g_ep_card[32];
+static RECT g_ss_card[128];
+static int  g_ep_rows = 0;
+static int  g_ss_rows = 0;
+
 static uint64_t ui_hash_wstr(uint64_t h, const wchar_t *s) {
     for (; s && *s; s++) { h ^= (uint64_t)*s; h *= 1099511628211ULL; }
     return h;
@@ -1206,6 +1317,11 @@ static uint64_t sessions_signature(void) {
 }
 
 static void ui_destroy_all(void) {
+    /* A hovered button that is about to be destroyed would otherwise leave
+     * g_hover_btn pointing at a handle Windows may hand to the next button,
+     * making an unrelated button draw itself as hovered. */
+    g_hover_btn = NULL;
+
     for (int i = 0; i < 32; i++) {
         if (g_endpoint_ctrls[i].hwnd_btn)    DestroyWindow(g_endpoint_ctrls[i].hwnd_btn);
         if (g_endpoint_ctrls[i].hwnd_vol)    DestroyWindow(g_endpoint_ctrls[i].hwnd_vol);
@@ -1225,107 +1341,159 @@ static void ui_destroy_all(void) {
     }
 }
 
-static void ui_build_controls(void) {
-    RECT rc; GetClientRect(g_hwnd, &rc);
-    int bottom = rc.bottom - S(34);       /* room for the footer status line */
+/* Layout is computed against a fixed budget, NOT against the current client
+ * height, and the window is then sized to the result. Deriving rows from the
+ * live client height would feed the resize back into the next layout and
+ * oscillate. */
+#define UI_MAX_CLIENT 940
 
-    int ep_h  = S(52);
-    int ss_h  = S(44);
-    int hdr_h = S(34);
+static void ui_build_controls(void) {
+    int hdr_h  = S(34);
+    int ep_row = S(72);
+    int ss_row = S(56);
+    int gap    = S(18);
+    int footer = S(40);
+
+    int budget = S(UI_MAX_CLIENT) - footer - (PANEL_Y + hdr_h);
 
     g_y_outputs_header = PANEL_Y;
     int y = PANEL_Y + hdr_h;
 
-    /* Reserve space for at least four app rows, so a long device list can never
-     * push the per-app section off the window entirely. */
-    int reserve = hdr_h + 4 * ss_h + S(16);
-    int ep_avail = bottom - reserve - y;
-    int ep_max = ep_avail > 0 ? ep_avail / ep_h : 0;
+    /* Reserve room for three app rows so a long device list can never push the
+     * per-app section out entirely. */
+    int reserve = hdr_h + gap + 3 * ss_row;
+    int ep_avail = budget - reserve;
+    int ep_max = ep_avail > 0 ? ep_avail / ep_row : 0;
     if (ep_max > g_endpoint_count) ep_max = g_endpoint_count;
     if (ep_max > 32) ep_max = 32;
     g_truncated_endpoints = g_endpoint_count - ep_max;
+    g_ep_rows = ep_max;
 
     for (int i = 0; i < ep_max; i++) {
         EndpointCtrl *c = &g_endpoint_ctrls[i];
         c->endpoint_idx = i;
+        SetRect(&g_ep_card[i], PANEL_X, y, PANEL_X + PANEL_W, y + ep_row - S(8));
+
+        /* Columns measured inward from the right edge so they can never
+         * overlap, whatever the DPI. */
+        int right  = PANEL_X + PANEL_W - S(14);
+        int def_w = S(104), mute_w = S(72), pct_w = S(46), g10 = S(10);
+        int def_x  = right - def_w;
+        int mute_x = def_x - g10 - mute_w;
+        int pct_x  = mute_x - g10 - pct_w;
+        int sl_x   = PANEL_X + S(16);
+        int sl_w   = pct_x - S(10) - sl_x;
 
         c->hwnd_label = CreateWindowExW(
-            0, L"STATIC", g_endpoints[i].name,
+            0, L"STATIC", L"",
             WS_CHILD | WS_VISIBLE,
-            PANEL_X, y, PANEL_W - S(160), S(24),
+            PANEL_X + S(16), y + S(9), PANEL_W - S(32), S(20),
             g_hwnd, NULL, g_hInst, NULL);
+        SendMessageW(c->hwnd_label, WM_SETFONT, (WPARAM)g_font_head, TRUE);
 
         c->hwnd_vol = CreateWindowExW(
             0, TRACKBAR_CLASS, L"",
-            WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS,
-            PANEL_X, y + S(28), PANEL_W - S(260), S(20),
+            WS_CHILD | WS_VISIBLE | (g_endpoints[i].vol ? 0 : WS_DISABLED),
+            sl_x, y + S(36), sl_w, S(26),
             g_hwnd, (HMENU)(INT_PTR)(1000 + i), g_hInst, NULL);
         SendMessageW(c->hwnd_vol, TBM_SETRANGE, FALSE, MAKELONG(0, 100));
+        SetWindowSubclass(c->hwnd_vol, TrackbarSkinProc, 0, (DWORD_PTR)1);
 
         c->hwnd_voltxt = CreateWindowExW(
             0, L"STATIC", L"",
             WS_CHILD | WS_VISIBLE | SS_RIGHT,
-            PANEL_W - S(170), y + S(2), S(50), S(20),
+            pct_x, y + S(39), pct_w, S(18),
             g_hwnd, NULL, g_hInst, NULL);
+        SendMessageW(c->hwnd_voltxt, WM_SETFONT, (WPARAM)g_font_small, TRUE);
 
         c->hwnd_mute = CreateWindowExW(
             0, L"BUTTON", L"Mute",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            PANEL_W - S(200), y + S(26), S(80), S(24),
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            mute_x, y + S(34), mute_w, S(26),
             g_hwnd, (HMENU)(INT_PTR)(2000 + i), g_hInst, NULL);
+        SetWindowSubclass(c->hwnd_mute, BtnHoverProc, 0, 0);
 
         c->hwnd_btn = CreateWindowExW(
             0, L"BUTTON", L"Set Default",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            PANEL_W - S(110), y + S(26), S(96), S(24),
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            def_x, y + S(34), def_w, S(26),
             g_hwnd, (HMENU)(INT_PTR)(3000 + i), g_hInst, NULL);
+        SetWindowSubclass(c->hwnd_btn, BtnHoverProc, 0, 0);
 
-        y += ep_h;
+        y += ep_row;
     }
 
-    y += S(16);
+    y += gap;
     g_y_apps_header = y;
     y += hdr_h;
 
-    int ss_avail = bottom - y;
-    int ss_max = ss_avail > 0 ? ss_avail / ss_h : 0;
+    int ss_avail = S(UI_MAX_CLIENT) - footer - y;
+    int ss_max = ss_avail > 0 ? ss_avail / ss_row : 0;
     if (ss_max > g_session_count) ss_max = g_session_count;
     if (ss_max > 128) ss_max = 128;
     g_truncated_sessions = g_session_count - ss_max;
+    g_ss_rows = ss_max;
 
     for (int i = 0; i < ss_max; i++) {
         SessionCtrl *c = &g_session_ctrls[i];
         c->session_idx = i;
+        SetRect(&g_ss_card[i], PANEL_X, y, PANEL_X + PANEL_W, y + ss_row - S(6));
+
+        int right  = PANEL_X + PANEL_W - S(14);
+        int mute_w = S(72), pct_w = S(46), g10 = S(10);
+        int mute_x = right - mute_w;
+        int pct_x  = mute_x - g10 - pct_w;
+        int sl_x   = PANEL_X + S(16);
+        int sl_w   = pct_x - S(10) - sl_x;
 
         c->hwnd_label = CreateWindowExW(
-            0, L"STATIC", g_sessions[i].name,
+            0, L"STATIC", L"",
             WS_CHILD | WS_VISIBLE,
-            PANEL_X, y, PANEL_W - S(260), S(20),
+            PANEL_X + S(16), y + S(7), PANEL_W - S(32), S(18),
             g_hwnd, NULL, g_hInst, NULL);
+        SendMessageW(c->hwnd_label, WM_SETFONT, (WPARAM)g_font_ui, TRUE);
 
         c->hwnd_vol = CreateWindowExW(
             0, TRACKBAR_CLASS, L"",
-            WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS,
-            PANEL_X, y + S(22), PANEL_W - S(320), S(20),
+            WS_CHILD | WS_VISIBLE,
+            sl_x, y + S(27), sl_w, S(24),
             g_hwnd, (HMENU)(INT_PTR)(4000 + i), g_hInst, NULL);
         SendMessageW(c->hwnd_vol, TBM_SETRANGE, FALSE, MAKELONG(0, 100));
+        SetWindowSubclass(c->hwnd_vol, TrackbarSkinProc, 0, (DWORD_PTR)1);
 
         c->hwnd_voltxt = CreateWindowExW(
             0, L"STATIC", L"",
             WS_CHILD | WS_VISIBLE | SS_RIGHT,
-            PANEL_W - S(170), y + S(2), S(50), S(18),
+            pct_x, y + S(30), pct_w, S(18),
             g_hwnd, NULL, g_hInst, NULL);
+        SendMessageW(c->hwnd_voltxt, WM_SETFONT, (WPARAM)g_font_small, TRUE);
 
         c->hwnd_mute = CreateWindowExW(
             0, L"BUTTON", L"Mute",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            PANEL_W - S(200), y + S(20), S(80), S(22),
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            mute_x, y + S(25), mute_w, S(24),
             g_hwnd, (HMENU)(INT_PTR)(5000 + i), g_hInst, NULL);
+        SetWindowSubclass(c->hwnd_mute, BtnHoverProc, 0, 0);
 
-        y += ss_h;
+        y += ss_row;
     }
 
-    g_y_footer = rc.bottom - S(30);
+    g_y_footer = y + S(10);
+
+    /* Size the window to the content so there is no dead void under a short
+     * list, clamped so it always fits a laptop screen. */
+    int content = g_y_footer + footer;
+    if (content < S(460)) content = S(460);
+    if (content > S(UI_MAX_CLIENT)) content = S(UI_MAX_CLIENT);
+
+    RECT wr, cr;
+    GetWindowRect(g_hwnd, &wr);
+    GetClientRect(g_hwnd, &cr);
+    int frame_h = (wr.bottom - wr.top) - (cr.bottom - cr.top);
+    int frame_w = (wr.right - wr.left) - (cr.right - cr.left);
+    int want_w = PANEL_X * 2 + PANEL_W + frame_w;
+    SetWindowPos(g_hwnd, NULL, 0, 0, want_w, content + frame_h,
+                 SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 static void ui_update_values(void) {
@@ -1345,10 +1513,16 @@ static void ui_update_values(void) {
 
         /* Leave a slider alone while the user is dragging it. */
         if (GetCapture() != c->hwnd_vol) {
-            float v = endpoint_get_volume(idx);
-            int pct = (int)(v * 100.0f + 0.5f);
-            SendMessageW(c->hwnd_vol, TBM_SETPOS, TRUE, pct);
-            if (c->hwnd_voltxt) update_volume_text(c->hwnd_voltxt, v);
+            if (g_endpoints[idx].vol) {
+                float v = endpoint_get_volume(idx);
+                int pct = (int)(v * 100.0f + 0.5f);
+                SendMessageW(c->hwnd_vol, TBM_SETPOS, TRUE, pct);
+                if (c->hwnd_voltxt) update_volume_text(c->hwnd_voltxt, v);
+            } else if (c->hwnd_voltxt) {
+                /* No IAudioEndpointVolume means we genuinely cannot read this
+                 * device's level. Showing 0% would be a lie the user can hear. */
+                SetWindowTextW(c->hwnd_voltxt, L"\u2014");
+            }
         }
         if (c->hwnd_mute)
             SetWindowTextW(c->hwnd_mute, endpoint_get_mute(idx) ? L"Unmute" : L"Mute");
@@ -1401,7 +1575,11 @@ static void ui_status_text(wchar_t *out, size_t cap) {
                    L"Switch FAILED (0x%08lX) \u2014 audio is still on the previous device",
                    (unsigned long)g_last_switch_hr);
     } else if (g_policy_variant == 0) {
-        wcscpy(detail, L"Device switching unavailable: IPolicyConfig could not be created");
+        /* Probed at startup, so this is Windows' actual refusal code, not a
+         * guess. The code is what makes it actionable. */
+        _snwprintf(detail, 256,
+                   L"Device switching unavailable: IPolicyConfig 0x%08lX (run --diag)",
+                   (unsigned long)g_policy_hr);
     } else if (g_last_switch_idx >= 0 && g_last_switch_idx < g_endpoint_count) {
         _snwprintf(detail, 256, L"Switched to %s", g_endpoints[g_last_switch_idx].name);
     } else {
@@ -1437,11 +1615,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         wcscpy(g_nid.szTip, L"Audio Switcher - per-app volume & output switching");
         Shell_NotifyIconW(NIM_ADD, &g_nid);
 
+        ui_fonts_create();
+
         g_btn_refresh = CreateWindowExW(
-            0, L"BUTTON", L"\u21BB Refresh",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            PANEL_X, PANEL_Y - S(36), S(96), S(28),
+            0, L"BUTTON", L"\u21BB  Refresh",
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            PANEL_X, PANEL_Y - S(38), S(104), S(28),
             hwnd, (HMENU)IDM_REFRESH, g_hInst, NULL);
+        SetWindowSubclass(g_btn_refresh, BtnHoverProc, 0, 0);
 
         CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
         com_create_enumerator();
@@ -1449,6 +1630,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         levels_load();
         endpoints_refresh();
         sessions_refresh();
+
+        /* Probe IPolicyConfig once at startup, not lazily on first click. The
+         * status line reports g_policy_variant, so leaving it 0 until someone
+         * pressed a button made the footer claim "switching unavailable" on
+         * machines where it had simply never been attempted -- a false alarm
+         * that reads as a broken app. Attempting it here means the warning, if
+         * it still appears, is a genuine HRESULT from Windows. */
+        policy_activate();
 
         SetTimer(hwnd, 1, 2000, NULL);
         /* Emblem spin timer - 50ms for smooth rotation */
@@ -1464,6 +1653,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         sessions_cleanup();
         endpoints_cleanup();
         com_release_enumerator();
+        ui_fonts_destroy();
         CoUninitialize();
         PostQuitMessage(0);
         return 0;
@@ -1599,53 +1789,184 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         return 0;
 
+    case WM_CTLCOLORSTATIC: {
+        HDC hdc = (HDC)wp;
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, COL_TEXT);
+        return (INT_PTR)ui_brush(COL_CARD);
+    }
+
+    case WM_DRAWITEM: {
+        DRAWITEMSTRUCT *di = (DRAWITEMSTRUCT*)lp;
+        if (!di || di->CtlType != ODT_BUTTON) return FALSE;
+
+        BOOL disabled = !IsWindowEnabled(di->hwndItem);
+        BOOL pressed  = (di->itemState & ODS_SELECTED) != 0;
+        BOOL hovered  = (g_hover_btn == di->hwndItem) && !disabled;
+
+        wchar_t cap[128] = L"";
+        GetWindowTextW(di->hwndItem, cap, 128);
+        BOOL is_current = (wcscmp(cap, L"Default") == 0);
+
+        COLORREF fill = disabled          ? COL_SEC_BTN
+                      : pressed           ? COL_ACCENT_STRONG
+                      : (hovered || is_current) ? COL_SEC_HOV
+                      : COL_SEC_BTN;
+        COLORREF edge = (hovered || pressed) ? COL_HOVER_RIM : COL_BTN_BORDER;
+        COLORREF txt  = disabled ? COL_TELEMETRY : COL_TEXT;
+
+        FillRect(di->hDC, &di->rcItem, ui_brush(fill));
+        FrameRect(di->hDC, &di->rcItem, ui_brush(edge));
+
+        SetBkMode(di->hDC, TRANSPARENT);
+        SetTextColor(di->hDC, txt);
+        HFONT old = (HFONT)SelectObject(di->hDC, g_font_ui);
+        DrawTextW(di->hDC, cap, -1, &di->rcItem,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(di->hDC, old);
+
+        if (di->itemState & ODS_FOCUS) {
+            RECT ring = di->rcItem;
+            InflateRect(&ring, -3, -3);
+            DrawFocusRect(di->hDC, &ring);
+        }
+        return TRUE;
+    }
+
+    case WM_NOTIFY: {
+        NMHDR *nm = (NMHDR*)lp;
+        if (!nm || nm->code != NM_CUSTOMDRAW) return 0;
+        NMCUSTOMDRAW *cd = (NMCUSTOMDRAW*)lp;
+        HWND tb = (HWND)cd->hdr.hwndFrom;
+
+        if (cd->dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
+        if (cd->dwDrawStage != CDDS_ITEMPREPAINT) return 0;
+
+        COLORREF acc = IsWindowEnabled(tb) ? COL_ACCENT : COL_TELEMETRY;
+
+        if (cd->dwItemSpec == TBCD_CHANNEL) {
+            RECT r = cd->rc;
+            int mid = r.top + (r.bottom - r.top) / 2;
+            RECT groove = { r.left, mid - S(2), r.right, mid + S(2) };
+            FillRect(cd->hdc, &groove, ui_brush(COL_DIVIDER));
+            LONG pos = SendMessageW(tb, TBM_GETPOS, 0, 0);
+            int fw = MulDiv(groove.right - groove.left, pos, 100);
+            if (fw > 0) {
+                RECT filled = { groove.left, groove.top, groove.left + fw, groove.bottom };
+                FillRect(cd->hdc, &filled, ui_brush(acc));
+            }
+            return CDRF_SKIPDEFAULT;
+        }
+        if (cd->dwItemSpec == TBCD_THUMB) {
+            RECT r = cd->rc;
+            HPEN pen = CreatePen(PS_SOLID, 1, COL_BG);
+            HPEN oldp = (HPEN)SelectObject(cd->hdc, pen);
+            HBRUSH oldb = (HBRUSH)SelectObject(cd->hdc, ui_brush(acc));
+            Ellipse(cd->hdc, r.left, r.top, r.right + 1, r.bottom + 1);
+            SelectObject(cd->hdc, oldb);
+            SelectObject(cd->hdc, oldp);
+            DeleteObject(pen);
+            return CDRF_SKIPDEFAULT;
+        }
+        return CDRF_SKIPDEFAULT;
+    }
+
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
         RECT rc; GetClientRect(hwnd, &rc);
-        FillRect(hdc, &rc, CreateSolidBrush(COL_BG));
+        FillRect(hdc, &rc, ui_brush(COL_BG));
 
+        /* Header band */
         RECT hdr = { 0, 0, rc.right, S(60) };
-        FillRect(hdc, &hdr, CreateSolidBrush(COL_FOOTER_BG));
-        SetBkColor(hdc, COL_FOOTER_BG);
-        SetTextColor(hdc, COL_TEXT);
+        FillRect(hdc, &hdr, ui_brush(COL_FOOTER_BG));
 
-        /* Spinning emblem in top-right corner of header */
-        int embSz = S(48);
-        int embX = rc.right - embSz - S(8);
-        int embY = S(6);
+        int embSz = S(44);
+        int embX = rc.right - embSz - S(12);
+        int embY = S(8);
         SetRect(&g_rcEmblem, embX, embY, embX + embSz, embY + embSz);
 
-        DrawTextW(hdc, APP_TITLE, -1, &(RECT){ S(20), S(8), embX - S(120), S(32) },
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, COL_TEXT);
+        HFONT saved = (HFONT)SelectObject(hdc, g_font_head);
+        DrawTextW(hdc, APP_TITLE, -1, &(RECT){ S(20), S(7), embX - S(12), S(29) },
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(hdc, saved);
+
+        SetTextColor(hdc, COL_MUTED);
+        saved = (HFONT)SelectObject(hdc, g_font_small);
+        DrawTextW(hdc, L"Output devices and per-app volume", -1,
+                  &(RECT){ S(20), S(31), embX - S(12), S(49) },
+                  DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(hdc, saved);
         PaintEmblemBlit(hdc, embX, embY, embSz);
 
-        RECT div = { 0, S(60), rc.right, S(62) };
-        FillRect(hdc, &div, CreateSolidBrush(COL_DIVIDER));
+        RECT div = { 0, S(60), rc.right, S(61) };
+        FillRect(hdc, &div, ui_brush(COL_DIVIDER));
 
-        /* Section headers, drawn at the positions ui_build_controls() actually
-         * laid the controls out at. Guarded because WM_PAINT can arrive before
-         * the first build. */
+        /* Card backgrounds behind each row. The current output gets an accent
+         * border so the default device reads at a glance instead of relying on
+         * a text suffix alone. */
+        for (int i = 0; i < g_ep_rows; i++) {
+            FillRect(hdc, &g_ep_card[i], ui_brush(COL_CARD));
+            FrameRect(hdc, &g_ep_card[i],
+                      ui_brush(i == g_default_endpoint_idx ? COL_ACCENT : COL_BORDER));
+        }
+        for (int i = 0; i < g_ss_rows; i++) {
+            FillRect(hdc, &g_ss_card[i], ui_brush(COL_CARD));
+            FrameRect(hdc, &g_ss_card[i], ui_brush(COL_BORDER));
+        }
+
+        /* Section headers at the positions the layout actually used. */
         SetBkMode(hdc, TRANSPARENT);
         if (g_y_outputs_header > 0) {
             SetTextColor(hdc, COL_MUTED);
+            saved = (HFONT)SelectObject(hdc, g_font_head);
             DrawTextW(hdc, L"OUTPUT DEVICES", -1,
                       &(RECT){ PANEL_X, g_y_outputs_header, PANEL_X + PANEL_W,
                                g_y_outputs_header + S(26) },
                       DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+            SelectObject(hdc, saved);
         }
         if (g_y_apps_header > 0) {
             SetTextColor(hdc, COL_MUTED);
+            saved = (HFONT)SelectObject(hdc, g_font_head);
             DrawTextW(hdc, L"APP VOLUME", -1,
                       &(RECT){ PANEL_X, g_y_apps_header, PANEL_X + PANEL_W,
                                g_y_apps_header + S(26) },
                       DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+            SelectObject(hdc, saved);
+
+            /* An empty app list must say why. A blank panel reads as a broken
+             * app; "nothing is playing" and "enumeration failed with
+             * 0x80070005" are two very different empty panels. */
+            if (g_session_count == 0) {
+                wchar_t why[256];
+                if (FAILED(g_sessions_hr))
+                    _snwprintf(why, 256,
+                               L"Could not list running apps (0x%08lX). Run "
+                               L"AudioSwitcher.exe --diag and send the report.",
+                               (unsigned long)g_sessions_hr);
+                else
+                    wcscpy(why, L"No apps are playing audio right now. Start "
+                                L"something and it appears here.");
+                why[255] = L'\0';
+                SetTextColor(hdc, COL_TELEMETRY);
+                saved = (HFONT)SelectObject(hdc, g_font_ui);
+                DrawTextW(hdc, why, -1,
+                          &(RECT){ PANEL_X, g_y_apps_header + S(28),
+                                   PANEL_X + PANEL_W, g_y_apps_header + S(72) },
+                          DT_LEFT | DT_TOP | DT_WORDBREAK);
+                SelectObject(hdc, saved);
+            }
         }
 
         /* Footer status line: the honest report of what the last action did. */
         if (g_y_footer > 0) {
-            RECT fdiv = { 0, g_y_footer - S(6), rc.right, g_y_footer - S(5) };
-            FillRect(hdc, &fdiv, CreateSolidBrush(COL_DIVIDER));
+            RECT fband = { 0, g_y_footer - S(8), rc.right, rc.bottom };
+            FillRect(hdc, &fband, ui_brush(COL_FOOTER_BG));
+            RECT fdiv = { 0, g_y_footer - S(8), rc.right, g_y_footer - S(7) };
+            FillRect(hdc, &fdiv, ui_brush(COL_DIVIDER));
 
             wchar_t status[320];
             ui_status_text(status, 320);
@@ -1655,11 +1976,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             else if (g_policy_variant == 0)                         col = COL_WARN;
             else if (g_last_switch_idx >= 0)                        col = COL_GOOD;
 
+            /* state dot */
+            int dy = g_y_footer + S(10);
+            RECT dot = { PANEL_X, dy - S(4), PANEL_X + S(8), dy + S(4) };
+            FillRect(hdc, &dot, ui_brush(col));
+
             SetTextColor(hdc, col);
+            saved = (HFONT)SelectObject(hdc, g_font_small);
             DrawTextW(hdc, status, -1,
-                      &(RECT){ PANEL_X, g_y_footer, PANEL_X + PANEL_W,
-                               g_y_footer + S(24) },
+                      &(RECT){ PANEL_X + S(16), g_y_footer, PANEL_X + PANEL_W,
+                               g_y_footer + S(22) },
                       DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+            SelectObject(hdc, saved);
         }
 
         EndPaint(hwnd, &ps);
