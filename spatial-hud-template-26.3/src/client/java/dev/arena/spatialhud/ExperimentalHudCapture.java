@@ -59,6 +59,7 @@ public final class ExperimentalHudCapture {
 	private static boolean frameCapturedHotbar;
 	private static boolean loggedHotbarExtraction;
 	private static boolean loggedMissingHotbar;
+	private static int hotbarMissFrames;
 	private static boolean loggedSlotCycling;
 	/** Becomes true after a completed capture can be drawn by Method 3 next frame. */
 	private static boolean worldTextureReady;
@@ -131,6 +132,15 @@ public final class ExperimentalHudCapture {
 	/** The method whose capture failed, or null when nothing has failed. */
 	static SpatialHudConfig.RenderMethod failedMethod() {
 		return sessionFallback ? failedMethod : null;
+	}
+
+	/**
+	 * Consecutive rendered frames in which the hotbar was expected but never
+	 * reached the private capture. Zero whenever a frame captured it, or whenever
+	 * the hotbar is not meant to be captured at all.
+	 */
+	static int consecutiveHotbarMisses() {
+		return hotbarMissFrames;
 	}
 
 	/** True only while the current gameplay HUD frame is collecting a texture. */
@@ -293,9 +303,18 @@ public final class ExperimentalHudCapture {
 		if (!frameActive || !frameHasContent || sessionFallback) {
 			return;
 		}
-		if (SpatialHudConfig.get().showHotbar && !frameCapturedHotbar && !loggedMissingHotbar) {
-			loggedMissingHotbar = true;
-			SpatialHud.LOGGER.warn("Spatial HUD experimental capture did not receive the vanilla hotbar root. The backing may render without hotbar pixels; check the Hotbar and Spectator Menu setting and mod HUD replacement order.");
+		if (SpatialHudConfig.get().showHotbar && !frameCapturedHotbar) {
+			// Counted, not just logged: a run of frames where the hotbar never
+			// reaches the capture is the signature of the capture wrappers having
+			// been displaced in the HUD registry (a mod registering its replacement
+			// after ours). SpatialHud watches this counter and re-applies them.
+			hotbarMissFrames++;
+			if (!loggedMissingHotbar) {
+				loggedMissingHotbar = true;
+				SpatialHud.LOGGER.warn("Spatial HUD experimental capture did not receive the vanilla hotbar root. The backing may render without hotbar pixels; check the Hotbar and Spectator Menu setting and mod HUD replacement order.");
+			}
+		} else {
+			hotbarMissFrames = 0;
 		}
 
 		try {

@@ -352,13 +352,13 @@
 
 ## tools/check_all.py
 
-- L36  f have_deps
-- L44  f wave_gcode_merkle_key
-- L66  f load_cache
-- L73  f save_cache
-- L81  f make_nodeps
-- L91  f exec_task
-- L116  f main
+- L37  f have_deps
+- L45  f wave_gcode_merkle_key
+- L67  f load_cache
+- L74  f save_cache
+- L82  f make_nodeps
+- L92  f exec_task
+- L117  f main
 
 ## tools/dump_default_config.py
 
@@ -452,6 +452,12 @@
 - L40  f fake_cube
 - L76  f load_tool
 - L83  f total_e
+
+## tests/test_spatial_hud.py
+
+- L30  f _read
+- L34  f SpatialHudOcclusionTests
+- L91  f SpatialHudCaptureWrapperTests
 
 ## tests/test_unlayered_waves.py
 
