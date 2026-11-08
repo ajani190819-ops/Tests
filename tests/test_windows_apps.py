@@ -1029,6 +1029,55 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "ui_update_values moves sliders without checking GetCapture(), "
                       "so it would fight the user mid-drag")
 
+    def test_keyboard_lighting_logon_task_starts_elevated_and_unsuppressed(self):
+        src = (ROOT / "keyboard-lighting" / "src" / "keyboard_lighting.c").read_text(encoding="utf-8")
+
+        # The logon task must run at the highest privilege level, or the
+        # scheduler starts a requireAdministrator exe with a limited token and
+        # no UAC prompt: the app lands in preview mode at every boot.
+        task = src[src.index("static void EnsureLogonTask(void)"):]
+        task = task[:task.index("\n}\n")]
+        self.assertIn("/RL HIGHEST", task,
+                      "the logon task is not registered /RL HIGHEST, so boot starts "
+                      "arrive unelevated (the scheduler never shows a UAC prompt)")
+        self.assertNotIn("-NoElevate", task,
+                         "the logon task still passes -NoElevate, which forbids the "
+                         "app's own relaunch-elevated self-heal and pins a limited-token "
+                         "start in preview mode for the whole session")
+
+        # The in-app Startup toggle must not be able to create the same trap.
+        setter = src[src.index("static BOOL SetKblAutostart(BOOL enable)"):]
+        setter = setter[:setter.index("\n}\n")]
+        self.assertNotIn("-NoElevate", setter,
+                         "the Startup toggle passes -NoElevate to the logon task again")
+        self.assertNotIn('g_isAdmin ? L"/RL HIGHEST" : L""', setter,
+                         "the Startup toggle can still create a limited-privilege task "
+                         "when clicked from an unelevated session")
+
+        # Refreshed on every launch, like DnsPilot's EnsureAutostart, so a task
+        # left by an older build cannot stay limited forever.
+        self.assertEqual(src.find("if (g_isAdmin) EnsureLogonTask();"), -1,
+                         "the logon task is only refreshed when already elevated, so a "
+                         "stale limited task can never be repaired")
+
+    def test_hub_auto_probe_prefers_main_over_a_compiled_session_branch(self):
+        src = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+
+        start = src.index("if (!chosen) {")
+        block = src[start:src.index("EnterCriticalSection", start)]
+        main_probe = block.find('L"/%s/%s/main/audio-switcher/AudioSwitcher.exe"')
+        fall_probe = block.find("FALLBACK_BRANCH_W);")
+        self.assertNotEqual(main_probe, -1, "the auto probe no longer considers main")
+        self.assertNotEqual(fall_probe, -1, "the auto probe no longer considers the session branch")
+        self.assertLess(main_probe, fall_probe,
+                        "a compiled-in session branch is probed before main, so every hub "
+                        "with no saved choice silently serves that branch's builds even "
+                        "after newer ones reached main")
+
+        self.assertEqual(src.find('L"arena/b6d41021-tests"'), -1,
+                         "the fallback branch is a stale session name again; hubs built "
+                         "from it keep downloading its old executables")
+
 
 if __name__ == "__main__":
     unittest.main()

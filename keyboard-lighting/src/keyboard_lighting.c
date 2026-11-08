@@ -1280,10 +1280,17 @@ static BOOL SetKblAutostart(BOOL enable) {
         si.dwFlags = STARTF_USESHOWWINDOW;
         si.wShowWindow = SW_HIDE;
         /* One task for everything: the same name EnsureLogonTask keeps
-           fresh, started quietly in the tray at logon (no UAC, no window). */
+           fresh, started quietly in the tray at logon (no UAC, no window).
+           Always /RL HIGHEST and never an elevation-suppressing flag: a
+           limited-privilege task would start a requireAdministrator exe
+           unelevated (the scheduler does not prompt) and the old suppressing
+           flag then blocked the app's own relaunch, pinning it in preview
+           mode for the session. Registering a HIGHEST task needs admin, so a
+           non-elevated session reports the toggle as failed instead of
+           creating that trap. */
         _snwprintf(cmd, MAX_PATH * 2 - 1,
-                   L"schtasks.exe /Create /TN \"TestsSuite-KeyboardLighting\" /TR \"\\\"%s\\\" -Silent -NoElevate\" /SC ONLOGON %s /F",
-                   g_exePath, g_isAdmin ? L"/RL HIGHEST" : L"");
+                   L"schtasks.exe /Create /TN \"TestsSuite-KeyboardLighting\" /TR \"\\\"%s\\\" -Silent\" /SC ONLOGON /RL HIGHEST /F",
+                   g_exePath);
         cmd[MAX_PATH * 2 - 1] = L'\0';
         if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
             return FALSE;
@@ -2872,12 +2879,33 @@ static void EnsureLogonTask(void) {
     /* One UAC prompt ever: once we run elevated, register a logon task with
        highest privileges so every future start of Keyboard Lighting is
        silent (tasks skip UAC) and fully functional. Re-registering is
-       idempotent, so updates simply refresh the task. */
+       idempotent, so updates simply refresh the task.
+       Mirrors DnsPilot's EnsureAutostart: called on every launch, and the
+       task command line carries no elevation-suppressing flag. Such a flag
+       used to be passed here, which meant a start from a stale
+       limited-privilege task arrived unelevated AND forbidden from
+       relaunching itself elevated - the app sat in preview mode for the
+       whole session with no way to heal. The manifest already requires
+       administrator, so /RL HIGHEST is what makes the logon start silent
+       instead of a UAC prompt. */
     if (AutostartMarkedOff()) return;
+    if (!g_isAdmin) return;   /* /RL HIGHEST can only be registered elevated */
+
+    /* Migrate away from a legacy Run-key entry, the way DnsPilot does: a
+       requireAdministrator exe on a Run key trips a UAC prompt at every boot. */
+    HKEY k = NULL;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER,
+                        L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                        0, NULL, 0, KEY_SET_VALUE, NULL, &k, NULL) == ERROR_SUCCESS) {
+        RegDeleteValueW(k, L"TestsSuite-KeyboardLighting");
+        RegDeleteValueW(k, L"KeyboardLighting");
+        RegCloseKey(k);
+    }
+
     wchar_t cmd[640];
     _snwprintf(cmd, 639,
                L"schtasks /Create /F /SC ONLOGON /TN \"TestsSuite-KeyboardLighting\" "
-               L"/TR \"\\\"%s\\\" -Silent -NoElevate\" /RL HIGHEST", g_exePath);
+               L"/TR \"\\\"%s\\\" -Silent\" /RL HIGHEST", g_exePath);
     cmd[639] = L'\0';
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
@@ -3356,7 +3384,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
         hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
     }
 
-    if (g_isAdmin) EnsureLogonTask();
+    /* Called on every launch, like DnsPilot's EnsureAutostart, so a task left
+       behind by an older build is refreshed to /RL HIGHEST. It no-ops when
+       this instance is not elevated. */
+    EnsureLogonTask();
 
     g_showEvent = CreateEventW(NULL, FALSE, FALSE, SHOW_EVENT_NAME);
     INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_STANDARD_CLASSES };

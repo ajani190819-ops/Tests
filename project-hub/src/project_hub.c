@@ -20,15 +20,15 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.34"
-#define HUB_VERSION_W     L"2.8.34"
+#define HUB_VERSION       "2.8.35"
+#define HUB_VERSION_W     L"2.8.35"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
 
 #define REPO_OWNER_W      L"ajani190819-ops"
 #define REPO_NAME_W       L"Tests"
-#define FALLBACK_BRANCH_W L"arena/b6d41021-tests"
+#define FALLBACK_BRANCH_W L"arena/e6c1980c-tests"
 
 #define WM_HUB_REFRESH    (WM_APP + 10)
 #define WM_HUB_STATUS     (WM_APP + 11)
@@ -916,20 +916,25 @@ static void EnsureActiveBranch(wchar_t *outBranch, size_t cap) {
         DWORD sz = 0;
         int st = 0;
         wchar_t probePath[256];
-        /* Prefer the session branch where builds actually live;
-           only fall back to main if the session branch has no exes. */
-        _snwprintf(probePath, 255, L"/%s/%s/%s/audio-switcher/AudioSwitcher.exe",
-                   REPO_OWNER_W, REPO_NAME_W, FALLBACK_BRANCH_W);
+        /* Prefer main: it is where merged, released builds live, so a hub with
+           no saved choice serves the builds the user actually shipped. A
+           session branch used to win here, and because the fallback name is
+           compiled in, a hub built in an older session kept probing that old
+           branch, found exes there, and silently served stale builds forever.
+           The session branch remains reachable as an explicit choice in the
+           branch menu, and as the last resort when main has no exes at all. */
+        _snwprintf(probePath, 255, L"/%s/%s/main/audio-switcher/AudioSwitcher.exe",
+                   REPO_OWNER_W, REPO_NAME_W);
         BYTE *probe = HttpGetBuffer(L"raw.githubusercontent.com", probePath, &sz, &st);
         free(probe);
         if (st == 200 && sz > 1000) {
-            chosen = FALLBACK_BRANCH_W;
+            chosen = L"main";
         } else {
-            _snwprintf(probePath, 255, L"/%s/%s/main/audio-switcher/AudioSwitcher.exe",
-                       REPO_OWNER_W, REPO_NAME_W);
+            _snwprintf(probePath, 255, L"/%s/%s/%s/audio-switcher/AudioSwitcher.exe",
+                       REPO_OWNER_W, REPO_NAME_W, FALLBACK_BRANCH_W);
             probe = HttpGetBuffer(L"raw.githubusercontent.com", probePath, &sz, &st);
             free(probe);
-            chosen = (st == 200 && sz > 1000) ? L"main" : FALLBACK_BRANCH_W;
+            chosen = (st == 200 && sz > 1000) ? FALLBACK_BRANCH_W : L"main";
         }
     }
     EnterCriticalSection(&g_cs);

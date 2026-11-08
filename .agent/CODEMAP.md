@@ -36,58 +36,58 @@
 - L873  f LoadAppsCfg
 - L880  f SaveAppsCfg
 - L887  f EnsureActiveBranch
-- L944  f ExtractQuotedAfter
-- L962  f VerNewer
-- L975  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
-- L1005  f InitAllPaths
-- L1159  f CheckPidLockStatus
-- L1191  f CreateShortcutLink
-- L1224  f LoadIconFilePx
-- L1237  f LoadCardIcon
-- L1260  f PoolAdd
-- L1286  f JsonGet
-- L1415  f BuiltInSlot
-- L1421  f BuiltInBtnId
-- L1449  f FillBuiltInDef
-- L1566  f AddCatalogCard
-- L1702  f RestoreBuiltInCardText
-- L1749  f RebuildExtraCards
-- L1783  f WorkerInstallGeneric
-- L1819  f HandleVerb
-- L1842  f InitCardDefinitions
-- L1941  f RefreshProjectStatuses
-- L2366  f WorkerCheckRemote
-- L2507  f StopProcessFromLock
-- L2520  f WorkerInstallBluetoothGuard
-- L2581  f WorkerInstallNotes
-- L2621  f WorkerInstallDnsPilot
-- L2685  f WorkerInstallKeyboardLighting
-- L2770  f WorkerInstallSpatialHud
-- L2832  f WorkerInstallOrcaPlugins
-- L2929  f WorkerSelfUpdateHub
-- L2986  f EnqueueTask
-- L3041  f RestartKeyboardLightingCleanly
-- L3060  f PromptTextInput
-- L3064  f NormalizeDirPath
-- L3080  f SaveModsDirFromInput
-- L3102  f PickSpatialHudModsFolder
-- L3145  f FillCanvasRect
-- L3158  f SmoothRoundRect
-- L3216  f DrawActionBtn
-- L3238  f ComputeLayout
-- L3287  f HitTestButtons
-- L3305  f PaintEmblemBlit
-- L3332  f PaintHubWindow
-- L3584  f ShowUtilityMenu
-- L3598  S download-branch picker
-- L3600  f FetchBranchNames  — ---- download-branch picker -------------------------------------------
-- L3625  f EnsureBranchInMenu
-- L3690  f PromptTextInput
-- L3754  f PromptBranchName
-- L3759  f SetActiveBranch
-- L3777  f ShowBranchMenu
-- L3813  f HandleActionCommand
-- globals: g_hInst (L196), g_hwnd (L197), g_fontHero (L198), g_fontSub (L199), g_fontTitle (L200), g_fontBody (L201), g_fontBtn (L202), g_fontBadge (L203), g_appIcon (L204), g_hdrEmblem (L205), g_cardIcons (L206), g_showEvent (L207), g_hMutex (L208), g_cs (L209), g_topBtns (L211), g_rcEmblem (L217), g_cards (L219), g_cardCount (L220), g_dynIdx (L221), g_hoverId (L222), g_scrollY (L223), g_maxScrollY (L224), g_exePath (L226), g_exeDir (L227), g_localApp (L228), g_roamApp (L229), g_suiteDir (L230), g_hubCfgDir (L231), g_btgDir (L232), g_btgExtraExe (L233), g_kblDir (L234), g_dnsDir (L235), g_notesDir (L236), g_audioSwitcherDir (L237), g_clipboardMemoryDir (L238), g_modsDir (L239), g_orcaBatDir (L240), g_activeBranch (L243), g_branchMenuNames (L244), g_branchMenuN (L245), g_branchPromptOut (L246), g_remHubVer (L247), g_remWaveVer (L248), g_remInfillVer (L249), g_remHudName (L250), g_remHudPath (L251), g_remHudSize (L252), g_statusMsg (L253), g_progressVal (L254), g_hubUpdAvail (L255), g_taskQueue (L258), g_qHead (L259), g_qTail (L260), g_qSem (L261), g_running (L262), g_embCache (L421), g_checkActive (L539), g_remBtgSize (L540), g_rcFooterDot (L541), g_httpSess (L610), g_httpConns (L616), g_hcache (L765), g_hudDisabled (L870), g_orcaDisabled (L871), g_catalogJson (L1217), g_strPool (L1257), g_strPoolUsed (L1258), g_frameCache (L3329), g_fcW (L3330)
+- L949  f ExtractQuotedAfter
+- L967  f VerNewer
+- L980  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
+- L1010  f InitAllPaths
+- L1164  f CheckPidLockStatus
+- L1196  f CreateShortcutLink
+- L1229  f LoadIconFilePx
+- L1242  f LoadCardIcon
+- L1265  f PoolAdd
+- L1291  f JsonGet
+- L1420  f BuiltInSlot
+- L1426  f BuiltInBtnId
+- L1454  f FillBuiltInDef
+- L1571  f AddCatalogCard
+- L1707  f RestoreBuiltInCardText
+- L1754  f RebuildExtraCards
+- L1788  f WorkerInstallGeneric
+- L1824  f HandleVerb
+- L1847  f InitCardDefinitions
+- L1946  f RefreshProjectStatuses
+- L2371  f WorkerCheckRemote
+- L2512  f StopProcessFromLock
+- L2525  f WorkerInstallBluetoothGuard
+- L2586  f WorkerInstallNotes
+- L2626  f WorkerInstallDnsPilot
+- L2690  f WorkerInstallKeyboardLighting
+- L2775  f WorkerInstallSpatialHud
+- L2837  f WorkerInstallOrcaPlugins
+- L2934  f WorkerSelfUpdateHub
+- L2991  f EnqueueTask
+- L3046  f RestartKeyboardLightingCleanly
+- L3065  f PromptTextInput
+- L3069  f NormalizeDirPath
+- L3085  f SaveModsDirFromInput
+- L3107  f PickSpatialHudModsFolder
+- L3150  f FillCanvasRect
+- L3163  f SmoothRoundRect
+- L3221  f DrawActionBtn
+- L3243  f ComputeLayout
+- L3292  f HitTestButtons
+- L3310  f PaintEmblemBlit
+- L3337  f PaintHubWindow
+- L3589  f ShowUtilityMenu
+- L3603  S download-branch picker
+- L3605  f FetchBranchNames  — ---- download-branch picker -------------------------------------------
+- L3630  f EnsureBranchInMenu
+- L3695  f PromptTextInput
+- L3759  f PromptBranchName
+- L3764  f SetActiveBranch
+- L3782  f ShowBranchMenu
+- L3818  f HandleActionCommand
+- globals: g_hInst (L196), g_hwnd (L197), g_fontHero (L198), g_fontSub (L199), g_fontTitle (L200), g_fontBody (L201), g_fontBtn (L202), g_fontBadge (L203), g_appIcon (L204), g_hdrEmblem (L205), g_cardIcons (L206), g_showEvent (L207), g_hMutex (L208), g_cs (L209), g_topBtns (L211), g_rcEmblem (L217), g_cards (L219), g_cardCount (L220), g_dynIdx (L221), g_hoverId (L222), g_scrollY (L223), g_maxScrollY (L224), g_exePath (L226), g_exeDir (L227), g_localApp (L228), g_roamApp (L229), g_suiteDir (L230), g_hubCfgDir (L231), g_btgDir (L232), g_btgExtraExe (L233), g_kblDir (L234), g_dnsDir (L235), g_notesDir (L236), g_audioSwitcherDir (L237), g_clipboardMemoryDir (L238), g_modsDir (L239), g_orcaBatDir (L240), g_activeBranch (L243), g_branchMenuNames (L244), g_branchMenuN (L245), g_branchPromptOut (L246), g_remHubVer (L247), g_remWaveVer (L248), g_remInfillVer (L249), g_remHudName (L250), g_remHudPath (L251), g_remHudSize (L252), g_statusMsg (L253), g_progressVal (L254), g_hubUpdAvail (L255), g_taskQueue (L258), g_qHead (L259), g_qTail (L260), g_qSem (L261), g_running (L262), g_embCache (L421), g_checkActive (L539), g_remBtgSize (L540), g_rcFooterDot (L541), g_httpSess (L610), g_httpConns (L616), g_hcache (L765), g_hudDisabled (L870), g_orcaDisabled (L871), g_catalogJson (L1222), g_strPool (L1262), g_strPoolUsed (L1263), g_frameCache (L3334), g_fcW (L3335)
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
@@ -187,51 +187,51 @@
 - L1245  f TaskExists
 - L1266  f QueryAutostart
 - L1271  f SetKblAutostart
-- L1318  f ScheduleLiveApply
-- L1330  f FlushLiveApply
-- L1355  f ParseLayoutTxt
-- L1435  f HasReleaseSrc
-- L1439  f HoldTokenWrite
-- L1447  f HoldPump  — One paced token per interval while the gesture is live.
-- L1462  f PressSignal
-- L1474  f ReleaseSignal
-- L1484  f OnScanEvent
-- L1503  f OnRawHid
-- L1529  f LearnFromRing
-- L1589  f WatchBrightTokens
-- L1619  f InitRawInput
-- L1652  f OnRawInputMsg
-- L1682  f OsdDrawSunFallback
-- L1813  f OsdCreate
-- L1828  f OsdShow
-- L1845  f PollLayoutTxt
-- L1855  f PollLivePreviewFrame  — Read live lamp frame from Aura-Background.ps1 or synthesize accurate live palette preview
-- L1953  f FillCanvasRect
-- L1966  f SmoothRoundRect
-- L2013  f SmoothCircle
-- L2051  f SmoothRingTrack  — Thin annulus: the track that makes the Light Bar read as one closed loop.
-- L2086  f EmbRasterize
-- L2163  f EmbCacheEnsure
-- L2178  f EmbSpinDraw
-- L2233  f DrawSuiteEmblemIcon
-- L2238  f AddHit
-- L2247  f DrawSuiteBtn
-- L2260  f DrawPillSwitch
-- L2285  f DrawSmoothSlider
-- L2318  f RenderKblWindow
-- L2418  S CARD 1: Live ROG Strix G16 Preview + Master Brightness
-- L2513  S CARD 2: Zone Tabs + Effect Picker
-- L2567  S CARD 3: Interactive Colour Swatches + Band Width Bars
-- L2622  S CARD 4: Speed, Zone Brightness & Motion Switches
-- L2738  f ApplySliderDrag  — ============================================================================
-- L2766  f OpenEffectPopup
-- L2816  f PickSwatchColor
-- L2850  f RelaunchElevated
-- L2871  f EnsureLogonTask
-- L2896  f HandleHitAction
-- L2988  f ShowTrayContextMenu
-- L3244  f InitKblPaths
-- globals: g_hwnd (L178), g_appIcon (L179), g_nid (L180), g_showEvent (L181), g_engineProc (L182), g_enginePid (L183), g_isAdmin (L184), g_autostart (L185), g_wantOff (L186), g_quitting (L187), g_trayHinted (L188), g_downloading (L189), g_cfg (L191), g_tab (L192), g_hits (L193), g_hitCount (L194), g_hoverIdx (L195), g_dragKind (L196), g_dragIdx (L197), g_dragRect (L198), g_scrollY (L199), g_contentH (L200), g_applyPending (L201), g_applyAtTick (L202), g_liveCols (L205), g_liveKbdN (L206), g_liveBarN (L207), g_hasLiveFrame (L208), g_lastFrameTick (L209), g_toastText (L212), g_toastAt (L213), g_lastFnPoll (L214), g_exePath (L217), g_exeDir (L218), g_cfgDir (L219), g_panelPath (L220), g_themePath (L221), g_livePath (L222), g_framePath (L223), g_layoutPath (L224), g_lockPath (L225), g_showPath (L226), g_engPidPath (L227), g_stopPath (L228), g_brightUpPath (L229), g_brightDownPath (L230), g_holdModePath (L231), g_engineScript (L232), g_zonesBat (L233), g_statusText (L234), g_presetName (L409), g_presetUsed (L410), g_presetIdx (L411), g_barOrder (L1350), g_barQ (L1351), g_barLayoutN (L1352), g_layoutReadAt (L1353), g_keyRing (L1415), g_keyRingHead (L1416), g_hidRing (L1418), g_hidRingHead (L1419), g_kbHook (L1420), g_scanBound (L1421), g_hidCode (L1422), g_scanArmed (L1423), g_hidDown (L1424), g_holdOn (L1425), g_hidRelSeen (L1426), g_sigAt (L1427), g_scanNext (L1428), g_learnCand (L1429), g_learnN (L1430), g_learnHid (L1431), g_learnHidN (L1432), g_seenTok (L1433), g_osdHwnd (L1679), g_osdPct (L1680), g_embCache (L2161), g_pickOrig (L2786), g_pickLast (L2787), g_pickIdx (L2788), g_pickLive (L2789)
+- L1325  f ScheduleLiveApply
+- L1337  f FlushLiveApply
+- L1362  f ParseLayoutTxt
+- L1442  f HasReleaseSrc
+- L1446  f HoldTokenWrite
+- L1454  f HoldPump  — One paced token per interval while the gesture is live.
+- L1469  f PressSignal
+- L1481  f ReleaseSignal
+- L1491  f OnScanEvent
+- L1510  f OnRawHid
+- L1536  f LearnFromRing
+- L1596  f WatchBrightTokens
+- L1626  f InitRawInput
+- L1659  f OnRawInputMsg
+- L1689  f OsdDrawSunFallback
+- L1820  f OsdCreate
+- L1835  f OsdShow
+- L1852  f PollLayoutTxt
+- L1862  f PollLivePreviewFrame  — Read live lamp frame from Aura-Background.ps1 or synthesize accurate live palette preview
+- L1960  f FillCanvasRect
+- L1973  f SmoothRoundRect
+- L2020  f SmoothCircle
+- L2058  f SmoothRingTrack  — Thin annulus: the track that makes the Light Bar read as one closed loop.
+- L2093  f EmbRasterize
+- L2170  f EmbCacheEnsure
+- L2185  f EmbSpinDraw
+- L2240  f DrawSuiteEmblemIcon
+- L2245  f AddHit
+- L2254  f DrawSuiteBtn
+- L2267  f DrawPillSwitch
+- L2292  f DrawSmoothSlider
+- L2325  f RenderKblWindow
+- L2425  S CARD 1: Live ROG Strix G16 Preview + Master Brightness
+- L2520  S CARD 2: Zone Tabs + Effect Picker
+- L2574  S CARD 3: Interactive Colour Swatches + Band Width Bars
+- L2629  S CARD 4: Speed, Zone Brightness & Motion Switches
+- L2745  f ApplySliderDrag  — ============================================================================
+- L2773  f OpenEffectPopup
+- L2823  f PickSwatchColor
+- L2857  f RelaunchElevated
+- L2878  f EnsureLogonTask
+- L2924  f HandleHitAction
+- L3016  f ShowTrayContextMenu
+- L3272  f InitKblPaths
+- globals: g_hwnd (L178), g_appIcon (L179), g_nid (L180), g_showEvent (L181), g_engineProc (L182), g_enginePid (L183), g_isAdmin (L184), g_autostart (L185), g_wantOff (L186), g_quitting (L187), g_trayHinted (L188), g_downloading (L189), g_cfg (L191), g_tab (L192), g_hits (L193), g_hitCount (L194), g_hoverIdx (L195), g_dragKind (L196), g_dragIdx (L197), g_dragRect (L198), g_scrollY (L199), g_contentH (L200), g_applyPending (L201), g_applyAtTick (L202), g_liveCols (L205), g_liveKbdN (L206), g_liveBarN (L207), g_hasLiveFrame (L208), g_lastFrameTick (L209), g_toastText (L212), g_toastAt (L213), g_lastFnPoll (L214), g_exePath (L217), g_exeDir (L218), g_cfgDir (L219), g_panelPath (L220), g_themePath (L221), g_livePath (L222), g_framePath (L223), g_layoutPath (L224), g_lockPath (L225), g_showPath (L226), g_engPidPath (L227), g_stopPath (L228), g_brightUpPath (L229), g_brightDownPath (L230), g_holdModePath (L231), g_engineScript (L232), g_zonesBat (L233), g_statusText (L234), g_presetName (L409), g_presetUsed (L410), g_presetIdx (L411), g_barOrder (L1357), g_barQ (L1358), g_barLayoutN (L1359), g_layoutReadAt (L1360), g_keyRing (L1422), g_keyRingHead (L1423), g_hidRing (L1425), g_hidRingHead (L1426), g_kbHook (L1427), g_scanBound (L1428), g_hidCode (L1429), g_scanArmed (L1430), g_hidDown (L1431), g_holdOn (L1432), g_hidRelSeen (L1433), g_sigAt (L1434), g_scanNext (L1435), g_learnCand (L1436), g_learnN (L1437), g_learnHid (L1438), g_learnHidN (L1439), g_seenTok (L1440), g_osdHwnd (L1686), g_osdPct (L1687), g_embCache (L2168), g_pickOrig (L2793), g_pickLast (L2794), g_pickIdx (L2795), g_pickLive (L2796)
 
 ## dns-pilot/src/dns_pilot.c
 
