@@ -13,6 +13,7 @@
 #include <shlobj.h>
 #include <shobjidl.h>
 #include <winhttp.h>
+#include <bcrypt.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -20,8 +21,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.35"
-#define HUB_VERSION_W     L"2.8.35"
+#define HUB_VERSION       "2.8.36"
+#define HUB_VERSION_W     L"2.8.36"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -191,6 +192,7 @@ typedef struct {
     wchar_t        iconFile[MAX_PATH];
     HICON          hIcon;
     DWORD          remSize;
+    char           remSha[41];   /* git blob SHA-1 of the remote build, when known */
 } ProjectCard;
 
 static HINSTANCE        g_hInst       = NULL;
@@ -516,6 +518,96 @@ static BOOL FileHealthyW(const wchar_t *p) {
     return FileExistsW(p) && LocalSizeOf(p) > 0;
 }
 
+/* ---- content identity ----------------------------------------------------
+ * Git blob SHA-1 of a local file, in the same hex form GitHub's trees API
+ * publishes for every path. A HEAD request only yields Content-Length, and two
+ * different builds can share a byte count: a size-only check then reports
+ * "up to date" for a changed executable, which is exactly how a same-size
+ * KeyboardLighting rebuild looked invisible to the update check. Comparing
+ * blob hashes is an exact content comparison: one small JSON request for the
+ * remote side, one local hash for the installed file.
+ */
+static BOOL Sha1BlobHexW(const wchar_t *path, char out[41]) {
+    HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE) return FALSE;
+    DWORD size = GetFileSize(f, NULL);
+    BOOL ok = FALSE;
+    BCRYPT_ALG_HANDLE alg = NULL;
+    BCRYPT_HASH_HANDLE hash = NULL;
+    BYTE *buf = (BYTE *)malloc(65536);
+    BYTE digest[20];
+    char hdr[32];
+    int hdrLen;
+
+    out[0] = '\0';
+    if (buf && BCryptOpenAlgorithmProvider(&alg, BCRYPT_SHA1_ALGORITHM, NULL, 0) == 0
+        && BCryptCreateHash(alg, &hash, NULL, 0, NULL, 0, 0) == 0) {
+        hdrLen = _snprintf(hdr, sizeof(hdr), "blob %lu", size);
+        if (hdrLen > 0 && hdrLen < (int)sizeof(hdr)) {
+            /* git hashes "blob <len>\0" followed by the bytes, NUL included. */
+            ok = BCryptHashData(hash, (PUCHAR)hdr, (ULONG)hdrLen + 1, 0) == 0;
+            while (ok) {
+                DWORD got = 0;
+                if (!ReadFile(f, buf, 65536, &got, NULL)) { ok = FALSE; break; }
+                if (got == 0) break;
+                ok = BCryptHashData(hash, (PUCHAR)buf, got, 0) == 0;
+            }
+            if (ok) ok = BCryptFinishHash(hash, digest, sizeof(digest), 0) == 0;
+            if (ok) {
+                static const char hexd[] = "0123456789abcdef";
+                for (int i = 0; i < 20; i++) {
+                    out[i * 2]     = hexd[digest[i] >> 4];
+                    out[i * 2 + 1] = hexd[digest[i] & 15];
+                }
+                out[40] = '\0';
+            }
+        }
+    }
+    if (hash) BCryptDestroyHash(hash);
+    if (alg) BCryptCloseAlgorithmProvider(alg, 0);
+    free(buf);
+    CloseHandle(f);
+    return ok;
+}
+
+/* The blob hash of one path inside a recursive trees response. Entries look
+ * like {"path":"a/b.exe","mode":"100644","type":"blob","sha":"<40 hex>",...},
+ * so the first "sha" after the path match is the one we want. */
+static int TreeShaFor(const char *tree, const char *path, char out[41]) {
+    char pat[256];
+    const char *p, *q;
+    int i = 0;
+    if (!tree || !path || !out) return 0;
+    out[0] = '\0';
+    _snprintf(pat, sizeof(pat) - 1, "\"path\":\"%s\"", path);
+    pat[sizeof(pat) - 1] = '\0';
+    p = strstr(tree, pat);
+    if (!p) return 0;
+    q = strstr(p, "\"sha\":\"");
+    if (!q || (q - p) > 400) return 0;
+    q += 7;
+    while (i < 40 && q[i] && q[i] != '"') { out[i] = q[i]; i++; }
+    if (i != 40) { out[0] = '\0'; return 0; }
+    out[40] = '\0';
+    return 1;
+}
+
+/* Exact when the remote blob hash is known; the old size comparison remains
+ * as the fallback for when the trees API is unreachable. */
+static BOOL RemoteDiffers(const char *remSha, const wchar_t *localPath, DWORD remSize) {
+    if (remSha && remSha[0]) {
+        char localSha[41];
+        if (Sha1BlobHexW(localPath, localSha))
+            return strcmp(localSha, remSha) != 0;
+        return FALSE;   /* nothing installed at this path: install, not update */
+    }
+    {
+        DWORD loc = LocalSizeOf(localPath);
+        return (remSize > 0 && loc > 0 && loc != remSize);
+    }
+}
+
 static BOOL DirExistsW(const wchar_t *p) {
     DWORD a = GetFileAttributesW(p);
     return (a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY));
@@ -538,6 +630,10 @@ static void EnsureDirTree(const wchar_t *dir) {
 
 static volatile LONG g_checkActive = 0;
 static DWORD g_remBtgSize = 0, g_remKblSize = 0, g_remKblPs1Size = 0, g_remDnsSize = 0, g_remNotesSize = 0, g_remAudioSwitcherSize = 0, g_remClipboardMemorySize = 0;
+/* Git blob SHA-1 of each remote build, from one recursive trees request.
+   Empty means unknown (API unreachable), which falls back to the sizes. */
+static char g_remBtgSha[41], g_remKblSha[41], g_remKblPs1Sha[41], g_remDnsSha[41],
+            g_remNotesSha[41], g_remAudioSwitcherSha[41], g_remClipboardMemorySha[41];
 static RECT           g_rcFooterDot = { 0, 0, 0, 0 };
 
 /* Quiet update-check phase: the periodic version check gets a small
@@ -1966,13 +2062,14 @@ static void RefreshProjectStatuses(void) {
     _snwprintf(kblExeP2, MAX_PATH, L"%s\\KeyboardLighting.exe", g_kblDir);
     _snwprintf(kblPs1P, MAX_PATH, L"%s\\Aura-Background.ps1", g_kblDir);
     DWORD locBtgSz = LocalSizeOf(btgExeP);
-    if (!locBtgSz && g_btgExtraExe[0]) locBtgSz = LocalSizeOf(g_btgExtraExe);
+    const wchar_t *btgLocal = btgExeP;
+    if (!locBtgSz && g_btgExtraExe[0]) { locBtgSz = LocalSizeOf(g_btgExtraExe); btgLocal = g_btgExtraExe; }
     BOOL btgKnown = (remBtgSz > 0 && locBtgSz > 0);
-    BOOL btgUpd = btgKnown && locBtgSz != remBtgSz;
-    DWORD locKblSz = LocalSizeOf(kblExeP2), locPs1Sz = LocalSizeOf(kblPs1P);
+    BOOL btgUpd = btgKnown && RemoteDiffers(g_remBtgSha, btgLocal, remBtgSz);
+    DWORD locKblSz = LocalSizeOf(kblExeP2);
     BOOL kblKnown = (remKblSz > 0 && locKblSz > 0);
-    BOOL kblUpd = kblKnown && locKblSz != remKblSz;
-    if (!kblUpd && remPs1Sz > 0 && locPs1Sz > 0) kblUpd = (locPs1Sz != remPs1Sz);
+    BOOL kblUpd = kblKnown && RemoteDiffers(g_remKblSha, kblExeP2, remKblSz);
+    if (!kblUpd) kblUpd = RemoteDiffers(g_remKblPs1Sha, kblPs1P, remPs1Sz);
 
     g_hubUpdAvail = (remHub[0] != '\0' && VerNewer(remHub, HUB_VERSION));
     g_topBtns[1].label = g_hubUpdAvail ? L"Update Hub \x25B2" : L"Update Hub";
@@ -2160,7 +2257,7 @@ static void RefreshProjectStatuses(void) {
     BOOL hasDns = FileHealthyW(dnsExe);
     DWORD locDnsSz = LocalSizeOf(dnsExe);
     BOOL dnsKnown = (remDnsSz > 0 && locDnsSz > 0);
-    BOOL dnsUpd = hasDns && dnsKnown && locDnsSz != remDnsSz;
+    BOOL dnsUpd = hasDns && dnsKnown && RemoteDiffers(g_remDnsSha, dnsExe, remDnsSz);
     BOOL dnsRunning = (FindWindowW(L"KBLSuiteDnsPilotWindow", NULL) != NULL);
     g_cards[4].btns[1].style = BTN_SECONDARY;
     if (!hasDns) {
@@ -2204,7 +2301,7 @@ static void RefreshProjectStatuses(void) {
         BOOL hasNotes = FileHealthyW(notesExe);
         DWORD locNotesSz = LocalSizeOf(notesExe);
         BOOL notesKnown = (remNotesSz > 0 && locNotesSz > 0);
-        BOOL notesUpd = hasNotes && notesKnown && locNotesSz != remNotesSz;
+        BOOL notesUpd = hasNotes && notesKnown && RemoteDiffers(g_remNotesSha, notesExe, remNotesSz);
         g_cards[5].btns[1].style = BTN_SECONDARY;
         if (!hasNotes) {
             wcsncpy(g_cards[5].badge, L"Setup Ready", 47);
@@ -2242,7 +2339,7 @@ static void RefreshProjectStatuses(void) {
         BOOL hasAs = FileHealthyW(asExe);
         DWORD locAsSz = LocalSizeOf(asExe);
         BOOL asKnown = (remAsSz > 0 && locAsSz > 0);
-        BOOL asUpd = hasAs && asKnown && locAsSz != remAsSz;
+        BOOL asUpd = hasAs && asKnown && RemoteDiffers(g_remAudioSwitcherSha, asExe, remAsSz);
         BOOL asRunning = (FindWindowW(L"TestsAudioSwitcherWnd", NULL) != NULL);
         g_cards[6].btns[1].style = BTN_SECONDARY;
         if (!hasAs) {
@@ -2287,7 +2384,7 @@ static void RefreshProjectStatuses(void) {
         BOOL hasCm = FileHealthyW(cmExe);
         DWORD locCmSz = LocalSizeOf(cmExe);
         BOOL cmKnown = (remCmSz > 0 && locCmSz > 0);
-        BOOL cmUpd = hasCm && cmKnown && locCmSz != remCmSz;
+        BOOL cmUpd = hasCm && cmKnown && RemoteDiffers(g_remClipboardMemorySha, cmExe, remCmSz);
         BOOL cmRunning = (FindWindowW(L"TestsClipboardMemoryWnd", NULL) != NULL);
         g_cards[7].btns[1].style = BTN_SECONDARY;
         if (!hasCm) {
@@ -2332,7 +2429,7 @@ static void RefreshProjectStatuses(void) {
         BOOL has = FileHealthyW(exePath);
         DWORD locSz = LocalSizeOf(exePath);
         BOOL known = (c->remSize > 0 && locSz > 0);
-        BOOL upd = has && known && locSz != c->remSize;
+        BOOL upd = has && known && RemoteDiffers(c->remSha, exePath, c->remSize);
         if (!has) {
             wcsncpy(c->badge, L"Setup Ready", 47);
             c->badgeKind = BADGE_WARN;
@@ -2421,8 +2518,21 @@ static void WorkerCheckRemote(void) {
     }
     free(catalog);
 
-    /* Remote build sizes: the installed file differing from the branch copy
-       is what 'Update Ready' means for the EXE apps. */
+    /* Remote content identity, fetched once for every path below. */
+    char *treeJson = NULL;
+    {
+        wchar_t tp[512];
+        DWORD tsz = 0;
+        int tst = 0;
+        _snwprintf(tp, 511, L"/repos/%s/%s/git/trees/%s?recursive=1",
+                   REPO_OWNER_W, REPO_NAME_W, branch);
+        tp[511] = L'\0';
+        treeJson = (char *)HttpGetBuffer(L"api.github.com", tp, &tsz, &tst);
+        if (!(treeJson && tst == 200)) { free(treeJson); treeJson = NULL; }
+    }
+
+    /* Remote build sizes: kept as the fallback identity when the trees API is
+       unreachable (rate limit, offline). */
     {
         DWORD szBtg = 0, szKbl = 0, szPs1 = 0, szDns = 0, szNotes = 0, szAs = 0, szCm = 0;
         _snwprintf(p, 255, L"/%s/%s/%s/bluetooth-guard/BluetoothGuard.exe", REPO_OWNER_W, REPO_NAME_W, branch);
@@ -2450,6 +2560,15 @@ static void WorkerCheckRemote(void) {
         g_remNotesSize = szNotes;
         g_remAudioSwitcherSize = szAs;
         g_remClipboardMemorySize = szCm;
+        if (treeJson) {
+            TreeShaFor(treeJson, "bluetooth-guard/BluetoothGuard.exe", g_remBtgSha);
+            TreeShaFor(treeJson, "keyboard-lighting/KeyboardLighting.exe", g_remKblSha);
+            TreeShaFor(treeJson, "keyboard-lighting/Aura-Background.ps1", g_remKblPs1Sha);
+            TreeShaFor(treeJson, "dns-pilot/DnsPilot.exe", g_remDnsSha);
+            TreeShaFor(treeJson, "agent-notes/AgentNotes.exe", g_remNotesSha);
+            TreeShaFor(treeJson, "audio-switcher/AudioSwitcher.exe", g_remAudioSwitcherSha);
+            TreeShaFor(treeJson, "clipboard-memory/ClipboardMemory.exe", g_remClipboardMemorySha);
+        }
         LeaveCriticalSection(&g_cs);
     }
     /* generic catalog extras: remote size of each app's main exe */
@@ -2460,7 +2579,14 @@ static void WorkerCheckRemote(void) {
             HttpHeadSize(L"raw.githubusercontent.com", p, &szX);
         }
         g_cards[i].remSize = szX;
+        g_cards[i].remSha[0] = '\0';
+        if (treeJson && g_cards[i].exeRepo) {
+            char rp[256];
+            WideCharToMultiByte(CP_UTF8, 0, g_cards[i].exeRepo, -1, rp, 256, NULL, NULL);
+            TreeShaFor(treeJson, rp, g_cards[i].remSha);
+        }
     }
+    free(treeJson);
 
     _snwprintf(p, 255, L"/repos/%s/%s/releases/tags/spatial-hud-latest", REPO_OWNER_W, REPO_NAME_W);
     EnterCriticalSection(&g_cs);

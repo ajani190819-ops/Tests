@@ -84,7 +84,7 @@ def main() -> int:
             ROOT / "project-hub" / "src" / "project_hub.c",
             ROOT / "project-hub" / "ProjectHub.exe",
             ["-luser32", "-lgdi32", "-lshell32", "-lole32", "-luuid",
-             "-lcomctl32", "-lwinhttp", "-lshlwapi"],
+             "-lcomctl32", "-lwinhttp", "-lshlwapi", "-lbcrypt"],
         ),
         (
             "btguard",

@@ -428,6 +428,10 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             "msvcrt.dll",
             "ws2_32.dll",
             "iphlpapi.dll",
+            # Windows CNG, in System32 since Vista: ProjectHub hashes local
+            # files to compare them against the remote git blob hashes, so a
+            # same-size rebuild can no longer look "up to date".
+            "bcrypt.dll",
         }
         for rel in (
             "project-hub/ProjectHub.exe",
@@ -1077,6 +1081,31 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertEqual(src.find('L"arena/b6d41021-tests"'), -1,
                          "the fallback branch is a stale session name again; hubs built "
                          "from it keep downloading its old executables")
+    def test_hub_update_check_compares_content_not_just_size(self):
+        src = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+
+        # A HEAD request yields only Content-Length, and two different builds
+        # can share a byte count. Size-only comparison is how a same-size
+        # rebuild looked "up to date" on the branch that actually changed it.
+        self.assertNotIn("BOOL kblUpd = kblKnown && locKblSz != remKblSz;", src,
+                         "the Keyboard Lighting update decision is size-only again, so a "
+                         "rebuild that lands at the same byte count is invisible to the Hub")
+
+        self.assertIn("static BOOL RemoteDiffers(", src,
+                      "the Hub no longer has a content-identity comparison for updates")
+        self.assertIn("/git/trees/", src,
+                      "the Hub never fetches remote blob hashes, so RemoteDiffers can "
+                      "only ever fall back to sizes")
+        self.assertIn('TreeShaFor(treeJson, "keyboard-lighting/KeyboardLighting.exe"', src,
+                      "the remote blob hash of KeyboardLighting.exe is never recorded")
+        self.assertIn("BCRYPT_SHA1_ALGORITHM", src,
+                      "local files are not hashed, so the remote blob hash has nothing "
+                      "to compare against")
+
+        uses = src.count("RemoteDiffers(g_rem") + src.count("RemoteDiffers(c->remSha")
+        self.assertGreaterEqual(uses, 7,
+                         f"only {uses} update decisions compare content; the rest still "
+                         f"trust file size alone")
 
 
 if __name__ == "__main__":
