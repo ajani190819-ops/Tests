@@ -461,6 +461,7 @@
 - L30  f _read
 - L34  f SpatialHudOcclusionTests
 - L91  f SpatialHudCaptureWrapperTests
+- L132  f SpatialHudPassSplitTests
 
 ## tests/test_unlayered_waves.py
 

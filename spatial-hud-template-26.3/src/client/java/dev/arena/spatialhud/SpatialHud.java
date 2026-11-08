@@ -44,6 +44,8 @@ public class SpatialHud implements ClientModInitializer {
 	private static final int MISSES_BEFORE_REWRAP = 3;
 	/** Hard cap on re-application passes: each nests one more wrapper. */
 	private static final int MAX_WRAPPER_PASSES = 4;
+	/** Consecutive hand-filled frames that mean a wrapper was displaced, not a pass split. */
+	private static final int FILLS_BEFORE_REWRAP = 60;
 
 	// The panel samples camera pitch once before every selected HUD extraction,
 	// so the backing and all captured roots share one mesh pose for that frame.
@@ -113,7 +115,8 @@ public class SpatialHud implements ClientModInitializer {
 				reinforcedWrappers = true;
 				reinforceStripWrappers();
 			} else if (wrapperReinforcements < MAX_WRAPPER_PASSES
-					&& ExperimentalHudCapture.consecutiveHotbarMisses() >= MISSES_BEFORE_REWRAP) {
+					&& (ExperimentalHudCapture.consecutiveHotbarMisses() >= MISSES_BEFORE_REWRAP
+						|| ExperimentalHudCapture.longestFillStreak() >= FILLS_BEFORE_REWRAP)) {
 				// The wrappers were displaced after that first pass: a mod that
 				// replaces a vanilla strip root late, or re-registers on a resource
 				// reload or world join, ends up outside our wrapper and draws its
@@ -123,8 +126,8 @@ public class SpatialHud implements ClientModInitializer {
 				// bounded number of times, because each pass nests one more wrapper
 				// and a registry that fought us forever must not grow without limit.
 				wrapperReinforcements++;
-				LOGGER.warn("Spatial HUD: the hotbar stopped reaching the panel capture for {} frames; re-applying the capture wrappers (pass {} of {}).",
-						ExperimentalHudCapture.consecutiveHotbarMisses(), wrapperReinforcements, MAX_WRAPPER_PASSES);
+				LOGGER.warn("Spatial HUD: a strip root stopped reaching the panel capture through the HUD pipeline ({} missed frames, {} consecutively hand-filled); re-applying the capture wrappers (pass {} of {}).",
+						ExperimentalHudCapture.consecutiveHotbarMisses(), ExperimentalHudCapture.longestFillStreak(), wrapperReinforcements, MAX_WRAPPER_PASSES);
 				reinforceStripWrappers();
 			}
 
@@ -235,7 +238,12 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/** The config instance is the sole live source of truth for the Enable toggle. */
-	public static boolean isEnabled() {
+		/** The bottom-strip roots the capture collects, for the skipped-root fill. */
+	static List<Identifier> stripElements() {
+		return STRIP_ELEMENTS;
+	}
+
+public static boolean isEnabled() {
 		return SpatialHudConfig.get().enabled;
 	}
 

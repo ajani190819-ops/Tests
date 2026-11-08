@@ -115,7 +115,8 @@ class SpatialHudCaptureWrapperTests(unittest.TestCase):
         # it. Pin the gated condition itself, so deadening the branch fails here.
         drift = re.search(
             r"else if \(wrapperReinforcements < MAX_WRAPPER_PASSES\s*"
-            r"&& ExperimentalHudCapture\.consecutiveHotbarMisses\(\) >= MISSES_BEFORE_REWRAP\)",
+            r"&& \(ExperimentalHudCapture\.consecutiveHotbarMisses\(\) >= MISSES_BEFORE_REWRAP\s*"
+            r"\|\| ExperimentalHudCapture\.longestFillStreak\(\) >= FILLS_BEFORE_REWRAP\)\)",
             hud)
         self.assertIsNotNone(
             drift,
@@ -126,6 +127,40 @@ class SpatialHudCaptureWrapperTests(unittest.TestCase):
             hud.find("MAX_WRAPPER_PASSES"), -1,
             "drift repair is unbounded; each pass nests another wrapper, so a registry "
             "that keeps drifting would grow wrappers without limit")
+
+
+class SpatialHudPassSplitTests(unittest.TestCase):
+    """Gnetum-style mods run only some HUD elements per frame. The capture clears
+    its texture every frame, so a partial frame used to reach the panel as a
+    partial HUD - the flicker. The fill must restore skipped roots each frame."""
+
+    def test_partial_hud_frames_are_completed(self):
+        capture = _read("ExperimentalHudCapture.java")
+        element = _read("SpatialHudElement.java")
+
+        composite = capture[capture.index("public static void renderAndComposite()"):]
+        composite = composite[:composite.index("\n\t}\n")]
+        self.assertIn("fillSkippedRoots();", composite,
+                      "a partial HUD frame is rendered as-is, so a pass-splitting HUD "
+                      "mod such as Gnetum makes the panel flicker between partial HUDs")
+        self.assertLess(composite.index("fillSkippedRoots();"),
+                        composite.index("capturedRenderer.render()"),
+                        "skipped roots are filled after the capture renders, so the "
+                        "completed pixels arrive one frame too late or not at all")
+
+        self.assertIn("capturedIds.clear()", capture,
+                      "arrivals are not reset per frame, so a root skipped today would "
+                      "look captured forever and never be filled")
+        self.assertIn("cfg.showElement(id)", capture,
+                      "the fill does not respect the per-element visibility settings, "
+                      "so hidden elements would be painted back onto the panel")
+
+        self.assertIn("void extractVanillaInto(", element,
+                      "the wrapper cannot extract its vanilla chain directly, so a root "
+                      "the HUD pipeline skipped has no way into the capture")
+        self.assertIn("INSTANCES.put(id, this)", element,
+                      "wrappers do not register themselves, so the fill cannot reach the "
+                      "root that was skipped")
 
 
 if __name__ == "__main__":
