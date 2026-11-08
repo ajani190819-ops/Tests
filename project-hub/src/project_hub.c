@@ -21,8 +21,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.37"
-#define HUB_VERSION_W     L"2.8.37"
+#define HUB_VERSION       "2.8.38"
+#define HUB_VERSION_W     L"2.8.38"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -57,6 +57,7 @@
 #define ID_MENU_BRANCH_BASE  1600
 #define ID_MENU_BRANCH_CUSTOM 1699
 #define ID_MENU_SUITE_DIR    1012
+#define ID_MENU_HUB_TOSUITE  1013
 
 #define ID_BTG_OPEN          1101
 #define ID_BTG_UPDATE        1102
@@ -240,6 +241,16 @@ static wchar_t          g_audioSwitcherDir[MAX_PATH];
 static wchar_t          g_clipboardMemoryDir[MAX_PATH];
 static wchar_t          g_modsDir[MAX_PATH];
 static wchar_t          g_orcaBatDir[MAX_PATH];
+
+/* The suite folder is the one place a user browses to see the suite, so it
+   is where every install writes. Any OTHER copy that already exists on disk
+   (next to a hub that was launched from Downloads, or inside a repo
+   checkout) is registered here and receives the very same bytes, so no copy
+   can be left behind at an older build. */
+#define MAX_MIRRORS 6
+static wchar_t          g_suiteHubExe[MAX_PATH];
+static wchar_t          g_mirrorDirs[8][MAX_MIRRORS][MAX_PATH];
+static int              g_mirrorCount[8];
 
 /* Shared remote state protected by g_cs */
 static wchar_t          g_activeBranch[64]  = L"";
@@ -921,6 +932,19 @@ static BYTE *HttpGetCached(const wchar_t *host, const wchar_t *urlPath, DWORD *o
     return data;
 }
 
+/* Fetch one repo file into memory so a single download can be written to
+   every copy of an app instead of being fetched once per location. */
+static BYTE *DownloadRepoBytes(const wchar_t *branch, const wchar_t *relUrl, DWORD *outLen) {
+    wchar_t path[512];
+    _snwprintf(path, 511, L"/%s/%s/%s/%s", REPO_OWNER_W, REPO_NAME_W, branch, relUrl);
+    DWORD sz = 0;
+    int st = 0;
+    BYTE *data = HttpGetBuffer(L"raw.githubusercontent.com", path, &sz, &st);
+    if (!data || st != 200 || sz < 8) { free(data); return NULL; }
+    if (outLen) *outLen = sz;
+    return data;
+}
+
 static BOOL DownloadRawRepoFile(const wchar_t *branch, const wchar_t *relUrl, const wchar_t *destPath) {
     wchar_t path[512];
     _snwprintf(path, 511, L"/%s/%s/%s/%s", REPO_OWNER_W, REPO_NAME_W, branch, relUrl);
@@ -1103,6 +1127,139 @@ static BOOL ResolveShortcutTargetDir(const wchar_t *lnkPath, wchar_t *outDir) {
     return found;
 }
 
+/* ---- one canonical install folder, every copy kept in sync --------------
+ * A user browses %LOCALAPPDATA%\Programs\TestsSuite to see the suite, so an
+ * update that lands anywhere else looks like "it did not update". The hub
+ * itself is usually launched from wherever it was first downloaded (often
+ * Downloads), and the old resolution order made THAT folder the install
+ * target: the suite copy kept the build from nine days ago forever while the
+ * stray copy silently got every update.
+ *
+ * Rule now: the suite folder is the install target, and every other copy that
+ * already exists receives the identical bytes in the same click. Copies are
+ * never created where the user did not already have one.
+ */
+enum { MIRROR_BTG = 0, MIRROR_KBL, MIRROR_DNS, MIRROR_NOTES,
+       MIRROR_AUDIO, MIRROR_CLIP, MIRROR_GENERIC, MIRROR_HUB };
+
+static void SuiteAppPath(wchar_t *out, size_t cap, const wchar_t *sub) {
+    _snwprintf(out, cap - 1, L"%s\\%s", g_suiteDir, sub);
+    out[cap - 1] = L'\0';
+}
+
+/* Left-shorten a folder for the card detail line. PathCompactPathW would do
+   this, but shlwapi is deliberately not in the hub's import table. */
+static void ShortDirForUi(const wchar_t *dir, wchar_t *out, size_t cap) {
+    size_t n = wcslen(dir);
+    if (n + 1 <= cap) { wcsncpy(out, dir, cap - 1); out[cap - 1] = L'\0'; return; }
+    size_t keep = cap - 4;                 /* room for the leading ellipsis */
+    wcsncpy(out, L"...", 3);
+    wcsncpy(out + 3, dir + (n - keep), keep);
+    out[cap - 1] = L'\0';
+}
+
+/* Say where the app actually lives, so a folder that is not being updated is
+   visible on the card instead of only in Explorer. */
+static void AppendInstallFolder(wchar_t *detail, const wchar_t *dir) {
+    wchar_t shortDir[128];
+    ShortDirForUi(dir, shortDir, 128);
+    wcsncat(detail, L"  \x00B7  ", 255 - wcslen(detail));
+    wcsncat(detail, shortDir, 255 - wcslen(detail));
+    detail[255] = L'\0';
+}
+
+static void AddMirrorDir(int slot, const wchar_t *dir) {
+    if (slot < 0 || slot > MIRROR_HUB || !dir || !dir[0]) return;
+    for (int i = 0; i < g_mirrorCount[slot]; i++)
+        if (_wcsicmp(g_mirrorDirs[slot][i], dir) == 0) return;
+    if (g_mirrorCount[slot] >= MAX_MIRRORS) return;
+    wcsncpy(g_mirrorDirs[slot][g_mirrorCount[slot]], dir, MAX_PATH - 1);
+    g_mirrorDirs[slot][g_mirrorCount[slot]][MAX_PATH - 1] = L'\0';
+    g_mirrorCount[slot]++;
+}
+
+/* Overwrite every registered copy that is not the one just written. A running
+   image cannot be replaced, so a failure here is reported rather than hidden:
+   the suite copy - the one the card measures - is already correct. */
+static int MirrorFileEverywhere(int slot, const wchar_t *primaryPath) {
+    int mirrored = 0;
+    for (int i = 0; i < g_mirrorCount[slot]; i++) {
+        wchar_t alt[MAX_PATH];
+        const wchar_t *name = wcsrchr(primaryPath, L'\\');
+        if (!name) return mirrored;
+        _snwprintf(alt, MAX_PATH - 1, L"%s%s", g_mirrorDirs[slot][i], name);
+        alt[MAX_PATH - 1] = L'\0';
+        if (_wcsicmp(alt, primaryPath) == 0) continue;
+        /* The suite folder is the managed home, so its copy is created when it
+           is missing. Anywhere else, only a copy the user already had is
+           touched - the hub must not scatter new folders around the disk. */
+        BOOL inSuite = (_wcsicmp(g_mirrorDirs[slot][i], g_suiteDir) == 0) ||
+                       (_wcsnicmp(g_mirrorDirs[slot][i], g_suiteDir, wcslen(g_suiteDir)) == 0 &&
+                        g_mirrorDirs[slot][i][wcslen(g_suiteDir)] == L'\\');
+        if (!FileExistsW(alt) && !inSuite) continue;
+        EnsureDirTree(g_mirrorDirs[slot][i]);
+        if (CopyFileW(primaryPath, alt, FALSE)) {
+            wchar_t ads[MAX_PATH + 24];
+            _snwprintf(ads, MAX_PATH + 23, L"%s:Zone.Identifier", alt);
+            DeleteFileW(ads);
+            mirrored++;
+        }
+    }
+    return mirrored;
+}
+
+/* One download, every copy: the suite folder plus any stray copy on disk. */
+static BOOL InstallRepoFileEverywhere(int slot, const wchar_t *branch,
+                                      const wchar_t *relUrl, const wchar_t *primaryDir,
+                                      const wchar_t *fileName, int *outMirrors) {
+    wchar_t dest[MAX_PATH];
+    DWORD len = 0;
+    BYTE *data = DownloadRepoBytes(branch, relUrl, &len);
+    if (!data) return FALSE;
+    EnsureDirTree(primaryDir);
+    _snwprintf(dest, MAX_PATH - 1, L"%s\\%s", primaryDir, fileName);
+    dest[MAX_PATH - 1] = L'\0';
+    BOOL ok = WriteBinaryFileAtomic(dest, data, len);
+    free(data);
+    if (!ok) return FALSE;
+    int n = MirrorFileEverywhere(slot, dest);
+    if (outMirrors) *outMirrors = n;
+    return TRUE;
+}
+
+/* A tray app started from a stray copy keeps running that stray build, and its
+ * single-instance mutex makes the fresh suite copy exit immediately - the user
+ * would keep using the old build after a successful update. Close the foreign
+ * instance so the copy from the suite folder is the one that comes back up.
+ * Only ever called for a copy that is about to be replaced anyway. */
+static BOOL StopForeignInstance(const wchar_t *wndClass, const wchar_t *primaryDir) {
+    HWND hw = FindWindowW(wndClass, NULL);
+    if (!hw) return FALSE;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hw, &pid);
+    if (!pid) return FALSE;
+    HANDLE hp = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, FALSE, pid);
+    if (!hp) return FALSE;
+    wchar_t img[MAX_PATH] = L"";
+    DWORD n = MAX_PATH;
+    BOOL foreign = FALSE;
+    if (QueryFullProcessImageNameW(hp, 0, img, &n)) {
+        wchar_t dir[MAX_PATH];
+        wcsncpy(dir, img, MAX_PATH - 1);
+        dir[MAX_PATH - 1] = L'\0';
+        wchar_t *sl = wcsrchr(dir, L'\\');
+        if (sl) *sl = L'\0';
+        foreign = (_wcsicmp(dir, primaryDir) != 0);
+    }
+    if (foreign) {
+        PostMessageW(hw, WM_CLOSE, 0, 0);
+        if (WaitForSingleObject(hp, 1200) == WAIT_TIMEOUT) TerminateProcess(hp, 0);
+        WaitForSingleObject(hp, 1200);
+    }
+    CloseHandle(hp);
+    return foreign;
+}
+
 static void InitAllPaths(void) {
     GetModuleFileNameW(NULL, g_exePath, MAX_PATH);
     wcsncpy(g_exeDir, g_exePath, MAX_PATH - 1);
@@ -1119,6 +1276,12 @@ static void InitAllPaths(void) {
     EnsureDirTree(g_hubCfgDir);
     EnsureDirTree(g_suiteDir);
 
+    /* The hub keeps a copy of itself in the suite folder too, so the folder
+       the user browses always holds the hub build they last updated to - even
+       when the hub they launched lives somewhere else, like Downloads. */
+    _snwprintf(g_suiteHubExe, MAX_PATH, L"%s\\ProjectHub.exe", g_suiteDir);
+    AddMirrorDir(MIRROR_HUB, g_suiteDir);
+
     wchar_t desk[MAX_PATH] = L"";
     SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk);
 
@@ -1129,7 +1292,9 @@ static void InitAllPaths(void) {
 
     wchar_t cand[MAX_PATH], lnk[MAX_PATH];
 
-    /* 1. Locate existing BluetoothGuard installation (running process, same folder, sibling, shortcut, or suite dir) */
+    /* 1. Bluetooth Guard: the suite folder is the install target; every other
+       copy already on disk (hub folder, repo checkout, shortcut target, the
+       build a running guard was launched from) is kept in sync with it. */
     g_btgDir[0] = L'\0';
     g_btgExtraExe[0] = L'\0';
     wchar_t btgLock[MAX_PATH];
@@ -1151,89 +1316,147 @@ static void InitAllPaths(void) {
         }
     }
 
+    wchar_t btgSuite[MAX_PATH];
+    SuiteAppPath(btgSuite, MAX_PATH, L"BluetoothGuard");
     _snwprintf(cand, MAX_PATH, L"%s\\BluetoothGuard.exe", g_exeDir);
-    if (FileExistsW(cand)) {
-        wcsncpy(g_btgDir, g_exeDir, MAX_PATH - 1);
-    } else {
-        _snwprintf(cand, MAX_PATH, L"%s\\bluetooth-guard\\BluetoothGuard.exe", parent);
-        if (FileExistsW(cand)) {
-            _snwprintf(g_btgDir, MAX_PATH, L"%s\\bluetooth-guard", parent);
-        } else if (desk[0]) {
-            _snwprintf(lnk, MAX_PATH, L"%s\\Bluetooth Guard.lnk", desk);
-            ResolveShortcutTargetDir(lnk, g_btgDir);
-        }
+    BOOL btgInHubDir = FileExistsW(cand);
+    _snwprintf(cand, MAX_PATH, L"%s\\bluetooth-guard\\BluetoothGuard.exe", parent);
+    BOOL btgInSibling = FileExistsW(cand);
+    wchar_t btgLnkDir[MAX_PATH] = L"";
+    if (desk[0]) {
+        _snwprintf(lnk, MAX_PATH, L"%s\\Bluetooth Guard.lnk", desk);
+        ResolveShortcutTargetDir(lnk, btgLnkDir);
     }
-    if (!g_btgDir[0]) _snwprintf(g_btgDir, MAX_PATH, L"%s\\BluetoothGuard", g_suiteDir);
+    _snwprintf(cand, MAX_PATH, L"%s\\BluetoothGuard.exe", btgSuite);
+    BOOL btgInSuite = FileExistsW(cand);
+    if (btgInSuite) wcsncpy(g_btgDir, btgSuite, MAX_PATH - 1);
+    else if (g_btgExtraExe[0]) {   /* the build that is actually running */
+        wcsncpy(g_btgDir, g_btgExtraExe, MAX_PATH - 1);
+        wchar_t *sl = wcsrchr(g_btgDir, L'\\');
+        if (sl) *sl = L'\0';
+    }
+    else if (btgInHubDir) wcsncpy(g_btgDir, g_exeDir, MAX_PATH - 1);
+    else if (btgInSibling) _snwprintf(g_btgDir, MAX_PATH, L"%s\\bluetooth-guard", parent);
+    else if (btgLnkDir[0]) wcsncpy(g_btgDir, btgLnkDir, MAX_PATH - 1);
+    if (!g_btgDir[0]) wcsncpy(g_btgDir, btgSuite, MAX_PATH - 1);
+    AddMirrorDir(MIRROR_BTG, btgSuite);
+    if (btgInHubDir) AddMirrorDir(MIRROR_BTG, g_exeDir);
+    if (btgInSibling) {
+        _snwprintf(cand, MAX_PATH, L"%s\\bluetooth-guard", parent);
+        AddMirrorDir(MIRROR_BTG, cand);
+    }
+    if (btgLnkDir[0]) AddMirrorDir(MIRROR_BTG, btgLnkDir);
+    if (g_btgExtraExe[0]) {
+        wchar_t extraDir[MAX_PATH];
+        wcsncpy(extraDir, g_btgExtraExe, MAX_PATH - 1);
+        extraDir[MAX_PATH - 1] = L'\0';
+        wchar_t *sl = wcsrchr(extraDir, L'\\');
+        if (sl) *sl = L'\0';
+        AddMirrorDir(MIRROR_BTG, extraDir);
+    }
 
-    /* 2. Locate existing Keyboard Lighting installation (sibling, Desktop shortcut, Start Menu shortcut, or suite dir) */
+    /* 2. Keyboard Lighting: same rule - suite folder first, every existing
+       copy (repo checkout, shortcut target) registered for the mirror. */
     g_kblDir[0] = L'\0';
-    _snwprintf(cand, MAX_PATH, L"%s\\keyboard-lighting\\Tray.ps1", parent);
-    if (FileExistsW(cand)) {
-        _snwprintf(g_kblDir, MAX_PATH, L"%s\\keyboard-lighting", parent);
-    } else {
-        if (desk[0]) {
-            _snwprintf(lnk, MAX_PATH, L"%s\\Keyboard Lighting.lnk", desk);
-            ResolveShortcutTargetDir(lnk, g_kblDir);
-        }
-        if (!g_kblDir[0]) {
-            _snwprintf(lnk, MAX_PATH, L"%s\\Microsoft\\Windows\\Start Menu\\Programs\\Keyboard Lighting.lnk", g_roamApp);
-            ResolveShortcutTargetDir(lnk, g_kblDir);
-        }
+    wchar_t kblSuite[MAX_PATH], kblSibling[MAX_PATH];
+    SuiteAppPath(kblSuite, MAX_PATH, L"KeyboardLighting");
+    _snwprintf(kblSibling, MAX_PATH, L"%s\\keyboard-lighting", parent);
+    _snwprintf(cand, MAX_PATH, L"%s\\Tray.ps1", kblSibling);
+    BOOL kblInSibling = FileExistsW(cand);
+    _snwprintf(cand, MAX_PATH, L"%s\\KeyboardLighting.exe", kblSuite);
+    BOOL kblInSuite = FileExistsW(cand);
+    wchar_t kblLnkDir[MAX_PATH] = L"";
+    if (desk[0]) {
+        _snwprintf(lnk, MAX_PATH, L"%s\\Keyboard Lighting.lnk", desk);
+        ResolveShortcutTargetDir(lnk, kblLnkDir);
     }
-    if (!g_kblDir[0]) _snwprintf(g_kblDir, MAX_PATH, L"%s\\KeyboardLighting", g_suiteDir);
+    if (!kblLnkDir[0]) {
+        _snwprintf(lnk, MAX_PATH, L"%s\\Microsoft\\Windows\\Start Menu\\Programs\\Keyboard Lighting.lnk", g_roamApp);
+        ResolveShortcutTargetDir(lnk, kblLnkDir);
+    }
+    if (kblInSuite) wcsncpy(g_kblDir, kblSuite, MAX_PATH - 1);
+    else if (kblInSibling) wcsncpy(g_kblDir, kblSibling, MAX_PATH - 1);
+    else if (kblLnkDir[0]) wcsncpy(g_kblDir, kblLnkDir, MAX_PATH - 1);
+    else wcsncpy(g_kblDir, kblSuite, MAX_PATH - 1);
+    AddMirrorDir(MIRROR_KBL, kblSuite);
+    if (kblInSibling) AddMirrorDir(MIRROR_KBL, kblSibling);
+    if (kblLnkDir[0]) AddMirrorDir(MIRROR_KBL, kblLnkDir);
 
-    /* 2b. Locate existing DNS Pilot installation (sibling of the hub, repo
-       checkout, or the suite dir where Install puts it) */
+    /* 2b. DNS Pilot: suite folder first, existing strays mirrored. */
     g_dnsDir[0] = L'\0';
+    wchar_t dnsSuite[MAX_PATH];
+    SuiteAppPath(dnsSuite, MAX_PATH, L"DnsPilot");
     _snwprintf(cand, MAX_PATH, L"%s\\DnsPilot.exe", g_exeDir);
-    if (FileExistsW(cand)) {
-        wcsncpy(g_dnsDir, g_exeDir, MAX_PATH - 1);
-    } else {
-        _snwprintf(cand, MAX_PATH, L"%s\\dns-pilot\\DnsPilot.exe", parent);
-        if (FileExistsW(cand)) {
-            _snwprintf(g_dnsDir, MAX_PATH, L"%s\\dns-pilot", parent);
-        }
+    BOOL dnsInHubDir = FileExistsW(cand);
+    _snwprintf(cand, MAX_PATH, L"%s\\dns-pilot\\DnsPilot.exe", parent);
+    BOOL dnsInSibling = FileExistsW(cand);
+    _snwprintf(cand, MAX_PATH, L"%s\\DnsPilot.exe", dnsSuite);
+    if (FileExistsW(cand)) wcsncpy(g_dnsDir, dnsSuite, MAX_PATH - 1);
+    else if (dnsInHubDir) wcsncpy(g_dnsDir, g_exeDir, MAX_PATH - 1);
+    else if (dnsInSibling) _snwprintf(g_dnsDir, MAX_PATH, L"%s\\dns-pilot", parent);
+    else wcsncpy(g_dnsDir, dnsSuite, MAX_PATH - 1);
+    AddMirrorDir(MIRROR_DNS, dnsSuite);
+    if (dnsInHubDir) AddMirrorDir(MIRROR_DNS, g_exeDir);
+    if (dnsInSibling) {
+        _snwprintf(cand, MAX_PATH, L"%s\\dns-pilot", parent);
+        AddMirrorDir(MIRROR_DNS, cand);
     }
-    if (!g_dnsDir[0]) _snwprintf(g_dnsDir, MAX_PATH, L"%s\\DnsPilot", g_suiteDir);
 
-    /* 2c. Locate Agent Notes (sibling of the hub, repo checkout, or suite dir) */
+    /* 2c. Agent Notes: suite folder first, existing strays mirrored. */
     g_notesDir[0] = L'\0';
+    wchar_t notesSuite[MAX_PATH];
+    SuiteAppPath(notesSuite, MAX_PATH, L"AgentNotes");
     _snwprintf(cand, MAX_PATH, L"%s\\AgentNotes.exe", g_exeDir);
-    if (FileExistsW(cand)) {
-        wcsncpy(g_notesDir, g_exeDir, MAX_PATH - 1);
-    } else {
-        _snwprintf(cand, MAX_PATH, L"%s\\agent-notes\\AgentNotes.exe", parent);
-        if (FileExistsW(cand)) {
-            _snwprintf(g_notesDir, MAX_PATH, L"%s\\agent-notes", parent);
-        }
+    BOOL notesInHubDir = FileExistsW(cand);
+    _snwprintf(cand, MAX_PATH, L"%s\\agent-notes\\AgentNotes.exe", parent);
+    BOOL notesInSibling = FileExistsW(cand);
+    _snwprintf(cand, MAX_PATH, L"%s\\AgentNotes.exe", notesSuite);
+    if (FileExistsW(cand)) wcsncpy(g_notesDir, notesSuite, MAX_PATH - 1);
+    else if (notesInHubDir) wcsncpy(g_notesDir, g_exeDir, MAX_PATH - 1);
+    else if (notesInSibling) _snwprintf(g_notesDir, MAX_PATH, L"%s\\agent-notes", parent);
+    else wcsncpy(g_notesDir, notesSuite, MAX_PATH - 1);
+    AddMirrorDir(MIRROR_NOTES, notesSuite);
+    if (notesInHubDir) AddMirrorDir(MIRROR_NOTES, g_exeDir);
+    if (notesInSibling) {
+        _snwprintf(cand, MAX_PATH, L"%s\\agent-notes", parent);
+        AddMirrorDir(MIRROR_NOTES, cand);
     }
-    if (!g_notesDir[0]) _snwprintf(g_notesDir, MAX_PATH, L"%s\\AgentNotes", g_suiteDir);
 
-    /* 2d. Locate Audio Switcher (sibling of the hub, repo checkout, or suite dir) */
+    /* 2d. Audio Switcher: the suite folder is the install target and the copy
+       the card measures. A hub launched from Downloads used to make Downloads
+       the target, so the suite folder kept an old build forever. */
     g_audioSwitcherDir[0] = L'\0';
+    wchar_t asSuite[MAX_PATH];
+    SuiteAppPath(asSuite, MAX_PATH, L"AudioSwitcher");
     _snwprintf(cand, MAX_PATH, L"%s\\AudioSwitcher.exe", g_exeDir);
-    if (FileExistsW(cand)) {
-        wcsncpy(g_audioSwitcherDir, g_exeDir, MAX_PATH - 1);
-    } else {
-        _snwprintf(cand, MAX_PATH, L"%s\\audio-switcher\\AudioSwitcher.exe", parent);
-        if (FileExistsW(cand)) {
-            wcsncpy(g_audioSwitcherDir, parent, MAX_PATH - 1);
-        }
-    }
-    if (!g_audioSwitcherDir[0]) _snwprintf(g_audioSwitcherDir, MAX_PATH, L"%s\\AudioSwitcher", g_suiteDir);
+    BOOL asInHubDir = FileExistsW(cand);
+    _snwprintf(cand, MAX_PATH, L"%s\\audio-switcher\\AudioSwitcher.exe", parent);
+    BOOL asInSibling = FileExistsW(cand);
+    _snwprintf(cand, MAX_PATH, L"%s\\AudioSwitcher.exe", asSuite);
+    if (FileExistsW(cand)) wcsncpy(g_audioSwitcherDir, asSuite, MAX_PATH - 1);
+    else if (asInHubDir) wcsncpy(g_audioSwitcherDir, g_exeDir, MAX_PATH - 1);
+    else if (asInSibling) wcsncpy(g_audioSwitcherDir, parent, MAX_PATH - 1);
+    else wcsncpy(g_audioSwitcherDir, asSuite, MAX_PATH - 1);
+    AddMirrorDir(MIRROR_AUDIO, asSuite);
+    if (asInHubDir) AddMirrorDir(MIRROR_AUDIO, g_exeDir);
+    if (asInSibling) AddMirrorDir(MIRROR_AUDIO, parent);
 
-    /* 3a. Locate Clipboard Memory (sibling of the hub, repo checkout, or suite dir) */
+    /* 3a. Clipboard Memory: suite folder first, existing strays mirrored. */
     g_clipboardMemoryDir[0] = L'\0';
+    wchar_t cmSuite[MAX_PATH];
+    SuiteAppPath(cmSuite, MAX_PATH, L"ClipboardMemory");
     _snwprintf(cand, MAX_PATH, L"%s\\ClipboardMemory.exe", g_exeDir);
-    if (FileExistsW(cand)) {
-        wcsncpy(g_clipboardMemoryDir, g_exeDir, MAX_PATH - 1);
-    } else {
-        _snwprintf(cand, MAX_PATH, L"%s\\clipboard-memory\\ClipboardMemory.exe", parent);
-        if (FileExistsW(cand)) {
-            wcsncpy(g_clipboardMemoryDir, parent, MAX_PATH - 1);
-        }
-    }
-    if (!g_clipboardMemoryDir[0]) _snwprintf(g_clipboardMemoryDir, MAX_PATH, L"%s\\ClipboardMemory", g_suiteDir);
+    BOOL cmInHubDir = FileExistsW(cand);
+    _snwprintf(cand, MAX_PATH, L"%s\\clipboard-memory\\ClipboardMemory.exe", parent);
+    BOOL cmInSibling = FileExistsW(cand);
+    _snwprintf(cand, MAX_PATH, L"%s\\ClipboardMemory.exe", cmSuite);
+    if (FileExistsW(cand)) wcsncpy(g_clipboardMemoryDir, cmSuite, MAX_PATH - 1);
+    else if (cmInHubDir) wcsncpy(g_clipboardMemoryDir, g_exeDir, MAX_PATH - 1);
+    else if (cmInSibling) wcsncpy(g_clipboardMemoryDir, parent, MAX_PATH - 1);
+    else wcsncpy(g_clipboardMemoryDir, cmSuite, MAX_PATH - 1);
+    AddMirrorDir(MIRROR_CLIP, cmSuite);
+    if (cmInHubDir) AddMirrorDir(MIRROR_CLIP, g_exeDir);
+    if (cmInSibling) AddMirrorDir(MIRROR_CLIP, parent);
 
     /* 3. OrcaSlicer plugins */
     _snwprintf(cand, MAX_PATH, L"%s\\Orca-Plugins.bat", parent);
@@ -1641,26 +1864,16 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
     if (icon[0])
         LoadCardIcon(c, icon);
 
-    /* Set appDir for built-in cards so Folder/Open work */
+    /* Set appDir for built-in cards so Folder/Open/Install all agree. The
+       suite folder is the install target AND the folder the status sweep
+       measures, so a card can never report a copy it is not updating. */
     if (slot >= 0 && slot < 8) {
         static const wchar_t *dirs[8] = {
             L"BluetoothGuard", L"KeyboardLighting", L"SpatialHudUpdater",
             L"OrcaPlugins", L"DnsPilot", L"AgentNotes",
             L"AudioSwitcher", L"ClipboardMemory"
         };
-        if (dirs[slot][0]) {
-            /* Cards 6-7: appDir must match the directory RefreshProjectStatuses
-               scans (g_audioSwitcherDir / g_clipboardMemoryDir), which may be
-               g_exeDir if the exe sits next to the hub, not g_suiteDir. */
-            if (slot == 6 && g_audioSwitcherDir[0]) {
-                wcsncpy(c->appDir, g_audioSwitcherDir, MAX_PATH - 1);
-            } else if (slot == 7 && g_clipboardMemoryDir[0]) {
-                wcsncpy(c->appDir, g_clipboardMemoryDir, MAX_PATH - 1);
-            } else {
-                _snwprintf(c->appDir, MAX_PATH - 1, L"%s\\%s", g_suiteDir, dirs[slot]);
-            }
-            c->appDir[MAX_PATH - 1] = L'\0';
-        }
+        if (dirs[slot][0]) SuiteAppPath(c->appDir, MAX_PATH, dirs[slot]);
     }
 }
 
@@ -1697,7 +1910,10 @@ static void AddCatalogCard(const char *obj) {
     c->shortcutName = PoolAdd(shortcut[0] ? shortcut : (title[0] ? title : id));
     c->launchArgs = args[0] ? PoolAdd(args) : NULL;
 
-    /* resolve the install dir the same way the built-ins do */
+    /* Install dir: the suite folder, exactly like the built-ins. A stray copy
+       that already exists (next to the hub, or in a repo checkout) is
+       registered so the same update overwrites it instead of leaving it at an
+       older build. */
     wchar_t cand[MAX_PATH], parent[MAX_PATH], wtmp[64];
     wcsncpy(parent, g_exeDir, MAX_PATH - 1);
     parent[MAX_PATH - 1] = L'\0';
@@ -1705,25 +1921,20 @@ static void AddCatalogCard(const char *obj) {
         wchar_t *slash = wcsrchr(parent, L'\\');
         if (slash) *slash = L'\0';
     }
-    c->appDir[0] = L'\0';
+    MultiByteToWideChar(CP_UTF8, 0, dir[0] ? dir : (title[0] ? title : id), -1, wtmp, 63);
+    SuiteAppPath(c->appDir, MAX_PATH, wtmp);
     _snwprintf(cand, MAX_PATH - 1, L"%s\\%s", g_exeDir, c->exeName);
-    if (FileExistsW(cand)) wcsncpy(c->appDir, g_exeDir, MAX_PATH - 1);
-    else {
-        const char *slash = strrchr(exe, '/');
-        if (slash) {
-            char folder[64];
-            size_t fl = (size_t)(slash - exe);
-            if (fl >= sizeof(folder)) fl = sizeof(folder) - 1;
-            memcpy(folder, exe, fl);
-            folder[fl] = '\0';
-            MultiByteToWideChar(CP_UTF8, 0, folder, -1, wtmp, 63);
-            _snwprintf(cand, MAX_PATH - 1, L"%s\\%s", parent, wtmp);
-            if (FileExistsW(cand)) wcsncpy(c->appDir, cand, MAX_PATH - 1);
-        }
-    }
-    if (!c->appDir[0]) {
-        MultiByteToWideChar(CP_UTF8, 0, dir[0] ? dir : (title[0] ? title : id), -1, wtmp, 63);
-        _snwprintf(c->appDir, MAX_PATH - 1, L"%s\\%s", g_suiteDir, wtmp);
+    if (FileExistsW(cand)) AddMirrorDir(MIRROR_GENERIC, g_exeDir);
+    const char *slash = strrchr(exe, '/');
+    if (slash) {
+        char folder[64];
+        size_t fl = (size_t)(slash - exe);
+        if (fl >= sizeof(folder)) fl = sizeof(folder) - 1;
+        memcpy(folder, exe, fl);
+        folder[fl] = '\0';
+        MultiByteToWideChar(CP_UTF8, 0, folder, -1, wtmp, 63);
+        _snwprintf(cand, MAX_PATH - 1, L"%s\\%s", parent, wtmp);
+        if (FileExistsW(cand)) AddMirrorDir(MIRROR_GENERIC, cand);
     }
 
     /* buttons: "verb:Label:width,verb:Label:width" */
@@ -1894,9 +2105,19 @@ static void WorkerInstallGeneric(int idx, BOOL launchAfter) {
 
     wchar_t destExe[MAX_PATH], msg[256];
     _snwprintf(destExe, MAX_PATH - 1, L"%s\\%s", c->appDir, c->exeName);
+    destExe[MAX_PATH - 1] = L'\0';
     _snwprintf(msg, 255, L"Downloading %s from GitHub...", c->title ? c->title : L"app");
     SetFooterStatus(msg, 60);
-    if (!DownloadRawRepoFile(branch, c->exeRepo, destExe)) {
+
+    /* A tray app still running from a stray copy would hold that copy's exe
+       lock and its single-instance mutex, so the fresh suite build could
+       neither replace it nor start next to it. */
+    StopForeignInstance(L"TestsAudioSwitcherWnd", c->appDir);
+    StopForeignInstance(L"TestsClipboardMemoryWnd", c->appDir);
+
+    int mirrors = 0;
+    if (!InstallRepoFileEverywhere(MIRROR_GENERIC, branch, c->exeRepo, c->appDir,
+                                   c->exeName, &mirrors)) {
         SetFooterStatus(L"Could not save the file - close the app if it is open, then retry.", 0);
         return;
     }
@@ -1910,6 +2131,9 @@ static void WorkerInstallGeneric(int idx, BOOL launchAfter) {
     if (launchAfter) {
         ShellExecuteW(NULL, L"open", destExe, c->launchArgs, c->appDir, SW_SHOWNORMAL);
         _snwprintf(msg, 255, L"%s installed and launched!", c->title ? c->title : L"App");
+    } else if (mirrors > 0) {
+        _snwprintf(msg, 255, L"%s updated in the suite folder and %d other copy(ies).",
+                   c->title ? c->title : L"App", mirrors);
     } else {
         _snwprintf(msg, 255, L"%s is up to date.", c->title ? c->title : L"App");
     }
@@ -2003,7 +2227,9 @@ static void InitCardDefinitions(void) {
     g_cards[7].btns[1]   = (ActionBtn){ ID_CLIPBOARDMEMORY_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
     g_cards[7].btns[2]   = (ActionBtn){ ID_CLIPBOARDMEMORY_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
 
-    /* exeRepo/exeName/appDir so Install/Update/Open/Folder work for built-in cards */
+    /* exeRepo/exeName/appDir so Install/Update/Open/Folder work for built-in
+       cards. appDir is the suite folder for every card: it is where an install
+       writes and where the status sweep looks, so the two can never disagree. */
     static const struct { const char *repo; const char *name; const wchar_t *dir; } builtinExe[8] = {
         { "bluetooth-guard/BluetoothGuard.exe", "BluetoothGuard.exe", L"BluetoothGuard" },
         { "keyboard-lighting/KeyboardLighting.exe", "KeyboardLighting.exe", L"KeyboardLighting" },
@@ -2020,22 +2246,8 @@ static void InitCardDefinitions(void) {
             c->exeRepo = PoolAdd(builtinExe[i].repo);
             c->exeName = PoolAdd(builtinExe[i].name);
         }
-        if (builtinExe[i].dir && g_suiteDir[0]) {
-            _snwprintf(c->appDir, MAX_PATH - 1, L"%s\\\\%s", g_suiteDir, builtinExe[i].dir);
-            c->appDir[MAX_PATH - 1] = L'\0';
-        }
-    }
-    /* Cards 6-7 (Audio Switcher, Clipboard Memory): appDir must match the
-       directory RefreshProjectStatuses scans (g_audioSwitcherDir /
-       g_clipboardMemoryDir), which may be g_exeDir if the exe sits next to
-       the hub, not g_suiteDir. Otherwise Open finds nothing even when installed. */
-    if (g_audioSwitcherDir[0]) {
-        wcsncpy(g_cards[6].appDir, g_audioSwitcherDir, MAX_PATH - 1);
-        g_cards[6].appDir[MAX_PATH - 1] = L'\0';
-    }
-    if (g_clipboardMemoryDir[0]) {
-        wcsncpy(g_cards[7].appDir, g_clipboardMemoryDir, MAX_PATH - 1);
-        g_cards[7].appDir[MAX_PATH - 1] = L'\0';
+        if (builtinExe[i].dir && g_suiteDir[0])
+            SuiteAppPath(c->appDir, MAX_PATH, builtinExe[i].dir);
     }
 }
 
@@ -2057,10 +2269,21 @@ static void RefreshProjectStatuses(void) {
     remBtgSz = g_remBtgSize; remKblSz = g_remKblSize; remPs1Sz = g_remKblPs1Size;
     remDnsSz = g_remDnsSize;
     LeaveCriticalSection(&g_cs);
-    wchar_t btgExeP[MAX_PATH], kblExeP2[MAX_PATH], kblPs1P[MAX_PATH];
-    _snwprintf(btgExeP, MAX_PATH, L"%s\\BluetoothGuard.exe", g_btgDir);
-    _snwprintf(kblExeP2, MAX_PATH, L"%s\\KeyboardLighting.exe", g_kblDir);
-    _snwprintf(kblPs1P, MAX_PATH, L"%s\\Aura-Background.ps1", g_kblDir);
+    /* Each app is installed into the suite folder; until the first update
+       lands there, the copy the hub found at startup is the one to measure. */
+    const wchar_t *btgDir = g_cards[0].appDir[0] ? g_cards[0].appDir : g_btgDir;
+    const wchar_t *kblDir = g_cards[1].appDir[0] ? g_cards[1].appDir : g_kblDir;
+    wchar_t btgExeP[MAX_PATH], kblExeP2[MAX_PATH], kblPs1P[MAX_PATH], altP[MAX_PATH];
+    _snwprintf(btgExeP, MAX_PATH, L"%s\\BluetoothGuard.exe", btgDir);
+    _snwprintf(altP, MAX_PATH, L"%s\\BluetoothGuard.exe", g_btgDir);
+    if (!FileExistsW(btgExeP) && FileExistsW(altP)) wcsncpy(btgExeP, altP, MAX_PATH - 1);
+    _snwprintf(kblExeP2, MAX_PATH, L"%s\\KeyboardLighting.exe", kblDir);
+    _snwprintf(altP, MAX_PATH, L"%s\\KeyboardLighting.exe", g_kblDir);
+    if (!FileExistsW(kblExeP2) && FileExistsW(altP)) wcsncpy(kblExeP2, altP, MAX_PATH - 1);
+    _snwprintf(kblPs1P, MAX_PATH, L"%s\\Aura-Background.ps1", kblDir);
+    _snwprintf(altP, MAX_PATH, L"%s\\Aura-Background.ps1", g_kblDir);
+    if (!FileExistsW(kblPs1P) && FileExistsW(altP)) wcsncpy(kblPs1P, altP, MAX_PATH - 1);
+    btgExeP[MAX_PATH - 1] = L'\0'; kblExeP2[MAX_PATH - 1] = L'\0'; kblPs1P[MAX_PATH - 1] = L'\0';
     DWORD locBtgSz = LocalSizeOf(btgExeP);
     const wchar_t *btgLocal = btgExeP;
     if (!locBtgSz && g_btgExtraExe[0]) { locBtgSz = LocalSizeOf(g_btgExtraExe); btgLocal = g_btgExtraExe; }
@@ -2085,7 +2308,8 @@ static void RefreshProjectStatuses(void) {
     wchar_t path[MAX_PATH];
 
     /* 1. Bluetooth Guard */
-    _snwprintf(path, MAX_PATH, L"%s\\BluetoothGuard.exe", g_btgDir);
+    wcsncpy(path, btgExeP, MAX_PATH - 1);
+    path[MAX_PATH - 1] = L'\0';
     BOOL hasBtg = FileHealthyW(path) || (g_btgExtraExe[0] && FileHealthyW(g_btgExtraExe));
     wchar_t btgLock[MAX_PATH];
     _snwprintf(btgLock, MAX_PATH, L"%s\\BluetoothGuard\\running.lock", g_localApp);
@@ -2334,8 +2558,17 @@ static void RefreshProjectStatuses(void) {
     /* 7. Audio Switcher */
     {
         DWORD remAsSz = g_remAudioSwitcherSize;
-        wchar_t asExe[MAX_PATH];
-        _snwprintf(asExe, MAX_PATH, L"%s\\AudioSwitcher.exe", g_audioSwitcherDir);
+        /* The suite folder is the install target; until the first update lands
+           there, report on the copy the hub actually found so the badge, Open
+           and Install all describe the same app. */
+        const wchar_t *asDir = g_cards[6].appDir[0] ? g_cards[6].appDir : g_audioSwitcherDir;
+        wchar_t asExe[MAX_PATH], asAlt[MAX_PATH];
+        _snwprintf(asExe, MAX_PATH, L"%s\\AudioSwitcher.exe", asDir);
+        _snwprintf(asAlt, MAX_PATH, L"%s\\AudioSwitcher.exe", g_audioSwitcherDir);
+        if (!FileExistsW(asExe) && FileExistsW(asAlt)) {
+            wcsncpy(asExe, asAlt, MAX_PATH - 1);
+            asExe[MAX_PATH - 1] = L'\0';
+        }
         BOOL hasAs = FileHealthyW(asExe);
         DWORD locAsSz = LocalSizeOf(asExe);
         BOOL asKnown = (remAsSz > 0 && locAsSz > 0);
@@ -2354,12 +2587,14 @@ static void RefreshProjectStatuses(void) {
             g_cards[6].btns[0].label = L"Open";
             g_cards[6].btns[0].style = BTN_SECONDARY;
             wcsncpy(g_cards[6].detail, L"Per-app volume & audio output switching  \x00B7  Running (window or tray)", 255);
+            AppendInstallFolder(g_cards[6].detail, asDir);
         } else {
             wcsncpy(g_cards[6].badge, L"Standby", 47);
             g_cards[6].badgeKind = BADGE_IDLE;
             g_cards[6].btns[0].label = L"Open";
             g_cards[6].btns[0].style = BTN_SECONDARY;
             wcsncpy(g_cards[6].detail, L"Per-app volume & audio output switching  \x00B7  Installed locally", 255);
+            AppendInstallFolder(g_cards[6].detail, asDir);
         }
         if (hasAs && asKnown) {
             wcsncat(g_cards[6].badge, asUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
@@ -2379,8 +2614,14 @@ static void RefreshProjectStatuses(void) {
     /* 8. Clipboard Memory */
     {
         DWORD remCmSz = g_remClipboardMemorySize;
-        wchar_t cmExe[MAX_PATH];
-        _snwprintf(cmExe, MAX_PATH, L"%s\\ClipboardMemory.exe", g_clipboardMemoryDir);
+        const wchar_t *cmDir = g_cards[7].appDir[0] ? g_cards[7].appDir : g_clipboardMemoryDir;
+        wchar_t cmExe[MAX_PATH], cmAlt[MAX_PATH];
+        _snwprintf(cmExe, MAX_PATH, L"%s\\ClipboardMemory.exe", cmDir);
+        _snwprintf(cmAlt, MAX_PATH, L"%s\\ClipboardMemory.exe", g_clipboardMemoryDir);
+        if (!FileExistsW(cmExe) && FileExistsW(cmAlt)) {
+            wcsncpy(cmExe, cmAlt, MAX_PATH - 1);
+            cmExe[MAX_PATH - 1] = L'\0';
+        }
         BOOL hasCm = FileHealthyW(cmExe);
         DWORD locCmSz = LocalSizeOf(cmExe);
         BOOL cmKnown = (remCmSz > 0 && locCmSz > 0);
@@ -2399,12 +2640,14 @@ static void RefreshProjectStatuses(void) {
             g_cards[7].btns[0].label = L"Open";
             g_cards[7].btns[0].style = BTN_SECONDARY;
             wcsncpy(g_cards[7].detail, L"Disk-persisted clipboard history, last 20 items  \x00B7  Running (window or tray)", 255);
+            AppendInstallFolder(g_cards[7].detail, cmDir);
         } else {
             wcsncpy(g_cards[7].badge, L"Standby", 47);
             g_cards[7].badgeKind = BADGE_IDLE;
             g_cards[7].btns[0].label = L"Open";
             g_cards[7].btns[0].style = BTN_SECONDARY;
             wcsncpy(g_cards[7].detail, L"Disk-persisted clipboard history, last 20 items  \x00B7  Installed locally", 255);
+            AppendInstallFolder(g_cards[7].detail, cmDir);
         }
         if (hasCm && cmKnown) {
             wcsncat(g_cards[7].badge, cmUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
@@ -2424,8 +2667,14 @@ static void RefreshProjectStatuses(void) {
     /* 7+. Catalog extras: generic installed / update state */
     for (int i = 8; i < g_cardCount; i++) {
         ProjectCard *c = &g_cards[i];
-        wchar_t exePath[MAX_PATH];
+        wchar_t exePath[MAX_PATH], altPath[MAX_PATH];
         _snwprintf(exePath, MAX_PATH - 1, L"%s\\%s", c->appDir, c->exeName);
+        exePath[MAX_PATH - 1] = L'\0';
+        /* a stray copy the hub found at startup still counts as installed */
+        _snwprintf(altPath, MAX_PATH - 1, L"%s\\%s", g_exeDir, c->exeName);
+        altPath[MAX_PATH - 1] = L'\0';
+        if (!FileExistsW(exePath) && FileExistsW(altPath))
+            wcsncpy(exePath, altPath, MAX_PATH - 1);
         BOOL has = FileHealthyW(exePath);
         DWORD locSz = LocalSizeOf(exePath);
         BOOL known = (c->remSize > 0 && locSz > 0);
@@ -2447,6 +2696,7 @@ static void RefreshProjectStatuses(void) {
             c->badgeKind = BADGE_OK;
             _snwprintf(c->detail, 255, L"%s  \x00B7  Installed locally",
                        c->blurb ? c->blurb : L"Suite app");
+            AppendInstallFolder(c->detail, c->appDir);
         }
         if (has && known) {
             wcsncat(c->badge, upd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
@@ -2712,6 +2962,8 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
     if (g_btgExtraExe[0] && _wcsicmp(g_btgExtraExe, destExe) != 0) {
         CopyFileW(destExe, g_btgExtraExe, FALSE);
     }
+    /* ... and every other copy found at startup, suite folder included. */
+    MirrorFileEverywhere(MIRROR_BTG, destExe);
 
     wchar_t desk[MAX_PATH], lnk[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
@@ -2749,7 +3001,8 @@ static void WorkerInstallNotes(BOOL launchAfter) {
     wchar_t destExe[MAX_PATH];
     _snwprintf(destExe, MAX_PATH, L"%s\\AgentNotes.exe", g_notesDir);
     SetFooterStatus(L"Downloading latest AgentNotes.exe from GitHub...", 60);
-    if (!DownloadRawRepoFile(branch, L"agent-notes/AgentNotes.exe", destExe)) {
+    if (!InstallRepoFileEverywhere(MIRROR_NOTES, branch, L"agent-notes/AgentNotes.exe",
+                                   g_notesDir, L"AgentNotes.exe", NULL)) {
         SetFooterStatus(L"Could not save AgentNotes.exe - close Agent Notes if it is open, then retry.", 0);
         return;
     }
@@ -2809,7 +3062,8 @@ static void WorkerInstallDnsPilot(BOOL launchAfter) {
     _snwprintf(destExe, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
 
     SetFooterStatus(L"Downloading latest DnsPilot.exe from GitHub...", 60);
-    if (!DownloadRawRepoFile(branch, L"dns-pilot/DnsPilot.exe", destExe)) {
+    if (!InstallRepoFileEverywhere(MIRROR_DNS, branch, L"dns-pilot/DnsPilot.exe",
+                                   g_dnsDir, L"DnsPilot.exe", NULL)) {
         SetFooterStatus(L"Could not save DnsPilot.exe - close DNS Pilot if it is open, then retry.", 0);
         return;
     }
@@ -2884,6 +3138,14 @@ static void WorkerInstallKeyboardLighting(void) {
         _snwprintf(rel, 127, L"keyboard-lighting/%s", files[i]);
         _snwprintf(dest, MAX_PATH, L"%s\\%s", g_kblDir, files[i]);
         if (!DownloadRawRepoFile(branch, rel, dest)) dlFail++;
+    }
+    /* The suite folder copy must never lag behind the folder the hub found
+       first (a repo checkout or a shortcut target), or browsing the suite
+       shows a build from days ago. */
+    for (int i = 0; i < count; i++) {
+        wchar_t src2[MAX_PATH];
+        _snwprintf(src2, MAX_PATH, L"%s\\%s", g_kblDir, files[i]);
+        if (FileExistsW(src2)) MirrorFileEverywhere(MIRROR_KBL, src2);
     }
 
     if (FileExistsW(kblExe)) {
@@ -3089,7 +3351,13 @@ static void WorkerSelfUpdateHub(void) {
     _snwprintf(oldExe, MAX_PATH, L"%s.old", g_exePath);
     DeleteFileW(oldExe);
 
-    if (!DownloadRawRepoFile(branch, L"project-hub/ProjectHub.exe", newExe)) {
+    /* Hold the bytes so the suite folder copy can be written from the same
+       download: a hub launched from Downloads must not leave the suite folder
+       holding the previous build. */
+    DWORD newLen = 0;
+    BYTE *newBytes = DownloadRepoBytes(branch, L"project-hub/ProjectHub.exe", &newLen);
+    if (!newBytes || !WriteBinaryFileAtomic(newExe, newBytes, newLen)) {
+        free(newBytes);
         SetFooterStatus(L"Could not download ProjectHub.exe from GitHub.", 0);
         return;
     }
@@ -3108,6 +3376,7 @@ static void WorkerSelfUpdateHub(void) {
     }
     if (!renamed) {
         DeleteFileW(newExe);
+        free(newBytes);
         SetFooterStatus(L"Could not replace ProjectHub.exe on disk.", 0);
         return;
     }
@@ -3128,8 +3397,24 @@ static void WorkerSelfUpdateHub(void) {
         } else {
             SetFooterStatus(L"Update failed - ProjectHub.exe.old still holds the last good hub.", 0);
         }
+        free(newBytes);
         return;
     }
+
+    /* Same bytes into the suite folder, and point the Desktop shortcut at that
+       copy so the hub the user launches next time is the managed one. */
+    if (g_suiteHubExe[0] && _wcsicmp(g_suiteHubExe, g_exePath) != 0) {
+        if (WriteBinaryFileAtomic(g_suiteHubExe, newBytes, newLen)) {
+            wchar_t desk[MAX_PATH], lnk[MAX_PATH];
+            if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
+                _snwprintf(lnk, MAX_PATH, L"%s\\Project Hub.lnk", desk);
+                if (CreateShortcutLink(lnk, g_suiteHubExe, g_suiteDir,
+                                       L"Project Hub - Status & Updates"))
+                    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+            }
+        }
+    }
+    free(newBytes);
 
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
     SetFooterStatus(L"Project Hub updated — relaunching...", 100);
@@ -3741,6 +4026,7 @@ static void ShowUtilityMenu(HWND hwnd) {
     AppendMenuW(hMenu, MF_STRING, ID_BTN_BRANCH, L"Download Branch...");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(hMenu, MF_STRING, ID_MENU_SUITE_DIR, L"Open Managed Suite Folder");
+    AppendMenuW(hMenu, MF_STRING, ID_MENU_HUB_TOSUITE, L"Install Hub into Suite Folder");
 
     POINT pt = { g_rcEmblem.left, g_rcEmblem.bottom + 4 };
     ClientToScreen(hwnd, &pt);
@@ -4018,6 +4304,28 @@ static void HandleActionCommand(HWND hwnd, int id) {
         EnsureDirTree(g_suiteDir);
         ShellExecuteW(hwnd, L"open", g_suiteDir, NULL, NULL, SW_SHOWNORMAL);
         break;
+    case ID_MENU_HUB_TOSUITE: {
+        /* One click to make the suite folder copy of the hub the real one:
+           write the running build there and repoint the Desktop shortcut, so
+           the next launch comes from the folder the user browses. */
+        EnsureDirTree(g_suiteDir);
+        if (CopyFileW(g_exePath, g_suiteHubExe, FALSE)) {
+            wchar_t desk[MAX_PATH], lnk[MAX_PATH];
+            if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
+                _snwprintf(lnk, MAX_PATH, L"%s\\Project Hub.lnk", desk);
+                CreateShortcutLink(lnk, g_suiteHubExe, g_suiteDir,
+                                   L"Project Hub - Status & Updates");
+                SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+            }
+            wchar_t m[MAX_PATH + 64];
+            _snwprintf(m, MAX_PATH + 63, L"Project Hub installed into %s - the Desktop shortcut now points there.", g_suiteDir);
+            m[MAX_PATH + 63] = L'\0';
+            SetFooterStatus(m, 0);
+        } else {
+            SetFooterStatus(L"Could not write ProjectHub.exe into the suite folder - close the other hub copy and retry.", 0);
+        }
+        break;
+    }
 
 
     case ID_BTG_OPEN:
@@ -4167,10 +4475,18 @@ static void HandleActionCommand(HWND hwnd, int id) {
         break;
 
     case ID_AUDIOSWITCHER_OPEN: {
+        /* appDir is the suite folder (where Update writes). Until the first
+           update lands there, the copy the hub actually found is the one to
+           launch - opening nothing would look like a broken button. */
         wchar_t pp[MAX_PATH];
-        _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", g_cards[6].appDir, g_cards[6].exeName);
+        const wchar_t *asDir = g_cards[6].appDir;
+        _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", asDir, g_cards[6].exeName);
+        if (!FileExistsW(pp) && g_audioSwitcherDir[0] && _wcsicmp(g_audioSwitcherDir, asDir) != 0) {
+            asDir = g_audioSwitcherDir;
+            _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", asDir, g_cards[6].exeName);
+        }
         if (FileExistsW(pp))
-            ShellExecuteW(hwnd, L"open", pp, NULL, g_cards[6].appDir, SW_SHOWNORMAL);
+            ShellExecuteW(hwnd, L"open", pp, NULL, asDir, SW_SHOWNORMAL);
         else
             HandleVerb(6, L"install");
         break;
@@ -4178,16 +4494,28 @@ static void HandleActionCommand(HWND hwnd, int id) {
     case ID_AUDIOSWITCHER_UPDATE:
         HandleVerb(6, L"update");
         break;
-    case ID_AUDIOSWITCHER_FOLDER:
-        EnsureDirTree(g_cards[6].appDir);
-        ShellExecuteW(hwnd, L"open", g_cards[6].appDir, NULL, NULL, SW_SHOWNORMAL);
+    case ID_AUDIOSWITCHER_FOLDER: {
+        /* Show the folder that holds the exe today; the suite folder is created
+           and becomes the target the moment Update is clicked. */
+        const wchar_t *asDir = g_cards[6].appDir;
+        wchar_t pp[MAX_PATH];
+        _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", asDir, g_cards[6].exeName);
+        if (!FileExistsW(pp) && g_audioSwitcherDir[0]) asDir = g_audioSwitcherDir;
+        EnsureDirTree(asDir);
+        ShellExecuteW(hwnd, L"open", asDir, NULL, NULL, SW_SHOWNORMAL);
         break;
+    }
 
     case ID_CLIPBOARDMEMORY_OPEN: {
         wchar_t pp[MAX_PATH];
-        _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", g_cards[7].appDir, g_cards[7].exeName);
+        const wchar_t *cmDir = g_cards[7].appDir;
+        _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", cmDir, g_cards[7].exeName);
+        if (!FileExistsW(pp) && g_clipboardMemoryDir[0] && _wcsicmp(g_clipboardMemoryDir, cmDir) != 0) {
+            cmDir = g_clipboardMemoryDir;
+            _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", cmDir, g_cards[7].exeName);
+        }
         if (FileExistsW(pp))
-            ShellExecuteW(hwnd, L"open", pp, NULL, g_cards[7].appDir, SW_SHOWNORMAL);
+            ShellExecuteW(hwnd, L"open", pp, NULL, cmDir, SW_SHOWNORMAL);
         else
             HandleVerb(7, L"install");
         break;
@@ -4195,10 +4523,15 @@ static void HandleActionCommand(HWND hwnd, int id) {
     case ID_CLIPBOARDMEMORY_UPDATE:
         HandleVerb(7, L"update");
         break;
-    case ID_CLIPBOARDMEMORY_FOLDER:
-        EnsureDirTree(g_cards[7].appDir);
-        ShellExecuteW(hwnd, L"open", g_cards[7].appDir, NULL, NULL, SW_SHOWNORMAL);
+    case ID_CLIPBOARDMEMORY_FOLDER: {
+        const wchar_t *cmDir = g_cards[7].appDir;
+        wchar_t pp[MAX_PATH];
+        _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", cmDir, g_cards[7].exeName);
+        if (!FileExistsW(pp) && g_clipboardMemoryDir[0]) cmDir = g_clipboardMemoryDir;
+        EnsureDirTree(cmDir);
+        ShellExecuteW(hwnd, L"open", cmDir, NULL, NULL, SW_SHOWNORMAL);
         break;
+    }
 
     }
 }

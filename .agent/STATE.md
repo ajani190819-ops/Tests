@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-10-30
+**Last Updated:** 2026-10-30 (hub 2.8.38: suite-folder installs)
 
 ## Turn protocol (do this literally)
 
@@ -25,13 +25,13 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 
 | Component | Path | Version | Status |
 | :--- | :--- | :--- | :--- |
-| **Project Hub** | `project-hub/src/project_hub.c` | 2.8.34 | **GREEN** — catalog card text now fully restored before every string-pool reset (see gotcha below); update nag only for genuinely newer builds; requireAdministrator |
+| **Project Hub** | `project-hub/src/project_hub.c` | 2.8.38 | **GREEN** — suite folder is the install target for every app and the hub; stray copies mirrored in the same click (see gotcha below); content-hash update checks; branch-aware mod card |
 | **Bluetooth Guard** | `bluetooth-guard/src/bluetooth_guard.c` | 2.8.7 | **GREEN** — rules-ghost device list; `HighestAvailable` logon task |
 | **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold modes; strict 7-bit ASCII, C# 5.0 |
 | **DNS Pilot** | `dns-pilot/src/dns_pilot.c` | size-tracked | **GREEN** — parallel rank test; `TestsSuite-DnsPilot` ONLOGON task |
 | **Agent Notes** | `agent-notes/src/agent_notes.c` | size-tracked | **GREEN** — POSTs to `tools/notes_server.py`; queues in `%LOCALAPPDATA%\AgentNotes\outbox\` while the agent is offline |
 | **Audio Switcher / Clipboard Memory** | `audio-switcher/`, `clipboard-memory/` | size-tracked | **GREEN** — catalog-driven hub cards |
-| **Spatial HUD** | `spatial-hud-template-26.3/` | mod 1.0.4, updater 4 | **GREEN** — flicker + bottom cut-off fixed (1.0.4, span-based UV mapping in `purplePanelState`) |
+| **Spatial HUD** | `spatial-hud-template-26.3/` | mod 1.0.5, updater 4 | **GREEN** — flicker + bottom cut-off fixed; pass-splitting HUD mods (Gnetum) complete partial frames via `fillSkippedRoots()` |
 | **Wave Overhangs / Unlayered Infill** | `plugins/` | 0.0.51 / 0.4.10 | **GREEN** — versions in lockstep across code, `.bat`, JSON, changelogs |
 | **App catalog** | `suite-apps.json` | 8 apps | **GREEN** — one JSON entry adds a hub card, no hub rebuild. Now contract-tested. |
 | **CI** | `.github/workflows/{ci,build-spatial-hud}.yml` | — | **GREEN** — both live; `docs/ci/` mirrors them and a test fails on drift |
@@ -52,6 +52,17 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
   cover all 8 slots. Any card missing or malformed in `suite-apps.json` keeps
   stale pointers and draws recycled memory — that is how Audio Switcher showed
   Bluetooth Guard's blurb. `tests/test_windows_apps.py` pins both halves.
+- **Install locations.** `%LOCALAPPDATA%\Programs\TestsSuite\<App>` is the ONE
+  install target: `InitAllPaths` prefers it over a copy sitting next to the hub
+  (a hub launched from Downloads used to make Downloads the target, so the suite
+  folder kept a build from days ago while every card said "Up to Date" — it was
+  measuring the stray copy it had just written). Every other existing copy is
+  registered with `AddMirrorDir` and receives the same bytes through
+  `MirrorFileEverywhere` / `InstallRepoFileEverywhere`; mirrors are never created
+  where the user had no copy. A card's `appDir` must stay the suite path so
+  Install, Open and the badge all act on one folder, and the hub's self-update
+  writes `g_suiteHubExe` plus repoints the Desktop shortcut.
+  `SuiteFolderInstallTests` pins all of it.
 - **`suite-apps.json` needs an `id` on every entry.** `AddCatalogCard` returns
   before reading ANY other field if `id` is absent.
 - **`spatial-hud-latest` must hold exactly ONE jar.** The hub reads the FIRST
@@ -82,6 +93,9 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 ## Open Threads / Next Actions
 
 1. **Needs Windows / in-game validation** (cannot be tested in this sandbox):
+   after hub 2.8.38, one Update click writes the suite folder copy AND every
+   stray copy (owner's case: Audio Switcher stuck 9 days old in
+   `Programs\TestsSuite\AudioSwitcher` while Downloads got each build);
    Audio Switcher card shows its own blurb + working buttons after a hub refresh;
    `Update-SpatialHUD.bat` installs `spatial-hud-1.0.4.jar` under its real name
    and self-updates from `main`; notes quick-capture page still posts.

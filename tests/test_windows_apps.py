@@ -1123,5 +1123,202 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "with mod fixes still reports the mod up to date")
 
 
+class SuiteFolderInstallTests(unittest.TestCase):
+    """An update has to land in the folder the user actually browses.
+
+    The hub used to resolve each app's install folder by looking next to its
+    own executable first. A hub launched from Downloads therefore installed
+    Audio Switcher into Downloads and never touched
+    %LOCALAPPDATA%\\Programs\\TestsSuite\\AudioSwitcher, so the suite folder kept a
+    build from days ago while every card reported "Up to Date" - it was
+    measuring the stray copy it had just updated.
+    """
+
+    @staticmethod
+    def _hub_src() -> str:
+        return (ROOT / "project-hub" / "src" / "project_hub.c").read_text(
+            encoding="utf-8", errors="replace"
+        )
+
+    def test_suite_folder_is_the_install_target_for_every_app(self):
+        src = self._hub_src()
+
+        self.assertIn("static void SuiteAppPath(", src,
+                      "the hub lost the helper that builds the managed suite folder path")
+        self.assertIn(r'L"%s\\Programs\\TestsSuite"', src,
+                      "the managed suite folder path changed; the mirror logic and the "
+                      "cards would disagree about where an app lives")
+
+        # Audio Switcher is the reported case: the suite copy wins over a copy
+        # sitting next to the hub, and the losing locations become mirrors.
+        start = src.index("/* 2d. Audio Switcher")
+        end = src.index("/* 3a. Clipboard Memory")
+        block = src[start:end]
+        self.assertIn("SuiteAppPath(asSuite, MAX_PATH, L\"AudioSwitcher\");", block,
+                      "Audio Switcher no longer derives its suite folder install path")
+        self.assertRegex(
+            block,
+            r"if \(FileExistsW\(cand\)\) wcsncpy\(g_audioSwitcherDir, asSuite, MAX_PATH - 1\);\s*"
+            r"else if \(asInHubDir\)",
+            "the folder next to the hub wins over the suite folder again, so a hub "
+            "launched from Downloads installs Audio Switcher into Downloads",
+        )
+        self.assertIn("AddMirrorDir(MIRROR_AUDIO, asSuite);", block)
+        self.assertIn("if (asInHubDir) AddMirrorDir(MIRROR_AUDIO, g_exeDir);", block,
+                      "a stray copy next to the hub is no longer kept in sync")
+        self.assertIn("AddMirrorDir(MIRROR_CLIP, cmSuite);", src,
+                      "Clipboard Memory is not mirrored into the suite folder")
+        self.assertIn("AddMirrorDir(MIRROR_BTG, btgSuite);", src,
+                      "Bluetooth Guard is not mirrored into the suite folder")
+        self.assertIn("BOOL btgInSuite = FileExistsW(cand);", src,
+                      "the Bluetooth Guard suite check no longer looks for the exe, so "
+                      "the installer and the badge disagree about which folder is real")
+        self.assertIn("if (btgInSuite) wcsncpy(g_btgDir, btgSuite, MAX_PATH - 1);", src,
+                      "Bluetooth Guard stopped preferring its suite folder copy")
+        self.assertIn("AddMirrorDir(MIRROR_KBL, kblSuite);", src,
+                      "Keyboard Lighting is not mirrored into the suite folder")
+        self.assertIn("AddMirrorDir(MIRROR_DNS, dnsSuite);", src,
+                      "DNS Pilot is not mirrored into the suite folder")
+        self.assertIn("AddMirrorDir(MIRROR_NOTES, notesSuite);", src,
+                      "Agent Notes is not mirrored into the suite folder")
+
+    def test_installers_write_one_download_to_every_existing_copy(self):
+        src = self._hub_src()
+
+        self.assertIn("static BOOL InstallRepoFileEverywhere(", src,
+                      "the hub lost the one-download-every-copy installer")
+        body_start = src.index("static BOOL InstallRepoFileEverywhere(")
+        body = src[body_start:body_start + 1400]
+        self.assertIn("WriteBinaryFileAtomic(dest, data, len)", body,
+                      "the suite copy is no longer written from the downloaded bytes")
+        self.assertIn("MirrorFileEverywhere(slot, dest)", body,
+                      "the installer writes only one location again, so the other "
+                      "copies of the app keep the previous build")
+
+        self.assertIn("static int MirrorFileEverywhere(", src)
+        mirror_body_start = src.index("static int MirrorFileEverywhere(")
+        mirror_body = src[mirror_body_start:mirror_body_start + 1600]
+        self.assertRegex(mirror_body, r"for \(int i = 0; i < g_mirrorCount\[slot\]; i\+\+\)",
+                         "the mirror loop no longer walks every registered copy")
+        self.assertIn("CopyFileW(primaryPath, alt, FALSE)", mirror_body,
+                      "mirror copies are not overwritten with the fresh build")
+        self.assertIn("if (!FileExistsW(alt) && !inSuite) continue;", mirror_body,
+                      "the mirror would create copies in folders where the user "
+                      "never had the app")
+        self.assertRegex(mirror_body,
+                         r"BOOL inSuite = \(_wcsicmp\(g_mirrorDirs\[slot\]\[i\], g_suiteDir\) == 0\)",
+                         "the suite folder is no longer recognised as the managed home, "
+                         "so its copy would not be created on a first install")
+
+        for call in ("InstallRepoFileEverywhere(MIRROR_GENERIC",
+                     "InstallRepoFileEverywhere(MIRROR_DNS",
+                     "InstallRepoFileEverywhere(MIRROR_NOTES"):
+            self.assertIn(call, src, f"{call}...) is gone - that installer went back "
+                                     "to writing a single folder")
+        for call in ("MirrorFileEverywhere(MIRROR_BTG",
+                     "MirrorFileEverywhere(MIRROR_KBL"):
+            self.assertIn(call, src, f"{call}...) is gone - that installer leaves its "
+                                     "other copies behind")
+        self.assertGreaterEqual(src.count("MirrorFileEverywhere("), 3,
+                                "the mirror helper is barely used; most installers "
+                                "still update one folder only")
+
+    def test_cards_point_at_the_folder_the_installer_writes(self):
+        src = self._hub_src()
+
+        # All three places that give a built-in card its appDir must agree with
+        # the install target, or Open/Folder/Install act on different folders.
+        self.assertGreaterEqual(src.count("SuiteAppPath(c->appDir, MAX_PATH"), 3,
+                                "a card definition stopped deriving appDir from the "
+                                "suite folder")
+        self.assertNotIn("wcsncpy(g_cards[6].appDir, g_audioSwitcherDir, MAX_PATH - 1);", src,
+                         "the Audio Switcher card points at the detected stray copy "
+                         "again, so its badge measures a folder Update may not write")
+        self.assertNotIn("wcsncpy(g_cards[7].appDir, g_clipboardMemoryDir, MAX_PATH - 1);", src,
+                         "the Clipboard Memory card points at the detected stray copy again")
+
+        # The card must say which folder it manages.
+        self.assertIn("static void AppendInstallFolder(", src,
+                      "cards no longer show the folder they install into")
+        self.assertIn("AppendInstallFolder(g_cards[6].detail, asDir);", src,
+                      "the Audio Switcher card hides its install folder")
+        self.assertIn("AppendInstallFolder(g_cards[7].detail, cmDir);", src,
+                      "the Clipboard Memory card hides its install folder")
+
+        # Bluetooth Guard and Keyboard Lighting badges must measure the same
+        # folder their installer writes, with the found copy as the fallback.
+        self.assertIn("const wchar_t *btgDir = g_cards[0].appDir[0] ? g_cards[0].appDir : g_btgDir;",
+                      src, "the Bluetooth Guard badge measures a folder its installer "
+                           "no longer writes")
+        self.assertIn("const wchar_t *kblDir = g_cards[1].appDir[0] ? g_cards[1].appDir : g_kblDir;",
+                      src, "the Keyboard Lighting badge measures a folder its installer "
+                           "no longer writes")
+        self.assertNotIn('_snwprintf(btgExeP, MAX_PATH, L"%s\\\\BluetoothGuard.exe", g_btgDir);',
+                         src, "the Bluetooth Guard update check went back to the detected "
+                              "stray copy instead of the install target")
+        # The badge must measure the copy the installer writes, with the found
+        # copy as the fallback until the first update lands in the suite folder.
+        self.assertIn("const wchar_t *asDir = g_cards[6].appDir[0] ? g_cards[6].appDir : g_audioSwitcherDir;",
+                      src, "the Audio Switcher badge no longer follows the install target")
+        self.assertIn("_snwprintf(asExe, MAX_PATH, L\"%s\\\\AudioSwitcher.exe\", asDir);", src,
+                      "the Audio Switcher badge measures a folder Update does not write")
+        self.assertGreaterEqual(src.count("AppendInstallFolder("), 5,
+                                "only a couple of cards report where they install")
+
+    def test_update_replaces_a_stray_running_copy_instead_of_leaving_it_alive(self):
+        src = self._hub_src()
+
+        # Audio Switcher has no --stop switch and its single-instance mutex makes
+        # a freshly launched suite copy exit at once, so the old tray instance
+        # would survive its own update.
+        self.assertIn('StopForeignInstance(L"TestsAudioSwitcherWnd", c->appDir);', src,
+                      "a tray app running from a stray copy survives its update")
+        self.assertIn('StopForeignInstance(L"TestsClipboardMemoryWnd", c->appDir);', src)
+        start = src.index("static BOOL StopForeignInstance(")
+        body = src[start:start + 1800]
+        self.assertIn("QueryFullProcessImageNameW(hp, 0, img, &n)", body,
+                      "the hub no longer checks which folder the running instance "
+                      "was launched from")
+        self.assertIn("_wcsicmp(dir, primaryDir) != 0", body,
+                      "the hub would close the instance it is about to relaunch")
+        self.assertIn("TerminateProcess(hp, 0)", body,
+                      "a foreign instance that ignores WM_CLOSE keeps its exe locked, "
+                      "so the stray copy can never be overwritten")
+
+    def test_hub_self_update_keeps_a_suite_copy_and_repoints_the_shortcut(self):
+        src = self._hub_src()
+
+        self.assertIn(r'_snwprintf(g_suiteHubExe, MAX_PATH, L"%s\\ProjectHub.exe", g_suiteDir);',
+                      src, "the hub lost its canonical suite-folder copy path")
+        start = src.index("static void WorkerSelfUpdateHub(void)")
+        body = src[start:start + 4200]
+        self.assertIn("DownloadRepoBytes(branch, L\"project-hub/ProjectHub.exe\", &newLen)", body,
+                      "the self-update no longer holds the downloaded bytes, so it "
+                      "cannot write a second copy")
+        self.assertIn("WriteBinaryFileAtomic(g_suiteHubExe, newBytes, newLen)", body,
+                      "a hub launched from Downloads updates only itself and leaves "
+                      "the suite folder holding the previous build")
+        self.assertIn("CreateShortcutLink(lnk, g_suiteHubExe, g_suiteDir", body,
+                      "after a self-update the Desktop shortcut still points at the "
+                      "unmanaged copy")
+        self.assertIn("free(newBytes);", body, "the downloaded hub bytes leak")
+
+        # One click to consolidate without waiting for the next self-update.
+        self.assertIn("#define ID_MENU_HUB_TOSUITE", src)
+        self.assertIn('L"Install Hub into Suite Folder"', src,
+                      "the utility menu lost the one-click hub consolidation entry")
+        self.assertIn("case ID_MENU_HUB_TOSUITE:", src,
+                      "the suite-folder hub menu entry is not handled")
+
+    def test_hub_version_advanced_for_the_suite_folder_install_fix(self):
+        src = self._hub_src()
+        m = re.search(r'#define HUB_VERSION\s+"(\d+)\.(\d+)\.(\d+)"', src)
+        self.assertIsNotNone(m, "HUB_VERSION is missing or malformed")
+        version = tuple(int(g) for g in m.groups())
+        self.assertGreaterEqual(version, (2, 8, 38),
+                                "the hub version was not bumped, so an installed hub "
+                                "never offers this update")
+
+
 if __name__ == "__main__":
     unittest.main()
