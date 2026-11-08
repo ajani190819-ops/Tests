@@ -21,8 +21,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.36"
-#define HUB_VERSION_W     L"2.8.36"
+#define HUB_VERSION       "2.8.37"
+#define HUB_VERSION_W     L"2.8.37"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -2588,11 +2588,33 @@ static void WorkerCheckRemote(void) {
     }
     free(treeJson);
 
-    _snwprintf(p, 255, L"/repos/%s/%s/releases/tags/spatial-hud-latest", REPO_OWNER_W, REPO_NAME_W);
+    /* The mod jar is published per branch: CI republishes
+       spatial-hud-build-<branch> on every successful push, while
+       spatial-hud-latest is only main's curated pointer. Querying only the
+       latter made a branch's jar invisible no matter which branch was
+       selected - a branch carrying mod fixes still reported the mod up to
+       date. Follow the selected branch first, fall back to the pointer. */
+    wchar_t tagBranch[96];
+    {
+        int ti = 0;
+        const wchar_t *pre = L"spatial-hud-build-";
+        for (int i = 0; pre[i] && ti < 95; i++) tagBranch[ti++] = pre[i];
+        for (int i = 0; branch[i] && ti < 95; i++)
+            tagBranch[ti++] = (branch[i] == L'/') ? L'-' : branch[i];
+        tagBranch[ti] = L'\0';
+    }
+    const wchar_t *hudTags[2] = { tagBranch, L"spatial-hud-latest" };
     EnterCriticalSection(&g_cs);
     g_remHudSize = 0;   /* unknown until this lookup succeeds - never stale */
     LeaveCriticalSection(&g_cs);
-    char *rel = (char *)HttpGetCached(L"api.github.com", p, &sz, &st);
+    char *rel = NULL;
+    for (int t = 0; t < 2; t++) {
+        _snwprintf(p, 255, L"/repos/%s/%s/releases/tags/%s",
+                   REPO_OWNER_W, REPO_NAME_W, hudTags[t]);
+        free(rel);
+        rel = (char *)HttpGetCached(L"api.github.com", p, &sz, &st);
+        if (rel && st == 200) break;
+    }
     if (rel && st == 200) {
         const char *dlPos = strstr(rel, "\"browser_download_url\"");
         if (dlPos) {

@@ -1106,6 +1106,21 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertGreaterEqual(uses, 7,
                          f"only {uses} update decisions compare content; the rest still "
                          f"trust file size alone")
+    def test_hub_mod_card_follows_the_selected_branch_build(self):
+        src = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+
+        # CI republishes spatial-hud-build-<branch> on every push; querying only
+        # spatial-hud-latest (main's pointer) made a branch's jar invisible even
+        # with the Hub pointed at that branch, so mod fixes never showed up.
+        self.assertIn('const wchar_t *hudTags[2] = { tagBranch, L"spatial-hud-latest" };', src,
+                      "the mod card no longer tries the selected branch's build release "
+                      "before falling back to main's pointer, so branch jars stay invisible")
+        self.assertIn('L"spatial-hud-build-"', src,
+                      "the Hub never builds the per-branch release tag that CI publishes")
+        self.assertNotIn('_snwprintf(p, 255, L"/repos/%s/%s/releases/tags/spatial-hud-latest", REPO_OWNER_W, REPO_NAME_W);',
+                         src,
+                         "the mod card queries only the main pointer again, so a branch "
+                         "with mod fixes still reports the mod up to date")
 
 
 if __name__ == "__main__":

@@ -60,37 +60,37 @@
 - L1943  f InitCardDefinitions
 - L2042  f RefreshProjectStatuses
 - L2468  f WorkerCheckRemote
-- L2638  f StopProcessFromLock
-- L2651  f WorkerInstallBluetoothGuard
-- L2712  f WorkerInstallNotes
-- L2752  f WorkerInstallDnsPilot
-- L2816  f WorkerInstallKeyboardLighting
-- L2901  f WorkerInstallSpatialHud
-- L2963  f WorkerInstallOrcaPlugins
-- L3060  f WorkerSelfUpdateHub
-- L3117  f EnqueueTask
-- L3172  f RestartKeyboardLightingCleanly
-- L3191  f PromptTextInput
-- L3195  f NormalizeDirPath
-- L3211  f SaveModsDirFromInput
-- L3233  f PickSpatialHudModsFolder
-- L3276  f FillCanvasRect
-- L3289  f SmoothRoundRect
-- L3347  f DrawActionBtn
-- L3369  f ComputeLayout
-- L3418  f HitTestButtons
-- L3436  f PaintEmblemBlit
-- L3463  f PaintHubWindow
-- L3715  f ShowUtilityMenu
-- L3729  S download-branch picker
-- L3731  f FetchBranchNames  — ---- download-branch picker -------------------------------------------
-- L3756  f EnsureBranchInMenu
-- L3821  f PromptTextInput
-- L3885  f PromptBranchName
-- L3890  f SetActiveBranch
-- L3908  f ShowBranchMenu
-- L3944  f HandleActionCommand
-- globals: g_hInst (L198), g_hwnd (L199), g_fontHero (L200), g_fontSub (L201), g_fontTitle (L202), g_fontBody (L203), g_fontBtn (L204), g_fontBadge (L205), g_appIcon (L206), g_hdrEmblem (L207), g_cardIcons (L208), g_showEvent (L209), g_hMutex (L210), g_cs (L211), g_topBtns (L213), g_rcEmblem (L219), g_cards (L221), g_cardCount (L222), g_dynIdx (L223), g_hoverId (L224), g_scrollY (L225), g_maxScrollY (L226), g_exePath (L228), g_exeDir (L229), g_localApp (L230), g_roamApp (L231), g_suiteDir (L232), g_hubCfgDir (L233), g_btgDir (L234), g_btgExtraExe (L235), g_kblDir (L236), g_dnsDir (L237), g_notesDir (L238), g_audioSwitcherDir (L239), g_clipboardMemoryDir (L240), g_modsDir (L241), g_orcaBatDir (L242), g_activeBranch (L245), g_branchMenuNames (L246), g_branchMenuN (L247), g_branchPromptOut (L248), g_remHubVer (L249), g_remWaveVer (L250), g_remInfillVer (L251), g_remHudName (L252), g_remHudPath (L253), g_remHudSize (L254), g_statusMsg (L255), g_progressVal (L256), g_hubUpdAvail (L257), g_taskQueue (L260), g_qHead (L261), g_qTail (L262), g_qSem (L263), g_running (L264), g_embCache (L423), g_checkActive (L631), g_remBtgSize (L632), g_remBtgSha (L635), g_rcFooterDot (L637), g_httpSess (L706), g_httpConns (L712), g_hcache (L861), g_hudDisabled (L966), g_orcaDisabled (L967), g_catalogJson (L1318), g_strPool (L1358), g_strPoolUsed (L1359), g_frameCache (L3460), g_fcW (L3461)
+- L2660  f StopProcessFromLock
+- L2673  f WorkerInstallBluetoothGuard
+- L2734  f WorkerInstallNotes
+- L2774  f WorkerInstallDnsPilot
+- L2838  f WorkerInstallKeyboardLighting
+- L2923  f WorkerInstallSpatialHud
+- L2985  f WorkerInstallOrcaPlugins
+- L3082  f WorkerSelfUpdateHub
+- L3139  f EnqueueTask
+- L3194  f RestartKeyboardLightingCleanly
+- L3213  f PromptTextInput
+- L3217  f NormalizeDirPath
+- L3233  f SaveModsDirFromInput
+- L3255  f PickSpatialHudModsFolder
+- L3298  f FillCanvasRect
+- L3311  f SmoothRoundRect
+- L3369  f DrawActionBtn
+- L3391  f ComputeLayout
+- L3440  f HitTestButtons
+- L3458  f PaintEmblemBlit
+- L3485  f PaintHubWindow
+- L3737  f ShowUtilityMenu
+- L3751  S download-branch picker
+- L3753  f FetchBranchNames  — ---- download-branch picker -------------------------------------------
+- L3778  f EnsureBranchInMenu
+- L3843  f PromptTextInput
+- L3907  f PromptBranchName
+- L3912  f SetActiveBranch
+- L3930  f ShowBranchMenu
+- L3966  f HandleActionCommand
+- globals: g_hInst (L198), g_hwnd (L199), g_fontHero (L200), g_fontSub (L201), g_fontTitle (L202), g_fontBody (L203), g_fontBtn (L204), g_fontBadge (L205), g_appIcon (L206), g_hdrEmblem (L207), g_cardIcons (L208), g_showEvent (L209), g_hMutex (L210), g_cs (L211), g_topBtns (L213), g_rcEmblem (L219), g_cards (L221), g_cardCount (L222), g_dynIdx (L223), g_hoverId (L224), g_scrollY (L225), g_maxScrollY (L226), g_exePath (L228), g_exeDir (L229), g_localApp (L230), g_roamApp (L231), g_suiteDir (L232), g_hubCfgDir (L233), g_btgDir (L234), g_btgExtraExe (L235), g_kblDir (L236), g_dnsDir (L237), g_notesDir (L238), g_audioSwitcherDir (L239), g_clipboardMemoryDir (L240), g_modsDir (L241), g_orcaBatDir (L242), g_activeBranch (L245), g_branchMenuNames (L246), g_branchMenuN (L247), g_branchPromptOut (L248), g_remHubVer (L249), g_remWaveVer (L250), g_remInfillVer (L251), g_remHudName (L252), g_remHudPath (L253), g_remHudSize (L254), g_statusMsg (L255), g_progressVal (L256), g_hubUpdAvail (L257), g_taskQueue (L260), g_qHead (L261), g_qTail (L262), g_qSem (L263), g_running (L264), g_embCache (L423), g_checkActive (L631), g_remBtgSize (L632), g_remBtgSha (L635), g_rcFooterDot (L637), g_httpSess (L706), g_httpConns (L712), g_hcache (L861), g_hudDisabled (L966), g_orcaDisabled (L967), g_catalogJson (L1318), g_strPool (L1358), g_strPoolUsed (L1359), g_frameCache (L3482), g_fcW (L3483)
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
