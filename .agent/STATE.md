@@ -92,18 +92,99 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 
 ## Open Threads / Next Actions
 
-1. **Needs Windows / in-game validation** (cannot be tested in this sandbox):
+1. **AudioSwitcher panel on the owner's screen** (as of the reachability fix):
+   with the usual outputs plus several apps playing, every row and the footer
+   are reachable - by fitting or by scrolling - and the app list names the apps
+   that are actually playing. Check at 150% scaling, after dragging the window
+   to a monitor with a different scale, scrolling with the wheel while a slider
+   has focus, and holding a slider thumb while the 2-second poll fires. An app
+   pinned to a non-default output should appear as `app.exe - on <device>`.
+2. **Needs Windows / in-game validation** (cannot be tested in this sandbox):
    after hub 2.8.38, one Update click writes the suite folder copy AND every
    stray copy (owner's case: Audio Switcher stuck 9 days old in
    `Programs\TestsSuite\AudioSwitcher` while Downloads got each build);
    Audio Switcher card shows its own blurb + working buttons after a hub refresh;
    `Update-SpatialHUD.bat` installs `spatial-hud-1.0.4.jar` under its real name
    and self-updates from `main`; notes quick-capture page still posts.
-2. If the owner still sees a UAC prompt on manual double-click launches, offer
+3. If the owner still sees a UAC prompt on manual double-click launches, offer
    routing shortcuts through a silent task launcher (`schtasks /Run`).
-3. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
+4. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
    `guiWidth/guiHeight` — the mapping bug fixed in Method 4 (1.0.4) is unfixed
    there. Fix it if Method 3 ever reports the same symptom.
+
+- **AudioSwitcher panel: nothing cut off, and the app list is real** (owner:
+  "the bottom part of it is cut off and I can't see what apps are actually
+  available and it'll say that no apps are available when there are apps that
+  are broadcasting audio"; audio-switcher/src/audio_switcher.c, committed
+  `AudioSwitcher.exe` rebuilt 184,320 B). Both halves were layout, plus one real
+  gap in enumeration.
+  - **The app list was squeezed to nothing**: `ui_build_controls` gave OUTPUT
+    DEVICES a fixed budget and reserved only `hdr + gap + 3 rows` for APP
+    VOLUME, so with several output devices `ss_max` collapsed to 0-1. Zero
+    session controls were created and WM_PAINT drew "No apps are playing audio
+    right now" over a list `sessions_refresh()` had already enumerated. The
+    budget is now `ui_layout_budget()` with `UI_MIN_APP_ROWS 5` guaranteed to
+    the app section before the device rows get anything left over.
+  - **Nothing scrolled and the window could be taller than the screen**: no
+    `WS_VSCROLL`, no `WM_VSCROLL`, no `SetScrollInfo` anywhere, and the height
+    was clamped to a hardcoded `S(940)` with no work-area check, so the bottom
+    sat under the taskbar. Now one logical-row column with `g_scroll_offset` /
+    `g_scroll_range`: `WS_VSCROLL` + `WM_VSCROLL` (line/page/thumb/top/bottom) +
+    `WM_MOUSEWHEEL` (3 rows per notch, also forwarded from a focused slider) +
+    `WM_DPICHANGED`. Scrolling re-aims the existing controls at new logical rows
+    instead of destroying them, so focus and an in-flight drag survive - and a
+    held thumb blocks scrolling outright (`GetCapture()`). Scrollbar width
+    (`SM_CXVSCROLL`) is claimed only when there is something to scroll.
+    `ui_rebuild()` sizes to the budget and clamps into
+    `MonitorFromWindow`/`GetMonitorInfoW().rcWork`, moving the window up when it
+    does not fit, with an `SPI_GETWORKAREA` + `SM_CY*` fallback. The footer is
+    pinned to the client bottom, never scrolled.
+  - **`PANEL_X`/`PANEL_Y` were used unscaled** while every size next to them went
+    through `S()`: at 150% the panel sat too high and rows overlapped the header
+    band. Every panel coordinate (Refresh button included, plus all WM_PAINT
+    rects) is now `S()`-scaled.
+  - **Apps on a non-default output were invisible**: `sessions_refresh()` asked
+    only the default render endpoint for its session enumerator, so a game or
+    browser pinned to another device had a session nowhere we looked - audio
+    playing, panel claiming nothing was. Collection moved into
+    `sessions_collect_from_device()`; when the default endpoint yields nothing we
+    sweep the other active endpoints and label those rows `app.exe - on <device>`
+    (`on_other_device`), because they are inaudible until the output is switched.
+    Each device's `IAudioSessionManager2` is retained in `g_session_mgrs[8]`: the
+    `ISimpleAudioVolume` pointers the rows hold belong to it, so releasing it
+    would leave dead sliders. All of them are released on the next poll and at
+    shutdown (`sessions_cleanup`).
+  - **Row identity no longer trusts control ids.** Scrolling re-aims slots, so a
+    slider notification is resolved by finding the slot whose `hwnd_vol` matches.
+    Ids are per-slot (`1000+i`, `2000+i`, `3000+i`, `4000+i`, `5000+i`) instead
+    of `base + logical`, which walked out of its handler's range once the list
+    got long enough to scroll (`4000 + 200` is not `< 4200`) and silently dropped
+    the volume change. All five WM_COMMAND branches re-derive the row index from
+    the slot and bounds-check it. Spare slots paint no card.
+  - The empty-panel text still separates the two cases: an enumeration failure
+    quotes its HRESULT, a genuinely quiet system says "No apps are playing audio
+    on any output right now". `g_truncated_*` now counts only rows past the
+    32/128 array caps and says "row(s) past the list limit".
+  - 6 new tests in `AudioSwitcherReachabilityTests` + 3 in
+    `AudioSwitcherSessionSweepTests`; the rebuild-gating test now follows the
+    rebuild into `ui_rebuild()`. 37 tests pass. 17 negative controls (each
+    mechanism reverted one at a time) all caught. `tools/check_all.py` green in
+    both dependency states; all 7 EXEs rebuilt.
+
+- **Project Hub 2.8.38: the suite folder is the install target** (owner: an
+  Audio Switcher download never replaced the copy he actually ran;
+  project-hub/src/project_hub.c, committed `ProjectHub.exe` rebuilt).
+  `%LOCALAPPDATA%\Programs\TestsSuite\<App>\` is now where every Update writes,
+  Downloads is a convenience copy, `DownloadRepoBytes` fetches bytes and writes
+  once through a temp file + `MoveFileExW(REPLACE_EXISTING)`, and
+  `MirrorFileEverywhere` gives every other stray copy the identical bytes in the
+  same click (exe dir, repo checkout, shortcut target, suite folder) - so there
+  is nothing stale left to launch. Same for the hub itself, including repointing
+  `Project Hub.lnk`. `ID_MENU_HUB_TOSUITE` (1013) re-copies a hub that was
+  launched from somewhere else. Card badges and details resolve through
+  `btgDir/kblDir/asDir/cmDir` (`AppendInstallFolder` + `ShortDirForUi`), and a
+  missing suite copy reads as Not Installed instead of being papered over by a
+  stray copy elsewhere.
 
 ## Last session (2026-10-30) — repository audit + fixes
 

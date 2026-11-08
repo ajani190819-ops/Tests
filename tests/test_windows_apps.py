@@ -1013,8 +1013,17 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "refresh_ui no longer compares an endpoint identity signature")
         self.assertIn("sessions_signature", fn,
                       "refresh_ui no longer compares a session identity signature")
-        self.assertIn("ui_destroy_all", fn,
+        # The rebuild itself moved into ui_rebuild() (it also budgets the rows,
+        # publishes the scrollbar and sizes the window); what matters here is
+        # that a changed set still tears the tree down and a unchanged one does
+        # not.
+        self.assertIn("ui_rebuild", fn,
                       "refresh_ui no longer rebuilds the control tree at all")
+        rb = src[src.index("static void ui_rebuild(void) {"):]
+        rb = rb[:rb.index("\n}\n")]
+        self.assertIn("ui_destroy_all", rb,
+                      "ui_rebuild no longer destroys the old controls before "
+                      "recreating them, so every rebuild would leak a control tree")
         self.assertIn("ui_update_values", fn,
                       "refresh_ui no longer updates existing controls in place")
 
@@ -1318,6 +1327,278 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertGreaterEqual(version, (2, 8, 38),
                                 "the hub version was not bumped, so an installed hub "
                                 "never offers this update")
+
+
+class AudioSwitcherReachabilityTests(unittest.TestCase):
+    """Every row of the panel has to be reachable, and the panel has to fit.
+
+    The owner's report: "the bottom part of it is cut off and I can't see what
+    apps are actually available, and it'll say that no apps are available when
+    there are apps that are broadcasting audio". Both halves came out of the
+    layout: OUTPUT DEVICES took a fixed budget and reserved only three rows for
+    APP VOLUME, so with several output devices the app rows ran out of room.
+    ss_max hit 0, zero session controls were created, and WM_PAINT drew "No apps
+    are playing audio right now" over a list that sessions_refresh() had already
+    enumerated. Nothing scrolled, and the window could be taller than the
+    screen, so whatever survived the budget sat under the taskbar.
+    """
+
+    @staticmethod
+    def _src() -> str:
+        return (ROOT / "audio-switcher" / "src" / "audio_switcher.c").read_text(
+            encoding="utf-8", errors="replace"
+        )
+
+    @staticmethod
+    def _fn(src: str, signature: str) -> str:
+        start = src.index(signature)
+        return src[start:src.index("\n}\n", start)]
+
+    def test_app_section_keeps_a_guaranteed_minimum_of_rows(self):
+        src = self._src()
+        budget = self._fn(src, "static void ui_layout_budget(int client_h) {")
+
+        self.assertIn("#define UI_MIN_APP_ROWS 5", src,
+                      "the guaranteed minimum for the APP VOLUME section is gone")
+        self.assertIn("int ss_min = g_session_count < UI_MIN_APP_ROWS", budget,
+                      "the app section no longer reserves a minimum number of rows, "
+                      "so a long device list can squeeze it back to nothing")
+        self.assertIn("g_ss_max = ss_room > ss_min ? ss_room : ss_min;", budget,
+                      "the reserved app rows are not applied to the row count")
+        self.assertNotIn("int reserve = hdr_h + gap + 3 * ss_row;", src,
+                         "the old three-row reservation is back: it is what let the "
+                         "app list collapse to zero visible rows")
+
+    def test_rows_the_budget_cannot_show_are_scrolled_to_not_dropped(self):
+        src = self._src()
+
+        self.assertIn("WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_VSCROLL", src,
+                      "the window has no vertical scrollbar, so rows past the "
+                      "budget are unreachable again")
+        budget = self._fn(src, "static void ui_layout_budget(int client_h) {")
+        # Travel is counted in ROWS (the re-aim model), and the column is the
+        # endpoint list then the session list: endpoints scroll off first, then
+        # sessions. Counting it in pixels - or offsetting sessions by g_ep_max -
+        # left the first g_ep_max sessions unreachable and double-applied the
+        # offset to the endpoint band.
+        self.assertIn("g_ep_scroll_max = g_endpoint_count > g_ep_max ? g_endpoint_count - g_ep_max : 0;",
+                      budget, "the endpoint scroll travel is not derived from the "
+                              "rows that do not fit")
+        self.assertIn("g_ss_scroll_max = g_session_count  > g_ss_max ? g_session_count  - g_ss_max : 0;",
+                      budget, "the session scroll travel is not derived from the "
+                              "rows that do not fit")
+        self.assertIn("g_scroll_range  = g_ep_scroll_max + g_ss_scroll_max;",
+                      budget, "the scroll range no longer covers both sections")
+        self.assertNotIn("g_scroll_range = total > visible_rows", budget,
+                         "the scroll range is measured in pixels again, which the "
+                         "row-based WM_VSCROLL handler cannot drive")
+
+        viewport = self._fn(src, "static void ui_apply_viewport(void) {")
+        self.assertIn("SetScrollInfo(g_hwnd, SB_VERT, &si, TRUE)", viewport,
+                      "the scrollbar is never published, so it cannot be dragged")
+        self.assertIn("ShowScrollBar(g_hwnd, SB_VERT, g_scroll_range > 0", viewport,
+                      "the scrollbar stays visible with nothing to scroll")
+        self.assertIn("c->session_idx = (logical < g_session_count) ? logical : -1;",
+                      viewport, "scrolling no longer re-aims the session rows")
+        self.assertIn("c->endpoint_idx = (logical < g_endpoint_count) ? logical : -1;",
+                      viewport, "scrolling no longer re-aims the endpoint rows")
+        self.assertIn("int ep_start = g_scroll_offset < g_ep_scroll_max ? g_scroll_offset : g_ep_scroll_max;",
+                      viewport, "the endpoint band does not clamp its start to the "
+                                "rows that can actually scroll off")
+        self.assertIn("int ss_start = g_scroll_offset - ep_start;", viewport,
+                      "the session band does not pick up the offset left over after "
+                      "the endpoints are exhausted")
+        self.assertIn("int logical = ep_start + i;", viewport,
+                      "endpoint slots are not re-aimed from the scrolled start row")
+        self.assertIn("int logical = ss_start + i;", viewport,
+                      "session slots are not re-aimed from the scrolled start row")
+        # The band tops must NOT slide with the offset, or the re-aimed content
+        # would be offset twice (once by ep_start, once by the moving band).
+        geo = self._fn(src, "static void ui_row_geometry(int logical_ep_row")
+        self.assertIn("int top = S(PANEL_Y) + g_row_hdr;", geo,
+                      "the row band still slides with g_scroll_offset, double-"
+                      "applying the scroll on top of the re-aimed rows")
+
+        for case in ("case WM_VSCROLL:", "case WM_MOUSEWHEEL:"):
+            self.assertIn(case, src, f"{case} is not handled, so the panel cannot scroll")
+        wheel = self._fn(src, "static LRESULT CALLBACK TrackbarSkinProc")
+        self.assertIn("SendMessageW(panel, WM_MOUSEWHEEL, wp, lp)", wheel,
+                      "the wheel stops working as soon as a volume slider has focus, "
+                      "because WM_MOUSEWHEEL goes to the focused child")
+
+        vscroll = src[src.index("case WM_VSCROLL: {"):]
+        vscroll = vscroll[:vscroll.index("case WM_MOUSEWHEEL:")]
+        self.assertIn("GetCapture() == g_endpoint_ctrls[i].hwnd_vol", vscroll,
+                      "scrolling can now move a slider out from under a thumb the "
+                      "user is holding")
+        rebuild = self._fn(src, "static void ui_rebuild(void) {")
+        self.assertIn("ui_apply_viewport();", rebuild,
+                      "a rebuild does not re-publish the viewport")
+
+    def test_window_is_clamped_to_the_screen_it_is_on(self):
+        src = self._src()
+        rebuild = self._fn(src, "static void ui_rebuild(void) {")
+
+        self.assertIn("MonitorFromWindow(g_hwnd, MONITOR_DEFAULTTONEAREST)", rebuild,
+                      "the window is sized without asking which screen it is on")
+        self.assertIn("GetMonitorInfoW(mon, &mi)", rebuild,
+                      "the work area is never read, so the taskbar is not accounted for")
+        self.assertIn("mi.rcWork.bottom", rebuild,
+                      "the window height is not clamped to the work area, so the "
+                      "bottom of the panel can sit under the taskbar")
+        self.assertIn("if (y + want_h > mi.rcWork.bottom) y = mi.rcWork.bottom - want_h;",
+                      rebuild, "a window that does not fit is not moved back onto the screen")
+        self.assertNotIn("SetWindowPos(g_hwnd, NULL, 0, 0, want_w, content + frame_h,",
+                         src, "the old fixed-position resize is back")
+
+    def test_panel_geometry_scales_with_dpi(self):
+        src = self._src()
+
+        # PANEL_X / PANEL_Y were used raw while every neighbouring size went
+        # through S(), so at 150% the panel sat too high and the rows overlapped
+        # the header band.
+        self.assertNotIn("g_y_outputs_header = PANEL_Y;", src,
+                         "the outputs header is positioned without DPI scaling")
+        self.assertNotIn("int budget = S(UI_MAX_CLIENT) - footer - (PANEL_Y + hdr_h);", src,
+                         "the layout budget mixes a scaled height with an unscaled origin")
+        self.assertNotIn("            PANEL_X, PANEL_Y - S(38), S(104), S(28),", src,
+                         "the Refresh button is positioned without DPI scaling")
+        for needle in ("S(PANEL_X)", "S(PANEL_Y)", "S(PANEL_W)"):
+            self.assertIn(needle, src, f"{needle} is gone - panel geometry went raw again")
+        self.assertIn("case WM_DPICHANGED:", src,
+                      "moving the window to a monitor with a different scale leaves "
+                      "the layout built for the old DPI")
+
+    def test_rows_resolve_through_the_visible_slot_not_a_stale_control_id(self):
+        src = self._src()
+
+        # Scrolling re-aims each slot at a different logical row, so a control
+        # id baked at creation time is the wrong key - and once the list got
+        # long enough to scroll, ids walked out of their handler range entirely
+        # (4000 + 200 is not < 4200), silently dropping the volume change.
+        hscroll = src[src.index("case WM_HSCROLL: {"):]
+        hscroll = hscroll[:hscroll.index("case WM_TIMER:")]
+        self.assertIn("if (c->hwnd_vol != slider) continue;", hscroll,
+                      "slider notifications are not resolved through the slot that "
+                      "owns the slider")
+        self.assertNotIn("int id = (int)GetWindowLongPtrW(slider, GWLP_ID);", hscroll,
+                         "slider notifications still key off the control id, which "
+                         "goes stale as soon as the panel scrolls")
+
+        rebuild = self._fn(src, "static void ui_rebuild(void) {")
+        for needle in ("(HMENU)(INT_PTR)(4000 + i)", "(HMENU)(INT_PTR)(5000 + i)",
+                       "(HMENU)(INT_PTR)(1000 + i)", "(HMENU)(INT_PTR)(2000 + i)",
+                       "(HMENU)(INT_PTR)(3000 + i)"):
+            self.assertIn(needle, rebuild,
+                          f"{needle} is gone - control ids must identify the slot so "
+                          f"they stay inside their handler's id range")
+
+        cmd = src[src.index("    case WM_COMMAND: {"):]
+        cmd = cmd[:cmd.index("case WM_HSCROLL:")]
+        self.assertIn("int idx = g_endpoint_ctrls[slot].endpoint_idx;", cmd,
+                      "the endpoint buttons still trust their control id as a row index")
+        self.assertIn("int idx = g_session_ctrls[slot].session_idx;", cmd,
+                      "the app mute buttons still trust their control id as a row index")
+        self.assertIn("if (idx < 0 || idx >= g_endpoint_count) return 0;", cmd,
+                      "an empty endpoint slot can still be clicked through")
+
+    def test_spare_slots_do_not_paint_empty_cards(self):
+        src = self._src()
+        paint = src[src.index("    case WM_PAINT: {"):]
+        paint = paint[:paint.index("EndPaint(hwnd, &ps);")]
+        self.assertIn("if (idx < 0 || idx >= g_endpoint_count) continue;   /* spare slot */",
+                      paint, "scrolled-past endpoint rows paint empty card frames")
+        self.assertIn("if (idx < 0 || idx >= g_session_count) continue;    /* spare slot */",
+                      paint, "scrolled-past app rows paint empty card frames")
+        self.assertIn("ui_brush(idx == g_default_endpoint_idx ? COL_ACCENT : COL_BORDER)",
+                      paint, "the current-output accent border keys off the slot "
+                             "instead of the row it is showing")
+
+
+class AudioSwitcherSessionSweepTests(unittest.TestCase):
+    """An app that is playing must be listed, even when it is not playing on the
+    output Windows calls default.
+
+    sessions_refresh() asked only the default render endpoint for its session
+    enumerator. An app pinned to another output (headphones left as the default
+    in Windows' own mixer, a game on a second device) has its session there and
+    nowhere else, so the panel said "no apps are playing audio" while audio was
+    plainly playing - the second half of the owner's report.
+    """
+
+    @staticmethod
+    def _src() -> str:
+        return (ROOT / "audio-switcher" / "src" / "audio_switcher.c").read_text(
+            encoding="utf-8", errors="replace"
+        )
+
+    @staticmethod
+    def _fn(src: str, signature: str) -> str:
+        start = src.index(signature)
+        return src[start:src.index("\n}\n", start)]
+
+    def test_the_other_active_outputs_are_swept_when_the_default_shows_nothing(self):
+        src = self._src()
+        refresh = self._fn(src, "static HRESULT sessions_refresh(void) {")
+
+        self.assertIn("static int sessions_collect_from_device(IMMDevice *dev", src,
+                      "session collection is not per-device, so only the default "
+                      "output can ever be listed")
+        self.assertIn("if (g_session_count == 0) {", refresh,
+                      "the fallback sweep is gone, or now runs unconditionally and "
+                      "duplicates every app that is already listed")
+        self.assertRegex(
+            refresh,
+            r"for \(int i = 0; i < g_endpoint_count && g_session_count < 128; i\+\+\)",
+            "the sweep no longer walks the enumerated render endpoints")
+        self.assertIn("if (i == g_default_endpoint_idx) continue;", refresh,
+                      "the sweep re-lists the default device, so every app on it "
+                      "would appear twice")
+        self.assertIn("sessions_collect_from_device(g_endpoints[i].device, TRUE", refresh,
+                      "swept rows are not labelled with the device they play on, so "
+                      "an inaudible app looks like a broken slider")
+        self.assertIn("g_session_sweep_used = TRUE;", refresh,
+                      "nothing records that the sweep produced the list")
+
+    def test_swept_rows_say_which_output_they_are_on(self):
+        src = self._src()
+        # _fn's "\n}\n" cut lands on the closing brace of the for-loop inside
+        # this function, so slice to the next top-level function instead.
+        collect = src[src.index("static int sessions_collect_from_device("):
+                      src.index("static HRESULT sessions_refresh(void) {")]
+        self.assertIn("on_other_device", collect,
+                      "a session found on another output is indistinguishable from "
+                      "one on the current output")
+        self.assertIn(chr(92) + 'u2014 on %s', collect,
+                         "the row label no longer names the device the app is on")
+        self.assertIn("h = ui_mix(h, (uint64_t)(g_sessions[i].on_other_device ? 1 : 0));",
+                      src, "the UI identity signature ignores the device marker, so a "
+                           "row that moves between outputs would not be relabelled")
+
+    def test_every_session_manager_stays_alive_while_its_sliders_do(self):
+        src = self._src()
+        # _fn's "\n}\n" cut lands on the closing brace of the for-loop inside
+        # this function, so slice to the next top-level function instead.
+        collect = src[src.index("static int sessions_collect_from_device("):
+                      src.index("static HRESULT sessions_refresh(void) {")]
+        self.assertIn("if (g_session_mgr_count < 8) g_session_mgrs[g_session_mgr_count++] = mgr;",
+                      collect,
+                      "a swept device's session manager is released while the "
+                      "ISimpleAudioVolume pointers it handed out are still on screen")
+
+        refresh = self._fn(src, "static HRESULT sessions_refresh(void) {")
+        release_at = refresh.find("for (int i = 0; i < g_session_mgr_count; i++)")
+        reset_at = refresh.find("g_session_count = 0;")
+        self.assertNotEqual(release_at, -1, "the managers are never released")
+        self.assertNotEqual(reset_at, -1, "the session list is never reset")
+        self.assertLess(release_at, reset_at,
+                        "sessions_refresh resets the list before releasing the "
+                        "previous managers, leaking one per device per poll")
+
+        cleanup = self._fn(src, "static void sessions_cleanup(void) {")
+        self.assertIn("g_session_mgr_count", cleanup,
+                      "shutdown still releases only the default device's manager")
+        self.assertIn("g_session_mgr = NULL;", cleanup)
 
 
 if __name__ == "__main__":

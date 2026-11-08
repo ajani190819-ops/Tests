@@ -516,7 +516,9 @@
 - L27  f strip_cs_comments_and_strings
 - L149  f lex_powershell
 - L284  f WindowsDesktopAppsTests
-- L1126  f SuiteFolderInstallTests
+- L1135  f SuiteFolderInstallTests
+- L1332  f AudioSwitcherReachabilityTests
+- L1518  f AudioSwitcherSessionSweepTests
 
 ## tests/wave_cases.py
 
