@@ -21,8 +21,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.41"
-#define HUB_VERSION_W     L"2.8.41"
+#define HUB_VERSION       "2.8.42"
+#define HUB_VERSION_W     L"2.8.42"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -2145,18 +2145,18 @@ static void InitCardDefinitions(void) {
     g_cards[0].resIconId = RES_ICON_BTG;
     g_cards[0].title     = L"Bluetooth Guard";
     g_cards[0].btnCount  = 4;
-    g_cards[0].btns[0]   = (ActionBtn){ ID_BTG_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
-    g_cards[0].btns[1]   = (ActionBtn){ ID_BTG_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
-    g_cards[0].btns[2]   = (ActionBtn){ ID_BTG_STOP,   L"Stop",   BTN_SECONDARY, 62, {0,0,0,0}, NULL, FALSE };
-    g_cards[0].btns[3]   = (ActionBtn){ ID_BTG_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[0].btns[0]   = (ActionBtn){ ID_BTG_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[0].btns[1]   = (ActionBtn){ ID_BTG_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[0].btns[2]   = (ActionBtn){ ID_BTG_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[0].btns[3]   = (ActionBtn){ ID_BTG_STOP,   L"Stop",   BTN_SECONDARY, 62, {0,0,0,0}, NULL, FALSE };
 
     g_cards[1].resIconId = RES_ICON_KBL;
     g_cards[1].title     = L"Keyboard Lighting";
     g_cards[1].btnCount  = 4;
-    g_cards[1].btns[0]   = (ActionBtn){ ID_KBL_OPEN,    L"Open",     BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
-    g_cards[1].btns[1]   = (ActionBtn){ ID_KBL_RESTART, L"Unfreeze", BTN_SECONDARY, 84, {0,0,0,0}, NULL, FALSE };
-    g_cards[1].btns[2]   = (ActionBtn){ ID_KBL_UPDATE,  L"Update",   BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
-    g_cards[1].btns[3]   = (ActionBtn){ ID_KBL_FOLDER,  L"Folder",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[1].btns[0]   = (ActionBtn){ ID_KBL_UPDATE,  L"Update",   BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[1].btns[1]   = (ActionBtn){ ID_KBL_OPEN,    L"Open",     BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[1].btns[2]   = (ActionBtn){ ID_KBL_FOLDER,  L"Folder",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[1].btns[3]   = (ActionBtn){ ID_KBL_RESTART, L"Unfreeze", BTN_SECONDARY, 84, {0,0,0,0}, NULL, FALSE };
 
     g_cards[2].resIconId = RES_ICON_HUD;
     g_cards[2].title     = L"Spatial HUD";
@@ -2177,22 +2177,22 @@ static void InitCardDefinitions(void) {
     g_cards[4].resIconId = RES_ICON_DNS;
     g_cards[4].title     = L"DNS Pilot";
     g_cards[4].btnCount  = 3;
-    g_cards[4].btns[0]   = (ActionBtn){ ID_DNS_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
-    g_cards[4].btns[1]   = (ActionBtn){ ID_DNS_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[4].btns[0]   = (ActionBtn){ ID_DNS_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[4].btns[1]   = (ActionBtn){ ID_DNS_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
     g_cards[4].btns[2]   = (ActionBtn){ ID_DNS_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
 
     g_cards[5].resIconId = RES_ICON_NOTES;
     g_cards[5].title     = L"Agent Notes";
     g_cards[5].btnCount  = 3;
-    g_cards[5].btns[0]   = (ActionBtn){ ID_NOTES_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
-    g_cards[5].btns[1]   = (ActionBtn){ ID_NOTES_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[5].btns[0]   = (ActionBtn){ ID_NOTES_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[5].btns[1]   = (ActionBtn){ ID_NOTES_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
     g_cards[5].btns[2]   = (ActionBtn){ ID_NOTES_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
 
     g_cards[6].resIconId = RES_ICON_AUDIOSWITCHER;
     g_cards[6].title     = L"Audio Switcher";
     g_cards[6].btnCount  = 3;
-    g_cards[6].btns[0]   = (ActionBtn){ ID_AUDIOSWITCHER_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
-    g_cards[6].btns[1]   = (ActionBtn){ ID_AUDIOSWITCHER_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[6].btns[0]   = (ActionBtn){ ID_AUDIOSWITCHER_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[6].btns[1]   = (ActionBtn){ ID_AUDIOSWITCHER_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
     g_cards[6].btns[2]   = (ActionBtn){ ID_AUDIOSWITCHER_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
 
     /* exeRepo/exeName/appDir so Install/Update/Open/Folder work for built-in
@@ -2285,38 +2285,45 @@ static void RefreshProjectStatuses(void) {
     if (btgState == 1) {
         wcsncpy(g_cards[0].badge, L"Active", 47);
         g_cards[0].badgeKind = BADGE_OK;
-        g_cards[0].btns[0].label = L"Open";
-        g_cards[0].btns[0].style = BTN_SECONDARY;
+        g_cards[0].btns[1].label = L"Open";
+        g_cards[0].btns[1].style = BTN_SECONDARY;
+        g_cards[0].btns[1].hidden = FALSE;
         _snwprintf(g_cards[0].detail, 255,
                    L"Phone audio protection  \x00B7  %d guarded (%d paired)", blocked, total);
     } else if (hasBtg) {
         wcsncpy(g_cards[0].badge, L"Standby", 47);
         g_cards[0].badgeKind = BADGE_IDLE;
-        g_cards[0].btns[0].label = L"Start";
-        g_cards[0].btns[0].style = BTN_PRIMARY;
+        g_cards[0].btns[1].label = L"Start";
+        g_cards[0].btns[1].style = BTN_PRIMARY;
+        g_cards[0].btns[1].hidden = FALSE;
         wcsncpy(g_cards[0].detail, L"Phone audio protection  \x00B7  Click Start to launch", 255);
     } else {
         wcsncpy(g_cards[0].badge, L"Setup Ready", 47);
         g_cards[0].badgeKind = BADGE_WARN;
+        g_cards[0].btns[1].hidden = TRUE;   /* nothing to open until installed */
+        wcsncpy(g_cards[0].detail, L"Phone audio protection  \x00B7  Click Install to set up", 255);
+    }
+    /* btns[0] is the Update/Install action: Install when missing, Update when a
+       newer build is known, hidden once up to date. */
+    if (!hasBtg) {
         g_cards[0].btns[0].label = L"Install";
         g_cards[0].btns[0].style = BTN_PRIMARY;
-        wcsncpy(g_cards[0].detail, L"Phone audio protection  \x00B7  Click Install to set up", 255);
+        g_cards[0].btns[0].hidden = FALSE;
+    } else if (btgKnown && btgUpd) {
+        g_cards[0].btns[0].label = L"Update";
+        g_cards[0].btns[0].style = BTN_AMBER;
+        g_cards[0].btns[0].hidden = FALSE;
+    } else {
+        g_cards[0].btns[0].label = L"Update";
+        g_cards[0].btns[0].hidden = TRUE;
     }
 
     /* show BOTH facts whenever both are known: "Active  ·  Up to Date",
        "Active  ·  Update Ready", "Standby  ·  Up to Date", ... */
     if (hasBtg && btgKnown) {
         wcsncat(g_cards[0].badge, btgUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
-        if (btgUpd) {
-            if (g_cards[0].badgeKind == BADGE_OK || g_cards[0].badgeKind == BADGE_IDLE)
-                g_cards[0].badgeKind = BADGE_WARN;
-            g_cards[0].btns[1].style = BTN_AMBER;
-            g_cards[0].btns[1].hidden = FALSE;
-        } else {
-            g_cards[0].btns[1].hidden = TRUE;
-        }
-    } else {
-        g_cards[0].btns[1].hidden = TRUE;
+        if (btgUpd && (g_cards[0].badgeKind == BADGE_OK || g_cards[0].badgeKind == BADGE_IDLE))
+            g_cards[0].badgeKind = BADGE_WARN;
     }
 
     /* 2. Keyboard Lighting */
@@ -2330,37 +2337,44 @@ static void RefreshProjectStatuses(void) {
     if (kblState == 2) {
         wcsncpy(g_cards[1].badge, L"Frozen", 47);
         g_cards[1].badgeKind = BADGE_DANGER;
-        g_cards[1].btns[1].style = BTN_AMBER;
+        g_cards[1].btns[3].style = BTN_AMBER;
         wcsncpy(g_cards[1].detail, L"ROG Strix G16 RGB lighting  \x00B7  Click Unfreeze to restart", 255);
     } else if (kblState == 1) {
         wcsncpy(g_cards[1].badge, L"Active", 47);
         g_cards[1].badgeKind = BADGE_OK;
-        g_cards[1].btns[1].style = BTN_SECONDARY;
+        g_cards[1].btns[3].style = BTN_SECONDARY;
         wcsncpy(g_cards[1].detail, L"ROG Strix G16 RGB lighting", 255);
     } else if (hasKbl) {
         wcsncpy(g_cards[1].badge, L"Standby", 47);
         g_cards[1].badgeKind = BADGE_IDLE;
-        g_cards[1].btns[1].style = BTN_SECONDARY;
+        g_cards[1].btns[3].style = BTN_SECONDARY;
         wcsncpy(g_cards[1].detail, L"ROG Strix G16 RGB lighting  \x00B7  Installed locally", 255);
     } else {
         wcsncpy(g_cards[1].badge, L"Setup Ready", 47);
         g_cards[1].badgeKind = BADGE_WARN;
-        g_cards[1].btns[2].style = BTN_PRIMARY;
-        wcsncpy(g_cards[1].detail, L"ROG Strix G16 RGB lighting  \x00B7  Click Update to install", 255);
+        wcsncpy(g_cards[1].detail, L"ROG Strix G16 RGB lighting  \x00B7  Click Install to set up", 255);
+    }
+    /* Open (btns[1]) and Unfreeze (btns[3]) only make sense once installed. */
+    g_cards[1].btns[1].hidden = !hasKbl;
+    g_cards[1].btns[3].hidden = !hasKbl;
+    /* btns[0] is the Update/Install action. */
+    if (!hasKbl) {
+        g_cards[1].btns[0].label = L"Install";
+        g_cards[1].btns[0].style = BTN_PRIMARY;
+        g_cards[1].btns[0].hidden = FALSE;
+    } else if (kblKnown && kblUpd) {
+        g_cards[1].btns[0].label = L"Update";
+        g_cards[1].btns[0].style = BTN_AMBER;
+        g_cards[1].btns[0].hidden = FALSE;
+    } else {
+        g_cards[1].btns[0].label = L"Update";
+        g_cards[1].btns[0].hidden = TRUE;
     }
 
     if (hasKbl && kblKnown) {
         wcsncat(g_cards[1].badge, kblUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
-        if (kblUpd) {
-            if (g_cards[1].badgeKind == BADGE_OK || g_cards[1].badgeKind == BADGE_IDLE)
-                g_cards[1].badgeKind = BADGE_WARN;
-            g_cards[1].btns[2].style = BTN_AMBER;
-            g_cards[1].btns[2].hidden = FALSE;
-        } else {
-            g_cards[1].btns[2].hidden = TRUE;
-        }
-    } else {
-        g_cards[1].btns[2].hidden = TRUE;
+        if (kblUpd && (g_cards[1].badgeKind == BADGE_OK || g_cards[1].badgeKind == BADGE_IDLE))
+            g_cards[1].badgeKind = BADGE_WARN;
     }
 
     /* 3. Spatial HUD */
@@ -2389,20 +2403,23 @@ static void RefreshProjectStatuses(void) {
             FindClose(hf);
         }
         if (!foundJar[0]) {
-            wcsncpy(g_cards[2].badge, L"Update Ready", 47);
+            wcsncpy(g_cards[2].badge, L"Setup Ready", 47);
             g_cards[2].badgeKind = BADGE_WARN;
+            g_cards[2].btns[0].label = L"Install";
             g_cards[2].btns[0].style = BTN_PRIMARY;
-            g_cards[2].btns[0].hidden = FALSE;   /* not installed: update needed */
-            wcsncpy(g_cards[2].detail, L"Minecraft 26.3 Fabric mod  \x00B7  Click Update to install", 255);
+            g_cards[2].btns[0].hidden = FALSE;   /* not installed: Install */
+            wcsncpy(g_cards[2].detail, L"Minecraft 26.3 Fabric mod  \x00B7  Click Install to set up", 255);
         } else if (remHudSz > 0 && foundSize != remHudSz) {
             wcsncpy(g_cards[2].badge, L"Update Ready", 47);
             g_cards[2].badgeKind = BADGE_WARN;
+            g_cards[2].btns[0].label = L"Update";
             g_cards[2].btns[0].style = BTN_PRIMARY;
             g_cards[2].btns[0].hidden = FALSE;   /* newer build available */
             _snwprintf(g_cards[2].detail, 255, L"Minecraft 26.3 Fabric mod  \x00B7  Newer build (%s)", remHud);
         } else {
             wcsncpy(g_cards[2].badge, L"Up to Date", 47);
             g_cards[2].badgeKind = BADGE_OK;
+            g_cards[2].btns[0].label = L"Update";
             g_cards[2].btns[0].style = BTN_SECONDARY;
             g_cards[2].btns[0].hidden = TRUE;    /* up to date: hide Update */
             _snwprintf(g_cards[2].detail, 255, L"Minecraft 26.3 Fabric mod  \x00B7  %s", foundJar);
@@ -2445,10 +2462,11 @@ static void RefreshProjectStatuses(void) {
             if (py) { ExtractQuotedAfter(py, "PLUGIN_VERSION", locInfill, sizeof(locInfill)); free(py); }
         }
         if (!locWave[0] && !locInfill[0]) {
-            wcsncpy(g_cards[3].badge, L"Update Ready", 47);
+            wcsncpy(g_cards[3].badge, L"Setup Ready", 47);
             g_cards[3].badgeKind = BADGE_WARN;
+            g_cards[3].btns[0].label = L"Install";
             g_cards[3].btns[0].style = BTN_PRIMARY;
-            g_cards[3].btns[0].hidden = FALSE;   /* not installed: update needed */
+            g_cards[3].btns[0].hidden = FALSE;   /* not installed: Install */
             _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S & Unlayered Infill %S available",
                        remWave[0] ? remWave : "latest", remInfill[0] ? remInfill : "latest");
         } else {
@@ -2456,6 +2474,7 @@ static void RefreshProjectStatuses(void) {
                        (remInfill[0] && VerNewer(remInfill, locInfill));
             wcsncpy(g_cards[3].badge, upd ? L"Update Ready" : L"Up to Date", 47);
             g_cards[3].badgeKind = upd ? BADGE_WARN : BADGE_OK;
+            g_cards[3].btns[0].label = L"Update";
             g_cards[3].btns[0].style = upd ? BTN_PRIMARY : BTN_SECONDARY;
             g_cards[3].btns[0].hidden = !upd;
             _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S & Unlayered Infill %S",
@@ -2472,38 +2491,43 @@ static void RefreshProjectStatuses(void) {
     BOOL dnsKnown = (remDnsSz > 0 && locDnsSz > 0);
     BOOL dnsUpd = hasDns && dnsKnown && RemoteDiffers(g_remDnsSha, dnsExe, remDnsSz);
     BOOL dnsRunning = (FindWindowW(L"KBLSuiteDnsPilotWindow", NULL) != NULL);
-    g_cards[4].btns[1].style = BTN_SECONDARY;
     if (!hasDns) {
         wcsncpy(g_cards[4].badge, L"Setup Ready", 47);
         g_cards[4].badgeKind = BADGE_WARN;
-        g_cards[4].btns[0].label = L"Install";
-        g_cards[4].btns[0].style = BTN_PRIMARY;
+        g_cards[4].btns[1].hidden = TRUE;   /* nothing to open until installed */
         wcsncpy(g_cards[4].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Click Install to set up", 255);
     } else if (dnsRunning) {
         wcsncpy(g_cards[4].badge, L"Active", 47);
         g_cards[4].badgeKind = BADGE_OK;
-        g_cards[4].btns[0].label = L"Open";
-        g_cards[4].btns[0].style = BTN_SECONDARY;
+        g_cards[4].btns[1].label = L"Open";
+        g_cards[4].btns[1].style = BTN_SECONDARY;
+        g_cards[4].btns[1].hidden = FALSE;
         wcsncpy(g_cards[4].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Running (window or tray)", 255);
     } else {
         wcsncpy(g_cards[4].badge, L"Standby", 47);
         g_cards[4].badgeKind = BADGE_IDLE;
-        g_cards[4].btns[0].label = L"Open";
-        g_cards[4].btns[0].style = BTN_SECONDARY;
+        g_cards[4].btns[1].label = L"Open";
+        g_cards[4].btns[1].style = BTN_SECONDARY;
+        g_cards[4].btns[1].hidden = FALSE;
         wcsncpy(g_cards[4].detail, L"Fast DNS benchmark & auto-pilot  \x00B7  Installed locally", 255);
+    }
+    /* btns[0] is the Update/Install action. */
+    if (!hasDns) {
+        g_cards[4].btns[0].label = L"Install";
+        g_cards[4].btns[0].style = BTN_PRIMARY;
+        g_cards[4].btns[0].hidden = FALSE;
+    } else if (dnsKnown && dnsUpd) {
+        g_cards[4].btns[0].label = L"Update";
+        g_cards[4].btns[0].style = BTN_AMBER;
+        g_cards[4].btns[0].hidden = FALSE;
+    } else {
+        g_cards[4].btns[0].label = L"Update";
+        g_cards[4].btns[0].hidden = TRUE;
     }
     if (hasDns && dnsKnown) {
         wcsncat(g_cards[4].badge, dnsUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
-        if (dnsUpd) {
-            if (g_cards[4].badgeKind == BADGE_OK || g_cards[4].badgeKind == BADGE_IDLE)
-                g_cards[4].badgeKind = BADGE_WARN;
-            g_cards[4].btns[1].style = BTN_AMBER;
-            g_cards[4].btns[1].hidden = FALSE;
-        } else {
-            g_cards[4].btns[1].hidden = TRUE;
-        }
-    } else {
-        g_cards[4].btns[1].hidden = TRUE;
+        if (dnsUpd && (g_cards[4].badgeKind == BADGE_OK || g_cards[4].badgeKind == BADGE_IDLE))
+            g_cards[4].badgeKind = BADGE_WARN;
     }
 
     /* 6. Agent Notes */
@@ -2515,32 +2539,36 @@ static void RefreshProjectStatuses(void) {
         DWORD locNotesSz = LocalSizeOf(notesExe);
         BOOL notesKnown = (remNotesSz > 0 && locNotesSz > 0);
         BOOL notesUpd = hasNotes && notesKnown && RemoteDiffers(g_remNotesSha, notesExe, remNotesSz);
-        g_cards[5].btns[1].style = BTN_SECONDARY;
         if (!hasNotes) {
             wcsncpy(g_cards[5].badge, L"Setup Ready", 47);
             g_cards[5].badgeKind = BADGE_WARN;
-            g_cards[5].btns[0].label = L"Install";
-            g_cards[5].btns[0].style = BTN_PRIMARY;
+            g_cards[5].btns[1].hidden = TRUE;   /* nothing to open until installed */
             wcsncpy(g_cards[5].detail, L"Quick notes straight to the agent  \x00B7  Click Install to set up", 255);
         } else {
             wcsncpy(g_cards[5].badge, L"Ready", 47);
             g_cards[5].badgeKind = BADGE_OK;
-            g_cards[5].btns[0].label = L"Open";
-            g_cards[5].btns[0].style = BTN_SECONDARY;
+            g_cards[5].btns[1].label = L"Open";
+            g_cards[5].btns[1].style = BTN_SECONDARY;
+            g_cards[5].btns[1].hidden = FALSE;
             wcsncpy(g_cards[5].detail, L"Quick notes straight to the agent  \x00B7  Installed locally", 255);
+        }
+        /* btns[0] is the Update/Install action. */
+        if (!hasNotes) {
+            g_cards[5].btns[0].label = L"Install";
+            g_cards[5].btns[0].style = BTN_PRIMARY;
+            g_cards[5].btns[0].hidden = FALSE;
+        } else if (notesKnown && notesUpd) {
+            g_cards[5].btns[0].label = L"Update";
+            g_cards[5].btns[0].style = BTN_AMBER;
+            g_cards[5].btns[0].hidden = FALSE;
+        } else {
+            g_cards[5].btns[0].label = L"Update";
+            g_cards[5].btns[0].hidden = TRUE;
         }
         if (hasNotes && notesKnown) {
             wcsncat(g_cards[5].badge, notesUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
-            if (notesUpd) {
-                if (g_cards[5].badgeKind == BADGE_OK || g_cards[5].badgeKind == BADGE_IDLE)
-                    g_cards[5].badgeKind = BADGE_WARN;
-                g_cards[5].btns[1].style = BTN_AMBER;
-                g_cards[5].btns[1].hidden = FALSE;
-            } else {
-                g_cards[5].btns[1].hidden = TRUE;
-            }
-        } else {
-            g_cards[5].btns[1].hidden = TRUE;
+            if (notesUpd && (g_cards[5].badgeKind == BADGE_OK || g_cards[5].badgeKind == BADGE_IDLE))
+                g_cards[5].badgeKind = BADGE_WARN;
         }
     }
 
@@ -2563,40 +2591,45 @@ static void RefreshProjectStatuses(void) {
         BOOL asKnown = (remAsSz > 0 && locAsSz > 0);
         BOOL asUpd = hasAs && asKnown && RemoteDiffers(g_remAudioSwitcherSha, asExe, remAsSz);
         BOOL asRunning = (FindWindowW(L"TestsAudioSwitcherWnd", NULL) != NULL);
-        g_cards[6].btns[1].style = BTN_SECONDARY;
         if (!hasAs) {
             wcsncpy(g_cards[6].badge, L"Setup Ready", 47);
             g_cards[6].badgeKind = BADGE_WARN;
-            g_cards[6].btns[0].label = L"Install";
-            g_cards[6].btns[0].style = BTN_PRIMARY;
+            g_cards[6].btns[1].hidden = TRUE;   /* nothing to open until installed */
             wcsncpy(g_cards[6].detail, L"Per-app volume & audio output switching  \x00B7  Click Install to set up", 255);
         } else if (asRunning) {
             wcsncpy(g_cards[6].badge, L"Active", 47);
             g_cards[6].badgeKind = BADGE_OK;
-            g_cards[6].btns[0].label = L"Open";
-            g_cards[6].btns[0].style = BTN_SECONDARY;
+            g_cards[6].btns[1].label = L"Open";
+            g_cards[6].btns[1].style = BTN_SECONDARY;
+            g_cards[6].btns[1].hidden = FALSE;
             wcsncpy(g_cards[6].detail, L"Per-app volume & audio output switching  \x00B7  Running (window or tray)", 255);
             AppendInstallFolder(g_cards[6].detail, asDir);
         } else {
             wcsncpy(g_cards[6].badge, L"Standby", 47);
             g_cards[6].badgeKind = BADGE_IDLE;
-            g_cards[6].btns[0].label = L"Open";
-            g_cards[6].btns[0].style = BTN_SECONDARY;
+            g_cards[6].btns[1].label = L"Open";
+            g_cards[6].btns[1].style = BTN_SECONDARY;
+            g_cards[6].btns[1].hidden = FALSE;
             wcsncpy(g_cards[6].detail, L"Per-app volume & audio output switching  \x00B7  Installed locally", 255);
             AppendInstallFolder(g_cards[6].detail, asDir);
         }
+        /* btns[0] is the Update/Install action. */
+        if (!hasAs) {
+            g_cards[6].btns[0].label = L"Install";
+            g_cards[6].btns[0].style = BTN_PRIMARY;
+            g_cards[6].btns[0].hidden = FALSE;
+        } else if (asKnown && asUpd) {
+            g_cards[6].btns[0].label = L"Update";
+            g_cards[6].btns[0].style = BTN_AMBER;
+            g_cards[6].btns[0].hidden = FALSE;
+        } else {
+            g_cards[6].btns[0].label = L"Update";
+            g_cards[6].btns[0].hidden = TRUE;
+        }
         if (hasAs && asKnown) {
             wcsncat(g_cards[6].badge, asUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
-            if (asUpd) {
-                if (g_cards[6].badgeKind == BADGE_OK || g_cards[6].badgeKind == BADGE_IDLE)
-                    g_cards[6].badgeKind = BADGE_WARN;
-                g_cards[6].btns[1].style = BTN_AMBER;
-                g_cards[6].btns[1].hidden = FALSE;
-            } else {
-                g_cards[6].btns[1].hidden = TRUE;
-            }
-        } else {
-            g_cards[6].btns[1].hidden = TRUE;
+            if (asUpd && (g_cards[6].badgeKind == BADGE_OK || g_cards[6].badgeKind == BADGE_IDLE))
+                g_cards[6].badgeKind = BADGE_WARN;
         }
     }
 

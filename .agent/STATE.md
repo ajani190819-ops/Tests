@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-10-30 (Clipboard Memory removed entirely - hub down to 7 built-in cards; first unit of a larger suite overhaul: card button order, Install-vs-Update, Bluetooth forget, code modularization, agent-file tune-up)
+**Last Updated:** 2026-10-30 (Hub card buttons reordered Update-first on all 7 cards; first button is now dynamic - Install when the app is missing, Update when a newer build is known, hidden when current; Open moved to btns[1] and hides while missing. Clipboard Memory removed earlier this pass.)
 
 ## Turn protocol (do this literally)
 
@@ -25,7 +25,7 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 
 | Component | Path | Version | Status |
 | :--- | :--- | :--- | :--- |
-| **Project Hub** | `project-hub/src/project_hub.c` | 2.8.41 | **GREEN** — Orca + Spatial HUD cards match the other app cards (Update shown only when needed, then Folder, Remove, Disable); Orca gained a real Remove and a persisted Disable that gates its installer; suite folder is the install target for every app and the hub; "Update All" refreshes every built-in; content-hash update checks; branch-aware mod card; Clipboard Memory removed (7 built-in cards) |
+| **Project Hub** | `project-hub/src/project_hub.c` | 2.8.42 | **GREEN** — every card leads with a dynamic Update/Install button (Install when the app is missing, Update when a newer build is known, hidden when current), then Open, Folder, and the card extra (Stop/Unfreeze); Orca + Spatial HUD match the other app cards; Orca has a real Remove and a persisted Disable that gates its installer; suite folder is the install target for every app and the hub; "Update All" refreshes every built-in; content-hash update checks; branch-aware mod card; Clipboard Memory removed (7 built-in cards) |
 | **Bluetooth Guard** | `bluetooth-guard/src/bluetooth_guard.c` | 2.8.7 | **GREEN** — rules-ghost device list; `HighestAvailable` logon task |
 | **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold via raw input (no global key hook, so PrintScreen works); dither keeps each lamp's phase across a blackout; strict 7-bit ASCII, C# 5.0 |
 | **DNS Pilot** | `dns-pilot/src/dns_pilot.c` | size-tracked | **GREEN** — parallel rank test; `TestsSuite-DnsPilot` ONLOGON task |

@@ -832,23 +832,62 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("return", m.group(1))
 
     def test_update_button_is_hidden_unless_an_update_is_needed(self):
-        """The point of the redesign: Update shows only when there is something to
-        update. The HUD card hides btns[0] when up to date or disabled and reveals
-        it when the mod is missing or a newer build exists; Orca mirrors that."""
+        """btns[0] on every card is the dynamic Update/Install action: Install
+        (PRIMARY) when the app is missing, Update (AMBER) when a newer build is
+        known, hidden once up to date. Open moves to btns[1] and is hidden while
+        the app is missing. HUD/Orca mirror the same rule."""
         hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
-        # up-to-date and disabled branches hide the HUD Update button
-        self.assertRegex(hub_c, r'BADGE_OK;\s*g_cards\[2\]\.btns\[0\]\.style = BTN_SECONDARY;'
+        # every built-in card labels btns[0] "Install" in its not-installed branch
+        self.assertEqual(hub_c.count('.btns[0].label = L"Install"'), 7,
+                         "all 7 built-in cards should show Install when the app is missing")
+        # HUD up-to-date branch hides btns[0] (label reset to Update)
+        self.assertRegex(hub_c, r'BADGE_OK;\s*g_cards\[2\]\.btns\[0\]\.label = L"Update";'
+                                r'\s*g_cards\[2\]\.btns\[0\]\.style = BTN_SECONDARY;'
                                 r'\s*g_cards\[2\]\.btns\[0\]\.hidden = TRUE;')
+        # HUD disabled branch also hides btns[0]
         self.assertRegex(hub_c, r'BADGE_IDLE;\s*g_cards\[2\]\.btns\[0\]\.style = BTN_SECONDARY;'
                                 r'\s*g_cards\[2\]\.btns\[0\]\.hidden = TRUE;')
         # not-installed + newer-build branches reveal it (exactly two)
         self.assertEqual(hub_c.count("g_cards[2].btns[0].hidden = FALSE"), 2,
-                         "HUD should reveal Update in exactly the not-installed and newer-build branches")
+                         "HUD should reveal Update/Install in exactly the not-installed and newer-build branches")
         # Orca: disabled hides, not-installed reveals, else follows the update flag
         self.assertRegex(hub_c, r'BADGE_IDLE;\s*g_cards\[3\]\.btns\[0\]\.style = BTN_SECONDARY;'
                                 r'\s*g_cards\[3\]\.btns\[0\]\.hidden = TRUE;')
         self.assertEqual(hub_c.count("g_cards[3].btns[0].hidden = FALSE"), 1)
         self.assertIn("g_cards[3].btns[0].hidden = !upd;", hub_c)
+        # launcher cards hide Open (btns[1]) while the app is missing
+        self.assertEqual(hub_c.count("/* nothing to open until installed */"), 4,
+                         "BTG/DNS/Notes/Audio hide Open when the app is missing")
+        self.assertIn("g_cards[1].btns[1].hidden = !hasKbl;", hub_c)
+
+    def test_every_card_puts_the_update_action_first(self):
+        """Task: Update/Install is the first button on every card, then Open,
+        Folder, and finally the card-specific extra (Stop / Unfreeze). Both the
+        catalog (suite-apps.json) and the built-in C initializers must agree, or
+        the drawn order and the click handler ids drift apart."""
+        import json
+        cfg = json.loads((ROOT / "suite-apps.json").read_text(encoding="utf-8"))
+        apps = cfg["apps"] if isinstance(cfg, dict) and "apps" in cfg else cfg
+        by_id = {a["id"]: a["buttons"] for a in apps}
+        expected = {
+            "btguard":      "update:Update:74,open:Open:68,folder:Folder:68,stop:Stop:62",
+            "kbl":          "update:Update:74,open:Open:68,folder:Folder:68,unfreeze:Unfreeze:84",
+            "hud":          "updatemod:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
+            "orca":         "update:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
+            "dnspilot":     "update:Update:74,open:Open:68,folder:Folder:68",
+            "agentnotes":   "update:Update:74,open:Open:68,folder:Folder:68",
+            "audioswitcher":"update:Update:74,open:Open:68,folder:Folder:68",
+        }
+        for app_id, want in expected.items():
+            self.assertEqual(by_id.get(app_id), want,
+                             f"{app_id} button order regressed (Update must come first)")
+
+        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        for card in range(7):
+            self.assertRegex(
+                hub_c,
+                r'g_cards\[%d\]\.btns\[0\]\s*=\s*\(ActionBtn\)\s*\{\s*ID_[A-Z_0-9]+,\s*L"Update"' % card,
+                f"built-in card {card} does not initialize btns[0] as the Update action")
 
     def test_hub_restores_every_pool_backed_card_field_before_a_rebuild(self):
         """RebuildExtraCards resets g_strPoolUsed, which invalidates EVERY

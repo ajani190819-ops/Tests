@@ -8,7 +8,7 @@
       "dir": "BluetoothGuard",
       "icon": "bluetooth-guard/btguard.ico",
       "shortcut": "Bluetooth Guard",
-      "buttons": "open:Open:68,update:Update:74,stop:Stop:62,folder:Folder:68",
+      "buttons": "update:Update:74,open:Open:68,folder:Folder:68,stop:Stop:62",
       "state": "btguard",
       "worker": "btguard"
     },
@@ -20,7 +20,7 @@
       "dir": "KeyboardLighting",
       "icon": "keyboard-lighting/app.ico",
       "shortcut": "Keyboard Lighting",
-      "buttons": "open:Open:68,unfreeze:Unfreeze:84,update:Update:74,folder:Folder:68",
+      "buttons": "update:Update:74,open:Open:68,folder:Folder:68,unfreeze:Unfreeze:84",
       "state": "kbl",
       "worker": "kbl"
     },
@@ -56,7 +56,7 @@
       "dir": "DnsPilot",
       "icon": "dns-pilot/dnspilot.ico",
       "shortcut": "DNS Pilot",
-      "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
+      "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
       "state": "dnspilot",
       "worker": "dnspilot"
     },
@@ -68,7 +68,7 @@
       "dir": "AgentNotes",
       "icon": "agent-notes/agent-notes.ico",
       "shortcut": "Agent Notes",
-      "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
+      "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
       "state": "agentnotes",
       "worker": "agentnotes"
     },
@@ -80,7 +80,7 @@
       "dir": "AudioSwitcher",
       "icon": "audio-switcher/audio-switcher.ico",
       "shortcut": "Audio Switcher",
-      "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
+      "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
       "state": "audioswitcher",
       "worker": "audioswitcher"
     }
