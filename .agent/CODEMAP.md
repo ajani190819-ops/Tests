@@ -393,14 +393,94 @@
 - L222  f NoteSetHint
 - L229  f NowStamp
 
+## audio-switcher/src/audio_switcher.c
+
+
+## audio-switcher/src/parts/audio_subsystem.c
+
+- L68  f com_create_enumerator
+- L75  f com_release_enumerator
+- L84  f policy_activate  — Obtain IPolicyConfig.
+- L114  f endpoint_make_default  — Make endpoint `idx` the system default for ALL THREE roles.
+- L146  f endpoints_refresh
+- L254  f endpoints_cleanup
+- globals: g_endpoints (L25), g_endpoint_count (L26), g_default_endpoint_idx (L27), g_sessions (L28), g_session_count (L29), g_applied_pids (L36), g_applied_pid_count (L37), g_enum (L39), g_default_device (L40), g_session_mgr (L41), g_session_mgrs (L44), g_session_mgr_count (L45), g_session_sweep_used (L46), g_policy (L47), g_policy_variant (L53), g_policy_hr (L58), g_sessions_hr (L62), g_last_switch_hr (L65), g_last_switch_idx (L66)
+
+## audio-switcher/src/parts/control_theming.c
+
+- L20  f ui_brush
+- L34  f ui_fonts_create
+- L49  f ui_fonts_destroy
+- L98  f EmbRasterize  — Tri-Spoke Core Emblem - analytic sub-pixel SDF renderer, ported 1:1 from Project Hub
+- L169  f EmbCacheEnsure
+- L184  f EmbSpinDraw
+- L237  f DrawWayfinderEmblem
+- L243  f PaintEmblemBlit  — Blit the spinning emblem square straight to a DC (spin fast-path).
+- L264  f GetWinDpi
+- L271  f update_volume_text
+- globals: g_font_ui (L11), g_font_head (L12), g_font_small (L13), g_hover_btn (L14), g_embCache (L167)
+
+## audio-switcher/src/parts/diag.c
+
+- L23  f w2u8
+- L30  f diag
+- L41  f diag_dump_role_defaults
+- L61  f run_diagnostics
+- globals: g_diag_fp (L20), g_diag_path (L21)
+
+## audio-switcher/src/parts/remembered_levels.c
+
+- L29  f key_from_path  — Lowercased exe basename: the identity an app keeps across launches.
+- L39  f levels_path_init
+- L53  f levels_find
+- L60  f levels_load
+- L108  f levels_save
+- L136  f levels_remember  — Record a level the user set, and persist it.
+- L154  f pid_already_applied
+- L160  f mark_pid_applied
+- L173  f sessions_collect_from_device  — Collect the audio sessions of ONE render device into g_sessions.
+- L314  f sessions_refresh
+- L375  f sessions_cleanup
+- L388  f endpoint_set_volume
+- L394  f endpoint_get_volume
+- L401  f endpoint_get_mute
+- L408  f endpoint_set_mute
+- L414  f session_set_volume
+- L421  f session_set_mute
+- globals: g_remembered (L23), g_remembered_count (L24), g_levels_path (L25), g_levels_enabled (L26)
+
+## audio-switcher/src/parts/ui_reconcile.c
+
+- L49  f ui_hash_wstr
+- L54  f ui_mix
+- L60  f endpoints_signature  — Identity only -- deliberately excludes volume and mute, which change
+- L71  f sessions_signature
+- L84  f ui_destroy_all
+- L129  f ui_row_geometry
+- L140  f ui_layout_budget
+- L178  f ui_apply_viewport
+- L273  f ui_rebuild
+- L454  f ui_update_values
+- L505  f refresh_ui
+- L524  f ui_status_text  — Footer status line.
+- globals: g_ui_endpoint_sig (L16), g_ui_session_sig (L17), g_y_outputs_header (L21), g_y_apps_header (L22), g_y_footer (L23), g_truncated_endpoints (L24), g_truncated_sessions (L25), g_ep_card (L29), g_ss_card (L30), g_ep_rows (L31), g_ss_rows (L32), g_scroll_offset (L41), g_scroll_range (L42), g_viewport_h (L43), g_ep_max (L44), g_ss_max (L45), g_ep_scroll_max (L46), g_ss_scroll_max (L47), g_row_ep_h (L123)
+
+## audio-switcher/src/parts/vtable_asserts.c
+
+
+## audio-switcher/src/parts/window_ui_tray.c
+
+- L50  f S
+- globals: g_hInst (L5), g_hwnd (L6), g_app_icon (L7), g_nid (L8), g_quitting (L9), g_silent (L10), g_showEvent (L18), g_showThread (L19), g_showThreadRun (L20), g_btn_refresh (L26), g_endpoint_ctrls (L37), g_session_ctrls (L47), g_dpi (L49), g_dpi (L50), g_rcEmblem (L53)
+
 ## tools/agent_map.py
 
-- L42  f comment_purpose
-- L66  f scan_c
-- L91  f scan_py
-- L102  f c_file_list
-- L114  f build
-- L139  f main
+- L43  f comment_purpose
+- L67  f scan_c
+- L92  f scan_py
+- L103  f c_file_list
+- L115  f build
+- L140  f main
 
 ## tools/build_windows.py
 
@@ -566,13 +646,14 @@
 
 ## tests/test_windows_apps.py
 
-- L27  f strip_cs_comments_and_strings
-- L149  f lex_powershell
-- L284  f WindowsDesktopAppsTests
-- L1368  f SuiteFolderInstallTests
-- L1585  f AudioSwitcherReachabilityTests
-- L1771  f AudioSwitcherSessionSweepTests
-- L1914  f AppOpenFocusTests
+- L27  f read_c_inlined
+- L41  f strip_cs_comments_and_strings
+- L163  f lex_powershell
+- L298  f WindowsDesktopAppsTests
+- L1381  f SuiteFolderInstallTests
+- L1598  f AudioSwitcherReachabilityTests
+- L1782  f AudioSwitcherSessionSweepTests
+- L1923  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

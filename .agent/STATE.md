@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-10-30 (Modularizing the app sources: agent-notes and dns-pilot are now a thin main .c + parts/ section files, textually #included in order so each is still one translation unit - both rebuilt EXEs are byte-identical. Remaining to split: audio-switcher, keyboard-lighting, bluetooth-guard, project-hub. Earlier this pass: hub card buttons reordered Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
+**Last Updated:** 2026-10-30 (Modularizing the app sources: agent-notes, dns-pilot, and audio-switcher are now a thin main .c + parts/ section files, textually #included in order so each is still one translation unit - all rebuilt EXEs are byte-identical. Remaining to split: keyboard-lighting, bluetooth-guard, project-hub. Earlier this pass: hub card buttons reordered Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
 
 ## Turn protocol (do this literally)
 
@@ -30,7 +30,7 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 | **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold via raw input (no global key hook, so PrintScreen works); dither keeps each lamp's phase across a blackout; strict 7-bit ASCII, C# 5.0 |
 | **DNS Pilot** | `dns-pilot/src/dns_pilot.c` + `parts/` | size-tracked | **GREEN** — parallel rank test; `TestsSuite-DnsPilot` ONLOGON task. Modularized: thin `dns_pilot.c` `#include`s 11 `parts/` section files in order (one translation unit; edit the part files) |
 | **Agent Notes** | `agent-notes/src/agent_notes.c` + `parts/` | size-tracked | **GREEN** — POSTs to `tools/notes_server.py`; queues in `%LOCALAPPDATA%\AgentNotes\outbox\` while offline. Modularized: thin `agent_notes.c` textually `#include`s `parts/{config_outbox,http_agent,emblem,ui,entry}.c` in order (one translation unit; edit the part files) |
-| **Audio Switcher** | `audio-switcher/` | size-tracked | **GREEN** — catalog-driven hub card; surfaces+focuses its window on Open-from-hub (named-event show); lists apps on every render endpoint |
+| **Audio Switcher** | `audio-switcher/src/audio_switcher.c` + `parts/` | size-tracked | **GREEN** — catalog-driven hub card; surfaces+focuses its window on Open-from-hub (named-event show); lists apps on every render endpoint. Modularized: thin `audio_switcher.c` `#include`s 7 `parts/` section files in order (one translation unit; edit the part files) |
 | **Spatial HUD** | `spatial-hud-template-26.3/` | mod 1.0.5, updater 4 | **GREEN** — flicker + bottom cut-off fixed; pass-splitting HUD mods (Gnetum) complete partial frames via `fillSkippedRoots()` |
 | **Wave Overhangs / Unlayered Infill** | `plugins/` | 0.0.51 / 0.4.10 | **GREEN** — versions in lockstep across code, `.bat`, JSON, changelogs |
 | **App catalog** | `suite-apps.json` | 7 apps | **GREEN** — one JSON entry adds a hub card, no hub rebuild. Now contract-tested. |

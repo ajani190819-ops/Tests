@@ -24,6 +24,20 @@ import unittest
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def read_c_inlined(rel):
+    """Read a C source, inlining any local `#include "x.c"` part-files (the
+    unity-build modularization) so callers see the whole translation unit."""
+    path = ROOT / rel
+    text = path.read_text(encoding="utf-8", errors="replace")
+    base = path.parent
+
+    def _inline(m):
+        p = base / m.group(1)
+        return p.read_text(encoding="utf-8", errors="replace") if p.exists() else m.group(0)
+
+    return re.sub(r'^[ \t]*#include[ \t]+"([^"]+\.c)"[ \t]*$', _inline, text, flags=re.M)
+
+
 def strip_cs_comments_and_strings(src: str):
     """Stateful C# lexer: verifies delimiter balance and returns stripped code text."""
     out = []
@@ -1034,8 +1048,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
 
     @staticmethod
     def _audio_switcher_src() -> str:
-        return (ROOT / "audio-switcher" / "src" / "audio_switcher.c").read_text(
-            encoding="utf-8")
+        return read_c_inlined("audio-switcher/src/audio_switcher.c")
 
     @classmethod
     def _declared_vtable(cls, src: str, name: str):
@@ -1598,9 +1611,7 @@ class AudioSwitcherReachabilityTests(unittest.TestCase):
 
     @staticmethod
     def _src() -> str:
-        return (ROOT / "audio-switcher" / "src" / "audio_switcher.c").read_text(
-            encoding="utf-8", errors="replace"
-        )
+        return read_c_inlined("audio-switcher/src/audio_switcher.c")
 
     @staticmethod
     def _fn(src: str, signature: str) -> str:
@@ -1781,9 +1792,7 @@ class AudioSwitcherSessionSweepTests(unittest.TestCase):
 
     @staticmethod
     def _src() -> str:
-        return (ROOT / "audio-switcher" / "src" / "audio_switcher.c").read_text(
-            encoding="utf-8", errors="replace"
-        )
+        return read_c_inlined("audio-switcher/src/audio_switcher.c")
 
     @staticmethod
     def _fn(src: str, signature: str) -> str:
@@ -1920,16 +1929,7 @@ class AppOpenFocusTests(unittest.TestCase):
 
     @staticmethod
     def _src(rel):
-        text = (ROOT / rel).read_text(encoding="utf-8")
-        # Unity #include split: inline local part-files (src/parts/*.c) so the
-        # whole logical translation unit stays visible to the pattern checks.
-        base = (ROOT / rel).parent
-
-        def _inline(m):
-            p = base / m.group(1)
-            return p.read_text(encoding="utf-8") if p.exists() else m.group(0)
-
-        return re.sub(r'^[ \t]*#include[ \t]+"([^"]+\.c)"[ \t]*$', _inline, text, flags=re.M)
+        return read_c_inlined(rel)
 
     # (path, explicit-first-launch pattern, already-running-resurface pattern)
     APPS = [
