@@ -177,6 +177,7 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
                 int btnTopY    = btnBottomY - S(30, dpi);
                 RECT connBtnR  = { cr.right - S(118, dpi), btnTopY, cr.right - S(16, dpi), btnBottomY };
                 RECT autoTogR  = { connBtnR.left - S(156, dpi), btnTopY, connBtnR.left - S(8, dpi), btnBottomY };
+                RECT forgetR   = { autoTogR.left - S(96, dpi), btnTopY, autoTogR.left - S(8, dpi), btnBottomY };
 
                 const wchar_t *subTxt = NULL;
                 if (d->connected && !d->allowAuto)
@@ -190,7 +191,7 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
 
                 SelectObject(mem, fBody);
                 SetTextColor(mem, COL_MUTED);
-                RECT sr = { cr.left + S(72, dpi), cr.top + S(39, dpi), autoTogR.left - S(14, dpi), cr.bottom - S(12, dpi) };
+                RECT sr = { cr.left + S(72, dpi), cr.top + S(39, dpi), forgetR.left - S(14, dpi), cr.bottom - S(12, dpi) };
                 DrawTextW(mem, subTxt, -1, &sr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
                 int hitAuto = g_hitCount;
@@ -204,6 +205,11 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
                               d->connected ? L"Disconnect" : L"Connect",
                               d->connected ? 2 : 3,
                               g_hoverIdx == hitConn, dpi, listTop, listBottom);
+
+                int hitForget = g_hitCount;
+                AddHit(forgetR, HIT_DEV_FORGET_BTN, i);
+                DrawActionBtn(mem, px, W, H, fBtn, forgetR, L"Forget", 2,
+                              g_hoverIdx == hitForget, dpi, listTop, listBottom);
             }
             y += cardH + gap;
         }
@@ -311,6 +317,24 @@ static void HandleHitClick(int hitIdx) {
         }
         LeaveCriticalSection(&g_lock);
         EnqueueWork(wasConn ? 1 : 2, addr, dmac, dkind, dname);
+        InvalidateRect(g_hwnd, NULL, FALSE);
+    } else if (kind == HIT_DEV_FORGET_BTN) {
+        ULONGLONG addr = 0;
+        wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
+        EnterCriticalSection(&g_lock);
+        if (di >= 0 && di < g_devCount) {
+            DeviceEntry *d = &g_devices[di];
+            addr = d->address;
+            wcsncpy(dkind, d->kind, 15);
+            wcsncpy(dname, d->name, 127);
+            wcsncpy(dmac, d->mac, 23);
+            d->visible = FALSE;   /* drop it from the list at once */
+            d->connected = FALSE;
+            d->allowAuto = FALSE;
+        }
+        LeaveCriticalSection(&g_lock);
+        SaveRules();
+        EnqueueWork(3, addr, dmac, dkind, dname);   /* true unpair on the worker */
         InvalidateRect(g_hwnd, NULL, FALSE);
     }
 }

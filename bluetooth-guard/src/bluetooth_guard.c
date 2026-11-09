@@ -78,7 +78,8 @@ enum HitKind {
     HIT_BTN_REFRESH,
     HIT_BTN_QUIT,
     HIT_DEV_AUTO_TOGGLE,
-    HIT_DEV_CONNECT_BTN
+    HIT_DEV_CONNECT_BTN,
+    HIT_DEV_FORGET_BTN
 };
 
 typedef struct {
@@ -116,6 +117,7 @@ typedef HBLUETOOTH_DEVICE_FIND (WINAPI *PFN_BtFindFirstDevice)(const BLUETOOTH_D
 typedef BOOL                   (WINAPI *PFN_BtFindNextDevice)(HBLUETOOTH_DEVICE_FIND, BLUETOOTH_DEVICE_INFO *);
 typedef BOOL                   (WINAPI *PFN_BtFindDeviceClose)(HBLUETOOTH_DEVICE_FIND);
 typedef DWORD                  (WINAPI *PFN_BtSetServiceState)(HANDLE, const BLUETOOTH_DEVICE_INFO *, const GUID *, DWORD);
+typedef DWORD                  (WINAPI *PFN_BluetoothRemoveDevice)(ULONGLONG *);
 typedef UINT                   (WINAPI *PFN_GetDpiForWindow)(HWND);
 typedef HRESULT                (WINAPI *PFN_DwmSetWindowAttribute)(HWND, DWORD, LPCVOID, DWORD);
 
@@ -126,6 +128,7 @@ static PFN_BtFindFirstDevice  pBtFindFirstDevice  = NULL;
 static PFN_BtFindNextDevice   pBtFindNextDevice   = NULL;
 static PFN_BtFindDeviceClose  pBtFindDeviceClose  = NULL;
 static PFN_BtSetServiceState  pBtSetServiceState  = NULL;
+static PFN_BluetoothRemoveDevice pBluetoothRemoveDevice = NULL;
 
 static const GUID kGuidAudioSink      = {0x0000110B, 0x0000, 0x1000, {0x80,0x00,0x00,0x80,0x5F,0x9B,0x34,0xFB}};
 static const GUID kGuidAvRemoteTarget = {0x0000110C, 0x0000, 0x1000, {0x80,0x00,0x00,0x80,0x5F,0x9B,0x34,0xFB}};

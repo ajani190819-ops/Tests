@@ -294,6 +294,7 @@ static DWORD WINAPI WorkerThread(LPVOID unused) {
                 if (!has) break;
                 if (item.op == 1) DoDisconnectOnly(item.address, item.kind, item.name);
                 else if (item.op == 2) DoConnectNow(item.address, item.kind, item.name);
+                else if (item.op == 3) DoForgetDevice(item.address, item.kind, item.name);
             }
         }
         PollPairedDevices();

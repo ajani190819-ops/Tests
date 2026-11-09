@@ -114,6 +114,10 @@ static BOOL InitBluetoothApis(void) {
     pBtFindNextDevice  = (PFN_BtFindNextDevice)(void *)GetProcAddress(m, "BluetoothFindNextDevice");
     pBtFindDeviceClose = (PFN_BtFindDeviceClose)(void *)GetProcAddress(m, "BluetoothFindDeviceClose");
     pBtSetServiceState = (PFN_BtSetServiceState)(void *)GetProcAddress(m, "BluetoothSetServiceState");
+    /* Optional: the real unpair behind the Forget button. Absent on very old
+       SKUs; DoForgetDevice no-ops if it did not load, so it is not required
+       for init to succeed. */
+    pBluetoothRemoveDevice = (PFN_BluetoothRemoveDevice)(void *)GetProcAddress(m, "BluetoothRemoveDevice");
     return (pBtFindFirstRadio && pBtFindNextRadio && pBtFindRadioClose &&
             pBtFindFirstDevice && pBtFindNextDevice && pBtFindDeviceClose && pBtSetServiceState);
 }

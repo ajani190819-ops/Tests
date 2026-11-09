@@ -150,8 +150,8 @@
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
-- L179  f ArmFastBurstWindow
-- globals: g_hwnd (L144), g_appIcon (L145), g_devNotifyIface (L146), g_devNotifyRadio (L147), g_radioNotifyHandle (L148), g_nid (L149), g_quitting (L150), g_guardOn (L151), g_autostart (L152), g_autostartExplicit (L153), g_radioOn (L154), g_trayHinted (L155), g_showEvent (L156), g_lock (L157), g_devices (L159), g_devCount (L160), g_hits (L162), g_hitCount (L163), g_hoverIdx (L164), g_scrollY (L165), g_contentH (L166), g_fastBurstUntil (L168), g_manualGraceUntil (L169)
+- L182  f ArmFastBurstWindow
+- globals: g_hwnd (L147), g_appIcon (L148), g_devNotifyIface (L149), g_devNotifyRadio (L150), g_radioNotifyHandle (L151), g_nid (L152), g_quitting (L153), g_guardOn (L154), g_autostart (L155), g_autostartExplicit (L156), g_radioOn (L157), g_trayHinted (L158), g_showEvent (L159), g_lock (L160), g_devices (L162), g_devCount (L163), g_hits (L165), g_hitCount (L166), g_hoverIdx (L167), g_scrollY (L168), g_contentH (L169), g_fastBurstUntil (L171), g_manualGraceUntil (L172)
 
 ## bluetooth-guard/src/parts/autostart_rules.c
 
@@ -167,10 +167,11 @@
 - L2  f TriggerBtAudioKsProperty  — Native Windows KSPROPERTY_ONESHOT_RECONNECT / DISCONNECT — exact API used by Windows 11 Settings!
 - L75  f DoDisconnectOnly  — Disconnect active link cleanly WITHOUT disabling Bluetooth profiles!
 - L100  f DoConnectNow  — Actively connect device right now!
-- L105  f InitPaths
-- L115  f WriteHeartbeat
-- L136  f IsAutostartEnabled
-- L149  f RunHiddenCmd
+- L109  f DoForgetDevice
+- L116  f InitPaths
+- L126  f WriteHeartbeat
+- L147  f IsAutostartEnabled
+- L160  f RunHiddenCmd
 
 ## bluetooth-guard/src/parts/device_classify.c
 
@@ -181,10 +182,11 @@
 
 ## bluetooth-guard/src/parts/device_history.c
 
-- L7  f HasConnectedBefore
-- L30  f FormatMac
-- L38  f FormatCompactHex
-- L43  f ContainsCI
+- L3  f IsServiceGuidSubkey
+- L22  f HasConnectedBefore
+- L52  f FormatMac
+- L60  f FormatCompactHex
+- L65  f ContainsCI
 
 ## bluetooth-guard/src/parts/emblem.c
 
@@ -220,8 +222,8 @@
 ## bluetooth-guard/src/parts/window_entry.c
 
 - L1  f RenderWindow
-- L248  f HandleHitClick
-- L318  f ShowTrayMenu
+- L254  f HandleHitClick
+- L342  f ShowTrayMenu
 
 ## keyboard-lighting/src/keyboard_lighting.c
 
@@ -760,10 +762,10 @@
 - L43  f strip_cs_comments_and_strings
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
-- L1382  f SuiteFolderInstallTests
-- L1597  f AudioSwitcherReachabilityTests
-- L1781  f AudioSwitcherSessionSweepTests
-- L1922  f AppOpenFocusTests
+- L1413  f SuiteFolderInstallTests
+- L1628  f AudioSwitcherReachabilityTests
+- L1812  f AudioSwitcherSessionSweepTests
+- L1953  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

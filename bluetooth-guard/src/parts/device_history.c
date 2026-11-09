@@ -1,3 +1,18 @@
+/* TRUE when a registry subkey name is a Bluetooth service class GUID:
+   {8-4-4-4-12} hex (38 chars, braces, hyphens at 9/14/19/24). */
+static BOOL IsServiceGuidSubkey(const wchar_t *n) {
+    if (!n || wcslen(n) != 38) return FALSE;
+    if (n[0] != L'{' || n[37] != L'}') return FALSE;
+    if (n[9] != L'-' || n[14] != L'-' || n[19] != L'-' || n[24] != L'-') return FALSE;
+    for (int i = 1; i < 37; i++) {
+        if (i == 9 || i == 14 || i == 19 || i == 24) continue;
+        wchar_t c = n[i];
+        if (!((c >= L'0' && c <= L'9') || (c >= L'a' && c <= L'f') || (c >= L'A' && c <= L'F')))
+            return FALSE;
+    }
+    return TRUE;
+}
+
 /* Has this device ever carried a profile connection on this machine?
    BTHPORT keeps one subkey per service under the device key, and those
    appear the first time a profile actually connects. A paired-but-never-
@@ -18,13 +33,20 @@ static BOOL HasConnectedBefore(ULONGLONG addr) {
     /* Key missing = never connected = STRANGER, never show it */
     if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, path, 0, KEY_READ, &hKey) != ERROR_SUCCESS)
         return FALSE;
-    DWORD subKeys = 0;
-    LONG rc = RegQueryInfoKeyW(hKey, NULL, NULL, NULL, &subKeys, NULL, NULL,
-                               NULL, NULL, NULL, NULL, NULL);
+    /* A real profile connection leaves a subkey named after the service class
+       GUID. A paired-but-never-used row can carry the device key with only a
+       non-service subkey, so count GUID-named subkeys - not just any subkey -
+       or Swift Pair bait and stale cache rows leak into the list. */
+    BOOL sawService = FALSE;
+    for (DWORD i = 0; ; i++) {
+        wchar_t sub[64];
+        DWORD cch = 64;
+        if (RegEnumKeyExW(hKey, i, sub, &cch, NULL, NULL, NULL, NULL) != ERROR_SUCCESS)
+            break;
+        if (IsServiceGuidSubkey(sub)) { sawService = TRUE; break; }
+    }
     RegCloseKey(hKey);
-    if (rc != ERROR_SUCCESS) return FALSE;
-    /* profile subkeys exist = this machine actually connected before */
-    return subKeys > 0;
+    return sawService;
 }
 
 static void FormatMac(ULONGLONG addr, wchar_t *out, size_t cap) {

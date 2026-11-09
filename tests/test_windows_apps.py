@@ -584,6 +584,37 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("window.ready", setup)
         self.assertTrue((ROOT / "bluetooth-guard" / "Setup.bat").exists())
 
+    def test_bluetooth_guard_forget_unpairs_and_filters_phantom_devices(self):
+        """The Forget button must do a TRUE unpair (BluetoothRemoveDevice), not a
+        profile disable, and the device list must stop showing paired-but-never-
+        connected phantoms: HasConnectedBefore now requires a real service-GUID
+        subkey rather than merely any subkey."""
+        btg = read_c_inlined("bluetooth-guard/src/bluetooth_guard.c")
+
+        # the real unpair API is loaded and wrapped
+        self.assertIn('GetProcAddress(m, "BluetoothRemoveDevice")', btg)
+        self.assertIn("static void DoForgetDevice(", btg)
+        self.assertIn("pBluetoothRemoveDevice(&addr)", btg)
+        # ... and it is NOT a profile disable (suite policy: never disable profiles)
+        forget = btg[btg.index("static void DoForgetDevice("):]
+        forget = forget[:forget.index("\n}\n")]
+        self.assertNotIn("BluetoothSetServiceState", forget)
+        self.assertNotIn("BLUETOOTH_SERVICE_DISABLE", forget)
+
+        # the Forget button is drawn, hit-tested, and routed to a true unpair
+        self.assertIn("HIT_DEV_FORGET_BTN", btg)
+        self.assertRegex(btg, r'DrawActionBtn\([^;]*forgetR,\s*L"Forget"')
+        self.assertIn("AddHit(forgetR, HIT_DEV_FORGET_BTN, i)", btg)
+        self.assertIn("EnqueueWork(3, addr, dmac, dkind, dname)", btg)
+        self.assertIn("else if (item.op == 3) DoForgetDevice(", btg)
+
+        # phantom filter: require a service-GUID subkey, not just any subkey
+        self.assertIn("static BOOL IsServiceGuidSubkey(", btg)
+        self.assertIn("RegEnumKeyExW", btg)
+        self.assertNotIn("return subKeys > 0;", btg,
+                         "HasConnectedBefore still counts ANY subkey, so paired-but-"
+                         "never-connected phantoms leak into the device list")
+
     def test_project_hub_command_ids_do_not_collide(self):
         """Guard the 'swallowed button' bug class: the branch-download menu
         reserves a numeric command-ID range, and a button ID that lands

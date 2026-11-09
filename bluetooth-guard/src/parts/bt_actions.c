@@ -102,6 +102,17 @@ static void DoConnectNow(ULONGLONG address, const wchar_t *kind, const wchar_t *
     TriggerBtAudioKsProperty(address, name, KSPROPERTY_ONESHOT_RECONNECT);
 }
 
+/* True unpair: remove the device from Windows entirely (the Forget button).
+   BluetoothRemoveDevice deletes the pairing itself - NOT merely a profile -
+   so the device must be paired again to come back. This is deliberately not
+   BluetoothSetServiceState(DISABLE): profiles stay enabled per suite policy. */
+static void DoForgetDevice(ULONGLONG address, const wchar_t *kind, const wchar_t *name) {
+    (void)kind; (void)name;
+    if (!pBluetoothRemoveDevice) return;   /* not available on this SKU */
+    ULONGLONG addr = address;
+    pBluetoothRemoveDevice(&addr);
+}
+
 static void InitPaths(void) {
     wchar_t localApp[MAX_PATH] = L"";
     if (FAILED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, localApp)))
