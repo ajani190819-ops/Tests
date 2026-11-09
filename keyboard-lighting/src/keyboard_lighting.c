@@ -1424,7 +1424,6 @@ static int       g_keyRingHead = 0;
 typedef struct HidRec { ULONGLONG tick; DWORD code; BYTE rel; } HidRec;
 static HidRec    g_hidRing[256];
 static int       g_hidRingHead = 0;
-static HHOOK     g_kbHook = NULL;
 static int       g_scanBound[2] = { 0, 0 };
 static DWORD     g_hidCode[2] = { 0, 0 };
 static BYTE      g_scanArmed[2] = { 1, 1 };
@@ -1605,22 +1604,6 @@ static void WatchBrightTokens(void) {
             if (fresh) LearnFromRing(dir);
         }
     }
-}
-
-static LRESULT CALLBACK KbHoldProc(int code, WPARAM wp, LPARAM lp) {
-    if (code == HC_ACTION && (wp == WM_KEYDOWN || wp == WM_SYSKEYDOWN ||
-                              wp == WM_KEYUP || wp == WM_SYSKEYUP)) {
-        const KBDLLHOOKSTRUCT *k = (const KBDLLHOOKSTRUCT *)lp;
-        int down = (wp == WM_KEYDOWN || wp == WM_SYSKEYDOWN);
-        int injected = (k->flags & LLKHF_INJECTED) != 0;
-        ULONGLONG now = GetTickCount64();
-        KeyRec *r = &g_keyRing[g_keyRingHead];
-        r->tick = now; r->scan = k->scanCode;
-        r->down = (BYTE)down; r->injected = (BYTE)injected;
-        g_keyRingHead = (g_keyRingHead + 1) & 255;
-        OnScanEvent(k->scanCode, down, injected, now);
-    }
-    return CallNextHookEx(g_kbHook, code, wp, lp);
 }
 
 static void InitRawInput(HWND hwnd) {
@@ -3310,9 +3293,7 @@ static void InitKblPaths(void) {
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
     (void)hPrev; (void)nShow;
     InitKblPaths();
-    g_kbHook = SetWindowsHookExW(WH_KEYBOARD_LL, KbHoldProc, GetModuleHandleW(NULL), 0);
     OsdCreate(hInst);
-    InitRawInput(g_hwnd);
     g_isAdmin = CheckIsAdmin();
 
     BOOL silent    = (cmdLine && (wcsstr(cmdLine, L"-Silent") != NULL || wcsstr(cmdLine, L"--silent") != NULL));
@@ -3422,6 +3403,16 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
                              CW_USEDEFAULT, CW_USEDEFAULT, S(820, dpi), S(660, dpi),
                              NULL, NULL, hInst, NULL);
     RegisterBrightnessHotkeys(g_hwnd);
+    /* Watch the M4/M5 keys through raw input (keyboard + HID), registered now
+       that g_hwnd exists. WM_INPUT is queued to our own message loop, so unlike
+       the WH_KEYBOARD_LL hook this used to rely on it never intercepts input
+       system-wide and cannot make Windows drop keystrokes: a low-level hook lives
+       on this thread, and this thread blocks for seconds in the engine
+       (re)start waits below, which timed the hook out and silently killed
+       PrintScreen (and other keys) machine-wide while the app ran. It was also
+       previously called before CreateWindowExW, i.e. with a NULL hwnd, so raw
+       input never arrived and the hook was doing all the work. */
+    InitRawInput(g_hwnd);
 
     ZeroMemory(&g_nid, sizeof(g_nid));
     g_nid.cbSize           = sizeof(g_nid);

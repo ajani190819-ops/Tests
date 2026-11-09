@@ -201,48 +201,48 @@
 - L1325  f ScheduleLiveApply
 - L1337  f FlushLiveApply
 - L1362  f ParseLayoutTxt
-- L1442  f HasReleaseSrc
-- L1446  f HoldTokenWrite
-- L1454  f HoldPump  — One paced token per interval while the gesture is live.
-- L1469  f PressSignal
-- L1481  f ReleaseSignal
-- L1491  f OnScanEvent
-- L1510  f OnRawHid
-- L1536  f LearnFromRing
-- L1596  f WatchBrightTokens
-- L1626  f InitRawInput
-- L1659  f OnRawInputMsg
-- L1689  f OsdDrawSunFallback
-- L1820  f OsdCreate
-- L1835  f OsdShow
-- L1852  f PollLayoutTxt
-- L1862  f PollLivePreviewFrame  — Read live lamp frame from Aura-Background.ps1 or synthesize accurate live palette preview
-- L1960  f FillCanvasRect
-- L1973  f SmoothRoundRect
-- L2020  f SmoothCircle
-- L2058  f SmoothRingTrack  — Thin annulus: the track that makes the Light Bar read as one closed loop.
-- L2093  f EmbRasterize
-- L2170  f EmbCacheEnsure
-- L2185  f EmbSpinDraw
-- L2240  f DrawSuiteEmblemIcon
-- L2245  f AddHit
-- L2254  f DrawSuiteBtn
-- L2267  f DrawPillSwitch
-- L2292  f DrawSmoothSlider
-- L2325  f RenderKblWindow
-- L2425  S CARD 1: Live ROG Strix G16 Preview + Master Brightness
-- L2520  S CARD 2: Zone Tabs + Effect Picker
-- L2574  S CARD 3: Interactive Colour Swatches + Band Width Bars
-- L2629  S CARD 4: Speed, Zone Brightness & Motion Switches
-- L2745  f ApplySliderDrag  — ============================================================================
-- L2773  f OpenEffectPopup
-- L2823  f PickSwatchColor
-- L2857  f RelaunchElevated
-- L2878  f EnsureLogonTask
-- L2924  f HandleHitAction
-- L3016  f ShowTrayContextMenu
-- L3272  f InitKblPaths
-- globals: g_hwnd (L178), g_appIcon (L179), g_nid (L180), g_showEvent (L181), g_engineProc (L182), g_enginePid (L183), g_isAdmin (L184), g_autostart (L185), g_wantOff (L186), g_quitting (L187), g_trayHinted (L188), g_downloading (L189), g_cfg (L191), g_tab (L192), g_hits (L193), g_hitCount (L194), g_hoverIdx (L195), g_dragKind (L196), g_dragIdx (L197), g_dragRect (L198), g_scrollY (L199), g_contentH (L200), g_applyPending (L201), g_applyAtTick (L202), g_liveCols (L205), g_liveKbdN (L206), g_liveBarN (L207), g_hasLiveFrame (L208), g_lastFrameTick (L209), g_toastText (L212), g_toastAt (L213), g_lastFnPoll (L214), g_exePath (L217), g_exeDir (L218), g_cfgDir (L219), g_panelPath (L220), g_themePath (L221), g_livePath (L222), g_framePath (L223), g_layoutPath (L224), g_lockPath (L225), g_showPath (L226), g_engPidPath (L227), g_stopPath (L228), g_brightUpPath (L229), g_brightDownPath (L230), g_holdModePath (L231), g_engineScript (L232), g_zonesBat (L233), g_statusText (L234), g_presetName (L409), g_presetUsed (L410), g_presetIdx (L411), g_barOrder (L1357), g_barQ (L1358), g_barLayoutN (L1359), g_layoutReadAt (L1360), g_keyRing (L1422), g_keyRingHead (L1423), g_hidRing (L1425), g_hidRingHead (L1426), g_kbHook (L1427), g_scanBound (L1428), g_hidCode (L1429), g_scanArmed (L1430), g_hidDown (L1431), g_holdOn (L1432), g_hidRelSeen (L1433), g_sigAt (L1434), g_scanNext (L1435), g_learnCand (L1436), g_learnN (L1437), g_learnHid (L1438), g_learnHidN (L1439), g_seenTok (L1440), g_osdHwnd (L1686), g_osdPct (L1687), g_embCache (L2168), g_pickOrig (L2793), g_pickLast (L2794), g_pickIdx (L2795), g_pickLive (L2796)
+- L1441  f HasReleaseSrc
+- L1445  f HoldTokenWrite
+- L1453  f HoldPump  — One paced token per interval while the gesture is live.
+- L1468  f PressSignal
+- L1480  f ReleaseSignal
+- L1490  f OnScanEvent
+- L1509  f OnRawHid
+- L1535  f LearnFromRing
+- L1595  f WatchBrightTokens
+- L1609  f InitRawInput
+- L1642  f OnRawInputMsg
+- L1672  f OsdDrawSunFallback
+- L1803  f OsdCreate
+- L1818  f OsdShow
+- L1835  f PollLayoutTxt
+- L1845  f PollLivePreviewFrame  — Read live lamp frame from Aura-Background.ps1 or synthesize accurate live palette preview
+- L1943  f FillCanvasRect
+- L1956  f SmoothRoundRect
+- L2003  f SmoothCircle
+- L2041  f SmoothRingTrack  — Thin annulus: the track that makes the Light Bar read as one closed loop.
+- L2076  f EmbRasterize
+- L2153  f EmbCacheEnsure
+- L2168  f EmbSpinDraw
+- L2223  f DrawSuiteEmblemIcon
+- L2228  f AddHit
+- L2237  f DrawSuiteBtn
+- L2250  f DrawPillSwitch
+- L2275  f DrawSmoothSlider
+- L2308  f RenderKblWindow
+- L2408  S CARD 1: Live ROG Strix G16 Preview + Master Brightness
+- L2503  S CARD 2: Zone Tabs + Effect Picker
+- L2557  S CARD 3: Interactive Colour Swatches + Band Width Bars
+- L2612  S CARD 4: Speed, Zone Brightness & Motion Switches
+- L2728  f ApplySliderDrag  — ============================================================================
+- L2756  f OpenEffectPopup
+- L2806  f PickSwatchColor
+- L2840  f RelaunchElevated
+- L2861  f EnsureLogonTask
+- L2907  f HandleHitAction
+- L2999  f ShowTrayContextMenu
+- L3255  f InitKblPaths
+- globals: g_hwnd (L178), g_appIcon (L179), g_nid (L180), g_showEvent (L181), g_engineProc (L182), g_enginePid (L183), g_isAdmin (L184), g_autostart (L185), g_wantOff (L186), g_quitting (L187), g_trayHinted (L188), g_downloading (L189), g_cfg (L191), g_tab (L192), g_hits (L193), g_hitCount (L194), g_hoverIdx (L195), g_dragKind (L196), g_dragIdx (L197), g_dragRect (L198), g_scrollY (L199), g_contentH (L200), g_applyPending (L201), g_applyAtTick (L202), g_liveCols (L205), g_liveKbdN (L206), g_liveBarN (L207), g_hasLiveFrame (L208), g_lastFrameTick (L209), g_toastText (L212), g_toastAt (L213), g_lastFnPoll (L214), g_exePath (L217), g_exeDir (L218), g_cfgDir (L219), g_panelPath (L220), g_themePath (L221), g_livePath (L222), g_framePath (L223), g_layoutPath (L224), g_lockPath (L225), g_showPath (L226), g_engPidPath (L227), g_stopPath (L228), g_brightUpPath (L229), g_brightDownPath (L230), g_holdModePath (L231), g_engineScript (L232), g_zonesBat (L233), g_statusText (L234), g_presetName (L409), g_presetUsed (L410), g_presetIdx (L411), g_barOrder (L1357), g_barQ (L1358), g_barLayoutN (L1359), g_layoutReadAt (L1360), g_keyRing (L1422), g_keyRingHead (L1423), g_hidRing (L1425), g_hidRingHead (L1426), g_scanBound (L1427), g_hidCode (L1428), g_scanArmed (L1429), g_hidDown (L1430), g_holdOn (L1431), g_hidRelSeen (L1432), g_sigAt (L1433), g_scanNext (L1434), g_learnCand (L1435), g_learnN (L1436), g_learnHid (L1437), g_learnHidN (L1438), g_seenTok (L1439), g_osdHwnd (L1669), g_osdPct (L1670), g_embCache (L2151), g_pickOrig (L2776), g_pickLast (L2777), g_pickIdx (L2778), g_pickLive (L2779)
 
 ## dns-pilot/src/dns_pilot.c
 
@@ -516,10 +516,10 @@
 - L27  f strip_cs_comments_and_strings
 - L149  f lex_powershell
 - L284  f WindowsDesktopAppsTests
-- L1173  f SuiteFolderInstallTests
-- L1397  f AudioSwitcherReachabilityTests
-- L1583  f AudioSwitcherSessionSweepTests
-- L1726  f AppOpenFocusTests
+- L1205  f SuiteFolderInstallTests
+- L1429  f AudioSwitcherReachabilityTests
+- L1615  f AudioSwitcherSessionSweepTests
+- L1758  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

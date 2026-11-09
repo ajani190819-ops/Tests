@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-10-30 (every hub app now focuses its window when Open is clicked; Clipboard Memory's dead Open button fixed)
+**Last Updated:** 2026-10-30 (Keyboard Lighting dropped its global key hook so PrintScreen works; Orca/HUD hub cards trimmed to Folder/Remove/Update)
 
 ## Turn protocol (do this literally)
 
@@ -27,7 +27,7 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 | :--- | :--- | :--- | :--- |
 | **Project Hub** | `project-hub/src/project_hub.c` | 2.8.39 | **GREEN** — suite folder is the install target for every app and the hub; "Update All" now refreshes every built-in (Agent Notes was the one skipped); stray copies mirrored in the same click; content-hash update checks; branch-aware mod card |
 | **Bluetooth Guard** | `bluetooth-guard/src/bluetooth_guard.c` | 2.8.7 | **GREEN** — rules-ghost device list; `HighestAvailable` logon task |
-| **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold modes; dither keeps each lamp's phase across a blackout (no lockstep pulse on off/on); strict 7-bit ASCII, C# 5.0 |
+| **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold via raw input (no global key hook, so PrintScreen works); dither keeps each lamp's phase across a blackout; strict 7-bit ASCII, C# 5.0 |
 | **DNS Pilot** | `dns-pilot/src/dns_pilot.c` | size-tracked | **GREEN** — parallel rank test; `TestsSuite-DnsPilot` ONLOGON task |
 | **Agent Notes** | `agent-notes/src/agent_notes.c` | size-tracked | **GREEN** — POSTs to `tools/notes_server.py`; queues in `%LOCALAPPDATA%\AgentNotes\outbox\` while the agent is offline |
 | **Audio Switcher / Clipboard Memory** | `audio-switcher/`, `clipboard-memory/` | size-tracked | **GREEN** — catalog-driven hub cards; both surface+focus their window on Open-from-hub (named-event show); Audio Switcher lists apps on every render endpoint |
@@ -113,6 +113,32 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 4. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
    `guiWidth/guiHeight` — the mapping bug fixed in Method 4 (1.0.4) is unfixed
    there. Fix it if Method 3 ever reports the same symptom.
+
+- **PrintScreen (and other keys) dropped while Keyboard Lighting ran** (owner:
+  "i cant use printscreen while in any of our apps"). Keyboard Lighting installed
+  a system-wide `WH_KEYBOARD_LL` hook (`KbHoldProc`) on its UI thread to watch the
+  M4/M5 brightness keys. A low-level hook must be serviced promptly by its thread,
+  but that same thread blocks for seconds in the engine (re)start waits
+  (`WaitForSingleObject(pi.hProcess, 2500..8000)`); Windows times a stalled hook
+  out and DROPS the keystroke machine-wide, and PrintScreen is the most visibly
+  broken. It was also the ONLY global key interception in the whole suite (no app
+  has a WM_KEYDOWN handler), which is why it hit "any of our apps".
+  - Fix: removed the hook entirely and repaired the raw-input path that was meant
+    to replace it. `InitRawInput(g_hwnd)` was being called BEFORE `CreateWindowExW`,
+    i.e. with a NULL hwnd, so `RegisterRawInputDevices` had no target and no
+    `WM_INPUT` ever arrived - the hook was doing all the work. Moved the call to
+    just after the window is created. Raw input (`RIDEV_INPUTSINK`, keyboard usage
+    1/6 plus the ASUS 0x0B05 HID devices) is queued to our own message loop via
+    `OnRawInputMsg`, which already fed `OnScanEvent` (keyboard MakeCode) and
+    `OnRawHid` (vendor HID) - so M4/M5 keep working, now also covering the HID path
+    that was dead, with no system-wide interception and no keystroke drops. All
+    detection stays on the UI thread (WM_INPUT), so no threading change.
+  - `test_keyboard_lighting_watches_keys_via_raw_input_not_a_global_hook` pins it
+    (no SetWindowsHookEx / KbHoldProc; WM_INPUT + OnScanEvent(MakeCode) present;
+    InitRawInput after CreateWindowExW); 2 negative controls (re-add the hook /
+    move InitRawInput before the window) both caught. NEEDS Windows re-validation
+    of M4/M5 brightness since the input mechanism changed. KeyboardLighting.exe
+    rebuilt; strict 7-bit ASCII kept.
 
 - **Every hub app focuses its window when Open is clicked** (owner: "all apps
   should focus when the open button is clicked"; the hub launches each app's exe

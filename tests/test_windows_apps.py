@@ -1111,6 +1111,38 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "the logon task is only refreshed when already elevated, so a "
                          "stale limited task can never be repaired")
 
+    def test_keyboard_lighting_watches_keys_via_raw_input_not_a_global_hook(self):
+        """A WH_KEYBOARD_LL hook runs on the app's UI thread, and that thread
+        blocks for seconds in the engine (re)start waits. Windows times a stalled
+        low-level hook out and DROPS the keystroke - PrintScreen is the most
+        visibly broken, and it fails machine-wide for as long as the app runs.
+        Raw input (WM_INPUT) is queued to our own loop instead, so it never
+        intercepts system input. It must be registered against a real window:
+        InitRawInput used to be called before CreateWindowExW, i.e. with a NULL
+        hwnd, so no WM_INPUT ever arrived and the hook was doing all the work."""
+        src = (ROOT / "keyboard-lighting" / "src" / "keyboard_lighting.c").read_text(
+            encoding="utf-8")
+
+        self.assertNotIn("SetWindowsHookEx", src,
+                         "the app still installs a system-wide low-level keyboard "
+                         "hook, which stalls on the busy UI thread and makes Windows "
+                         "drop PrintScreen (and other keys) everywhere while it runs")
+        self.assertNotIn("KbHoldProc", src,
+                         "the low-level keyboard hook procedure is still present")
+
+        # Raw input is the replacement, and it must still drive the M4/M5 keys.
+        self.assertIn("case WM_INPUT:", src,
+                      "raw input is no longer handled, so the M4/M5 brightness keys "
+                      "would stop working once the hook is gone")
+        self.assertIn("OnScanEvent(ri->data.keyboard.MakeCode", src,
+                      "raw keyboard input no longer feeds the M4/M5 scan handler")
+
+        create_at = src.index("g_hwnd = CreateWindowExW(")
+        raw_at = src.index("InitRawInput(g_hwnd);")
+        self.assertGreater(raw_at, create_at,
+                           "InitRawInput runs before the window is created, so it "
+                           "registers with a NULL hwnd and no WM_INPUT ever arrives")
+
     def test_hub_auto_probe_prefers_main_over_a_compiled_session_branch(self):
         src = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
 
