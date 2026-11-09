@@ -636,7 +636,6 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             "docs/brand/orca-plugins.ico",
             "agent-notes/agent-notes.ico",
             "audio-switcher/audio-switcher.ico",
-            "clipboard-memory/clipboard-memory.ico",
         ):
             raw = (ROOT / rel_ico).read_bytes()
             self.assertEqual(raw[:4], b"\x00\x00\x01\x00", f"{rel_ico} missing valid Windows ICO header")
@@ -685,8 +684,8 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             # A built-in id must be one the hub actually recognises, or the
             # entry is treated as a new dynamic card and duplicates the card.
             if app_id in known:
-                self.assertLess(known.index(app_id), 8,
-                                f"{where} maps outside the 8 built-in slots")
+                self.assertLess(known.index(app_id), 7,
+                                f"{where} maps outside the 7 built-in slots")
             # An exe-backed app must point at a file that exists in the repo:
             # the hub downloads this exact path from raw.githubusercontent.
             if app.get("exe"):
@@ -880,11 +879,11 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             self.assertIn(f".{field}", body,
                           f"RestoreBuiltInCardText does not reset button `{field}`, "
                           f"which DrawActionBtn hands straight to DrawTextW")
-        # The restore must cover all 8 built-in slots, not the first 6.
-        self.assertRegex(body, r"for \(int i = 0; i < 8; i\+\+\)",
-                         "RestoreBuiltInCardText must cover all 8 built-in slots; "
+        # The restore must cover all 7 built-in slots, not the first 6.
+        self.assertRegex(body, r"for \(int i = 0; i < 7; i\+\+\)",
+                         "RestoreBuiltInCardText must cover all 7 built-in slots; "
                          "the old title-only loop stopped at 6 and left Audio "
-                         "Switcher and Clipboard Memory dangling")
+                         "Switcher dangling")
 
     def test_hub_version_constants_are_paired_and_well_formed(self):
         """AGENTS.md hard rule 3.4: HUB_VERSION and HUB_VERSION_W are two
@@ -1356,7 +1355,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
         # Audio Switcher is the reported case: the suite copy wins over a copy
         # sitting next to the hub, and the losing locations become mirrors.
         start = src.index("/* 2d. Audio Switcher")
-        end = src.index("/* 3a. Clipboard Memory")
+        end = src.index("/* 3. OrcaSlicer plugins */")
         block = src[start:end]
         self.assertIn("SuiteAppPath(asSuite, MAX_PATH, L\"AudioSwitcher\");", block,
                       "Audio Switcher no longer derives its suite folder install path")
@@ -1370,8 +1369,6 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("AddMirrorDir(MIRROR_AUDIO, asSuite);", block)
         self.assertIn("if (asInHubDir) AddMirrorDir(MIRROR_AUDIO, g_exeDir);", block,
                       "a stray copy next to the hub is no longer kept in sync")
-        self.assertIn("AddMirrorDir(MIRROR_CLIP, cmSuite);", src,
-                      "Clipboard Memory is not mirrored into the suite folder")
         self.assertIn("AddMirrorDir(MIRROR_BTG, btgSuite);", src,
                       "Bluetooth Guard is not mirrored into the suite folder")
         self.assertIn("BOOL btgInSuite = FileExistsW(cand);", src,
@@ -1438,16 +1435,12 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertNotIn("wcsncpy(g_cards[6].appDir, g_audioSwitcherDir, MAX_PATH - 1);", src,
                          "the Audio Switcher card points at the detected stray copy "
                          "again, so its badge measures a folder Update may not write")
-        self.assertNotIn("wcsncpy(g_cards[7].appDir, g_clipboardMemoryDir, MAX_PATH - 1);", src,
-                         "the Clipboard Memory card points at the detected stray copy again")
 
         # The card must say which folder it manages.
         self.assertIn("static void AppendInstallFolder(", src,
                       "cards no longer show the folder they install into")
         self.assertIn("AppendInstallFolder(g_cards[6].detail, asDir);", src,
                       "the Audio Switcher card hides its install folder")
-        self.assertIn("AppendInstallFolder(g_cards[7].detail, cmDir);", src,
-                      "the Clipboard Memory card hides its install folder")
 
         # Bluetooth Guard and Keyboard Lighting badges must measure the same
         # folder their installer writes, with the found copy as the fallback.
@@ -1466,7 +1459,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       src, "the Audio Switcher badge no longer follows the install target")
         self.assertIn("_snwprintf(asExe, MAX_PATH, L\"%s\\\\AudioSwitcher.exe\", asDir);", src,
                       "the Audio Switcher badge measures a folder Update does not write")
-        self.assertGreaterEqual(src.count("AppendInstallFolder("), 5,
+        self.assertGreaterEqual(src.count("AppendInstallFolder("), 4,
                                 "only a couple of cards report where they install")
 
     def test_update_replaces_a_stray_running_copy_instead_of_leaving_it_alive(self):
@@ -1477,7 +1470,6 @@ class SuiteFolderInstallTests(unittest.TestCase):
         # would survive its own update.
         self.assertIn('StopForeignInstance(L"TestsAudioSwitcherWnd", c->appDir);', src,
                       "a tray app running from a stray copy survives its update")
-        self.assertIn('StopForeignInstance(L"TestsClipboardMemoryWnd", c->appDir);', src)
         start = src.index("static BOOL StopForeignInstance(")
         body = src[start:start + 1800]
         self.assertIn("QueryFullProcessImageNameW(hp, 0, img, &n)", body,
@@ -1536,7 +1528,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertRegex(block, r"for \(int i = 6; i < g_cardCount; i\+\+\) "
                                 r"WorkerInstallGeneric\(i, FALSE\);",
                          "Update All no longer sweeps the generic slots (Audio "
-                         "Switcher, Clipboard Memory, catalog cards)")
+                         "Switcher, catalog cards)")
         self.assertIn("WorkerCheckRemote();", block,
                       "Update All does not re-check the remote afterwards, so the "
                       "badges would still read stale after a successful update")
@@ -1913,11 +1905,6 @@ class AppOpenFocusTests(unittest.TestCase):
          r"SetForegroundWindow\(g_hwnd\);",
          r"MsgWaitForMultipleObjects\(1, &g_showEvent[\s\S]{0,340}?"
          r"SetForegroundWindow\(g_hwnd\);"),
-        ("clipboard-memory/src/clipboard_memory.c",
-         r"if \(g_silent\) \{\s*ShowWindow\(hwnd, SW_HIDE\);\s*\} else \{\s*"
-         r"ShowWindow\(hwnd, SW_SHOWNORMAL\);\s*SetForegroundWindow\(hwnd\);",
-         r"WaitForSingleObject\(g_showEvent, 0\) == WAIT_OBJECT_0[\s\S]{0,160}?"
-         r"SetForegroundWindow\(hwnd\);"),
         ("audio-switcher/src/audio_switcher.c",
          r"if \(g_silent\) \{\s*ShowWindow\(hwnd, SW_HIDE\);\s*\} else \{\s*"
          r"ShowWindow\(hwnd, SW_SHOWNORMAL\);\s*SetForegroundWindow\(hwnd\);",
@@ -1940,23 +1927,6 @@ class AppOpenFocusTests(unittest.TestCase):
                     self._src(rel), second,
                     rel + ": when the app is already running in the tray, a second "
                            "Open does not bring the existing window forward")
-
-    def test_clipboard_memory_creates_the_show_event_it_waits_on(self):
-        """Clipboard Memory signalled a show event on a second launch but never
-        created it, so Open-from-hub did nothing while it sat hidden in the tray
-        - the exact bug Audio Switcher had. The first instance must create it."""
-        src = self._src("clipboard-memory/src/clipboard_memory.c")
-        self.assertIn(
-            "g_showEvent = CreateEventW(NULL, FALSE, FALSE, SHOW_EVENT_NAME);", src,
-            "the first instance never creates the show event, so a second launch's "
-            "SetEvent has nothing to signal and Open-from-hub does nothing")
-        self.assertIn("OpenEventW(EVENT_MODIFY_STATE, FALSE, SHOW_EVENT_NAME)", src,
-                      "a second launch does not signal the running instance")
-        self.assertIn("FindWindowW(L\"TestsClipboardMemoryWnd\", NULL)", src,
-                      "no FindWindow fallback for an instance that predates the event")
-        self.assertIn(
-            "if (g_showEvent) { CloseHandle(g_showEvent); g_showEvent = NULL; }", src,
-            "the show-event handle is leaked on shutdown")
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-10-30 (Keyboard Lighting dropped its global key hook so PrintScreen works; Orca/HUD hub cards trimmed to Folder/Remove/Update)
+**Last Updated:** 2026-10-30 (Clipboard Memory removed entirely - hub down to 7 built-in cards; first unit of a larger suite overhaul: card button order, Install-vs-Update, Bluetooth forget, code modularization, agent-file tune-up)
 
 ## Turn protocol (do this literally)
 
@@ -25,15 +25,15 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 
 | Component | Path | Version | Status |
 | :--- | :--- | :--- | :--- |
-| **Project Hub** | `project-hub/src/project_hub.c` | 2.8.40 | **GREEN** — Orca + Spatial HUD cards match the other app cards (Update shown only when needed, then Folder, Remove, Disable); Orca gained a real Remove and a persisted Disable that gates its installer; suite folder is the install target for every app and the hub; "Update All" refreshes every built-in; content-hash update checks; branch-aware mod card |
+| **Project Hub** | `project-hub/src/project_hub.c` | 2.8.41 | **GREEN** — Orca + Spatial HUD cards match the other app cards (Update shown only when needed, then Folder, Remove, Disable); Orca gained a real Remove and a persisted Disable that gates its installer; suite folder is the install target for every app and the hub; "Update All" refreshes every built-in; content-hash update checks; branch-aware mod card; Clipboard Memory removed (7 built-in cards) |
 | **Bluetooth Guard** | `bluetooth-guard/src/bluetooth_guard.c` | 2.8.7 | **GREEN** — rules-ghost device list; `HighestAvailable` logon task |
 | **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold via raw input (no global key hook, so PrintScreen works); dither keeps each lamp's phase across a blackout; strict 7-bit ASCII, C# 5.0 |
 | **DNS Pilot** | `dns-pilot/src/dns_pilot.c` | size-tracked | **GREEN** — parallel rank test; `TestsSuite-DnsPilot` ONLOGON task |
 | **Agent Notes** | `agent-notes/src/agent_notes.c` | size-tracked | **GREEN** — POSTs to `tools/notes_server.py`; queues in `%LOCALAPPDATA%\AgentNotes\outbox\` while the agent is offline |
-| **Audio Switcher / Clipboard Memory** | `audio-switcher/`, `clipboard-memory/` | size-tracked | **GREEN** — catalog-driven hub cards; both surface+focus their window on Open-from-hub (named-event show); Audio Switcher lists apps on every render endpoint |
+| **Audio Switcher** | `audio-switcher/` | size-tracked | **GREEN** — catalog-driven hub card; surfaces+focuses its window on Open-from-hub (named-event show); lists apps on every render endpoint |
 | **Spatial HUD** | `spatial-hud-template-26.3/` | mod 1.0.5, updater 4 | **GREEN** — flicker + bottom cut-off fixed; pass-splitting HUD mods (Gnetum) complete partial frames via `fillSkippedRoots()` |
 | **Wave Overhangs / Unlayered Infill** | `plugins/` | 0.0.51 / 0.4.10 | **GREEN** — versions in lockstep across code, `.bat`, JSON, changelogs |
-| **App catalog** | `suite-apps.json` | 8 apps | **GREEN** — one JSON entry adds a hub card, no hub rebuild. Now contract-tested. |
+| **App catalog** | `suite-apps.json` | 7 apps | **GREEN** — one JSON entry adds a hub card, no hub rebuild. Now contract-tested. |
 | **CI** | `.github/workflows/{ci,build-spatial-hud}.yml` | — | **GREEN** — both live; `docs/ci/` mirrors them and a test fails on drift |
 
 ## Fast Commands
@@ -113,6 +113,19 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 4. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
    `guiWidth/guiHeight` — the mapping bug fixed in Method 4 (1.0.4) is unfixed
    there. Fix it if Method 3 ever reports the same symptom.
+
+- **Clipboard Memory removed from the suite entirely** (owner: "get rid of
+  clipboard memory entirely" -> hard-delete, not archive; git history keeps it).
+  It was the LAST hub slot (7), so slots 0-6 did not renumber. Deleted
+  `clipboard-memory/` + `docs/brand/icon-clipboard-memory.png` and every
+  reference: hub source (built-in count 8->7 across the slot-indexed arrays,
+  `known[]`, the `BuiltInBtnId` map/off[] window, `MIRROR_CLIP`, the dir-detect
+  block, the card init, the refresh block, the remote size/SHA probe, and the
+  three WM_COMMAND handlers), `suite-apps.json` (8->7 apps), `build_windows.py`
+  (7->6 EXEs), `hub.rc` (icon 11), `generate_suite_icons.py`, and the tests
+  (dropped the clipboard show-event test + its APPS entry; retuned the
+  built-in-count and AppendInstallFolder-floor assertions). Bumped
+  `HUB_VERSION`+`HUB_VERSION_W` to 2.8.41. 48 tests OK; check_all green.
 
 - **Orca + Spatial HUD hub cards trimmed to match the others** (owner: "i want
   the cards for orca and hud to match the others moreso, but they only need a

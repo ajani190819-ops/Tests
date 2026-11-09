@@ -21,8 +21,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.40"
-#define HUB_VERSION_W     L"2.8.40"
+#define HUB_VERSION       "2.8.41"
+#define HUB_VERSION_W     L"2.8.41"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -45,7 +45,6 @@
 #define RES_ICON_DNS         8
 #define RES_ICON_NOTES       9
 #define RES_ICON_AUDIOSWITCHER 10
-#define RES_ICON_CLIPBOARDMEMORY 11
 
 /* Action IDs */
 #define ID_BTN_REFRESH_ALL   1001
@@ -93,9 +92,6 @@
 #define ID_AUDIOSWITCHER_OPEN   1707
 #define ID_AUDIOSWITCHER_UPDATE 1708
 #define ID_AUDIOSWITCHER_FOLDER 1709
-#define ID_CLIPBOARDMEMORY_OPEN   1710
-#define ID_CLIPBOARDMEMORY_UPDATE 1711
-#define ID_CLIPBOARDMEMORY_FOLDER 1712
 
 /* Dynamic catalog button ids: ID_DYN_BASE + appIndex*10 + buttonIndex */
 #define ID_DYN_BASE          1800
@@ -221,7 +217,7 @@ static ActionBtn        g_topBtns[4] = {
 static RECT             g_rcEmblem    = {0, 0, 0, 0};
 
 static ProjectCard      g_cards[MAX_APPS];
-static int              g_cardCount = 8;   /* 8 built-ins + catalog extras */
+static int              g_cardCount = 7;   /* 7 built-ins + catalog extras */
 static int              g_dynIdx = 0;      /* target of TASK_*_DYN */
 static int              g_hoverId     = 0;
 static int              g_scrollY     = 0;
@@ -239,7 +235,6 @@ static wchar_t          g_kblDir[MAX_PATH];
 static wchar_t          g_dnsDir[MAX_PATH];
 static wchar_t          g_notesDir[MAX_PATH];
 static wchar_t          g_audioSwitcherDir[MAX_PATH];
-static wchar_t          g_clipboardMemoryDir[MAX_PATH];
 static wchar_t          g_modsDir[MAX_PATH];
 static wchar_t          g_orcaBatDir[MAX_PATH];
 
@@ -250,8 +245,8 @@ static wchar_t          g_orcaBatDir[MAX_PATH];
    can be left behind at an older build. */
 #define MAX_MIRRORS 6
 static wchar_t          g_suiteHubExe[MAX_PATH];
-static wchar_t          g_mirrorDirs[8][MAX_MIRRORS][MAX_PATH];
-static int              g_mirrorCount[8];
+static wchar_t          g_mirrorDirs[7][MAX_MIRRORS][MAX_PATH];
+static int              g_mirrorCount[7];
 
 /* Shared remote state protected by g_cs */
 static wchar_t          g_activeBranch[64]  = L"";
@@ -342,8 +337,8 @@ static void RebuildFontsAndIcons(HWND hwnd) {
                                     IMAGE_ICON, embPx, embPx, LR_DEFAULTCOLOR);
 
     int cardIcoPx = S(44, dpi);
-    const int ids[8] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA, RES_ICON_DNS, RES_ICON_NOTES, RES_ICON_AUDIOSWITCHER, RES_ICON_CLIPBOARDMEMORY };
-    for (int i = 0; i < 8; i++) {
+    const int ids[7] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA, RES_ICON_DNS, RES_ICON_NOTES, RES_ICON_AUDIOSWITCHER };
+    for (int i = 0; i < 7; i++) {
         if (g_cardIcons[i]) { DestroyIcon(g_cardIcons[i]); g_cardIcons[i] = NULL; }
         g_cardIcons[i] = (HICON)LoadImageW(g_hInst, MAKEINTRESOURCEW(ids[i]),
                                            IMAGE_ICON, cardIcoPx, cardIcoPx, LR_DEFAULTCOLOR);
@@ -641,11 +636,11 @@ static void EnsureDirTree(const wchar_t *dir) {
 }
 
 static volatile LONG g_checkActive = 0;
-static DWORD g_remBtgSize = 0, g_remKblSize = 0, g_remKblPs1Size = 0, g_remDnsSize = 0, g_remNotesSize = 0, g_remAudioSwitcherSize = 0, g_remClipboardMemorySize = 0;
+static DWORD g_remBtgSize = 0, g_remKblSize = 0, g_remKblPs1Size = 0, g_remDnsSize = 0, g_remNotesSize = 0, g_remAudioSwitcherSize = 0;
 /* Git blob SHA-1 of each remote build, from one recursive trees request.
    Empty means unknown (API unreachable), which falls back to the sizes. */
 static char g_remBtgSha[41], g_remKblSha[41], g_remKblPs1Sha[41], g_remDnsSha[41],
-            g_remNotesSha[41], g_remAudioSwitcherSha[41], g_remClipboardMemorySha[41];
+            g_remNotesSha[41], g_remAudioSwitcherSha[41];
 static RECT           g_rcFooterDot = { 0, 0, 0, 0 };
 
 /* Quiet update-check phase: the periodic version check gets a small
@@ -1145,7 +1140,7 @@ static BOOL ResolveShortcutTargetDir(const wchar_t *lnkPath, wchar_t *outDir) {
  * never created where the user did not already have one.
  */
 enum { MIRROR_BTG = 0, MIRROR_KBL, MIRROR_DNS, MIRROR_NOTES,
-       MIRROR_AUDIO, MIRROR_CLIP, MIRROR_GENERIC, MIRROR_HUB };
+       MIRROR_AUDIO, MIRROR_GENERIC, MIRROR_HUB };
 
 static void SuiteAppPath(wchar_t *out, size_t cap, const wchar_t *sub) {
     _snwprintf(out, cap - 1, L"%s\\%s", g_suiteDir, sub);
@@ -1446,23 +1441,6 @@ static void InitAllPaths(void) {
     if (asInHubDir) AddMirrorDir(MIRROR_AUDIO, g_exeDir);
     if (asInSibling) AddMirrorDir(MIRROR_AUDIO, parent);
 
-    /* 3a. Clipboard Memory: suite folder first, existing strays mirrored. */
-    g_clipboardMemoryDir[0] = L'\0';
-    wchar_t cmSuite[MAX_PATH];
-    SuiteAppPath(cmSuite, MAX_PATH, L"ClipboardMemory");
-    _snwprintf(cand, MAX_PATH, L"%s\\ClipboardMemory.exe", g_exeDir);
-    BOOL cmInHubDir = FileExistsW(cand);
-    _snwprintf(cand, MAX_PATH, L"%s\\clipboard-memory\\ClipboardMemory.exe", parent);
-    BOOL cmInSibling = FileExistsW(cand);
-    _snwprintf(cand, MAX_PATH, L"%s\\ClipboardMemory.exe", cmSuite);
-    if (FileExistsW(cand)) wcsncpy(g_clipboardMemoryDir, cmSuite, MAX_PATH - 1);
-    else if (cmInHubDir) wcsncpy(g_clipboardMemoryDir, g_exeDir, MAX_PATH - 1);
-    else if (cmInSibling) wcsncpy(g_clipboardMemoryDir, parent, MAX_PATH - 1);
-    else wcsncpy(g_clipboardMemoryDir, cmSuite, MAX_PATH - 1);
-    AddMirrorDir(MIRROR_CLIP, cmSuite);
-    if (cmInHubDir) AddMirrorDir(MIRROR_CLIP, g_exeDir);
-    if (cmInSibling) AddMirrorDir(MIRROR_CLIP, parent);
-
     /* 3. OrcaSlicer plugins */
     _snwprintf(cand, MAX_PATH, L"%s\\Orca-Plugins.bat", parent);
     if (FileExistsW(cand)) wcsncpy(g_orcaBatDir, parent, MAX_PATH - 1);
@@ -1742,14 +1720,14 @@ static int JsonGet(const char *obj, const char *key, char *out, int cap) {
 }
 
 static int BuiltInSlot(const char *id) {
-    static const char *known[8] = { "btguard", "kbl", "hud", "orca", "dnspilot", "agentnotes", "audioswitcher", "clipboardmemory" };
-    for (int i = 0; i < 8; i++) if (strcmp(id, known[i]) == 0) return i;
+    static const char *known[7] = { "btguard", "kbl", "hud", "orca", "dnspilot", "agentnotes", "audioswitcher" };
+    for (int i = 0; i < 7; i++) if (strcmp(id, known[i]) == 0) return i;
     return -1;
 }
 
 static int BuiltInBtnId(int slot, const char *verb) {
     /* verb -> the control id the existing WM_COMMAND switch understands */
-    static const struct { const char *verb; int id; } map[30] = {
+    static const struct { const char *verb; int id; } map[27] = {
         { "open",      ID_BTG_OPEN },     { "update",    ID_BTG_UPDATE },
         { "stop",      ID_BTG_STOP },     { "folder",    ID_BTG_FOLDER },
         { "open",      ID_KBL_OPEN },     { "unfreeze",  ID_KBL_RESTART },
@@ -1765,12 +1743,10 @@ static int BuiltInBtnId(int slot, const char *verb) {
         { "open",      ID_NOTES_OPEN },   { "update",    ID_NOTES_UPDATE },
         { "folder",    ID_NOTES_FOLDER },
         { "open",      ID_AUDIOSWITCHER_OPEN },  { "update",    ID_AUDIOSWITCHER_UPDATE },
-        { "folder",    ID_AUDIOSWITCHER_FOLDER },
-        { "open",      ID_CLIPBOARDMEMORY_OPEN }, { "update",   ID_CLIPBOARDMEMORY_UPDATE },
-        { "folder",    ID_CLIPBOARDMEMORY_FOLDER }
+        { "folder",    ID_AUDIOSWITCHER_FOLDER }
     };
-    static const int off[10] = { 0, 4, 8, 13, 18, 21, 24, 27, 30, 30 };
-    if (slot < 0 || slot > 7) return 0;
+    static const int off[10] = { 0, 4, 8, 13, 18, 21, 24, 27, 27, 27 };
+    if (slot < 0 || slot > 6) return 0;
     for (int i = off[slot]; i < off[slot + 1]; i++)
         if (strcmp(map[i].verb, verb) == 0) return map[i].id;
     return 0;
@@ -1786,7 +1762,7 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
 
     /* Set exeRepo/exeName so install/update/open work for built-in cards.
        These must match the suite-apps.json entries exactly. */
-    static const struct { const char *repo; const char *name; } exeMap[8] = {
+    static const struct { const char *repo; const char *name; } exeMap[7] = {
         { "bluetooth-guard/BluetoothGuard.exe", "BluetoothGuard.exe" },
         { "keyboard-lighting/KeyboardLighting.exe", "KeyboardLighting.exe" },
         { "", "" },                                          /* HUD - no exe */
@@ -1794,9 +1770,8 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
         { "dns-pilot/DnsPilot.exe", "DnsPilot.exe" },
         { "agent-notes/AgentNotes.exe", "AgentNotes.exe" },
         { "audio-switcher/AudioSwitcher.exe", "AudioSwitcher.exe" },
-        { "clipboard-memory/ClipboardMemory.exe", "ClipboardMemory.exe" },
     };
-    if (slot >= 0 && slot < 8 && exeMap[slot].repo[0]) {
+    if (slot >= 0 && slot < 7 && exeMap[slot].repo[0]) {
         c->exeRepo = PoolAdd(exeMap[slot].repo);
         c->exeName = PoolAdd(exeMap[slot].name);
     }
@@ -1873,11 +1848,11 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
     /* Set appDir for built-in cards so Folder/Open/Install all agree. The
        suite folder is the install target AND the folder the status sweep
        measures, so a card can never report a copy it is not updating. */
-    if (slot >= 0 && slot < 8) {
-        static const wchar_t *dirs[8] = {
+    if (slot >= 0 && slot < 7) {
+        static const wchar_t *dirs[7] = {
             L"BluetoothGuard", L"KeyboardLighting", L"SpatialHudUpdater",
             L"OrcaPlugins", L"DnsPilot", L"AgentNotes",
-            L"AudioSwitcher", L"ClipboardMemory"
+            L"AudioSwitcher"
         };
         if (dirs[slot][0]) SuiteAppPath(c->appDir, MAX_PATH, dirs[slot]);
     }
@@ -2003,12 +1978,9 @@ static const struct { int id; const wchar_t *label; const wchar_t *verb; } g_btn
     { ID_AUDIOSWITCHER_OPEN, L"Open", L"open" },
     { ID_AUDIOSWITCHER_UPDATE, L"Update", L"update" },
     { ID_AUDIOSWITCHER_FOLDER, L"Folder", L"folder" },
-    { ID_CLIPBOARDMEMORY_OPEN, L"Open", L"open" },
-    { ID_CLIPBOARDMEMORY_UPDATE, L"Update", L"update" },
-    { ID_CLIPBOARDMEMORY_FOLDER, L"Folder", L"folder" },
 };
 
-/* Revert every pool-backed field of the 8 built-in cards to its literal.
+/* Revert every pool-backed field of the 7 built-in cards to its literal.
    Called just before the string pool is reset: a card whose catalog entry is
    absent (or whose "id" failed to parse) is never repopulated by
    FillBuiltInDef, so without this its pointers would survive the reset and
@@ -2018,27 +1990,25 @@ static const struct { int id; const wchar_t *label; const wchar_t *verb; } g_btn
    RefreshProjectStatuses mutates them at runtime ("Open" -> "Install",
    "Disable" -> "Enable"), and only the two string pointers go stale. */
 static void RestoreBuiltInCardText(void) {
-    static const wchar_t *titles[8] = {
+    static const wchar_t *titles[7] = {
         L"Bluetooth Guard", L"Keyboard Lighting", L"Spatial HUD",
-        L"OrcaSlicer Plugins", L"DNS Pilot", L"Agent Notes", L"Audio Switcher",
-        L"Clipboard Memory" };
-    static const wchar_t *blurbs[8] = {
+        L"OrcaSlicer Plugins", L"DNS Pilot", L"Agent Notes", L"Audio Switcher" };
+    static const wchar_t *blurbs[7] = {
         L"Phone audio protection", L"ROG Strix G16 RGB lighting",
         L"Minecraft 26.3 Fabric mod", L"Wave Overhangs & Unlayered Infill",
         L"Fast DNS benchmark & auto-pilot", L"Quick notes straight to the agent",
-        L"Per-app volume & audio output switching",
-        L"Disk-persisted clipboard history" };
+        L"Per-app volume & audio output switching" };
     /* Must mirror BuiltInSlot's known[] / FillBuiltInDef's exeMap ordering. */
-    static const wchar_t *exeRepo[8] = {
+    static const wchar_t *exeRepo[7] = {
         L"bluetooth-guard/BluetoothGuard.exe", L"keyboard-lighting/KeyboardLighting.exe",
         NULL, NULL,
         L"dns-pilot/DnsPilot.exe", L"agent-notes/AgentNotes.exe",
-        L"audio-switcher/AudioSwitcher.exe", L"clipboard-memory/ClipboardMemory.exe" };
-    static const wchar_t *exeName[8] = {
+        L"audio-switcher/AudioSwitcher.exe" };
+    static const wchar_t *exeName[7] = {
         L"BluetoothGuard.exe", L"KeyboardLighting.exe", NULL, NULL,
         L"DnsPilot.exe", L"AgentNotes.exe",
-        L"AudioSwitcher.exe", L"ClipboardMemory.exe" };
-    for (int i = 0; i < 8; i++) {
+        L"AudioSwitcher.exe" };
+    for (int i = 0; i < 7; i++) {
         ProjectCard *c = &g_cards[i];
         c->title = titles[i];
         c->blurb = blurbs[i];
@@ -2066,8 +2036,8 @@ static void RestoreBuiltInCardText(void) {
 
 static void RebuildExtraCards(const char *json) {
     /* Shrink first so a repaint mid-rebuild never reads half-built cards. */
-    g_cardCount = 8;
-    for (int i = 8; i < MAX_APPS; i++) {
+    g_cardCount = 7;
+    for (int i = 7; i < MAX_APPS; i++) {
         if (g_cards[i].hIcon) { DestroyIcon(g_cards[i].hIcon); g_cards[i].hIcon = NULL; }
         ZeroMemory(&g_cards[i], sizeof(g_cards[i]));
     }
@@ -2119,7 +2089,6 @@ static void WorkerInstallGeneric(int idx, BOOL launchAfter) {
        lock and its single-instance mutex, so the fresh suite build could
        neither replace it nor start next to it. */
     StopForeignInstance(L"TestsAudioSwitcherWnd", c->appDir);
-    StopForeignInstance(L"TestsClipboardMemoryWnd", c->appDir);
 
     int mirrors = 0;
     if (!InstallRepoFileEverywhere(MIRROR_GENERIC, branch, c->exeRepo, c->appDir,
@@ -2226,17 +2195,10 @@ static void InitCardDefinitions(void) {
     g_cards[6].btns[1]   = (ActionBtn){ ID_AUDIOSWITCHER_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
     g_cards[6].btns[2]   = (ActionBtn){ ID_AUDIOSWITCHER_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
 
-    g_cards[7].resIconId = RES_ICON_CLIPBOARDMEMORY;
-    g_cards[7].title     = L"Clipboard Memory";
-    g_cards[7].btnCount  = 3;
-    g_cards[7].btns[0]   = (ActionBtn){ ID_CLIPBOARDMEMORY_OPEN,   L"Open",   BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
-    g_cards[7].btns[1]   = (ActionBtn){ ID_CLIPBOARDMEMORY_UPDATE, L"Update", BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
-    g_cards[7].btns[2]   = (ActionBtn){ ID_CLIPBOARDMEMORY_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
-
     /* exeRepo/exeName/appDir so Install/Update/Open/Folder work for built-in
        cards. appDir is the suite folder for every card: it is where an install
        writes and where the status sweep looks, so the two can never disagree. */
-    static const struct { const char *repo; const char *name; const wchar_t *dir; } builtinExe[8] = {
+    static const struct { const char *repo; const char *name; const wchar_t *dir; } builtinExe[7] = {
         { "bluetooth-guard/BluetoothGuard.exe", "BluetoothGuard.exe", L"BluetoothGuard" },
         { "keyboard-lighting/KeyboardLighting.exe", "KeyboardLighting.exe", L"KeyboardLighting" },
         { NULL, NULL, L"SpatialHudUpdater" },
@@ -2244,9 +2206,8 @@ static void InitCardDefinitions(void) {
         { "dns-pilot/DnsPilot.exe", "DnsPilot.exe", L"DnsPilot" },
         { "agent-notes/AgentNotes.exe", "AgentNotes.exe", L"AgentNotes" },
         { "audio-switcher/AudioSwitcher.exe", "AudioSwitcher.exe", L"AudioSwitcher" },
-        { "clipboard-memory/ClipboardMemory.exe", "ClipboardMemory.exe", L"ClipboardMemory" },
     };
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 7; i++) {
         ProjectCard *c = &g_cards[i];
         if (builtinExe[i].repo) {
             c->exeRepo = PoolAdd(builtinExe[i].repo);
@@ -2639,61 +2600,8 @@ static void RefreshProjectStatuses(void) {
         }
     }
 
-    /* 8. Clipboard Memory */
-    {
-        DWORD remCmSz = g_remClipboardMemorySize;
-        const wchar_t *cmDir = g_cards[7].appDir[0] ? g_cards[7].appDir : g_clipboardMemoryDir;
-        wchar_t cmExe[MAX_PATH], cmAlt[MAX_PATH];
-        _snwprintf(cmExe, MAX_PATH, L"%s\\ClipboardMemory.exe", cmDir);
-        _snwprintf(cmAlt, MAX_PATH, L"%s\\ClipboardMemory.exe", g_clipboardMemoryDir);
-        if (!FileExistsW(cmExe) && FileExistsW(cmAlt)) {
-            wcsncpy(cmExe, cmAlt, MAX_PATH - 1);
-            cmExe[MAX_PATH - 1] = L'\0';
-        }
-        BOOL hasCm = FileHealthyW(cmExe);
-        DWORD locCmSz = LocalSizeOf(cmExe);
-        BOOL cmKnown = (remCmSz > 0 && locCmSz > 0);
-        BOOL cmUpd = hasCm && cmKnown && RemoteDiffers(g_remClipboardMemorySha, cmExe, remCmSz);
-        BOOL cmRunning = (FindWindowW(L"TestsClipboardMemoryWnd", NULL) != NULL);
-        g_cards[7].btns[1].style = BTN_SECONDARY;
-        if (!hasCm) {
-            wcsncpy(g_cards[7].badge, L"Setup Ready", 47);
-            g_cards[7].badgeKind = BADGE_WARN;
-            g_cards[7].btns[0].label = L"Install";
-            g_cards[7].btns[0].style = BTN_PRIMARY;
-            wcsncpy(g_cards[7].detail, L"Disk-persisted clipboard history, last 20 items  \x00B7  Click Install to set up", 255);
-        } else if (cmRunning) {
-            wcsncpy(g_cards[7].badge, L"Active", 47);
-            g_cards[7].badgeKind = BADGE_OK;
-            g_cards[7].btns[0].label = L"Open";
-            g_cards[7].btns[0].style = BTN_SECONDARY;
-            wcsncpy(g_cards[7].detail, L"Disk-persisted clipboard history, last 20 items  \x00B7  Running (window or tray)", 255);
-            AppendInstallFolder(g_cards[7].detail, cmDir);
-        } else {
-            wcsncpy(g_cards[7].badge, L"Standby", 47);
-            g_cards[7].badgeKind = BADGE_IDLE;
-            g_cards[7].btns[0].label = L"Open";
-            g_cards[7].btns[0].style = BTN_SECONDARY;
-            wcsncpy(g_cards[7].detail, L"Disk-persisted clipboard history, last 20 items  \x00B7  Installed locally", 255);
-            AppendInstallFolder(g_cards[7].detail, cmDir);
-        }
-        if (hasCm && cmKnown) {
-            wcsncat(g_cards[7].badge, cmUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
-            if (cmUpd) {
-                if (g_cards[7].badgeKind == BADGE_OK || g_cards[7].badgeKind == BADGE_IDLE)
-                    g_cards[7].badgeKind = BADGE_WARN;
-                g_cards[7].btns[1].style = BTN_AMBER;
-                g_cards[7].btns[1].hidden = FALSE;
-            } else {
-                g_cards[7].btns[1].hidden = TRUE;
-            }
-        } else {
-            g_cards[7].btns[1].hidden = TRUE;
-        }
-    }
-
     /* 7+. Catalog extras: generic installed / update state */
-    for (int i = 8; i < g_cardCount; i++) {
+    for (int i = 7; i < g_cardCount; i++) {
         ProjectCard *c = &g_cards[i];
         wchar_t exePath[MAX_PATH], altPath[MAX_PATH];
         _snwprintf(exePath, MAX_PATH - 1, L"%s\\%s", c->appDir, c->exeName);
@@ -2812,7 +2720,7 @@ static void WorkerCheckRemote(void) {
     /* Remote build sizes: kept as the fallback identity when the trees API is
        unreachable (rate limit, offline). */
     {
-        DWORD szBtg = 0, szKbl = 0, szPs1 = 0, szDns = 0, szNotes = 0, szAs = 0, szCm = 0;
+        DWORD szBtg = 0, szKbl = 0, szPs1 = 0, szDns = 0, szNotes = 0, szAs = 0;
         _snwprintf(p, 255, L"/%s/%s/%s/bluetooth-guard/BluetoothGuard.exe", REPO_OWNER_W, REPO_NAME_W, branch);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szBtg);
         _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/KeyboardLighting.exe", REPO_OWNER_W, REPO_NAME_W, branch);
@@ -2825,8 +2733,6 @@ static void WorkerCheckRemote(void) {
         HttpHeadSize(L"raw.githubusercontent.com", p, &szNotes);
         _snwprintf(p, 255, L"/%s/%s/%s/audio-switcher/AudioSwitcher.exe", REPO_OWNER_W, REPO_NAME_W, branch);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szAs);
-        _snwprintf(p, 255, L"/%s/%s/%s/clipboard-memory/ClipboardMemory.exe", REPO_OWNER_W, REPO_NAME_W, branch);
-        HttpHeadSize(L"raw.githubusercontent.com", p, &szCm);
         /* Always record the result: a failed HEAD means "unknown" (0), never
            "keep the old number". Stale cached sizes are what left Update Ready
            badges stuck yellow after an update already said up to date. */
@@ -2837,7 +2743,6 @@ static void WorkerCheckRemote(void) {
         g_remDnsSize = szDns;
         g_remNotesSize = szNotes;
         g_remAudioSwitcherSize = szAs;
-        g_remClipboardMemorySize = szCm;
         if (treeJson) {
             TreeShaFor(treeJson, "bluetooth-guard/BluetoothGuard.exe", g_remBtgSha);
             TreeShaFor(treeJson, "keyboard-lighting/KeyboardLighting.exe", g_remKblSha);
@@ -2845,7 +2750,6 @@ static void WorkerCheckRemote(void) {
             TreeShaFor(treeJson, "dns-pilot/DnsPilot.exe", g_remDnsSha);
             TreeShaFor(treeJson, "agent-notes/AgentNotes.exe", g_remNotesSha);
             TreeShaFor(treeJson, "audio-switcher/AudioSwitcher.exe", g_remAudioSwitcherSha);
-            TreeShaFor(treeJson, "clipboard-memory/ClipboardMemory.exe", g_remClipboardMemorySha);
         }
         LeaveCriticalSection(&g_cs);
     }
@@ -3494,8 +3398,8 @@ static DWORD WINAPI HubWorkerThread(LPVOID unused) {
         case TASK_UPDATE_ALL:
             /* Every built-in app has to be refreshed here or its suite folder
                keeps the old build: slots 0-5 have dedicated workers (each with
-               its own MIRROR_ set), and slots 6+ (Audio Switcher, Clipboard
-               Memory, catalog cards) go through the generic worker. Agent Notes
+               its own MIRROR_ set), and slots 6+ (Audio Switcher and catalog
+               cards) go through the generic worker. Agent Notes
                (slot 5) was the one dedicated worker missing from this list, so
                "Update All" left its suite copy stale while every other app
                updated. */
@@ -4589,33 +4493,6 @@ static void HandleActionCommand(HWND hwnd, int id) {
         if (!FileExistsW(pp) && g_audioSwitcherDir[0]) asDir = g_audioSwitcherDir;
         EnsureDirTree(asDir);
         ShellExecuteW(hwnd, L"open", asDir, NULL, NULL, SW_SHOWNORMAL);
-        break;
-    }
-
-    case ID_CLIPBOARDMEMORY_OPEN: {
-        wchar_t pp[MAX_PATH];
-        const wchar_t *cmDir = g_cards[7].appDir;
-        _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", cmDir, g_cards[7].exeName);
-        if (!FileExistsW(pp) && g_clipboardMemoryDir[0] && _wcsicmp(g_clipboardMemoryDir, cmDir) != 0) {
-            cmDir = g_clipboardMemoryDir;
-            _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", cmDir, g_cards[7].exeName);
-        }
-        if (FileExistsW(pp))
-            ShellExecuteW(hwnd, L"open", pp, NULL, cmDir, SW_SHOWNORMAL);
-        else
-            HandleVerb(7, L"install");
-        break;
-    }
-    case ID_CLIPBOARDMEMORY_UPDATE:
-        HandleVerb(7, L"update");
-        break;
-    case ID_CLIPBOARDMEMORY_FOLDER: {
-        const wchar_t *cmDir = g_cards[7].appDir;
-        wchar_t pp[MAX_PATH];
-        _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", cmDir, g_cards[7].exeName);
-        if (!FileExistsW(pp) && g_clipboardMemoryDir[0]) cmDir = g_clipboardMemoryDir;
-        EnsureDirTree(cmDir);
-        ShellExecuteW(hwnd, L"open", cmDir, NULL, NULL, SW_SHOWNORMAL);
         break;
     }
 

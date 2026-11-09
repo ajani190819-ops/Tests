@@ -73,18 +73,6 @@
       "worker": "agentnotes"
     },
     {
-      "id": "clipboardmemory",
-      "title": "Clipboard Memory",
-      "blurb": "Disk-persisted clipboard history",
-      "exe": "clipboard-memory/ClipboardMemory.exe",
-      "dir": "ClipboardMemory",
-      "icon": "clipboard-memory/clipboard-memory.ico",
-      "shortcut": "Clipboard Memory",
-      "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
-      "state": "clipboardmemory",
-      "worker": "clipboardmemory"
-    },
-    {
       "id": "audioswitcher",
       "title": "Audio Switcher",
       "blurb": "Per-app volume & audio output switching",
