@@ -246,64 +246,100 @@
 
 ## dns-pilot/src/dns_pilot.c
 
-- L53  S resolver catalogue: primary + secondary per family
-- L110  f WCpy
-- L144  f S
-- L150  f ApplyModernWindowFrame
-- L169  f Widen
-- L175  S DNS query probe: real UDP/53 round trip
-- L176  f BuildQuery  — ---- DNS query probe: real UDP/53 round trip ----
-- L195  f DnsProbe
-- L234  f DnsProbeTcp
-- L299  f Median3
-- L307  f BuildRows
-- L328  S benchmark run (background thread)
-- L329  f ProbeRow  — ---- benchmark run (background thread) ----
-- L439  f StartTest
-- L449  S active adapter discovery (iphlpapi; locale-proof)
-- L451  f FindActiveAdapter
-- L494  f CopySockIp
-- L508  f CaptureAdapterExtras
-- L536  S live stats strip: passive throughput + 1 Hz ping (tiny footprint)
-- L540  f PingV4Once
-- L557  f PingV6Once
-- L598  f FmtMs
-- L607  f FmtMbps
-- L615  S speed test: active line-capacity measurement (Cloudflare endpoints)
-- L618  f SpeedTransfer
-- L709  f StartSpeedTest
-- L774  S applying DNS (netsh with numeric ifIndex; needs elevation)
-- L775  f RunElevatedCmd  — ---- applying DNS (netsh with numeric ifIndex; needs elevation) ----
-- L792  f ApplyDns
-- L822  S elevation
-- L823  f IsElevated  — ---- elevation ----
-- L836  f RelaunchElevated
-- L848  f EnsureAutostart
-- L866  S config
-- L867  f LoadConfig  — ---- config ----
-- L890  f SaveConfig
-- L942  f AddWatch
-- L954  f RebuildWatchBody
-- L977  f RebuildWatch
-- L983  f WatchSwitch
-- L1021  f WatchTickBody
-- L1087  f WatchTick
-- L1100  S UI
-- L1111  f EmbRasterize
-- L1182  f EmbCacheEnsure
-- L1197  f EmbSpinDraw
-- L1251  f DrawWayfinderEmblem
-- L1258  f PaintEmblem
-- L1283  f BtnRect
-- L1290  f FillSolid
-- L1296  f DrawBtn
-- L1317  f ShowTrayContextMenu
-- L1333  f RowRect
-- L1343  f PaintAll
-- L1535  f HitBtn
-- L1546  f UpdateStatusAfterTest
-- L1594  f DoApplyFastest
-- globals: g_rows (L93), g_rowCount (L94), g_hwnd (L102), g_hIcon (L103), g_nid (L104), g_exitMsg (L105), g_quitting (L106), g_trayHinted (L107), g_fontUI (L108), g_dpi (L114), g_testing (L115), g_testedCount (L116), g_exitStop (L117), g_testNext (L118), g_topRow (L119), g_hoverBtn (L120), g_lastTestAt (L121), g_elevated (L122), g_auto (L123), g_intervalMin (L124), g_autoRun (L125), g_status (L126), g_adName (L127), g_ifIndex (L128), g_curV4 (L129), g_curV6 (L130), g_statsCs (L132), g_statsLine (L133), g_statsRun (L134), g_gwIp (L135), g_gwIsV6 (L136), g_srcV6 (L137), g_srcV6LL (L138), g_hasGlobalV6 (L139), g_cfgPath (L140), g_lastV4 (L141), g_best4 (L142), g_dpi (L144), g_speedBusy (L616), g_watch (L926), g_watchN (L927), g_watchBusy (L928), g_watchCs (L929), g_lastSwitchAt (L930), g_switchedAt (L931), g_switchFam (L932), g_prevV4 (L933), g_rcEmblem (L1109), g_embCache (L1180), g_frameCache (L1340), g_fcW (L1341)
+
+## dns-pilot/src/parts/adapter_discovery.c
+
+- L1  S active adapter discovery (iphlpapi; locale-proof)
+- L3  f FindActiveAdapter
+- L46  f CopySockIp
+- L60  f CaptureAdapterExtras
+
+## dns-pilot/src/parts/apply_dns.c
+
+- L1  S applying DNS (netsh with numeric ifIndex; needs elevation)
+- L2  f RunElevatedCmd  — ---- applying DNS (netsh with numeric ifIndex; needs elevation) ----
+- L19  f ApplyDns
+
+## dns-pilot/src/parts/auto_watch.c
+
+- L40  f AddWatch
+- L52  f RebuildWatchBody
+- L75  f RebuildWatch
+- L81  f WatchSwitch
+- L119  f WatchTickBody
+- L185  f WatchTick
+- globals: g_watch (L24), g_watchN (L25), g_watchBusy (L26), g_watchCs (L27), g_lastSwitchAt (L28), g_switchedAt (L29), g_switchFam (L30), g_prevV4 (L31)
+
+## dns-pilot/src/parts/benchmark.c
+
+- L1  S benchmark run (background thread)
+- L2  f ProbeRow  — ---- benchmark run (background thread) ----
+- L112  f StartTest
+
+## dns-pilot/src/parts/config.c
+
+- L1  S config
+- L2  f LoadConfig  — ---- config ----
+- L25  f SaveConfig
+
+## dns-pilot/src/parts/dns_probe.c
+
+- L1  S DNS query probe: real UDP/53 round trip
+- L2  f BuildQuery  — ---- DNS query probe: real UDP/53 round trip ----
+- L21  f DnsProbe
+- L60  f DnsProbeTcp
+- L125  f Median3
+- L133  f BuildRows
+
+## dns-pilot/src/parts/elevation.c
+
+- L1  S elevation
+- L2  f IsElevated  — ---- elevation ----
+- L15  f RelaunchElevated
+- L27  f EnsureAutostart
+
+## dns-pilot/src/parts/live_stats.c
+
+- L1  S live stats strip: passive throughput + 1 Hz ping (tiny footprint)
+- L5  f PingV4Once
+- L22  f PingV6Once
+- L63  f FmtMs
+- L72  f FmtMbps
+
+## dns-pilot/src/parts/resolver_catalogue.c
+
+- L1  S resolver catalogue: primary + secondary per family
+- L58  f WCpy
+- L92  f S
+- L98  f ApplyModernWindowFrame
+- L117  f Widen
+- globals: g_rows (L41), g_rowCount (L42), g_hwnd (L50), g_hIcon (L51), g_nid (L52), g_exitMsg (L53), g_quitting (L54), g_trayHinted (L55), g_fontUI (L56), g_dpi (L62), g_testing (L63), g_testedCount (L64), g_exitStop (L65), g_testNext (L66), g_topRow (L67), g_hoverBtn (L68), g_lastTestAt (L69), g_elevated (L70), g_auto (L71), g_intervalMin (L72), g_autoRun (L73), g_status (L74), g_adName (L75), g_ifIndex (L76), g_curV4 (L77), g_curV6 (L78), g_statsCs (L80), g_statsLine (L81), g_statsRun (L82), g_gwIp (L83), g_gwIsV6 (L84), g_srcV6 (L85), g_srcV6LL (L86), g_hasGlobalV6 (L87), g_cfgPath (L88), g_lastV4 (L89), g_best4 (L90), g_dpi (L92)
+
+## dns-pilot/src/parts/speed_test.c
+
+- L1  S speed test: active line-capacity measurement (Cloudflare endpoints)
+- L4  f SpeedTransfer
+- L95  f StartSpeedTest
+- globals: g_speedBusy (L2)
+
+## dns-pilot/src/parts/ui.c
+
+- L1  S UI
+- L12  f EmbRasterize
+- L83  f EmbCacheEnsure
+- L98  f EmbSpinDraw
+- L152  f DrawWayfinderEmblem
+- L159  f PaintEmblem
+- L184  f BtnRect
+- L191  f FillSolid
+- L197  f DrawBtn
+- L218  f ShowTrayContextMenu
+- L234  f RowRect
+- L244  f PaintAll
+- L436  f HitBtn
+- L447  f UpdateStatusAfterTest
+- L495  f DoApplyFastest
+- globals: g_rcEmblem (L10), g_embCache (L81), g_frameCache (L241), g_fcW (L242)
 
 ## agent-notes/src/agent_notes.c
 

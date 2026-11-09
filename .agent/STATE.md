@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-10-30 (Began modularizing the app sources: agent-notes split into a thin agent_notes.c + parts/ section files, textually included in order so it is still one translation unit - the rebuilt AgentNotes.exe is byte-identical. Earlier this pass: hub card buttons reordered Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
+**Last Updated:** 2026-10-30 (Modularizing the app sources: agent-notes and dns-pilot are now a thin main .c + parts/ section files, textually #included in order so each is still one translation unit - both rebuilt EXEs are byte-identical. Remaining to split: audio-switcher, keyboard-lighting, bluetooth-guard, project-hub. Earlier this pass: hub card buttons reordered Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
 
 ## Turn protocol (do this literally)
 
@@ -28,7 +28,7 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 | **Project Hub** | `project-hub/src/project_hub.c` | 2.8.42 | **GREEN** — every card leads with a dynamic Update/Install button (Install when the app is missing, Update when a newer build is known, hidden when current), then Open, Folder, and the card extra (Stop/Unfreeze); Orca + Spatial HUD match the other app cards; Orca has a real Remove and a persisted Disable that gates its installer; suite folder is the install target for every app and the hub; "Update All" refreshes every built-in; content-hash update checks; branch-aware mod card; Clipboard Memory removed (7 built-in cards) |
 | **Bluetooth Guard** | `bluetooth-guard/src/bluetooth_guard.c` | 2.8.7 | **GREEN** — rules-ghost device list; `HighestAvailable` logon task |
 | **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold via raw input (no global key hook, so PrintScreen works); dither keeps each lamp's phase across a blackout; strict 7-bit ASCII, C# 5.0 |
-| **DNS Pilot** | `dns-pilot/src/dns_pilot.c` | size-tracked | **GREEN** — parallel rank test; `TestsSuite-DnsPilot` ONLOGON task |
+| **DNS Pilot** | `dns-pilot/src/dns_pilot.c` + `parts/` | size-tracked | **GREEN** — parallel rank test; `TestsSuite-DnsPilot` ONLOGON task. Modularized: thin `dns_pilot.c` `#include`s 11 `parts/` section files in order (one translation unit; edit the part files) |
 | **Agent Notes** | `agent-notes/src/agent_notes.c` + `parts/` | size-tracked | **GREEN** — POSTs to `tools/notes_server.py`; queues in `%LOCALAPPDATA%\AgentNotes\outbox\` while offline. Modularized: thin `agent_notes.c` textually `#include`s `parts/{config_outbox,http_agent,emblem,ui,entry}.c` in order (one translation unit; edit the part files) |
 | **Audio Switcher** | `audio-switcher/` | size-tracked | **GREEN** — catalog-driven hub card; surfaces+focuses its window on Open-from-hub (named-event show); lists apps on every render endpoint |
 | **Spatial HUD** | `spatial-hud-template-26.3/` | mod 1.0.5, updater 4 | **GREEN** — flicker + bottom cut-off fixed; pass-splitting HUD mods (Gnetum) complete partial frames via `fillSkippedRoots()` |
