@@ -99,6 +99,18 @@ def scan_py(path):
     return out, []
 
 
+def c_file_list():
+    """Main C files plus any unity-split part-files (src/parts/*.c), so the
+    code map keeps indexing every physical source after a modularization."""
+    files = []
+    for main in C_FILES:
+        files.append(main)
+        parts_dir = (ROOT / main).parent / "parts"
+        if parts_dir.is_dir():
+            files.extend(sorted(str(q.relative_to(ROOT)) for q in parts_dir.glob("*.c")))
+    return files
+
+
 def build():
     parts = [
         "# Code Map",
@@ -108,7 +120,7 @@ def build():
         "> Read this instead of grepping blind: every entry is `L<line>  name`.",
         "",
     ]
-    for path in C_FILES + [p for pat in PY_GLOBS for p in sorted(
+    for path in c_file_list() + [p for pat in PY_GLOBS for p in sorted(
             str(q.relative_to(ROOT)) for q in ROOT.glob(pat))]:
         entries, globals_ = (scan_c(path) if path.endswith(".c") else scan_py(path))
         parts.append(f"## {path}")

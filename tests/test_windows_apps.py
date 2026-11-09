@@ -1920,7 +1920,16 @@ class AppOpenFocusTests(unittest.TestCase):
 
     @staticmethod
     def _src(rel):
-        return (ROOT / rel).read_text(encoding="utf-8")
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        # Unity #include split: inline local part-files (src/parts/*.c) so the
+        # whole logical translation unit stays visible to the pattern checks.
+        base = (ROOT / rel).parent
+
+        def _inline(m):
+            p = base / m.group(1)
+            return p.read_text(encoding="utf-8") if p.exists() else m.group(0)
+
+        return re.sub(r'^[ \t]*#include[ \t]+"([^"]+\.c)"[ \t]*$', _inline, text, flags=re.M)
 
     # (path, explicit-first-launch pattern, already-running-resurface pattern)
     APPS = [

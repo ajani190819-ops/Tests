@@ -310,43 +310,61 @@
 - L75  f S
 - L82  f ApplyModernWindowFrame
 - L101  f GetWinDpi
-- L107  S config + outbox + history
-- L109  f InitPaths  — ---------------- config + outbox + history ----------------
-- L120  f LoadConfig
-- L124  f SaveConfig
-- L128  f OutboxCount
-- L141  f FileExistsW
-- L157  f HistSave
-- L179  f HistLoad
-- L215  f HistAdd
-- L226  f HistSnip
-- L236  f OutboxAdd
-- L264  S HTTP to the agent session
-- L266  f HttpPostNote  — ---------------- HTTP to the agent session ----------------
-- L306  f FlushOutbox
-- L369  f StartFlush
-- L385  f EmbRasterize
-- L456  f EmbCacheEnsure
-- L471  f EmbSpinDraw
-- L523  S UI
-- L525  f EmbRect  — ---------------- UI ----------------
-- L529  f BtnRect
-- L534  f DrawBtn
-- L554  f HitBtn
-- L564  f DrawDot
-- L576  f PaintAll
-- L744  f NoteSetHint
-- L751  f NowStamp
-- L864  S entry
-- globals: g_hInst (L55), g_hwnd (L56), g_fontUI (L57), g_bgBrush (L58), g_dpi (L59), g_fit (L60), g_hoverBtn (L61), g_showEvent (L62), g_link (L64), g_cfgDir (L65), g_cfgPath (L66), g_histPath (L67), g_outboxDir (L68), g_status (L69), g_lastOk (L70), g_sending (L71), g_noteHint (L72), g_lastSent (L73), g_hist (L154), g_histN (L155), g_embCache (L453), g_spinAngle (L454)
+- globals: g_hInst (L55), g_hwnd (L56), g_fontUI (L57), g_bgBrush (L58), g_dpi (L59), g_fit (L60), g_hoverBtn (L61), g_showEvent (L62), g_link (L64), g_cfgDir (L65), g_cfgPath (L66), g_histPath (L67), g_outboxDir (L68), g_status (L69), g_lastOk (L70), g_sending (L71), g_noteHint (L72), g_lastSent (L73)
+
+## agent-notes/src/parts/config_outbox.c
+
+- L1  S config + outbox + history
+- L3  f InitPaths  — ---------------- config + outbox + history ----------------
+- L14  f LoadConfig
+- L18  f SaveConfig
+- L22  f OutboxCount
+- L35  f FileExistsW
+- L51  f HistSave
+- L73  f HistLoad
+- L109  f HistAdd
+- L120  f HistSnip
+- L130  f OutboxAdd
+- globals: g_hist (L48), g_histN (L49)
+
+## agent-notes/src/parts/emblem.c
+
+- L9  f EmbRasterize
+- L80  f EmbCacheEnsure
+- L95  f EmbSpinDraw
+- globals: g_embCache (L77), g_spinAngle (L78)
+
+## agent-notes/src/parts/entry.c
+
+- L1  S entry
+
+## agent-notes/src/parts/http_agent.c
+
+- L1  S HTTP to the agent session
+- L3  f HttpPostNote  — ---------------- HTTP to the agent session ----------------
+- L43  f FlushOutbox
+- L106  f StartFlush
+
+## agent-notes/src/parts/ui.c
+
+- L1  S UI
+- L3  f EmbRect  — ---------------- UI ----------------
+- L7  f BtnRect
+- L12  f DrawBtn
+- L32  f HitBtn
+- L42  f DrawDot
+- L54  f PaintAll
+- L222  f NoteSetHint
+- L229  f NowStamp
 
 ## tools/agent_map.py
 
 - L42  f comment_purpose
 - L66  f scan_c
 - L91  f scan_py
-- L102  f build
-- L127  f main
+- L102  f c_file_list
+- L114  f build
+- L139  f main
 
 ## tools/build_windows.py
 
