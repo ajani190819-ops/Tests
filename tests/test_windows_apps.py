@@ -588,7 +588,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         """Guard the 'swallowed button' bug class: the branch-download menu
         reserves a numeric command-ID range, and a button ID that lands
         inside that range gets eaten as a bogus branch selection."""
-        src = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        src = read_c_inlined("project-hub/src/project_hub.c")
         ids = {}
         for m in re.finditer(r"^#define\s+(ID_[A-Z0-9_]+)\s+(\d+)\s*$", src, re.M):
             name, val = m.group(1), int(m.group(2))
@@ -608,7 +608,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
 
     def test_project_hub_covers_suite_projects(self):
         hub = (ROOT / "project-hub" / "ProjectHub.ps1").read_text(encoding="utf-8")
-        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        hub_c = read_c_inlined("project-hub/src/project_hub.c")
         setup = (ROOT / "project-hub" / "Setup.ps1").read_text(encoding="utf-8")
         for expected in (
             "Keyboard Lighting",
@@ -669,7 +669,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         apps = catalog["apps"]
         self.assertTrue(apps, "suite-apps.json lists no apps")
 
-        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        hub_c = read_c_inlined("project-hub/src/project_hub.c")
 
         # The ids the hub recognises as built-in cards, read out of BuiltInSlot
         # so this test follows the source instead of duplicating a list.
@@ -798,7 +798,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         catalog verb resolves to a WM_COMMAND id *inside its own app's off[]
         window*, not just somewhere in the map. Orca's brand-new Remove is exactly
         the entry that could land in the wrong window and vanish."""
-        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        hub_c = read_c_inlined("project-hub/src/project_hub.c")
         known, defines, btn_id = self._parse_builtin_btnid(hub_c)
         catalog = json.loads((ROOT / "suite-apps.json").read_text(encoding="utf-8"))
         for app in catalog["apps"]:
@@ -822,7 +822,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         WorkerInstallOrcaPlugins writes, across every %APPDATA%\\OrcaSlicer*
         profile, or the button would look like it worked and leave the plugins
         installed."""
-        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        hub_c = read_c_inlined("project-hub/src/project_hub.c")
         m = re.search(r'case ID_ORCA_REMOVE:\s*\{(.*?)\n    \}', hub_c, re.S)
         self.assertIsNotNone(m, "ID_ORCA_REMOVE handler is missing or changed shape")
         body = m.group(1)
@@ -838,7 +838,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         """g_orcaDisabled used to be toggled but never loaded, saved, or checked,
         so Orca's Disable was a no-op. Now that it is a visible button it has to
         survive a restart and actually stop the worker installing."""
-        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        hub_c = read_c_inlined("project-hub/src/project_hub.c")
         self.assertRegex(hub_c, r'GetPrivateProfileStringW\(L"Apps",\s*L"OrcaDisabled"')
         self.assertRegex(hub_c, r'WritePrivateProfileStringW\(L"Apps",\s*L"OrcaDisabled"')
         m = re.search(r'static void WorkerInstallOrcaPlugins\(void\)\s*\{(.*?)\n    wchar_t branch',
@@ -852,7 +852,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         (PRIMARY) when the app is missing, Update (AMBER) when a newer build is
         known, hidden once up to date. Open moves to btns[1] and is hidden while
         the app is missing. HUD/Orca mirror the same rule."""
-        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        hub_c = read_c_inlined("project-hub/src/project_hub.c")
         # every built-in card labels btns[0] "Install" in its not-installed branch
         self.assertEqual(hub_c.count('.btns[0].label = L"Install"'), 7,
                          "all 7 built-in cards should show Install when the app is missing")
@@ -898,7 +898,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             self.assertEqual(by_id.get(app_id), want,
                              f"{app_id} button order regressed (Update must come first)")
 
-        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        hub_c = read_c_inlined("project-hub/src/project_hub.c")
         for card in range(7):
             self.assertRegex(
                 hub_c,
@@ -910,7 +910,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         pool-backed pointer on the built-in cards. Titles alone used to be
         restored (and only 6 of 8), so a card absent from the catalog came back
         pointing at recycled pool memory and drew another app's text."""
-        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        hub_c = read_c_inlined("project-hub/src/project_hub.c")
 
         self.assertIn("RestoreBuiltInCardText", hub_c,
                       "the pool-backed card fields are not restored before the "
@@ -948,7 +948,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         HUB_VERSION_W is what the header draws. A pair that disagrees makes the
         hub advertise one version while checking for updates against another.
         Nothing enforced this before."""
-        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        hub_c = read_c_inlined("project-hub/src/project_hub.c")
         narrow = re.findall(r'(?m)^#define HUB_VERSION\s+"([^"]+)"\s*$', hub_c)
         wide = re.findall(r'(?m)^#define HUB_VERSION_W\s+L"([^"]+)"\s*$', hub_c)
         self.assertEqual(len(narrow), 1,
@@ -1321,7 +1321,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                            "registers with a NULL hwnd and no WM_INPUT ever arrives")
 
     def test_hub_auto_probe_prefers_main_over_a_compiled_session_branch(self):
-        src = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        src = read_c_inlined("project-hub/src/project_hub.c")
 
         start = src.index("if (!chosen) {")
         block = src[start:src.index("EnterCriticalSection", start)]
@@ -1338,7 +1338,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "the fallback branch is a stale session name again; hubs built "
                          "from it keep downloading its old executables")
     def test_hub_update_check_compares_content_not_just_size(self):
-        src = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        src = read_c_inlined("project-hub/src/project_hub.c")
 
         # A HEAD request yields only Content-Length, and two different builds
         # can share a byte count. Size-only comparison is how a same-size
@@ -1363,7 +1363,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          f"only {uses} update decisions compare content; the rest still "
                          f"trust file size alone")
     def test_hub_mod_card_follows_the_selected_branch_build(self):
-        src = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        src = read_c_inlined("project-hub/src/project_hub.c")
 
         # CI republishes spatial-hud-build-<branch> on every push; querying only
         # spatial-hud-latest (main's pointer) made a branch's jar invisible even
@@ -1392,9 +1392,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
 
     @staticmethod
     def _hub_src() -> str:
-        return (ROOT / "project-hub" / "src" / "project_hub.c").read_text(
-            encoding="utf-8", errors="replace"
-        )
+        return read_c_inlined("project-hub/src/project_hub.c")
 
     def test_suite_folder_is_the_install_target_for_every_app(self):
         src = self._hub_src()
