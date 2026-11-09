@@ -32,7 +32,7 @@
       "dir": "SpatialHudUpdater",
       "icon": "docs/brand/spatial-hud.ico",
       "shortcut": "Spatial HUD Updater",
-      "buttons": "updatemod:Update Mod:98,disable:Disable:78,modsdir:Mods Dir:84,remove:Remove:74",
+      "buttons": "updatemod:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
       "state": "hud",
       "worker": "hud"
     },
@@ -44,7 +44,7 @@
       "dir": "OrcaPlugins",
       "icon": "docs/brand/orca-plugins.ico",
       "shortcut": "Orca Plugins",
-      "buttons": "update:Update:78,branch:Branch:78,folder:Folder:68",
+      "buttons": "update:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
       "state": "orca",
       "worker": "orca"
     },

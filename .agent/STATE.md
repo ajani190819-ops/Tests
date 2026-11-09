@@ -25,7 +25,7 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 
 | Component | Path | Version | Status |
 | :--- | :--- | :--- | :--- |
-| **Project Hub** | `project-hub/src/project_hub.c` | 2.8.39 | **GREEN** — suite folder is the install target for every app and the hub; "Update All" now refreshes every built-in (Agent Notes was the one skipped); stray copies mirrored in the same click; content-hash update checks; branch-aware mod card |
+| **Project Hub** | `project-hub/src/project_hub.c` | 2.8.40 | **GREEN** — Orca + Spatial HUD cards match the other app cards (Update shown only when needed, then Folder, Remove, Disable); Orca gained a real Remove and a persisted Disable that gates its installer; suite folder is the install target for every app and the hub; "Update All" refreshes every built-in; content-hash update checks; branch-aware mod card |
 | **Bluetooth Guard** | `bluetooth-guard/src/bluetooth_guard.c` | 2.8.7 | **GREEN** — rules-ghost device list; `HighestAvailable` logon task |
 | **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold via raw input (no global key hook, so PrintScreen works); dither keeps each lamp's phase across a blackout; strict 7-bit ASCII, C# 5.0 |
 | **DNS Pilot** | `dns-pilot/src/dns_pilot.c` | size-tracked | **GREEN** — parallel rank test; `TestsSuite-DnsPilot` ONLOGON task |
@@ -113,6 +113,40 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 4. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
    `guiWidth/guiHeight` — the mapping bug fixed in Method 4 (1.0.4) is unfixed
    there. Fix it if Method 3 ever reports the same symptom.
+
+- **Orca + Spatial HUD hub cards trimmed to match the others** (owner: "i want
+  the cards for orca and hud to match the others moreso, but they only need a
+  folder, remove, and update buttons (updates only show when needed)" ->
+  clarified: both cards get Update, Folder, Remove, Disable; Update is first and
+  shows ONLY when an update is available; drop the HUD "Mods Dir" picker and the
+  Orca "Branch" picker; Orca needs a real Remove that deletes the installed
+  plugin files, and keeps Disable). Hub 2.8.40.
+  - **Both cards render Update / Folder / Remove / Disable** in that order. The
+    `suite-apps.json` `buttons` string drives the runtime card; the C `g_cards[]`
+    initializers are the offline fallback - both updated. Update is `btns[0]`, so
+    the existing dynamic style logic targets it: the HUD hides `btns[0]` when the
+    mod is up to date or disabled and reveals it when the jar is missing or a
+    newer build exists; Orca mirrors that (`hidden = !upd`, plus a new
+    not-installed branch that reveals it).
+  - **Orca's Remove is new** (`ID_ORCA_REMOVE`): it deletes exactly what
+    `WorkerInstallOrcaPlugins` writes - across every `%APPDATA%\OrcaSlicer*`
+    profile, the two `orca_plugins` packages (files + their folders) and the two
+    legacy top-level plugin files - then refreshes the card. Added
+    `{ "remove", ID_ORCA_REMOVE }` inside Orca's `BuiltInBtnId` window (retuned
+    `off[]`, map 31->30 entries) or the verb resolves to 0 and the button is
+    dropped silently.
+  - **Orca's Disable was a no-op** (`g_orcaDisabled` was toggled but never
+    loaded, saved, or checked). It is now persisted (`LoadAppsCfg`/`SaveAppsCfg`
+    `OrcaDisabled`) and gates `WorkerInstallOrcaPlugins`, and the card shows a
+    Disabled badge + Enable label like the HUD card.
+  - Bumped `HUB_VERSION` + `HUB_VERSION_W` to 2.8.40 together (new
+    ProjectHub.exe). 5 new tests pin the button sets, a Python reimplementation
+    of `BuiltInBtnId` that proves every catalog verb resolves inside its OWN
+    slot's `off[]` window (the check the catalog test misses), the Remove
+    handler's targets, the persisted+gating Disable, and the hidden-unless-needed
+    Update; 5 negative controls (drop the map entry / revert the JSON buttons /
+    remove the handler / drop the Disable persistence+gate / remove a HUD
+    hidden=FALSE) all caught. 49 tests OK; check_all green.
 
 - **PrintScreen (and other keys) dropped while Keyboard Lighting ran** (owner:
   "i cant use printscreen while in any of our apps"). Keyboard Lighting installed

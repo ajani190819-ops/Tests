@@ -6,99 +6,99 @@
 
 ## project-hub/src/project_hub.c
 
-- L280  f GetWinDpi
-- L295  f S
-- L297  f ApplyModernWindowFrame
-- L316  f RebuildFontsAndIcons
-- L359  f EmbRasterize
-- L436  f EmbCacheEnsure
-- L451  f EmbSpinDraw
-- L508  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
-- L513  f FileExistsW
-- L518  f LocalSizeOf
-- L528  f FileHealthyW
-- L541  f Sha1BlobHexW  — ---- content identity ----------------------------------------------------
-- L588  f TreeShaFor  — The blob hash of one path inside a recursive trees response.
-- L609  f RemoteDiffers  — Exact when the remote blob hash is known; the old size comparison remains
-- L622  f DirExistsW
-- L627  f EnsureDirTree
-- L653  f SetCheckPhase
-- L658  f SetFooterStatus
-- L667  f ReadTextFileUtf8
-- L683  f WriteBinaryFileAtomic
-- L730  f HttpSession
-- L740  f HttpConnect
-- L753  f HttpHeadSize
-- L774  f HttpGetBufferEx
-- L856  f HttpGetBuffer
-- L874  f HttpGetCached
-- L937  f DownloadRepoBytes
-- L948  f DownloadRawRepoFile
-- L966  f BranchCfgPath
-- L971  f LoadBranchCfg
-- L979  f SaveBranchCfg
-- L993  f LoadAppsCfg
-- L1000  f SaveAppsCfg
-- L1007  f EnsureActiveBranch
-- L1069  f ExtractQuotedAfter
-- L1087  f VerNewer
-- L1100  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
-- L1145  f SuiteAppPath
-- L1152  f ShortDirForUi
-- L1163  f AppendInstallFolder
-- L1171  f AddMirrorDir
-- L1184  f MirrorFileEverywhere
-- L1212  f InstallRepoFileEverywhere  — One download, every copy: the suite folder plus any stray copy on disk.
-- L1235  f StopForeignInstance  — A tray app started from a stray copy keeps running that stray build, and its
-- L1263  f InitAllPaths
-- L1483  f CheckPidLockStatus
-- L1515  f CreateShortcutLink
-- L1548  f LoadIconFilePx
-- L1561  f LoadCardIcon
-- L1584  f PoolAdd
-- L1610  f JsonGet
-- L1739  f BuiltInSlot
-- L1745  f BuiltInBtnId
-- L1773  f FillBuiltInDef
-- L1880  f AddCatalogCard
-- L2014  f RestoreBuiltInCardText
-- L2061  f RebuildExtraCards
-- L2095  f WorkerInstallGeneric
-- L2144  f HandleVerb
-- L2167  f InitCardDefinitions
-- L2254  f RefreshProjectStatuses
-- L2718  f WorkerCheckRemote
-- L2910  f StopProcessFromLock
-- L2923  f WorkerInstallBluetoothGuard
-- L2986  f WorkerInstallNotes
-- L3027  f WorkerInstallDnsPilot
-- L3092  f WorkerInstallKeyboardLighting
-- L3185  f WorkerInstallSpatialHud
-- L3247  f WorkerInstallOrcaPlugins
-- L3344  f WorkerSelfUpdateHub
-- L3424  f EnqueueTask
-- L3487  f RestartKeyboardLightingCleanly
-- L3506  f PromptTextInput
-- L3510  f NormalizeDirPath
-- L3526  f SaveModsDirFromInput
-- L3548  f PickSpatialHudModsFolder
-- L3591  f FillCanvasRect
-- L3604  f SmoothRoundRect
-- L3662  f DrawActionBtn
-- L3684  f ComputeLayout
-- L3733  f HitTestButtons
-- L3751  f PaintEmblemBlit
-- L3778  f PaintHubWindow
-- L4030  f ShowUtilityMenu
-- L4045  S download-branch picker
-- L4047  f FetchBranchNames  — ---- download-branch picker -------------------------------------------
-- L4072  f EnsureBranchInMenu
-- L4137  f PromptTextInput
-- L4201  f PromptBranchName
-- L4206  f SetActiveBranch
-- L4224  f ShowBranchMenu
-- L4260  f HandleActionCommand
-- globals: g_hInst (L199), g_hwnd (L200), g_fontHero (L201), g_fontSub (L202), g_fontTitle (L203), g_fontBody (L204), g_fontBtn (L205), g_fontBadge (L206), g_appIcon (L207), g_hdrEmblem (L208), g_cardIcons (L209), g_showEvent (L210), g_hMutex (L211), g_cs (L212), g_topBtns (L214), g_rcEmblem (L220), g_cards (L222), g_cardCount (L223), g_dynIdx (L224), g_hoverId (L225), g_scrollY (L226), g_maxScrollY (L227), g_exePath (L229), g_exeDir (L230), g_localApp (L231), g_roamApp (L232), g_suiteDir (L233), g_hubCfgDir (L234), g_btgDir (L235), g_btgExtraExe (L236), g_kblDir (L237), g_dnsDir (L238), g_notesDir (L239), g_audioSwitcherDir (L240), g_clipboardMemoryDir (L241), g_modsDir (L242), g_orcaBatDir (L243), g_suiteHubExe (L251), g_mirrorDirs (L252), g_mirrorCount (L253), g_activeBranch (L256), g_branchMenuNames (L257), g_branchMenuN (L258), g_branchPromptOut (L259), g_remHubVer (L260), g_remWaveVer (L261), g_remInfillVer (L262), g_remHudName (L263), g_remHudPath (L264), g_remHudSize (L265), g_statusMsg (L266), g_progressVal (L267), g_hubUpdAvail (L268), g_taskQueue (L271), g_qHead (L272), g_qTail (L273), g_qSem (L274), g_running (L275), g_embCache (L434), g_checkActive (L642), g_remBtgSize (L643), g_remBtgSha (L646), g_rcFooterDot (L648), g_httpSess (L717), g_httpConns (L723), g_hcache (L872), g_hudDisabled (L990), g_orcaDisabled (L991), g_catalogJson (L1541), g_strPool (L1581), g_strPoolUsed (L1582), g_frameCache (L3775), g_fcW (L3776)
+- L281  f GetWinDpi
+- L296  f S
+- L298  f ApplyModernWindowFrame
+- L317  f RebuildFontsAndIcons
+- L360  f EmbRasterize
+- L437  f EmbCacheEnsure
+- L452  f EmbSpinDraw
+- L509  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
+- L514  f FileExistsW
+- L519  f LocalSizeOf
+- L529  f FileHealthyW
+- L542  f Sha1BlobHexW  — ---- content identity ----------------------------------------------------
+- L589  f TreeShaFor  — The blob hash of one path inside a recursive trees response.
+- L610  f RemoteDiffers  — Exact when the remote blob hash is known; the old size comparison remains
+- L623  f DirExistsW
+- L628  f EnsureDirTree
+- L654  f SetCheckPhase
+- L659  f SetFooterStatus
+- L668  f ReadTextFileUtf8
+- L684  f WriteBinaryFileAtomic
+- L731  f HttpSession
+- L741  f HttpConnect
+- L754  f HttpHeadSize
+- L775  f HttpGetBufferEx
+- L857  f HttpGetBuffer
+- L875  f HttpGetCached
+- L938  f DownloadRepoBytes
+- L949  f DownloadRawRepoFile
+- L967  f BranchCfgPath
+- L972  f LoadBranchCfg
+- L980  f SaveBranchCfg
+- L994  f LoadAppsCfg
+- L1003  f SaveAppsCfg
+- L1012  f EnsureActiveBranch
+- L1074  f ExtractQuotedAfter
+- L1092  f VerNewer
+- L1105  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
+- L1150  f SuiteAppPath
+- L1157  f ShortDirForUi
+- L1168  f AppendInstallFolder
+- L1176  f AddMirrorDir
+- L1189  f MirrorFileEverywhere
+- L1217  f InstallRepoFileEverywhere  — One download, every copy: the suite folder plus any stray copy on disk.
+- L1240  f StopForeignInstance  — A tray app started from a stray copy keeps running that stray build, and its
+- L1268  f InitAllPaths
+- L1488  f CheckPidLockStatus
+- L1520  f CreateShortcutLink
+- L1553  f LoadIconFilePx
+- L1566  f LoadCardIcon
+- L1589  f PoolAdd
+- L1615  f JsonGet
+- L1744  f BuiltInSlot
+- L1750  f BuiltInBtnId
+- L1779  f FillBuiltInDef
+- L1886  f AddCatalogCard
+- L2020  f RestoreBuiltInCardText
+- L2067  f RebuildExtraCards
+- L2101  f WorkerInstallGeneric
+- L2150  f HandleVerb
+- L2173  f InitCardDefinitions
+- L2260  f RefreshProjectStatuses
+- L2746  f WorkerCheckRemote
+- L2938  f StopProcessFromLock
+- L2951  f WorkerInstallBluetoothGuard
+- L3014  f WorkerInstallNotes
+- L3055  f WorkerInstallDnsPilot
+- L3120  f WorkerInstallKeyboardLighting
+- L3213  f WorkerInstallSpatialHud
+- L3275  f WorkerInstallOrcaPlugins
+- L3376  f WorkerSelfUpdateHub
+- L3456  f EnqueueTask
+- L3519  f RestartKeyboardLightingCleanly
+- L3538  f PromptTextInput
+- L3542  f NormalizeDirPath
+- L3558  f SaveModsDirFromInput
+- L3580  f PickSpatialHudModsFolder
+- L3623  f FillCanvasRect
+- L3636  f SmoothRoundRect
+- L3694  f DrawActionBtn
+- L3716  f ComputeLayout
+- L3765  f HitTestButtons
+- L3783  f PaintEmblemBlit
+- L3810  f PaintHubWindow
+- L4062  f ShowUtilityMenu
+- L4077  S download-branch picker
+- L4079  f FetchBranchNames  — ---- download-branch picker -------------------------------------------
+- L4104  f EnsureBranchInMenu
+- L4169  f PromptTextInput
+- L4233  f PromptBranchName
+- L4238  f SetActiveBranch
+- L4256  f ShowBranchMenu
+- L4292  f HandleActionCommand
+- globals: g_hInst (L200), g_hwnd (L201), g_fontHero (L202), g_fontSub (L203), g_fontTitle (L204), g_fontBody (L205), g_fontBtn (L206), g_fontBadge (L207), g_appIcon (L208), g_hdrEmblem (L209), g_cardIcons (L210), g_showEvent (L211), g_hMutex (L212), g_cs (L213), g_topBtns (L215), g_rcEmblem (L221), g_cards (L223), g_cardCount (L224), g_dynIdx (L225), g_hoverId (L226), g_scrollY (L227), g_maxScrollY (L228), g_exePath (L230), g_exeDir (L231), g_localApp (L232), g_roamApp (L233), g_suiteDir (L234), g_hubCfgDir (L235), g_btgDir (L236), g_btgExtraExe (L237), g_kblDir (L238), g_dnsDir (L239), g_notesDir (L240), g_audioSwitcherDir (L241), g_clipboardMemoryDir (L242), g_modsDir (L243), g_orcaBatDir (L244), g_suiteHubExe (L252), g_mirrorDirs (L253), g_mirrorCount (L254), g_activeBranch (L257), g_branchMenuNames (L258), g_branchMenuN (L259), g_branchPromptOut (L260), g_remHubVer (L261), g_remWaveVer (L262), g_remInfillVer (L263), g_remHudName (L264), g_remHudPath (L265), g_remHudSize (L266), g_statusMsg (L267), g_progressVal (L268), g_hubUpdAvail (L269), g_taskQueue (L272), g_qHead (L273), g_qTail (L274), g_qSem (L275), g_running (L276), g_embCache (L435), g_checkActive (L643), g_remBtgSize (L644), g_remBtgSha (L647), g_rcFooterDot (L649), g_httpSess (L718), g_httpConns (L724), g_hcache (L873), g_hudDisabled (L991), g_orcaDisabled (L992), g_catalogJson (L1546), g_strPool (L1586), g_strPoolUsed (L1587), g_frameCache (L3807), g_fcW (L3808)
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
@@ -516,10 +516,10 @@
 - L27  f strip_cs_comments_and_strings
 - L149  f lex_powershell
 - L284  f WindowsDesktopAppsTests
-- L1205  f SuiteFolderInstallTests
-- L1429  f AudioSwitcherReachabilityTests
-- L1615  f AudioSwitcherSessionSweepTests
-- L1758  f AppOpenFocusTests
+- L1330  f SuiteFolderInstallTests
+- L1554  f AudioSwitcherReachabilityTests
+- L1740  f AudioSwitcherSessionSweepTests
+- L1883  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

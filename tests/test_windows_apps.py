@@ -726,6 +726,131 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          f"A built-in card missing from the catalog is never "
                          f"repopulated after the string pool is reset.")
 
+    def _parse_builtin_btnid(self, hub_c):
+        """Reimplement BuiltInBtnId in Python straight from the C source.
+
+        BuiltInBtnId only scans map[off[slot] .. off[slot+1]), so a verb that is
+        listed for an app in suite-apps.json but whose map entry sits OUTSIDE
+        that app's off[] window returns 0 -- and FillBuiltInDef drops the button
+        with no error anywhere. The catalog test only checks the verb appears
+        somewhere in the map, which cannot catch that. This returns the same
+        (known[], defines, btn_id) the runtime would use."""
+        defines = dict(re.findall(r'#define\s+(ID_\w+)\s+(\d+)', hub_c))
+        km = re.search(r'static const char \*known\[\d+\]\s*=\s*\{([^}]*)\}', hub_c)
+        self.assertIsNotNone(km, "BuiltInSlot's known[] table changed shape - update this test")
+        known = re.findall(r'"([^"]+)"', km.group(1))
+        mm = re.search(r'struct \{ const char \*verb; int id; \} map\[\d+\]\s*=\s*\{(.*?)\};',
+                       hub_c, re.S)
+        self.assertIsNotNone(mm, "BuiltInBtnId's map[] changed shape - update this test")
+        pairs = re.findall(r'\{\s*"(\w+)"\s*,\s*(ID_\w+)\s*\}', mm.group(1))
+        om = re.search(r'off\[\d+\]\s*=\s*\{([^}]*)\}', hub_c)
+        self.assertIsNotNone(om, "BuiltInBtnId's off[] changed shape - update this test")
+        off = [int(x) for x in re.findall(r'\d+', om.group(1))]
+        self.assertEqual(len(pairs), off[-2],
+                         "map[] entry count and off[] disagree - a verb window is wrong")
+
+        def btn_id(slot, verb):
+            if slot < 0 or slot > 7:
+                return 0
+            for i in range(off[slot], off[slot + 1]):
+                if pairs[i][0] == verb:
+                    return defines[pairs[i][1]]
+            return 0
+
+        return known, defines, btn_id
+
+    def test_hud_and_orca_cards_expose_update_folder_remove_disable(self):
+        """Both cards were redesigned to match the other app cards: Update (shown
+        only when an update is available), Folder, Remove, Disable -- dropping the
+        HUD 'Mods Dir' picker and the Orca 'Branch' picker. Orca gained a real
+        Remove; before this it only had a Disable that did nothing."""
+        catalog = json.loads((ROOT / "suite-apps.json").read_text(encoding="utf-8"))
+        apps = {a["id"]: a for a in catalog["apps"]}
+        for app_id, update_verb in (("hud", "updatemod"), ("orca", "update")):
+            slots = apps[app_id]["buttons"].split(",")
+            verbs = [s.split(":")[0].strip() for s in slots]
+            labels = [s.split(":")[1].strip() for s in slots]
+            self.assertEqual(verbs, [update_verb, "folder", "remove", "disable"],
+                             f"{app_id} buttons must be Update, Folder, Remove, Disable in that order")
+            self.assertEqual(labels, ["Update", "Folder", "Remove", "Disable"],
+                             f"{app_id} button labels changed")
+        # the dropped pickers must not creep back in
+        self.assertNotIn("modsdir", apps["hud"]["buttons"])
+        self.assertNotIn("branch", apps["orca"]["buttons"])
+
+    def test_every_catalog_verb_resolves_to_a_real_id_for_its_own_slot(self):
+        """The runtime-correctness check the catalog test misses: prove each
+        catalog verb resolves to a WM_COMMAND id *inside its own app's off[]
+        window*, not just somewhere in the map. Orca's brand-new Remove is exactly
+        the entry that could land in the wrong window and vanish."""
+        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        known, defines, btn_id = self._parse_builtin_btnid(hub_c)
+        catalog = json.loads((ROOT / "suite-apps.json").read_text(encoding="utf-8"))
+        for app in catalog["apps"]:
+            app_id = app["id"]
+            if app_id not in known:
+                continue
+            slot = known.index(app_id)
+            for s in app["buttons"].split(","):
+                verb = s.split(":")[0].strip()
+                self.assertNotEqual(
+                    btn_id(slot, verb), 0,
+                    f"{app_id} verb `{verb}` does not resolve inside slot {slot}'s off[] "
+                    f"window - FillBuiltInDef would drop this button silently")
+        # and the two redesigned cards resolve to the specific ids expected
+        self.assertEqual(btn_id(known.index("orca"), "remove"), defines["ID_ORCA_REMOVE"])
+        self.assertEqual(btn_id(known.index("orca"), "disable"), defines["ID_ORCA_DISABLE"])
+        self.assertEqual(btn_id(known.index("hud"), "remove"), defines["ID_HUD_REMOVE"])
+
+    def test_orca_remove_handler_deletes_the_installed_plugin_files(self):
+        """Orca's Remove is new. It must delete exactly what
+        WorkerInstallOrcaPlugins writes, across every %APPDATA%\\OrcaSlicer*
+        profile, or the button would look like it worked and leave the plugins
+        installed."""
+        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        m = re.search(r'case ID_ORCA_REMOVE:\s*\{(.*?)\n    \}', hub_c, re.S)
+        self.assertIsNotNone(m, "ID_ORCA_REMOVE handler is missing or changed shape")
+        body = m.group(1)
+        self.assertIn("OrcaSlicer*", body)                 # enumerate every profile
+        self.assertIn("wave-overhangs", body)
+        self.assertIn("unlayered-infill", body)
+        self.assertIn("wave_overhangs_orca.py", body)
+        self.assertIn("unlayered_infill_orca.py", body)
+        self.assertIn("DeleteFileW", body)
+        self.assertIn("RefreshProjectStatuses", body)      # card refreshes after removal
+
+    def test_orca_disable_is_persisted_and_gates_the_installer(self):
+        """g_orcaDisabled used to be toggled but never loaded, saved, or checked,
+        so Orca's Disable was a no-op. Now that it is a visible button it has to
+        survive a restart and actually stop the worker installing."""
+        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        self.assertRegex(hub_c, r'GetPrivateProfileStringW\(L"Apps",\s*L"OrcaDisabled"')
+        self.assertRegex(hub_c, r'WritePrivateProfileStringW\(L"Apps",\s*L"OrcaDisabled"')
+        m = re.search(r'static void WorkerInstallOrcaPlugins\(void\)\s*\{(.*?)\n    wchar_t branch',
+                      hub_c, re.S)
+        self.assertIsNotNone(m, "WorkerInstallOrcaPlugins prologue changed - update this test")
+        self.assertIn("g_orcaDisabled", m.group(1))
+        self.assertIn("return", m.group(1))
+
+    def test_update_button_is_hidden_unless_an_update_is_needed(self):
+        """The point of the redesign: Update shows only when there is something to
+        update. The HUD card hides btns[0] when up to date or disabled and reveals
+        it when the mod is missing or a newer build exists; Orca mirrors that."""
+        hub_c = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        # up-to-date and disabled branches hide the HUD Update button
+        self.assertRegex(hub_c, r'BADGE_OK;\s*g_cards\[2\]\.btns\[0\]\.style = BTN_SECONDARY;'
+                                r'\s*g_cards\[2\]\.btns\[0\]\.hidden = TRUE;')
+        self.assertRegex(hub_c, r'BADGE_IDLE;\s*g_cards\[2\]\.btns\[0\]\.style = BTN_SECONDARY;'
+                                r'\s*g_cards\[2\]\.btns\[0\]\.hidden = TRUE;')
+        # not-installed + newer-build branches reveal it (exactly two)
+        self.assertEqual(hub_c.count("g_cards[2].btns[0].hidden = FALSE"), 2,
+                         "HUD should reveal Update in exactly the not-installed and newer-build branches")
+        # Orca: disabled hides, not-installed reveals, else follows the update flag
+        self.assertRegex(hub_c, r'BADGE_IDLE;\s*g_cards\[3\]\.btns\[0\]\.style = BTN_SECONDARY;'
+                                r'\s*g_cards\[3\]\.btns\[0\]\.hidden = TRUE;')
+        self.assertEqual(hub_c.count("g_cards[3].btns[0].hidden = FALSE"), 1)
+        self.assertIn("g_cards[3].btns[0].hidden = !upd;", hub_c)
+
     def test_hub_restores_every_pool_backed_card_field_before_a_rebuild(self):
         """RebuildExtraCards resets g_strPoolUsed, which invalidates EVERY
         pool-backed pointer on the built-in cards. Titles alone used to be

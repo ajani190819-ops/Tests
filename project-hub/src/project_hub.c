@@ -21,8 +21,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.39"
-#define HUB_VERSION_W     L"2.8.39"
+#define HUB_VERSION       "2.8.40"
+#define HUB_VERSION_W     L"2.8.40"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -79,6 +79,7 @@
 #define ID_ORCA_MENU         1402
 #define ID_ORCA_DISABLE      1404
 #define ID_ORCA_FOLDER       1403
+#define ID_ORCA_REMOVE       1405
 
 
 #define ID_DNS_OPEN          1701
@@ -995,6 +996,8 @@ static void LoadAppsCfg(void) {
     BranchCfgPath(ini, MAX_PATH);
     GetPrivateProfileStringW(L"Apps", L"HudDisabled", L"0", buf, 7, ini);
     g_hudDisabled = (buf[0] == L'1');
+    GetPrivateProfileStringW(L"Apps", L"OrcaDisabled", L"0", buf, 7, ini);
+    g_orcaDisabled = (buf[0] == L'1');
 }
 
 static void SaveAppsCfg(void) {
@@ -1002,6 +1005,8 @@ static void SaveAppsCfg(void) {
     BranchCfgPath(ini, MAX_PATH);
     WritePrivateProfileStringW(L"Apps", L"HudDisabled",
                                g_hudDisabled ? L"1" : L"0", ini);
+    WritePrivateProfileStringW(L"Apps", L"OrcaDisabled",
+                               g_orcaDisabled ? L"1" : L"0", ini);
 }
 
 static void EnsureActiveBranch(wchar_t *outBranch, size_t cap) {
@@ -1744,7 +1749,7 @@ static int BuiltInSlot(const char *id) {
 
 static int BuiltInBtnId(int slot, const char *verb) {
     /* verb -> the control id the existing WM_COMMAND switch understands */
-    static const struct { const char *verb; int id; } map[31] = {
+    static const struct { const char *verb; int id; } map[30] = {
         { "open",      ID_BTG_OPEN },     { "update",    ID_BTG_UPDATE },
         { "stop",      ID_BTG_STOP },     { "folder",    ID_BTG_FOLDER },
         { "open",      ID_KBL_OPEN },     { "unfreeze",  ID_KBL_RESTART },
@@ -1754,6 +1759,7 @@ static int BuiltInBtnId(int slot, const char *verb) {
         { "remove",    ID_HUD_REMOVE },
         { "update",    ID_ORCA_UPDATE },  { "branch",    ID_ORCA_MENU },
         { "folder",    ID_ORCA_FOLDER },  { "disable",   ID_ORCA_DISABLE },
+        { "remove",    ID_ORCA_REMOVE },
         { "open",      ID_DNS_OPEN },     { "update",    ID_DNS_UPDATE },
         { "folder",    ID_DNS_FOLDER },
         { "open",      ID_NOTES_OPEN },   { "update",    ID_NOTES_UPDATE },
@@ -1763,7 +1769,7 @@ static int BuiltInBtnId(int slot, const char *verb) {
         { "open",      ID_CLIPBOARDMEMORY_OPEN }, { "update",   ID_CLIPBOARDMEMORY_UPDATE },
         { "folder",    ID_CLIPBOARDMEMORY_FOLDER }
     };
-    static const int off[10] = { 0, 4, 8, 13, 17, 20, 23, 26, 29, 31 };
+    static const int off[10] = { 0, 4, 8, 13, 18, 21, 24, 27, 30, 30 };
     if (slot < 0 || slot > 7) return 0;
     for (int i = off[slot]; i < off[slot + 1]; i++)
         if (strcmp(map[i].verb, verb) == 0) return map[i].id;
@@ -2186,17 +2192,17 @@ static void InitCardDefinitions(void) {
     g_cards[2].resIconId = RES_ICON_HUD;
     g_cards[2].title     = L"Spatial HUD";
     g_cards[2].btnCount  = 4;
-    g_cards[2].btns[0]   = (ActionBtn){ ID_HUD_UPDATE,  L"Update Mod", BTN_SECONDARY, 98, {0,0,0,0}, NULL, FALSE };
-    g_cards[2].btns[1]   = (ActionBtn){ ID_HUD_DISABLE, L"Disable",    BTN_SECONDARY, 78, {0,0,0,0}, NULL, FALSE };
-    g_cards[2].btns[2]   = (ActionBtn){ ID_HUD_PICK,    L"Mods Dir",   BTN_SECONDARY, 84, {0,0,0,0}, NULL, FALSE };
-    g_cards[2].btns[3]   = (ActionBtn){ ID_HUD_REMOVE,  L"Remove",     BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[2].btns[0]   = (ActionBtn){ ID_HUD_UPDATE,  L"Update",  BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[2].btns[1]   = (ActionBtn){ ID_HUD_FOLDER,  L"Folder",  BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[2].btns[2]   = (ActionBtn){ ID_HUD_REMOVE,  L"Remove",  BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[2].btns[3]   = (ActionBtn){ ID_HUD_DISABLE, L"Disable", BTN_SECONDARY, 78, {0,0,0,0}, NULL, FALSE };
 
     g_cards[3].resIconId = RES_ICON_ORCA;
     g_cards[3].title     = L"OrcaSlicer Plugins";
     g_cards[3].btnCount  = 4;
-    g_cards[3].btns[0]   = (ActionBtn){ ID_ORCA_UPDATE, L"Update", BTN_SECONDARY, 78, {0,0,0,0}, NULL, FALSE };
-    g_cards[3].btns[1]   = (ActionBtn){ ID_ORCA_MENU,   L"Branch", BTN_SECONDARY, 78, {0,0,0,0}, NULL, FALSE };
-    g_cards[3].btns[2]   = (ActionBtn){ ID_ORCA_FOLDER, L"Folder", BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[3].btns[0]   = (ActionBtn){ ID_ORCA_UPDATE,  L"Update",  BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
+    g_cards[3].btns[1]   = (ActionBtn){ ID_ORCA_FOLDER,  L"Folder",  BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
+    g_cards[3].btns[2]   = (ActionBtn){ ID_ORCA_REMOVE,  L"Remove",  BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
     g_cards[3].btns[3]   = (ActionBtn){ ID_ORCA_DISABLE, L"Disable", BTN_SECONDARY, 78, {0,0,0,0}, NULL, FALSE };
 
     g_cards[4].resIconId = RES_ICON_DNS;
@@ -2401,6 +2407,7 @@ static void RefreshProjectStatuses(void) {
         wcsncpy(g_cards[2].badge, L"Disabled", 47);
         g_cards[2].badgeKind = BADGE_IDLE;
         g_cards[2].btns[0].style = BTN_SECONDARY;
+        g_cards[2].btns[0].hidden = TRUE;   /* disabled: nothing to update */
         for (int b = 0; b < g_cards[2].btnCount; b++)
             if (g_cards[2].btns[b].id == ID_HUD_DISABLE)
                 g_cards[2].btns[b].label = L"Enable";
@@ -2424,56 +2431,77 @@ static void RefreshProjectStatuses(void) {
             wcsncpy(g_cards[2].badge, L"Update Ready", 47);
             g_cards[2].badgeKind = BADGE_WARN;
             g_cards[2].btns[0].style = BTN_PRIMARY;
-            wcsncpy(g_cards[2].detail, L"Minecraft 26.3 Fabric mod  \x00B7  Click Update Mod to install", 255);
+            g_cards[2].btns[0].hidden = FALSE;   /* not installed: update needed */
+            wcsncpy(g_cards[2].detail, L"Minecraft 26.3 Fabric mod  \x00B7  Click Update to install", 255);
         } else if (remHudSz > 0 && foundSize != remHudSz) {
             wcsncpy(g_cards[2].badge, L"Update Ready", 47);
             g_cards[2].badgeKind = BADGE_WARN;
             g_cards[2].btns[0].style = BTN_PRIMARY;
+            g_cards[2].btns[0].hidden = FALSE;   /* newer build available */
             _snwprintf(g_cards[2].detail, 255, L"Minecraft 26.3 Fabric mod  \x00B7  Newer build (%s)", remHud);
         } else {
             wcsncpy(g_cards[2].badge, L"Up to Date", 47);
             g_cards[2].badgeKind = BADGE_OK;
             g_cards[2].btns[0].style = BTN_SECONDARY;
+            g_cards[2].btns[0].hidden = TRUE;    /* up to date: hide Update */
             _snwprintf(g_cards[2].detail, 255, L"Minecraft 26.3 Fabric mod  \x00B7  %s", foundJar);
         }
 
 
     }
     /* 4. OrcaSlicer Plugins */
-    char locWave[32] = "", locInfill[32] = "";
-    const wchar_t *probeRel[] = {
-        L"%s\\OrcaSlicer\\orca_plugins\\wave-overhangs\\wave_overhangs_orca.py",
-        L"%s\\OrcaSlicer\\plugins\\wave_overhangs_orca.py"
-    };
-    for (int i = 0; i < 2 && !locWave[0]; i++) {
-        _snwprintf(path, MAX_PATH, probeRel[i], g_roamApp);
-        char *py = ReadTextFileUtf8(path, NULL);
-        if (py) { ExtractQuotedAfter(py, "PLUGIN_VERSION", locWave, sizeof(locWave)); free(py); }
-    }
-    const wchar_t *probeInf[] = {
-        L"%s\\OrcaSlicer\\orca_plugins\\unlayered-infill\\unlayered_infill_orca.py",
-        L"%s\\OrcaSlicer\\plugins\\unlayered_infill_orca.py"
-    };
-    for (int i = 0; i < 2 && !locInfill[0]; i++) {
-        _snwprintf(path, MAX_PATH, probeInf[i], g_roamApp);
-        char *py = ReadTextFileUtf8(path, NULL);
-        if (py) { ExtractQuotedAfter(py, "PLUGIN_VERSION", locInfill, sizeof(locInfill)); free(py); }
-    }
-    if (!locWave[0] && !locInfill[0]) {
-        wcsncpy(g_cards[3].badge, L"Update Ready", 47);
-        g_cards[3].badgeKind = BADGE_WARN;
-        _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S & Unlayered Infill %S available",
-                   remWave[0] ? remWave : "latest", remInfill[0] ? remInfill : "latest");
+    if (g_orcaDisabled) {
+        wcsncpy(g_cards[3].badge, L"Disabled", 47);
+        g_cards[3].badgeKind = BADGE_IDLE;
+        g_cards[3].btns[0].style = BTN_SECONDARY;
+        g_cards[3].btns[0].hidden = TRUE;   /* disabled: nothing to update */
+        for (int b = 0; b < g_cards[3].btnCount; b++)
+            if (g_cards[3].btns[b].id == ID_ORCA_DISABLE)
+                g_cards[3].btns[b].label = L"Enable";
+        wcsncpy(g_cards[3].detail,
+                L"Wave Overhangs & Unlayered Infill - Disabled (will not install or update)", 255);
     } else {
-        BOOL upd = (remWave[0] && VerNewer(remWave, locWave)) ||
-                   (remInfill[0] && VerNewer(remInfill, locInfill));
-        wcsncpy(g_cards[3].badge, upd ? L"Update Ready" : L"Up to Date", 47);
-        g_cards[3].badgeKind = upd ? BADGE_WARN : BADGE_OK;
-        g_cards[3].btns[0].style = upd ? BTN_PRIMARY : BTN_SECONDARY;
-        g_cards[3].btns[0].hidden = !upd;
-        _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S & Unlayered Infill %S",
-                   locWave[0] ? locWave : "none", locInfill[0] ? locInfill : "none");
+        for (int b = 0; b < g_cards[3].btnCount; b++)
+            if (g_cards[3].btns[b].id == ID_ORCA_DISABLE)
+                g_cards[3].btns[b].label = L"Disable";
+        char locWave[32] = "", locInfill[32] = "";
+        const wchar_t *probeRel[] = {
+            L"%s\\OrcaSlicer\\orca_plugins\\wave-overhangs\\wave_overhangs_orca.py",
+            L"%s\\OrcaSlicer\\plugins\\wave_overhangs_orca.py"
+        };
+        for (int i = 0; i < 2 && !locWave[0]; i++) {
+            _snwprintf(path, MAX_PATH, probeRel[i], g_roamApp);
+            char *py = ReadTextFileUtf8(path, NULL);
+            if (py) { ExtractQuotedAfter(py, "PLUGIN_VERSION", locWave, sizeof(locWave)); free(py); }
+        }
+        const wchar_t *probeInf[] = {
+            L"%s\\OrcaSlicer\\orca_plugins\\unlayered-infill\\unlayered_infill_orca.py",
+            L"%s\\OrcaSlicer\\plugins\\unlayered_infill_orca.py"
+        };
+        for (int i = 0; i < 2 && !locInfill[0]; i++) {
+            _snwprintf(path, MAX_PATH, probeInf[i], g_roamApp);
+            char *py = ReadTextFileUtf8(path, NULL);
+            if (py) { ExtractQuotedAfter(py, "PLUGIN_VERSION", locInfill, sizeof(locInfill)); free(py); }
+        }
+        if (!locWave[0] && !locInfill[0]) {
+            wcsncpy(g_cards[3].badge, L"Update Ready", 47);
+            g_cards[3].badgeKind = BADGE_WARN;
+            g_cards[3].btns[0].style = BTN_PRIMARY;
+            g_cards[3].btns[0].hidden = FALSE;   /* not installed: update needed */
+            _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S & Unlayered Infill %S available",
+                       remWave[0] ? remWave : "latest", remInfill[0] ? remInfill : "latest");
+        } else {
+            BOOL upd = (remWave[0] && VerNewer(remWave, locWave)) ||
+                       (remInfill[0] && VerNewer(remInfill, locInfill));
+            wcsncpy(g_cards[3].badge, upd ? L"Update Ready" : L"Up to Date", 47);
+            g_cards[3].badgeKind = upd ? BADGE_WARN : BADGE_OK;
+            g_cards[3].btns[0].style = upd ? BTN_PRIMARY : BTN_SECONDARY;
+            g_cards[3].btns[0].hidden = !upd;
+            _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S & Unlayered Infill %S",
+                       locWave[0] ? locWave : "none", locInfill[0] ? locInfill : "none");
+        }
     }
+
 
     /* 5. DNS Pilot */
     wchar_t dnsExe[MAX_PATH];
@@ -3245,6 +3273,10 @@ static void WorkerInstallSpatialHud(void) {
 }
 
 static void WorkerInstallOrcaPlugins(void) {
+    if (g_orcaDisabled) {
+        SetFooterStatus(L"OrcaSlicer Plugins are disabled - click Enable on the card first.", 0);
+        return;
+    }
     wchar_t branch[64];
     EnsureActiveBranch(branch, 64);
 
@@ -4481,6 +4513,52 @@ static void HandleActionCommand(HWND hwnd, int id) {
                             : L"OrcaSlicer Plugins enabled.", 0);
         RefreshProjectStatuses();
         break;
+
+    case ID_ORCA_REMOVE: {
+        /* Delete exactly what WorkerInstallOrcaPlugins writes, in every
+           %APPDATA%\OrcaSlicer* profile: the two orca_plugins packages (files
+           + their folders) and the two legacy top-level plugin files. */
+        wchar_t base[MAX_PATH], pat[MAX_PATH], dirp[MAX_PATH], t[MAX_PATH];
+        _snwprintf(base, MAX_PATH, L"%s", g_roamApp);
+        _snwprintf(pat, MAX_PATH, L"%s\\OrcaSlicer*", base);
+        WIN32_FIND_DATAW fd;
+        HANDLE h = FindFirstFileW(pat, &fd);
+        int removed = 0, blocked = 0;
+        if (h != INVALID_HANDLE_VALUE) {
+            do {
+                if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
+                _snwprintf(dirp, MAX_PATH, L"%s\\%s", base, fd.cFileName);
+                const wchar_t *rel[] = {
+                    L"\\orca_plugins\\wave-overhangs\\wave_overhangs_orca.py",
+                    L"\\orca_plugins\\wave-overhangs\\.install_state.json",
+                    L"\\orca_plugins\\unlayered-infill\\unlayered_infill_orca.py",
+                    L"\\orca_plugins\\unlayered-infill\\.install_state.json",
+                    L"\\plugins\\wave_overhangs_orca.py",
+                    L"\\plugins\\unlayered_infill_orca.py"
+                };
+                for (int k = 0; k < 6; k++) {
+                    _snwprintf(t, MAX_PATH, L"%s%s", dirp, rel[k]);
+                    if (DeleteFileW(t)) removed++;
+                    else if (FileExistsW(t)) blocked++;
+                }
+                _snwprintf(t, MAX_PATH, L"%s\\orca_plugins\\wave-overhangs", dirp);
+                RemoveDirectoryW(t);
+                _snwprintf(t, MAX_PATH, L"%s\\orca_plugins\\unlayered-infill", dirp);
+                RemoveDirectoryW(t);
+            } while (FindNextFileW(h, &fd));
+            FindClose(h);
+        }
+        if (removed > 0 && blocked == 0)
+            SetFooterStatus(L"OrcaSlicer Plugins removed.", 0);
+        else if (removed == 0 && blocked == 0)
+            SetFooterStatus(L"OrcaSlicer Plugins not installed - nothing to remove.", 0);
+        else if (removed > 0 && blocked > 0)
+            SetFooterStatus(L"Partially removed OrcaSlicer Plugins - close OrcaSlicer and try again.", 2);
+        else
+            SetFooterStatus(L"Could not remove OrcaSlicer Plugins - close OrcaSlicer and try again.", 2);
+        RefreshProjectStatuses();
+        break;
+    }
 
     case ID_AUDIOSWITCHER_OPEN: {
         /* appDir is the suite folder (where Update writes). Until the first
