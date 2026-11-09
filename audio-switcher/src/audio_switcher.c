@@ -61,6 +61,7 @@
 #define RES_ICON_EMBLEM     2
 
 #define WM_TRAYICON         (WM_APP + 1)
+#define WM_ASW_SHOW         (WM_APP + 2)   /* a second launch asks us to show */
 
 #define IDM_TRAY_OPEN       200
 #define IDM_TRAY_QUIT       201
@@ -367,7 +368,7 @@ static IMMDevice           *g_default_device = NULL;
 static IAudioSessionManager2 *g_session_mgr = NULL;
 /* One manager per device the sweep touched, all kept alive: the sessions'
    ISimpleAudioVolume pointers belong to them. */
-static IAudioSessionManager2 *g_session_mgrs[8];
+static IAudioSessionManager2 *g_session_mgrs[32];
 static int                  g_session_mgr_count = 0;
 static BOOL                 g_session_sweep_used = FALSE;
 static IPolicyConfig       *g_policy = NULL;
@@ -771,7 +772,7 @@ static int sessions_collect_from_device(IMMDevice *dev, BOOL note_device,
     /* Keep the manager alive: the ISimpleAudioVolume interfaces handed out by
      * its sessions belong to it, and releasing it would leave the sliders
      * pointing at a dead object. */
-    if (g_session_mgr_count < 8) g_session_mgrs[g_session_mgr_count++] = mgr;
+    if (g_session_mgr_count < 32) g_session_mgrs[g_session_mgr_count++] = mgr;
     if (!g_session_mgr) g_session_mgr = mgr;
 
     IAudioSessionEnumerator *enum_sessions = NULL;
@@ -901,13 +902,6 @@ static int sessions_collect_from_device(IMMDevice *dev, BOOL note_device,
 }
 
 static HRESULT sessions_refresh(void) {
-    IMMDeviceEnumerator *e = g_enum;
-    if (!e) return E_FAIL;
-
-    IMMDevice *dev = NULL;
-    HRESULT hr = CALL_VTBL3(e, GetDefaultAudioEndpoint, eRender, eConsole, (void**)&dev);
-    if (FAILED(hr)) { g_sessions_hr = hr; return hr; }
-
     /* Release the previous poll's ISimpleAudioVolume references and the session
      * managers that own them. This runs on a two-second timer, so the old code
      * leaked one COM reference per app per poll for as long as the window was
@@ -925,32 +919,49 @@ static HRESULT sessions_refresh(void) {
     g_session_count = 0;
     g_session_sweep_used = FALSE;
 
-    sessions_collect_from_device(dev, FALSE, NULL);
+    /* Enumerate EVERY active render endpoint, not just the default one. An app
+     * renders to whichever endpoint it opened its stream on, and Windows does
+     * not move that stream when the default later changes - so a game or browser
+     * that started on (or was pinned to) another output has its session there
+     * and nowhere else. Listing only the default device is why the panel said
+     * "no apps are playing audio" while a game was plainly making sound; the old
+     * fallback only walked the other devices when the default was COMPLETELY
+     * empty, so a single background app on the default hid every game on the
+     * rest. This is how the Windows mixer and EarTrumpet do it: one session
+     * collection per endpoint, aggregated. Each session lives on exactly one
+     * endpoint, so walking the endpoint list once counts every session once. */
+    for (int i = 0; i < g_endpoint_count && g_session_count < 128; i++) {
+        if (!g_endpoints[i].device) continue;
+        BOOL is_def = (i == g_default_endpoint_idx) || g_endpoints[i].is_default;
+        /* Sessions not on the current output are inaudible until the user
+           switches; label them so a silent slider is not mistaken for a bug. */
+        int added = sessions_collect_from_device(g_endpoints[i].device, !is_def,
+                                                 g_endpoints[i].name);
+        if (added > 0 && !is_def) g_session_sweep_used = TRUE;
+    }
 
-    /* The default endpoint is not the only place an app can be playing: a
-     * browser tab or a game pinned to another output has a session there and
-     * nowhere else. Listing only the default device made the panel claim "no
-     * apps are playing audio" while audio was plainly playing, so when the
-     * default device shows nothing, sweep the other active outputs and label
-     * what turns up. */
-    if (g_session_count == 0) {
-        for (int i = 0; i < g_endpoint_count && g_session_count < 128; i++) {
-            if (!g_endpoints[i].device) continue;
-            if (i == g_default_endpoint_idx) continue;
-            if (sessions_collect_from_device(g_endpoints[i].device, TRUE,
-                                             g_endpoints[i].name) > 0)
-                g_session_sweep_used = TRUE;
+    /* endpoints_refresh came back with no usable endpoint list, but a default
+       may still answer - fall back to it so we are never silently empty when
+       there is a working default device. */
+    if (g_endpoint_count == 0 && g_enum) {
+        IMMDevice *dev = NULL;
+        HRESULT dhr = CALL_VTBL3(g_enum, GetDefaultAudioEndpoint, eRender, eConsole,
+                                 (void**)&dev);
+        if (SUCCEEDED(dhr) && dev) {
+            sessions_collect_from_device(dev, FALSE, NULL);
+            CALL_VTBL0(dev, Release);
+        } else {
+            g_sessions_hr = dhr;
         }
     }
 
-    CALL_VTBL0(dev, Release);
-
     /* A device that refused to enumerate only matters if it left us with
        nothing to show: the empty panel quotes this code, so it must not quote
-       a failure that the fallback sweep recovered from. */
+       a failure that the other endpoints recovered from. */
     if (g_session_count > 0) g_sessions_hr = S_OK;
     return g_sessions_hr;
 }
+
 static void sessions_cleanup(void) {
     for (int i = 0; i < g_session_count; i++) {
         if (g_sessions[i].svol) { CALL_VTBL0(g_sessions[i].svol, Release); g_sessions[i].svol = NULL; }
@@ -1014,6 +1025,16 @@ static HICON  g_app_icon = NULL;
 static NOTIFYICONDATAW g_nid = {0};
 static BOOL   g_quitting = FALSE;
 static BOOL   g_silent = FALSE;
+/* Single-instance "show the window" signalling. A second launch (the Hub's
+   Open button, a desktop shortcut, a double-click) cannot create a second
+   window, so it sets this named event and a watcher thread marshals the
+   request onto the UI thread. An event is used instead of a cross-process
+   PostMessage because the tray instance is normally elevated (the logon task
+   runs RunLevel Highest) and UIPI silently drops a message from a lower-
+   integrity launcher; a named event is not subject to UIPI. */
+static HANDLE g_showEvent = NULL;
+static HANDLE g_showThread = NULL;
+static volatile BOOL g_showThreadRun = FALSE;
 
 #define PANEL_X      24
 #define PANEL_Y      80
@@ -2039,6 +2060,19 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
 
+    case WM_ASW_SHOW: {
+        /* Another launch asked us to come forward (the Hub's Open button, a
+           desktop shortcut, a second double-click). Restore if minimized,
+           show, and take the foreground so the user actually sees the panel
+           instead of only the tray icon it is already running in. */
+        if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
+        ShowWindow(hwnd, SW_SHOW);
+        SetForegroundWindow(hwnd);
+        SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        return 0;
+    }
+
     case WM_CLOSE:
         ShowWindow(hwnd, SW_HIDE);
         return 0;
@@ -2603,6 +2637,24 @@ done:
 }
 
 
+/* Waits for a second launch to ask for the window, then marshals the request
+   onto the UI thread. Polls on a short timeout so it notices shutdown without
+   a second wake object; the event is auto-reset, so each request produces
+   exactly one show. */
+static DWORD WINAPI ShowWatcherThread(LPVOID param) {
+    (void)param;
+    if (!g_showEvent) return 0;
+    while (g_showThreadRun) {
+        DWORD wr = WaitForSingleObject(g_showEvent, 200);
+        if (wr == WAIT_OBJECT_0) {
+            if (g_hwnd) PostMessageW(g_hwnd, WM_ASW_SHOW, 0, 0);
+        } else if (wr != WAIT_TIMEOUT) {
+            break;              /* handle went invalid; stop, do not spin */
+        }
+    }
+    return 0;
+}
+
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
     (void)hPrev; (void)nShow;
 
@@ -2621,12 +2673,25 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     HANDLE hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         if (!g_silent) {
+            /* Ask the running instance to show itself. The named event is the
+               reliable path across integrity levels (the tray copy is usually
+               elevated); the direct window message is a best-effort fallback for
+               an instance that predates the event, which UIPI may drop. */
             HANDLE ev = OpenEventW(EVENT_MODIFY_STATE, FALSE, SHOW_EVENT_NAME);
             if (ev) { SetEvent(ev); CloseHandle(ev); }
+            HWND existing = FindWindowW(L"TestsAudioSwitcherWnd", NULL);
+            if (existing) {
+                ShowWindowAsync(existing, SW_SHOWNORMAL);
+                PostMessageW(existing, WM_ASW_SHOW, 0, 0);
+            }
         }
         CloseHandle(hMutex);
         return 0;
     }
+
+    /* First instance: create the show event before the window so a second launch
+       that races our startup can already signal it. */
+    g_showEvent = CreateEventW(NULL, FALSE, FALSE, SHOW_EVENT_NAME);
 
     g_hInst = hInst;
 
@@ -2652,14 +2717,36 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
         CW_USEDEFAULT, CW_USEDEFAULT, S(720), S(620),
         NULL, NULL, hInst, NULL);
 
-    /* Start hidden in tray - user opens from tray icon or hotkey */
-    ShowWindow(hwnd, SW_HIDE);
+    /* An explicit launch (the Hub's Open button, a desktop shortcut) must
+       actually show the panel; only the silent logon/tray start hides. Starting
+       hidden unconditionally was why clicking Open in the Hub appeared to do
+       nothing - the window existed but was never shown. */
+    if (g_silent) {
+        ShowWindow(hwnd, SW_HIDE);
+    } else {
+        ShowWindow(hwnd, SW_SHOWNORMAL);
+        SetForegroundWindow(hwnd);
+    }
+
+    /* Surface the window when a later launch asks us to (this is what makes the
+       Hub's Open button work once we are the hidden tray instance). Started
+       after the window exists so g_hwnd is valid for the intra-process post. */
+    g_showThreadRun = TRUE;
+    g_showThread = CreateThread(NULL, 0, ShowWatcherThread, NULL, 0, NULL);
 
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0) > 0) {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
+
+    g_showThreadRun = FALSE;
+    if (g_showThread) {
+        WaitForSingleObject(g_showThread, 1000);
+        CloseHandle(g_showThread);
+        g_showThread = NULL;
+    }
+    if (g_showEvent) { CloseHandle(g_showEvent); g_showEvent = NULL; }
 
     CloseHandle(hMutex);
     return (int)msg.wParam;

@@ -1602,28 +1602,82 @@ class AudioSwitcherSessionSweepTests(unittest.TestCase):
         start = src.index(signature)
         return src[start:src.index("\n}\n", start)]
 
-    def test_the_other_active_outputs_are_swept_when_the_default_shows_nothing(self):
+    def test_every_active_output_is_enumerated_not_just_the_default(self):
+        """An app renders to whichever endpoint it opened its stream on, and
+        Windows does not move that stream when the default later changes. A game
+        on a non-default output has its session there and nowhere else, so listing
+        only the default shows 'no apps are playing audio' while a game is plainly
+        making sound. Enumerate every active render endpoint, like the Windows
+        mixer and EarTrumpet do."""
         src = self._src()
         refresh = self._fn(src, "static HRESULT sessions_refresh(void) {")
 
         self.assertIn("static int sessions_collect_from_device(IMMDevice *dev", src,
                       "session collection is not per-device, so only the default "
                       "output can ever be listed")
-        self.assertIn("if (g_session_count == 0) {", refresh,
-                      "the fallback sweep is gone, or now runs unconditionally and "
-                      "duplicates every app that is already listed")
         self.assertRegex(
             refresh,
             r"for \(int i = 0; i < g_endpoint_count && g_session_count < 128; i\+\+\)",
-            "the sweep no longer walks the enumerated render endpoints")
-        self.assertIn("if (i == g_default_endpoint_idx) continue;", refresh,
-                      "the sweep re-lists the default device, so every app on it "
-                      "would appear twice")
-        self.assertIn("sessions_collect_from_device(g_endpoints[i].device, TRUE", refresh,
-                      "swept rows are not labelled with the device they play on, so "
-                      "an inaudible app looks like a broken slider")
-        self.assertIn("g_session_sweep_used = TRUE;", refresh,
-                      "nothing records that the sweep produced the list")
+            "the refresh no longer walks every enumerated render endpoint")
+        self.assertIn("sessions_collect_from_device(g_endpoints[i].device, !is_def", refresh,
+                      "endpoints other than the default are not enumerated, so apps "
+                      "rendering to another output never appear")
+        self.assertIn("BOOL is_def = (i == g_default_endpoint_idx) || g_endpoints[i].is_default;",
+                      refresh,
+                      "the default endpoint is not identified, so its own apps would be "
+                      "labelled as being on another output")
+        self.assertNotIn("if (g_session_count == 0) {", refresh,
+                         "the sweep is still gated on the default being empty, so a single "
+                         "app on the default hides every game on the other outputs")
+        self.assertIn("if (g_endpoint_count == 0 && g_enum)", refresh,
+                      "no fallback when endpoint enumeration itself failed")
+
+    def test_second_launch_shows_the_existing_window(self):
+        """The Hub's Open button (and a desktop shortcut) re-launch the exe; the
+        single-instance mutex stops a second window, so the running instance must
+        be told to show itself. It normally sits hidden in the tray and is usually
+        elevated, so the signal is a named event (UIPI would drop a cross-process
+        PostMessage from a non-elevated launcher), marshalled onto the UI thread."""
+        src = self._src()
+
+        # An explicit launch shows; only --silent (the logon/tray start) hides.
+        self.assertRegex(
+            src,
+            r"if \(g_silent\) \{\s*ShowWindow\(hwnd, SW_HIDE\);\s*\} else \{\s*"
+            r"ShowWindow\(hwnd, SW_SHOWNORMAL\);",
+            "an explicit (non-silent) launch does not show the window, so clicking Open "
+            "in the Hub appears to do nothing")
+
+        # First instance creates the event; a watcher thread waits and marshals it.
+        self.assertIn("g_showEvent = CreateEventW(NULL, FALSE, FALSE, SHOW_EVENT_NAME);", src,
+                      "the first instance never creates the show event, so a second "
+                      "launch's SetEvent has nothing to signal")
+        self.assertIn("static DWORD WINAPI ShowWatcherThread(", src,
+                      "nothing waits for the show event")
+        watcher = src[src.index("static DWORD WINAPI ShowWatcherThread("):
+                      src.index("int WINAPI wWinMain(")]
+        self.assertIn("WaitForSingleObject(g_showEvent", watcher,
+                      "the watcher does not wait on the show event")
+        self.assertIn("PostMessageW(g_hwnd, WM_ASW_SHOW", watcher,
+                      "the watcher does not marshal the show onto the UI thread")
+        self.assertIn("g_showThread = CreateThread(NULL, 0, ShowWatcherThread", src,
+                      "the watcher thread is never started")
+
+        # The UI thread shows and focuses the window on WM_ASW_SHOW.
+        self.assertIn("#define WM_ASW_SHOW", src, "no show message is defined")
+        show_case = src[src.index("case WM_ASW_SHOW:"):]
+        show_case = show_case[:show_case.index("case WM_CLOSE:")]
+        self.assertIn("if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);", show_case,
+                      "a minimized window is not restored")
+        self.assertIn("ShowWindow(hwnd, SW_SHOW);", show_case, "the window is not shown")
+        self.assertIn("SetForegroundWindow(hwnd);", show_case,
+                      "the window is shown but not brought to the foreground")
+
+        # Second instance signals it: event first, window message as fallback.
+        self.assertIn("OpenEventW(EVENT_MODIFY_STATE, FALSE, SHOW_EVENT_NAME)", src,
+                      "a second launch does not signal the running instance")
+        self.assertIn("FindWindowW(L\"TestsAudioSwitcherWnd\", NULL)", src,
+                      "no FindWindow fallback for an instance that predates the event")
 
     def test_swept_rows_say_which_output_they_are_on(self):
         src = self._src()
@@ -1646,7 +1700,10 @@ class AudioSwitcherSessionSweepTests(unittest.TestCase):
         # this function, so slice to the next top-level function instead.
         collect = src[src.index("static int sessions_collect_from_device("):
                       src.index("static HRESULT sessions_refresh(void) {")]
-        self.assertIn("if (g_session_mgr_count < 8) g_session_mgrs[g_session_mgr_count++] = mgr;",
+        self.assertIn("static IAudioSessionManager2 *g_session_mgrs[32];", src,
+                      "the manager array is smaller than the endpoint array, so a system "
+                      "with many outputs would not retain every device's manager")
+        self.assertIn("if (g_session_mgr_count < 32) g_session_mgrs[g_session_mgr_count++] = mgr;",
                       collect,
                       "a swept device's session manager is released while the "
                       "ISimpleAudioVolume pointers it handed out are still on screen")

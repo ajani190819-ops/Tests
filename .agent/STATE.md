@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-10-30 (hub 2.8.39: Update All covers every app; keyboard dither phase fix)
+**Last Updated:** 2026-10-30 (AudioSwitcher: Open-from-hub surfaces the window; apps on every render endpoint are listed, not just the default's)
 
 ## Turn protocol (do this literally)
 
@@ -30,7 +30,7 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 | **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold modes; dither keeps each lamp's phase across a blackout (no lockstep pulse on off/on); strict 7-bit ASCII, C# 5.0 |
 | **DNS Pilot** | `dns-pilot/src/dns_pilot.c` | size-tracked | **GREEN** — parallel rank test; `TestsSuite-DnsPilot` ONLOGON task |
 | **Agent Notes** | `agent-notes/src/agent_notes.c` | size-tracked | **GREEN** — POSTs to `tools/notes_server.py`; queues in `%LOCALAPPDATA%\AgentNotes\outbox\` while the agent is offline |
-| **Audio Switcher / Clipboard Memory** | `audio-switcher/`, `clipboard-memory/` | size-tracked | **GREEN** — catalog-driven hub cards |
+| **Audio Switcher / Clipboard Memory** | `audio-switcher/`, `clipboard-memory/` | size-tracked | **GREEN** — catalog-driven hub cards; Audio Switcher surfaces its window on Open-from-hub (named-event show) and lists apps on every render endpoint, not just the default |
 | **Spatial HUD** | `spatial-hud-template-26.3/` | mod 1.0.5, updater 4 | **GREEN** — flicker + bottom cut-off fixed; pass-splitting HUD mods (Gnetum) complete partial frames via `fillSkippedRoots()` |
 | **Wave Overhangs / Unlayered Infill** | `plugins/` | 0.0.51 / 0.4.10 | **GREEN** — versions in lockstep across code, `.bat`, JSON, changelogs |
 | **App catalog** | `suite-apps.json` | 8 apps | **GREEN** — one JSON entry adds a hub card, no hub rebuild. Now contract-tested. |
@@ -97,8 +97,10 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
    are reachable - by fitting or by scrolling - and the app list names the apps
    that are actually playing. Check at 150% scaling, after dragging the window
    to a monitor with a different scale, scrolling with the wheel while a slider
-   has focus, and holding a slider thumb while the 2-second poll fires. An app
-   pinned to a non-default output should appear as `app.exe - on <device>`.
+   has focus, and holding a slider thumb while the 2-second poll fires. Clicking
+   Open in the hub (app already in the tray, and elevated) should surface and
+   focus the window. An app on ANY output should appear, tagged
+   `app.exe - on <device>` when it is not on the default.
 2. **Needs Windows / in-game validation** (cannot be tested in this sandbox):
    after hub 2.8.38, one Update click writes the suite folder copy AND every
    stray copy (owner's case: Audio Switcher stuck 9 days old in
@@ -111,6 +113,36 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 4. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
    `guiWidth/guiHeight` — the mapping bug fixed in Method 4 (1.0.4) is unfixed
    there. Fix it if Method 3 ever reports the same symptom.
+
+- **AudioSwitcher: Open-from-hub shows the window; apps on every output are
+  listed** (owner: "when I click to open it from the hub it should actually pull
+  up the app... I know it's open in the tray but I wanna actually be able to see
+  it" and "I can't see what apps are using any audio even when I'm running games";
+  audio-switcher/src/audio_switcher.c, `AudioSwitcher.exe` rebuilt 184,832 B).
+  Two independent fixes, modelled on how professional tools do it.
+  - **Open-from-hub never surfaced the window.** The hub launches the exe with no
+    args (non-silent), but `wWinMain` always did `ShowWindow(hwnd, SW_HIDE)` and
+    never created `SHOW_EVENT_NAME`, so a second launch's `OpenEventW`+`SetEvent`
+    hit a non-existent event and exited silently while the first instance stayed
+    hidden in the tray. Now an explicit (non-`--silent`) launch shows+foregrounds
+    the window; the first instance creates the named event and a `ShowWatcherThread`
+    waits on it and marshals `WM_ASW_SHOW` onto the UI thread (a named event, not a
+    cross-process PostMessage, because the tray copy is elevated and UIPI would
+    drop a message from a lower-integrity launcher); the WndProc restores/shows/
+    foregrounds on `WM_ASW_SHOW`; the second instance signals the event with a
+    `FindWindowW` fallback. `--silent` (the logon task) still starts hidden.
+  - **Apps/games on a non-default output were invisible.** `sessions_refresh`
+    swept the other endpoints only `if (g_session_count == 0)`, so one background
+    app on the default hid every game rendering to another output. An app renders
+    to whichever endpoint it opened its stream on and Windows does not move it when
+    the default changes. Now every active render endpoint is enumerated (the
+    Windows-mixer / EarTrumpet model): default first (unlabelled), then each other
+    endpoint labelled `app - on <device>`; each session lives on exactly one
+    endpoint so nothing is double-counted. Manager array widened 8->32 to match the
+    endpoint array. `test_every_active_output_is_enumerated_not_just_the_default`
+    and `test_second_launch_shows_the_existing_window` pin both (negative controls:
+    unconditional SW_HIDE / re-gate the sweep both caught). No hub change - the hub
+    already launched it correctly.
 
 - **Hub 2.8.39: "Update All" was skipping Agent Notes** + **keyboard dither
   phase fix** (owner: "fix the flickering of keyboard lighting and make the
