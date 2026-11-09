@@ -21,8 +21,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.38"
-#define HUB_VERSION_W     L"2.8.38"
+#define HUB_VERSION       "2.8.39"
+#define HUB_VERSION_W     L"2.8.39"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -3460,12 +3460,20 @@ static DWORD WINAPI HubWorkerThread(LPVOID unused) {
         case TASK_INSTALL_DYN:           WorkerInstallGeneric(g_dynIdx, FALSE); break;
         case TASK_OPEN_OR_INSTALL_DYN:   WorkerInstallGeneric(g_dynIdx, TRUE); break;
         case TASK_UPDATE_ALL:
+            /* Every built-in app has to be refreshed here or its suite folder
+               keeps the old build: slots 0-5 have dedicated workers (each with
+               its own MIRROR_ set), and slots 6+ (Audio Switcher, Clipboard
+               Memory, catalog cards) go through the generic worker. Agent Notes
+               (slot 5) was the one dedicated worker missing from this list, so
+               "Update All" left its suite copy stale while every other app
+               updated. */
             WorkerInstallBluetoothGuard(FALSE);
             WorkerInstallKeyboardLighting();
             WorkerInstallOrcaPlugins();
-            for (int i = 6; i < g_cardCount; i++) WorkerInstallGeneric(i, FALSE);
             WorkerInstallSpatialHud();
             WorkerInstallDnsPilot(FALSE);
+            WorkerInstallNotes(FALSE);
+            for (int i = 6; i < g_cardCount; i++) WorkerInstallGeneric(i, FALSE);
             WorkerCheckRemote();
             SetFooterStatus(L"All suite apps updated!", 0);
             break;

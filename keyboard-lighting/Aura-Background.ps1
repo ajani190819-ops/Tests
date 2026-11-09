@@ -563,7 +563,13 @@ public class LampEngine {
     double br = gr.Brightness * gr.Master;
     if (br <= 0.0005) {
       fr[i] = 0.0; fg[i] = 0.0; fb[i] = 0.0;
-      er[i] = 0.0; eg[i] = 0.0; eb[i] = 0.0;
+      // Reset to this lamp's seed, not to zero. Zeroing every lamp at once
+      // re-synced them, so when the group lit again (master slider back up, or
+      // an effect's black phase ending) all four keyboard lamps - which carry
+      // the same colour - rounded and stepped on the same frame and pulsed
+      // together. That whole-keyboard flash is what SeedDither's per-lamp phase
+      // exists to prevent; dropping to zero here undid it on every off/on cycle.
+      SeedLamp(i);
       return;
     }
     if (br < 0.9995) {
@@ -1242,13 +1248,18 @@ public class LampEngine {
   // steps cancel instead of adding up. The golden ratio is used because
   // successive multiples of it spread out evenly and never fall into a
   // short repeating pattern.
-  void SeedDither() {
+  // One lamp's seed: a deterministic, evenly-spread starting fraction. Kept
+  // separate from SeedDither so a lamp that blacks out can be reset to its own
+  // phase rather than to zero (see SetZoneG).
+  void SeedLamp(int i) {
     const double G = 0.6180339887498949;
-    for (int i = 0; i < LampCount; i++) {
-      er[i] = ((i * G) % 1.0) - 0.5;
-      eg[i] = (((i * G) + 0.3333) % 1.0) - 0.5;
-      eb[i] = (((i * G) + 0.6667) % 1.0) - 0.5;
-    }
+    er[i] = ((i * G) % 1.0) - 0.5;
+    eg[i] = (((i * G) + 0.3333) % 1.0) - 0.5;
+    eb[i] = (((i * G) + 0.6667) % 1.0) - 0.5;
+  }
+
+  void SeedDither() {
+    for (int i = 0; i < LampCount; i++) SeedLamp(i);
   }
 
   // Quantise with error feedback: the fraction we throw away this frame is

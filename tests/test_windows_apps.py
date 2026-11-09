@@ -504,6 +504,44 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("engine.pid", tray)
         self.assertIn("engine.pid", aura)
 
+    def test_keyboard_lighting_dither_keeps_per_lamp_phase_across_blackout(self):
+        """A lamp that blacks out must come back on its own dither phase.
+
+        The four keyboard lamps almost always carry the same colour. SeedDither
+        gives each lamp/channel a different golden-ratio starting fraction so
+        they round - and therefore step - on different frames; that is what
+        stops the whole keyboard pulsing in lockstep (the owner's "backlight
+        stutters/flashes"). The blackout path in SetZoneG used to reset the
+        carried error to 0.0 for every lamp at once, so after any off/on cycle
+        (master slider to 0 and back up, or an effect's black phase ending) all
+        four lamps restarted in phase and the shimmer came back.
+        """
+        aura = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="utf-8")
+
+        self.assertIn("void SeedLamp(int i) {", aura,
+                      "the per-lamp dither seed is not split out, so the blackout "
+                      "path cannot restore a single lamp's phase")
+        self.assertIn("for (int i = 0; i < LampCount; i++) SeedLamp(i);", aura,
+                      "SeedDither no longer delegates to SeedLamp, so the two can "
+                      "drift apart")
+
+        # Reopen must still reseed after a resume/power cycle.
+        reopen = aura[aura.index("public bool Reopen()"):]
+        reopen = reopen[:reopen.index("\n  }\n")]
+        self.assertIn("SeedDither();", reopen,
+                      "a resume no longer reseeds the dither, so the lamps come "
+                      "back in phase after every sleep/wake")
+
+        # The blackout branch must reseed, not zero.
+        blk = aura[aura.index("if (br <= 0.0005) {"):]
+        blk = blk[:blk.index("return;")]
+        self.assertIn("SeedLamp(i);", blk,
+                      "a blacked-out lamp is not reset to its own seed phase")
+        self.assertNotIn("er[i] = 0.0; eg[i] = 0.0; eb[i] = 0.0;", blk,
+                         "the blackout path zeroes every lamp's carried error at "
+                         "once, re-syncing the keyboard lamps into a lockstep pulse")
+
     def test_bluetooth_guard_contracts(self):
         core = (ROOT / "bluetooth-guard" / "BluetoothCore.cs").read_text(encoding="utf-8")
         ps = (ROOT / "bluetooth-guard" / "BluetoothGuard.ps1").read_text(encoding="utf-8")
@@ -1319,14 +1357,41 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("case ID_MENU_HUB_TOSUITE:", src,
                       "the suite-folder hub menu entry is not handled")
 
+    def test_update_all_refreshes_every_builtin_app_suite_folder(self):
+        src = self._hub_src()
+        start = src.index("case TASK_UPDATE_ALL:")
+        block = src[start:src.index("break;", start)]
+
+        # Slots 0-5 have dedicated workers (each with its own MIRROR_ set) and
+        # slots 6+ go through the generic worker. Agent Notes (slot 5) was the
+        # one dedicated worker missing here, so "Update All" left its suite copy
+        # stale while every other app updated - the owner's "the suite folders
+        # don't actually update" for at least one app.
+        for call in ("WorkerInstallBluetoothGuard(FALSE)",
+                     "WorkerInstallKeyboardLighting()",
+                     "WorkerInstallOrcaPlugins()",
+                     "WorkerInstallSpatialHud()",
+                     "WorkerInstallDnsPilot(FALSE)",
+                     "WorkerInstallNotes(FALSE)"):
+            self.assertIn(call, block,
+                          f"Update All no longer calls {call}, so that app's suite "
+                          f"folder keeps the previous build on a one-click update")
+        self.assertRegex(block, r"for \(int i = 6; i < g_cardCount; i\+\+\) "
+                                r"WorkerInstallGeneric\(i, FALSE\);",
+                         "Update All no longer sweeps the generic slots (Audio "
+                         "Switcher, Clipboard Memory, catalog cards)")
+        self.assertIn("WorkerCheckRemote();", block,
+                      "Update All does not re-check the remote afterwards, so the "
+                      "badges would still read stale after a successful update")
+
     def test_hub_version_advanced_for_the_suite_folder_install_fix(self):
         src = self._hub_src()
         m = re.search(r'#define HUB_VERSION\s+"(\d+)\.(\d+)\.(\d+)"', src)
         self.assertIsNotNone(m, "HUB_VERSION is missing or malformed")
         version = tuple(int(g) for g in m.groups())
-        self.assertGreaterEqual(version, (2, 8, 38),
-                                "the hub version was not bumped, so an installed hub "
-                                "never offers this update")
+        self.assertGreaterEqual(version, (2, 8, 39),
+                                "the hub version was not bumped for the Update All "
+                                "coverage fix, so an installed hub never offers it")
 
 
 class AudioSwitcherReachabilityTests(unittest.TestCase):

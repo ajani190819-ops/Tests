@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-10-30 (hub 2.8.38: suite-folder installs)
+**Last Updated:** 2026-10-30 (hub 2.8.39: Update All covers every app; keyboard dither phase fix)
 
 ## Turn protocol (do this literally)
 
@@ -25,9 +25,9 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 
 | Component | Path | Version | Status |
 | :--- | :--- | :--- | :--- |
-| **Project Hub** | `project-hub/src/project_hub.c` | 2.8.38 | **GREEN** — suite folder is the install target for every app and the hub; stray copies mirrored in the same click (see gotcha below); content-hash update checks; branch-aware mod card |
+| **Project Hub** | `project-hub/src/project_hub.c` | 2.8.39 | **GREEN** — suite folder is the install target for every app and the hub; "Update All" now refreshes every built-in (Agent Notes was the one skipped); stray copies mirrored in the same click; content-hash update checks; branch-aware mod card |
 | **Bluetooth Guard** | `bluetooth-guard/src/bluetooth_guard.c` | 2.8.7 | **GREEN** — rules-ghost device list; `HighestAvailable` logon task |
-| **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold modes; strict 7-bit ASCII, C# 5.0 |
+| **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold modes; dither keeps each lamp's phase across a blackout (no lockstep pulse on off/on); strict 7-bit ASCII, C# 5.0 |
 | **DNS Pilot** | `dns-pilot/src/dns_pilot.c` | size-tracked | **GREEN** — parallel rank test; `TestsSuite-DnsPilot` ONLOGON task |
 | **Agent Notes** | `agent-notes/src/agent_notes.c` | size-tracked | **GREEN** — POSTs to `tools/notes_server.py`; queues in `%LOCALAPPDATA%\AgentNotes\outbox\` while the agent is offline |
 | **Audio Switcher / Clipboard Memory** | `audio-switcher/`, `clipboard-memory/` | size-tracked | **GREEN** — catalog-driven hub cards |
@@ -111,6 +111,43 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 4. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
    `guiWidth/guiHeight` — the mapping bug fixed in Method 4 (1.0.4) is unfixed
    there. Fix it if Method 3 ever reports the same symptom.
+
+- **Hub 2.8.39: "Update All" was skipping Agent Notes** + **keyboard dither
+  phase fix** (owner: "fix the flickering of keyboard lighting and make the
+  folder actually update" -> clarified: the backlight stutters/flashes during
+  effects, and the suite folders for all the apps the hub updates must really
+  refresh). Two independent fixes, one per component.
+  - **Update All omitted Agent Notes.** `TASK_UPDATE_ALL` called the dedicated
+    workers for Bluetooth Guard, Keyboard Lighting, Orca, Spatial HUD and DNS
+    Pilot, then swept slots 6+ through `WorkerInstallGeneric` (Audio Switcher,
+    Clipboard Memory, catalog cards). Slots 0-5 are the dedicated-worker apps,
+    but Agent Notes (slot 5) was the one whose worker was never called, and the
+    generic loop starts at 6 - so its suite folder kept the previous build on
+    every one-click "Update All" while every other app refreshed. Added
+    `WorkerInstallNotes(FALSE);` to the block (project-hub/src/project_hub.c).
+    Every built-in now updates; `WorkerCheckRemote()` still runs last so the
+    badges clear. Bumped `HUB_VERSION` + `HUB_VERSION_W` to 2.8.39 together.
+    `test_update_all_refreshes_every_builtin_app_suite_folder` pins all six
+    dedicated calls + the generic sweep + the recheck; 4 negative controls
+    (drop Notes / drop DNS / start the loop at 8 / drop the recheck) all caught.
+  - **Keyboard backlight lockstep pulse on off/on cycles.** The four keyboard
+    lamps almost always carry the same colour. `SeedDither()` gives each lamp and
+    channel a different golden-ratio starting fraction so they round - and
+    therefore step - on different frames; across the group the steps cancel
+    instead of adding into a whole-keyboard pulse. But the blackout path in
+    `SetZoneG` (`br <= 0.0005`) reset the carried error to `0.0` for every lamp
+    at once, re-syncing them, so after any off/on cycle (master slider to 0 and
+    back up, or an effect's black phase ending) all four restarted in phase and
+    the shimmer came back. Split the per-lamp seed into `SeedLamp(i)` (called by
+    `SeedDither()` and by `Reopen()` as before) and made the blackout path call
+    `SeedLamp(i)` instead of zeroing: it still clears the accumulated error, but
+    keeps each lamp's phase (keyboard-lighting/Aura-Background.ps1).
+    `test_keyboard_lighting_dither_keeps_per_lamp_phase_across_blackout` pins it;
+    3 negative controls (zero on blackout / remove SeedLamp / stop reseeding on
+    Reopen) all caught. Strict 7-bit ASCII kept; `cslint.py` (both engine blocks
+    + ui_controls.cs.txt) and `paramcheck.py` clean. The .ps1 is a script the hub
+    downloads, so no KeyboardLighting.exe rebuild was needed - only
+    ProjectHub.exe changed.
 
 - **AudioSwitcher panel: nothing cut off, and the app list is real** (owner:
   "the bottom part of it is cut off and I can't see what apps are actually
