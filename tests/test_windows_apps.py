@@ -24,16 +24,18 @@ import unittest
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def read_c_inlined(rel):
+def read_c_inlined(rel, encoding="utf-8", errors="replace"):
     """Read a C source, inlining any local `#include "x.c"` part-files (the
-    unity-build modularization) so callers see the whole translation unit."""
+    unity-build modularization) so callers see the whole translation unit.
+    Pass encoding="ascii", errors="strict" to enforce 7-bit ASCII across the
+    main file AND every part (the keyboard-lighting ASCII contract)."""
     path = ROOT / rel
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = path.read_text(encoding=encoding, errors=errors)
     base = path.parent
 
     def _inline(m):
         p = base / m.group(1)
-        return p.read_text(encoding="utf-8", errors="replace") if p.exists() else m.group(0)
+        return p.read_text(encoding=encoding, errors=errors) if p.exists() else m.group(0)
 
     return re.sub(r'^[ \t]*#include[ \t]+"([^"]+\.c)"[ \t]*$', _inline, text, flags=re.M)
 
@@ -635,7 +637,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         ui_cs = (ROOT / "keyboard-lighting" / "ui_controls.cs.txt").read_text(encoding="ascii")
         self.assertIn("DrawSuiteEmblem", ui_cs)
         self.assertIn("Radius = 14", ui_cs)
-        kbl_c = (ROOT / "keyboard-lighting" / "src" / "keyboard_lighting.c").read_text(encoding="ascii")
+        kbl_c = read_c_inlined("keyboard-lighting/src/keyboard_lighting.c", encoding="ascii", errors="strict")
         self.assertIn("SmoothRoundRect", kbl_c)
         self.assertIn("DrawPillSwitch", kbl_c)
         self.assertIn("RES_ICON_EMBLEM", kbl_c)
@@ -1257,7 +1259,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "so it would fight the user mid-drag")
 
     def test_keyboard_lighting_logon_task_starts_elevated_and_unsuppressed(self):
-        src = (ROOT / "keyboard-lighting" / "src" / "keyboard_lighting.c").read_text(encoding="utf-8")
+        src = read_c_inlined("keyboard-lighting/src/keyboard_lighting.c")
 
         # The logon task must run at the highest privilege level, or the
         # scheduler starts a requireAdministrator exe with a limited token and
@@ -1296,8 +1298,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         intercepts system input. It must be registered against a real window:
         InitRawInput used to be called before CreateWindowExW, i.e. with a NULL
         hwnd, so no WM_INPUT ever arrived and the hook was doing all the work."""
-        src = (ROOT / "keyboard-lighting" / "src" / "keyboard_lighting.c").read_text(
-            encoding="utf-8")
+        src = read_c_inlined("keyboard-lighting/src/keyboard_lighting.c")
 
         self.assertNotIn("SetWindowsHookEx", src,
                          "the app still installs a system-wide low-level keyboard "

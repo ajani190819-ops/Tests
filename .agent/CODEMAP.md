@@ -190,88 +190,121 @@
 - L351  f FindEffectIndex
 - L361  f CurGroup
 - L365  f InitDefaultCfg
-- L413  f PresetPath
-- L417  f ParseHexW
-- L434  f SaveGroupPreset
-- L459  f LoadGroupPreset
-- L495  f LoadPresetIndex
-- L511  f SavePresetSlot
-- L529  f ApplyPresetSlot
-- L549  f DeletePresetSlot
-- L565  f OpenPatternPopup  — Pattern picker: the same native popup menu the effect list uses.
-- L596  f StepMasterBrightness  — ---- global brightness hotkeys --------------------------------------
-- L612  f RegisterBrightnessHotkeys
-- L626  f JsonVal  — Lightweight parser preserving existing user panel.json settings
-- L645  f JsonBool
-- L653  f JsonInt
-- L659  f JsonStr
-- L668  f ParseGroupJson
-- L724  f LoadPanelCfg
-- L752  f FormatGroupPanelJson
-- L786  f SavePanelCfg
-- L817  f WriteLiveBrightness
-- L835  f PollFnBrightness
-- L864  f HelpForHit  — One-line plain-English explanation for every control, shown in the footer
-- L901  f FormatThemeBlock
-- L935  f WriteThemeJson
-- L952  f SyncLinkedZone
-- L959  f WriteHeartbeat
-- L975  f IsEngineAlive  — ============================================================================
-- L985  f KillPidFromFile
-- L998  f StopEngine
-- L1014  f DownloadRepoFileWinHttp
-- L1097  f StartEngine
-- L1196  f TurnAllLightsOff
-- L1225  f MarkAutostartOff
-- L1238  f AutostartMarkedOff
-- L1245  f TaskExists
-- L1266  f QueryAutostart
-- L1271  f SetKblAutostart
-- L1325  f ScheduleLiveApply
-- L1337  f FlushLiveApply
-- L1362  f ParseLayoutTxt
-- L1441  f HasReleaseSrc
-- L1445  f HoldTokenWrite
-- L1453  f HoldPump  — One paced token per interval while the gesture is live.
-- L1468  f PressSignal
-- L1480  f ReleaseSignal
-- L1490  f OnScanEvent
-- L1509  f OnRawHid
-- L1535  f LearnFromRing
-- L1595  f WatchBrightTokens
-- L1609  f InitRawInput
-- L1642  f OnRawInputMsg
-- L1672  f OsdDrawSunFallback
-- L1803  f OsdCreate
-- L1818  f OsdShow
-- L1835  f PollLayoutTxt
-- L1845  f PollLivePreviewFrame  — Read live lamp frame from Aura-Background.ps1 or synthesize accurate live palette preview
-- L1943  f FillCanvasRect
-- L1956  f SmoothRoundRect
-- L2003  f SmoothCircle
-- L2041  f SmoothRingTrack  — Thin annulus: the track that makes the Light Bar read as one closed loop.
-- L2076  f EmbRasterize
-- L2153  f EmbCacheEnsure
-- L2168  f EmbSpinDraw
-- L2223  f DrawSuiteEmblemIcon
-- L2228  f AddHit
-- L2237  f DrawSuiteBtn
-- L2250  f DrawPillSwitch
-- L2275  f DrawSmoothSlider
-- L2308  f RenderKblWindow
-- L2408  S CARD 1: Live ROG Strix G16 Preview + Master Brightness
-- L2503  S CARD 2: Zone Tabs + Effect Picker
-- L2557  S CARD 3: Interactive Colour Swatches + Band Width Bars
-- L2612  S CARD 4: Speed, Zone Brightness & Motion Switches
-- L2728  f ApplySliderDrag  — ============================================================================
-- L2756  f OpenEffectPopup
-- L2806  f PickSwatchColor
-- L2840  f RelaunchElevated
-- L2861  f EnsureLogonTask
-- L2907  f HandleHitAction
-- L2999  f ShowTrayContextMenu
-- L3255  f InitKblPaths
-- globals: g_hwnd (L178), g_appIcon (L179), g_nid (L180), g_showEvent (L181), g_engineProc (L182), g_enginePid (L183), g_isAdmin (L184), g_autostart (L185), g_wantOff (L186), g_quitting (L187), g_trayHinted (L188), g_downloading (L189), g_cfg (L191), g_tab (L192), g_hits (L193), g_hitCount (L194), g_hoverIdx (L195), g_dragKind (L196), g_dragIdx (L197), g_dragRect (L198), g_scrollY (L199), g_contentH (L200), g_applyPending (L201), g_applyAtTick (L202), g_liveCols (L205), g_liveKbdN (L206), g_liveBarN (L207), g_hasLiveFrame (L208), g_lastFrameTick (L209), g_toastText (L212), g_toastAt (L213), g_lastFnPoll (L214), g_exePath (L217), g_exeDir (L218), g_cfgDir (L219), g_panelPath (L220), g_themePath (L221), g_livePath (L222), g_framePath (L223), g_layoutPath (L224), g_lockPath (L225), g_showPath (L226), g_engPidPath (L227), g_stopPath (L228), g_brightUpPath (L229), g_brightDownPath (L230), g_holdModePath (L231), g_engineScript (L232), g_zonesBat (L233), g_statusText (L234), g_presetName (L409), g_presetUsed (L410), g_presetIdx (L411), g_barOrder (L1357), g_barQ (L1358), g_barLayoutN (L1359), g_layoutReadAt (L1360), g_keyRing (L1422), g_keyRingHead (L1423), g_hidRing (L1425), g_hidRingHead (L1426), g_scanBound (L1427), g_hidCode (L1428), g_scanArmed (L1429), g_hidDown (L1430), g_holdOn (L1431), g_hidRelSeen (L1432), g_sigAt (L1433), g_scanNext (L1434), g_learnCand (L1435), g_learnN (L1436), g_learnHid (L1437), g_learnHidN (L1438), g_seenTok (L1439), g_osdHwnd (L1669), g_osdPct (L1670), g_embCache (L2151), g_pickOrig (L2776), g_pickLast (L2777), g_pickIdx (L2778), g_pickLive (L2779)
+- globals: g_hwnd (L178), g_appIcon (L179), g_nid (L180), g_showEvent (L181), g_engineProc (L182), g_enginePid (L183), g_isAdmin (L184), g_autostart (L185), g_wantOff (L186), g_quitting (L187), g_trayHinted (L188), g_downloading (L189), g_cfg (L191), g_tab (L192), g_hits (L193), g_hitCount (L194), g_hoverIdx (L195), g_dragKind (L196), g_dragIdx (L197), g_dragRect (L198), g_scrollY (L199), g_contentH (L200), g_applyPending (L201), g_applyAtTick (L202), g_liveCols (L205), g_liveKbdN (L206), g_liveBarN (L207), g_hasLiveFrame (L208), g_lastFrameTick (L209), g_toastText (L212), g_toastAt (L213), g_lastFnPoll (L214), g_exePath (L217), g_exeDir (L218), g_cfgDir (L219), g_panelPath (L220), g_themePath (L221), g_livePath (L222), g_framePath (L223), g_layoutPath (L224), g_lockPath (L225), g_showPath (L226), g_engPidPath (L227), g_stopPath (L228), g_brightUpPath (L229), g_brightDownPath (L230), g_holdModePath (L231), g_engineScript (L232), g_zonesBat (L233), g_statusText (L234)
+
+## keyboard-lighting/src/parts/brightness_hotkeys.c
+
+- L8  f StepMasterBrightness  — ---- global brightness hotkeys --------------------------------------
+- L24  f RegisterBrightnessHotkeys
+- L38  f JsonVal  — Lightweight parser preserving existing user panel.json settings
+- L57  f JsonBool
+- L65  f JsonInt
+- L71  f JsonStr
+- L80  f ParseGroupJson
+- L136  f LoadPanelCfg
+- L164  f FormatGroupPanelJson
+- L198  f SavePanelCfg
+- L229  f WriteLiveBrightness
+- L247  f PollFnBrightness
+- L276  f HelpForHit  — One-line plain-English explanation for every control, shown in the footer
+- L313  f FormatThemeBlock
+- L347  f WriteThemeJson
+- L364  f SyncLinkedZone
+- L371  f WriteHeartbeat
+
+## keyboard-lighting/src/parts/brightness_osd.c
+
+- L10  f OsdDrawSunFallback
+- L141  f OsdCreate
+- L156  f OsdShow
+- L173  f PollLayoutTxt
+- L183  f PollLivePreviewFrame  — Read live lamp frame from Aura-Background.ps1 or synthesize accurate live palette preview
+- globals: g_osdHwnd (L7), g_osdPct (L8)
+
+## keyboard-lighting/src/parts/emblem.c
+
+- L8  f EmbRasterize
+- L85  f EmbCacheEnsure
+- L100  f EmbSpinDraw
+- L155  f DrawSuiteEmblemIcon
+- L160  f AddHit
+- L169  f DrawSuiteBtn
+- L182  f DrawPillSwitch
+- L207  f DrawSmoothSlider
+- L240  f RenderKblWindow
+- L340  S CARD 1: Live ROG Strix G16 Preview + Master Brightness
+- L435  S CARD 2: Zone Tabs + Effect Picker
+- L489  S CARD 3: Interactive Colour Swatches + Band Width Bars
+- L544  S CARD 4: Speed, Zone Brightness & Motion Switches
+- globals: g_embCache (L83)
+
+## keyboard-lighting/src/parts/engine_bootstrap.c
+
+- L5  f IsEngineAlive  — ============================================================================
+- L15  f KillPidFromFile
+- L28  f StopEngine
+- L44  f DownloadRepoFileWinHttp
+- L127  f StartEngine
+- L226  f TurnAllLightsOff
+- L255  f MarkAutostartOff
+- L268  f AutostartMarkedOff
+- L275  f TaskExists
+- L296  f QueryAutostart
+- L301  f SetKblAutostart
+- L355  f ScheduleLiveApply
+- L367  f FlushLiveApply
+- L392  f ParseLayoutTxt
+- globals: g_barOrder (L387), g_barQ (L388), g_barLayoutN (L389), g_layoutReadAt (L390)
+
+## keyboard-lighting/src/parts/m4_m5_hold.c
+
+- L37  f HasReleaseSrc
+- L41  f HoldTokenWrite
+- L49  f HoldPump  — One paced token per interval while the gesture is live.
+- L64  f PressSignal
+- L76  f ReleaseSignal
+- L86  f OnScanEvent
+- L105  f OnRawHid
+- L131  f LearnFromRing
+- L191  f WatchBrightTokens
+- L205  f InitRawInput
+- L238  f OnRawInputMsg
+- globals: g_keyRing (L18), g_keyRingHead (L19), g_hidRing (L21), g_hidRingHead (L22), g_scanBound (L23), g_hidCode (L24), g_scanArmed (L25), g_hidDown (L26), g_holdOn (L27), g_hidRelSeen (L28), g_sigAt (L29), g_scanNext (L30), g_learnCand (L31), g_learnN (L32), g_learnHid (L33), g_learnHidN (L34), g_seenTok (L35)
+
+## keyboard-lighting/src/parts/mouse_drag_menus.c
+
+- L5  f ApplySliderDrag  — ============================================================================
+- L33  f OpenEffectPopup
+
+## keyboard-lighting/src/parts/named_colour_presets.c
+
+- L13  f PresetPath
+- L17  f ParseHexW
+- L34  f SaveGroupPreset
+- L59  f LoadGroupPreset
+- L95  f LoadPresetIndex
+- L111  f SavePresetSlot
+- L129  f ApplyPresetSlot
+- L149  f DeletePresetSlot
+- L165  f OpenPatternPopup  — Pattern picker: the same native popup menu the effect list uses.
+- globals: g_presetName (L9), g_presetUsed (L10), g_presetIdx (L11)
+
+## keyboard-lighting/src/parts/picker_window_entry.c
+
+- L36  f PickSwatchColor
+- L70  f RelaunchElevated
+- L91  f EnsureLogonTask
+- L137  f HandleHitAction
+- L229  f ShowTrayContextMenu
+- L485  f InitKblPaths
+- globals: g_pickOrig (L6), g_pickLast (L7), g_pickIdx (L8), g_pickLive (L9)
+
+## keyboard-lighting/src/parts/ui_renderer.c
+
+- L18  f FillCanvasRect
+- L31  f SmoothRoundRect
+- L78  f SmoothCircle
+- L116  f SmoothRingTrack  — Thin annulus: the track that makes the Light Bar read as one closed loop.
 
 ## dns-pilot/src/dns_pilot.c
 
@@ -676,13 +709,13 @@
 ## tests/test_windows_apps.py
 
 - L27  f read_c_inlined
-- L41  f strip_cs_comments_and_strings
-- L163  f lex_powershell
-- L298  f WindowsDesktopAppsTests
-- L1381  f SuiteFolderInstallTests
-- L1598  f AudioSwitcherReachabilityTests
-- L1782  f AudioSwitcherSessionSweepTests
-- L1923  f AppOpenFocusTests
+- L43  f strip_cs_comments_and_strings
+- L165  f lex_powershell
+- L300  f WindowsDesktopAppsTests
+- L1382  f SuiteFolderInstallTests
+- L1599  f AudioSwitcherReachabilityTests
+- L1783  f AudioSwitcherSessionSweepTests
+- L1924  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 
