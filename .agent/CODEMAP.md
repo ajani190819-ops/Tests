@@ -103,48 +103,77 @@
 ## bluetooth-guard/src/bluetooth_guard.c
 
 - L179  f ArmFastBurstWindow
-- L186  f BoostProcessAndShutdownPriority  — Maximize CPU scheduling priority & disable Windows 11 EcoQoS throttling so boot/wake reaction is ins
-- L207  f RegisterBluetoothNotifications  — Subscribe to live kernel Bluetooth HCI / radio interface notifications for <1ms connect detection
-- L242  f UnregisterBluetoothNotifications
-- L257  f GetWinDpi
-- L272  f S
-- L274  f ApplyModernWindowFrame
-- L290  f InitBluetoothApis
-- L311  f HasConnectedBefore
-- L334  f FormatMac
-- L342  f FormatCompactHex
-- L347  f ContainsCI
-- L357  f CheckForegroundManualIntent  — Detect when the user is actively clicking inside Windows Settings or Windows 11 Quick Settings flyou
-- L377  f ClassifyDevice
-- L400  f EnsureProfilesEnabled  — Keep Windows Bluetooth service profiles ENABLED so manual Connect in Windows Settings ALWAYS works!
-- L420  f EndpointMatchesName  — Match endpoint adapter friendly name (covers HFP / LE Audio when PnP ID lacks classic hex MAC)
-- L442  f TriggerBtAudioKsProperty  — Native Windows KSPROPERTY_ONESHOT_RECONNECT / DISCONNECT — exact API used by Windows 11 Settings!
-- L515  f DoDisconnectOnly  — Disconnect active link cleanly WITHOUT disabling Bluetooth profiles!
-- L540  f DoConnectNow  — Actively connect device right now!
-- L545  f InitPaths
-- L555  f WriteHeartbeat
-- L576  f IsAutostartEnabled
-- L589  f RunHiddenCmd
-- L608  f SetAutostart  — Install both:
-- L692  f SaveRules
-- L711  f LoadRules
-- L750  f EnqueueWork
-- L766  f PollPairedDevices
-- L863  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
-- L927  f FillCanvasRect
-- L940  f SmoothRoundRect
-- L1005  f EmbRasterize
-- L1082  f EmbCacheEnsure
-- L1097  f EmbSpinDraw
-- L1154  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
-- L1159  f DrawStatusTag
-- L1185  f DrawActionBtn  — style: 0=soft secondary, 1=primary cobalt, 2=coral disconnect, 3=primary connect
-- L1208  f DrawPillToggle  — Smooth rounded pill switch control with label + sliding circular knob
-- L1236  f AddHit
-- L1245  f RenderWindow
-- L1492  f HandleHitClick
-- L1562  f ShowTrayMenu
-- globals: g_hwnd (L144), g_appIcon (L145), g_devNotifyIface (L146), g_devNotifyRadio (L147), g_radioNotifyHandle (L148), g_nid (L149), g_quitting (L150), g_guardOn (L151), g_autostart (L152), g_autostartExplicit (L153), g_radioOn (L154), g_trayHinted (L155), g_showEvent (L156), g_lock (L157), g_devices (L159), g_devCount (L160), g_hits (L162), g_hitCount (L163), g_hoverIdx (L164), g_scrollY (L165), g_contentH (L166), g_fastBurstUntil (L168), g_manualGraceUntil (L169), g_queue (L248), g_qHead (L249), g_qTail (L250), g_qSem (L251), g_workerRun (L252), g_cfgDir (L253), g_rulesPath (L254), g_lockPath (L255), g_embCache (L1080)
+- globals: g_hwnd (L144), g_appIcon (L145), g_devNotifyIface (L146), g_devNotifyRadio (L147), g_radioNotifyHandle (L148), g_nid (L149), g_quitting (L150), g_guardOn (L151), g_autostart (L152), g_autostartExplicit (L153), g_radioOn (L154), g_trayHinted (L155), g_showEvent (L156), g_lock (L157), g_devices (L159), g_devCount (L160), g_hits (L162), g_hitCount (L163), g_hoverIdx (L164), g_scrollY (L165), g_contentH (L166), g_fastBurstUntil (L168), g_manualGraceUntil (L169)
+
+## bluetooth-guard/src/parts/autostart_rules.c
+
+- L5  f SetAutostart  — Install both:
+- L89  f SaveRules
+- L108  f LoadRules
+- L147  f EnqueueWork
+- L163  f PollPairedDevices
+- L260  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
+
+## bluetooth-guard/src/parts/bt_actions.c
+
+- L2  f TriggerBtAudioKsProperty  — Native Windows KSPROPERTY_ONESHOT_RECONNECT / DISCONNECT — exact API used by Windows 11 Settings!
+- L75  f DoDisconnectOnly  — Disconnect active link cleanly WITHOUT disabling Bluetooth profiles!
+- L100  f DoConnectNow  — Actively connect device right now!
+- L105  f InitPaths
+- L115  f WriteHeartbeat
+- L136  f IsAutostartEnabled
+- L149  f RunHiddenCmd
+
+## bluetooth-guard/src/parts/device_classify.c
+
+- L2  f CheckForegroundManualIntent  — Detect when the user is actively clicking inside Windows Settings or Windows 11 Quick Settings flyou
+- L22  f ClassifyDevice
+- L45  f EnsureProfilesEnabled  — Keep Windows Bluetooth service profiles ENABLED so manual Connect in Windows Settings ALWAYS works!
+- L65  f EndpointMatchesName  — Match endpoint adapter friendly name (covers HFP / LE Audio when PnP ID lacks classic hex MAC)
+
+## bluetooth-guard/src/parts/device_history.c
+
+- L7  f HasConnectedBefore
+- L30  f FormatMac
+- L38  f FormatCompactHex
+- L43  f ContainsCI
+
+## bluetooth-guard/src/parts/emblem.c
+
+- L8  f EmbRasterize
+- L85  f EmbCacheEnsure
+- L100  f EmbSpinDraw
+- globals: g_embCache (L83)
+
+## bluetooth-guard/src/parts/system_init.c
+
+- L2  f BoostProcessAndShutdownPriority  — Maximize CPU scheduling priority & disable Windows 11 EcoQoS throttling so boot/wake reaction is ins
+- L23  f RegisterBluetoothNotifications  — Subscribe to live kernel Bluetooth HCI / radio interface notifications for <1ms connect detection
+- L58  f UnregisterBluetoothNotifications
+- L73  f GetWinDpi
+- L88  f S
+- L90  f ApplyModernWindowFrame
+- L106  f InitBluetoothApis
+- globals: g_queue (L64), g_qHead (L65), g_qTail (L66), g_qSem (L67), g_workerRun (L68), g_cfgDir (L69), g_rulesPath (L70), g_lockPath (L71)
+
+## bluetooth-guard/src/parts/ui_controls.c
+
+- L3  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
+- L8  f DrawStatusTag
+- L34  f DrawActionBtn  — style: 0=soft secondary, 1=primary cobalt, 2=coral disconnect, 3=primary connect
+- L57  f DrawPillToggle  — Smooth rounded pill switch control with label + sliding circular knob
+- L85  f AddHit
+
+## bluetooth-guard/src/parts/ui_renderer.c
+
+- L17  f FillCanvasRect
+- L30  f SmoothRoundRect
+
+## bluetooth-guard/src/parts/window_entry.c
+
+- L1  f RenderWindow
+- L248  f HandleHitClick
+- L318  f ShowTrayMenu
 
 ## keyboard-lighting/src/keyboard_lighting.c
 
