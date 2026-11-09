@@ -1723,5 +1723,83 @@ class AudioSwitcherSessionSweepTests(unittest.TestCase):
         self.assertIn("g_session_mgr = NULL;", cleanup)
 
 
+class AppOpenFocusTests(unittest.TestCase):
+    """Every hub card's Open button launches the app's exe with no arguments -
+    an explicit, non-silent launch. Clicking Open must bring that app's window
+    to the foreground, both when it starts fresh and when it is already running
+    hidden in the tray. These pin the show/focus path in each app so a future
+    edit cannot silently drop the window behind the hub or leave it hidden."""
+
+    @staticmethod
+    def _src(rel):
+        return (ROOT / rel).read_text(encoding="utf-8")
+
+    # (path, explicit-first-launch pattern, already-running-resurface pattern)
+    APPS = [
+        ("bluetooth-guard/src/bluetooth_guard.c",
+         r"if \(!silent\) \{\s*ShowWindow\(g_hwnd, SW_SHOWNORMAL\);\s*"
+         r"UpdateWindow\(g_hwnd\);\s*SetForegroundWindow\(g_hwnd\);",
+         r"WaitForSingleObject\(g_showEvent, 0\) == WAIT_OBJECT_0\)\s*\{\s*"
+         r"ShowWindow\(hwnd, SW_SHOWNORMAL\);\s*SetForegroundWindow\(hwnd\);"),
+        ("keyboard-lighting/src/keyboard_lighting.c",
+         r"if \(!silent\) \{\s*ShowWindow\(g_hwnd, SW_SHOWNORMAL\);\s*"
+         r"UpdateWindow\(g_hwnd\);\s*SetForegroundWindow\(g_hwnd\);",
+         r"WaitForSingleObject\(g_showEvent, 0\) == WAIT_OBJECT_0\)\s*\{\s*"
+         r"ShowWindow\(hwnd, SW_SHOWNORMAL\);\s*SetForegroundWindow\(hwnd\);"),
+        ("dns-pilot/src/dns_pilot.c",
+         r"if \(!silent\) \{\s*ShowWindow\(g_hwnd, SW_SHOW\);\s*"
+         r"SetForegroundWindow\(g_hwnd\);\s*\}",
+         r"FindWindowW\(L\"KBLSuiteDnsPilotWindow\", NULL\)[\s\S]{0,200}?"
+         r"SetForegroundWindow\(other\);"),
+        ("agent-notes/src/agent_notes.c",
+         r"ShowWindow\(g_hwnd, SW_SHOW\);\s*UpdateWindow\(g_hwnd\);\s*"
+         r"SetForegroundWindow\(g_hwnd\);",
+         r"MsgWaitForMultipleObjects\(1, &g_showEvent[\s\S]{0,340}?"
+         r"SetForegroundWindow\(g_hwnd\);"),
+        ("clipboard-memory/src/clipboard_memory.c",
+         r"if \(g_silent\) \{\s*ShowWindow\(hwnd, SW_HIDE\);\s*\} else \{\s*"
+         r"ShowWindow\(hwnd, SW_SHOWNORMAL\);\s*SetForegroundWindow\(hwnd\);",
+         r"WaitForSingleObject\(g_showEvent, 0\) == WAIT_OBJECT_0[\s\S]{0,160}?"
+         r"SetForegroundWindow\(hwnd\);"),
+        ("audio-switcher/src/audio_switcher.c",
+         r"if \(g_silent\) \{\s*ShowWindow\(hwnd, SW_HIDE\);\s*\} else \{\s*"
+         r"ShowWindow\(hwnd, SW_SHOWNORMAL\);\s*SetForegroundWindow\(hwnd\);",
+         r"case WM_ASW_SHOW:[\s\S]{0,420}?SetForegroundWindow\(hwnd\);"),
+    ]
+
+    def test_explicit_open_shows_and_foregrounds_the_window(self):
+        for rel, first, _second in self.APPS:
+            with self.subTest(app=rel):
+                self.assertRegex(
+                    self._src(rel), first,
+                    rel + ": an explicit Open (the hub launches with no --silent) "
+                          "does not show AND foreground the window, so it can open "
+                          "behind the hub or stay hidden in the tray")
+
+    def test_a_running_instance_is_resurfaced_and_focused(self):
+        for rel, _first, second in self.APPS:
+            with self.subTest(app=rel):
+                self.assertRegex(
+                    self._src(rel), second,
+                    rel + ": when the app is already running in the tray, a second "
+                           "Open does not bring the existing window forward")
+
+    def test_clipboard_memory_creates_the_show_event_it_waits_on(self):
+        """Clipboard Memory signalled a show event on a second launch but never
+        created it, so Open-from-hub did nothing while it sat hidden in the tray
+        - the exact bug Audio Switcher had. The first instance must create it."""
+        src = self._src("clipboard-memory/src/clipboard_memory.c")
+        self.assertIn(
+            "g_showEvent = CreateEventW(NULL, FALSE, FALSE, SHOW_EVENT_NAME);", src,
+            "the first instance never creates the show event, so a second launch's "
+            "SetEvent has nothing to signal and Open-from-hub does nothing")
+        self.assertIn("OpenEventW(EVENT_MODIFY_STATE, FALSE, SHOW_EVENT_NAME)", src,
+                      "a second launch does not signal the running instance")
+        self.assertIn("FindWindowW(L\"TestsClipboardMemoryWnd\", NULL)", src,
+                      "no FindWindow fallback for an instance that predates the event")
+        self.assertIn(
+            "if (g_showEvent) { CloseHandle(g_showEvent); g_showEvent = NULL; }", src,
+            "the show-event handle is leaked on shutdown")
+
 if __name__ == "__main__":
     unittest.main()

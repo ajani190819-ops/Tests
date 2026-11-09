@@ -3438,6 +3438,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     if (!silent) {
         ShowWindow(g_hwnd, SW_SHOWNORMAL);
         UpdateWindow(g_hwnd);
+        SetForegroundWindow(g_hwnd);   /* an explicit Open must take focus */
     }
 
     MSG msg;

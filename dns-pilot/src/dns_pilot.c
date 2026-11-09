@@ -1948,7 +1948,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
        updated pilot back the way it was instead of popping the window) */
     BOOL silent = (cmdLine && (wcsstr(cmdLine, L"-Silent") != NULL ||
                                wcsstr(cmdLine, L"--silent") != NULL));
-    if (!silent) ShowWindow(g_hwnd, SW_SHOW);
+    if (!silent) { ShowWindow(g_hwnd, SW_SHOW); SetForegroundWindow(g_hwnd); }
     InitializeCriticalSection(&g_watchCs);
     SetTimer(g_hwnd, 1, 10000, NULL);
     SetTimer(g_hwnd, 2, 50, NULL);     /* emblem spin repaint */

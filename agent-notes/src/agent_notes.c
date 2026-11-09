@@ -980,6 +980,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     SetTimer(g_hwnd, TIMER_SPIN, 50, NULL);
     ShowWindow(g_hwnd, SW_SHOW);
     UpdateWindow(g_hwnd);
+    SetForegroundWindow(g_hwnd);       /* an explicit Open must take focus */
 
     MSG msg;
     for (;;) {

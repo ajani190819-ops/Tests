@@ -519,6 +519,7 @@
 - L1173  f SuiteFolderInstallTests
 - L1397  f AudioSwitcherReachabilityTests
 - L1583  f AudioSwitcherSessionSweepTests
+- L1726  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

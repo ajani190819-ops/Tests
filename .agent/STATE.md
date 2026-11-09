@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-10-30 (AudioSwitcher: Open-from-hub surfaces the window; apps on every render endpoint are listed, not just the default's)
+**Last Updated:** 2026-10-30 (every hub app now focuses its window when Open is clicked; Clipboard Memory's dead Open button fixed)
 
 ## Turn protocol (do this literally)
 
@@ -30,7 +30,7 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 | **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold modes; dither keeps each lamp's phase across a blackout (no lockstep pulse on off/on); strict 7-bit ASCII, C# 5.0 |
 | **DNS Pilot** | `dns-pilot/src/dns_pilot.c` | size-tracked | **GREEN** — parallel rank test; `TestsSuite-DnsPilot` ONLOGON task |
 | **Agent Notes** | `agent-notes/src/agent_notes.c` | size-tracked | **GREEN** — POSTs to `tools/notes_server.py`; queues in `%LOCALAPPDATA%\AgentNotes\outbox\` while the agent is offline |
-| **Audio Switcher / Clipboard Memory** | `audio-switcher/`, `clipboard-memory/` | size-tracked | **GREEN** — catalog-driven hub cards; Audio Switcher surfaces its window on Open-from-hub (named-event show) and lists apps on every render endpoint, not just the default |
+| **Audio Switcher / Clipboard Memory** | `audio-switcher/`, `clipboard-memory/` | size-tracked | **GREEN** — catalog-driven hub cards; both surface+focus their window on Open-from-hub (named-event show); Audio Switcher lists apps on every render endpoint |
 | **Spatial HUD** | `spatial-hud-template-26.3/` | mod 1.0.5, updater 4 | **GREEN** — flicker + bottom cut-off fixed; pass-splitting HUD mods (Gnetum) complete partial frames via `fillSkippedRoots()` |
 | **Wave Overhangs / Unlayered Infill** | `plugins/` | 0.0.51 / 0.4.10 | **GREEN** — versions in lockstep across code, `.bat`, JSON, changelogs |
 | **App catalog** | `suite-apps.json` | 8 apps | **GREEN** — one JSON entry adds a hub card, no hub rebuild. Now contract-tested. |
@@ -113,6 +113,30 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 4. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
    `guiWidth/guiHeight` — the mapping bug fixed in Method 4 (1.0.4) is unfixed
    there. Fix it if Method 3 ever reports the same symptom.
+
+- **Every hub app focuses its window when Open is clicked** (owner: "all apps
+  should focus when the open button is clicked"; the hub launches each app's exe
+  with no args, so this is each app's own show/focus path). Audited all six apps
+  with an Open button and fixed the gaps; no hub change was needed.
+  - **Clipboard Memory was fully broken** - the exact bug Audio Switcher had. It
+    always started hidden (`ShowWindow(hwnd, SW_HIDE)`) and a second launch did
+    `OpenEventW`+`SetEvent` on `SHOW_EVENT_NAME`, but the first instance never
+    created that event and nothing watched it, so Open-from-hub did nothing while
+    it sat in the tray. Now the first instance creates the event, its 50 ms emblem
+    timer (which runs even while hidden) polls it and restores+shows+foregrounds,
+    an explicit launch shows+focuses instead of hiding, and the second instance
+    keeps a `FindWindowW` fallback.
+  - **Bluetooth Guard, Keyboard Lighting, DNS Pilot, Agent Notes** already
+    resurfaced+focused a running instance (timer poll / FindWindow /
+    `MsgWaitForMultipleObjects` on the show event) but only *showed*, not
+    foregrounded, on a fresh explicit launch, so the window could come up behind
+    the hub. Added `SetForegroundWindow` to each first-launch show (the `!silent`
+    path; the silent tray/logon start still stays hidden).
+  - Audio Switcher was already done last commit. `AppOpenFocusTests` pins both
+    halves for all six apps (an explicit launch foregrounds + a running instance
+    is resurfaced) plus the Clipboard Memory event lifecycle; negative controls
+    (drop CM's CreateEvent / revert CM to unconditional hide / drop BTG's
+    foreground) all caught. All five changed EXEs rebuilt.
 
 - **AudioSwitcher: Open-from-hub shows the window; apps on every output are
   listed** (owner: "when I click to open it from the hub it should actually pull

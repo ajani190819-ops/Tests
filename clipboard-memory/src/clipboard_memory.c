@@ -292,6 +292,11 @@ static HICON  g_app_icon = NULL;
 static NOTIFYICONDATAW g_nid = {0};
 static BOOL   g_quitting = FALSE;
 static BOOL   g_silent = FALSE;
+/* A second launch (the Hub's Open button, a shortcut) cannot create a second
+   window - the single-instance mutex stops it - so it sets this named event
+   and we surface ourselves. An event, not a cross-process PostMessage, because
+   the running copy may be elevated and UIPI would drop the message. */
+static HANDLE g_showEvent = NULL;
 static HWND   g_scroll = NULL;      /* scrollable history container */
 static HWND   g_item_hwnds[MAX_HISTORY][3];  /* [idx][0]=pasteBtn [1]=delBtn [2]=label */
 static int    g_item_hwnd_count = 0;
@@ -632,6 +637,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         clip_stop_listening(hwnd);
         Shell_NotifyIconW(NIM_DELETE, &g_nid);
         hist_save();
+        if (g_showEvent) { CloseHandle(g_showEvent); g_showEvent = NULL; }
         PostQuitMessage(0);
         return 0;
 
@@ -640,6 +646,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_TIMER:
         if (wp == 2) {
+            /* A second launch asked us to surface. Poll it here: this 50 ms
+               emblem timer keeps running while we are hidden in the tray, which
+               is exactly when the nudge arrives. Restore + foreground so the
+               user actually sees the window, not just the tray icon. */
+            if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {
+                if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
+                ShowWindow(hwnd, SW_SHOWNORMAL);
+                SetForegroundWindow(hwnd);
+            }
             /* Emblem spin only - invalidate just the emblem square */
             if (g_rcEmblem.right > g_rcEmblem.left)
                 InvalidateRect(hwnd, &g_rcEmblem, FALSE);
@@ -897,12 +912,20 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     HANDLE hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         if (!g_silent) {
+            /* Ask the running instance to show itself. The named event is the
+               reliable path across integrity levels; the direct window call is a
+               best-effort fallback for an instance that predates the event. */
             HANDLE ev = OpenEventW(EVENT_MODIFY_STATE, FALSE, SHOW_EVENT_NAME);
             if (ev) { SetEvent(ev); CloseHandle(ev); }
+            HWND existing = FindWindowW(L"TestsClipboardMemoryWnd", NULL);
+            if (existing) ShowWindowAsync(existing, SW_SHOWNORMAL);
         }
         CloseHandle(hMutex);
         return 0;
     }
+
+    /* First instance: create the show event so a second launch can signal us. */
+    g_showEvent = CreateEventW(NULL, FALSE, FALSE, SHOW_EVENT_NAME);
 
     g_hInst = hInst;
 
@@ -931,8 +954,15 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
         CW_USEDEFAULT, CW_USEDEFAULT, S(720), S(620),
         NULL, NULL, hInst, NULL);
 
-    /* Start hidden in tray - user opens from tray icon or Win+V hotkey */
-    ShowWindow(hwnd, SW_HIDE);
+    /* An explicit launch (the Hub's Open button, a shortcut) must actually show
+       and focus the window; only the silent start hides in the tray. Starting
+       hidden unconditionally was why clicking Open appeared to do nothing. */
+    if (g_silent) {
+        ShowWindow(hwnd, SW_HIDE);
+    } else {
+        ShowWindow(hwnd, SW_SHOWNORMAL);
+        SetForegroundWindow(hwnd);
+    }
 
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0) > 0) {
