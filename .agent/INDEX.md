@@ -4,10 +4,11 @@ Read only the files needed for the current task, and always read them in **one p
 
 ## Required at the start of every task (read in parallel)
 
-1. `AGENTS.md` — permanent rules, **Fast Execution Protocol (§0b)**, and communication standards.
-2. `.agent/STATE.md` — current work, verified status, versions, and next action.
-3. `.agent/CODEMAP.md` — generated function/line index (from `tools/agent_map.py`) for fast lookup.
-4. Only the single topic file from the table below that matches the user's request.
+1. `AGENTS.md` — the always-read core: turn protocol, hard rules, communication standards.
+2. `.agent/rules/execution.md` — Fast Execution Protocol + owner standing preferences (how to work each turn).
+3. `.agent/STATE.md` — current work, verified status, versions, and next action.
+4. `.agent/CODEMAP.md` — generated function/line index (from `tools/agent_map.py`) for fast lookup.
+5. Only the single topic file from the table below that matches the user's request.
 
 ## Topic map
 
@@ -19,10 +20,11 @@ Read only the files needed for the current task, and always read them in **one p
 | Any change that might capture or affect other GUIs | `.agent/decisions/0001-selected-hud-only.md` | — |
 | OrcaSlicer plugin behavior | `docs/ORCA-PLUGIN-FACTS.md` | `python3 tools/check_all.py` |
 | Orca plugin plans or open work | `docs/ROADMAP.md` | — |
-| Orca plugin release | `AGENTS.md` §4 (Verification & Release Playbook), then the relevant plugin changelog | `python3 tools/check_all.py` |
+| Committing, building, or an Orca plugin release | `.agent/rules/release.md` (+ the relevant plugin changelog) | `python3 tools/build_windows.py && python3 tools/check_all.py` |
+| Repo layout, where a file/symbol lives, or the `parts/` modularization | `.agent/rules/repo-map.md` | — |
 
 ## Maintenance rules
 
-- Keep `.agent/STATE.md` current and under 120 lines.
+- Keep `.agent/STATE.md` current and scannable (no hard length cap — the old 120-line budget is retired).
 - Put stable technical invariants in `.agent/facts/` so no future session ever wastes time re-discovering them.
 - Never duplicate prose across multiple docs — link to the single source of truth.

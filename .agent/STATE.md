@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-10-30 (Bluetooth Guard: phantom never-connected devices are now filtered out - HasConnectedBefore requires a real service-GUID subkey, not just any subkey - and each device card has a Forget button that does a TRUE unpair via BluetoothRemoveDevice (not a profile disable). Source modularization COMPLETE: all six app C files are a thin main .c that #includes its parts/ section files in order (one translation unit); split EXEs were byte-identical, tests read through read_c_inlined(), CODEMAP indexes every part. Earlier this pass: hub card buttons reordered Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
+**Last Updated:** 2026-10-30 (Agent docs restructured: AGENTS.md slimmed to the always-read core - turn protocol, communication, hard rules - with the detailed protocols split verbatim into .agent/rules/{execution,repo-map,release}.md, mirroring the app modularization; the STATE.md 120-line budget is retired. Bluetooth Guard: phantom never-connected devices filtered out (HasConnectedBefore now requires a service-GUID subkey) + a per-device Forget button doing a true unpair (BluetoothRemoveDevice, not a profile disable). Source modularization COMPLETE: all six app C files are a thin main + parts/ section files (one TU; split EXEs byte-identical; tests read via read_c_inlined(); CODEMAP indexes every part). Hub buttons Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
 
 ## Turn protocol (do this literally)
 
@@ -19,7 +19,7 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
    topic doc (`.agent/INDEX.md`).
 4. One logical change per commit (own build+check), push immediately.
 5. Update this file whenever project state changes (it survives resets). Keep it
-   under 120 lines — `.agent/INDEX.md` enforces that budget.
+   scannable — no hard length cap (the old 120-line budget is retired).
 
 ## Active Component Status
 
