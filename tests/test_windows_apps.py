@@ -558,6 +558,80 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "the blackout path zeroes every lamp's carried error at "
                          "once, re-syncing the keyboard lamps into a lockstep pulse")
 
+    def test_keyboard_lighting_stops_a_previous_engine_before_taking_the_device(self):
+        """A second engine must stand the first one down before opening the device.
+
+        Two engines each pushing 60 fps at the same keyboard is contention no
+        host-side timing can fix, and it matches the reported symptom exactly:
+        the four deck zones show both loops and step, while the twelve bar lamps
+        average the interleaving out and still look smooth. The owner's log
+        confirmed it - an exclusive open refused, "lock SHARED, fallbacks 1",
+        while an older engine (old log format, different owner pid) was still
+        writing.
+
+        The engine used to WRITE engine.pid and never read it, so it could not
+        know. The ordering is what makes the handover safe, and each step is
+        asserted here because getting any of them wrong is worse than not
+        trying: the handover must precede the open (or the exclusive attempt has
+        already failed), the stop.flag it writes must be removed before the main
+        loop polls that same file (or this engine stops itself immediately), and
+        the warnings must be flushed after Write-Log exists (or they are lost).
+        """
+        aura = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="ascii", errors="strict")
+
+        def at(needle, why):
+            self.assertEqual(aura.count(needle), 1, why + " (anchor not unique: %d)"
+                             % aura.count(needle))
+            return aura.index(needle)
+
+        handover = at("$script:StartupWarns = @()",
+                      "the previous-engine handover is missing")
+        pid_read = at("$prevPidFile = Join-Path $env:LOCALAPPDATA 'KeyboardLighting\engine.pid'",
+                      "the engine never reads engine.pid, so it cannot detect a previous instance")
+        flag_set = at("try { Set-Content -Path $prevFlag -Value '1'",
+                      "the handover never asks the previous engine to stop")
+        flag_clear = at("try { Remove-Item $prevFlag -Force",
+                        "the handover never clears the stop.flag it wrote")
+        opened = at("if (-not $eng.Open()) {", "the device open moved")
+        polled = at('        if (Test-Path $stopFile) {\n            Remove-Item $stopFile',
+                    "the main loop no longer polls stop.flag")
+        logdef = at("function Write-Log($msg, $level = 'INFO') {",
+                    "Write-Log moved")
+        flushed = at("foreach ($w in $script:StartupWarns) { Write-Log $w 'WARN' }",
+                     "the queued startup warnings are never written to the log")
+
+        self.assertTrue(handover < pid_read < flag_set < flag_clear < opened,
+                        "the handover must read engine.pid, ask the previous engine "
+                        "to stop and clear the flag BEFORE the device is opened, or "
+                        "the exclusive open has already been refused by then")
+        self.assertTrue(flag_clear < polled,
+                        "stop.flag is still present when the main loop first polls "
+                        "it, so this engine stops itself immediately after starting")
+        self.assertTrue(opened < logdef < flushed,
+                        "the startup warnings are flushed before Write-Log exists, "
+                        "so the most important line in the log is never written")
+
+        # One-shot diagnostics must never tear down the owner's running engine.
+        self.assertIn("if (-not ($Restore -or ($ZoneTest -ne '') -or $ChaseTest)) {",
+                      aura, "the handover also runs for one-shot diagnostics, so a "
+                            "zone test or a firmware restore would kill the engine "
+                            "the owner is actually using")
+
+        # And when the lock is still refused, name what is holding it - by
+        # process NAME only. Enumerating command lines needs a process-table WMI
+        # query, which can hang for seconds after a sleep/wake, so the existing
+        # reliability contract bans that string in this file outright.
+        self.assertIn("'LightingService'", aura,
+                      "a refused exclusive open does not name the vendor lighting "
+                      "services, so the owner has to guess what to close")
+        self.assertIn("'ArmouryCrate'", aura,
+                      "Armoury Crate is the most common contender and is not named")
+        self.assertNotIn("Win32_Process", aura,
+                         "the rival scan enumerates command lines via WMI, which "
+                         "can hang for seconds after a sleep/wake - match on "
+                         "process names instead")
+
     def test_keyboard_lighting_log_reports_lock_dither_and_device_range(self):
         """The engine must log the three readings that separate the flicker causes.
 

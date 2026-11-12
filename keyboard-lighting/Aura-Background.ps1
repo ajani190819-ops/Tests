@@ -3722,6 +3722,62 @@ try {
     $eng.FrameHz    = 20
 } catch { }
 
+# ---- hand over from an engine that is still alive ---------------------
+# Two engines pushing frames at the same keyboard is contention that no
+# host-side timing can fix: each runs its own 60 fps loop and the deck shows
+# both, which reads as visible stepping, while the twelve bar lamps average the
+# interleaving out and still look smooth. That is the reported symptom, and the
+# log backs it up - an exclusive open refused, "lock SHARED, fallbacks 1", with
+# an older engine still writing.
+#
+# The panel stops its own engine before starting another, but an update, a crash
+# or a second launch can leave one behind, and the engine only ever OVERWROTE
+# engine.pid without reading it, so it never knew. Ask the previous one to stop
+# and wait for it here, before taking the device, so the exclusive open below
+# has a real chance of succeeding.
+#
+# One-shot diagnostics deliberately skip this: they must never tear down the
+# engine the owner is actually using. Write-Log does not exist yet this early,
+# so anything worth logging is queued and written once the log is open.
+$script:StartupWarns = @()
+$script:PrevEngineStoodDown = $false
+if (-not ($Restore -or ($ZoneTest -ne '') -or $ChaseTest)) {
+    $prevPidFile = Join-Path $env:LOCALAPPDATA 'KeyboardLighting\engine.pid'
+    $prevPid = 0
+    try {
+        if (Test-Path $prevPidFile) {
+            $praw = (Get-Content $prevPidFile -Raw -ErrorAction SilentlyContinue)
+            if ($praw) { $praw = $praw.Trim() }
+            if ($praw -match '^\d+$') { $prevPid = [int]$praw }
+        }
+    } catch { }
+    if ($prevPid -gt 0 -and $prevPid -ne $PID) {
+        $prevProc = $null
+        try { $prevProc = [System.Diagnostics.Process]::GetProcessById($prevPid) } catch { $prevProc = $null }
+        if ($prevProc) {
+            Say ("  A previous lighting engine (pid {0}) is still running; asking it to stop." -f $prevPid) 'Yellow'
+            $prevFlag = Join-Path $env:LOCALAPPDATA 'KeyboardLighting\stop.flag'
+            try { Set-Content -Path $prevFlag -Value '1' -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
+            $prevDeadline = [DateTime]::UtcNow.AddMilliseconds(2500)
+            while ([DateTime]::UtcNow -lt $prevDeadline) {
+                try { if ($prevProc.HasExited) { break } } catch { break }
+                Start-Sleep -Milliseconds 50
+            }
+            $prevGone = $true
+            try { $prevGone = $prevProc.HasExited } catch { $prevGone = $true }
+            # Clear it here. The main loop below polls this same file, and if it
+            # were left behind this engine would immediately stop itself.
+            try { Remove-Item $prevFlag -Force -ErrorAction SilentlyContinue } catch { }
+            if ($prevGone) {
+                $script:PrevEngineStoodDown = $true
+                $script:StartupWarns += ("previous engine pid {0} was still alive at startup; it stopped on request" -f $prevPid)
+            } else {
+                $script:StartupWarns += ("previous engine pid {0} did NOT stop within 2.5s - two engines are writing to the keyboard, run Restart.bat" -f $prevPid)
+            }
+        }
+    }
+}
+
 if (-not $eng.Open()) {
     Write-Host ("  Engine could not open the device. {0}" -f $eng.LastError) -ForegroundColor Red
     Write-Host "  Run PowerShell as Administrator." -ForegroundColor Red
@@ -3737,6 +3793,33 @@ if ($eng.ExclusiveLock) {
     Say '  Device opened SHARED: another program already holds it and can write' 'Yellow'
     Say '  frames over ours at any time, which on its own makes the deck step.' 'Yellow'
     Say '  Close Armoury Crate / ASUS lighting services, or KBL_EXCLUSIVE_LOCK=0.' 'Yellow'
+
+    # Name the likely culprit instead of leaving it to guesswork. Process NAMES
+    # only, and no process-table WMI query on purpose: enumerating command
+    # lines can hang for seconds after a sleep/wake or during a Windows Update,
+    # and this sits on the startup path of the thing that is supposed to make
+    # the keyboard behave. Our own previous instance is already accounted for above through
+    # engine.pid, so whatever still holds the device here is somebody else's.
+    # This runs once, only on the path that already means something is wrong,
+    # and every part of it is optional: failing to enumerate must never stop
+    # the lighting from starting.
+    $rivals = @()
+    foreach ($n in 'ArmouryCrate','ArmouryCrate.Service','LightingService',
+                   'ASUSLiveUpdate','ATKOSD2','GHelper','OpenRGB','SignalRGB') {
+        try { if (Get-Process -Name $n -ErrorAction SilentlyContinue) { $rivals += $n } } catch { }
+    }
+    if ($rivals.Count -gt 0) {
+        Say ("  Also running: {0}. Close these, then restart the lighting." -f ($rivals -join ', ')) 'Yellow'
+        $script:StartupWarns += ('vendor lighting processes running while the device was shared: ' + ($rivals -join ', '))
+    } elseif ($script:PrevEngineStoodDown) {
+        Say '  A previous engine was stopped, yet the device is still shared.' 'Yellow'
+        Say '  Run Restart.bat to force-stop every instance and start one clean.' 'Yellow'
+        $script:StartupWarns += 'the device was still shared after the previous engine stopped - run Restart.bat'
+    } else {
+        Say '  No known lighting software found, so a stale engine is likely.' 'Yellow'
+        Say '  Run Restart.bat to force-stop every instance and start one clean.' 'Yellow'
+        $script:StartupWarns += 'the device was shared and no known lighting process was found - run Restart.bat to clear a stale engine'
+    }
 }
 
 if ($Effect -eq 'off') {
@@ -3874,6 +3957,13 @@ function Write-Log($msg, $level = 'INFO') {
         }
     } catch { }
 }
+# Queued before the log was open: the handover from a previous engine, and
+# whatever was found holding the device when the exclusive open was refused.
+# WARN because each of these means two writers were fighting over the keyboard.
+try {
+    foreach ($w in $script:StartupWarns) { Write-Log $w 'WARN' }
+} catch { }
+
 $script:SysTick = 0
 $script:GateTick = 0
 $script:LastAc  = $null
