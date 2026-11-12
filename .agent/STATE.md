@@ -125,16 +125,16 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
    Open in the hub (app already in the tray, and elevated) should surface and
    focus the window. An app on ANY output should appear, tagged
    `app.exe - on <device>` when it is not on the default.
-3. **Needs Windows / in-game validation** (cannot be tested in this sandbox):
+4. **Needs Windows / in-game validation** (cannot be tested in this sandbox):
    after hub 2.8.38, one Update click writes the suite folder copy AND every
    stray copy (owner's case: Audio Switcher stuck 9 days old in
    `Programs\TestsSuite\AudioSwitcher` while Downloads got each build);
    Audio Switcher card shows its own blurb + working buttons after a hub refresh;
    `Update-SpatialHUD.bat` installs `spatial-hud-1.0.4.jar` under its real name
    and self-updates from `main`; notes quick-capture page still posts.
-4. If the owner still sees a UAC prompt on manual double-click launches, offer
+5. If the owner still sees a UAC prompt on manual double-click launches, offer
    routing shortcuts through a silent task launcher (`schtasks /Run`).
-5. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
+6. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
    `guiWidth/guiHeight` — the mapping bug fixed in Method 4 (1.0.4) is unfixed
    there. Fix it if Method 3 ever reports the same symptom.
 
