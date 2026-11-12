@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-10-30 (Keyboard Lighting anti-flicker pass, engine only: the HID endpoint is now opened EXCLUSIVELY with a shared fallback (dwShareMode 0, so no other program can interleave frames; KBL_EXCLUSIVE_LOCK=0 opts out), the two batched reports of each frame are paced 1000us apart so they cannot share one 1ms USB frame (KBL_REPORT_PACE_US tunes it), and the timing line now logs lock state / fallback count / dither decision / the device's own colour range, with a shared handle escalated to WARN. Diagnosis came from the owner's detail that the four keyboard zones step while the twelve light-bar lamps stay smooth, which rules out frame tearing and points at a second writer or a coarse device colour range. NEEDS ON-DEVICE CONFIRMATION via logs/engine.log. Agent docs restructured: AGENTS.md slimmed to the always-read core - turn protocol, communication, hard rules - with the detailed protocols split verbatim into .agent/rules/{execution,repo-map,release}.md, mirroring the app modularization; the STATE.md 120-line budget is retired. Bluetooth Guard: phantom never-connected devices filtered out (HasConnectedBefore now requires a service-GUID subkey) + a per-device Forget button doing a true unpair (BluetoothRemoveDevice, not a profile disable). Source modularization COMPLETE: all six app C files are a thin main + parts/ section files (one TU; split EXEs byte-identical; tests read via read_c_inlined(); CODEMAP indexes every part). Hub buttons Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
+**Last Updated:** 2026-11-11 (Keyboard Lighting flicker CAUSE CONFIRMED from the owner's engine.log: a stale pre-update engine was still running and holding the HID endpoint shared, so the new engine's exclusive open was refused (`lock SHARED, fallbacks 1`, two different owner pids 13172/31112, one still on the old log format). Two 60fps writers on the same LEDs is enough on its own to make the four deck zones step while the twelve bar lamps average it out. `range R255/G255/B255` rules out coarse colour quantisation. Fixed by `3e0048e` — the engine now reads `engine.pid`, stands the previous instance down via `stop.flag` and clears it before its own loop can see it; a refused lock names the likely vendor holders by process name (no WMI, which is banned here). Owner to run Restart.bat and confirm `lock exclusive, fallbacks 0`. Earlier 2026-10-30: Keyboard Lighting anti-flicker pass, engine only: the HID endpoint is now opened EXCLUSIVELY with a shared fallback (dwShareMode 0, so no other program can interleave frames; KBL_EXCLUSIVE_LOCK=0 opts out), the two batched reports of each frame are paced 1000us apart so they cannot share one 1ms USB frame (KBL_REPORT_PACE_US tunes it), and the timing line now logs lock state / fallback count / dither decision / the device's own colour range, with a shared handle escalated to WARN. Diagnosis came from the owner's detail that the four keyboard zones step while the twelve light-bar lamps stay smooth, which rules out frame tearing and points at a second writer or a coarse device colour range. NEEDS ON-DEVICE CONFIRMATION via logs/engine.log. Agent docs restructured: AGENTS.md slimmed to the always-read core - turn protocol, communication, hard rules - with the detailed protocols split verbatim into .agent/rules/{execution,repo-map,release}.md, mirroring the app modularization; the STATE.md 120-line budget is retired. Bluetooth Guard: phantom never-connected devices filtered out (HasConnectedBefore now requires a service-GUID subkey) + a per-device Forget button doing a true unpair (BluetoothRemoveDevice, not a profile disable). Source modularization COMPLETE: all six app C files are a thin main + parts/ section files (one TU; split EXEs byte-identical; tests read via read_c_inlined(); CODEMAP indexes every part). Hub buttons Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
 
 ## Turn protocol (do this literally)
 
@@ -108,6 +108,36 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
    trade-off moves to the panel's Smooth colour toggle. Engine only, no C
    change, so no KeyboardLighting.exe rebuild was needed — Setup.bat re-fetches
    the engine.
+
+   **Owner's engine.log settled it (2026-11-11).** Two runs 36s apart watching
+   different owner pids — 13172 logging the OLD timing format, then 31112
+   logging the new one with `lock SHARED, fallbacks 1`. A pre-update engine was
+   still alive and holding the endpoint shared, which is exactly what refuses an
+   exclusive open, and two loops pushing 60fps at the same LEDs is by itself
+   enough to make the four deck zones step while the twelve bar lamps average it
+   out. `range R255/G255/B255` RULES OUT coarse colour quantisation and
+   confirms `dither off` was the right call. `worst 26463 us` against a 16667 us
+   budget plus `late frames 1` fits two writers contending.
+
+   Fixed by `3e0048e`: the engine now READS `engine.pid` before opening the
+   device (it only ever wrote it), asks the previous instance to stop via
+   `stop.flag`, waits up to 2.5s, then clears the flag — clearing matters
+   because the main loop polls that same file and would otherwise stop itself
+   immediately. One-shot diagnostics (`-Restore`, `-ZoneTest`, `-ChaseTest`)
+   skip the handover so a zone test can never kill the owner's engine. A refused
+   exclusive open now names likely holders by process name (ArmouryCrate,
+   LightingService, GHelper, OpenRGB, SignalRGB) and distinguishes "previous
+   engine stopped yet still shared" from "nothing known found — run
+   Restart.bat". **Names only: `Win32_Process` is banned in this file** by
+   `test_keyboard_lighting_reliability_contracts` because a process-table WMI
+   query can hang for seconds after sleep/wake; my first version used
+   `Get-CimInstance` and the suite caught it. Findings are queued in
+   `$script:StartupWarns` and flushed at WARN once `Write-Log` exists (the log is
+   set up AFTER the device is opened).
+
+   **Owner's next step:** run `Restart.bat` (force-stops every instance, starts
+   one clean), then re-read `logs\engine.log`. Expect `lock exclusive,
+   fallbacks 0`. If it still says SHARED, the log now names what is holding it.
 2. **Bluetooth Guard phantom filter + Forget button — owner is testing now.**
    `a2a1e21` (label 2.8.8): never-connected devices are filtered out
    (`HasConnectedBefore` requires a real `{8-4-4-4-12}` service-GUID subkey, not
