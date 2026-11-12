@@ -364,6 +364,32 @@ public class LampEngine {
   public double Speed      = 1.0;
   public double Brightness = 1.0;
   public int    Fps        = 60;
+
+  // Animation POSITION advances by a fixed nominal step instead of by the
+  // measured frame time. Everything physical - fire and sparkle decay, palette
+  // crossfades - still uses the real dt, because that is what makes it
+  // frame-rate independent.
+  //
+  // The two want different things. A decay needs to know how much wall-clock
+  // time actually passed. A position only needs each frame to be the same
+  // distance from the last. Feeding measured dt into the phase makes the
+  // gradient advance by 16.2ms one frame, 17.1ms the next, 15.8ms after that,
+  // and when a frame misses its deadline the loop resyncs, so the next dt is
+  // short. The loop's own notes put those misses at roughly 1% of frames from
+  // ordinary scheduler jitter - about one a second at 60fps. On twelve small
+  // bar lamps that averages away; on four large deck zones with nothing between
+  // them it is exactly the "smooth, but I can still see it if I look" step.
+  //
+  // With a fixed step every displayed position is one even stride from the
+  // previous one no matter when the frame actually landed. The cost is that a
+  // sustained run of late frames makes the animation run a little slow rather
+  // than jumping to catch up - and the adaptive backoff in Loop() lowers Fps in
+  // that case, which NominalDt follows, so real-time speed is preserved. For
+  // decorative lighting even motion beats wall-clock accuracy: nobody notices a
+  // rainbow being two percent behind the clock, everybody notices a hitch.
+  // KBL_FIXED_STEP=0 restores the old measured-dt behaviour.
+  public bool   FixedStep  = true;
+  double NominalDt { get { return Fps > 0 ? 1.0 / Fps : 1.0 / 60.0; } }
   public bool   Mirror     = false;
   public bool   Reverse    = false;
   public int[]  PalR, PalG, PalB;
@@ -1713,8 +1739,9 @@ public class LampEngine {
       }
 
       // Each group keeps its own phase so changing one group's speed can
-      // never jump the other one.
-      gr.Phase += dt * gr.Speed;
+      // never jump the other one. Position takes the even nominal step; the
+      // measured dt still goes to RenderGroup for the physical decays.
+      gr.Phase += (FixedStep ? NominalDt : dt) * gr.Speed;
       RenderGroup(gr, gr.Phase, dt);
     }
   }
@@ -3250,6 +3277,11 @@ $eng.CtrlOff    = $ctrlOffBuf
 # still falls back to a shared open, so this can only ever add ownership, never
 # lose the lighting. KBL_EXCLUSIVE_LOCK=0 opts out without a rebuild.
 $eng.WantExclusiveLock = -not ($env:KBL_EXCLUSIVE_LOCK -eq '0')
+
+# Advance animation position by an even nominal step rather than by measured
+# frame time, so scheduler jitter cannot make the gradient stride unevenly.
+# KBL_FIXED_STEP=0 restores the old behaviour.
+$eng.FixedStep = -not ($env:KBL_FIXED_STEP -eq '0')
 
 # --- optional data sources -------------------------------------------
 # Only started when an effect actually needs them, so the idle cost of a

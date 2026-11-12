@@ -558,6 +558,65 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "the blackout path zeroes every lamp's carried error at "
                          "once, re-syncing the keyboard lamps into a lockstep pulse")
 
+    def test_keyboard_lighting_animation_position_uses_an_even_step(self):
+        """Animation position must stride evenly; physical decay must not.
+
+        dt is used for two things that want opposite properties. A decay needs
+        to know how much wall-clock time really passed, which is what makes it
+        frame-rate independent. A position only needs each frame to be the same
+        distance from the last. Feeding measured dt into the phase makes the
+        gradient advance 16.2ms one frame, 17.1ms the next, 15.8ms after that,
+        and when a frame misses its deadline the loop resyncs so the next dt is
+        short. The loop's own notes put those misses at roughly 1% of frames
+        from ordinary scheduler jitter - about one a second at 60fps, which is
+        the residual "smooth but I can still see it if I look" step on four
+        large deck zones that have nothing between them to average it out.
+
+        The danger in fixing this is over-applying it: passing the nominal step
+        to RenderGroup as well would make fire and sparkle decay frame-rate
+        dependent again, which is a worse regression than the one being fixed.
+        So both halves are pinned here.
+        """
+        aura = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="ascii", errors="strict")
+
+        # Nominal step derives from Fps, so the adaptive backoff that lowers
+        # Fps on a sustained overrun keeps real-time animation speed, and a
+        # zero Fps cannot divide by zero.
+        self.assertIn(
+            "double NominalDt { get { return Fps > 0 ? 1.0 / Fps : 1.0 / 60.0; } }",
+            aura, "the nominal step is not derived from Fps, so the adaptive "
+                  "backoff would change animation speed as well as frame rate")
+        self.assertIn("public bool   FixedStep  = true;", aura,
+                      "the even-step behaviour is not on by default")
+        self.assertIn("$eng.FixedStep = -not ($env:KBL_FIXED_STEP -eq '0')", aura,
+                      "there is no way to restore the old measured-dt behaviour "
+                      "without editing the engine")
+
+        # Position takes the even step.
+        self.assertIn("gr.Phase += (FixedStep ? NominalDt : dt) * gr.Speed;", aura,
+                      "animation position is still driven by measured frame time, "
+                      "so scheduler jitter makes the gradient stride unevenly")
+
+        # Physics must keep the measured dt.
+        self.assertIn("RenderGroup(gr, gr.Phase, dt);", aura,
+                      "RenderGroup no longer receives the measured dt, so the "
+                      "fire and sparkle decays become frame-rate dependent again")
+        for needle, what in (
+            ("Math.Pow(0.28, dt)", "the fire fade"),
+            ("Math.Pow(0.02, dt)", "the sparkle cooling"),
+            ("gr.XfadeLeft -= dt;", "the palette crossfade countdown"),
+        ):
+            self.assertIn(needle, aura,
+                          "%s no longer uses the measured dt, so it is no longer "
+                          "frame-rate independent" % what)
+
+        # The outer phase still tracks real time: it drives Now and the overlay
+        # windows, which are wall-clock durations, not animation position.
+        self.assertIn("phase += dt * Speed;", aura,
+                      "the overlay timing phase was switched to the nominal step, "
+                      "so battery/cpu overlays no longer last their real seconds")
+
     def test_keyboard_lighting_watchdog_keeps_ghelper_contained(self):
         """The engine must re-check G-Helper's containment, not trust Setup once.
 
