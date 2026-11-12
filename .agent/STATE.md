@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-11-11 (Residual keyboard stepping fixed, `d4b2316`: animation POSITION now advances by a fixed nominal step (1/Fps) instead of measured frame time, so ordinary scheduler jitter — about one missed deadline a second at 60fps, per the loop's own notes — can no longer make the gradient stride unevenly. Physical decays and the palette crossfade keep the real dt so they stay frame-rate independent; `KBL_FIXED_STEP=0` reverts. Owner had reported the first three fixes made it "smoother but i can still see it if look". The remaining limit is hardware: a 4-zone deck has almost no spatial resolution, so some stepping is inherent. G-Helper containment watchdog added, `963f7a5`: the engine re-checks the six config keys Setup wrote once a minute and, on drift, rewrites them, restarts G-Helper and rewrites again - bounded to one restart per 10 minutes with a stand-down after 5 failed repairs, `KBL_GHELPER_WATCHDOG=0` to disable. Open decision: whether to extend the exclusive HID lock to the ASUS vendor collection, held until the owner's log settles whether G-Helper shares our LampArray collection. Keyboard Lighting flicker CAUSE CONFIRMED from the owner's engine.log: a stale pre-update engine was still running and holding the HID endpoint shared, so the new engine's exclusive open was refused (`lock SHARED, fallbacks 1`, two different owner pids 13172/31112, one still on the old log format). Two 60fps writers on the same LEDs is enough on its own to make the four deck zones step while the twelve bar lamps average it out. `range R255/G255/B255` rules out coarse colour quantisation. Fixed by `3e0048e` — the engine now reads `engine.pid`, stands the previous instance down via `stop.flag` and clears it before its own loop can see it; a refused lock names the likely vendor holders by process name (no WMI, which is banned here). Owner to run Restart.bat and confirm `lock exclusive, fallbacks 0`. Earlier 2026-10-30: Keyboard Lighting anti-flicker pass, engine only: the HID endpoint is now opened EXCLUSIVELY with a shared fallback (dwShareMode 0, so no other program can interleave frames; KBL_EXCLUSIVE_LOCK=0 opts out), the two batched reports of each frame are paced 1000us apart so they cannot share one 1ms USB frame (KBL_REPORT_PACE_US tunes it), and the timing line now logs lock state / fallback count / dither decision / the device's own colour range, with a shared handle escalated to WARN. Diagnosis came from the owner's detail that the four keyboard zones step while the twelve light-bar lamps stay smooth, which rules out frame tearing and points at a second writer or a coarse device colour range. NEEDS ON-DEVICE CONFIRMATION via logs/engine.log. Agent docs restructured: AGENTS.md slimmed to the always-read core - turn protocol, communication, hard rules - with the detailed protocols split verbatim into .agent/rules/{execution,repo-map,release}.md, mirroring the app modularization; the STATE.md 120-line budget is retired. Bluetooth Guard: phantom never-connected devices filtered out (HasConnectedBefore now requires a service-GUID subkey) + a per-device Forget button doing a true unpair (BluetoothRemoveDevice, not a profile disable). Source modularization COMPLETE: all six app C files are a thin main + parts/ section files (one TU; split EXEs byte-identical; tests read via read_c_inlined(); CODEMAP indexes every part). Hub buttons Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
+**Last Updated:** 2026-11-12 (The exclusive HID lock is now RETRIED instead of decided once at startup, `edca7f5`. The owner's log ran fourteen minutes at `lock SHARED, fallbacks 1, reopens 0` with writes at 3-6 ms against 2166 us uncontended, a 34334 us worst write and ~5% late frames against the ~1% scheduler jitter accounts for: the exclusive open was refused once and never revisited, so two writers shared the keyboard all session. `TryExclusiveUpgrade()` gives up the shared handle and asks again on a 3s->300s backoff, and the periodic line now reports `lock retries N` plus the names of running vendor lighting processes. This is why fixes 2 and 5 could not finish the job — a second writer is not a timing problem. Also noted: that log says `dither on`, meaning the panel's Smooth colour toggle is OFF on a full-range 255/255/255 panel where it can only add shimmer; left alone deliberately, owner can A/B it. Residual keyboard stepping fixed, `d4b2316`: animation POSITION now advances by a fixed nominal step (1/Fps) instead of measured frame time, so ordinary scheduler jitter — about one missed deadline a second at 60fps, per the loop's own notes — can no longer make the gradient stride unevenly. Physical decays and the palette crossfade keep the real dt so they stay frame-rate independent; `KBL_FIXED_STEP=0` reverts. Owner had reported the first three fixes made it "smoother but i can still see it if look". The remaining limit is hardware: a 4-zone deck has almost no spatial resolution, so some stepping is inherent. G-Helper containment watchdog added, `963f7a5`: the engine re-checks the six config keys Setup wrote once a minute and, on drift, rewrites them, restarts G-Helper and rewrites again - bounded to one restart per 10 minutes with a stand-down after 5 failed repairs, `KBL_GHELPER_WATCHDOG=0` to disable. Open decision: whether to extend the exclusive HID lock to the ASUS vendor collection, held until the owner's log settles whether G-Helper shares our LampArray collection. Keyboard Lighting flicker CAUSE CONFIRMED from the owner's engine.log: a stale pre-update engine was still running and holding the HID endpoint shared, so the new engine's exclusive open was refused (`lock SHARED, fallbacks 1`, two different owner pids 13172/31112, one still on the old log format). Two 60fps writers on the same LEDs is enough on its own to make the four deck zones step while the twelve bar lamps average it out. `range R255/G255/B255` rules out coarse colour quantisation. Fixed by `3e0048e` — the engine now reads `engine.pid`, stands the previous instance down via `stop.flag` and clears it before its own loop can see it; a refused lock names the likely vendor holders by process name (no WMI, which is banned here). Owner to run Restart.bat and confirm `lock exclusive, fallbacks 0`. Earlier 2026-10-30: Keyboard Lighting anti-flicker pass, engine only: the HID endpoint is now opened EXCLUSIVELY with a shared fallback (dwShareMode 0, so no other program can interleave frames; KBL_EXCLUSIVE_LOCK=0 opts out), the two batched reports of each frame are paced 1000us apart so they cannot share one 1ms USB frame (KBL_REPORT_PACE_US tunes it), and the timing line now logs lock state / fallback count / dither decision / the device's own colour range, with a shared handle escalated to WARN. Diagnosis came from the owner's detail that the four keyboard zones step while the twelve light-bar lamps stay smooth, which rules out frame tearing and points at a second writer or a coarse device colour range. NEEDS ON-DEVICE CONFIRMATION via logs/engine.log. Agent docs restructured: AGENTS.md slimmed to the always-read core - turn protocol, communication, hard rules - with the detailed protocols split verbatim into .agent/rules/{execution,repo-map,release}.md, mirroring the app modularization; the STATE.md 120-line budget is retired. Bluetooth Guard: phantom never-connected devices filtered out (HasConnectedBefore now requires a service-GUID subkey) + a per-device Forget button doing a true unpair (BluetoothRemoveDevice, not a profile disable). Source modularization COMPLETE: all six app C files are a thin main + parts/ section files (one TU; split EXEs byte-identical; tests read via read_c_inlined(); CODEMAP indexes every part). Hub buttons Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
 
 ## Turn protocol (do this literally)
 
@@ -150,6 +150,50 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
    **Owner's next step:** run `Restart.bat` (force-stops every instance, starts
    one clean), then re-read `logs\engine.log`. Expect `lock exclusive,
    fallbacks 0`. If it still says SHARED, the log now names what is holding it.
+   **Owner's next log (2026-11-12 01:09-01:22) reopens this: the lock never
+   took.** Fourteen consecutive minutes at `lock SHARED, fallbacks 1, reopens 0`
+   — `fallbacks` never moved, so the exclusive open was refused ONCE at `Open()`
+   and nothing ever revisited it. Ownership of the keyboard was decided in the
+   first millisecond of the session and then never again. Every number on the
+   line is the fingerprint of a second writer rather than of our own cadence:
+   `device write` 2923-5765 us/frame against 2166 us measured uncontended,
+   `worst` up to 34334 us (two whole frame budgets), `late frames` 114-228 per
+   60 s = ~5% of frames where `Loop()`'s own comment puts ordinary scheduler
+   jitter at ~1%, and `failed writes 0` throughout — so the rival opens SHARED
+   and we coexist, interleaving frames on the same LEDs. **Fix 5's even step
+   could not have shown up through that**, and neither could the pacing: a
+   second writer is a stepping source no host-side timing can remove. Whoever
+   opens the device first wins, and vendor lighting software is already running
+   at logon, so we lose that race by construction.
+
+   Fixed by `edca7f5`: `TryExclusiveUpgrade()` trades a working shared handle in
+   for another attempt at the exclusive one, from the render loop between frames,
+   on a gap that doubles 3 s -> 300 s. Our own handle must close first (dwShareMode
+   0 refuses to open while ANY handle exists, including ours) and that window is
+   the whole risk, so `OpenHandle`'s shared fallback plus a second attempt after
+   60 ms guarantee the call never ends without a handle unless the device has
+   genuinely gone. The periodic line now carries `lock retries N` and, when
+   shared, the names of any running vendor lighting processes via
+   `Get-LightingRivals` — because a shared handle was only half a diagnosis and
+   the answer used to live in startup output that has scrolled away. Test
+   `test_keyboard_lighting_retries_for_exclusive_ownership_of_a_shared_handle`,
+   57 tests, 9 mutations all detected. **Expected in the next log:** `lock
+   retries` climbing and then the line flipping to `lock exclusive`, with
+   `device write` back near 2200 us and `late frames` near zero. If `retries`
+   climbs forever the holder is permanent and must be closed — the line will now
+   say which process it is.
+
+   **Do not miss the second change in that log:** it says `dither on` where the
+   earlier ones said `dither off`, so the panel's **Smooth colour** toggle is now
+   OFF, which maps to `DitherMode = 1` (force on). Per the README that trade-off
+   is for a `range` below 255; this panel reports R255/G255/B255, so forcing
+   dither on can only add shimmer and no depth. **Left alone deliberately** — one
+   behavioural change at a time so the next log stays unambiguous — but tell the
+   owner that flipping Smooth colour back ON is a free A/B test they can run
+   themselves. If a future log still shows stepping with `lock exclusive`, that
+   toggle is the next thing to change, and `UseDither`'s `m == 1` branch should
+   then be made to respect the device range.
+
 2. **Residual keyboard stepping after the first three fixes (`d4b2316`).** Owner:
    "its smoother but i can still see it if look". Cause was `gr.Phase += dt *
    gr.Speed` using MEASURED frame time for animation position. dt serves two
@@ -186,6 +230,14 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
    collection, nothing to do. If G-Helper wins, extend the lock to the vendor
    collection - with the known risk that it may also carry Fn brightness and
    other ASUS functions.
+   **Update from the 2026-11-12 log — this decision matters less than it did.**
+   The contention is on the collection we ALREADY lock: our own LampArray open was
+   refused, so whatever holds the keyboard is on that same device path. Extending
+   the lock to the ASUS vendor collection would not have fixed any of it; actually
+   ACQUIRING the lock we already ask for does (`edca7f5`). The settling test above
+   still stands, and the periodic line now names the holder, so the next log should
+   identify the process without a separate experiment. **Recommendation if the
+   owner asks: leave the scope exactly as it is.** Do not extend it on spec.
 4. **Bluetooth Guard phantom filter + Forget button — owner is testing now.**
    `a2a1e21` (label 2.8.8): never-connected devices are filtered out
    (`HasConnectedBefore` requires a real `{8-4-4-4-12}` service-GUID subkey, not
