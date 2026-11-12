@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-10-30 (Agent docs restructured: AGENTS.md slimmed to the always-read core - turn protocol, communication, hard rules - with the detailed protocols split verbatim into .agent/rules/{execution,repo-map,release}.md, mirroring the app modularization; the STATE.md 120-line budget is retired. Bluetooth Guard: phantom never-connected devices filtered out (HasConnectedBefore now requires a service-GUID subkey) + a per-device Forget button doing a true unpair (BluetoothRemoveDevice, not a profile disable). Source modularization COMPLETE: all six app C files are a thin main + parts/ section files (one TU; split EXEs byte-identical; tests read via read_c_inlined(); CODEMAP indexes every part). Hub buttons Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
+**Last Updated:** 2026-10-30 (Keyboard Lighting anti-flicker pass, engine only: the HID endpoint is now opened EXCLUSIVELY with a shared fallback (dwShareMode 0, so no other program can interleave frames; KBL_EXCLUSIVE_LOCK=0 opts out), the two batched reports of each frame are paced 1000us apart so they cannot share one 1ms USB frame (KBL_REPORT_PACE_US tunes it), and the timing line now logs lock state / fallback count / dither decision / the device's own colour range, with a shared handle escalated to WARN. Diagnosis came from the owner's detail that the four keyboard zones step while the twelve light-bar lamps stay smooth, which rules out frame tearing and points at a second writer or a coarse device colour range. NEEDS ON-DEVICE CONFIRMATION via logs/engine.log. Agent docs restructured: AGENTS.md slimmed to the always-read core - turn protocol, communication, hard rules - with the detailed protocols split verbatim into .agent/rules/{execution,repo-map,release}.md, mirroring the app modularization; the STATE.md 120-line budget is retired. Bluetooth Guard: phantom never-connected devices filtered out (HasConnectedBefore now requires a service-GUID subkey) + a per-device Forget button doing a true unpair (BluetoothRemoveDevice, not a profile disable). Source modularization COMPLETE: all six app C files are a thin main + parts/ section files (one TU; split EXEs byte-identical; tests read via read_c_inlined(); CODEMAP indexes every part). Hub buttons Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
 
 ## Turn protocol (do this literally)
 
@@ -27,7 +27,7 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 | :--- | :--- | :--- | :--- |
 | **Project Hub** | `project-hub/src/project_hub.c` + `parts/` | 2.8.42 | **GREEN** — every card leads with a dynamic Update/Install button (Install when the app is missing, Update when a newer build is known, hidden when current), then Open, Folder, and the card extra (Stop/Unfreeze); Orca + Spatial HUD match the other app cards; Orca has a real Remove and a persisted Disable that gates its installer; suite folder is the install target for every app and the hub; "Update All" refreshes every built-in; content-hash update checks; branch-aware mod card; Clipboard Memory removed (7 built-in cards). Modularized: thin `project_hub.c` `#include`s 14 `parts/` section files in order (one translation unit; `RefreshProjectStatuses` is in `parts/refresh_statuses.c`, the card button init in `parts/card_defs_verbs.c`) |
 | **Bluetooth Guard** | `bluetooth-guard/src/bluetooth_guard.c` + `parts/` | 2.8.8 | **GREEN** — rules-ghost device list; `HighestAvailable` logon task; phantom never-connected devices filtered out (`HasConnectedBefore` requires a service-GUID subkey); per-device **Forget** button does a true unpair (`BluetoothRemoveDevice`, op==3 on the worker) without disabling profiles. Modularized: thin `bluetooth_guard.c` `#include`s 9 `parts/` files in order (one TU). `HasConnectedBefore`/`IsServiceGuidSubkey` in `parts/device_history.c`; `DoForgetDevice` in `parts/bt_actions.c`; Forget button + hit in `parts/window_entry.c`; `DrawPillToggle` in `parts/ui_controls.c` |
-| **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `parts/` + `Aura-Background.ps1` | 2.8.7 | **GREEN** — M4/M5 hold via raw input (no global key hook, so PrintScreen works); dither keeps each lamp's phase across a blackout; strict 7-bit ASCII, C# 5.0. Modularized: thin `keyboard_lighting.c` `#include`s 9 `parts/` section files in order (one translation unit; the ASCII contract is enforced across main + parts) |
+| **Keyboard Lighting** | `keyboard-lighting/src/keyboard_lighting.c` + `parts/` + `Aura-Background.ps1` | 2.8.7 | **GREEN, needs on-device check** — engine now opens the HID endpoint EXCLUSIVELY (dwShareMode 0, shared fallback, `KBL_EXCLUSIVE_LOCK=0` opts out) and paces the two reports of a frame 1000us apart (`KBL_REPORT_PACE_US`); timing line logs lock/fallbacks/dither/device colour range, shared lock logs WARN. M4/M5 hold via raw input (no global key hook, so PrintScreen works); dither keeps each lamp's phase across a blackout; strict 7-bit ASCII, C# 5.0. Modularized: thin `keyboard_lighting.c` `#include`s 9 `parts/` section files in order (one translation unit; the ASCII contract is enforced across main + parts) |
 | **DNS Pilot** | `dns-pilot/src/dns_pilot.c` + `parts/` | size-tracked | **GREEN** — parallel rank test; `TestsSuite-DnsPilot` ONLOGON task. Modularized: thin `dns_pilot.c` `#include`s 11 `parts/` section files in order (one translation unit; edit the part files) |
 | **Agent Notes** | `agent-notes/src/agent_notes.c` + `parts/` | size-tracked | **GREEN** — POSTs to `tools/notes_server.py`; queues in `%LOCALAPPDATA%\AgentNotes\outbox\` while offline. Modularized: thin `agent_notes.c` textually `#include`s `parts/{config_outbox,http_agent,emblem,ui,entry}.c` in order (one translation unit; edit the part files) |
 | **Audio Switcher** | `audio-switcher/src/audio_switcher.c` + `parts/` | size-tracked | **GREEN** — catalog-driven hub card; surfaces+focuses its window on Open-from-hub (named-event show); lists apps on every render endpoint. Modularized: thin `audio_switcher.c` `#include`s 7 `parts/` section files in order (one translation unit; edit the part files) |
@@ -92,7 +92,31 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 
 ## Open Threads / Next Actions
 
-1. **AudioSwitcher panel on the owner's screen** (as of the reachability fix):
+1. **Keyboard flicker — read the engine log before touching anything else.**
+   Owner report: individual updates are visible; the four KEYBOARD zones step
+   while the twelve LIGHT-BAR lamps stay smooth, on a built-in pattern. That
+   split ruled out frame tearing across the two batched reports and pointed at a
+   second writer, since vendor lighting software contests the deck and usually
+   leaves the chassis bar alone. Shipped `7017694` (exclusive HID open + shared
+   fallback), `398f8f0` (1000us pacing between the two reports of a frame, so
+   they cannot share one 1ms USB frame), `8255949` (log lock state, fallback
+   count, dither decision and the device's own colour range; README table says
+   what each reading means). **To confirm:** open `logs\engine.log` via the tray
+   menu and check the startup + timing lines. `lock SHARED` means Armoury Crate
+   or an ASUS lighting service still owns the keyboard. `range` below 255 means
+   the deck has too few colour levels for any frame rate to smooth it, and the
+   trade-off moves to the panel's Smooth colour toggle. Engine only, no C
+   change, so no KeyboardLighting.exe rebuild was needed — Setup.bat re-fetches
+   the engine.
+2. **Bluetooth Guard phantom filter + Forget button — owner is testing now.**
+   `a2a1e21` (label 2.8.8): never-connected devices are filtered out
+   (`HasConnectedBefore` requires a real `{8-4-4-4-12}` service-GUID subkey, not
+   just any subkey) and each device card has a Forget button doing a TRUE unpair
+   via `BluetoothRemoveDevice` (op==3 on the worker thread), not a profile
+   disable. Confirm a paired-but-never-connected device no longer appears, that
+   Forget actually removes it from Windows' device list, and that manual connect
+   still works afterwards.
+3. **AudioSwitcher panel on the owner's screen** (as of the reachability fix):
    with the usual outputs plus several apps playing, every row and the footer
    are reachable - by fitting or by scrolling - and the app list names the apps
    that are actually playing. Check at 150% scaling, after dragging the window
@@ -101,16 +125,16 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
    Open in the hub (app already in the tray, and elevated) should surface and
    focus the window. An app on ANY output should appear, tagged
    `app.exe - on <device>` when it is not on the default.
-2. **Needs Windows / in-game validation** (cannot be tested in this sandbox):
+3. **Needs Windows / in-game validation** (cannot be tested in this sandbox):
    after hub 2.8.38, one Update click writes the suite folder copy AND every
    stray copy (owner's case: Audio Switcher stuck 9 days old in
    `Programs\TestsSuite\AudioSwitcher` while Downloads got each build);
    Audio Switcher card shows its own blurb + working buttons after a hub refresh;
    `Update-SpatialHUD.bat` installs `spatial-hud-1.0.4.jar` under its real name
    and self-updates from `main`; notes quick-capture page still posts.
-3. If the owner still sees a UAC prompt on manual double-click launches, offer
+4. If the owner still sees a UAC prompt on manual double-click launches, offer
    routing shortcuts through a silent task launcher (`schtasks /Run`).
-4. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
+5. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
    `guiWidth/guiHeight` — the mapping bug fixed in Method 4 (1.0.4) is unfixed
    there. Fix it if Method 3 ever reports the same symptom.
 
