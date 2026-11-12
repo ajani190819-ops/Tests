@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-11-11 (Keyboard Lighting flicker CAUSE CONFIRMED from the owner's engine.log: a stale pre-update engine was still running and holding the HID endpoint shared, so the new engine's exclusive open was refused (`lock SHARED, fallbacks 1`, two different owner pids 13172/31112, one still on the old log format). Two 60fps writers on the same LEDs is enough on its own to make the four deck zones step while the twelve bar lamps average it out. `range R255/G255/B255` rules out coarse colour quantisation. Fixed by `3e0048e` — the engine now reads `engine.pid`, stands the previous instance down via `stop.flag` and clears it before its own loop can see it; a refused lock names the likely vendor holders by process name (no WMI, which is banned here). Owner to run Restart.bat and confirm `lock exclusive, fallbacks 0`. Earlier 2026-10-30: Keyboard Lighting anti-flicker pass, engine only: the HID endpoint is now opened EXCLUSIVELY with a shared fallback (dwShareMode 0, so no other program can interleave frames; KBL_EXCLUSIVE_LOCK=0 opts out), the two batched reports of each frame are paced 1000us apart so they cannot share one 1ms USB frame (KBL_REPORT_PACE_US tunes it), and the timing line now logs lock state / fallback count / dither decision / the device's own colour range, with a shared handle escalated to WARN. Diagnosis came from the owner's detail that the four keyboard zones step while the twelve light-bar lamps stay smooth, which rules out frame tearing and points at a second writer or a coarse device colour range. NEEDS ON-DEVICE CONFIRMATION via logs/engine.log. Agent docs restructured: AGENTS.md slimmed to the always-read core - turn protocol, communication, hard rules - with the detailed protocols split verbatim into .agent/rules/{execution,repo-map,release}.md, mirroring the app modularization; the STATE.md 120-line budget is retired. Bluetooth Guard: phantom never-connected devices filtered out (HasConnectedBefore now requires a service-GUID subkey) + a per-device Forget button doing a true unpair (BluetoothRemoveDevice, not a profile disable). Source modularization COMPLETE: all six app C files are a thin main + parts/ section files (one TU; split EXEs byte-identical; tests read via read_c_inlined(); CODEMAP indexes every part). Hub buttons Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
+**Last Updated:** 2026-11-11 (G-Helper containment watchdog added, `963f7a5`: the engine re-checks the six config keys Setup wrote once a minute and, on drift, rewrites them, restarts G-Helper and rewrites again - bounded to one restart per 10 minutes with a stand-down after 5 failed repairs, `KBL_GHELPER_WATCHDOG=0` to disable. Open decision: whether to extend the exclusive HID lock to the ASUS vendor collection, held until the owner's log settles whether G-Helper shares our LampArray collection. Keyboard Lighting flicker CAUSE CONFIRMED from the owner's engine.log: a stale pre-update engine was still running and holding the HID endpoint shared, so the new engine's exclusive open was refused (`lock SHARED, fallbacks 1`, two different owner pids 13172/31112, one still on the old log format). Two 60fps writers on the same LEDs is enough on its own to make the four deck zones step while the twelve bar lamps average it out. `range R255/G255/B255` rules out coarse colour quantisation. Fixed by `3e0048e` — the engine now reads `engine.pid`, stands the previous instance down via `stop.flag` and clears it before its own loop can see it; a refused lock names the likely vendor holders by process name (no WMI, which is banned here). Owner to run Restart.bat and confirm `lock exclusive, fallbacks 0`. Earlier 2026-10-30: Keyboard Lighting anti-flicker pass, engine only: the HID endpoint is now opened EXCLUSIVELY with a shared fallback (dwShareMode 0, so no other program can interleave frames; KBL_EXCLUSIVE_LOCK=0 opts out), the two batched reports of each frame are paced 1000us apart so they cannot share one 1ms USB frame (KBL_REPORT_PACE_US tunes it), and the timing line now logs lock state / fallback count / dither decision / the device's own colour range, with a shared handle escalated to WARN. Diagnosis came from the owner's detail that the four keyboard zones step while the twelve light-bar lamps stay smooth, which rules out frame tearing and points at a second writer or a coarse device colour range. NEEDS ON-DEVICE CONFIRMATION via logs/engine.log. Agent docs restructured: AGENTS.md slimmed to the always-read core - turn protocol, communication, hard rules - with the detailed protocols split verbatim into .agent/rules/{execution,repo-map,release}.md, mirroring the app modularization; the STATE.md 120-line budget is retired. Bluetooth Guard: phantom never-connected devices filtered out (HasConnectedBefore now requires a service-GUID subkey) + a per-device Forget button doing a true unpair (BluetoothRemoveDevice, not a profile disable). Source modularization COMPLETE: all six app C files are a thin main + parts/ section files (one TU; split EXEs byte-identical; tests read via read_c_inlined(); CODEMAP indexes every part). Hub buttons Update-first with a dynamic Install/Update first button; Clipboard Memory removed.)
 
 ## Turn protocol (do this literally)
 
@@ -135,10 +135,38 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
    `$script:StartupWarns` and flushed at WARN once `Write-Log` exists (the log is
    set up AFTER the device is opened).
 
+   **G-Helper containment watchdog added (`963f7a5`).** Setup wrote the six
+   containment keys once at install and nothing re-checked them, so one click in
+   G-Helper's keyboard panel (no Apply button - it writes immediately) or an
+   update silently undid it. The engine now re-reads
+   `%APPDATA%\GHelper\config.json` once a minute; on drift it rewrites the
+   keys, restarts G-Helper, then rewrites them AGAIN because G-Helper saves its
+   in-memory config back over the file on exit. Bounded: one restart per 10
+   minutes, permanent stand-down after 5 repairs that did not stick,
+   `KBL_GHELPER_WATCHDOG=0` disables it. README rewritten because it told the
+   owner to set `skip_aura: 0` to get G-Helper's lighting back, which the
+   watchdog would now revert within a minute.
+
    **Owner's next step:** run `Restart.bat` (force-stops every instance, starts
    one clean), then re-read `logs\engine.log`. Expect `lock exclusive,
    fallbacks 0`. If it still says SHARED, the log now names what is holding it.
-2. **Bluetooth Guard phantom filter + Forget button — owner is testing now.**
+2. **DECISION PENDING — should the exclusive HID lock also cover the ASUS
+   vendor collection?** Owner asked to hold until the log settles it, and wants
+   it explained simply before deciding. The open question: our engine opens the
+   *LampArray* collection (usage page 0x59, found by scoring every HID
+   top-level collection for LampArray usages), while G-Helper enumerates by
+   ASUS VID/PID. Windows gives each top-level collection its own device path,
+   so an exclusive lock on one does NOT block the other. Evidence they may be
+   the same collection: our own `PinGate` sends G-Helper's exact brightness
+   packet (`0x5a 0xBA 0xC5 0xC4 <level>`) as a feature report on the LampArray
+   handle and it works. G-Helper's maintainer confirms the keyboard is driven
+   over USB HID, not WMI. **Test that settles it:** after `Restart.bat`, log
+   should read `lock exclusive, fallbacks 0`; then change something in
+   G-Helper's keyboard panel and watch. If our lighting survives, same
+   collection, nothing to do. If G-Helper wins, extend the lock to the vendor
+   collection - with the known risk that it may also carry Fn brightness and
+   other ASUS functions.
+3. **Bluetooth Guard phantom filter + Forget button — owner is testing now.**
    `a2a1e21` (label 2.8.8): never-connected devices are filtered out
    (`HasConnectedBefore` requires a real `{8-4-4-4-12}` service-GUID subkey, not
    just any subkey) and each device card has a Forget button doing a TRUE unpair
@@ -146,7 +174,7 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
    disable. Confirm a paired-but-never-connected device no longer appears, that
    Forget actually removes it from Windows' device list, and that manual connect
    still works afterwards.
-3. **AudioSwitcher panel on the owner's screen** (as of the reachability fix):
+4. **AudioSwitcher panel on the owner's screen** (as of the reachability fix):
    with the usual outputs plus several apps playing, every row and the footer
    are reachable - by fitting or by scrolling - and the app list names the apps
    that are actually playing. Check at 150% scaling, after dragging the window
@@ -155,16 +183,16 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
    Open in the hub (app already in the tray, and elevated) should surface and
    focus the window. An app on ANY output should appear, tagged
    `app.exe - on <device>` when it is not on the default.
-4. **Needs Windows / in-game validation** (cannot be tested in this sandbox):
+5. **Needs Windows / in-game validation** (cannot be tested in this sandbox):
    after hub 2.8.38, one Update click writes the suite folder copy AND every
    stray copy (owner's case: Audio Switcher stuck 9 days old in
    `Programs\TestsSuite\AudioSwitcher` while Downloads got each build);
    Audio Switcher card shows its own blurb + working buttons after a hub refresh;
    `Update-SpatialHUD.bat` installs `spatial-hud-1.0.4.jar` under its real name
    and self-updates from `main`; notes quick-capture page still posts.
-5. If the owner still sees a UAC prompt on manual double-click launches, offer
+6. If the owner still sees a UAC prompt on manual double-click launches, offer
    routing shortcuts through a silent task launcher (`schtasks /Run`).
-6. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
+7. Method 3 (`VirtualHudPlane.textureU/V`) still divides UVs by
    `guiWidth/guiHeight` — the mapping bug fixed in Method 4 (1.0.4) is unfixed
    there. Fix it if Method 3 ever reports the same symptom.
 
