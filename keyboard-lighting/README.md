@@ -92,26 +92,50 @@ restarts and there is no Apply button.
 ## M4 and M5 as brightness keys
 
 By default those keys do something else entirely, so they have to be
-pointed at brightness in G-Helper. There are two ways and the first is
-better.
+pointed at brightness in G-Helper. In G-Helper's **Extra** panel, set each
+key's action to **Custom**.
 
-**Key remap - use this one.** In G-Helper's extra-keys / key-remap panel,
-bind:
+**Point them at the app. This is the good route.** Put the full path in
+quotes, with the flag:
 
-| Key | Bind it to |
+```
+"C:\Users\<you>\AppData\Local\Programs\TestsSuite\KeyboardLighting\KeyboardLighting.exe" -BrightUp
+```
+
+and the same with `-BrightDown` on the other key.
+
+Each press writes a small token that the running engine turns into one 5%
+brightness step. Holding then sweeps smoothly, because the panel also
+watches the ASUS key stream itself and keeps emitting paced tokens for as
+long as the key is down - and it works out which code is M4 and which is
+M5 by watching these tokens arrive, saving them to `presets.ini`.
+
+As of 2.8.8 this costs no UAC prompt. The app used to demand
+administrator just to start, and Windows enforces that before any of its
+code runs, so G-Helper was triggering a consent dialog on every press to
+write a file that needs no privileges at all.
+
+**The keystroke alternative - worse, but needs no update.** G-Helper's
+Custom field also accepts space-separated key codes (up to three), so the
+same keys can emit a combination this app listens for instead of
+launching anything:
+
+| Instead of | Put |
 |---|---|
-| M4 | `Ctrl` + `Alt` + `Up arrow` |
-| M5 | `Ctrl` + `Alt` + `Down arrow` |
+| `-BrightUp` | `0x11 0x12 0x26` |
+| `-BrightDown` | `0x11 0x12 0x28` |
 
-This app already owns those two combinations. Each press steps master
-brightness 10% and holding repeats, and because G-Helper is only
-injecting a keystroke nothing gets launched - so Windows has no reason
-to ask for permission, ever. If something else already holds that
-combination, the app falls back to `Ctrl`+`Alt`+`F5` and `F6`.
+That is Ctrl+Alt+Up and Ctrl+Alt+Down, which the panel owns as
+`RegisterHotKey` combinations. It works on older builds too, because no
+process is launched. But only reach for it if you cannot update: every
+press is a single 10% step with no hold-to-sweep, since nothing writes
+the tokens the hold logic learns from - and if the keys were already
+learned, it can double-step.
 
-Prefer a different combination? It is read from
-`%LOCALAPPDATA%\KeyboardLighting\presets.ini`, as the Win32
-`RegisterHotKey` codes, and the app must be restarted after editing:
+Whichever route you use, the combination is configurable in
+`%LOCALAPPDATA%\KeyboardLighting\presets.ini` as the Win32
+`RegisterHotKey` codes. Restart the app after editing. If something else
+already holds Ctrl+Alt+Up/Down, the app falls back to Ctrl+Alt+F5 and F6.
 
 ```
 [Keys]
@@ -122,14 +146,6 @@ DownKey=40
 ```
 
 `3` is Ctrl+Alt, `38` is Up and `40` is Down. A `0x` prefix works too.
-
-**Custom action.** Binding M4/M5 to run `KeyboardLighting.exe -BrightUp`
-and `-BrightDown` also works, and as of 2.8.8 it no longer costs a UAC
-prompt on every keypress - the app used to demand administrator just to
-start, which Windows enforces before any of our code runs, so G-Helper
-was triggering a consent dialog per press to write a file that needs no
-privileges at all. It is still second best: every press launches a
-process, and your brightness keys keep working only while G-Helper runs.
 
 ## Updating
 
