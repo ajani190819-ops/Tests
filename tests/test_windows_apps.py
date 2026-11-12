@@ -449,6 +449,16 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             # same-size rebuild can no longer look "up to date".
             "bcrypt.dll",
         }
+        # Keyboard Lighting is the one deliberate exception to "every suite app
+        # starts elevated". G-Helper's Custom action for M4/M5 launches it PER
+        # KEYPRESS to write a brightness token into %LOCALAPPDATA%, which needs
+        # no privileges at all - but requireAdministrator is enforced by the OS
+        # at process creation, before wWinMain runs, so a non-elevated G-Helper
+        # got a UAC consent prompt on every single keypress. It ships asInvoker
+        # and still gets its administrator token from the /RL HIGHEST logon
+        # task, from an elevated ProjectHub, or from its own runas
+        # self-elevation. Pinned again, in detail, by
+        # test_keyboard_lighting_brightness_taps_never_cost_a_uac_prompt.
         for rel in (
             "project-hub/ProjectHub.exe",
             "bluetooth-guard/BluetoothGuard.exe",
@@ -469,7 +479,15 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             self.assertEqual(subsystem, 2, f"{rel} must use IMAGE_SUBSYSTEM_WINDOWS_GUI (no console window)")
             self.assertIn(b"PerMonitorV2", data, f"{rel} must embed PerMonitorV2 DPI manifest")
             self.assertIn(b"Microsoft.Windows.Common-Controls", data, f"{rel} must embed ComCtl32 v6 manifest")
-            self.assertIn(b"requireAdministrator", data, f"{rel} must require administrator - all suite apps start elevated")
+            if rel == "keyboard-lighting/KeyboardLighting.exe":
+                self.assertIn(b'level="asInvoker"', data,
+                              f"{rel} must stay asInvoker, or every M4/M5 brightness "
+                              f"keypress that G-Helper routes through it costs a UAC "
+                              f"consent prompt")
+                self.assertNotIn(b"requireAdministrator", data,
+                                 f"{rel} requires administrator again")
+            else:
+                self.assertIn(b"requireAdministrator", data, f"{rel} must require administrator - all suite apps start elevated")
 
             imp_rva, _ = struct.unpack_from("<II", data, opt_off + 112 + 8)
             sec_off = opt_off + struct.unpack_from("<H", data, pe_off + 20)[0]
@@ -1796,9 +1814,11 @@ class WindowsDesktopAppsTests(unittest.TestCase):
     def test_keyboard_lighting_logon_task_starts_elevated_and_unsuppressed(self):
         src = read_c_inlined("keyboard-lighting/src/keyboard_lighting.c")
 
-        # The logon task must run at the highest privilege level, or the
-        # scheduler starts a requireAdministrator exe with a limited token and
-        # no UAC prompt: the app lands in preview mode at every boot.
+        # The logon task must run at the highest privilege level. Since the
+        # manifest is asInvoker - so that an M4/M5 brightness tap costs no UAC
+        # prompt - /RL HIGHEST is now the ONLY thing that makes a boot start
+        # arrive elevated, because the scheduler never prompts. A limited task
+        # means the app lands in preview mode at every logon.
         task = src[src.index("static void EnsureLogonTask(void)"):]
         task = task[:task.index("\n}\n")]
         self.assertIn("/RL HIGHEST", task,
@@ -1823,6 +1843,76 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertEqual(src.find("if (g_isAdmin) EnsureLogonTask();"), -1,
                          "the logon task is only refreshed when already elevated, so a "
                          "stale limited task can never be repaired")
+
+    def test_keyboard_lighting_brightness_taps_never_cost_a_uac_prompt(self):
+        """M4/M5 brightness must not launch an administrator-required process.
+
+        G-Helper's Custom action for M4/M5 runs KeyboardLighting.exe with
+        -BrightUp or -BrightDown, which writes a one-shot token into
+        %LOCALAPPDATA%\KeyboardLighting and exits. That needs no privileges
+        whatsoever. But a requireAdministrator manifest is enforced by the OS at
+        process CREATION, before wWinMain runs, so a non-elevated G-Helper got a
+        UAC consent prompt on every single keypress - the owner's exact
+        complaint - and the token write never got to be the cheap operation it
+        is. Hence asInvoker.
+
+        The panel still obtains its administrator token two ways: the /RL
+        HIGHEST logon task, and the runas self-elevation in wWinMain. Only the
+        transient command-line branches run unelevated, and they must stay ahead
+        of BOTH the single-instance mutex and the elevation block - behind the
+        mutex a tap bounces off the already-running panel, and behind the
+        elevation block it relaunches this exe as administrator and prompts
+        again. That ordering is the whole contract, so it is what is asserted.
+        """
+        src = read_c_inlined("keyboard-lighting/src/keyboard_lighting.c")
+        manifest = (ROOT / "keyboard-lighting" / "src" / "manifest.xml").read_text(
+            encoding="utf-8")
+
+        self.assertIn('level="asInvoker"', manifest,
+                      "the manifest requires administrator again, so every M4/M5 "
+                      "keypress G-Helper routes through this exe costs a UAC consent "
+                      "prompt before the brightness token is even written")
+        self.assertNotIn("requireAdministrator", manifest,
+                         "the manifest still mentions requireAdministrator")
+
+        self.assertEqual(src.count("int WINAPI wWinMain("), 1,
+                         "expected exactly one entry point in the inlined source")
+        entry = src[src.index("int WINAPI wWinMain("):]
+        mutex = entry.index("CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME)")
+        elevate = entry.index('L"runas"')
+
+        for arg in ("--stop", "-HoldMode", "-BrightUp", "-BrightDown"):
+            at = entry.index(arg)
+            self.assertLess(at, mutex,
+                            "%s is handled after the single-instance check, so a "
+                            "brightness tap bounces off the running panel instead of "
+                            "writing its token" % arg)
+            self.assertLess(at, elevate,
+                            "%s is handled after the elevation block, so a tap from a "
+                            "non-elevated G-Helper relaunches this exe as administrator "
+                            "and prompts for consent on every keypress" % arg)
+
+        # asInvoker must not cost the panel its administrator token.
+        # Precise slice, not a whole-file substring: /RL HIGHEST also appears in
+        # SetKblAutostart, so a loose check would pass even with the logon task
+        # itself left limited - which, under asInvoker, is the one thing that
+        # decides whether a boot start arrives elevated at all. Comments are
+        # stripped from the slice first, because this function discusses /RL
+        # HIGHEST in prose twice and a substring test was passing on the prose
+        # alone while the schtasks command had lost it.
+        task = src[src.index("static void EnsureLogonTask(void)"):]
+        task = task[:task.index("\n}\n")]
+        task = re.sub(r"/\*.*?\*/", "", task, flags=re.S)
+        task = re.sub(r"//[^\n]*", "", task)
+        self.assertIn("/RL HIGHEST", task,
+                      "the logon task no longer requests the highest privilege level, "
+                      "and with an asInvoker manifest that is the only thing which "
+                      "makes a boot start arrive elevated")
+        self.assertIn('L"runas"', src,
+                      "the panel can no longer elevate itself when started by hand")
+        self.assertIn("if (!g_isAdmin && !noElevate)", src,
+                      "the self-elevation is no longer conditional on actually being "
+                      "unelevated, so an elevated start would relaunch itself")
 
     def test_keyboard_lighting_watches_keys_via_raw_input_not_a_global_hook(self):
         """A WH_KEYBOARD_LL hook runs on the app's UI thread, and that thread

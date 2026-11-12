@@ -89,6 +89,48 @@ engine is not running the strip dims and the labels say OFF.
 Every one of these takes effect the moment you change it. Nothing
 restarts and there is no Apply button.
 
+## M4 and M5 as brightness keys
+
+By default those keys do something else entirely, so they have to be
+pointed at brightness in G-Helper. There are two ways and the first is
+better.
+
+**Key remap - use this one.** In G-Helper's extra-keys / key-remap panel,
+bind:
+
+| Key | Bind it to |
+|---|---|
+| M4 | `Ctrl` + `Alt` + `Up arrow` |
+| M5 | `Ctrl` + `Alt` + `Down arrow` |
+
+This app already owns those two combinations. Each press steps master
+brightness 10% and holding repeats, and because G-Helper is only
+injecting a keystroke nothing gets launched - so Windows has no reason
+to ask for permission, ever. If something else already holds that
+combination, the app falls back to `Ctrl`+`Alt`+`F5` and `F6`.
+
+Prefer a different combination? It is read from
+`%LOCALAPPDATA%\KeyboardLighting\presets.ini`, as the Win32
+`RegisterHotKey` codes, and the app must be restarted after editing:
+
+```
+[Keys]
+UpMod=3
+UpKey=38
+DownMod=3
+DownKey=40
+```
+
+`3` is Ctrl+Alt, `38` is Up and `40` is Down. A `0x` prefix works too.
+
+**Custom action.** Binding M4/M5 to run `KeyboardLighting.exe -BrightUp`
+and `-BrightDown` also works, and as of 2.8.8 it no longer costs a UAC
+prompt on every keypress - the app used to demand administrator just to
+start, which Windows enforces before any of our code runs, so G-Helper
+was triggering a consent dialog per press to write a file that needs no
+privileges at all. It is still second best: every press launches a
+process, and your brightness keys keep working only while G-Helper runs.
+
 ## Updating
 
 It checks for updates in the background at startup. If it finds one, the
@@ -194,6 +236,9 @@ it leaves the keyboard alone:
 | `skip_aura` = 1 | stops it pushing its own keyboard colours at startup |
 | `keyboard_brightness`, `keyboard_brightness_ac`, `max_brightness` = 3 | holds its four-step backlight gate at full, so it cannot dim the keyboard underneath this app |
 | `keyboard_timeout`, `keyboard_ac_timeout` = 0 | kills its idle timer, which otherwise dims the keyboard to nothing after a minute on battery |
+
+Binding M4/M5 to brightness is a separate thing and is *not* set by
+`Setup.bat` - see [M4 and M5 as brightness keys](#m4-and-m5-as-brightness-keys).
 
 Everything else in G-Helper is untouched: fan curves, performance modes,
 the Fn brightness keys, battery limits, all of it.
