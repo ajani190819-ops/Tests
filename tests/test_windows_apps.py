@@ -558,6 +558,67 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "the blackout path zeroes every lamp's carried error at "
                          "once, re-syncing the keyboard lamps into a lockstep pulse")
 
+    def test_keyboard_lighting_owns_the_hid_endpoint_exclusively(self):
+        """The engine must try to own the HID endpoint before sharing it.
+
+        A second writer interleaving its own frames is the one flicker source
+        no host-side timing can fix, and vendor lighting software contests the
+        keyboard deck specifically while often leaving the chassis bar alone.
+        That is the owner's exact symptom: the four deck zones step while the
+        twelve bar lamps stay smooth. dwShareMode 0 makes every other
+        process's open of the interface fail with ERROR_SHARING_VIOLATION, so
+        holding the handle is the cure and failing to get it is the diagnosis.
+
+        Exclusive must be tried first with a shared fallback, so a machine
+        where something else already owns the device still gets lighting
+        rather than none. Both the first open and every reopen after a resume
+        must go through the one helper, or they drift apart and a sleep/wake
+        silently downgrades the lock.
+        """
+        aura = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="ascii", errors="strict")
+
+        # One open path, used by both Open() and Reopen().
+        self.assertIn("bool OpenHandle() {", aura,
+                      "the exclusive-open logic is not factored into one helper, "
+                      "so Open() and Reopen() can drift and a resume can silently "
+                      "downgrade the lock to shared")
+        self.assertEqual(aura.count("if (!OpenHandle()) {"), 2,
+                         "Open() and Reopen() must both go through OpenHandle()")
+
+        helper = aura[aura.index("bool OpenHandle() {"):]
+        helper = helper[:helper.index("\n  }\n")]
+
+        # Exclusive attempt (dwShareMode 0) exists and comes first.
+        self.assertIn(
+            "CreateFileW(DevicePath, 0xC0000000, 0, IntPtr.Zero, 3, 0, IntPtr.Zero)",
+            aura, "the engine never asks for an exclusive handle (dwShareMode 0), "
+                  "so any other program can write frames over ours")
+        self.assertLess(helper.index("0xC0000000, 0,"),
+                        helper.index("0xC0000000, 3,"),
+                        "the shared open is tried before the exclusive one, so the "
+                        "exclusive attempt can never succeed")
+
+        # Shared fallback preserved, and the outcome is observable.
+        self.assertIn("CreateFileW(DevicePath, 0xC0000000, 3,", helper,
+                      "the shared fallback is gone, so a machine where something "
+                      "else already owns the device loses the lighting entirely")
+        self.assertIn("ExclusiveLock = true;", helper)
+        self.assertIn("LockFallbacks++;", helper,
+                      "a downgrade to a shared open is not counted, so the log "
+                      "cannot tell device contention from a timing problem")
+        self.assertEqual(aura.count("CreateFileW(DevicePath"), 3,
+                         "a device open exists outside OpenHandle()")
+
+        # Opt-out without a rebuild, and the result is reported to the owner.
+        self.assertIn(
+            "$eng.WantExclusiveLock = -not ($env:KBL_EXCLUSIVE_LOCK -eq '0')", aura,
+            "there is no way to opt out of the exclusive lock without editing the "
+            "engine")
+        self.assertIn("if ($eng.ExclusiveLock) {", aura,
+                      "the engine never reports whether it actually got the "
+                      "exclusive lock, so contention stays invisible")
+
     def test_bluetooth_guard_contracts(self):
         core = (ROOT / "bluetooth-guard" / "BluetoothCore.cs").read_text(encoding="utf-8")
         ps = (ROOT / "bluetooth-guard" / "BluetoothGuard.ps1").read_text(encoding="utf-8")

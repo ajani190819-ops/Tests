@@ -416,10 +416,48 @@ public class LampEngine {
   // layouts store R,G,B,I together so consecutive lamps are 4 apart.
   public bool Interleaved = false;
 
+  // ---- owning the endpoint -----------------------------------------
+  // A second writer interleaving its own frames with ours is the one cause of
+  // flicker that no amount of host-side timing can fix. Vendor lighting
+  // software contests the keyboard deck specifically and often leaves the
+  // chassis light bar alone, which is exactly the reported symptom: the four
+  // deck zones step while the twelve bar lamps stay smooth.
+  //
+  // Opening with dwShareMode 0 makes every other process's open of this HID
+  // interface fail with ERROR_SHARING_VIOLATION, so holding the handle is the
+  // cure and failing to get it is the diagnosis. BetterRGB arrived at the same
+  // design independently, after its own lights kept vanishing.
+  //
+  // Exclusive is tried first and shared is the fallback, so a machine where
+  // something else already owns the device still gets lighting rather than
+  // none. Both the first open and every reopen after a resume go through
+  // OpenHandle, so the two cannot drift apart.
+  public bool WantExclusiveLock = true;
+  public volatile bool ExclusiveLock = false;
+  public volatile int  LockFallbacks = 0;
+
+  bool OpenHandle() {
+    if (WantExclusiveLock) {
+      IntPtr xh = CreateFileW(DevicePath, 0xC0000000, 0, IntPtr.Zero, 3, 0, IntPtr.Zero);
+      if (xh != (IntPtr)(-1)) { h = xh; ExclusiveLock = true; return true; }
+    }
+    // 3 = FILE_SHARE_READ | FILE_SHARE_WRITE, the old behaviour.
+    IntPtr nh = CreateFileW(DevicePath, 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+    if (nh == (IntPtr)(-1)) nh = CreateFileW(DevicePath, 0x40000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+    if (nh == (IntPtr)(-1)) { h = IntPtr.Zero; ExclusiveLock = false; return false; }
+    h = nh; ExclusiveLock = false; LockFallbacks++;
+    return true;
+  }
+
   public bool Open() {
-    h = CreateFileW(DevicePath, 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-    if (h == (IntPtr)(-1)) h = CreateFileW(DevicePath, 0x40000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-    if (h == (IntPtr)(-1)) { LastError = "CreateFile failed: " + Marshal.GetLastWin32Error(); h = IntPtr.Zero; return false; }
+    if (!OpenHandle()) {
+      // Say which of the two it is likely to be, because "CreateFile failed"
+      // on its own reads as a permissions problem and this one is not.
+      LastError = "CreateFile failed: " + Marshal.GetLastWin32Error()
+                + " (another program may be holding the keyboard exclusively;"
+                + " try KBL_EXCLUSIVE_LOCK=0)";
+      return false;
+    }
 
     if (CtrlOff != null) HidD_SetFeature(h, CtrlOff, CtrlOff.Length);
 
@@ -1417,10 +1455,11 @@ public class LampEngine {
     } catch { }
     h = IntPtr.Zero;
 
-    IntPtr nh = CreateFileW(DevicePath, 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-    if (nh == (IntPtr)(-1)) nh = CreateFileW(DevicePath, 0x40000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-    if (nh == (IntPtr)(-1)) { LastError = "reopen failed: " + Marshal.GetLastWin32Error(); return false; }
-    h = nh;
+    if (!OpenHandle()) {
+      LastError = "reopen failed: " + Marshal.GetLastWin32Error()
+                + " (another program may be holding the keyboard)";
+      return false;
+    }
 
     // The firmware reverts to autonomous mode across a power cycle, so it
     // must be told again to hand control over.
@@ -3177,6 +3216,11 @@ $eng.Slots      = $slots
 $eng.ReportLen  = (Rpt-Len $rMulti)
 $eng.CtrlOff    = $ctrlOffBuf
 
+# Own the HID endpoint outright when nothing else already holds it. The engine
+# still falls back to a shared open, so this can only ever add ownership, never
+# lose the lighting. KBL_EXCLUSIVE_LOCK=0 opts out without a rebuild.
+$eng.WantExclusiveLock = -not ($env:KBL_EXCLUSIVE_LOCK -eq '0')
+
 # --- optional data sources -------------------------------------------
 # Only started when an effect actually needs them, so the idle cost of a
 # plain gradient stays exactly what it was.
@@ -3635,6 +3679,14 @@ if (-not $eng.Open()) {
 
 Say ("  {0} zones, {1} per transfer, {2} transfers/frame, {3} colours (cyclic)" -f `
      $lampCount, $slots, [Math]::Ceiling($lampCount/[double]$slots), $stops.Count) 'Green'
+
+if ($eng.ExclusiveLock) {
+    Say '  Device owned exclusively - nothing else can write frames over ours.' 'DarkGray'
+} else {
+    Say '  Device opened SHARED: another program already holds it and can write' 'Yellow'
+    Say '  frames over ours at any time, which on its own makes the deck step.' 'Yellow'
+    Say '  Close Armoury Crate / ASUS lighting services, or KBL_EXCLUSIVE_LOCK=0.' 'Yellow'
+}
 
 if ($Effect -eq 'off') {
     $eng.Blank(); $eng.Close()
