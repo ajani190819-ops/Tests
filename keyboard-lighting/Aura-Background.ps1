@@ -3969,6 +3969,115 @@ $script:GateTick = 0
 $script:LastAc  = $null
 $script:LastPct = 100
 
+# ---- keeping G-Helper contained ---------------------------------------
+#
+# Setup sets skip_aura and pins G-Helper's brightness gate and idle timers
+# once, at install time, and nothing ever looked again. So a G-Helper update,
+# or a single click in its keyboard panel - which writes the moment you click,
+# because lighting has no Apply button - silently undid the containment and the
+# two apps went back to fighting over the keyboard.
+#
+# The engine now re-checks the same keys once a minute and, when they have
+# drifted, does what Setup does: rewrite them, restart G-Helper, then rewrite
+# them again. The restart is not optional pedantry - G-Helper only reads this
+# file at startup and saves its in-memory copy back over it on exit, so a
+# rewrite on its own gets undone the next time G-Helper closes.
+#
+# Restarting someone else's program is not free: G-Helper holds fan curves and
+# performance modes, and relaunching it from this elevated process brings it
+# back elevated. So it is rate limited to once every ten minutes, only ever
+# fires on real drift, and logs every attempt. KBL_GHELPER_WATCHDOG=0 disables
+# the whole thing.
+$script:GhWatchdogOn  = -not ($env:KBL_GHELPER_WATCHDOG -eq '0')
+$script:GhCfgPath     = Join-Path $env:APPDATA 'GHelper\config.json'
+$script:GhNextCheck   = [DateTime]::UtcNow
+$script:GhNextRestart = [DateTime]::UtcNow
+$script:GhRepairs     = 0
+$script:GhGaveUp      = $false
+# The keys Setup writes, and the only values that count as contained.
+$script:GhWant = @{
+    'skip_aura'              = 1
+    'keyboard_brightness'    = 3
+    'keyboard_brightness_ac' = 3
+    'max_brightness'         = 3
+    'keyboard_timeout'       = 0
+    'keyboard_ac_timeout'    = 0
+}
+
+function Get-GHelperDrift {
+    # Returns '' when G-Helper is absent, unreadable, or correctly contained,
+    # and a description of what drifted otherwise. A string rather than an
+    # array, so an empty result cannot be mistaken for a one-element one.
+    if (-not (Test-Path $script:GhCfgPath)) { return '' }
+    $cfg = $null
+    try {
+        $raw = Get-Content $script:GhCfgPath -Raw -ErrorAction Stop
+        if (-not $raw -or -not $raw.Trim()) { return '' }
+        $cfg = $raw | ConvertFrom-Json -ErrorAction Stop
+    } catch { return '' }
+    if (-not $cfg) { return '' }
+    $bad = @()
+    foreach ($k in $script:GhWant.Keys) {
+        $v = $cfg.$k
+        if ($null -eq $v) { $bad += ($k + ' missing'); continue }
+        $iv = $null
+        try { $iv = [int]$v } catch { $iv = $null }
+        if ($null -eq $iv) { $bad += ($k + ' not a number') }
+        elseif ($iv -ne $script:GhWant[$k]) { $bad += ($k + '=' + $v) }
+    }
+    if ($bad.Count -eq 0) { return '' }
+    return ($bad -join ', ')
+}
+
+function Repair-GHelper {
+    param([string]$Drift)
+    $script:GhRepairs++
+    Write-Log ("G-Helper containment had drifted ({0}); repairing" -f $Drift) 'WARN'
+
+    $cfg = $null
+    try {
+        $cfg = (Get-Content $script:GhCfgPath -Raw -ErrorAction Stop) | ConvertFrom-Json -ErrorAction Stop
+    } catch { }
+    if (-not $cfg) { Write-Log 'G-Helper config could not be parsed; left alone' 'WARN'; return }
+
+    foreach ($k in $script:GhWant.Keys) {
+        if ($null -ne $cfg.$k) { $cfg.$k = $script:GhWant[$k] }
+        else { Add-Member -InputObject $cfg -MemberType NoteProperty -Name $k -Value $script:GhWant[$k] -Force }
+    }
+    $json = ($cfg | ConvertTo-Json -Depth 10)
+
+    $ghPath = $null
+    try {
+        $gp = Get-Process -Name 'GHelper' -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($gp) { $ghPath = $gp.Path }
+    } catch { }
+
+    try { Copy-Item $script:GhCfgPath ($script:GhCfgPath + '.bak') -Force -ErrorAction SilentlyContinue } catch { }
+    try { $json | Set-Content -Path $script:GhCfgPath -Encoding UTF8 -ErrorAction Stop }
+    catch { Write-Log ('could not rewrite G-Helper config: ' + $_.Exception.Message) 'WARN'; return }
+
+    if (-not $ghPath) {
+        Write-Log 'G-Helper config repaired; it was not running so no restart was needed'
+        return
+    }
+    if ([DateTime]::UtcNow -lt $script:GhNextRestart) {
+        Write-Log 'G-Helper config repaired; restart skipped, one happened within the last 10 minutes' 'WARN'
+        return
+    }
+    try {
+        Get-Process -Name 'GHelper' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 900
+        # G-Helper saves its config on the way out, which would put the old
+        # values straight back, so write them a second time now it is gone.
+        $json | Set-Content -Path $script:GhCfgPath -Encoding UTF8 -ErrorAction SilentlyContinue
+        Start-Process -FilePath $ghPath -WorkingDirectory (Split-Path -Parent $ghPath)
+        $script:GhNextRestart = [DateTime]::UtcNow.AddMinutes(10)
+        Write-Log 'G-Helper restarted with the keyboard containment re-applied'
+    } catch {
+        Write-Log ('could not restart G-Helper: ' + $_.Exception.Message) 'WARN'
+    }
+}
+
 # ---- the keyboard's own backlight level ---------------------------------
 #
 # This is a different thing from the colours, and missing it is why the
@@ -4409,6 +4518,25 @@ try {
                 $eng.ReAssert()
                 foreach ($z in $eng.Groups) { $z.LiveDirty = $true }
             }
+        }
+
+        # --- G-Helper containment watchdog, once a minute ---
+        if ($script:GhWatchdogOn -and [DateTime]::UtcNow -ge $script:GhNextCheck) {
+            $script:GhNextCheck = [DateTime]::UtcNow.AddSeconds(60)
+            try {
+                # Stand down rather than fight. If five repairs have not made the
+                # containment stick then something else keeps rewriting that
+                # file, and restarting G-Helper every ten minutes forever is
+                # worse than leaving it alone and saying so once, loudly.
+                if ($script:GhRepairs -ge 5 -and -not $script:GhGaveUp) {
+                    $script:GhGaveUp = $true
+                    Write-Log 'G-Helper containment did not stick after 5 repairs; watchdog standing down. Run Setup.bat or set it by hand' 'WARN'
+                }
+                if (-not $script:GhGaveUp) {
+                    $ghDrift = Get-GHelperDrift
+                    if ($ghDrift) { Repair-GHelper $ghDrift }
+                }
+            } catch { }
         }
 
         if ($wmiOk) {

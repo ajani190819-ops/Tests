@@ -762,10 +762,10 @@
 - L43  f strip_cs_comments_and_strings
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
-- L1668  f SuiteFolderInstallTests
-- L1883  f AudioSwitcherReachabilityTests
-- L2067  f AudioSwitcherSessionSweepTests
-- L2208  f AppOpenFocusTests
+- L1746  f SuiteFolderInstallTests
+- L1961  f AudioSwitcherReachabilityTests
+- L2145  f AudioSwitcherSessionSweepTests
+- L2286  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

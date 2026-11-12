@@ -185,17 +185,41 @@ if it needs you to exit first.
 
 ## G-Helper
 
-You can keep using G-Helper. `Setup.bat` sets one option in it,
-`skip_aura`, which stops it pushing its own keyboard colours when it
-starts. Everything else in G-Helper is untouched: fan curves,
-performance modes, the Fn brightness keys, battery limits, all of it.
+You can keep using G-Helper. `Setup.bat` sets six options in it so that
+it leaves the keyboard alone:
 
-Without that setting the two apps fight over the keyboard every time
-G-Helper launches. With it, your colours and patterns always win.
+| Setting | What it does |
+|---|---|
+| `skip_aura` = 1 | stops it pushing its own keyboard colours at startup |
+| `keyboard_brightness`, `keyboard_brightness_ac`, `max_brightness` = 3 | holds its four-step backlight gate at full, so it cannot dim the keyboard underneath this app |
+| `keyboard_timeout`, `keyboard_ac_timeout` = 0 | kills its idle timer, which otherwise dims the keyboard to nothing after a minute on battery |
 
-If you ever want G-Helper's own lighting modes back, open
-`%AppData%\GHelper\config.json` and change `"skip_aura": 1` to `0`, or
-just uninstall this app.
+Everything else in G-Helper is untouched: fan curves, performance modes,
+the Fn brightness keys, battery limits, all of it.
+
+Without those the two apps fight over the keyboard every time G-Helper
+launches. With them, your colours and patterns always win.
+
+**The engine keeps checking.** G-Helper has no Apply button for lighting -
+it writes the moment you click - and it rewrites its own config file when
+it closes. So one click in its keyboard panel, or an update, used to undo
+the containment silently, and nothing noticed. The engine now re-reads
+`%AppData%\GHelper\config.json` once a minute and, if those six settings
+have drifted, puts them back, restarts G-Helper, then writes them a second
+time - a rewrite on its own is undone by G-Helper's exit-save. Each repair
+is recorded in `engine.log`.
+
+Restarting G-Helper is not free: it holds your fan curves and performance
+modes, and it comes back elevated because this app runs elevated. So it
+happens at most once every ten minutes, and if five repairs have not made
+it stick the watchdog stands down and says so in the log instead of
+fighting forever. Set `KBL_GHELPER_WATCHDOG` to `0` to turn it off.
+
+**To get G-Helper's own lighting modes back**, set `KBL_GHELPER_WATCHDOG`
+to `0` *first*, and only then change `"skip_aura": 1` to `0` in
+`%AppData%\GHelper\config.json`. Changing `skip_aura` on its own no
+longer works - the watchdog puts it back within a minute. Or just
+uninstall this app, which takes the watchdog with it.
 
 ## Writing your own effect
 

@@ -558,6 +558,84 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "the blackout path zeroes every lamp's carried error at "
                          "once, re-syncing the keyboard lamps into a lockstep pulse")
 
+    def test_keyboard_lighting_watchdog_keeps_ghelper_contained(self):
+        """The engine must re-check G-Helper's containment, not trust Setup once.
+
+        Setup writes skip_aura and pins G-Helper's brightness gate and idle
+        timers a single time at install. Nothing looked again, so a G-Helper
+        update - or one click in its keyboard panel, which writes immediately
+        because lighting has no Apply button - silently undid the containment
+        and the two apps went back to fighting over the keyboard.
+
+        Rewriting the file is not enough on its own: G-Helper only reads config
+        at startup and saves its in-memory copy back over the file on exit, so
+        the repair has to restart it and then write the values a SECOND time,
+        after the process is gone, or the exit-save restores the drift.
+
+        Restarting another program is disruptive (G-Helper holds fan curves and
+        performance modes, and relaunching from this elevated process brings it
+        back elevated), so it is rate limited, it stands down permanently rather
+        than fighting forever, and it can be disabled without a rebuild.
+        """
+        aura = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="ascii", errors="strict")
+        setup = (ROOT / "keyboard-lighting" / "Setup.ps1").read_text(encoding="utf-8")
+
+        def at(needle, why, text=None):
+            text = aura if text is None else text
+            self.assertEqual(text.count(needle), 1, why + " (anchor count %d)"
+                             % text.count(needle))
+            return text.index(needle)
+
+        keys = ("skip_aura", "keyboard_brightness", "keyboard_brightness_ac",
+                "max_brightness", "keyboard_timeout", "keyboard_ac_timeout")
+
+        # The watchdog must check exactly the keys Setup writes - no more, or it
+        # repairs things Setup never set, and no fewer, or drift goes unnoticed.
+        want = aura[aura.index("$script:GhWant = @{"):]
+        want = want[:want.index("\n}\n")]
+        for k in keys:
+            self.assertIn("'" + k + "'", want,
+                          "the watchdog does not check %s, so G-Helper can drift "
+                          "it back and nobody notices" % k)
+            self.assertIn("'" + k + "'", setup,
+                          "%s is checked by the watchdog but never written by "
+                          "Setup, so the two disagree about what contained means" % k)
+
+        drift_def = at("function Get-GHelperDrift {", "the drift check is missing")
+        repair_def = at("function Repair-GHelper {", "the repair is missing")
+        called = at("$ghDrift = Get-GHelperDrift", "the watchdog is never called from the loop")
+        logdef = at("function Write-Log($msg, $level = 'INFO') {", "Write-Log moved")
+        self.assertTrue(logdef < drift_def < repair_def < called,
+                        "the watchdog functions must be defined after Write-Log "
+                        "(they log) and before the loop calls them")
+
+        # The repair must kill G-Helper, then write the config a second time.
+        body = aura[repair_def:]
+        body = body[:body.index("\n}\n")]
+        self.assertIn("Stop-Process -Force", body,
+                      "the repair rewrites the config but never restarts G-Helper, "
+                      "so the change is not picked up until the next boot")
+        self.assertEqual(body.count("Set-Content -Path $script:GhCfgPath"), 2,
+                         "the config must be written twice: once before the "
+                         "restart and once after, because G-Helper saves its "
+                         "in-memory copy back over the file as it exits")
+        self.assertLess(body.index("Stop-Process -Force"),
+                        body.rindex("Set-Content -Path $script:GhCfgPath"),
+                        "the second config write happens before G-Helper is "
+                        "stopped, so its exit-save undoes the repair")
+
+        # Bounded, not a fight.
+        self.assertIn("$script:GhNextRestart = [DateTime]::UtcNow.AddMinutes(10)", body,
+                      "restarts are not rate limited, so a config that keeps "
+                      "drifting restarts G-Helper every minute")
+        self.assertIn("if ($script:GhRepairs -ge 5 -and -not $script:GhGaveUp) {", aura,
+                      "the watchdog never stands down, so it restarts G-Helper "
+                      "forever when something else keeps rewriting the file")
+        self.assertIn("-not ($env:KBL_GHELPER_WATCHDOG -eq '0')", aura,
+                      "there is no way to disable the watchdog without editing "
+                      "the engine")
+
     def test_keyboard_lighting_stops_a_previous_engine_before_taking_the_device(self):
         """A second engine must stand the first one down before opening the device.
 
