@@ -3367,6 +3367,16 @@ $eng.ReportPaceUs = $paceUs
 Say ("  Report pacing {0} us between the {1} transfers of each frame." -f `
      $paceUs, [Math]::Ceiling($lampCount/[double]$slots)) 'Gray'
 
+# The colour range the DEVICE reported, read from lamp 0 and applied to all of
+# them. Worth stating out loud because it settles an argument the timings never
+# can: if the deck only accepts a handful of levels per channel then no frame
+# rate or pacing will make a gradient smooth, and the trade-off moves to the
+# panel's Smooth colour toggle instead. It also decides whether UseDither turns
+# itself on, and on four big zones that carry the same colour dithering reads
+# as a lockstep shimmer rather than as extra depth.
+Say ("  Device colour range R{0} G{1} B{2} I{3}; temporal dither {4}." -f `
+     $RMAX, $GMAX, $BMAX, $IMAX, $(if ($eng.UseDither) { 'ON' } else { 'off' })) 'Gray'
+
 # ---- where each zone sits, as a number the effects can travel along ----
 #
 # -Layout across : left-to-right only. Zones stacked at the same X (the
@@ -4212,13 +4222,18 @@ try {
         if ([DateTime]::UtcNow -gt $script:TimingAt) {
             $script:TimingAt = [DateTime]::UtcNow.AddSeconds(60)
             $budget = [int](1000000 / [Math]::Max(1, $eng.Fps))
-            $msg = ('device write {0} us/frame (worst {1}), budget {2} us at {3} fps, late frames {4}, failed writes {5}, reopens {6} in last interval' -f `
-                    $eng.WriteUs, $eng.WriteUsMax, $budget, $eng.Fps, $eng.LateFrames, $eng.WriteFails, $eng.Reopens)
+            $msg = ('device write {0} us/frame (worst {1}), budget {2} us at {3} fps, late frames {4}, failed writes {5}, reopens {6} in last interval; lock {7}, fallbacks {8}, dither {9}, range R{10}/G{11}/B{12}' -f `
+                    $eng.WriteUs, $eng.WriteUsMax, $budget, $eng.Fps, $eng.LateFrames, $eng.WriteFails, $eng.Reopens, `
+                    $(if ($eng.ExclusiveLock) { 'exclusive' } else { 'SHARED' }), $eng.LockFallbacks, `
+                    $(if ($eng.UseDither) { 'on' } else { 'off' }), $eng.MaxR, $eng.MaxG, $eng.MaxB)
             if (-not $script:TimingDone) {
                 $script:TimingDone = $true
                 Say ("  Timing: {0}" -f $msg) 'DarkGray'
             }
-            Write-Log $msg
+            # A shared handle is the one reading here that means another program
+            # is writing frames over ours, so it should not sit at INFO among
+            # the ordinary timings where it is easy to scroll past.
+            if ($eng.ExclusiveLock) { Write-Log $msg } else { Write-Log $msg 'WARN' }
             $eng.WriteUsMax = 0
             $eng.LateFrames = 0
             $eng.WriteFails = 0

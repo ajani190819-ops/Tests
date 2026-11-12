@@ -112,18 +112,27 @@ folder** to jump straight there. There are two files:
 | `panel.log` | the control panel - settings changes, engine starts and stops |
 | `engine.log` | the lighting engine, including the timing line below |
 
-The engine writes a timing line a few seconds after it starts, which is
-what to look at if the lighting is not smooth:
+The engine writes a timing line a few seconds after it starts, and then
+once a minute from then on. This is what to look at if the lighting is
+not smooth:
 
 ```
-device write 1840 us/frame (worst 3200), budget 16666 us at 60 fps, late frames 0
+device write 1840 us/frame (worst 3200), budget 16666 us at 60 fps, late frames 0,
+failed writes 0, reopens 0 in last interval; lock exclusive, fallbacks 0,
+dither off, range R255/G255/B255
 ```
 
-`device write` is how long the keyboard actually takes to accept a frame
-and `budget` is how long there is to spare. If the write is a large
-fraction of the budget, or `late frames` keeps climbing, the hardware
-cannot keep up with the requested rate and the engine will lower it
-automatically. Both files are capped at 256 KB.
+| Reading | What it tells you |
+|---|---|
+| `device write` near `budget` | the keyboard cannot take frames that fast, and the engine lowers the rate on its own |
+| `late frames` climbing | the same thing seen from the other end - frames are missing their slot |
+| `failed writes` not zero | the device is refusing frames: a busy endpoint, or a handle that died across a sleep |
+| `lock SHARED` | **another program has the keyboard** and can write frames over ours. This is the one that makes the keys step while the light bar stays smooth. Close Armoury Crate and any ASUS lighting service, then restart. Logged as a warning, not as info |
+| `fallbacks` climbing | the engine keeps losing the device and re-opening it shared, usually a sleep/resume loop |
+| `range` below 255 | the keyboard only accepts a few colour levels per channel, so no frame rate will make a gradient perfectly smooth. The **Smooth colour** toggle is then the trade-off: leave it on for solid steps, turn it off to let the engine dither and fill the gaps in between |
+| `dither on` | the engine is faking colour levels the hardware does not have. Good against banding, but on four large zones it can read as a shimmer |
+
+Both files are capped at 256 KB.
 
 ## Important
 

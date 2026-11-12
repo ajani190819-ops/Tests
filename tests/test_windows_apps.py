@@ -558,6 +558,70 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "the blackout path zeroes every lamp's carried error at "
                          "once, re-syncing the keyboard lamps into a lockstep pulse")
 
+    def test_keyboard_lighting_log_reports_lock_dither_and_device_range(self):
+        """The engine must log the three readings that separate the flicker causes.
+
+        Write cost, late frames and failed writes can only ever distinguish
+        "too slow" from "refused". They cannot distinguish either of those from
+        "another program is writing frames over ours", nor from "the device
+        physically has too few colour levels to show a smooth gradient". Both
+        of those produce a stepping keyboard deck with a perfectly smooth light
+        bar, so both are reported alongside the timings: the lock state, the
+        device's own colour range, and whether dither ended up enabled.
+
+        A shared handle is escalated to WARN rather than logged at INFO with
+        the ordinary timings, and the README says what to do about it.
+
+        The placeholder/argument counts are checked too: PowerShell's -f
+        operator throws at runtime when a format string has more placeholders
+        than arguments, which would take the whole status line down.
+        """
+        aura = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="ascii", errors="strict")
+
+        def check_format(label, pattern):
+            m = re.search(pattern, aura, re.S)
+            self.assertIsNotNone(m, "could not find the %s format string" % label)
+            fmt, args = m.group(1), m.group(2)
+            placeholders = set(int(n) for n in re.findall(r"\{(\d+)\}", fmt))
+            nargs = len([a for a in args.split(",") if a.strip()])
+            self.assertEqual(nargs, (max(placeholders) + 1) if placeholders else 0,
+                             "%s has %d placeholders (highest {%s}) but %d arguments, "
+                             "so PowerShell's -f operator will throw at runtime"
+                             % (label, len(placeholders),
+                                max(placeholders) if placeholders else "-", nargs))
+            self.assertEqual(placeholders, set(range(max(placeholders) + 1)),
+                             "%s skips a placeholder index" % label)
+
+        check_format(
+            "periodic timing line",
+            r"\$msg = \('(.*?)' -f `(.*?)\)\n\s*if \(-not \$script:TimingDone\)")
+        check_format(
+            "startup colour-range line",
+            r"""Say \("  Device colour range (.*?)" -f `\n(.*?)\) 'Gray'""")
+
+        for needle, why in (
+            ("lock {7}", "the lock state is not in the periodic line"),
+            ("fallbacks {8}", "downgrades to a shared open are not counted in the log"),
+            ("dither {9}", "the dither decision is not logged"),
+            ("range R{10}/G{11}/B{12}", "the device's own colour range is not logged"),
+        ):
+            self.assertIn(needle, aura, why)
+
+        self.assertIn(
+            "if ($eng.ExclusiveLock) { Write-Log $msg } else { Write-Log $msg 'WARN' }",
+            aura, "a shared handle is logged at INFO among the ordinary timings, "
+                  "where the one reading that means another program is writing "
+                  "over ours is easy to scroll past")
+
+        readme = (ROOT / "keyboard-lighting" / "README.md").read_text(encoding="ascii")
+        self.assertIn("`lock SHARED`", readme,
+                      "the README does not explain the lock reading, so the owner "
+                      "cannot act on it")
+        self.assertIn("`range` below 255", readme,
+                      "the README does not explain what a coarse device colour "
+                      "range means for smoothness")
+
     def test_keyboard_lighting_paces_the_batched_reports_of_one_frame(self):
         """One frame's batched reports must be paced apart, and the cost measured.
 
