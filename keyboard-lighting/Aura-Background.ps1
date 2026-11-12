@@ -1096,6 +1096,20 @@ public class LampEngine {
   // nothing counted them - so there was no way to tell that apart from a
   // timing problem when reading the log.
   public volatile int  WriteFails = 0;
+
+  // Gap to leave between the batched feature reports that make up ONE frame.
+  // HID control transfers are scheduled per 1 ms USB frame, so two reports
+  // sent back to back can land in the same frame and the EC can drop or
+  // coalesce one of them. The deck then misses that frame while the bar keeps
+  // up, which reads as stepping rather than as a slowdown, and it is invisible
+  // in WriteFails because the transfer the host was told about succeeded.
+  // keyRGB ships the same knob for the same reason. 0 disables pacing.
+  //
+  // The cost is real but bounded: 1 ms on a 16.7 ms budget, only between
+  // batches, and it lands INSIDE the measured WriteUs window so the adaptive
+  // backoff still sees the true cost of a frame.
+  public int ReportPaceUs = 1000;
+
   int overrun = 0;                      // consecutive frames whose writes overflowed
   double[] er, eg, eb;     // carried quantisation error, for temporal dither
   double[] frPrev, fgPrev, fbPrev;   // last targets, for moving-only dither
@@ -1321,6 +1335,18 @@ public class LampEngine {
     return q;
   }
 
+  // Busy-wait a short, precise gap. Sleep on its own is too coarse to be
+  // worth calling at these lengths even with the 1 ms timer period active,
+  // and the render thread already spins for its frame deadline, so this costs
+  // nothing it was not going to cost anyway.
+  void Pace(int us) {
+    if (us <= 0) return;
+    long f = Stopwatch.Frequency;
+    long target = Stopwatch.GetTimestamp() + (us * f) / 1000000L;
+    if (us >= 3000) Thread.Sleep((us - 2000) / 1000);
+    while (Stopwatch.GetTimestamp() < target) Thread.SpinWait(40);
+  }
+
   void Push(bool force) {
     int last = nbatch - 1;
     bool changed = force;
@@ -1373,6 +1399,10 @@ public class LampEngine {
     for (int bi = 0; bi < nbatch; bi++) {
       byte[] b = bufs[bi];
       if (!HidD_SetFeature(h, b, b.Length)) allOk = false;
+      // Separate this report from the next one of the SAME frame so they
+      // cannot share a USB frame. Never after the last batch: that would tax
+      // every frame for a gap nothing is waiting on.
+      if (bi + 1 < nbatch && ReportPaceUs > 0) Pace(ReportPaceUs);
     }
     int us = (int)((Stopwatch.GetTimestamp() - t0) * 1000000L / Stopwatch.Frequency);
     WriteUs = us;
@@ -3325,6 +3355,17 @@ if ($minUpdUs -gt 0) {
 }
 Say ("  Update rate {0} fps (asked {1}, device min interval {2} us)." -f $fpsCap, $Fps, $minUpdUs) 'Gray'
 $eng.Fps        = $fpsCap
+
+# Gap between the batched reports of one frame. Back-to-back control transfers
+# can share a 1 ms USB frame and the EC can drop one, which shows up as the
+# deck missing frames while the bar keeps up. KBL_REPORT_PACE_US tunes it
+# without a rebuild; 0 turns pacing off.
+$paceUs = 1000
+if ($env:KBL_REPORT_PACE_US -match '^\d+$') { $paceUs = [int]$env:KBL_REPORT_PACE_US }
+if ($paceUs -gt 20000) { $paceUs = 20000 }
+$eng.ReportPaceUs = $paceUs
+Say ("  Report pacing {0} us between the {1} transfers of each frame." -f `
+     $paceUs, [Math]::Ceiling($lampCount/[double]$slots)) 'Gray'
 
 # ---- where each zone sits, as a number the effects can travel along ----
 #

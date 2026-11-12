@@ -558,6 +558,62 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "the blackout path zeroes every lamp's carried error at "
                          "once, re-syncing the keyboard lamps into a lockstep pulse")
 
+    def test_keyboard_lighting_paces_the_batched_reports_of_one_frame(self):
+        """One frame's batched reports must be paced apart, and the cost measured.
+
+        Each frame goes out as two HID feature reports (lamps 0-7, then 8-15,
+        the second carrying the apply flag). HID control transfers are
+        scheduled per 1 ms USB frame, so two sent back to back can land in the
+        same frame and the EC can drop or coalesce one. The deck then misses
+        that frame while the bar keeps up, which reads as stepping rather than
+        as a slowdown - and it never shows in WriteFails, because the transfer
+        the host was told about succeeded. keyRGB ships the same knob for the
+        same reason.
+
+        Two invariants matter. The gap goes BETWEEN batches only, never after
+        the last one, or every frame pays for a gap nothing waits on. And it
+        must land inside the measured WriteUs window, or the adaptive backoff
+        compares a budget against a cost that no longer includes the pacing.
+        """
+        aura = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="ascii", errors="strict")
+
+        self.assertIn("public int ReportPaceUs = 1000;", aura,
+                      "the inter-report gap is not a tunable with a non-zero "
+                      "default, so the two reports of a frame can share a USB frame")
+        self.assertIn("void Pace(int us) {", aura,
+                      "there is no precise short wait; Thread.Sleep alone is too "
+                      "coarse at these lengths even with the 1ms timer period on")
+
+        pace_body = aura[aura.index("void Pace(int us) {"):]
+        pace_body = pace_body[:pace_body.index("\n  }\n")]
+        self.assertIn("Thread.SpinWait(40);", pace_body,
+                      "Pace does not spin, so the gap it produces is not accurate "
+                      "enough to move the two reports into separate USB frames")
+
+        self.assertIn(
+            "if (bi + 1 < nbatch && ReportPaceUs > 0) Pace(ReportPaceUs);", aura,
+            "the reports of one frame are sent back to back, or the gap is also "
+            "taken after the last batch, taxing every frame for nothing")
+
+        # The gap must be inside the window that measures the frame's cost.
+        self.assertEqual(aura.count("long t0 = Stopwatch.GetTimestamp();"), 1)
+        t0 = aura.index("long t0 = Stopwatch.GetTimestamp();")
+        gap = aura.index("Pace(ReportPaceUs);")
+        measured = aura.index("WriteUs = us;")
+        self.assertTrue(t0 < gap < measured,
+                        "pacing happens outside the measured WriteUs window, so "
+                        "the adaptive backoff sees a frame cost that excludes it "
+                        "and can overdrive the device")
+
+        # Tunable from the environment, so it can be retuned on real hardware
+        # without a rebuild.
+        self.assertIn("$eng.ReportPaceUs = $paceUs", aura,
+                      "the pacing tunable is never handed to the engine")
+        self.assertIn("KBL_REPORT_PACE_US", aura,
+                      "there is no way to retune or disable pacing without "
+                      "editing the engine")
+
     def test_keyboard_lighting_owns_the_hid_endpoint_exclusively(self):
         """The engine must try to own the HID endpoint before sharing it.
 
