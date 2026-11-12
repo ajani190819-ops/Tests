@@ -54,6 +54,23 @@ static void HoldPump(void) {
             g_holdOn[i] = 0;
             continue;
         }
+        /* Ceiling on the whole stream, and the only one that still applies
+           once a release source is known. HasReleaseSrc is monotonic - nothing
+           ever unsets g_scanBound or lowers g_hidRelSeen - so the silence
+           timeout above is switched off for good the moment learning succeeds.
+           A release that then fails to arrive (key let go while this thread
+           was starved, or a device that only reports release sometimes) would
+           keep the token stream running forever, with the brightness pinned at
+           the rail and nothing anywhere to explain it.
+           Ten seconds is deliberately far longer than the sweep it guards: the
+           engine steps 5% every 150ms, so 0 to 100% takes about 3s. A real
+           hold always reaches the rail first, so this can only ever stop a
+           stream that has nothing left to do. */
+        if (now - g_sigAt[i] > 10000ULL) {
+            g_holdOn[i] = 0;
+            g_scanArmed[i] = 1;
+            continue;
+        }
         if (now >= g_scanNext[i]) {
             g_scanNext[i] = now + 150;
             HoldTokenWrite(i);
@@ -254,5 +271,55 @@ static void OnRawInputMsg(HWND hwnd, LPARAM lp) {
     } else if (ri->header.dwType == RIM_TYPEHID) {
         OnRawHid(ri->data.hid.bRawData, (int)ri->data.hid.dwSizeHid, now);
     }
+}
+
+/* ---- hold behaviour, reachable from the tray -------------------------
+   The engine has supported three hold behaviours all along and re-reads
+   hold_mode.txt on every tick, so switching needs no restart. The only way to
+   reach them used to be the -HoldMode command line, which left the two that do
+   NOT depend on learning the keys effectively unreachable. That matters
+   because "tap" degrades silently: its hold-to-sweep needs this panel to
+   recognise the M-keys, and on a machine where they produce neither a
+   typematic repeat nor a release frame there is nothing to recognise, so
+   holding does nothing at all and every press is a single 5% step, with no
+   explanation anywhere. */
+static const char *kHoldModes[3] = { "tap", "latch", "burst" };
+static const wchar_t *kHoldLabels[3] = {
+    L"Sweep While Held",
+    L"Press To Glide, Press To Stop",
+    L"Press For A 20% Glide"
+};
+
+/* Read from the file rather than tracked in a global, so the tray menu stays
+   correct when the mode was set out of process by -HoldMode. */
+static int HoldModeRead(void) {
+    DWORD len = 0;
+    char *txt = ReadFileUtf8(g_holdModePath, &len);
+    int mode = 0;
+    if (txt) {
+        if (strncmp(txt, "latch", 5) == 0) mode = 1;
+        else if (strncmp(txt, "burst", 5) == 0) mode = 2;
+        free(txt);
+    }
+    return mode;
+}
+
+static void HoldModeWrite(int mode) {
+    if (mode < 0 || mode > 2) mode = 0;
+    WriteAtomicUtf8(g_holdModePath, kHoldModes[mode]);
+}
+
+/* What the tray reports about whether hold-to-sweep can work at all. This
+   reflects HasReleaseSrc rather than mere learning, because that is the actual
+   gate: a fresh press only starts the stream when a release is observable, so
+   a key whose HID code was learned but which has never been seen to release is
+   not ready, however many times it has been pressed. */
+static const wchar_t *HoldReadyLabel(void) {
+    int known = 0;
+    for (int i = 0; i < 2; i++)
+        if (g_scanBound[i] != 0 || g_hidCode[i] != 0) known++;
+    if (HasReleaseSrc(0) && HasReleaseSrc(1)) return L"M4/M5 Keys: Hold Ready";
+    if (known == 0) return L"M4/M5 Keys: Not Recognised";
+    return L"M4/M5 Keys: Still Learning";
 }
 

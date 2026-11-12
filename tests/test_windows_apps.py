@@ -1914,6 +1914,119 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "the self-elevation is no longer conditional on actually being "
                       "unelevated, so an elevated start would relaunch itself")
 
+    def test_keyboard_lighting_hold_modes_are_reachable_and_bounded(self):
+        """All three M4/M5 hold behaviours must be reachable, and the sweep cap
+        must be longer than a sweep.
+
+        The engine has supported tap/latch/burst since hold_mode.txt existed and
+        re-reads it every tick, but the only way to set it was the -HoldMode
+        command line. That left latch and burst - the two that do NOT depend on
+        this panel recognising the M-keys - effectively unreachable, while the
+        default "tap" degrades silently: its hold-to-sweep needs a typematic
+        repeat or a release frame to exist, and on a machine where the M-keys
+        produce neither, holding does nothing and every press is one 5% step
+        with no explanation anywhere. Hence the tray submenu, and hence the
+        read-only indicator that reports HasReleaseSrc rather than mere
+        learning, because a release source is the actual gate on the stream.
+
+        The ceiling added to HoldPump is checked against the engine's own
+        numbers rather than a hardcoded guess: it exists to stop a stream whose
+        release never arrives, and it would be a regression if it cut a
+        legitimate sweep short.
+        """
+        src = read_c_inlined("keyboard-lighting/src/keyboard_lighting.c")
+        engine = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="ascii", errors="strict")
+
+        # The modes offered must be exactly the modes the engine accepts, or a
+        # tray choice silently does nothing.
+        offered = re.search(r"static const char \*kHoldModes\[3\] = \{([^}]*)\};", src)
+        self.assertIsNotNone(offered, "kHoldModes is gone")
+        modes = re.findall(r'"([a-z]+)"', offered.group(1))
+        accepted = re.search(
+            r"if \(\$m -eq '([a-z]+)' -or \$m -eq '([a-z]+)' -or \$m -eq '([a-z]+)'\)",
+            engine)
+        self.assertIsNotNone(accepted, "could not find the engine's hold-mode validation")
+        self.assertEqual(sorted(modes), sorted(accepted.groups()),
+                         "the tray offers %s but the engine accepts %s, so one of the "
+                         "choices does nothing" % (sorted(modes), sorted(accepted.groups())))
+        self.assertEqual(len(modes), 3, "expected three hold modes")
+
+        # Written to the same file -HoldMode writes, so no restart is needed and
+        # the two entry points cannot disagree.
+        self.assertIn("WriteAtomicUtf8(g_holdModePath, kHoldModes[mode])", src,
+                      "the tray does not write hold_mode.txt through the same path as "
+                      "-HoldMode, so the two can disagree about the current mode")
+
+        # The menu really offers all three, plus the indicator.
+        menu = src[src.index("static void ShowTrayContextMenu(HWND hwnd) {"):]
+        menu = menu[:menu.index("\n}\n")]
+        self.assertIn("CreatePopupMenu()", menu[menu.index("HMENU hHold"):],
+                      "the hold modes are appended to the top-level menu instead of a "
+                      "submenu")
+        self.assertIn("MF_POPUP", menu, "the submenu is never attached to the tray menu")
+        self.assertIn("kHoldLabels[i]", menu, "the three modes are not all appended")
+        self.assertIn("HoldReadyLabel()", menu,
+                      "nothing tells the owner whether hold-to-sweep can work, which is "
+                      "the one question that decides whether to use tap or latch")
+        self.assertIn("MF_GRAYED", menu,
+                      "the hold-state line is clickable but does nothing")
+
+        # The indicator must report the real gate, not just whether a code was learned.
+        label = src[src.index("static const wchar_t *HoldReadyLabel(void) {"):]
+        label = label[:label.index("\n}\n")]
+        self.assertIn("HasReleaseSrc(0) && HasReleaseSrc(1)", label,
+                      "the indicator reports learning rather than the release source that "
+                      "actually gates the stream, so it can say Hold Ready for a key that "
+                      "has never been seen to release and will not sweep")
+
+        # All three menu IDs are handled. Word-boundary matched, not a plain
+        # substring: a typo'd handler reading IDM_TRAY_HOLD_BURST_DISABLED still
+        # CONTAINS IDM_TRAY_HOLD_BURST, so assertIn passed on a mutation that
+        # left the menu item dead.
+        handler = src[src.index("case WM_COMMAND:"):]
+        for want in ("IDM_TRAY_HOLD_TAP", "IDM_TRAY_HOLD_LATCH", "IDM_TRAY_HOLD_BURST"):
+            self.assertRegex(handler, r"id == %s\b" % want,
+                             "%s is in the menu but nothing compares against it, so "
+                             "clicking it does nothing" % want)
+
+        # Menu IDs must not collide with the effect or preset ranges.
+        ids = dict(re.findall(r"#define (IDM_\w+)\s+(\d+)", src))
+        taken = {}
+        for name, val in ids.items():
+            self.assertNotIn(val, taken, "%s and %s share menu id %s" % (taken.get(val), name, val))
+            taken[val] = name
+        eff, pat = int(ids["IDM_EFF_BASE"]), int(ids["IDM_PAT_BASE"])
+        for name in ("IDM_TRAY_HOLD_TAP", "IDM_TRAY_HOLD_LATCH",
+                     "IDM_TRAY_HOLD_BURST", "IDM_TRAY_HOLD_STATE"):
+            v = int(ids[name])
+            self.assertFalse(eff <= v < eff + 40 or pat <= v < pat + 12,
+                             "%s (%d) collides with the effect/preset command ranges" % (name, v))
+
+        # The ceiling must outlast a full sweep, computed from the engine's own
+        # step and cadence rather than assumed.
+        step = int(re.search(r"^\$step = (\d+)$", engine, re.M).group(1))
+        cadence = int(re.search(r"^\$brightStepMs = (\d+)$", engine, re.M).group(1))
+        sweep_ms = (1000 // step) * cadence          # LiveLevel runs 0..1000
+        # Two timeouts share that shape. The 300 ms one is conditional on there
+        # being no release source; the ceiling is the one that applies anyway.
+        timeouts = re.findall(
+            r"((?:!HasReleaseSrc\(i\) && )?)now - g_sigAt\[i\] > (\d+)ULL", src)
+        ceilings = [int(v) for guard, v in timeouts if not guard]
+        self.assertEqual(len(ceilings), 1,
+                         "expected exactly one hold-stream ceiling that applies even "
+                         "when a release source is known, found %d" % len(ceilings))
+        ceiling = ceilings[0]
+        self.assertGreater(ceiling, sweep_ms,
+                           "the hold-stream ceiling of %d ms is shorter than the %d ms a "
+                           "real 0-100%% sweep takes, so it cuts legitimate holds short"
+                           % (ceiling, sweep_ms))
+        cap = src[src.index("now - g_sigAt[i] > %dULL" % ceiling):]
+        cap = cap[:cap.index("\n        }\n")]
+        self.assertIn("g_scanArmed[i] = 1;", cap,
+                      "the ceiling stops the stream without re-arming the key, so the "
+                      "next press is read as a typematic repeat instead of a fresh one")
+
     def test_keyboard_lighting_watches_keys_via_raw_input_not_a_global_hook(self):
         """A WH_KEYBOARD_LL hook runs on the app's UI thread, and that thread
         blocks for seconds in the engine (re)start waits. Windows times a stalled

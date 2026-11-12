@@ -115,6 +115,33 @@ administrator just to start, and Windows enforces that before any of its
 code runs, so G-Helper was triggering a consent dialog on every press to
 write a file that needs no privileges at all.
 
+### Holding the key down
+
+Right-click the tray icon and open **M4/M5 Brightness Keys**. Three
+behaviours, and the engine picks the choice up on its next tick, so
+nothing restarts:
+
+| Choice | What a press does |
+|---|---|
+| **Sweep While Held** | the default. One press steps 5%. Holding glides at 5% every 150ms, so 0 to 100% takes about three seconds, and letting go stops it |
+| **Press To Glide, Press To Stop** | one press starts the same glide and it continues on its own. Press the same key again to stop where you are; reaching either end also stops it |
+| **Press For A 20% Glide** | every press glides four steps, so five presses cover the whole range |
+
+Underneath, a greyed-out line reports whether the app can actually see
+your M-keys:
+
+| It says | What it means |
+|---|---|
+| **Hold Ready** | Sweep While Held will work |
+| **Still Learning** | it recognises one of the two keys - press each a couple more times |
+| **Not Recognised** | it cannot see the keys at all, so **Sweep While Held gives one step per press and nothing more**. Use one of the other two: they glide inside the engine, so they work without the keys being recognised |
+
+Learning happens by watching the keys while G-Helper's Custom action
+fires, so it needs a few presses after the app starts. If it never gets
+there that is not something you set up wrong - some ASUS firmware sends
+one press report for those keys and no release report, and with no
+release to watch there is no way to tell a held key from a tapped one.
+
 **The keystroke alternative - worse, but needs no update.** G-Helper's
 Custom field also accepts space-separated key codes (up to three), so the
 same keys can emit a combination this app listens for instead of

@@ -227,20 +227,20 @@
 
 ## keyboard-lighting/src/keyboard_lighting.c
 
-- L239  f GetWinDpi
-- L254  f S
-- L256  f ApplyModernWindowFrame
-- L274  f FileExistsW
-- L279  f EnsureDirTree
-- L294  f CheckIsAdmin
-- L306  f ReadFileUtf8
-- L322  f WriteAtomicUtf8
-- L338  f ParseHexColor
-- L347  f FormatHexColor
-- L351  f FindEffectIndex
-- L361  f CurGroup
-- L365  f InitDefaultCfg
-- globals: g_hwnd (L178), g_appIcon (L179), g_nid (L180), g_showEvent (L181), g_engineProc (L182), g_enginePid (L183), g_isAdmin (L184), g_autostart (L185), g_wantOff (L186), g_quitting (L187), g_trayHinted (L188), g_downloading (L189), g_cfg (L191), g_tab (L192), g_hits (L193), g_hitCount (L194), g_hoverIdx (L195), g_dragKind (L196), g_dragIdx (L197), g_dragRect (L198), g_scrollY (L199), g_contentH (L200), g_applyPending (L201), g_applyAtTick (L202), g_liveCols (L205), g_liveKbdN (L206), g_liveBarN (L207), g_hasLiveFrame (L208), g_lastFrameTick (L209), g_toastText (L212), g_toastAt (L213), g_lastFnPoll (L214), g_exePath (L217), g_exeDir (L218), g_cfgDir (L219), g_panelPath (L220), g_themePath (L221), g_livePath (L222), g_framePath (L223), g_layoutPath (L224), g_lockPath (L225), g_showPath (L226), g_engPidPath (L227), g_stopPath (L228), g_brightUpPath (L229), g_brightDownPath (L230), g_holdModePath (L231), g_engineScript (L232), g_zonesBat (L233), g_statusText (L234)
+- L243  f GetWinDpi
+- L258  f S
+- L260  f ApplyModernWindowFrame
+- L278  f FileExistsW
+- L283  f EnsureDirTree
+- L298  f CheckIsAdmin
+- L310  f ReadFileUtf8
+- L326  f WriteAtomicUtf8
+- L342  f ParseHexColor
+- L351  f FormatHexColor
+- L355  f FindEffectIndex
+- L365  f CurGroup
+- L369  f InitDefaultCfg
+- globals: g_hwnd (L182), g_appIcon (L183), g_nid (L184), g_showEvent (L185), g_engineProc (L186), g_enginePid (L187), g_isAdmin (L188), g_autostart (L189), g_wantOff (L190), g_quitting (L191), g_trayHinted (L192), g_downloading (L193), g_cfg (L195), g_tab (L196), g_hits (L197), g_hitCount (L198), g_hoverIdx (L199), g_dragKind (L200), g_dragIdx (L201), g_dragRect (L202), g_scrollY (L203), g_contentH (L204), g_applyPending (L205), g_applyAtTick (L206), g_liveCols (L209), g_liveKbdN (L210), g_liveBarN (L211), g_hasLiveFrame (L212), g_lastFrameTick (L213), g_toastText (L216), g_toastAt (L217), g_lastFnPoll (L218), g_exePath (L221), g_exeDir (L222), g_cfgDir (L223), g_panelPath (L224), g_themePath (L225), g_livePath (L226), g_framePath (L227), g_layoutPath (L228), g_lockPath (L229), g_showPath (L230), g_engPidPath (L231), g_stopPath (L232), g_brightUpPath (L233), g_brightDownPath (L234), g_holdModePath (L235), g_engineScript (L236), g_zonesBat (L237), g_statusText (L238)
 
 ## keyboard-lighting/src/parts/brightness_hotkeys.c
 
@@ -311,14 +311,17 @@
 - L37  f HasReleaseSrc
 - L41  f HoldTokenWrite
 - L49  f HoldPump  — One paced token per interval while the gesture is live.
-- L64  f PressSignal
-- L76  f ReleaseSignal
-- L86  f OnScanEvent
-- L105  f OnRawHid
-- L131  f LearnFromRing
-- L191  f WatchBrightTokens
-- L205  f InitRawInput
-- L238  f OnRawInputMsg
+- L81  f PressSignal
+- L93  f ReleaseSignal
+- L103  f OnScanEvent
+- L122  f OnRawHid
+- L148  f LearnFromRing
+- L208  f WatchBrightTokens
+- L222  f InitRawInput
+- L255  f OnRawInputMsg
+- L295  f HoldModeRead
+- L307  f HoldModeWrite
+- L317  f HoldReadyLabel
 - globals: g_keyRing (L18), g_keyRingHead (L19), g_hidRing (L21), g_hidRingHead (L22), g_scanBound (L23), g_hidCode (L24), g_scanArmed (L25), g_hidDown (L26), g_holdOn (L27), g_hidRelSeen (L28), g_sigAt (L29), g_scanNext (L30), g_learnCand (L31), g_learnN (L32), g_learnHid (L33), g_learnHidN (L34), g_seenTok (L35)
 
 ## keyboard-lighting/src/parts/mouse_drag_menus.c
@@ -346,7 +349,7 @@
 - L91  f EnsureLogonTask
 - L137  f HandleHitAction
 - L229  f ShowTrayContextMenu
-- L485  f InitKblPaths
+- L513  f InitKblPaths
 - globals: g_pickOrig (L6), g_pickLast (L7), g_pickIdx (L8), g_pickLive (L9)
 
 ## keyboard-lighting/src/parts/ui_renderer.c
@@ -762,10 +765,10 @@
 - L43  f strip_cs_comments_and_strings
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
-- L2007  f SuiteFolderInstallTests
-- L2222  f AudioSwitcherReachabilityTests
-- L2406  f AudioSwitcherSessionSweepTests
-- L2547  f AppOpenFocusTests
+- L2120  f SuiteFolderInstallTests
+- L2335  f AudioSwitcherReachabilityTests
+- L2519  f AudioSwitcherSessionSweepTests
+- L2660  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

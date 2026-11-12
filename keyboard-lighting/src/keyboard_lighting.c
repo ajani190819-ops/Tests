@@ -50,6 +50,10 @@
 #define IDM_TRAY_ZONES      206
 #define IDM_TRAY_FOLDER     207
 #define IDM_TRAY_QUIT       208
+#define IDM_TRAY_HOLD_TAP   209
+#define IDM_TRAY_HOLD_LATCH 210
+#define IDM_TRAY_HOLD_BURST 211
+#define IDM_TRAY_HOLD_STATE 212
 #define IDM_EFF_BASE        400
 #define IDM_PAT_BASE        420
 #define IDM_PAT_NEW         428

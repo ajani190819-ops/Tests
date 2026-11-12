@@ -236,6 +236,27 @@ static void ShowTrayContextMenu(HWND hwnd) {
     AppendMenuW(hMenu, MF_STRING | (g_cfg.bar.on ? MF_CHECKED : 0), IDM_TRAY_BAR, L"Light Bar Enabled");
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_RESTART, L"Restart Lighting Engine");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+
+    /* M4/M5 brightness behaviour. Read from hold_mode.txt on every menu open
+       rather than cached, so it is right even when -HoldMode set it from
+       another process. The engine re-reads the same file each tick, so the
+       choice takes effect with no restart. DestroyMenu below takes the submenu
+       with it. */
+    {
+        HMENU hHold = CreatePopupMenu();
+        int hm = HoldModeRead();
+        static const UINT holdIds[3] = { IDM_TRAY_HOLD_TAP, IDM_TRAY_HOLD_LATCH,
+                                         IDM_TRAY_HOLD_BURST };
+        int i;
+        for (i = 0; i < 3; i++)
+            AppendMenuW(hHold, MF_STRING | (hm == i ? MF_CHECKED : 0),
+                        holdIds[i], kHoldLabels[i]);
+        AppendMenuW(hMenu, MF_POPUP, (UINT_PTR)hHold, L"M4/M5 Brightness Keys");
+    }
+    /* Read-only, and the reason it is here: it is the only visible answer to
+       "why does holding the key do nothing", which otherwise has none. */
+    AppendMenuW(hMenu, MF_STRING | MF_GRAYED, IDM_TRAY_HOLD_STATE, HoldReadyLabel());
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(hMenu, MF_STRING | (g_autostart ? MF_CHECKED : 0), IDM_TRAY_AUTOSTART, L"Start with Windows");
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_FOLDER, L"Open Program Folder");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
@@ -390,6 +411,13 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (id == IDM_TRAY_RESTART) {
             StartEngine();
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (id == IDM_TRAY_HOLD_TAP || id == IDM_TRAY_HOLD_LATCH ||
+                   id == IDM_TRAY_HOLD_BURST) {
+            int m = (id == IDM_TRAY_HOLD_LATCH) ? 1
+                  : (id == IDM_TRAY_HOLD_BURST) ? 2 : 0;
+            HoldModeWrite(m);
+            _snwprintf(g_statusText, 255, L"M4/M5: %s", kHoldLabels[m]);
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (id == IDM_TRAY_AUTOSTART) {
             SetKblAutostart(!g_autostart);
