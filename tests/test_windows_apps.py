@@ -950,6 +950,118 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "the engine never reports whether it actually got the "
                       "exclusive lock, so contention stays invisible")
 
+    def test_keyboard_lighting_retries_for_exclusive_ownership_of_a_shared_handle(self):
+        """A shared handle must be retried, not accepted for the whole session.
+
+        Whether we own the device was decided exactly once, at Open(). The
+        owner's log then ran fourteen minutes at "lock SHARED, fallbacks 1,
+        reopens 0": writes costing 3-6 ms against a measured 2.2 ms
+        uncontended, one write taking 34 ms, and roughly 5% of frames late
+        where the render loop's own notes put ordinary scheduler jitter at
+        about 1%. Those are the fingerprints of a second writer on the same
+        LEDs, and nothing host-side can fix it while that writer is there -
+        not report pacing, not an even animation step.
+
+        Trading the shared handle in must close ours first, because dwShareMode
+        0 refuses to open while ANY handle to the device exists, including our
+        own. That leaves a window holding nothing at all, so the two covers for
+        it are asserted rather than assumed: OpenHandle's shared fallback, and
+        a second attempt before the device is declared lost. Without them a
+        rival taking the device in that gap costs the owner the lighting
+        entirely instead of only the lock.
+
+        The retry must also back off. A rival that owns the device permanently
+        can never be displaced, and hammering it would mean a close/reopen and
+        a full repaint on every attempt for as long as the engine runs.
+        """
+        aura = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="ascii", errors="strict")
+
+        body = aura[aura.index("bool TryExclusiveUpgrade() {"):]
+        body = body[:body.index("\n  }\n")]
+
+        # Our own handle goes before the reopen, or the reopen cannot succeed.
+        self.assertLess(body.index("CloseHandle(h)"), body.index("OpenHandle()"),
+                        "the upgrade reopens without releasing our shared handle first, "
+                        "so dwShareMode 0 can never succeed - our handle is itself an "
+                        "open handle to the device")
+
+        # Never end the attempt with no handle at all.
+        self.assertEqual(body.count("OpenHandle()"), 2,
+                         "there is no second attempt after the window where we hold no "
+                         "handle, so a rival grabbing the device in that gap costs the "
+                         "lighting entirely rather than only the exclusive lock")
+        self.assertLess(body.index("Thread.Sleep(60)"), body.index("DeviceLost = true"),
+                        "the device is declared lost on the first refusal, so the loop "
+                        "backs off for 400ms instead of retrying straight away")
+
+        # Coming back shared is a lost lock, not a lost device.
+        self.assertIn("if (!ExclusiveLock) return false;", body,
+                      "a reacquire that came back shared is reported as success, so the "
+                      "caller stops retrying and two writers stay on the keyboard")
+
+        # Same post-open sequence as Reopen(): firmware handback, then a cache
+        # that no longer describes the hardware is invalidated.
+        self.assertLess(body.index("HidD_SetFeature(h, CtrlOff"), body.index("pr[i] = -1"),
+                        "the cached previous colours are cleared before the firmware is "
+                        "told to hand control over again")
+        self.assertIn("SeedDither();", body,
+                      "the per-lamp dither phase is not reseeded after the handle "
+                      "changes, so the four deck zones keep the phases of a session "
+                      "that is no longer running")
+
+        # The caller gates it, counts it, and backs off.
+        call = aura[aura.index("if (!ExclusiveLock && WantExclusiveLock && !DeviceLost"):]
+        call = call[:call.index("\n        }\n")]
+        self.assertIn("LockRetries++;", call,
+                      "attempts are not counted, so the log cannot distinguish 'asked "
+                      "once at startup and gave up' from 'asking every five minutes and "
+                      "always losing'")
+        self.assertIn("if (!TryExclusiveUpgrade()) {", call,
+                      "the retry is not driven from the render loop, so it runs on "
+                      "another thread against a handle the loop is writing through")
+        self.assertIn("lockTryGap * 2.0", call,
+                      "the retry gap never grows, so a device owned permanently by "
+                      "something else is hammered with a close/reopen and a full "
+                      "repaint forever")
+        self.assertIn("300.0", call,
+                      "the backoff has no ceiling, so a rival that quits late in a "
+                      "multi-day session is not locked out for hours afterwards")
+
+        # Both readings reach the periodic line, which is the log the owner
+        # actually pastes - the startup output has usually scrolled away.
+        self.assertIn("lock retries {13}", aura,
+                      "the retry count is not in the periodic status line")
+        self.assertIn("function Get-LightingRivals {", aura,
+                      "a shared handle is reported without naming what holds it")
+        self.assertLess(aura.index("function Get-LightingRivals {"),
+                        aura.index("(Get-LightingRivals)"),
+                        "Get-LightingRivals is called before it is defined, so the "
+                        "periodic status line throws and takes the whole timing "
+                        "report down with it")
+
+        fn = aura[aura.index("function Get-LightingRivals {"):]
+        fn = fn[:fn.index("\n}\n")]
+        self.assertIn("Get-Process -Name $n", fn)
+        self.assertNotIn("Win32_Process", fn,
+                         "a process-table WMI query in a helper that runs every minute "
+                         "can hang for seconds after a sleep/wake or during a Windows "
+                         "Update")
+
+        # The startup list and the periodic one must not drift apart, or the log
+        # names a different set of suspects than the startup message did.
+        lists = re.findall(r"foreach \(\$n in ((?:'[^']+',?\s*)+)\) \{", aura)
+        self.assertEqual(len(lists), 2,
+                         "expected exactly two vendor-rival name lists (startup and "
+                         "periodic), found %d" % len(lists))
+        names = [tuple(re.findall(r"'([^']+)'", x)) for x in lists]
+        self.assertEqual(names[0], names[1],
+                         "the startup and periodic vendor-rival lists have drifted, so "
+                         "the two messages can name different suspects")
+        self.assertIn("GHelper", names[0],
+                      "G-Helper is not in the vendor-rival list, and it is the one that "
+                      "writes to this keyboard the moment its panel is clicked")
+
     def test_bluetooth_guard_contracts(self):
         core = (ROOT / "bluetooth-guard" / "BluetoothCore.cs").read_text(encoding="utf-8")
         ps = (ROOT / "bluetooth-guard" / "BluetoothGuard.ps1").read_text(encoding="utf-8")

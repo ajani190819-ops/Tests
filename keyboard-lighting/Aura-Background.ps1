@@ -461,6 +461,16 @@ public class LampEngine {
   public bool WantExclusiveLock = true;
   public volatile bool ExclusiveLock = false;
   public volatile int  LockFallbacks = 0;
+  // How many times a shared handle has been traded in for another attempt at
+  // the exclusive one. Logged next to fallbacks, so "fallbacks 9, retries 8"
+  // reads as what it is: we lost the open at startup and have been asking ever
+  // since, rather than as a device that keeps disappearing.
+  public volatile int  LockRetries = 0;
+  // Retry schedule, in Loop()'s own seconds. Fields rather than locals so the
+  // first attempt lands 3s after start instead of immediately after the Open()
+  // that just failed.
+  double nextLockTry = 3.0;
+  double lockTryGap  = 3.0;
 
   bool OpenHandle() {
     if (WantExclusiveLock) {
@@ -1535,6 +1545,60 @@ public class LampEngine {
     return true;
   }
 
+  // Trade a working shared handle for the exclusive one.
+  //
+  // OpenHandle decides this once, at Open(), and until now nothing revisited
+  // it - so a rival that happened to hold the device during the single instant
+  // we started left two writers on the same LEDs for the whole session. That
+  // is not a hypothetical: the owner's log ran fourteen minutes at
+  // "lock SHARED, fallbacks 1, reopens 0", with writes costing 3-6 ms instead
+  // of the measured 2.2 ms uncontended, one write taking 34 ms, and about 5%
+  // of frames late against the ~1% ordinary scheduler jitter accounts for.
+  //
+  // Whoever holds the device exclusively wins, and a rival that only opens it
+  // to send a packet leaves gaps between its writes. This is how we take one.
+  //
+  // Our own handle has to go first, because dwShareMode 0 refuses to open
+  // while ANY handle to the device exists - including ours. That leaves a
+  // brief window holding nothing, so OpenHandle's shared fallback and the
+  // second attempt below both exist to guarantee we never return without a
+  // handle unless the device has genuinely gone away. Only the render thread
+  // calls this, between frames, like Reopen().
+  bool TryExclusiveUpgrade() {
+    if (h == IntPtr.Zero || h == (IntPtr)(-1)) return false;
+
+    try { CloseHandle(h); } catch { }
+    h = IntPtr.Zero;
+
+    bool got = OpenHandle();
+    if (!got) {
+      // Something took it in the gap. One more try after a beat, then hand it
+      // to the loop's DeviceLost path rather than spinning here.
+      Thread.Sleep(60);
+      got = OpenHandle();
+      if (!got) {
+        LastError = "lock upgrade lost the device: " + Marshal.GetLastWin32Error();
+        DeviceLost = true;
+        return false;
+      }
+    }
+    // Open again, but still shared: the rival holds it more permanently than a
+    // per-packet open. Report the loss of exclusivity, not of the device, and
+    // let the caller schedule another attempt.
+    if (!ExclusiveLock) return false;
+
+    // Same post-open sequence as Reopen(): the firmware reverts to autonomous
+    // mode when the handle goes away, and the cached previous colours no
+    // longer describe what the hardware is showing.
+    if (CtrlOff != null) HidD_SetFeature(h, CtrlOff, CtrlOff.Length);
+    if (pr != null) {
+      for (int i = 0; i < LampCount; i++) { pr[i] = -1; pg[i] = -1; pb[i] = -1; }
+    }
+    if (er != null) SeedDither();
+    lockTryGap = 3.0;
+    return true;
+  }
+
   static void Hsv(double hDeg, double s, double v, out double r, out double g, out double b) {
     hDeg = hDeg % 360.0; if (hDeg < 0) hDeg += 360.0;
     double c = v * s;
@@ -2151,6 +2215,23 @@ public class LampEngine {
             Thread.Sleep(400);
             next = sw.ElapsedTicks + per;
             continue;
+          }
+        }
+
+        // Still sharing the device with somebody else. Keep asking for the
+        // exclusive handle, on a gap that doubles after each refusal up to
+        // five minutes - so a machine where something genuinely owns the
+        // device is not hammered for it, while a rival that later quits is
+        // still locked out within five minutes of doing so.
+        //
+        // On success the !ExclusiveLock test keeps this out of the way. If a
+        // later resume drops us back to shared, nextLockTry is already in the
+        // past, so we try again straight away with the gap reset to 3s.
+        if (!ExclusiveLock && WantExclusiveLock && !DeviceLost && now >= nextLockTry) {
+          LockRetries++;
+          if (!TryExclusiveUpgrade()) {
+            nextLockTry = now + lockTryGap;
+            lockTryGap = Math.Min(lockTryGap * 2.0, 300.0);
           }
         }
 
@@ -3996,6 +4077,26 @@ try {
     foreach ($w in $script:StartupWarns) { Write-Log $w 'WARN' }
 } catch { }
 
+# Which of the usual suspects is running, for the periodic status line. A
+# shared handle is only half a diagnosis: it says something else has the
+# device but not what. Naming it in the line that is already written once a
+# minute means the answer is in the log the owner actually pastes, instead of
+# in startup output that scrolled away hours earlier.
+#
+# Process NAMES only, and no process-table WMI query on purpose - enumerating
+# command lines can hang for seconds after a sleep/wake or during a Windows
+# Update, and this runs every minute for as long as the engine lives. Must
+# stay in step with the startup list above; a test compares the two.
+function Get-LightingRivals {
+    $found = @()
+    foreach ($n in 'ArmouryCrate','ArmouryCrate.Service','LightingService',
+                   'ASUSLiveUpdate','ATKOSD2','GHelper','OpenRGB','SignalRGB') {
+        try { if (Get-Process -Name $n -ErrorAction SilentlyContinue) { $found += $n } } catch { }
+    }
+    if ($found.Count -eq 0) { return '; no known vendor lighting process is running' }
+    return ('; also running: ' + ($found -join ', '))
+}
+
 $script:SysTick = 0
 $script:GateTick = 0
 $script:LastAc  = $null
@@ -4453,10 +4554,11 @@ try {
         if ([DateTime]::UtcNow -gt $script:TimingAt) {
             $script:TimingAt = [DateTime]::UtcNow.AddSeconds(60)
             $budget = [int](1000000 / [Math]::Max(1, $eng.Fps))
-            $msg = ('device write {0} us/frame (worst {1}), budget {2} us at {3} fps, late frames {4}, failed writes {5}, reopens {6} in last interval; lock {7}, fallbacks {8}, dither {9}, range R{10}/G{11}/B{12}' -f `
+            $msg = ('device write {0} us/frame (worst {1}), budget {2} us at {3} fps, late frames {4}, failed writes {5}, reopens {6} in last interval; lock {7}, fallbacks {8}, dither {9}, range R{10}/G{11}/B{12}, lock retries {13}{14}' -f `
                     $eng.WriteUs, $eng.WriteUsMax, $budget, $eng.Fps, $eng.LateFrames, $eng.WriteFails, $eng.Reopens, `
                     $(if ($eng.ExclusiveLock) { 'exclusive' } else { 'SHARED' }), $eng.LockFallbacks, `
-                    $(if ($eng.UseDither) { 'on' } else { 'off' }), $eng.MaxR, $eng.MaxG, $eng.MaxB)
+                    $(if ($eng.UseDither) { 'on' } else { 'off' }), $eng.MaxR, $eng.MaxG, $eng.MaxB, `
+                    $eng.LockRetries, $(if ($eng.ExclusiveLock) { '' } else { (Get-LightingRivals) }))
             if (-not $script:TimingDone) {
                 $script:TimingDone = $true
                 Say ("  Timing: {0}" -f $msg) 'DarkGray'

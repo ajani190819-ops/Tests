@@ -119,7 +119,7 @@ not smooth:
 ```
 device write 1840 us/frame (worst 3200), budget 16666 us at 60 fps, late frames 0,
 failed writes 0, reopens 0 in last interval; lock exclusive, fallbacks 0,
-dither off, range R255/G255/B255
+dither off, range R255/G255/B255, lock retries 0
 ```
 
 | Reading | What it tells you |
@@ -127,8 +127,9 @@ dither off, range R255/G255/B255
 | `device write` near `budget` | the keyboard cannot take frames that fast, and the engine lowers the rate on its own |
 | `late frames` climbing | the same thing seen from the other end - frames are missing their slot |
 | `failed writes` not zero | the device is refusing frames: a busy endpoint, or a handle that died across a sleep |
-| `lock SHARED` | **another program has the keyboard** and can write frames over ours. This is the one that makes the keys step while the light bar stays smooth. Close Armoury Crate and any ASUS lighting service, then restart. Logged as a warning, not as info |
-| `fallbacks` climbing | the engine keeps losing the device and re-opening it shared, usually a sleep/resume loop |
+| `lock SHARED` | **another program has the keyboard** and can write frames over ours. This is the one that makes the keys step while the light bar stays smooth. The line also names which of Armoury Crate, the ASUS lighting services, G-Helper, OpenRGB and SignalRGB are running, so you do not have to guess. Close them, or just wait - see `lock retries` below. Logged as a warning, not as info |
+| `fallbacks` climbing | the engine keeps ending up with a shared handle: once at startup, then once per failed retry, plus any sleep/resume that loses the device |
+| `lock retries` climbing | the engine is still trying to take the keyboard for itself. **Whoever opens the device first wins**, so a program that was already running when this one started gets there first - and this app used to accept that for the whole session. It now gives up its shared handle and asks again, backing off from 3 seconds to once every 5 minutes. If the other program only opens the keyboard to send a packet, one of those attempts lands in a gap and the line changes to `lock exclusive`. If it holds the keyboard permanently, `retries` climbs forever and the fix is to close it |
 | `range` below 255 | the keyboard only accepts a few colour levels per channel, so no frame rate will make a gradient perfectly smooth. The **Smooth colour** toggle is then the trade-off: leave it on for solid steps, turn it off to let the engine dither and fill the gaps in between |
 | `dither on` | the engine is faking colour levels the hardware does not have. Good against banding, but on four large zones it can read as a shimmer |
 
