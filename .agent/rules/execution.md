@@ -41,3 +41,14 @@ Every extra sequential round-trip or redundant rebuild adds seconds of wall-cloc
 * **After an update, apps restore exactly as they were** (open → open, tray → tray) and the hub reliably reopens after self-update.
 * **Update checks are honest:** "Update Ready" only for genuinely newer remote builds (numeric version / byte compare), and update buttons glow only while an update is really ready.
 * **The live-notes Drive doc is the interruption channel** (see Turn start) — notes added mid-turn must be caught at checkpoints before the turn ends.
+
+## Mutation registry
+
+Every break-on-purpose mutation written while working is appended to
+`tools/mutations.json` in the same commit (fields: id, file, old, new, label).
+`tools/mutate.py` re-runs the whole registry against the suite in one pass
+(~15s for ~20 entries) and exits non-zero on any SURVIVED or STALE entry;
+`--check` verifies needles still match without running anything. The suite
+also asserts every registry needle still applies, so a drifted mutation cannot
+silently stop testing. Before committing a behavioural change: run
+`python3 tools/mutate.py`.

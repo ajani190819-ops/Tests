@@ -2382,6 +2382,66 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "a foreign instance that ignores WM_CLOSE keeps its exe locked, "
                       "so the stray copy can never be overwritten")
 
+    def test_tooling_cache_registry_and_report(self):
+        """The three testing tools must exist and keep their promises.
+
+        Incremental builds: the skip cache lives outside the repo (workspace
+        snapshots stay lean), only fires when the EXE is actually present, and
+        --force bypasses it - a cache that cannot be bypassed is a lie waiting
+        to happen. The key hashes the whole src dir, so a resource or icon
+        swap invalidates it just like a source edit.
+
+        Mutation registry: every break-on-purpose ever written stays alive in
+        tools/mutations.json and is re-run by tools/mutate.py. The drift guard
+        here is the important half - a mutation whose needle no longer matches
+        the source would silently stop testing anything, so the registry is
+        asserted applicable on every suite run.
+
+        Suite report: the owner's one double-click that collects what the
+        sandbox cannot see. It must stay out of the repo root (root .bat files
+        are reserved), stay pure CRLF like every other .bat, and keep reading
+        the released marker, the engine log and the process table.
+        """
+        import json as _json
+        bw = (ROOT / "tools" / "build_windows.py").read_text(encoding="utf-8")
+        self.assertIn("/home/user/.cache/winbuild", bw,
+                      "the build cache moved into the repo, which bloats every "
+                      "workspace snapshot")
+        self.assertIn("--force", bw, "the cache cannot be bypassed")
+        self.assertIn("rglob", bw,
+                      "the cache key no longer covers the whole src dir, so a "
+                      "resource or icon change would reuse a stale EXE")
+        self.assertIn("out_exe.exists()", bw,
+                      "the cache would claim success for an EXE that is not there")
+
+        reg = _json.loads((ROOT / "tools" / "mutations.json").read_text(encoding="utf-8"))
+        self.assertGreaterEqual(len(reg), 19,
+                                "the mutation registry lost entries")
+        ids = [e["id"] for e in reg]
+        self.assertEqual(len(ids), len(set(ids)), "duplicate mutation ids")
+        for e in reg:
+            p = ROOT / e["file"]
+            self.assertTrue(p.exists(), "mutation %s points at a missing file" % e["id"])
+            src = p.read_text(encoding="utf-8")
+            self.assertGreaterEqual(src.count(e["old"]), 1,
+                                    "mutation %s no longer applies - its needle "
+                                    "drifted and it now tests nothing" % e["id"])
+        mu = (ROOT / "tools" / "mutate.py").read_text(encoding="utf-8")
+        for needle in ("SURVIVED", "STALE", "--list"):
+            self.assertIn(needle, mu, "the mutation runner lost a mode")
+
+        bat = (ROOT / "project-hub" / "SuiteReport.bat").read_bytes()
+        self.assertIn(b"\r\n", bat, "the report bat has no CRLF at all")
+        self.assertNotIn(b"\n", bat.replace(b"\r\n", b""),
+                         "the report bat is not pure CRLF")
+        self.assertFalse((ROOT / "SuiteReport.bat").exists(),
+                         "a new .bat appeared at the repo root, which is reserved")
+        ps = (ROOT / "project-hub" / "SuiteReport.ps1").read_text(encoding="utf-8")
+        for needle in ("SuiteReport.txt", ".agent/RELEASED", "engine.log",
+                       "Get-Process -Name"):
+            self.assertIn(needle, ps,
+                          "the suite report no longer collects %s" % needle)
+
     def test_hub_and_tray_only_consume_released_work(self):
         """The hub must not see work the agent has not finished.
 

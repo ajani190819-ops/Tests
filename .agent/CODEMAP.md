@@ -620,9 +620,11 @@
 
 ## tools/build_windows.py
 
-- L25  f ensure_zig_python
-- L41  f build_target
-- L64  f main
+- L40  f zig_version
+- L45  f target_key
+- L62  f ensure_zig_python
+- L78  f build_target
+- L109  f main
 
 ## tools/bump_version.py
 
@@ -665,6 +667,11 @@
 - L479  f save_multi_ico
 - L511  f main
 - L611  f export_spin_loops
+
+## tools/mutate.py
+
+- L31  f run_suite
+- L37  f main
 
 ## tools/notes_server.py
 
@@ -787,9 +794,9 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2232  f SuiteFolderInstallTests
-- L2685  f AudioSwitcherReachabilityTests
-- L2869  f AudioSwitcherSessionSweepTests
-- L3010  f AppOpenFocusTests
+- L2745  f AudioSwitcherReachabilityTests
+- L2929  f AudioSwitcherSessionSweepTests
+- L3070  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 
