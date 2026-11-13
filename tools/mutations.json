@@ -1,0 +1,135 @@
+[
+ {
+  "id": "marker-00",
+  "file": "project-hub/src/parts/workers_remote.c",
+  "old": "    char *marker = (char *)HttpGetCached(L\"raw.githubusercontent.com\", murl, &msz, &mst);",
+  "new": "    char *marker = NULL;",
+  "label": "A marker fetch removed"
+ },
+ {
+  "id": "marker-01",
+  "file": "project-hub/src/parts/workers_remote.c",
+  "old": "REPO_NAME_W, g_probeRef);\n        tp[511]",
+  "new": "REPO_NAME_W, branch);\n        tp[511]",
+  "label": "B trees probe back on branch tip"
+ },
+ {
+  "id": "marker-02",
+  "file": "project-hub/src/parts/workers_remote.c",
+  "old": "    if (!g_probeRef[0]) _snwprintf(g_probeRef, 63, L\"%s\", branch);\n",
+  "new": "",
+  "label": "C no-marker fallback removed"
+ },
+ {
+  "id": "marker-03",
+  "file": "project-hub/src/parts/workers_remote.c",
+  "old": "    if (!hubFromMarker) {",
+  "new": "    if (1) {",
+  "label": "D hub version probe ungated"
+ },
+ {
+  "id": "marker-04",
+  "file": "project-hub/src/parts/install_folder.c",
+  "old": "    if (g_probeRef[0]) {\n        _snwprintf(outBranch, cap - 1, L\"%s\", g_probeRef);\n        outBranch[cap - 1] = L'\\0';\n        return;\n    }\n    EnsureActiveBranch(outBranch, cap);",
+  "new": "    EnsureActiveBranch(outBranch, cap);",
+  "label": "E downloads ignore the released ref"
+ },
+ {
+  "id": "marker-05",
+  "file": "project-hub/src/parts/workers_install.c",
+  "old": "    EnsureProbeRef(branch, 64);",
+  "new": "    EnsureActiveBranch(branch, 64);",
+  "label": "F one install worker ungated"
+ },
+ {
+  "id": "marker-06",
+  "file": "keyboard-lighting/Tray.ps1",
+  "old": "foreach ($f in @('KeyboardLighting.exe','Aura-Background.ps1',",
+  "new": "foreach ($f in @('Aura-Background.ps1',",
+  "label": "G restart sync skips the EXE"
+ },
+ {
+  "id": "marker-07",
+  "file": "keyboard-lighting/Tray.ps1",
+  "old": "    } -ArgumentList (Get-UpdateBase), $Here",
+  "new": "    } -ArgumentList $Base, $Here",
+  "label": "H background refresh on branch tip"
+ },
+ {
+  "id": "set-00",
+  "file": "project-hub/src/parts/install_folder.c",
+  "old": "            L\"Keyboard Lighting.lnk\", L\"Project Hub.lnk\"",
+  "new": "            L\"Keyboard Lighting.lnk\"",
+  "label": "A cleanup misses the hub shortcut"
+ },
+ {
+  "id": "set-01",
+  "file": "project-hub/src/parts/install_folder.c",
+  "old": "    if (GetFileAttributesW(flag) != INVALID_FILE_ATTRIBUTES) return;\n",
+  "new": "",
+  "label": "B once-only flag guard removed"
+ },
+ {
+  "id": "set-02",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "static const char *kSetModes[3] = { \"tap\", \"latch\", \"burst\" };",
+  "new": "static const char *kSetModes[3] = { \"tap\", \"latch\", \"glide\" };",
+  "label": "C page offers a mode engine rejects"
+ },
+ {
+  "id": "set-03",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "    BOOL ok = WriteBinaryFileAtomic(p, (const BYTE *)out, (DWORD)newLen);\n    free(out);\n    free(txt);\n    return ok;",
+  "new": "    free(out);\n    free(txt);\n    return TRUE;",
+  "label": "D Smooth write discarded"
+ },
+ {
+  "id": "set-04",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "    for (int i = 0; i < 5; i++) {\n        if (PtInRect(&g_topBtns[i].rc, pt))",
+  "new": "    for (int i = 0; i < 4; i++) {\n        if (PtInRect(&g_topBtns[i].rc, pt))",
+  "label": "E fifth button not hit-testable"
+ },
+ {
+  "id": "set-05",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "    SetKblPath(p, MAX_PATH, L\"hold_mode.txt\");\n    return WriteBinaryFileAtomic",
+  "new": "    SetKblPath(p, MAX_PATH, L\"live_level.txt\");\n    return WriteBinaryFileAtomic",
+  "label": "F hold mode written to wrong file"
+ },
+ {
+  "id": "set-06",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "    RemoveLegacyDesktopShortcuts();\n",
+  "new": "",
+  "label": "G cleanup never called at startup"
+ },
+ {
+  "id": "lnk-00",
+  "file": "project-hub/src/parts/workers_install.c",
+  "old": "        if (RepointDesktopShortcutIfPresent(lnk, destExe, g_btgDir,\n                                            L\"Bluetooth Guard - Phone audio protection\"))\n            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);",
+  "new": "        CreateShortcutLink(lnk, destExe, g_btgDir, L\"Bluetooth Guard - Phone audio protection\");\n        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);",
+  "label": "A worker creates shortcut directly"
+ },
+ {
+  "id": "lnk-01",
+  "file": "project-hub/src/parts/install_folder.c",
+  "old": "    if (GetFileAttributesW(lnkPath) == INVALID_FILE_ATTRIBUTES) return FALSE;\n",
+  "new": "",
+  "label": "B helper guard removed"
+ },
+ {
+  "id": "lnk-02",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "            if (CreateShortcutLink(lnk, g_exePath, g_exeDir, L\"Project Hub - Status & Updates\")) {",
+  "new": "            if (RepointDesktopShortcutIfPresent(lnk, g_exePath, g_exeDir, L\"Project Hub - Status & Updates\")) {",
+  "label": "C explicit pin routed through guard"
+ },
+ {
+  "id": "lnk-03",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "                repointed = RepointDesktopShortcutIfPresent(lnk, g_suiteHubExe, g_suiteDir,\n                                                            L\"Project Hub - Status & Updates\");",
+  "new": "                repointed = CreateShortcutLink(lnk, g_suiteHubExe, g_suiteDir,\n                                               L\"Project Hub - Status & Updates\");",
+  "label": "D consolidate menu creates shortcut"
+ }
+]
