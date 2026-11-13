@@ -79,6 +79,19 @@ static int MirrorFileEverywhere(int slot, const wchar_t *primaryPath) {
     return mirrored;
 }
 
+/* Downloads honour the released marker as well: an update clicked while the
+   agent is mid-task still installs the last finished state, never a
+   half-written one. Before the first probe of a session there is no marker
+   yet, and the branch tip is the best ref available. */
+static void EnsureProbeRef(wchar_t *outBranch, size_t cap) {
+    if (g_probeRef[0]) {
+        _snwprintf(outBranch, cap - 1, L"%s", g_probeRef);
+        outBranch[cap - 1] = L'\0';
+        return;
+    }
+    EnsureActiveBranch(outBranch, cap);
+}
+
 /* One download, every copy: the suite folder plus any stray copy on disk. */
 static BOOL InstallRepoFileEverywhere(int slot, const wchar_t *branch,
                                       const wchar_t *relUrl, const wchar_t *primaryDir,

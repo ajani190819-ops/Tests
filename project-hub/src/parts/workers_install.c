@@ -1,6 +1,6 @@
 static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
     wchar_t branch[64];
-    EnsureActiveBranch(branch, 64);
+    EnsureProbeRef(branch, 64);
     EnsureDirTree(g_btgDir);
 
     wchar_t destExe[MAX_PATH];
@@ -64,7 +64,7 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
 
 static void WorkerInstallNotes(BOOL launchAfter) {
     wchar_t branch[64];
-    EnsureActiveBranch(branch, 64);
+    EnsureProbeRef(branch, 64);
     EnsureDirTree(g_notesDir);
 
     /* close an open notes window first so the exe is not locked */
@@ -106,7 +106,7 @@ static void WorkerInstallNotes(BOOL launchAfter) {
 
 static void WorkerInstallDnsPilot(BOOL launchAfter) {
     wchar_t branch[64];
-    EnsureActiveBranch(branch, 64);
+    EnsureProbeRef(branch, 64);
     EnsureDirTree(g_dnsDir);
 
     /* An app that is open when its update starts must come back up on its
@@ -172,7 +172,7 @@ static void WorkerInstallDnsPilot(BOOL launchAfter) {
 
 static void WorkerInstallKeyboardLighting(void) {
     wchar_t branch[64];
-    EnsureActiveBranch(branch, 64);
+    EnsureProbeRef(branch, 64);
     EnsureDirTree(g_kblDir);
 
     wchar_t kblExe[MAX_PATH], lp[MAX_PATH], uiDll[MAX_PATH];
@@ -332,7 +332,7 @@ static void WorkerInstallOrcaPlugins(void) {
         return;
     }
     wchar_t branch[64];
-    EnsureActiveBranch(branch, 64);
+    EnsureProbeRef(branch, 64);
 
     SetFooterStatus(L"Downloading Wave Overhangs & Unlayered Infill...", 40);
     EnsureDirTree(g_orcaBatDir);
@@ -429,7 +429,7 @@ static void WorkerInstallOrcaPlugins(void) {
 
 static void WorkerSelfUpdateHub(void) {
     wchar_t branch[64];
-    EnsureActiveBranch(branch, 64);
+    EnsureProbeRef(branch, 64);
     SetFooterStatus(L"Downloading latest ProjectHub.exe from GitHub...", 50);
 
     wchar_t newExe[MAX_PATH], oldExe[MAX_PATH];

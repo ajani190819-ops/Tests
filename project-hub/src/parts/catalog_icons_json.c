@@ -35,7 +35,7 @@ static void LoadCardIcon(ProjectCard *c, const char *icon) {
     _snwprintf(c->iconFile, MAX_PATH - 1, L"%s\\%s-%08lx.ico", iconsDir, c->id, key);
     if (!FileExistsW(c->iconFile)) {
         wchar_t branch[64];
-        EnsureActiveBranch(branch, 64);
+        EnsureProbeRef(branch, 64);
         if (!DownloadRawRepoFile(branch, PoolAdd(icon), c->iconFile))
             c->iconFile[0] = L'\0';
     }

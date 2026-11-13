@@ -1,24 +1,74 @@
+/* Read one line's value from a plain key=value file. The released marker
+   is two such lines: the commit that holds finished work, and the hub
+   version that went with it. */
+static int ExtractLineAfter(const char *src, const char *key, char *out, int cap) {
+    const char *k = strstr(src, key);
+    if (!k) return 0;
+    k += strlen(key);
+    int i = 0;
+    while (k[i] && k[i] != '\r' && k[i] != '\n' && i < cap - 1) { out[i] = k[i]; i++; }
+    out[i] = '\0';
+    return i > 0;
+}
+
 static void WorkerCheckRemote(void) {
     wchar_t branch[64];
     SetCheckPhase(TRUE);
     EnsureActiveBranch(branch, 64);
 
-    wchar_t p[256];
-    DWORD sz = 0; int st = 0;
-
-    _snwprintf(p, 255, L"/%s/%s/%s/project-hub/src/project_hub.c", REPO_OWNER_W, REPO_NAME_W, branch);
-    char *hubSrc = (char *)HttpGetCached(L"raw.githubusercontent.com", p, &sz, &st);
-    if (hubSrc && st == 200) {
+    /* The released marker is the ONLY read taken from the branch tip. Every
+       other probe below uses the commit the marker blesses, so half-finished
+       work is invisible and the owner hears about an update once, when a
+       task is done. No marker (other people's branches, offline) falls back
+       to today's behaviour. */
+    DWORD msz = 0; int mst = 0;
+    wchar_t murl[256];
+    _snwprintf(murl, 255, L"/%s/%s/%s/.agent/RELEASED?t=%llu", REPO_OWNER_W, REPO_NAME_W, branch,
+               (unsigned long long)(GetTickCount64() / 60000ULL));
+    char *marker = (char *)HttpGetCached(L"raw.githubusercontent.com", murl, &msz, &mst);
+    int hubFromMarker = 0;
+    if (marker && mst == 200) {
+        char sha[48] = "";
+        if (ExtractLineAfter(marker, "commit=", sha, sizeof(sha))) {
+            int oksha = strlen(sha) >= 7;
+            for (int i = 0; sha[i]; i++) {
+                char c = sha[i];
+                if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) oksha = 0;
+            }
+            if (oksha) _snwprintf(g_probeRef, 63, L"%S", sha);
+        }
         char hv[32] = "";
-        if (ExtractQuotedAfter(hubSrc, "#define HUB_VERSION", hv, sizeof(hv))) {
+        if (ExtractLineAfter(marker, "hub=", hv, sizeof(hv))) {
             EnterCriticalSection(&g_cs);
             strncpy(g_remHubVer, hv, 31);
             LeaveCriticalSection(&g_cs);
+            hubFromMarker = 1;
         }
     }
-    free(hubSrc);
+    free(marker);
+    if (!g_probeRef[0]) _snwprintf(g_probeRef, 63, L"%s", branch);
 
-    _snwprintf(p, 255, L"/%s/%s/%s/plugins.json", REPO_OWNER_W, REPO_NAME_W, branch);
+    wchar_t p[256];
+    DWORD sz = 0; int st = 0;
+
+    if (!hubFromMarker) {
+        /* Fallback only: a marker without a hub line. Reading the version
+           from branch-tip source is what made the hub announce half-finished
+           work, so it must never run when the marker answered. */
+        _snwprintf(p, 255, L"/%s/%s/%s/project-hub/src/project_hub.c", REPO_OWNER_W, REPO_NAME_W, branch);
+        char *hubSrc = (char *)HttpGetCached(L"raw.githubusercontent.com", p, &sz, &st);
+        if (hubSrc && st == 200) {
+            char hv[32] = "";
+            if (ExtractQuotedAfter(hubSrc, "#define HUB_VERSION", hv, sizeof(hv))) {
+                EnterCriticalSection(&g_cs);
+                strncpy(g_remHubVer, hv, 31);
+                LeaveCriticalSection(&g_cs);
+            }
+        }
+        free(hubSrc);
+    }
+
+    _snwprintf(p, 255, L"/%s/%s/%s/plugins.json", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
     char *manifest = (char *)HttpGetCached(L"raw.githubusercontent.com", p, &sz, &st);
     if (manifest && st == 200) {
         char wv[32] = "", iv[32] = "";
@@ -38,7 +88,7 @@ static void WorkerCheckRemote(void) {
        update needed. Built-in card ids are skipped here. The minute-
        granularity cache buster keeps the raw.githubusercontent CDN from
        serving stale copies of the catalog. */
-    _snwprintf(p, 255, L"/%s/%s/%s/suite-apps.json?t=%llu", REPO_OWNER_W, REPO_NAME_W, branch,
+    _snwprintf(p, 255, L"/%s/%s/%s/suite-apps.json?t=%llu", REPO_OWNER_W, REPO_NAME_W, g_probeRef,
                (unsigned long long)(GetTickCount64() / 60000ULL));
     char *catalog = (char *)HttpGetCached(L"raw.githubusercontent.com", p, &sz, &st);
     if (catalog && st == 200) {
@@ -58,7 +108,7 @@ static void WorkerCheckRemote(void) {
         DWORD tsz = 0;
         int tst = 0;
         _snwprintf(tp, 511, L"/repos/%s/%s/git/trees/%s?recursive=1",
-                   REPO_OWNER_W, REPO_NAME_W, branch);
+                   REPO_OWNER_W, REPO_NAME_W, g_probeRef);
         tp[511] = L'\0';
         treeJson = (char *)HttpGetBuffer(L"api.github.com", tp, &tsz, &tst);
         if (!(treeJson && tst == 200)) { free(treeJson); treeJson = NULL; }
@@ -68,17 +118,17 @@ static void WorkerCheckRemote(void) {
        unreachable (rate limit, offline). */
     {
         DWORD szBtg = 0, szKbl = 0, szPs1 = 0, szDns = 0, szNotes = 0, szAs = 0;
-        _snwprintf(p, 255, L"/%s/%s/%s/bluetooth-guard/BluetoothGuard.exe", REPO_OWNER_W, REPO_NAME_W, branch);
+        _snwprintf(p, 255, L"/%s/%s/%s/bluetooth-guard/BluetoothGuard.exe", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szBtg);
-        _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/KeyboardLighting.exe", REPO_OWNER_W, REPO_NAME_W, branch);
+        _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/KeyboardLighting.exe", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szKbl);
-        _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/Aura-Background.ps1", REPO_OWNER_W, REPO_NAME_W, branch);
+        _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/Aura-Background.ps1", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szPs1);
-        _snwprintf(p, 255, L"/%s/%s/%s/dns-pilot/DnsPilot.exe", REPO_OWNER_W, REPO_NAME_W, branch);
+        _snwprintf(p, 255, L"/%s/%s/%s/dns-pilot/DnsPilot.exe", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szDns);
-        _snwprintf(p, 255, L"/%s/%s/%s/agent-notes/AgentNotes.exe", REPO_OWNER_W, REPO_NAME_W, branch);
+        _snwprintf(p, 255, L"/%s/%s/%s/agent-notes/AgentNotes.exe", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szNotes);
-        _snwprintf(p, 255, L"/%s/%s/%s/audio-switcher/AudioSwitcher.exe", REPO_OWNER_W, REPO_NAME_W, branch);
+        _snwprintf(p, 255, L"/%s/%s/%s/audio-switcher/AudioSwitcher.exe", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szAs);
         /* Always record the result: a failed HEAD means "unknown" (0), never
            "keep the old number". Stale cached sizes are what left Update Ready
@@ -104,7 +154,7 @@ static void WorkerCheckRemote(void) {
     for (int i = 6; i < g_cardCount; i++) {
         DWORD szX = 0;
         if (g_cards[i].exeRepo) {
-            _snwprintf(p, 255, L"/%s/%s/%s/%s", REPO_OWNER_W, REPO_NAME_W, branch, g_cards[i].exeRepo);
+            _snwprintf(p, 255, L"/%s/%s/%s/%s", REPO_OWNER_W, REPO_NAME_W, g_probeRef, g_cards[i].exeRepo);
             HttpHeadSize(L"raw.githubusercontent.com", p, &szX);
         }
         g_cards[i].remSize = szX;

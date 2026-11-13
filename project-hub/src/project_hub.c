@@ -21,8 +21,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.44"
-#define HUB_VERSION_W     L"2.8.44"
+#define HUB_VERSION       "2.8.45"
+#define HUB_VERSION_W     L"2.8.45"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -228,6 +228,10 @@ static int              g_maxScrollY  = 0;
 static wchar_t          g_exePath[MAX_PATH];
 static wchar_t          g_exeDir[MAX_PATH];
 static wchar_t          g_localApp[MAX_PATH];
+/* The commit the released marker blesses. Every remote probe and download
+   uses this ref instead of the branch tip, so work the agent has not
+   finished is invisible to a running hub. Empty until the first probe. */
+static wchar_t          g_probeRef[64];
 static wchar_t          g_roamApp[MAX_PATH];
 static wchar_t          g_suiteDir[MAX_PATH];
 static wchar_t          g_hubCfgDir[MAX_PATH];

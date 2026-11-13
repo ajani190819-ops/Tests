@@ -6,7 +6,7 @@ static void WorkerInstallGeneric(int idx, BOOL launchAfter) {
         return;
     }
     wchar_t branch[64];
-    EnsureActiveBranch(branch, 64);
+    EnsureProbeRef(branch, 64);
     EnsureDirTree(c->appDir);
 
     wchar_t destExe[MAX_PATH], msg[256];

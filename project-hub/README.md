@@ -52,3 +52,13 @@ The suite no longer puts shortcuts on your Desktop. Old ones from
 earlier versions are removed once, the first time this hub runs; anything
 you pin yourself afterwards is left alone forever. If you want a Desktop
 icon, the emblem menu (top-left) still has an explicit pin item.
+
+## Update notices
+
+The hub only offers work that is finished. A small released marker in the
+repository names the last completed commit, and every update check and every
+download resolves that commit - never the half-written tip of the branch. In
+practice: you get one "update available" nudge per completed task, instead of
+one per save while the agent is still working. If the marker cannot be read
+(offline, or a branch older than the marker), the hub falls back to checking
+the branch directly rather than stopping.

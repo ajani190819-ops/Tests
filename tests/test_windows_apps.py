@@ -2382,6 +2382,103 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "a foreign instance that ignores WM_CLOSE keeps its exe locked, "
                       "so the stray copy can never be overwritten")
 
+    def test_hub_and_tray_only_consume_released_work(self):
+        """The hub must not see work the agent has not finished.
+
+        The owner got update nudges while a task was still in progress: the
+        hub probed the branch tip, and every mid-task save looked like a
+        release. The fix is a released marker - a two-line file naming the
+        commit that holds finished work and the hub version that went with
+        it. The marker is the ONLY read taken from the branch tip; every
+        other probe, and every download, uses the commit it blesses. No
+        marker (offline, a branch that predates the file) falls back to the
+        old behaviour rather than brining the hub to a halt.
+
+        The same rule reaches the lighting tray: its background refresh and
+        the new -Restart sync both resolve the released commit first. The
+        sync exists because Restart.bat used to relaunch whatever EXE was on
+        disk, and the EXE only changed when Setup ran - so "restart" quietly
+        meant "restart the old build".
+        """
+        hub = ROOT / "project-hub" / "src"
+        wr = (hub / "parts" / "workers_remote.c").read_text(encoding="utf-8")
+        fold = (hub / "parts" / "install_folder.c").read_text(encoding="utf-8")
+        wi = (hub / "parts" / "workers_install.c").read_text(encoding="utf-8")
+        tray = (ROOT / "keyboard-lighting" / "Tray.ps1").read_text(encoding="utf-8")
+        main = (hub / "project_hub.c").read_text(encoding="utf-8")
+
+        self.assertIn(".agent/RELEASED", wr,
+                      "the hub never reads the released marker, so branch-tip work "
+                      "is still visible mid-task")
+        self.assertIn('HttpGetCached(L"raw.githubusercontent.com", murl', wr,
+                      "the marker URL is built but never fetched, so the hub still "
+                      "probes the branch tip for everything")
+        self.assertIn("commit=", wr, "the marker's commit line is not parsed")
+        self.assertIn("hub=", wr, "the marker's hub version line is not parsed")
+        self.assertIn("if (!g_probeRef[0])", wr,
+                      "with no marker the hub has no fallback ref and would probe "
+                      "an empty path")
+        self.assertIn("if (!hubFromMarker)", wr,
+                      "the branch-tip version probe still runs when the marker "
+                      "answered, which is exactly the mid-task nudge")
+        self.assertLess(wr.index(".agent/RELEASED"), wr.index("git/trees"),
+                        "the trees probe runs before the marker is read, so it "
+                        "cannot honour it")
+        self.assertEqual(wr.count("REPO_NAME_W, branch"), 2,
+                         "more than the marker and its guarded fallback read the "
+                         "branch tip")
+        first = wr.index("REPO_NAME_W, branch")
+        second = wr.index("REPO_NAME_W, branch", first + 1)
+        self.assertIn(".agent/RELEASED", wr[first - 120:first + 40],
+                      "the first branch-tip read is not the marker fetch")
+        self.assertLess(wr.index("if (!hubFromMarker)"), second,
+                        "the branch-tip version probe is not inside the marker "
+                        "fallback")
+        self.assertEqual(wr.count("REPO_NAME_W, g_probeRef"), 10,
+                         "some probes still bypass the released ref")
+
+        h = fold[fold.index("static void EnsureProbeRef("):]
+        h = h[:h.index("\n}\n")]
+        self.assertLess(h.index("g_probeRef[0]"), h.index("EnsureActiveBranch"),
+                        "EnsureProbeRef prefers the branch over the released ref")
+        self.assertEqual(wi.count("EnsureActiveBranch("), 0,
+                         "an install worker still downloads from the branch tip")
+        self.assertGreaterEqual(wi.count("EnsureProbeRef(branch, 64);"), 6,
+                         "not every install worker honours the released ref")
+
+        # The tray obeys the same marker, and Restart syncs before starting.
+        self.assertIn(".agent/RELEASED", tray,
+                      "the tray still pulls scripts from the branch tip mid-task")
+        self.assertIn("function Sync-FromBranch", tray,
+                      "Restart has no sync step, so it relaunches the on-disk build")
+        self.assertLess(tray.index("function Sync-FromBranch"), tray.index("if ($Restart) {"),
+                        "Sync-FromBranch is defined after the -Restart block runs, "
+                        "so the call would throw")
+        rb = tray[tray.index("if ($Restart) {"):]
+        rb = rb[:rb.index("\n}\n")]
+        self.assertIn("Sync-FromBranch", rb,
+                      "the -Restart path never calls the sync")
+        self.assertLess(rb.index("Stop-AllInstances"), rb.index("Sync-FromBranch"),
+                        "the sync replaces the EXE before the old instance is "
+                        "stopped, so the file is still locked")
+        sy = tray[tray.index("function Sync-FromBranch"):]
+        sy = sy[:sy.index("\n}\n", sy.index("foreach"))]
+        self.assertIn("KeyboardLighting.exe", sy,
+                      "the restart sync refreshes scripts but not the EXE, which is "
+                      "the half that was actually stale")
+        self.assertIn("} -ArgumentList (Get-UpdateBase), $Here", tray,
+                      "the background refresh still uses the branch tip")
+
+        # The marker in the repo is the release record: keep it honest.
+        mk = (ROOT / ".agent" / "RELEASED").read_text(encoding="utf-8")
+        import re as _re
+        self.assertRegex(mk, r"(?m)^commit=[0-9a-f]{7,40}$",
+                         "the released marker has no usable commit line")
+        hubver = _re.search(r'#define HUB_VERSION\s+"([0-9.]+)"', main).group(1)
+        self.assertIn("hub=%s" % hubver, mk,
+                      "the marker's hub version does not match the hub that ships "
+                      "with it, so the hub would announce an update to itself")
+
     def test_hub_settings_page_writes_the_apps_own_files(self):
         """The hub's Settings page must edit, not duplicate, each app's config.
 

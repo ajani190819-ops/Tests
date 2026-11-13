@@ -6,11 +6,11 @@
 
 ## project-hub/src/project_hub.c
 
-- L278  f GetWinDpi
-- L293  f S
-- L295  f ApplyModernWindowFrame
-- L314  f RebuildFontsAndIcons
-- globals: g_hInst (L197), g_hwnd (L198), g_fontHero (L199), g_fontSub (L200), g_fontTitle (L201), g_fontBody (L202), g_fontBtn (L203), g_fontBadge (L204), g_appIcon (L205), g_hdrEmblem (L206), g_cardIcons (L207), g_showEvent (L208), g_hMutex (L209), g_cs (L210), g_topBtns (L212), g_rcEmblem (L219), g_cards (L221), g_cardCount (L222), g_dynIdx (L223), g_hoverId (L224), g_scrollY (L225), g_maxScrollY (L226), g_exePath (L228), g_exeDir (L229), g_localApp (L230), g_roamApp (L231), g_suiteDir (L232), g_hubCfgDir (L233), g_btgDir (L234), g_btgExtraExe (L235), g_kblDir (L236), g_dnsDir (L237), g_notesDir (L238), g_audioSwitcherDir (L239), g_modsDir (L240), g_orcaBatDir (L241), g_suiteHubExe (L249), g_mirrorDirs (L250), g_mirrorCount (L251), g_activeBranch (L254), g_branchMenuNames (L255), g_branchMenuN (L256), g_branchPromptOut (L257), g_remHubVer (L258), g_remWaveVer (L259), g_remInfillVer (L260), g_remHudName (L261), g_remHudPath (L262), g_remHudSize (L263), g_statusMsg (L264), g_progressVal (L265), g_hubUpdAvail (L266), g_taskQueue (L269), g_qHead (L270), g_qTail (L271), g_qSem (L272), g_running (L273)
+- L282  f GetWinDpi
+- L297  f S
+- L299  f ApplyModernWindowFrame
+- L318  f RebuildFontsAndIcons
+- globals: g_hInst (L197), g_hwnd (L198), g_fontHero (L199), g_fontSub (L200), g_fontTitle (L201), g_fontBody (L202), g_fontBtn (L203), g_fontBadge (L204), g_appIcon (L205), g_hdrEmblem (L206), g_cardIcons (L207), g_showEvent (L208), g_hMutex (L209), g_cs (L210), g_topBtns (L212), g_rcEmblem (L219), g_cards (L221), g_cardCount (L222), g_dynIdx (L223), g_hoverId (L224), g_scrollY (L225), g_maxScrollY (L226), g_exePath (L228), g_exeDir (L229), g_localApp (L230), g_probeRef (L234), g_roamApp (L235), g_suiteDir (L236), g_hubCfgDir (L237), g_btgDir (L238), g_btgExtraExe (L239), g_kblDir (L240), g_dnsDir (L241), g_notesDir (L242), g_audioSwitcherDir (L243), g_modsDir (L244), g_orcaBatDir (L245), g_suiteHubExe (L253), g_mirrorDirs (L254), g_mirrorCount (L255), g_activeBranch (L258), g_branchMenuNames (L259), g_branchMenuN (L260), g_branchPromptOut (L261), g_remHubVer (L262), g_remWaveVer (L263), g_remInfillVer (L264), g_remHudName (L265), g_remHudPath (L266), g_remHudSize (L267), g_statusMsg (L268), g_progressVal (L269), g_hubUpdAvail (L270), g_taskQueue (L273), g_qHead (L274), g_qTail (L275), g_qSem (L276), g_running (L277)
 
 ## project-hub/src/parts/branch_picker_entry.c
 
@@ -95,13 +95,14 @@
 - L34  f AppendInstallFolder
 - L42  f AddMirrorDir
 - L55  f MirrorFileEverywhere
-- L83  f InstallRepoFileEverywhere  — One download, every copy: the suite folder plus any stray copy on disk.
-- L106  f StopForeignInstance  — A tray app started from a stray copy keeps running that stray build, and its
-- L134  f InitAllPaths
-- L337  f CheckPidLockStatus
-- L369  f CreateShortcutLink
-- L402  f RemoveLegacyDesktopShortcuts
-- L423  f RepointDesktopShortcutIfPresent
+- L86  f EnsureProbeRef
+- L96  f InstallRepoFileEverywhere  — One download, every copy: the suite folder plus any stray copy on disk.
+- L119  f StopForeignInstance  — A tray app started from a stray copy keeps running that stray build, and its
+- L147  f InitAllPaths
+- L350  f CheckPidLockStatus
+- L382  f CreateShortcutLink
+- L415  f RemoveLegacyDesktopShortcuts
+- L436  f RepointDesktopShortcutIfPresent
 
 ## project-hub/src/parts/refresh_statuses.c
 
@@ -163,8 +164,9 @@
 
 ## project-hub/src/parts/workers_remote.c
 
-- L1  f WorkerCheckRemote
-- L189  f StopProcessFromLock
+- L4  f ExtractLineAfter
+- L14  f WorkerCheckRemote
+- L239  f StopProcessFromLock
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
@@ -785,9 +787,9 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2232  f SuiteFolderInstallTests
-- L2588  f AudioSwitcherReachabilityTests
-- L2772  f AudioSwitcherSessionSweepTests
-- L2913  f AppOpenFocusTests
+- L2685  f AudioSwitcherReachabilityTests
+- L2869  f AudioSwitcherSessionSweepTests
+- L3010  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 
