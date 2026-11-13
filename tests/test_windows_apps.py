@@ -2382,6 +2382,100 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "a foreign instance that ignores WM_CLOSE keeps its exe locked, "
                       "so the stray copy can never be overwritten")
 
+    def test_hub_settings_page_writes_the_apps_own_files(self):
+        """The hub's Settings page must edit, not duplicate, each app's config.
+
+        The owner chose one settings page in the hub over per-app dialogs.
+        The risk with a central page is a second schema: the hub keeping its
+        own copy of what each setting means, drifting from the app that owns
+        it. So every control writes the exact file the app itself uses -
+        hold_mode.txt and theme.json for Keyboard Lighting, config.ini for
+        DNS Pilot - and the three mode strings are asserted to be the same
+        set the lighting engine validates against, so the page can never
+        offer a mode that would silently do nothing.
+
+        The page is also asserted to stay out of the Desktop entirely: it is
+        a settings editor, and shortcut creation has exactly one door left
+        in the whole suite (the emblem menu pin).
+        """
+        hub = ROOT / "project-hub" / "src"
+        main = (hub / "project_hub.c").read_text(encoding="utf-8")
+        rend = (hub / "parts" / "ui_renderer.c").read_text(encoding="utf-8")
+        page = (hub / "parts" / "settings_page.c").read_text(encoding="utf-8")
+        fold = (hub / "parts" / "install_folder.c").read_text(encoding="utf-8")
+        pick = (hub / "parts" / "branch_picker_entry.c").read_text(encoding="utf-8")
+        engine = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="ascii", errors="strict")
+
+        self.assertIn('#include "parts/settings_page.c"', main,
+                      "the settings page is not part of the hub build")
+        self.assertIn("#define ID_BTN_SETTINGS", main,
+                      "the header has no Settings button id")
+        btns = main[main.index("g_topBtns[5]"):]
+        self.assertIn('L"Settings"', btns[:btns.index("};")],
+                      "the header button table has no Settings button")
+        self.assertIn("for (int i = 4; i >= 0; i--)", rend,
+                      "the header layout still places four buttons, so the "
+                      "fifth is never positioned")
+        self.assertIn("for (int i = 0; i < 5; i++) {\n        if (PtInRect(&g_topBtns[i].rc, pt))",
+                      rend, "the hit test cannot reach the fifth button")
+
+        # The page offers exactly the modes the engine accepts, no more.
+        eng = set(re.findall(r"\$m -eq '([a-z]+)'", engine))
+        hub_modes = set(re.findall(r'"([a-z]+)"',
+                                   page[page.index("kSetModes[3]"):page.index("];", page.index("kSetModes[3]"))]))
+        self.assertEqual(eng, hub_modes,
+                         "the settings page offers hold modes the engine would "
+                         "reject, or is missing one it accepts")
+
+        hold = page[page.index("static BOOL ApplyHoldMode("):]
+        hold = hold[:hold.index("\n}\n")]
+        self.assertIn("hold_mode.txt", hold,
+                      "the hold mode is written somewhere other than the file the "
+                      "engine and the tray submenu use")
+        self.assertIn("WriteBinaryFileAtomic", hold,
+                      "the hold mode is written non-atomically, so the engine can "
+                      "read a half-written mode")
+        smooth = page[page.index("static BOOL ApplySmooth("):]
+        smooth = smooth[:smooth.index("\n}\n")]
+        self.assertIn('\\\"Smooth\\\"', smooth,
+                      "the Smooth toggle no longer edits theme.json's Smooth key")
+        self.assertIn("WriteBinaryFileAtomic", smooth,
+                      "theme.json is rewritten in place instead of atomically")
+        self.assertIn("WritePrivateProfileStringW", page,
+                      "DNS Pilot's config is not written through the same INI API "
+                      "the app reads with")
+        for key in ("L\"Pilot\"", "L\"Auto\"", "L\"IntervalMin\""):
+            self.assertIn(key, page, "the page writes a different INI key than DNS Pilot reads")
+
+        self.assertEqual(page.count("CreateShortcutLink"), 0,
+                         "the settings page creates shortcuts, which is not its job")
+        self.assertEqual(page.count("CSIDL_DESKTOP"), 0,
+                         "the settings page touches the Desktop at all")
+
+        # One-time cleanup of the shortcuts that already accumulated.
+        cl = fold[fold.index("static void RemoveLegacyDesktopShortcuts(void) {"):]
+        cl = cl[:cl.index("\n}\n")]
+        self.assertEqual(cl.count('.lnk"'), 5,
+                         "the legacy cleanup no longer covers exactly the five names "
+                         "the suite used to put on the Desktop")
+        self.assertIn('L"Project Hub.lnk"', cl,
+                      "the hub's own old Desktop shortcut is left behind")
+        self.assertIn("desktop_cleanup_done", cl,
+                      "the cleanup has no once-only flag, so it would delete a "
+                      "shortcut the owner pins later")
+        self.assertIn("GetFileAttributesW(flag)", cl,
+                      "the once-only flag is never checked, so the cleanup runs on "
+                      "every launch and would delete a shortcut pinned later")
+        self.assertLess(cl.index("GetFileAttributesW(flag)"), cl.index("DeleteFileW"),
+                        "the once-only flag is checked after the deletion, so it "
+                        "guards nothing")
+        self.assertIn("RemoveLegacyDesktopShortcuts();", pick,
+                      "nothing calls the legacy Desktop cleanup, so the old icons "
+                      "stay until they are deleted by hand")
+        self.assertLess(pick.index("InitAllPaths();"), pick.index("RemoveLegacyDesktopShortcuts();"),
+                        "the cleanup runs before the folders it needs are resolved")
+
     def test_hub_repoints_desktop_shortcuts_but_never_creates_them(self):
         """Every install and update used to drop a Desktop shortcut per app.
 

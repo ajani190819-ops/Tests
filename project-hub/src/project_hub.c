@@ -21,8 +21,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.43"
-#define HUB_VERSION_W     L"2.8.43"
+#define HUB_VERSION       "2.8.44"
+#define HUB_VERSION_W     L"2.8.44"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -52,6 +52,7 @@
 #define ID_BTN_UPDATE_ALL    1003
 #define ID_EMBLEM_MENU       1004
 #define ID_BTN_BRANCH        1005
+#define ID_BTN_SETTINGS      1006
 #define ID_MENU_SHORTCUT     1011
 #define ID_MENU_BRANCH_BASE  1600
 #define ID_MENU_BRANCH_CUSTOM 1699
@@ -208,11 +209,12 @@ static HANDLE           g_showEvent   = NULL;
 static HANDLE           g_hMutex      = NULL;
 static CRITICAL_SECTION g_cs;
 
-static ActionBtn        g_topBtns[4] = {
+static ActionBtn        g_topBtns[5] = {
     { ID_BTN_REFRESH_ALL, L"Refresh",    BTN_SECONDARY, 92,  {0,0,0,0}, NULL, FALSE },
     { ID_BTN_SELF_UPDATE, L"Update Hub", BTN_AMBER,     112, {0,0,0,0}, NULL, FALSE },
     { ID_BTN_UPDATE_ALL,  L"Update All", BTN_PRIMARY,   108, {0,0,0,0}, NULL, FALSE },
-    { ID_BTN_BRANCH,      L"Branch \x25BC", BTN_SECONDARY, 96, {0,0,0,0}, NULL, FALSE }
+    { ID_BTN_BRANCH,      L"Branch \x25BC", BTN_SECONDARY, 96, {0,0,0,0}, NULL, FALSE },
+    { ID_BTN_SETTINGS,    L"Settings",   BTN_SECONDARY, 84, {0,0,0,0}, NULL, FALSE }
 };
 static RECT             g_rcEmblem    = {0, 0, 0, 0};
 
@@ -363,4 +365,5 @@ static void RebuildFontsAndIcons(HWND hwnd) {
 #include "parts/workers_install.c"
 #include "parts/enqueue_restart_prompts.c"
 #include "parts/ui_renderer.c"
+#include "parts/settings_page.c"
 #include "parts/branch_picker_entry.c"

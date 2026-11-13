@@ -199,9 +199,11 @@ function Set-HubShortcut([string]$lnkPath) {
     } catch { return $false }
 }
 
+# Start Menu only. The Desktop shortcut the hub used to create here was
+# removed at the owner's request along with every other suite Desktop
+# shortcut; the emblem menu inside the hub is the only way to pin one now.
 [void](Set-HubShortcut (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Project Hub.lnk'))
-[void](Set-HubShortcut (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Project Hub.lnk'))
-Write-Host '   [OK]   Shortcuts ready on Desktop and Start Menu.' -ForegroundColor Green
+Write-Host '   [OK]   Start Menu shortcut ready.' -ForegroundColor Green
 
 if (-not $NoLaunch) {
     Write-Host '   [4/4] Launching Project Hub and verifying window startup...' -ForegroundColor Gray

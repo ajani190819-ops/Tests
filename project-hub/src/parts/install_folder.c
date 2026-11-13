@@ -393,6 +393,33 @@ static BOOL CreateShortcutLink(const wchar_t *lnkPath, const wchar_t *targetExe,
    repointed so it never dangles at a replaced copy after an update, but a
    Desktop shortcut is CREATED only by the explicit pin item in the emblem
    menu. Everything on the install and update paths goes through here. */
+/* The suite used to keep a Desktop shortcut per app and re-create them on
+   every update until the owner asked for it to stop. New builds create
+   none, but the old icons were still sitting there. Delete the five known
+   names exactly once: the flag file is what guarantees a shortcut the
+   owner pins later, through the emblem menu, is never touched by any
+   future run. */
+static void RemoveLegacyDesktopShortcuts(void) {
+    wchar_t flag[MAX_PATH], desk[MAX_PATH], p[MAX_PATH];
+    _snwprintf(flag, MAX_PATH - 1, L"%s\\desktop_cleanup_done", g_hubCfgDir);
+    flag[MAX_PATH - 1] = L'\0';
+    if (GetFileAttributesW(flag) != INVALID_FILE_ATTRIBUTES) return;
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
+        static const wchar_t *const names[5] = {
+            L"Audio Switcher.lnk", L"Bluetooth Guard.lnk", L"DNS Pilot.lnk",
+            L"Keyboard Lighting.lnk", L"Project Hub.lnk"
+        };
+        for (int i = 0; i < 5; i++) {
+            _snwprintf(p, MAX_PATH - 1, L"%s\\%s", desk, names[i]);
+            p[MAX_PATH - 1] = L'\0';
+            DeleteFileW(p);
+        }
+        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+    }
+    CreateDirectoryW(g_hubCfgDir, NULL);
+    WriteBinaryFileAtomic(flag, (const BYTE *)"1", 1);
+}
+
 static BOOL RepointDesktopShortcutIfPresent(const wchar_t *lnkPath, const wchar_t *targetExe,
                                             const wchar_t *workDir, const wchar_t *desc) {
     if (GetFileAttributesW(lnkPath) == INVALID_FILE_ATTRIBUTES) return FALSE;

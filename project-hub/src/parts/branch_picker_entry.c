@@ -243,6 +243,9 @@ static void HandleActionCommand(HWND hwnd, int id) {
     case ID_BTN_BRANCH:
         ShowBranchMenu(hwnd);
         break;
+    case ID_BTN_SETTINGS:
+        OpenSettingsWindow(hwnd);
+        break;
     case ID_MENU_BRANCH_CUSTOM: {
         wchar_t cur[64];
         EnsureActiveBranch(cur, 64);
@@ -713,6 +716,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     InitCommonControlsEx(&icc);
 
     InitAllPaths();
+    RemoveLegacyDesktopShortcuts();
     wchar_t oldExe[MAX_PATH];
     _snwprintf(oldExe, MAX_PATH, L"%s.old", g_exePath);
     DeleteFileW(oldExe);

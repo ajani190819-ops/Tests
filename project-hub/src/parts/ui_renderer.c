@@ -127,7 +127,7 @@ static void ComputeLayout(HWND hwnd) {
     int bx = w - pad;
     int topBtnH = S(35, dpi);
     int topBtnY = (headerH - topBtnH) / 2;
-    for (int i = 3; i >= 0; i--) {
+    for (int i = 4; i >= 0; i--) {
         int bw = S(g_topBtns[i].widthPx, dpi);
         bx -= bw;
         SetRect(&g_topBtns[i].rc, bx, topBtnY, bx + bw, topBtnY + topBtnH);
@@ -159,7 +159,7 @@ static void ComputeLayout(HWND hwnd) {
 
 static int HitTestButtons(POINT pt, int headerBottom, int footerTop) {
     if (PtInRect(&g_rcEmblem, pt)) return ID_EMBLEM_MENU;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         if (PtInRect(&g_topBtns[i].rc, pt)) return g_topBtns[i].id;
     }
     if (pt.y < headerBottom || pt.y > footerTop) return 0;
@@ -383,7 +383,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
     }
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         DrawActionBtn(hdc, px, w, h, &g_topBtns[i], dpi, 0, headerH);
     }
 
