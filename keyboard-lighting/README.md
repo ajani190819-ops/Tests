@@ -123,9 +123,9 @@ nothing restarts:
 
 | Choice | What a press does |
 |---|---|
-| **Sweep While Held** | the default. One press steps 5%. Holding glides at 5% every 150ms, so 0 to 100% takes about three seconds, and letting go stops it |
+| **Sweep While Held** | the default. One press steps 5% for an instant response, then holding glides at 1% every 30ms - about a hundred small steps over the same three seconds, so it reads as a sweep like the screen-brightness slider rather than a staircase. Letting go stops it |
 | **Press To Glide, Press To Stop** | one press starts the same glide and it continues on its own. Press the same key again to stop where you are; reaching either end also stops it |
-| **Press For A 20% Glide** | every press glides four steps, so five presses cover the whole range |
+| **Press For A 20% Glide** | every press glides 20% in small steps, so five presses cover the whole range |
 
 Underneath, a greyed-out line reports whether the app can actually see
 your M-keys:
@@ -141,6 +141,16 @@ fires, so it needs a few presses after the app starts. If it never gets
 there that is not something you set up wrong - some ASUS firmware sends
 one press report for those keys and no release report, and with no
 release to watch there is no way to tell a held key from a tapped one.
+
+### The popup
+
+The brightness popup matches your Windows theme - light body on a light
+desktop, dark on a dark one - and borrows the Windows flyout's shape: the
+same sun glyph, a thin rounded track with a filled portion and a round
+thumb at the current level. Like Windows it shows no percentage; the
+thumb position is the reading. It appears whenever brightness changes
+from outside the window - M4/M5, the Fn keys, the panel - and fades after
+a second and a half.
 
 **The keystroke alternative - worse, but needs no update.** G-Helper's
 Custom field also accepts space-separated key codes (up to three), so the

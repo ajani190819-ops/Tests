@@ -264,12 +264,13 @@
 
 ## keyboard-lighting/src/parts/brightness_osd.c
 
-- L10  f OsdDrawSunFallback
-- L141  f OsdCreate
-- L156  f OsdShow
-- L173  f PollLayoutTxt
-- L183  f PollLivePreviewFrame  — Read live lamp frame from Aura-Background.ps1 or synthesize accurate live palette preview
-- globals: g_osdHwnd (L7), g_osdPct (L8)
+- L17  f OsdLightTheme
+- L26  f OsdDrawSunFallback
+- L162  f OsdCreate
+- L177  f OsdShow
+- L194  f PollLayoutTxt
+- L204  f PollLivePreviewFrame  — Read live lamp frame from Aura-Background.ps1 or synthesize accurate live palette preview
+- globals: g_osdHwnd (L10), g_osdPct (L11)
 
 ## keyboard-lighting/src/parts/emblem.c
 
@@ -765,10 +766,10 @@
 - L43  f strip_cs_comments_and_strings
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
-- L2120  f SuiteFolderInstallTests
-- L2335  f AudioSwitcherReachabilityTests
-- L2519  f AudioSwitcherSessionSweepTests
-- L2660  f AppOpenFocusTests
+- L2232  f SuiteFolderInstallTests
+- L2447  f AudioSwitcherReachabilityTests
+- L2631  f AudioSwitcherSessionSweepTests
+- L2772  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

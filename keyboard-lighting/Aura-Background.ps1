@@ -4297,9 +4297,13 @@ function Set-Live([int]$level) {
     }
     try { Set-Content -Path $liveFile -Value $level -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
     # Raising the software master is pointless while the EC 0..3 gate sits
-    # low - the hardware range would clamp it. Re-assert the full gate on
-    # every brightness move so "up" always actually goes up.
-    if ($level -gt 0) {
+    # low - the hardware range would clamp it. Re-assert the full gate so
+    # "up" always actually goes up, but rate limited: the fine ramp calls this
+    # dozens of times a second, and every re-assert is a WMI call plus a HID
+    # feature report competing with the frame writes for the endpoint. Half a
+    # second is far faster than anything that can pull the gate down.
+    if ($level -gt 0 -and [DateTime]::UtcNow -ge $script:GateReassertAt) {
+        $script:GateReassertAt = [DateTime]::UtcNow.AddMilliseconds(500)
         [void](Set-KbdBacklight 3)
         [void]$eng.PinGate(3)
     }
@@ -4338,10 +4342,22 @@ try {
 $script:TimingAt = [DateTime]::UtcNow.AddSeconds(5)
 $script:TimingDone = $false
 
-# Smooth master-brightness steps for the Fn F2 / F3 keys. 50/1000 = 5% per
-# press, so the keys sweep 0..100% in 20 fine steps - the same shape of
-# control as screen brightness - instead of the firmware's 4 coarse levels.
+# A TAP is deliberately coarse: 50/1000 = 5% per press, so a single keypress
+# reads as an instant response. The GLIDE is a different control and gets its
+# own numbers below - a held key that steps 5% every 150ms reads as a
+# staircase next to the screen-brightness slider, which is exactly what the
+# owner complained about.
 $step = 50
+# The glide: 1% every 30ms. Same overall speed as the old 5%-per-150ms
+# staircase (about three seconds for 0..100%) but a hundred treads instead of
+# twenty, which is what makes it read as a sweep. rampMs must stay above the
+# main loop's sleep or the extra resolution is silently thrown away.
+$rampStep = 10
+$rampMs = 30
+# How long after the last tap token the glide keeps running. Tokens arrive
+# every 60ms while a key is held, so this only has to bridge that gap; keeping
+# it small is what limits the overshoot after the key is let go.
+$loopMs = 30
 # The app asks us to stop by creating this file. Being killed outright
 # skips the cleanup below, which is what used to leave the last frame
 # frozen on the keyboard.
@@ -4355,8 +4371,7 @@ if (Test-Path $stopFile) { Remove-Item $stopFile -Force -ErrorAction SilentlyCon
 # gate - the software master is the only brightness that moves.
 $brightUpFile = Join-Path $stateDir 'bright_up.flag'
 $brightDownFile = Join-Path $stateDir 'bright_down.flag'
-$brightStepMs = 150
-$brightHoldMs = 400
+$brightHoldMs = 120
 $holdModeFile = Join-Path $stateDir 'hold_mode.txt'
 # Seed with the CURRENT token values so a restart never replays the last
 # press as a phantom tap (that was the 'slider moves on its own' bug).
@@ -4373,6 +4388,7 @@ try {
 $script:brightRampDir = 0
 $script:brightRampNext = [DateTime]::UtcNow
 $script:brightRampLast = [DateTime]::UtcNow
+$script:GateReassertAt = [DateTime]::UtcNow
 $script:brightPending = $false
 $script:brightBurst = 0
 $script:brightLatch = $false
@@ -4473,7 +4489,7 @@ try {
                     Set-Live ($script:LiveLevel + $tapDir * $step)
                     if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
                     $script:brightRampDir = $tapDir
-                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                    $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
                     $script:brightLatch = $true
                     $script:brightPending = $false
                     $script:brightBurst = 0
@@ -4482,20 +4498,26 @@ try {
                 Set-Live ($script:LiveLevel + $tapDir * $step)
                 if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
                 $script:brightRampDir = $tapDir
-                $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
-                $script:brightBurst = 3
+                $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
+                # 5% now plus 15% of fine steps = the same 20% glide as before,
+                # expressed in ramp steps so it is smooth rather than four jumps.
+                $script:brightBurst = [int](150 / $rampStep)
                 $script:brightLatch = $false
                 $script:brightPending = $false
                 $script:brightRampLast = $nowU
             } else {
-                if ($tapDir -ne $script:brightRampDir -or $nowU -ge $script:brightRampNext) {
+                # The FIRST token of a gesture is a real tap and takes the full
+                # 5%, so a single press reads instantly. Continuation tokens do
+                # not step at all - they only prove the key is still down. The
+                # fine ramp below does the moving; stepping here as well would
+                # pile 5% on top of every 1% the ramp already made.
+                $gapMs = ($nowU - $script:brightRampLast).TotalMilliseconds
+                if ($tapDir -ne $script:brightRampDir -or $gapMs -gt $brightHoldMs) {
                     Set-Live ($script:LiveLevel + $tapDir * $step)
                     if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
-                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
-                    $script:brightPending = $false
-                } else {
-                    $script:brightPending = $true
                 }
+                $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
+                $script:brightPending = $true
                 $script:brightLatch = $false
                 $script:brightRampDir = $tapDir
                 $script:brightRampLast = $nowU
@@ -4503,18 +4525,18 @@ try {
         } elseif ($script:brightRampDir -ne 0) {
             if ($script:brightBurst -gt 0) {
                 if ($nowU -ge $script:brightRampNext) {
-                    Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
+                    Set-Live ($script:LiveLevel + $script:brightRampDir * $rampStep)
                     if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
                     $script:brightBurst--
-                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                    $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
                 }
             } elseif ($script:brightLatch) {
                 if ($nowU -ge $script:brightRampNext) {
                     if (($script:brightRampDir -gt 0 -and $script:LiveLevel -lt 1000) -or
                         ($script:brightRampDir -lt 0 -and $script:LiveLevel -gt 0)) {
-                        Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
+                        Set-Live ($script:LiveLevel + $script:brightRampDir * $rampStep)
                         if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
-                        $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                        $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
                     } else {
                         $script:brightRampDir = 0
                         $script:brightLatch = $false
@@ -4524,10 +4546,15 @@ try {
                 if ($nowU -ge $script:brightRampLast.AddMilliseconds($brightHoldMs)) {
                     $script:brightPending = $false
                 } elseif ($nowU -ge $script:brightRampNext) {
-                    Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
-                    if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
-                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
-                    $script:brightPending = $false
+                    if (($script:brightRampDir -gt 0 -and $script:LiveLevel -ge 1000) -or
+                        ($script:brightRampDir -lt 0 -and $script:LiveLevel -le 0)) {
+                        $script:brightPending = $false
+                        $script:brightRampDir = 0
+                    } else {
+                        Set-Live ($script:LiveLevel + $script:brightRampDir * $rampStep)
+                        if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                        $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
+                    }
                 }
             }
         }
@@ -4934,7 +4961,7 @@ try {
             }
         }
 
-        Start-Sleep -Milliseconds 70
+        Start-Sleep -Milliseconds $loopMs
     }
 }
 finally {

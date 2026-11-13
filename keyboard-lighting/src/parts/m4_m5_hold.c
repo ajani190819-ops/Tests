@@ -72,7 +72,7 @@ static void HoldPump(void) {
             continue;
         }
         if (now >= g_scanNext[i]) {
-            g_scanNext[i] = now + 150;
+            g_scanNext[i] = now + 60;
             HoldTokenWrite(i);
         }
     }
@@ -86,7 +86,7 @@ static void PressSignal(int dir, int repeat, ULONGLONG now) {
         /* Release is observable: stream for the whole hold. The press
            itself already stepped once via G-Helper's Custom token. */
         g_holdOn[dir] = 1;
-        g_scanNext[dir] = now + 150;
+        g_scanNext[dir] = now + 60;
     }
 }
 

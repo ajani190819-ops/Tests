@@ -1,15 +1,31 @@
-/* ---- Native-style brightness OSD (sun + bar + percent) -------------
-   Bottom-centre popup built to look like the Windows OSD: neutral dark
-   body, the REAL Windows brightness glyph (U+E706 from Segoe Fluent
-   Icons / Segoe MDL2 Assets - the exact icon Windows draws), a thin
-   rounded bar, and the live percent. Appears whenever keyboard
-   brightness changes from outside the window and hides after ~1.4s. */
+/* ---- Native-style brightness OSD -----------------------------------
+   Bottom-centre popup built to look like the Windows brightness flyout
+   the owner actually runs: body and icon in the CURRENT app theme, the
+   real Windows glyph (U+E706 from Segoe Fluent Icons / Segoe MDL2
+   Assets), and a slider in the Windows shape - rounded track, filled
+   portion, round thumb at the fill end. No percentage text: the flyout
+   has none, and the thumb position is the reading. Appears whenever
+   keyboard brightness changes from outside the window and hides after
+   ~1.4s. */
 static HWND g_osdHwnd = NULL;
 static int  g_osdPct = -1;
 
-static void OsdDrawSunFallback(HDC mem, int cx, int cy, int r) {
-    HPEN sunPen = CreatePen(PS_SOLID, r / 3 + 1, RGB(240, 240, 240));
-    HBRUSH sunBr = CreateSolidBrush(RGB(240, 240, 240));
+/* Windows draws its own flyout in the app theme, so a hardcoded dark body on
+   a light desktop is the single most obvious tell that this is not Windows.
+   AppsUseLightTheme is the same value UWP and Win32 apps read; missing or
+   unreadable means assume light, which is what a default install is. */
+static int OsdLightTheme(void) {
+    DWORD val = 0, sz = sizeof(val);
+    LSTATUS st = RegGetValueW(HKEY_CURRENT_USER,
+                              L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                              L"AppsUseLightTheme", RRF_RT_REG_DWORD, NULL, &val, &sz);
+    if (st != ERROR_SUCCESS) return 1;
+    return val != 0;
+}
+
+static void OsdDrawSunFallback(HDC mem, int cx, int cy, int r, COLORREF col) {
+    HPEN sunPen = CreatePen(PS_SOLID, r / 3 + 1, col);
+    HBRUSH sunBr = CreateSolidBrush(col);
     HGDIOBJ op = SelectObject(mem, sunPen);
     HGDIOBJ ob = SelectObject(mem, sunBr);
     Ellipse(mem, cx - r, cy - r, cx + r, cy + r);
@@ -39,11 +55,17 @@ static LRESULT CALLBACK OsdWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         HDC mem = CreateCompatibleDC(dc);
         HBITMAP bmp = CreateCompatibleBitmap(dc, W, H);
         HGDIOBJ oldBm = SelectObject(mem, bmp);
-        HBRUSH bg = CreateSolidBrush(RGB(44, 44, 44));
-        HPEN bgPen = CreatePen(PS_SOLID, 1, RGB(44, 44, 44));
+
+        int light = OsdLightTheme();
+        COLORREF body = light ? RGB(249, 249, 249) : RGB(32, 32, 32);
+        COLORREF fg   = light ? RGB(26, 26, 26)    : RGB(243, 243, 243);
+        COLORREF trk  = light ? RGB(199, 199, 199) : RGB(85, 85, 85);
+
+        HBRUSH bg = CreateSolidBrush(body);
+        HPEN bgPen = CreatePen(PS_SOLID, 1, body);
         HGDIOBJ oldBr = SelectObject(mem, bg);
         HGDIOBJ oldPen = SelectObject(mem, bgPen);
-        RoundRect(mem, 0, 0, W, H, H / 5, H / 5);
+        RoundRect(mem, 0, 0, W, H, H / 6, H / 6);
         int pad = H * 32 / 100;
         int iconCx = pad + H * 22 / 100;
         /* The exact Windows brightness glyph (Segoe Fluent Icons E706,
@@ -73,62 +95,61 @@ static LRESULT CALLBACK OsdWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             HGDIOBJ of = SelectObject(mem, useF);
             RECT ir;
             SetBkMode(mem, TRANSPARENT);
-            SetTextColor(mem, RGB(240, 240, 240));
+            SetTextColor(mem, fg);
             SetRect(&ir, iconCx - H * 30 / 100, 0, iconCx + H * 30 / 100, H);
             DrawTextW(mem, L"\xE706", -1, &ir, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
             SelectObject(mem, of);
         } else {
-            OsdDrawSunFallback(mem, iconCx, H / 2, H * 11 / 100);
+            OsdDrawSunFallback(mem, iconCx, H / 2, H * 11 / 100, fg);
         }
         DeleteObject(f1);
         DeleteObject(f2);
-        /* thin native-style bar + percent */
-        int barH = H * 15 / 100;
-        if (barH < 5) barH = 5;
+
+        /* Slider in the Windows shape. The track is thin and rounded, the
+           filled portion runs to the current level, and a round thumb sits at
+           the fill end proud of the bar - the part the old version was
+           missing, and the part the eye reads as "this is a Windows slider". */
+        int barH = H * 12 / 100;
+        if (barH < 4) barH = 4;
         int barY = (H - barH) / 2;
         int barX = iconCx + H * 38 / 100;
-        int pctW = H * 84 / 100;
-        int barW = W - barX - pctW - pad / 2;
+        int barW = W - barX - pad;
         if (barW < 40) barW = 40;
-        HBRUSH trBr = CreateSolidBrush(RGB(90, 90, 90));
-        HPEN trPen = CreatePen(PS_SOLID, 1, RGB(90, 90, 90));
+        HBRUSH trBr = CreateSolidBrush(trk);
+        HPEN trPen = CreatePen(PS_SOLID, 1, trk);
         SelectObject(mem, trBr);
         SelectObject(mem, trPen);
         RoundRect(mem, barX, barY, barX + barW, barY + barH, barH, barH);
         int pct = g_osdPct;
         if (pct < 0) pct = 0;
         if (pct > 100) pct = 100;
-        int fillW = (barW - 2) * pct / 100;
-        if (fillW > 0 && pct > 0) {
-            HBRUSH fBr = CreateSolidBrush(RGB(232, 226, 208));
-            HPEN fPen = CreatePen(PS_SOLID, 1, RGB(232, 226, 208));
-            SelectObject(mem, fBr);
-            SelectObject(mem, fPen);
-            RoundRect(mem, barX + 1, barY + 1, barX + 1 + fillW, barY + barH - 1, barH, barH);
-            DeleteObject(fBr);
-            DeleteObject(fPen);
-        }
-        {
-            HFONT font = CreateFontW(-H * 24 / 100, 0, 0, 0, FW_NORMAL, 0, 0, 0,
-                                     0, 0, 0, 0, 0, L"Segoe UI");
-            HGDIOBJ of = SelectObject(mem, font);
-            wchar_t t[16];
-            _snwprintf(t, 15, L"%d%%", pct);
-            t[15] = L'\0';
-            RECT tr;
-            SetRect(&tr, barX + barW + H * 2 / 100, 0, W - pad / 3, H);
-            SetBkMode(mem, TRANSPARENT);
-            SetTextColor(mem, RGB(235, 235, 235));
-            DrawTextW(mem, t, -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-            SelectObject(mem, of);
-            DeleteObject(font);
-        }
+        int fillW = barW * pct / 100;
+        HBRUSH fBr = CreateSolidBrush(fg);
+        HPEN fPen = CreatePen(PS_SOLID, 1, fg);
+        SelectObject(mem, fBr);
+        SelectObject(mem, fPen);
+        if (fillW > barH)
+            RoundRect(mem, barX, barY, barX + fillW, barY + barH, barH, barH);
+        int tx = barX + fillW;
+        int ty = barY + barH / 2;
+        int tr2 = barH;
+        /* Body-coloured ring first, so the thumb stays readable where it
+           overlaps the filled part of the track. */
+        HBRUSH ringBr = CreateSolidBrush(body);
+        HPEN ringPen = CreatePen(PS_SOLID, 1, body);
+        SelectObject(mem, ringBr);
+        SelectObject(mem, ringPen);
+        Ellipse(mem, tx - tr2 - 2, ty - tr2 - 2, tx + tr2 + 2, ty + tr2 + 2);
+        Ellipse(mem, tx - tr2, ty - tr2, tx + tr2, ty + tr2);
+
         BitBlt(dc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
         SelectObject(mem, oldBr);
         SelectObject(mem, oldPen);
         SelectObject(mem, oldBm);
         DeleteObject(bg); DeleteObject(bgPen);
         DeleteObject(trBr); DeleteObject(trPen);
+        DeleteObject(fBr); DeleteObject(fPen);
+        DeleteObject(ringBr); DeleteObject(ringPen);
         DeleteObject(bmp);
         DeleteDC(mem);
         EndPaint(hwnd, &ps);

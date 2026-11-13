@@ -1914,6 +1914,114 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "the self-elevation is no longer conditional on actually being "
                       "unelevated, so an elevated start would relaunch itself")
 
+    def test_keyboard_lighting_glide_is_finer_than_a_tap(self):
+        """The held-key glide must be a sweep, and a tap must still be a tap.
+
+        The complaint was that sweep-while-held looked like a staircase next
+        to the screen-brightness slider, and it did: one 5% step every 150ms is
+        twenty visible treads over a three-second sweep. The glide now runs on
+        its own numbers - 1% every 30ms, a hundred treads over the same three
+        seconds - while a single press still takes the coarse 5% so a tap
+        reads instantly. Those are two different controls and the test keeps
+        them apart.
+
+        Two invariants are easy to break by accident and impossible to notice
+        in code review. If rampMs drops below the main loop's sleep, the extra
+        resolution is silently thrown away because the ramp can only fire when
+        the loop wakes. And if the tap branch keeps stepping per continuation
+        token, every held key piles 5% on top of every 1% the ramp already
+        made, which reads as a jump at the start of each hold.
+        """
+        engine = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="ascii", errors="strict")
+
+        def num(pat, what):
+            m = re.search(pat, engine, re.M)
+            self.assertIsNotNone(m, "could not find %s" % what)
+            return int(m.group(1))
+
+        step = num(r"^\$step = (\d+)$", "the tap step")
+        rstep = num(r"^\$rampStep = (\d+)$", "the glide step")
+        rms = num(r"^\$rampMs = (\d+)$", "the glide cadence")
+        loop = num(r"^\$loopMs = (\d+)$", "the main loop sleep")
+        hold = num(r"^\$brightHoldMs = (\d+)$", "the post-release hold window")
+
+        self.assertLess(rstep, step,
+                        "the glide step is not finer than the tap step, so a held key "
+                        "is still a staircase")
+        self.assertGreaterEqual(rms, loop,
+                                "the glide cadence (%d ms) is finer than the main loop "
+                                "wakes (%d ms), so the extra steps are silently dropped "
+                                "and the sweep runs slower than configured" % (rms, loop))
+
+        # Every engine-driven glide uses the fine ramp; nothing glides on the
+        # tap step any more.
+        self.assertEqual(engine.count("$script:brightRampDir * $rampStep"), 3,
+                         "expected exactly three glides (burst, latch, hold-tap "
+                         "continuation) on the fine ramp")
+        self.assertEqual(engine.count("$script:brightRampDir * $step"), 0,
+                         "a glide still uses the coarse tap step")
+        # Three immediate tap responses: latch press, burst press, first token
+        # of a held gesture. The Fn keys step separately and are not counted.
+        self.assertEqual(engine.count("$tapDir * $step"), 3,
+                         "expected exactly three immediate 5% tap responses")
+
+        # Continuation tokens must not step on top of the ramp.
+        tap_branch = engine[engine.index("$gapMs = ($nowU - $script:brightRampLast)"): ]
+        tap_branch = tap_branch[:tap_branch.index("$script:brightRampLast = $nowU")]
+        self.assertEqual(tap_branch.count("Set-Live"), 1,
+                         "the tap branch steps on continuation tokens as well as on a "
+                         "fresh gesture, so a held key double-steps")
+
+        # Overshoot after the key is let go is bounded by the hold window.
+        overshoot_pct = (hold // max(rms, loop)) * rstep / 10.0
+        self.assertLessEqual(overshoot_pct, 15.0,
+                             "the glide keeps running %.0f%% after release, which reads "
+                             "as the brightness moving on its own" % overshoot_pct)
+
+        # The gate re-assert must be rate limited, or a 33Hz ramp sends a WMI
+        # call and a HID feature report per step, competing with frame writes.
+        self.assertIn("$script:GateReassertAt", engine,
+                      "Set-Live re-asserts the EC gate on every call again")
+        self.assertIn(
+            "if ($level -gt 0 -and [DateTime]::UtcNow -ge $script:GateReassertAt)",
+            engine, "Set-Live no longer gates the re-assert behind the timestamp")
+        guard = engine[engine.index(
+            "if ($level -gt 0 -and [DateTime]::UtcNow -ge $script:GateReassertAt)"):]
+        guard = guard[:guard.index("\n    }\n")]
+        self.assertIn("Set-KbdBacklight", guard,
+                      "the rate-limited block no longer re-asserts the gate at all")
+
+        # ---- the flyout matches the Windows one the owner runs ----
+        osd = (ROOT / "keyboard-lighting" / "src" / "parts" / "brightness_osd.c").read_text(
+            encoding="ascii", errors="strict")
+        self.assertIn("AppsUseLightTheme", osd,
+                      "the flyout hardcodes one theme, so on a light desktop it is the "
+                      "one obvious tell that this popup is not Windows")
+        # Defined is not called: replacing the call with a constant leaves the
+        # function in the file and the assertIn above none the wiser.
+        self.assertRegex(osd, r"int light = OsdLightTheme\(\);",
+                         "the theme is read but the result is discarded, so the flyout "
+                         "stays on one theme whatever Windows is doing")
+        self.assertIn("RRF_RT_REG_DWORD", osd,
+                      "the theme is read without checking the call succeeded")
+        self.assertIn("RGB(249, 249, 249)", osd, "no light-theme body colour")
+        self.assertIn("RGB(32, 32, 32)", osd, "no dark-theme body colour")
+        self.assertIn("Ellipse(mem, tx - tr2, ty - tr2, tx + tr2, ty + tr2);", osd,
+                      "the slider has no thumb, which is the part that reads as a "
+                      "Windows slider")
+        self.assertLess(osd.index("fillW = barW * pct / 100"),
+                        osd.index("Ellipse(mem, tx - tr2"),
+                        "no round thumb after the filled portion, which is the part "
+                        "that reads as a Windows slider")
+        self.assertLess(osd.index("Ellipse(mem, tx - tr2 - 2"),
+                        osd.index("Ellipse(mem, tx - tr2,"),
+                        "the thumb is drawn without its separating ring, so it "
+                        "disappears into the filled part of the track")
+        self.assertNotIn('L"%d%%"', osd,
+                         "the flyout still prints a percentage, which the Windows "
+                         "flyout does not")
+
     def test_keyboard_lighting_hold_modes_are_reachable_and_bounded(self):
         """All three M4/M5 hold behaviours must be reachable, and the sweep cap
         must be longer than a sweep.
@@ -2005,9 +2113,13 @@ class WindowsDesktopAppsTests(unittest.TestCase):
 
         # The ceiling must outlast a full sweep, computed from the engine's own
         # step and cadence rather than assumed.
-        step = int(re.search(r"^\$step = (\d+)$", engine, re.M).group(1))
-        cadence = int(re.search(r"^\$brightStepMs = (\d+)$", engine, re.M).group(1))
-        sweep_ms = (1000 // step) * cadence          # LiveLevel runs 0..1000
+        rstep = int(re.search(r"^\$rampStep = (\d+)$", engine, re.M).group(1))
+        rms = int(re.search(r"^\$rampMs = (\d+)$", engine, re.M).group(1))
+        loop = int(re.search(r"^\$loopMs = (\d+)$", engine, re.M).group(1))
+        # The loop is the real metronome: a ramp cadence finer than the loop
+        # sleep can never fire faster than the loop wakes up.
+        cadence = max(rms, loop)
+        sweep_ms = (1000 // rstep) * cadence         # LiveLevel runs 0..1000
         # Two timeouts share that shape. The 300 ms one is conditional on there
         # being no release source; the ceiling is the one that applies anyway.
         timeouts = re.findall(
