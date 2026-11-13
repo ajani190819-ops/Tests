@@ -387,3 +387,16 @@ static BOOL CreateShortcutLink(const wchar_t *lnkPath, const wchar_t *targetExe,
     return ok;
 }
 
+/* The Desktop is not ours to fill in. Installs and updates used to drop a
+   shortcut there for every app on every run, which is how they piled up;
+   the owner asked for that to stop. A shortcut the owner pinned is still
+   repointed so it never dangles at a replaced copy after an update, but a
+   Desktop shortcut is CREATED only by the explicit pin item in the emblem
+   menu. Everything on the install and update paths goes through here. */
+static BOOL RepointDesktopShortcutIfPresent(const wchar_t *lnkPath, const wchar_t *targetExe,
+                                            const wchar_t *workDir, const wchar_t *desc) {
+    if (GetFileAttributesW(lnkPath) == INVALID_FILE_ATTRIBUTES) return FALSE;
+    return CreateShortcutLink(lnkPath, targetExe, workDir, desc);
+}
+
+

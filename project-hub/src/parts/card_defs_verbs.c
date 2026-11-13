@@ -30,8 +30,9 @@ static void WorkerInstallGeneric(int idx, BOOL launchAfter) {
     if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
         _snwprintf(lnk, MAX_PATH - 1, L"%s\\%s.lnk", desk,
                    c->shortcutName ? c->shortcutName : (c->title ? c->title : L"Suite App"));
-        CreateShortcutLink(lnk, destExe, c->appDir, c->title ? c->title : L"Suite App");
-        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+        if (RepointDesktopShortcutIfPresent(lnk, destExe, c->appDir,
+                                            c->title ? c->title : L"Suite App"))
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
     }
     if (launchAfter) {
         ShellExecuteW(NULL, L"open", destExe, c->launchArgs, c->appDir, SW_SHOWNORMAL);

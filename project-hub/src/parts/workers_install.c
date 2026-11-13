@@ -46,8 +46,9 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
     wchar_t desk[MAX_PATH], lnk[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
         _snwprintf(lnk, MAX_PATH, L"%s\\Bluetooth Guard.lnk", desk);
-        CreateShortcutLink(lnk, destExe, g_btgDir, L"Bluetooth Guard - Phone audio protection");
-        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+        if (RepointDesktopShortcutIfPresent(lnk, destExe, g_btgDir,
+                                            L"Bluetooth Guard - Phone audio protection"))
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
     }
 
     if (launchAfter || btgWasVisible) {
@@ -88,8 +89,9 @@ static void WorkerInstallNotes(BOOL launchAfter) {
     wchar_t desk[MAX_PATH], lnk[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
         _snwprintf(lnk, MAX_PATH, L"%s\\Agent Notes.lnk", desk);
-        CreateShortcutLink(lnk, destExe, g_notesDir, L"Agent Notes - quick notes for the agent");
-        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+        if (RepointDesktopShortcutIfPresent(lnk, destExe, g_notesDir,
+                                            L"Agent Notes - quick notes for the agent"))
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
     }
 
     if (launchAfter || wasRunning) {
@@ -149,8 +151,9 @@ static void WorkerInstallDnsPilot(BOOL launchAfter) {
     wchar_t desk[MAX_PATH], lnk[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
         _snwprintf(lnk, MAX_PATH, L"%s\\DNS Pilot.lnk", desk);
-        CreateShortcutLink(lnk, destExe, g_dnsDir, L"DNS Pilot - Fast DNS benchmark & auto-pilot");
-        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+        if (RepointDesktopShortcutIfPresent(lnk, destExe, g_dnsDir,
+                                            L"DNS Pilot - Fast DNS benchmark & auto-pilot"))
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
     }
 
     if (launchAfter || wasRunning) {
@@ -230,8 +233,9 @@ static void WorkerInstallKeyboardLighting(void) {
         wchar_t desk[MAX_PATH], lnk[MAX_PATH];
         if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
             _snwprintf(lnk, MAX_PATH, L"%s\\Keyboard Lighting.lnk", desk);
-            CreateShortcutLink(lnk, kblExe, g_kblDir, L"Keyboard Lighting - ROG Strix G16 RGB");
-            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+            if (RepointDesktopShortcutIfPresent(lnk, kblExe, g_kblDir,
+                                                L"Keyboard Lighting - ROG Strix G16 RGB"))
+                SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
         }
         /* restore as it was: a visible window comes back to the front,
            anything else (trayed or not running) starts quietly in the tray
@@ -490,8 +494,8 @@ static void WorkerSelfUpdateHub(void) {
             wchar_t desk[MAX_PATH], lnk[MAX_PATH];
             if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
                 _snwprintf(lnk, MAX_PATH, L"%s\\Project Hub.lnk", desk);
-                if (CreateShortcutLink(lnk, g_suiteHubExe, g_suiteDir,
-                                       L"Project Hub - Status & Updates"))
+                if (RepointDesktopShortcutIfPresent(lnk, g_suiteHubExe, g_suiteDir,
+                                                     L"Project Hub - Status & Updates"))
                     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
             }
         }

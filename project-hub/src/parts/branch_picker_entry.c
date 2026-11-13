@@ -275,15 +275,19 @@ static void HandleActionCommand(HWND hwnd, int id) {
         EnsureDirTree(g_suiteDir);
         if (CopyFileW(g_exePath, g_suiteHubExe, FALSE)) {
             wchar_t desk[MAX_PATH], lnk[MAX_PATH];
+            BOOL repointed = FALSE;
             if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
                 _snwprintf(lnk, MAX_PATH, L"%s\\Project Hub.lnk", desk);
-                CreateShortcutLink(lnk, g_suiteHubExe, g_suiteDir,
-                                   L"Project Hub - Status & Updates");
-                SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+                repointed = RepointDesktopShortcutIfPresent(lnk, g_suiteHubExe, g_suiteDir,
+                                                            L"Project Hub - Status & Updates");
+                if (repointed) SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
             }
-            wchar_t m[MAX_PATH + 64];
-            _snwprintf(m, MAX_PATH + 63, L"Project Hub installed into %s - the Desktop shortcut now points there.", g_suiteDir);
-            m[MAX_PATH + 63] = L'\0';
+            wchar_t m[MAX_PATH + 96];
+            if (repointed)
+                _snwprintf(m, MAX_PATH + 95, L"Project Hub installed into %s - the Desktop shortcut now points there.", g_suiteDir);
+            else
+                _snwprintf(m, MAX_PATH + 95, L"Project Hub installed into %s - no Desktop shortcut was created; pin one from the emblem menu if you want one.", g_suiteDir);
+            m[MAX_PATH + 95] = L'\0';
             SetFooterStatus(m, 0);
         } else {
             SetFooterStatus(L"Could not write ProjectHub.exe into the suite folder - close the other hub copy and retry.", 0);

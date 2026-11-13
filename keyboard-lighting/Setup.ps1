@@ -6,7 +6,7 @@
 #  Run it any time. It works out what is needed and does it:
 #    - downloads the latest version of everything
 #    - builds KeyboardLighting.exe
-#    - creates the Start menu and Desktop shortcuts
+#    - creates the Start menu shortcut (never Desktop, on purpose)
 #    - sets it to start when you log in
 #    - makes G-Helper leave the keyboard colours alone
 #    - tests that it actually works, and tells you what is wrong if not
@@ -353,10 +353,11 @@ if (-not $TestOnly) {
         } catch { return $false }
     }
 
+    # Start Menu only. A Desktop shortcut here used to be re-created on every
+    # update, which is how they accumulated on the Desktop; the owner asked
+    # for that to stop. The Start Menu entry is enough to launch it by hand.
     $sm = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Keyboard Lighting.lnk'
-    $dt = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Keyboard Lighting.lnk'
     if (New-Shortcut $sm) { Ok 'Start menu shortcut ready.' } else { Warn 'Start menu shortcut failed.' }
-    if (New-Shortcut $dt) { Ok 'Desktop shortcut ready.' }    else { Warn 'Desktop shortcut failed.' }
 
     try {
         if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {

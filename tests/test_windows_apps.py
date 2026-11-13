@@ -2382,6 +2382,53 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "a foreign instance that ignores WM_CLOSE keeps its exe locked, "
                       "so the stray copy can never be overwritten")
 
+    def test_hub_repoints_desktop_shortcuts_but_never_creates_them(self):
+        """Every install and update used to drop a Desktop shortcut per app.
+
+        That is how they accumulated: the hub's install workers and each app's
+        Setup re-created the .lnk on every run, so an owner who deleted one
+        got it back at the next update. The rule now is that the Desktop is
+        not ours to fill in. A shortcut the owner pinned is still repointed
+        after an update so it never dangles at a replaced copy, but creation
+        happens only through the explicit pin item in the emblem menu.
+
+        The guard lives in one helper so there is exactly one place the rule
+        can be checked, and the install paths are asserted to contain no
+        direct shortcut creation at all - a worker that grows a new
+        CreateShortcutLink call fails this even if nobody notices the icon.
+        """
+        parts = ROOT / "project-hub" / "src" / "parts"
+        folder = (parts / "install_folder.c").read_text(encoding="utf-8")
+        workers = (parts / "workers_install.c").read_text(encoding="utf-8")
+        cards = (parts / "card_defs_verbs.c").read_text(encoding="utf-8")
+        picker = (parts / "branch_picker_entry.c").read_text(encoding="utf-8")
+
+        h = folder.index("static BOOL RepointDesktopShortcutIfPresent(")
+        hbody = folder[h:folder.index("\n}\n", h) + 3]
+        self.assertIn("GetFileAttributesW(lnkPath) == INVALID_FILE_ATTRIBUTES", hbody,
+                      "the repoint helper no longer checks that the shortcut exists, "
+                      "so it creates one whenever it is called")
+        self.assertLess(hbody.index("GetFileAttributesW"), hbody.index("CreateShortcutLink("),
+                        "the existence check runs after the creation, so it guards nothing")
+
+        for name, src in (("workers_install.c", workers), ("card_defs_verbs.c", cards)):
+            self.assertEqual(src.count("CreateShortcutLink("), 0,
+                             "%s creates a Desktop shortcut directly, so the next "
+                             "update drops a new icon on the Desktop" % name)
+            self.assertEqual(src.count("CSIDL_DESKTOPDIRECTORY"),
+                             src.count("RepointDesktopShortcutIfPresent("),
+                             "%s touches the Desktop outside the repoint helper" % name)
+
+        pin = picker[picker.index("case ID_MENU_SHORTCUT:"):]
+        pin = pin[:pin.index("case ID_MENU_SUITE_DIR:")]
+        self.assertIn("CreateShortcutLink(", pin,
+                      "the explicit pin item no longer creates a shortcut, so there is "
+                      "no way left to get one on purpose")
+        tos = picker[picker.index("case ID_MENU_HUB_TOSUITE:"):]
+        tos = tos[:tos.index("SetFooterStatus", tos.index("repointed"))]
+        self.assertEqual(tos.count("CreateShortcutLink("), 0,
+                         "the consolidate menu item creates a Desktop shortcut again")
+
     def test_hub_self_update_keeps_a_suite_copy_and_repoints_the_shortcut(self):
         src = self._hub_src()
 
@@ -2395,9 +2442,9 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("WriteBinaryFileAtomic(g_suiteHubExe, newBytes, newLen)", body,
                       "a hub launched from Downloads updates only itself and leaves "
                       "the suite folder holding the previous build")
-        self.assertIn("CreateShortcutLink(lnk, g_suiteHubExe, g_suiteDir", body,
-                      "after a self-update the Desktop shortcut still points at the "
-                      "unmanaged copy")
+        self.assertIn("RepointDesktopShortcutIfPresent(lnk, g_suiteHubExe, g_suiteDir", body,
+                      "after a self-update a pinned Desktop shortcut still points at "
+                      "the unmanaged copy")
         self.assertIn("free(newBytes);", body, "the downloaded hub bytes leak")
 
         # One click to consolidate without waiting for the next self-update.

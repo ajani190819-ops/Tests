@@ -31,8 +31,8 @@
 ## project-hub/src/parts/card_defs_verbs.c
 
 - L1  f WorkerInstallGeneric
-- L49  f HandleVerb
-- L72  f InitCardDefinitions
+- L50  f HandleVerb
+- L73  f InitCardDefinitions
 
 ## project-hub/src/parts/catalog_icons_json.c
 
@@ -100,6 +100,7 @@
 - L134  f InitAllPaths
 - L337  f CheckPidLockStatus
 - L369  f CreateShortcutLink
+- L396  f RepointDesktopShortcutIfPresent
 
 ## project-hub/src/parts/refresh_statuses.c
 
@@ -136,12 +137,12 @@
 ## project-hub/src/parts/workers_install.c
 
 - L1  f WorkerInstallBluetoothGuard
-- L64  f WorkerInstallNotes
-- L105  f WorkerInstallDnsPilot
-- L170  f WorkerInstallKeyboardLighting
-- L263  f WorkerInstallSpatialHud
-- L325  f WorkerInstallOrcaPlugins
-- L426  f WorkerSelfUpdateHub
+- L65  f WorkerInstallNotes
+- L107  f WorkerInstallDnsPilot
+- L173  f WorkerInstallKeyboardLighting
+- L267  f WorkerInstallSpatialHud
+- L329  f WorkerInstallOrcaPlugins
+- L430  f WorkerSelfUpdateHub
 
 ## project-hub/src/parts/workers_remote.c
 
@@ -767,9 +768,9 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2232  f SuiteFolderInstallTests
-- L2447  f AudioSwitcherReachabilityTests
-- L2631  f AudioSwitcherSessionSweepTests
-- L2772  f AppOpenFocusTests
+- L2494  f AudioSwitcherReachabilityTests
+- L2678  f AudioSwitcherSessionSweepTests
+- L2819  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 
