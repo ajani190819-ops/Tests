@@ -518,7 +518,10 @@
 - L1  S HTTP to the agent session
 - L3  f HttpPostNote  — ---------------- HTTP to the agent session ----------------
 - L43  f FlushOutbox
-- L106  f StartFlush
+- L115  f HttpGetText
+- L155  f HealthOk
+- L163  f LinkDiscoveryTick
+- L193  f StartFlush
 
 ## agent-notes/src/parts/ui.c
 
@@ -797,9 +800,9 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2232  f SuiteFolderInstallTests
-- L2787  f AudioSwitcherReachabilityTests
-- L2971  f AudioSwitcherSessionSweepTests
-- L3112  f AppOpenFocusTests
+- L2843  f AudioSwitcherReachabilityTests
+- L3027  f AudioSwitcherSessionSweepTests
+- L3168  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

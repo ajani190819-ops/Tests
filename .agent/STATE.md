@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-11-12 - narrative archive lives in .agent/HISTORY.md (read it only when a settled old decision is in question); STATE holds current components and open threads.
+**Last Updated:** 2026-11-12 - Agent Notes rebuilt per owner spec: the app now discovers the live session by polling .agent/AGENT_LINK.txt (committed every turn, adopted only after a /health probe answers), the offline status says queued-and-safe instead of blaming the link, and the turn-start protocol (start receiver, read INBOX, refresh link file) is written into .agent/rules/execution.md - the three gaps that made the channel feel completely broken. Narrative archive lives in .agent/HISTORY.md (read it only when a settled old decision is in question); STATE holds current components and open threads.
 
 ## Turn protocol (do this literally)
 
