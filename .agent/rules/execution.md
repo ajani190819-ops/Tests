@@ -52,3 +52,24 @@ Every break-on-purpose mutation written while working is appended to
 also asserts every registry needle still applies, so a drifted mutation cannot
 silently stop testing. Before committing a behavioural change: run
 `python3 tools/mutate.py`.
+
+## Credit discipline (owner budget is finite)
+
+Credits burn per token in and out, so these are standing habits, not advice:
+- Read in ranges. `sed -n 'A,Bp'` or grep first; never cat a file over ~300
+  lines whole. Aura-Background.ps1 (5k lines) and the test suite (3k) are
+  range-read only, always.
+- STATE.md is read by section, not whole; the narrative archive lives in
+  .agent/HISTORY.md and is opened only when an old settled decision is truly
+  in question. CODEMAP is regenerated, not read, unless an index question asks.
+- Batch independent tool calls in one block; a turn of ten sequential
+  round-trips costs more than one batched call.
+- Warm everything: incremental builds (skip cache), `tools/mutate.py --check`
+  for drift, full mutation runs only when behaviour actually changed.
+- Edit scripts go to /tmp/w first and assert needle counts, so a sandbox reset
+  or a bad anchor costs one rerun, not a re-investigation.
+- One push per turn (marker protocol). Retries, re-pushes and re-reads of
+  settled facts are pure credit waste; settled facts belong in STATE threads
+  so no future turn re-derives them.
+- Recaps stay short: tables and decisions, not narrative. Depth goes into
+  commit messages and STATE, which are read only when relevant.

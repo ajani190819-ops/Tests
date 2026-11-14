@@ -106,7 +106,10 @@
 
 ## project-hub/src/parts/refresh_statuses.c
 
-- L1  f RefreshProjectStatuses
+- L5  f DetailAppend
+- L10  f DetailAppendUp
+- L33  f DetailAppendBuild
+- L41  f RefreshProjectStatuses
 
 ## project-hub/src/parts/settings_page.c
 
@@ -133,7 +136,7 @@
 - L160  f HitTestButtons
 - L178  f PaintEmblemBlit
 - L205  f PaintHubWindow
-- L457  f ShowUtilityMenu
+- L467  f ShowUtilityMenu
 - globals: g_frameCache (L202), g_fcW (L203)
 
 ## project-hub/src/parts/version_probe_cache.c
@@ -794,9 +797,9 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2232  f SuiteFolderInstallTests
-- L2745  f AudioSwitcherReachabilityTests
-- L2929  f AudioSwitcherSessionSweepTests
-- L3070  f AppOpenFocusTests
+- L2787  f AudioSwitcherReachabilityTests
+- L2971  f AudioSwitcherSessionSweepTests
+- L3112  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 
