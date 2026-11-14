@@ -115,6 +115,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
 
     SetTimer(g_hwnd, TIMER_FLUSH, 60000, NULL);
     SetTimer(g_hwnd, TIMER_SPIN, 50, NULL);
+    if (LinkDiscoveryTick()) SetWindowTextW(g_hLink, g_link);
     ShowWindow(g_hwnd, SW_SHOW);
     UpdateWindow(g_hwnd);
     SetForegroundWindow(g_hwnd);       /* an explicit Open must take focus */

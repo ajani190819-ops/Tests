@@ -327,6 +327,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             EmbRect(&er);
             InvalidateRect(hwnd, &er, FALSE);
         } else if (wp == TIMER_FLUSH) {
+            if (LinkDiscoveryTick()) {
+                SetWindowTextW(g_hLink, g_link);
+                wcsncpy(g_status, L"Found the agent's live session - link updated.", 255);
+                g_status[255] = L'\0';
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
             if (OutboxCount() > 0 && !g_sending) StartFlush();
         }
         return 0;

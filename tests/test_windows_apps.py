@@ -2382,6 +2382,62 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "a foreign instance that ignores WM_CLOSE keeps its exe locked, "
                       "so the stray copy can never be overwritten")
 
+    def test_agent_notes_discovers_the_live_session_itself(self):
+        """The notes channel used to need a pasted link that went stale.
+
+        The receiver lives in the agent's workspace, whose public address is
+        per-session, so every reset silently broke the app until the owner
+        pasted a new link. The agent now commits .agent/AGENT_LINK.txt each
+        turn and the app polls that one file, adopting a discovered address
+        ONLY when its /health probe answers - so a dead session, a stale
+        file or a half-written commit can never replace a link that works.
+
+        The outbox invariant is the other half of "nothing is lost": an
+        outbox file is deleted only after a confirmed 200, which is why
+        queued notes survive every kind of outage. Both halves get asserted
+        here, plus the honest offline wording that replaced "re-paste your
+        link" - queued-is-not-broken is the whole point.
+        """
+        ha = (ROOT / "agent-notes" / "src" / "parts" / "http_agent.c").read_text(encoding="utf-8")
+        ui = (ROOT / "agent-notes" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        en = (ROOT / "agent-notes" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+
+        self.assertIn(".agent/AGENT_LINK.txt", ha,
+                      "the app no longer polls the committed session link, so the "
+                      "owner is back to pasting addresses by hand")
+        self.assertIn(r"ProjectHub\\config.ini", ha,
+                      "discovery cannot find the active branch without the hub's config")
+        self.assertIn("if (!HealthOk(cand)) return 0;", ha,
+                      "a discovered link is adopted without proving it is live, so a "
+                      "dead session would replace a working link")
+        self.assertIn("LinkDiscoveryTick()", ui,
+                      "the flush timer never runs discovery, so a new session is only "
+                      "found by restarting the app")
+        self.assertIn("LinkDiscoveryTick()", en,
+                      "startup never runs discovery, so an app opened after a new "
+                      "session began waits a full minute for its first tick")
+        self.assertIn("Agent offline", ha,
+                      "the offline status still blames the link instead of saying "
+                      "the note is queued and safe")
+
+        fo = ha[ha.index("static int FlushOutbox("):]
+        fo = fo[:fo.index("\n}\n")]
+        self.assertEqual(fo.count("DeleteFileW(path);"), 1,
+                         "the outbox delete moved - queued notes must survive failures")
+        self.assertLess(fo.index("HttpPostNote(g_link"), fo.index("DeleteFileW(path);"),
+                        "an outbox file is deleted before delivery is confirmed, so a "
+                        "crash mid-flush loses the note")
+
+        import re as _re
+        lk = (ROOT / ".agent" / "AGENT_LINK.txt").read_text(encoding="utf-8").strip()
+        self.assertRegex(lk, r"^https://8765-[a-z0-9]+\.e2b\.app$",
+                         "the committed session link is not a usable receiver address")
+        ex = (ROOT / ".agent" / "rules" / "execution.md").read_text(encoding="utf-8")
+        for needle in ("AGENT_LINK.txt", "INBOX.md", "notes_server.py"):
+            self.assertIn(needle, ex,
+                          "the turn-start protocol no longer mentions %s, so the "
+                          "channel's last mile rots again" % needle)
+
     def test_card_detail_line_survives_hidden_buttons(self):
         """The strip under each card title went blank, and it was our bug.
 

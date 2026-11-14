@@ -92,8 +92,9 @@ static DWORD WINAPI FlushThread(LPVOID unused) {
     } else if (failed > 0) {
         g_lastOk = 0;
         _snwprintf(g_status, 255,
-                   L"Session link not answering - re-paste the current link if it changed  |  %d queued.",
-                   left);
+                   L"Agent offline - %d queued note%s stay safe here and deliver "
+                   L"the moment a session is live.",
+                   left, left == 1 ? L"" : L"s");
     } else {
         g_lastOk = 1;
         wcsncpy(g_status, L"Nothing to send.", 255);
@@ -101,6 +102,92 @@ static DWORD WINAPI FlushThread(LPVOID unused) {
     g_status[255] = L'\0';
     InvalidateRect(g_hwnd, NULL, FALSE);
     return 0;
+}
+
+/* ---------------- session link discovery ----------------
+   The agent commits .agent/AGENT_LINK.txt - the public address of its
+   workspace - to the active branch every turn it works. Polling that one
+   file is what kills the paste-a-new-link ritual: the app adopts the
+   discovered address ONLY when its /health probe answers, so a stale file,
+   a dead session or a half-written commit can never replace a link that
+   works. With no hub config to read the branch from, discovery stays quiet
+   and the saved link keeps doing its job. */
+static int HttpGetText(const wchar_t *url, char *out, int cap) {
+    URL_COMPONENTS uc;
+    wchar_t host[128] = L"", urlPath[256] = L"";
+    ZeroMemory(&uc, sizeof(uc));
+    uc.dwStructSize = sizeof(uc);
+    uc.lpszHostName = host;
+    uc.dwHostNameLength = 127;
+    uc.lpszUrlPath = urlPath;
+    uc.dwUrlPathLength = 255;
+    if (!WinHttpCrackUrl(url, 0, 0, &uc)) return 0;
+    HINTERNET ses = WinHttpOpen(L"AgentNotes/1.1", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!ses) return 0;
+    WinHttpSetTimeouts(ses, 5000, 5000, 8000, 10000);
+    HINTERNET con = WinHttpConnect(ses, host, uc.nPort, 0);
+    if (!con) { WinHttpCloseHandle(ses); return 0; }
+    HINTERNET req = WinHttpOpenRequest(con, L"GET", urlPath, NULL, WINHTTP_NO_REFERER,
+                                       WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                       (uc.nScheme == INTERNET_SCHEME_HTTPS)
+                                           ? WINHTTP_FLAG_SECURE : 0);
+    int len = 0;
+    if (req && WinHttpSendRequest(req, NULL, 0, NULL, 0, 0, 0) &&
+        WinHttpReceiveResponse(req, NULL)) {
+        DWORD code = 0, sz = sizeof(code);
+        WinHttpQueryHeaders(req, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                            NULL, &code, &sz, NULL);
+        if (code == 200) {
+            DWORD rd = 0;
+            while (len < cap - 1 &&
+                   WinHttpReadData(req, out + len, (DWORD)(cap - 1 - len), &rd) && rd > 0)
+                len += (int)rd;
+        }
+    }
+    out[len] = '\0';
+    if (req) WinHttpCloseHandle(req);
+    WinHttpCloseHandle(con);
+    WinHttpCloseHandle(ses);
+    return len;
+}
+
+static int HealthOk(const wchar_t *link) {
+    wchar_t url[320];
+    _snwprintf(url, 319, L"%s/health", link);
+    url[319] = L'\0';
+    char buf[64];
+    return HttpGetText(url, buf, 64) > 0;
+}
+
+int LinkDiscoveryTick(void) {
+    wchar_t cfg[MAX_PATH], branch[64] = L"";
+    GetEnvironmentVariableW(L"LOCALAPPDATA", cfg, MAX_PATH);
+    wcsncat(cfg, L"\\ProjectHub\\config.ini", MAX_PATH - wcslen(cfg) - 1);
+    GetPrivateProfileStringW(L"Update", L"Branch", L"", branch, 63, cfg);
+    if (!branch[0]) return 0;
+    wchar_t url[384];
+    _snwprintf(url, 383,
+               L"https://raw.githubusercontent.com/ajani190819-ops/Tests/%s/"
+               L".agent/AGENT_LINK.txt?t=%llu", branch,
+               (unsigned long long)(GetTickCount64() / 60000ULL));
+    url[383] = L'\0';
+    char buf[512];
+    if (HttpGetText(url, buf, 512) <= 0) return 0;
+    int end = 0;
+    while (buf[end] && buf[end] != '\r' && buf[end] != '\n') end++;
+    buf[end] = '\0';
+    while (end > 0 && (buf[end - 1] == ' ' || buf[end - 1] == '\t')) buf[--end] = '\0';
+    if (end < 8 || strncmp(buf, "http", 4) != 0) return 0;
+    wchar_t cand[256];
+    if (MultiByteToWideChar(CP_UTF8, 0, buf, -1, cand, 256) <= 0) return 0;
+    cand[255] = L'\0';
+    if (wcscmp(cand, g_link) == 0) return 0;
+    if (!HealthOk(cand)) return 0;
+    wcsncpy(g_link, cand, 255);
+    g_link[255] = L'\0';
+    SaveConfig();
+    return 1;
 }
 
 static void StartFlush(void) {
