@@ -1,3 +1,43 @@
+/* Append a live fact to a card's detail line. The strip under each title is
+   the only spare real estate on a card, so it carries what actually changes:
+   how long the app has been running, and which released build the up-to-date
+   verdict was made against. */
+static void DetailAppend(int idx, const wchar_t *tail) {
+    size_t cur = wcslen(g_cards[idx].detail);
+    if (cur < 200) wcsncat(g_cards[idx].detail, tail, 255 - cur);
+}
+
+static void DetailAppendUp(int idx, const wchar_t *lockPath) {
+    HANDLE hf = CreateFileW(lockPath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                            NULL, OPEN_EXISTING, 0, NULL);
+    if (hf == INVALID_HANDLE_VALUE) return;
+    FILETIME ft;
+    BOOL ok = GetFileTime(hf, NULL, NULL, &ft);
+    CloseHandle(hf);
+    if (!ok) return;
+    FILETIME now;
+    GetSystemTimeAsFileTime(&now);
+    ULONGLONG a = ((ULONGLONG)now.dwHighDateTime << 32) | now.dwLowDateTime;
+    ULONGLONG b = ((ULONGLONG)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
+    if (a <= b) return;
+    ULONGLONG mins = (a - b) / 600000000ULL;
+    wchar_t tail[48];
+    if (mins >= 60)
+        _snwprintf(tail, 47, L"  \x00B7  up %llum %02llum", mins / 60, mins % 60);
+    else
+        _snwprintf(tail, 47, L"  \x00B7  up %llum", mins);
+    tail[47] = L'\0';
+    DetailAppend(idx, tail);
+}
+
+static void DetailAppendBuild(int idx, BOOL upToDate) {
+    if (!upToDate || !g_cards[idx].remSha[0]) return;
+    wchar_t tail[48];
+    _snwprintf(tail, 47, L"  \x00B7  build %.7S", g_cards[idx].remSha);
+    tail[47] = L'\0';
+    DetailAppend(idx, tail);
+}
+
 static void RefreshProjectStatuses(void) {
     char remHub[32], remWave[32], remInfill[32];
     wchar_t remHud[128];
@@ -105,6 +145,8 @@ static void RefreshProjectStatuses(void) {
         if (btgUpd && (g_cards[0].badgeKind == BADGE_OK || g_cards[0].badgeKind == BADGE_IDLE))
             g_cards[0].badgeKind = BADGE_WARN;
     }
+    if (btgState == 1) DetailAppendUp(0, btgLock);
+    DetailAppendBuild(0, hasBtg && btgKnown && !btgUpd);
 
     /* 2. Keyboard Lighting */
     wchar_t kblExe[MAX_PATH];
@@ -151,6 +193,8 @@ static void RefreshProjectStatuses(void) {
         g_cards[1].btns[0].hidden = TRUE;
     }
 
+    if (kblState == 1) DetailAppendUp(1, kblLock);
+    DetailAppendBuild(1, hasKbl && kblKnown && !kblUpd);
     if (hasKbl && kblKnown) {
         wcsncat(g_cards[1].badge, kblUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
         if (kblUpd && (g_cards[1].badgeKind == BADGE_OK || g_cards[1].badgeKind == BADGE_IDLE))
@@ -304,6 +348,7 @@ static void RefreshProjectStatuses(void) {
         g_cards[4].btns[0].label = L"Update";
         g_cards[4].btns[0].hidden = TRUE;
     }
+    DetailAppendBuild(4, hasDns && dnsKnown && !dnsUpd);
     if (hasDns && dnsKnown) {
         wcsncat(g_cards[4].badge, dnsUpd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
         if (dnsUpd && (g_cards[4].badgeKind == BADGE_OK || g_cards[4].badgeKind == BADGE_IDLE))

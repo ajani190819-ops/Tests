@@ -343,7 +343,17 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
         DrawTextW(hdc, card->title, -1, &titleRc,
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
-        int firstBtnLeft = (card->btnCount > 0) ? card->btns[0].rc.left : (card->rcCard.right - S(16, dpi));
+        /* Leftmost VISIBLE button bounds the detail line. A hidden button
+           keeps a zero rect, so trusting btns[0] collapsed the detail rect to
+           nothing the moment the dynamic Update button hid itself on an
+           up-to-date card - which is exactly the blank strip under every
+           title the owner reported. */
+        int firstBtnLeft = card->rcCard.right - S(16, dpi);
+        for (int b = 0; b < card->btnCount; b++) {
+            if (card->btns[b].hidden) continue;
+            if (card->btns[b].rc.left > 0 && card->btns[b].rc.left < firstBtnLeft)
+                firstBtnLeft = card->btns[b].rc.left;
+        }
         SelectObject(hdc, g_fontBody);
         SetTextColor(hdc, COL_TEXT_SECONDARY);
         RECT detRc = { textLeft, card->rcCard.top + S(39, dpi), firstBtnLeft - S(14, dpi), card->rcCard.bottom - S(12, dpi) };

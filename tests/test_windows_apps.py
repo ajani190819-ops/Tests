@@ -2382,6 +2382,48 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "a foreign instance that ignores WM_CLOSE keeps its exe locked, "
                       "so the stray copy can never be overwritten")
 
+    def test_card_detail_line_survives_hidden_buttons(self):
+        """The strip under each card title went blank, and it was our bug.
+
+        The detail line's right edge was the leftmost button's left edge - but
+        the leftmost button is the dynamic Update button, which HIDES itself
+        on an up-to-date card, and a hidden button keeps a zero rect. So the
+        detail rect collapsed to right < left and DrawText drew nothing: every
+        up-to-date card lost its summary line. The owner saw dead space and
+        asked for it back, doing something useful.
+
+        It now bounds itself by the leftmost VISIBLE button, and the line
+        carries live facts: how long a running app has been up (from its lock
+        file's write time) and which released build the up-to-date verdict
+        was made against. Appends must come after the state branch that sets
+        the base text, or they land in an empty string and vanish.
+        """
+        ui = (ROOT / "project-hub" / "src" / "parts" / "ui_renderer.c").read_text(encoding="utf-8")
+        rs = (ROOT / "project-hub" / "src" / "parts" / "refresh_statuses.c").read_text(encoding="utf-8")
+
+        self.assertNotIn("int firstBtnLeft = (card->btnCount > 0) ? card->btns[0].rc.left", ui,
+                         "the detail rect is bounded by btns[0] again, whose zero "
+                         "rect blanks the line whenever Update hides itself")
+        self.assertIn("card->btns[b].rc.left > 0", ui,
+                      "the detail rect does not skip hidden buttons' zero rects")
+        for needle in ("DetailAppendUp", "DetailAppendBuild", "build %.7S"):
+            self.assertIn(needle, rs, "the card detail line lost a live fact")
+        self.assertIn("DetailAppendUp(0, btgLock)", rs,
+                      "Bluetooth Guard no longer reports its uptime")
+        self.assertIn("DetailAppendUp(1, kblLock)", rs,
+                      "Keyboard Lighting no longer reports its uptime")
+        self.assertIn("DetailAppendBuild(1, ", rs,
+                      "Keyboard Lighting no longer reports the released build its "
+                      "up-to-date verdict was made against")
+        self.assertIn("DetailAppendBuild(4, ", rs,
+                      "DNS Pilot no longer reports the released build its up-to-date "
+                      "verdict was made against")
+        self.assertLess(rs.index("Phone audio protection"), rs.index("DetailAppendUp(0, btgLock)"),
+                        "the uptime append runs before the base detail text is "
+                        "set, so it is written into an empty string and lost")
+        self.assertLess(rs.index("ROG Strix G16 RGB lighting"), rs.index("DetailAppendUp(1, kblLock)"),
+                        "the KBL uptime append runs before its base detail text")
+
     def test_tooling_cache_registry_and_report(self):
         """The three testing tools must exist and keep their promises.
 
