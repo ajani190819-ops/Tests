@@ -268,12 +268,15 @@ public final class SpatialHudConfig implements ConfigData {
 	public boolean horizontalPanelOcclusion = true;
 
 	/**
-	 * Body exclusion, in first and third person. On, the panel ignores blocks and
-	 * mobs, and is drawn over your own body, hand, armour and particles, so it stays
-	 * visible. Applies only while occlusion is on. Off, blocks and mobs hide the
-	 * panel where they cover it, and in first person your hand can cover it too.
-	 * Note: this is broader than the body alone. The depth buffer cannot exempt
-	 * just the player's model.
+	 * Body exclusion, in third person only. On, while the camera is in third
+	 * person the panel ignores blocks and mobs and is drawn over your own body,
+	 * hand, armour and particles, so your model never hides it. In first person
+	 * this option changes nothing: Occlusion alone decides whether the world hides
+	 * the panel, so turning Occlusion on really does occlude it. An earlier
+	 * revision applied the exception in first person as well, which left Occlusion
+	 * apparently doing nothing at the default settings. Applies only while
+	 * occlusion is on. Note: in third person this is broader than the body alone;
+	 * the depth buffer cannot exempt just the player's model.
 	 */
 	@ConfigEntry.Category("panel")
 	@ConfigEntry.Gui.Tooltip

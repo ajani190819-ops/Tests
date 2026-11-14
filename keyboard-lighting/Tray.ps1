@@ -137,6 +137,61 @@ function Stop-AllInstances([switch]$AskEngineFirst) {
     }
 }
 
+# The released marker names the last commit the agent finished. Everything
+# this script pulls - the background script refresh and the -Restart sync -
+# uses that commit and never the branch tip: half-finished work must never
+# reach a running machine, and the owner must not be nudged mid-task. With
+# no marker readable (offline, a branch that predates it) fall back to the
+# base URL, which is today's behaviour.
+$RootBase = $Base -replace '/keyboard-lighting/?$', ''
+
+function Read-ReleasedRef {
+    try {
+        $stamp = [int][double](Get-Date -UFormat %s)
+        $t = (Invoke-WebRequest "$RootBase/.agent/RELEASED?t=$stamp" -UseBasicParsing -TimeoutSec 15).Content
+        if ($t -match '(?m)^commit=([0-9a-f]{7,40})') { return $Matches[1] }
+    } catch { }
+    return $null
+}
+
+function Get-UpdateBase {
+    $rel = Read-ReleasedRef
+    if ($rel) { return "$RootBase/$rel/keyboard-lighting" }
+    return $Base
+}
+
+function Sync-FromBranch {
+    # Restart must mean "the current released version", not "whatever is on
+    # disk". The EXE only ever changed when Setup ran, so Restart.bat used to
+    # faithfully relaunch an old build while the scripts around it were new.
+    # Pull the released EXE and scripts first; if the network is down, log
+    # and restart anyway with what is here - recovery must never hard-fail.
+    Log 'syncing the released build before restart'
+    $ub = Get-UpdateBase
+    foreach ($f in @('KeyboardLighting.exe','Aura-Background.ps1','Tray.ps1','ui_controls.cs.txt','app.ico','Setup.ps1','Setup.bat','Restart.bat','Zones.ps1','Zones.bat','MyEffect.ps1','README.md')) {
+        try {
+            $tmp = Join-Path $env:TEMP ('kblrs_' + $f)
+            Invoke-WebRequest "$ub/$f" -OutFile $tmp -UseBasicParsing -TimeoutSec 30
+            $head = ''
+            try { $head = [string](Get-Content $tmp -TotalCount 1 -ErrorAction SilentlyContinue) } catch { }
+            if ((Get-Item $tmp).Length -lt 16 -or $head -match '(?i)^\s*<(?:!doctype|html)') {
+                Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+                continue
+            }
+            $dest = Join-Path $Here $f
+            $new = (Get-FileHash $tmp -Algorithm SHA256).Hash
+            $old = ''
+            if (Test-Path $dest) { $old = (Get-FileHash $dest -Algorithm SHA256).Hash }
+            if ($new -ne $old) {
+                Copy-Item $tmp $dest -Force
+                Unblock-File $dest -ErrorAction SilentlyContinue
+                Log ('restart sync updated ' + $f)
+            }
+            Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+        } catch { Log ('restart sync skipped ' + $f + ': ' + $_.Exception.Message) }
+    }
+}
+
 if ($Stop) {
     Log 'stopping running instance via -Stop'
     Stop-AllInstances -AskEngineFirst
@@ -146,6 +201,7 @@ if ($Stop) {
 if ($Restart) {
     Log 'recovering/restarting instance via -Restart'
     Stop-AllInstances -AskEngineFirst
+    Sync-FromBranch
 }
 
 function Test-AlreadyRunning {
@@ -670,7 +726,7 @@ function Start-UpdateJob([bool]$Manual) {
             } catch { }
         }
         return $hit
-    } -ArgumentList $Base, $Here
+    } -ArgumentList (Get-UpdateBase), $Here
 }
 
 # ---------------------------------------------------------------- custom controls

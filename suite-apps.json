@@ -8,7 +8,7 @@
       "dir": "BluetoothGuard",
       "icon": "bluetooth-guard/btguard.ico",
       "shortcut": "Bluetooth Guard",
-      "buttons": "open:Open:68,update:Update:74,stop:Stop:62,folder:Folder:68",
+      "buttons": "update:Update:74,open:Open:68,folder:Folder:68,stop:Stop:62",
       "state": "btguard",
       "worker": "btguard"
     },
@@ -20,7 +20,7 @@
       "dir": "KeyboardLighting",
       "icon": "keyboard-lighting/app.ico",
       "shortcut": "Keyboard Lighting",
-      "buttons": "open:Open:68,unfreeze:Unfreeze:84,update:Update:74,folder:Folder:68",
+      "buttons": "update:Update:74,open:Open:68,folder:Folder:68,unfreeze:Unfreeze:84",
       "state": "kbl",
       "worker": "kbl"
     },
@@ -32,7 +32,7 @@
       "dir": "SpatialHudUpdater",
       "icon": "docs/brand/spatial-hud.ico",
       "shortcut": "Spatial HUD Updater",
-      "buttons": "updatemod:Update Mod:98,disable:Disable:78,modsdir:Mods Dir:84,remove:Remove:74",
+      "buttons": "updatemod:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
       "state": "hud",
       "worker": "hud"
     },
@@ -44,7 +44,7 @@
       "dir": "OrcaPlugins",
       "icon": "docs/brand/orca-plugins.ico",
       "shortcut": "Orca Plugins",
-      "buttons": "update:Update:78,branch:Branch:78,folder:Folder:68",
+      "buttons": "update:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
       "state": "orca",
       "worker": "orca"
     },
@@ -56,7 +56,7 @@
       "dir": "DnsPilot",
       "icon": "dns-pilot/dnspilot.ico",
       "shortcut": "DNS Pilot",
-      "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
+      "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
       "state": "dnspilot",
       "worker": "dnspilot"
     },
@@ -68,21 +68,9 @@
       "dir": "AgentNotes",
       "icon": "agent-notes/agent-notes.ico",
       "shortcut": "Agent Notes",
-      "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
+      "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
       "state": "agentnotes",
       "worker": "agentnotes"
-    },
-    {
-      "id": "clipboardmemory",
-      "title": "Clipboard Memory",
-      "blurb": "Disk-persisted clipboard history",
-      "exe": "clipboard-memory/ClipboardMemory.exe",
-      "dir": "ClipboardMemory",
-      "icon": "clipboard-memory/clipboard-memory.ico",
-      "shortcut": "Clipboard Memory",
-      "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
-      "state": "clipboardmemory",
-      "worker": "clipboardmemory"
     },
     {
       "id": "audioswitcher",
@@ -92,7 +80,7 @@
       "dir": "AudioSwitcher",
       "icon": "audio-switcher/audio-switcher.ico",
       "shortcut": "Audio Switcher",
-      "buttons": "open:Open:68,update:Update:74,folder:Folder:68",
+      "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
       "state": "audioswitcher",
       "worker": "audioswitcher"
     }

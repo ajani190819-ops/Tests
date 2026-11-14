@@ -6,342 +6,631 @@
 
 ## project-hub/src/project_hub.c
 
-- L267  f GetWinDpi
-- L282  f S
-- L284  f ApplyModernWindowFrame
-- L303  f RebuildFontsAndIcons
-- L346  f EmbRasterize
-- L423  f EmbCacheEnsure
-- L438  f EmbSpinDraw
-- L495  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
-- L500  f FileExistsW
-- L505  f LocalSizeOf
-- L515  f FileHealthyW
-- L519  f DirExistsW
-- L524  f EnsureDirTree
-- L546  f SetCheckPhase
-- L551  f SetFooterStatus
-- L560  f ReadTextFileUtf8
-- L576  f WriteBinaryFileAtomic
-- L623  f HttpSession
-- L633  f HttpConnect
-- L646  f HttpHeadSize
-- L667  f HttpGetBufferEx
-- L749  f HttpGetBuffer
-- L767  f HttpGetCached
-- L828  f DownloadRawRepoFile
-- L846  f BranchCfgPath
-- L851  f LoadBranchCfg
-- L859  f SaveBranchCfg
-- L873  f LoadAppsCfg
-- L880  f SaveAppsCfg
-- L887  f EnsureActiveBranch
-- L944  f ExtractQuotedAfter
-- L962  f VerNewer
-- L975  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
-- L1005  f InitAllPaths
-- L1159  f CheckPidLockStatus
-- L1191  f CreateShortcutLink
-- L1224  f LoadIconFilePx
-- L1237  f LoadCardIcon
-- L1260  f PoolAdd
-- L1286  f JsonGet
-- L1415  f BuiltInSlot
-- L1421  f BuiltInBtnId
-- L1449  f FillBuiltInDef
-- L1566  f AddCatalogCard
-- L1702  f RestoreBuiltInCardText
-- L1749  f RebuildExtraCards
-- L1783  f WorkerInstallGeneric
-- L1819  f HandleVerb
-- L1842  f InitCardDefinitions
-- L1941  f RefreshProjectStatuses
-- L2366  f WorkerCheckRemote
-- L2507  f StopProcessFromLock
-- L2520  f WorkerInstallBluetoothGuard
-- L2581  f WorkerInstallNotes
-- L2621  f WorkerInstallDnsPilot
-- L2685  f WorkerInstallKeyboardLighting
-- L2770  f WorkerInstallSpatialHud
-- L2832  f WorkerInstallOrcaPlugins
-- L2929  f WorkerSelfUpdateHub
-- L2986  f EnqueueTask
-- L3041  f RestartKeyboardLightingCleanly
-- L3060  f PromptTextInput
-- L3064  f NormalizeDirPath
-- L3080  f SaveModsDirFromInput
-- L3102  f PickSpatialHudModsFolder
-- L3145  f FillCanvasRect
-- L3158  f SmoothRoundRect
-- L3216  f DrawActionBtn
-- L3238  f ComputeLayout
-- L3287  f HitTestButtons
-- L3305  f PaintEmblemBlit
-- L3332  f PaintHubWindow
-- L3584  f ShowUtilityMenu
-- L3598  S download-branch picker
-- L3600  f FetchBranchNames  — ---- download-branch picker -------------------------------------------
-- L3625  f EnsureBranchInMenu
-- L3690  f PromptTextInput
-- L3754  f PromptBranchName
-- L3759  f SetActiveBranch
-- L3777  f ShowBranchMenu
-- L3813  f HandleActionCommand
-- globals: g_hInst (L196), g_hwnd (L197), g_fontHero (L198), g_fontSub (L199), g_fontTitle (L200), g_fontBody (L201), g_fontBtn (L202), g_fontBadge (L203), g_appIcon (L204), g_hdrEmblem (L205), g_cardIcons (L206), g_showEvent (L207), g_hMutex (L208), g_cs (L209), g_topBtns (L211), g_rcEmblem (L217), g_cards (L219), g_cardCount (L220), g_dynIdx (L221), g_hoverId (L222), g_scrollY (L223), g_maxScrollY (L224), g_exePath (L226), g_exeDir (L227), g_localApp (L228), g_roamApp (L229), g_suiteDir (L230), g_hubCfgDir (L231), g_btgDir (L232), g_btgExtraExe (L233), g_kblDir (L234), g_dnsDir (L235), g_notesDir (L236), g_audioSwitcherDir (L237), g_clipboardMemoryDir (L238), g_modsDir (L239), g_orcaBatDir (L240), g_activeBranch (L243), g_branchMenuNames (L244), g_branchMenuN (L245), g_branchPromptOut (L246), g_remHubVer (L247), g_remWaveVer (L248), g_remInfillVer (L249), g_remHudName (L250), g_remHudPath (L251), g_remHudSize (L252), g_statusMsg (L253), g_progressVal (L254), g_hubUpdAvail (L255), g_taskQueue (L258), g_qHead (L259), g_qTail (L260), g_qSem (L261), g_running (L262), g_embCache (L421), g_checkActive (L539), g_remBtgSize (L540), g_rcFooterDot (L541), g_httpSess (L610), g_httpConns (L616), g_hcache (L765), g_hudDisabled (L870), g_orcaDisabled (L871), g_catalogJson (L1217), g_strPool (L1257), g_strPoolUsed (L1258), g_frameCache (L3329), g_fcW (L3330)
+- L282  f GetWinDpi
+- L297  f S
+- L299  f ApplyModernWindowFrame
+- L318  f RebuildFontsAndIcons
+- globals: g_hInst (L197), g_hwnd (L198), g_fontHero (L199), g_fontSub (L200), g_fontTitle (L201), g_fontBody (L202), g_fontBtn (L203), g_fontBadge (L204), g_appIcon (L205), g_hdrEmblem (L206), g_cardIcons (L207), g_showEvent (L208), g_hMutex (L209), g_cs (L210), g_topBtns (L212), g_rcEmblem (L219), g_cards (L221), g_cardCount (L222), g_dynIdx (L223), g_hoverId (L224), g_scrollY (L225), g_maxScrollY (L226), g_exePath (L228), g_exeDir (L229), g_localApp (L230), g_probeRef (L234), g_roamApp (L235), g_suiteDir (L236), g_hubCfgDir (L237), g_btgDir (L238), g_btgExtraExe (L239), g_kblDir (L240), g_dnsDir (L241), g_notesDir (L242), g_audioSwitcherDir (L243), g_modsDir (L244), g_orcaBatDir (L245), g_suiteHubExe (L253), g_mirrorDirs (L254), g_mirrorCount (L255), g_activeBranch (L258), g_branchMenuNames (L259), g_branchMenuN (L260), g_branchPromptOut (L261), g_remHubVer (L262), g_remWaveVer (L263), g_remInfillVer (L264), g_remHudName (L265), g_remHudPath (L266), g_remHudSize (L267), g_statusMsg (L268), g_progressVal (L269), g_hubUpdAvail (L270), g_taskQueue (L273), g_qHead (L274), g_qTail (L275), g_qSem (L276), g_running (L277)
+
+## project-hub/src/parts/branch_picker_entry.c
+
+- L1  S download-branch picker
+- L3  f FetchBranchNames  — ---- download-branch picker -------------------------------------------
+- L28  f EnsureBranchInMenu
+- L93  f PromptTextInput
+- L157  f PromptBranchName
+- L162  f SetActiveBranch
+- L180  f ShowBranchMenu
+- L216  f HandleActionCommand
+
+## project-hub/src/parts/builtin_card_text.c
+
+- L33  f RestoreBuiltInCardText
+- L78  f RebuildExtraCards
+
+## project-hub/src/parts/card_defs_verbs.c
+
+- L1  f WorkerInstallGeneric
+- L50  f HandleVerb
+- L73  f InitCardDefinitions
+
+## project-hub/src/parts/catalog_icons_json.c
+
+- L13  f LoadIconFilePx
+- L26  f LoadCardIcon
+- L49  f PoolAdd
+- L75  f JsonGet
+- L204  f BuiltInSlot
+- L210  f BuiltInBtnId
+- L237  f FillBuiltInDef
+- L343  f AddCatalogCard
+- globals: g_catalogJson (L6), g_strPool (L46), g_strPoolUsed (L47)
+
+## project-hub/src/parts/content_identity.c
+
+- L10  f Sha1BlobHexW  — ---- content identity ----------------------------------------------------
+- L57  f TreeShaFor  — The blob hash of one path inside a recursive trees response.
+- L78  f RemoteDiffers  — Exact when the remote blob hash is known; the old size comparison remains
+- L91  f DirExistsW
+- L96  f EnsureDirTree
+- L122  f SetCheckPhase
+- L127  f SetFooterStatus
+- L136  f ReadTextFileUtf8
+- L152  f WriteBinaryFileAtomic
+- globals: g_checkActive (L111), g_remBtgSize (L112), g_remBtgSha (L115), g_rcFooterDot (L117)
+
+## project-hub/src/parts/emblem.c
+
+- L8  f EmbRasterize
+- L85  f EmbCacheEnsure
+- L100  f EmbSpinDraw
+- L157  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
+- L162  f FileExistsW
+- L167  f LocalSizeOf
+- L177  f FileHealthyW
+- globals: g_embCache (L83)
+
+## project-hub/src/parts/enqueue_restart_prompts.c
+
+- L1  f EnqueueTask
+- L64  f RestartKeyboardLightingCleanly
+- L83  f PromptTextInput
+- L87  f NormalizeDirPath
+- L103  f SaveModsDirFromInput
+- L125  f PickSpatialHudModsFolder
+
+## project-hub/src/parts/http_layer.c
+
+- L19  f HttpSession
+- L29  f HttpConnect
+- L42  f HttpHeadSize
+- L63  f HttpGetBufferEx
+- L145  f HttpGetBuffer
+- globals: g_httpSess (L6), g_httpConns (L12)
+
+## project-hub/src/parts/install_folder.c
+
+- L16  f SuiteAppPath
+- L23  f ShortDirForUi
+- L34  f AppendInstallFolder
+- L42  f AddMirrorDir
+- L55  f MirrorFileEverywhere
+- L86  f EnsureProbeRef
+- L96  f InstallRepoFileEverywhere  — One download, every copy: the suite folder plus any stray copy on disk.
+- L119  f StopForeignInstance  — A tray app started from a stray copy keeps running that stray build, and its
+- L147  f InitAllPaths
+- L350  f CheckPidLockStatus
+- L382  f CreateShortcutLink
+- L415  f RemoveLegacyDesktopShortcuts
+- L436  f RepointDesktopShortcutIfPresent
+
+## project-hub/src/parts/refresh_statuses.c
+
+- L5  f DetailAppend
+- L10  f DetailAppendUp
+- L33  f DetailAppendBuild
+- L41  f RefreshProjectStatuses
+
+## project-hub/src/parts/settings_page.c
+
+- L43  f SetKblPath
+- L48  f SetDnsCfgPath
+- L53  f SetStatusText
+- L58  f HoldModeCurrent  — 0 = tap, 1 = latch, 2 = burst; missing or unreadable means the default.
+- L72  f ApplyHoldMode
+- L81  f SmoothCurrent
+- L102  f ApplySmooth
+- L132  f ModNamesW
+- L140  f KeyNameW
+- L150  f ApplyDns
+- L163  f SetCtl
+- L204  f OpenSettingsWindow
+- globals: g_setHwnd (L29), g_setHold (L30), g_setSmooth (L31), g_setDnsAuto (L32), g_setDnsInt (L33), g_setStatus (L34)
+
+## project-hub/src/parts/ui_renderer.c
+
+- L18  f FillCanvasRect
+- L31  f SmoothRoundRect
+- L89  f DrawActionBtn
+- L111  f ComputeLayout
+- L160  f HitTestButtons
+- L178  f PaintEmblemBlit
+- L205  f PaintHubWindow
+- L467  f ShowUtilityMenu
+- globals: g_frameCache (L202), g_fcW (L203)
+
+## project-hub/src/parts/version_probe_cache.c
+
+- L15  f HttpGetCached
+- L78  f DownloadRepoBytes
+- L89  f DownloadRawRepoFile
+- L107  f BranchCfgPath
+- L112  f LoadBranchCfg
+- L120  f SaveBranchCfg
+- L134  f LoadAppsCfg
+- L143  f SaveAppsCfg
+- L152  f EnsureActiveBranch
+- L214  f ExtractQuotedAfter
+- L232  f VerNewer
+- L245  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
+- globals: g_hcache (L13), g_hudDisabled (L131), g_orcaDisabled (L132)
+
+## project-hub/src/parts/workers_install.c
+
+- L1  f WorkerInstallBluetoothGuard
+- L65  f WorkerInstallNotes
+- L107  f WorkerInstallDnsPilot
+- L173  f WorkerInstallKeyboardLighting
+- L267  f WorkerInstallSpatialHud
+- L329  f WorkerInstallOrcaPlugins
+- L430  f WorkerSelfUpdateHub
+
+## project-hub/src/parts/workers_remote.c
+
+- L4  f ExtractLineAfter
+- L14  f WorkerCheckRemote
+- L239  f StopProcessFromLock
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
-- L179  f ArmFastBurstWindow
-- L186  f BoostProcessAndShutdownPriority  — Maximize CPU scheduling priority & disable Windows 11 EcoQoS throttling so boot/wake reaction is ins
-- L207  f RegisterBluetoothNotifications  — Subscribe to live kernel Bluetooth HCI / radio interface notifications for <1ms connect detection
-- L242  f UnregisterBluetoothNotifications
-- L257  f GetWinDpi
-- L272  f S
-- L274  f ApplyModernWindowFrame
-- L290  f InitBluetoothApis
-- L311  f HasConnectedBefore
-- L334  f FormatMac
-- L342  f FormatCompactHex
-- L347  f ContainsCI
-- L357  f CheckForegroundManualIntent  — Detect when the user is actively clicking inside Windows Settings or Windows 11 Quick Settings flyou
-- L377  f ClassifyDevice
-- L400  f EnsureProfilesEnabled  — Keep Windows Bluetooth service profiles ENABLED so manual Connect in Windows Settings ALWAYS works!
-- L420  f EndpointMatchesName  — Match endpoint adapter friendly name (covers HFP / LE Audio when PnP ID lacks classic hex MAC)
-- L442  f TriggerBtAudioKsProperty  — Native Windows KSPROPERTY_ONESHOT_RECONNECT / DISCONNECT — exact API used by Windows 11 Settings!
-- L515  f DoDisconnectOnly  — Disconnect active link cleanly WITHOUT disabling Bluetooth profiles!
-- L540  f DoConnectNow  — Actively connect device right now!
-- L545  f InitPaths
-- L555  f WriteHeartbeat
-- L576  f IsAutostartEnabled
-- L589  f RunHiddenCmd
-- L608  f SetAutostart  — Install both:
-- L692  f SaveRules
-- L711  f LoadRules
-- L750  f EnqueueWork
-- L766  f PollPairedDevices
-- L863  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
-- L927  f FillCanvasRect
-- L940  f SmoothRoundRect
-- L1005  f EmbRasterize
-- L1082  f EmbCacheEnsure
-- L1097  f EmbSpinDraw
-- L1154  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
-- L1159  f DrawStatusTag
-- L1185  f DrawActionBtn  — style: 0=soft secondary, 1=primary cobalt, 2=coral disconnect, 3=primary connect
-- L1208  f DrawPillToggle  — Smooth rounded pill switch control with label + sliding circular knob
-- L1236  f AddHit
-- L1245  f RenderWindow
-- L1492  f HandleHitClick
-- L1562  f ShowTrayMenu
-- globals: g_hwnd (L144), g_appIcon (L145), g_devNotifyIface (L146), g_devNotifyRadio (L147), g_radioNotifyHandle (L148), g_nid (L149), g_quitting (L150), g_guardOn (L151), g_autostart (L152), g_autostartExplicit (L153), g_radioOn (L154), g_trayHinted (L155), g_showEvent (L156), g_lock (L157), g_devices (L159), g_devCount (L160), g_hits (L162), g_hitCount (L163), g_hoverIdx (L164), g_scrollY (L165), g_contentH (L166), g_fastBurstUntil (L168), g_manualGraceUntil (L169), g_queue (L248), g_qHead (L249), g_qTail (L250), g_qSem (L251), g_workerRun (L252), g_cfgDir (L253), g_rulesPath (L254), g_lockPath (L255), g_embCache (L1080)
+- L182  f ArmFastBurstWindow
+- globals: g_hwnd (L147), g_appIcon (L148), g_devNotifyIface (L149), g_devNotifyRadio (L150), g_radioNotifyHandle (L151), g_nid (L152), g_quitting (L153), g_guardOn (L154), g_autostart (L155), g_autostartExplicit (L156), g_radioOn (L157), g_trayHinted (L158), g_showEvent (L159), g_lock (L160), g_devices (L162), g_devCount (L163), g_hits (L165), g_hitCount (L166), g_hoverIdx (L167), g_scrollY (L168), g_contentH (L169), g_fastBurstUntil (L171), g_manualGraceUntil (L172)
+
+## bluetooth-guard/src/parts/autostart_rules.c
+
+- L5  f SetAutostart  — Install both:
+- L89  f SaveRules
+- L108  f LoadRules
+- L147  f EnqueueWork
+- L163  f PollPairedDevices
+- L260  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
+
+## bluetooth-guard/src/parts/bt_actions.c
+
+- L2  f TriggerBtAudioKsProperty  — Native Windows KSPROPERTY_ONESHOT_RECONNECT / DISCONNECT — exact API used by Windows 11 Settings!
+- L75  f DoDisconnectOnly  — Disconnect active link cleanly WITHOUT disabling Bluetooth profiles!
+- L100  f DoConnectNow  — Actively connect device right now!
+- L109  f DoForgetDevice
+- L116  f InitPaths
+- L126  f WriteHeartbeat
+- L147  f IsAutostartEnabled
+- L160  f RunHiddenCmd
+
+## bluetooth-guard/src/parts/device_classify.c
+
+- L2  f CheckForegroundManualIntent  — Detect when the user is actively clicking inside Windows Settings or Windows 11 Quick Settings flyou
+- L22  f ClassifyDevice
+- L45  f EnsureProfilesEnabled  — Keep Windows Bluetooth service profiles ENABLED so manual Connect in Windows Settings ALWAYS works!
+- L65  f EndpointMatchesName  — Match endpoint adapter friendly name (covers HFP / LE Audio when PnP ID lacks classic hex MAC)
+
+## bluetooth-guard/src/parts/device_history.c
+
+- L3  f IsServiceGuidSubkey
+- L22  f HasConnectedBefore
+- L52  f FormatMac
+- L60  f FormatCompactHex
+- L65  f ContainsCI
+
+## bluetooth-guard/src/parts/emblem.c
+
+- L8  f EmbRasterize
+- L85  f EmbCacheEnsure
+- L100  f EmbSpinDraw
+- globals: g_embCache (L83)
+
+## bluetooth-guard/src/parts/system_init.c
+
+- L2  f BoostProcessAndShutdownPriority  — Maximize CPU scheduling priority & disable Windows 11 EcoQoS throttling so boot/wake reaction is ins
+- L23  f RegisterBluetoothNotifications  — Subscribe to live kernel Bluetooth HCI / radio interface notifications for <1ms connect detection
+- L58  f UnregisterBluetoothNotifications
+- L73  f GetWinDpi
+- L88  f S
+- L90  f ApplyModernWindowFrame
+- L106  f InitBluetoothApis
+- globals: g_queue (L64), g_qHead (L65), g_qTail (L66), g_qSem (L67), g_workerRun (L68), g_cfgDir (L69), g_rulesPath (L70), g_lockPath (L71)
+
+## bluetooth-guard/src/parts/ui_controls.c
+
+- L3  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
+- L8  f DrawStatusTag
+- L34  f DrawActionBtn  — style: 0=soft secondary, 1=primary cobalt, 2=coral disconnect, 3=primary connect
+- L57  f DrawPillToggle  — Smooth rounded pill switch control with label + sliding circular knob
+- L85  f AddHit
+
+## bluetooth-guard/src/parts/ui_renderer.c
+
+- L17  f FillCanvasRect
+- L30  f SmoothRoundRect
+
+## bluetooth-guard/src/parts/window_entry.c
+
+- L1  f RenderWindow
+- L254  f HandleHitClick
+- L342  f ShowTrayMenu
 
 ## keyboard-lighting/src/keyboard_lighting.c
 
-- L239  f GetWinDpi
-- L254  f S
-- L256  f ApplyModernWindowFrame
-- L274  f FileExistsW
-- L279  f EnsureDirTree
-- L294  f CheckIsAdmin
-- L306  f ReadFileUtf8
-- L322  f WriteAtomicUtf8
-- L338  f ParseHexColor
-- L347  f FormatHexColor
-- L351  f FindEffectIndex
-- L361  f CurGroup
-- L365  f InitDefaultCfg
-- L413  f PresetPath
-- L417  f ParseHexW
-- L434  f SaveGroupPreset
-- L459  f LoadGroupPreset
-- L495  f LoadPresetIndex
-- L511  f SavePresetSlot
-- L529  f ApplyPresetSlot
-- L549  f DeletePresetSlot
-- L565  f OpenPatternPopup  — Pattern picker: the same native popup menu the effect list uses.
-- L596  f StepMasterBrightness  — ---- global brightness hotkeys --------------------------------------
-- L612  f RegisterBrightnessHotkeys
-- L626  f JsonVal  — Lightweight parser preserving existing user panel.json settings
-- L645  f JsonBool
-- L653  f JsonInt
-- L659  f JsonStr
-- L668  f ParseGroupJson
-- L724  f LoadPanelCfg
-- L752  f FormatGroupPanelJson
-- L786  f SavePanelCfg
-- L817  f WriteLiveBrightness
-- L835  f PollFnBrightness
-- L864  f HelpForHit  — One-line plain-English explanation for every control, shown in the footer
-- L901  f FormatThemeBlock
-- L935  f WriteThemeJson
-- L952  f SyncLinkedZone
-- L959  f WriteHeartbeat
-- L975  f IsEngineAlive  — ============================================================================
-- L985  f KillPidFromFile
-- L998  f StopEngine
-- L1014  f DownloadRepoFileWinHttp
-- L1097  f StartEngine
-- L1196  f TurnAllLightsOff
-- L1225  f MarkAutostartOff
-- L1238  f AutostartMarkedOff
-- L1245  f TaskExists
-- L1266  f QueryAutostart
-- L1271  f SetKblAutostart
-- L1318  f ScheduleLiveApply
-- L1330  f FlushLiveApply
-- L1355  f ParseLayoutTxt
-- L1435  f HasReleaseSrc
-- L1439  f HoldTokenWrite
-- L1447  f HoldPump  — One paced token per interval while the gesture is live.
-- L1462  f PressSignal
-- L1474  f ReleaseSignal
-- L1484  f OnScanEvent
-- L1503  f OnRawHid
-- L1529  f LearnFromRing
-- L1589  f WatchBrightTokens
-- L1619  f InitRawInput
-- L1652  f OnRawInputMsg
-- L1682  f OsdDrawSunFallback
-- L1813  f OsdCreate
-- L1828  f OsdShow
-- L1845  f PollLayoutTxt
-- L1855  f PollLivePreviewFrame  — Read live lamp frame from Aura-Background.ps1 or synthesize accurate live palette preview
-- L1953  f FillCanvasRect
-- L1966  f SmoothRoundRect
-- L2013  f SmoothCircle
-- L2051  f SmoothRingTrack  — Thin annulus: the track that makes the Light Bar read as one closed loop.
-- L2086  f EmbRasterize
-- L2163  f EmbCacheEnsure
-- L2178  f EmbSpinDraw
-- L2233  f DrawSuiteEmblemIcon
-- L2238  f AddHit
-- L2247  f DrawSuiteBtn
-- L2260  f DrawPillSwitch
-- L2285  f DrawSmoothSlider
-- L2318  f RenderKblWindow
-- L2418  S CARD 1: Live ROG Strix G16 Preview + Master Brightness
-- L2513  S CARD 2: Zone Tabs + Effect Picker
-- L2567  S CARD 3: Interactive Colour Swatches + Band Width Bars
-- L2622  S CARD 4: Speed, Zone Brightness & Motion Switches
-- L2738  f ApplySliderDrag  — ============================================================================
-- L2766  f OpenEffectPopup
-- L2816  f PickSwatchColor
-- L2850  f RelaunchElevated
-- L2871  f EnsureLogonTask
-- L2896  f HandleHitAction
-- L2988  f ShowTrayContextMenu
-- L3244  f InitKblPaths
-- globals: g_hwnd (L178), g_appIcon (L179), g_nid (L180), g_showEvent (L181), g_engineProc (L182), g_enginePid (L183), g_isAdmin (L184), g_autostart (L185), g_wantOff (L186), g_quitting (L187), g_trayHinted (L188), g_downloading (L189), g_cfg (L191), g_tab (L192), g_hits (L193), g_hitCount (L194), g_hoverIdx (L195), g_dragKind (L196), g_dragIdx (L197), g_dragRect (L198), g_scrollY (L199), g_contentH (L200), g_applyPending (L201), g_applyAtTick (L202), g_liveCols (L205), g_liveKbdN (L206), g_liveBarN (L207), g_hasLiveFrame (L208), g_lastFrameTick (L209), g_toastText (L212), g_toastAt (L213), g_lastFnPoll (L214), g_exePath (L217), g_exeDir (L218), g_cfgDir (L219), g_panelPath (L220), g_themePath (L221), g_livePath (L222), g_framePath (L223), g_layoutPath (L224), g_lockPath (L225), g_showPath (L226), g_engPidPath (L227), g_stopPath (L228), g_brightUpPath (L229), g_brightDownPath (L230), g_holdModePath (L231), g_engineScript (L232), g_zonesBat (L233), g_statusText (L234), g_presetName (L409), g_presetUsed (L410), g_presetIdx (L411), g_barOrder (L1350), g_barQ (L1351), g_barLayoutN (L1352), g_layoutReadAt (L1353), g_keyRing (L1415), g_keyRingHead (L1416), g_hidRing (L1418), g_hidRingHead (L1419), g_kbHook (L1420), g_scanBound (L1421), g_hidCode (L1422), g_scanArmed (L1423), g_hidDown (L1424), g_holdOn (L1425), g_hidRelSeen (L1426), g_sigAt (L1427), g_scanNext (L1428), g_learnCand (L1429), g_learnN (L1430), g_learnHid (L1431), g_learnHidN (L1432), g_seenTok (L1433), g_osdHwnd (L1679), g_osdPct (L1680), g_embCache (L2161), g_pickOrig (L2786), g_pickLast (L2787), g_pickIdx (L2788), g_pickLive (L2789)
+- L243  f GetWinDpi
+- L258  f S
+- L260  f ApplyModernWindowFrame
+- L278  f FileExistsW
+- L283  f EnsureDirTree
+- L298  f CheckIsAdmin
+- L310  f ReadFileUtf8
+- L326  f WriteAtomicUtf8
+- L342  f ParseHexColor
+- L351  f FormatHexColor
+- L355  f FindEffectIndex
+- L365  f CurGroup
+- L369  f InitDefaultCfg
+- globals: g_hwnd (L182), g_appIcon (L183), g_nid (L184), g_showEvent (L185), g_engineProc (L186), g_enginePid (L187), g_isAdmin (L188), g_autostart (L189), g_wantOff (L190), g_quitting (L191), g_trayHinted (L192), g_downloading (L193), g_cfg (L195), g_tab (L196), g_hits (L197), g_hitCount (L198), g_hoverIdx (L199), g_dragKind (L200), g_dragIdx (L201), g_dragRect (L202), g_scrollY (L203), g_contentH (L204), g_applyPending (L205), g_applyAtTick (L206), g_liveCols (L209), g_liveKbdN (L210), g_liveBarN (L211), g_hasLiveFrame (L212), g_lastFrameTick (L213), g_toastText (L216), g_toastAt (L217), g_lastFnPoll (L218), g_exePath (L221), g_exeDir (L222), g_cfgDir (L223), g_panelPath (L224), g_themePath (L225), g_livePath (L226), g_framePath (L227), g_layoutPath (L228), g_lockPath (L229), g_showPath (L230), g_engPidPath (L231), g_stopPath (L232), g_brightUpPath (L233), g_brightDownPath (L234), g_holdModePath (L235), g_engineScript (L236), g_zonesBat (L237), g_statusText (L238)
+
+## keyboard-lighting/src/parts/brightness_hotkeys.c
+
+- L8  f StepMasterBrightness  — ---- global brightness hotkeys --------------------------------------
+- L24  f RegisterBrightnessHotkeys
+- L38  f JsonVal  — Lightweight parser preserving existing user panel.json settings
+- L57  f JsonBool
+- L65  f JsonInt
+- L71  f JsonStr
+- L80  f ParseGroupJson
+- L136  f LoadPanelCfg
+- L164  f FormatGroupPanelJson
+- L198  f SavePanelCfg
+- L229  f WriteLiveBrightness
+- L247  f PollFnBrightness
+- L276  f HelpForHit  — One-line plain-English explanation for every control, shown in the footer
+- L313  f FormatThemeBlock
+- L347  f WriteThemeJson
+- L364  f SyncLinkedZone
+- L371  f WriteHeartbeat
+
+## keyboard-lighting/src/parts/brightness_osd.c
+
+- L17  f OsdLightTheme
+- L26  f OsdDrawSunFallback
+- L162  f OsdCreate
+- L177  f OsdShow
+- L194  f PollLayoutTxt
+- L204  f PollLivePreviewFrame  — Read live lamp frame from Aura-Background.ps1 or synthesize accurate live palette preview
+- globals: g_osdHwnd (L10), g_osdPct (L11)
+
+## keyboard-lighting/src/parts/emblem.c
+
+- L8  f EmbRasterize
+- L85  f EmbCacheEnsure
+- L100  f EmbSpinDraw
+- L155  f DrawSuiteEmblemIcon
+- L160  f AddHit
+- L169  f DrawSuiteBtn
+- L182  f DrawPillSwitch
+- L207  f DrawSmoothSlider
+- L240  f RenderKblWindow
+- L340  S CARD 1: Live ROG Strix G16 Preview + Master Brightness
+- L435  S CARD 2: Zone Tabs + Effect Picker
+- L489  S CARD 3: Interactive Colour Swatches + Band Width Bars
+- L544  S CARD 4: Speed, Zone Brightness & Motion Switches
+- globals: g_embCache (L83)
+
+## keyboard-lighting/src/parts/engine_bootstrap.c
+
+- L5  f IsEngineAlive  — ============================================================================
+- L15  f KillPidFromFile
+- L28  f StopEngine
+- L44  f DownloadRepoFileWinHttp
+- L127  f StartEngine
+- L226  f TurnAllLightsOff
+- L255  f MarkAutostartOff
+- L268  f AutostartMarkedOff
+- L275  f TaskExists
+- L296  f QueryAutostart
+- L301  f SetKblAutostart
+- L355  f ScheduleLiveApply
+- L367  f FlushLiveApply
+- L392  f ParseLayoutTxt
+- globals: g_barOrder (L387), g_barQ (L388), g_barLayoutN (L389), g_layoutReadAt (L390)
+
+## keyboard-lighting/src/parts/m4_m5_hold.c
+
+- L37  f HasReleaseSrc
+- L41  f HoldTokenWrite
+- L49  f HoldPump  — One paced token per interval while the gesture is live.
+- L81  f PressSignal
+- L93  f ReleaseSignal
+- L103  f OnScanEvent
+- L122  f OnRawHid
+- L148  f LearnFromRing
+- L208  f WatchBrightTokens
+- L222  f InitRawInput
+- L255  f OnRawInputMsg
+- L295  f HoldModeRead
+- L307  f HoldModeWrite
+- L317  f HoldReadyLabel
+- globals: g_keyRing (L18), g_keyRingHead (L19), g_hidRing (L21), g_hidRingHead (L22), g_scanBound (L23), g_hidCode (L24), g_scanArmed (L25), g_hidDown (L26), g_holdOn (L27), g_hidRelSeen (L28), g_sigAt (L29), g_scanNext (L30), g_learnCand (L31), g_learnN (L32), g_learnHid (L33), g_learnHidN (L34), g_seenTok (L35)
+
+## keyboard-lighting/src/parts/mouse_drag_menus.c
+
+- L5  f ApplySliderDrag  — ============================================================================
+- L33  f OpenEffectPopup
+
+## keyboard-lighting/src/parts/named_colour_presets.c
+
+- L13  f PresetPath
+- L17  f ParseHexW
+- L34  f SaveGroupPreset
+- L59  f LoadGroupPreset
+- L95  f LoadPresetIndex
+- L111  f SavePresetSlot
+- L129  f ApplyPresetSlot
+- L149  f DeletePresetSlot
+- L165  f OpenPatternPopup  — Pattern picker: the same native popup menu the effect list uses.
+- globals: g_presetName (L9), g_presetUsed (L10), g_presetIdx (L11)
+
+## keyboard-lighting/src/parts/picker_window_entry.c
+
+- L36  f PickSwatchColor
+- L70  f RelaunchElevated
+- L91  f EnsureLogonTask
+- L137  f HandleHitAction
+- L229  f ShowTrayContextMenu
+- L513  f InitKblPaths
+- globals: g_pickOrig (L6), g_pickLast (L7), g_pickIdx (L8), g_pickLive (L9)
+
+## keyboard-lighting/src/parts/ui_renderer.c
+
+- L18  f FillCanvasRect
+- L31  f SmoothRoundRect
+- L78  f SmoothCircle
+- L116  f SmoothRingTrack  — Thin annulus: the track that makes the Light Bar read as one closed loop.
 
 ## dns-pilot/src/dns_pilot.c
 
-- L53  S resolver catalogue: primary + secondary per family
-- L110  f WCpy
-- L144  f S
-- L150  f ApplyModernWindowFrame
-- L169  f Widen
-- L175  S DNS query probe: real UDP/53 round trip
-- L176  f BuildQuery  — ---- DNS query probe: real UDP/53 round trip ----
-- L195  f DnsProbe
-- L234  f DnsProbeTcp
-- L299  f Median3
-- L307  f BuildRows
-- L328  S benchmark run (background thread)
-- L329  f ProbeRow  — ---- benchmark run (background thread) ----
-- L439  f StartTest
-- L449  S active adapter discovery (iphlpapi; locale-proof)
-- L451  f FindActiveAdapter
-- L494  f CopySockIp
-- L508  f CaptureAdapterExtras
-- L536  S live stats strip: passive throughput + 1 Hz ping (tiny footprint)
-- L540  f PingV4Once
-- L557  f PingV6Once
-- L598  f FmtMs
-- L607  f FmtMbps
-- L615  S speed test: active line-capacity measurement (Cloudflare endpoints)
-- L618  f SpeedTransfer
-- L709  f StartSpeedTest
-- L774  S applying DNS (netsh with numeric ifIndex; needs elevation)
-- L775  f RunElevatedCmd  — ---- applying DNS (netsh with numeric ifIndex; needs elevation) ----
-- L792  f ApplyDns
-- L822  S elevation
-- L823  f IsElevated  — ---- elevation ----
-- L836  f RelaunchElevated
-- L848  f EnsureAutostart
-- L866  S config
-- L867  f LoadConfig  — ---- config ----
-- L890  f SaveConfig
-- L942  f AddWatch
-- L954  f RebuildWatchBody
-- L977  f RebuildWatch
-- L983  f WatchSwitch
-- L1021  f WatchTickBody
-- L1087  f WatchTick
-- L1100  S UI
-- L1111  f EmbRasterize
-- L1182  f EmbCacheEnsure
-- L1197  f EmbSpinDraw
-- L1251  f DrawWayfinderEmblem
-- L1258  f PaintEmblem
-- L1283  f BtnRect
-- L1290  f FillSolid
-- L1296  f DrawBtn
-- L1317  f ShowTrayContextMenu
-- L1333  f RowRect
-- L1343  f PaintAll
-- L1535  f HitBtn
-- L1546  f UpdateStatusAfterTest
-- L1594  f DoApplyFastest
-- globals: g_rows (L93), g_rowCount (L94), g_hwnd (L102), g_hIcon (L103), g_nid (L104), g_exitMsg (L105), g_quitting (L106), g_trayHinted (L107), g_fontUI (L108), g_dpi (L114), g_testing (L115), g_testedCount (L116), g_exitStop (L117), g_testNext (L118), g_topRow (L119), g_hoverBtn (L120), g_lastTestAt (L121), g_elevated (L122), g_auto (L123), g_intervalMin (L124), g_autoRun (L125), g_status (L126), g_adName (L127), g_ifIndex (L128), g_curV4 (L129), g_curV6 (L130), g_statsCs (L132), g_statsLine (L133), g_statsRun (L134), g_gwIp (L135), g_gwIsV6 (L136), g_srcV6 (L137), g_srcV6LL (L138), g_hasGlobalV6 (L139), g_cfgPath (L140), g_lastV4 (L141), g_best4 (L142), g_dpi (L144), g_speedBusy (L616), g_watch (L926), g_watchN (L927), g_watchBusy (L928), g_watchCs (L929), g_lastSwitchAt (L930), g_switchedAt (L931), g_switchFam (L932), g_prevV4 (L933), g_rcEmblem (L1109), g_embCache (L1180), g_frameCache (L1340), g_fcW (L1341)
+
+## dns-pilot/src/parts/adapter_discovery.c
+
+- L1  S active adapter discovery (iphlpapi; locale-proof)
+- L3  f FindActiveAdapter
+- L46  f CopySockIp
+- L60  f CaptureAdapterExtras
+
+## dns-pilot/src/parts/apply_dns.c
+
+- L1  S applying DNS (netsh with numeric ifIndex; needs elevation)
+- L2  f RunElevatedCmd  — ---- applying DNS (netsh with numeric ifIndex; needs elevation) ----
+- L19  f ApplyDns
+
+## dns-pilot/src/parts/auto_watch.c
+
+- L40  f AddWatch
+- L52  f RebuildWatchBody
+- L75  f RebuildWatch
+- L81  f WatchSwitch
+- L119  f WatchTickBody
+- L185  f WatchTick
+- globals: g_watch (L24), g_watchN (L25), g_watchBusy (L26), g_watchCs (L27), g_lastSwitchAt (L28), g_switchedAt (L29), g_switchFam (L30), g_prevV4 (L31)
+
+## dns-pilot/src/parts/benchmark.c
+
+- L1  S benchmark run (background thread)
+- L2  f ProbeRow  — ---- benchmark run (background thread) ----
+- L112  f StartTest
+
+## dns-pilot/src/parts/config.c
+
+- L1  S config
+- L2  f LoadConfig  — ---- config ----
+- L25  f SaveConfig
+
+## dns-pilot/src/parts/dns_probe.c
+
+- L1  S DNS query probe: real UDP/53 round trip
+- L2  f BuildQuery  — ---- DNS query probe: real UDP/53 round trip ----
+- L21  f DnsProbe
+- L60  f DnsProbeTcp
+- L125  f Median3
+- L133  f BuildRows
+
+## dns-pilot/src/parts/elevation.c
+
+- L1  S elevation
+- L2  f IsElevated  — ---- elevation ----
+- L15  f RelaunchElevated
+- L27  f EnsureAutostart
+
+## dns-pilot/src/parts/live_stats.c
+
+- L1  S live stats strip: passive throughput + 1 Hz ping (tiny footprint)
+- L5  f PingV4Once
+- L22  f PingV6Once
+- L63  f FmtMs
+- L72  f FmtMbps
+
+## dns-pilot/src/parts/resolver_catalogue.c
+
+- L1  S resolver catalogue: primary + secondary per family
+- L58  f WCpy
+- L92  f S
+- L98  f ApplyModernWindowFrame
+- L117  f Widen
+- globals: g_rows (L41), g_rowCount (L42), g_hwnd (L50), g_hIcon (L51), g_nid (L52), g_exitMsg (L53), g_quitting (L54), g_trayHinted (L55), g_fontUI (L56), g_dpi (L62), g_testing (L63), g_testedCount (L64), g_exitStop (L65), g_testNext (L66), g_topRow (L67), g_hoverBtn (L68), g_lastTestAt (L69), g_elevated (L70), g_auto (L71), g_intervalMin (L72), g_autoRun (L73), g_status (L74), g_adName (L75), g_ifIndex (L76), g_curV4 (L77), g_curV6 (L78), g_statsCs (L80), g_statsLine (L81), g_statsRun (L82), g_gwIp (L83), g_gwIsV6 (L84), g_srcV6 (L85), g_srcV6LL (L86), g_hasGlobalV6 (L87), g_cfgPath (L88), g_lastV4 (L89), g_best4 (L90), g_dpi (L92)
+
+## dns-pilot/src/parts/speed_test.c
+
+- L1  S speed test: active line-capacity measurement (Cloudflare endpoints)
+- L4  f SpeedTransfer
+- L95  f StartSpeedTest
+- globals: g_speedBusy (L2)
+
+## dns-pilot/src/parts/ui.c
+
+- L1  S UI
+- L12  f EmbRasterize
+- L83  f EmbCacheEnsure
+- L98  f EmbSpinDraw
+- L152  f DrawWayfinderEmblem
+- L159  f PaintEmblem
+- L184  f BtnRect
+- L191  f FillSolid
+- L197  f DrawBtn
+- L218  f ShowTrayContextMenu
+- L234  f RowRect
+- L244  f PaintAll
+- L436  f HitBtn
+- L447  f UpdateStatusAfterTest
+- L495  f DoApplyFastest
+- globals: g_rcEmblem (L10), g_embCache (L81), g_frameCache (L241), g_fcW (L242)
 
 ## agent-notes/src/agent_notes.c
 
 - L75  f S
 - L82  f ApplyModernWindowFrame
 - L101  f GetWinDpi
-- L107  S config + outbox + history
-- L109  f InitPaths  — ---------------- config + outbox + history ----------------
-- L120  f LoadConfig
-- L124  f SaveConfig
-- L128  f OutboxCount
-- L141  f FileExistsW
-- L157  f HistSave
-- L179  f HistLoad
-- L215  f HistAdd
-- L226  f HistSnip
-- L236  f OutboxAdd
-- L264  S HTTP to the agent session
-- L266  f HttpPostNote  — ---------------- HTTP to the agent session ----------------
-- L306  f FlushOutbox
-- L369  f StartFlush
-- L385  f EmbRasterize
-- L456  f EmbCacheEnsure
-- L471  f EmbSpinDraw
-- L523  S UI
-- L525  f EmbRect  — ---------------- UI ----------------
-- L529  f BtnRect
-- L534  f DrawBtn
-- L554  f HitBtn
-- L564  f DrawDot
-- L576  f PaintAll
-- L744  f NoteSetHint
-- L751  f NowStamp
-- L864  S entry
-- globals: g_hInst (L55), g_hwnd (L56), g_fontUI (L57), g_bgBrush (L58), g_dpi (L59), g_fit (L60), g_hoverBtn (L61), g_showEvent (L62), g_link (L64), g_cfgDir (L65), g_cfgPath (L66), g_histPath (L67), g_outboxDir (L68), g_status (L69), g_lastOk (L70), g_sending (L71), g_noteHint (L72), g_lastSent (L73), g_hist (L154), g_histN (L155), g_embCache (L453), g_spinAngle (L454)
+- globals: g_hInst (L55), g_hwnd (L56), g_fontUI (L57), g_bgBrush (L58), g_dpi (L59), g_fit (L60), g_hoverBtn (L61), g_showEvent (L62), g_link (L64), g_cfgDir (L65), g_cfgPath (L66), g_histPath (L67), g_outboxDir (L68), g_status (L69), g_lastOk (L70), g_sending (L71), g_noteHint (L72), g_lastSent (L73)
+
+## agent-notes/src/parts/config_outbox.c
+
+- L1  S config + outbox + history
+- L3  f InitPaths  — ---------------- config + outbox + history ----------------
+- L14  f LoadConfig
+- L18  f SaveConfig
+- L22  f OutboxCount
+- L35  f FileExistsW
+- L51  f HistSave
+- L73  f HistLoad
+- L109  f HistAdd
+- L120  f HistSnip
+- L130  f OutboxAdd
+- globals: g_hist (L48), g_histN (L49)
+
+## agent-notes/src/parts/emblem.c
+
+- L9  f EmbRasterize
+- L80  f EmbCacheEnsure
+- L95  f EmbSpinDraw
+- globals: g_embCache (L77), g_spinAngle (L78)
+
+## agent-notes/src/parts/entry.c
+
+- L1  S entry
+
+## agent-notes/src/parts/http_agent.c
+
+- L1  S HTTP to the agent session
+- L3  f HttpPostNote  — ---------------- HTTP to the agent session ----------------
+- L43  f FlushOutbox
+- L115  f HttpGetText
+- L155  f HealthOk
+- L163  f LinkDiscoveryTick
+- L193  f StartFlush
+
+## agent-notes/src/parts/ui.c
+
+- L1  S UI
+- L3  f EmbRect  — ---------------- UI ----------------
+- L7  f BtnRect
+- L12  f DrawBtn
+- L32  f HitBtn
+- L42  f DrawDot
+- L54  f PaintAll
+- L222  f NoteSetHint
+- L229  f NowStamp
+
+## audio-switcher/src/audio_switcher.c
+
+
+## audio-switcher/src/parts/audio_subsystem.c
+
+- L68  f com_create_enumerator
+- L75  f com_release_enumerator
+- L84  f policy_activate  — Obtain IPolicyConfig.
+- L114  f endpoint_make_default  — Make endpoint `idx` the system default for ALL THREE roles.
+- L146  f endpoints_refresh
+- L254  f endpoints_cleanup
+- globals: g_endpoints (L25), g_endpoint_count (L26), g_default_endpoint_idx (L27), g_sessions (L28), g_session_count (L29), g_applied_pids (L36), g_applied_pid_count (L37), g_enum (L39), g_default_device (L40), g_session_mgr (L41), g_session_mgrs (L44), g_session_mgr_count (L45), g_session_sweep_used (L46), g_policy (L47), g_policy_variant (L53), g_policy_hr (L58), g_sessions_hr (L62), g_last_switch_hr (L65), g_last_switch_idx (L66)
+
+## audio-switcher/src/parts/control_theming.c
+
+- L20  f ui_brush
+- L34  f ui_fonts_create
+- L49  f ui_fonts_destroy
+- L98  f EmbRasterize  — Tri-Spoke Core Emblem - analytic sub-pixel SDF renderer, ported 1:1 from Project Hub
+- L169  f EmbCacheEnsure
+- L184  f EmbSpinDraw
+- L237  f DrawWayfinderEmblem
+- L243  f PaintEmblemBlit  — Blit the spinning emblem square straight to a DC (spin fast-path).
+- L264  f GetWinDpi
+- L271  f update_volume_text
+- globals: g_font_ui (L11), g_font_head (L12), g_font_small (L13), g_hover_btn (L14), g_embCache (L167)
+
+## audio-switcher/src/parts/diag.c
+
+- L23  f w2u8
+- L30  f diag
+- L41  f diag_dump_role_defaults
+- L61  f run_diagnostics
+- globals: g_diag_fp (L20), g_diag_path (L21)
+
+## audio-switcher/src/parts/remembered_levels.c
+
+- L29  f key_from_path  — Lowercased exe basename: the identity an app keeps across launches.
+- L39  f levels_path_init
+- L53  f levels_find
+- L60  f levels_load
+- L108  f levels_save
+- L136  f levels_remember  — Record a level the user set, and persist it.
+- L154  f pid_already_applied
+- L160  f mark_pid_applied
+- L173  f sessions_collect_from_device  — Collect the audio sessions of ONE render device into g_sessions.
+- L314  f sessions_refresh
+- L375  f sessions_cleanup
+- L388  f endpoint_set_volume
+- L394  f endpoint_get_volume
+- L401  f endpoint_get_mute
+- L408  f endpoint_set_mute
+- L414  f session_set_volume
+- L421  f session_set_mute
+- globals: g_remembered (L23), g_remembered_count (L24), g_levels_path (L25), g_levels_enabled (L26)
+
+## audio-switcher/src/parts/ui_reconcile.c
+
+- L49  f ui_hash_wstr
+- L54  f ui_mix
+- L60  f endpoints_signature  — Identity only -- deliberately excludes volume and mute, which change
+- L71  f sessions_signature
+- L84  f ui_destroy_all
+- L129  f ui_row_geometry
+- L140  f ui_layout_budget
+- L178  f ui_apply_viewport
+- L273  f ui_rebuild
+- L454  f ui_update_values
+- L505  f refresh_ui
+- L524  f ui_status_text  — Footer status line.
+- globals: g_ui_endpoint_sig (L16), g_ui_session_sig (L17), g_y_outputs_header (L21), g_y_apps_header (L22), g_y_footer (L23), g_truncated_endpoints (L24), g_truncated_sessions (L25), g_ep_card (L29), g_ss_card (L30), g_ep_rows (L31), g_ss_rows (L32), g_scroll_offset (L41), g_scroll_range (L42), g_viewport_h (L43), g_ep_max (L44), g_ss_max (L45), g_ep_scroll_max (L46), g_ss_scroll_max (L47), g_row_ep_h (L123)
+
+## audio-switcher/src/parts/vtable_asserts.c
+
+
+## audio-switcher/src/parts/window_ui_tray.c
+
+- L50  f S
+- globals: g_hInst (L5), g_hwnd (L6), g_app_icon (L7), g_nid (L8), g_quitting (L9), g_silent (L10), g_showEvent (L18), g_showThread (L19), g_showThreadRun (L20), g_btn_refresh (L26), g_endpoint_ctrls (L37), g_session_ctrls (L47), g_dpi (L49), g_dpi (L50), g_rcEmblem (L53)
 
 ## tools/agent_map.py
 
-- L42  f comment_purpose
-- L66  f scan_c
-- L91  f scan_py
-- L102  f build
-- L127  f main
+- L43  f comment_purpose
+- L67  f scan_c
+- L92  f scan_py
+- L103  f c_file_list
+- L115  f build
+- L140  f main
 
 ## tools/build_windows.py
 
-- L25  f ensure_zig_python
-- L41  f build_target
-- L64  f main
+- L40  f zig_version
+- L45  f target_key
+- L62  f ensure_zig_python
+- L78  f build_target
+- L109  f main
 
 ## tools/bump_version.py
 
@@ -352,13 +641,13 @@
 
 ## tools/check_all.py
 
-- L36  f have_deps
-- L44  f wave_gcode_merkle_key
-- L66  f load_cache
-- L73  f save_cache
-- L81  f make_nodeps
-- L91  f exec_task
-- L116  f main
+- L37  f have_deps
+- L45  f wave_gcode_merkle_key
+- L67  f load_cache
+- L74  f save_cache
+- L82  f make_nodeps
+- L92  f exec_task
+- L117  f main
 
 ## tools/dump_default_config.py
 
@@ -381,10 +670,14 @@
 - L388  f build_icon_dns_pilot
 - L410  f build_icon_agent_notes
 - L451  f build_icon_audio_switcher
-- L479  f build_icon_clipboard_memory
-- L513  f save_multi_ico
-- L545  f main
-- L646  f export_spin_loops
+- L479  f save_multi_ico
+- L511  f main
+- L611  f export_spin_loops
+
+## tools/mutate.py
+
+- L31  f run_suite
+- L37  f main
 
 ## tools/notes_server.py
 
@@ -425,13 +718,13 @@
 
 ## tests/test_installer.py
 
-- L56  f check
-- L62  f cmd_tokens
-- L331  f _static_bat_checks
-- L759  f replay_branch_preflight
-- L780  f report_and_exit
-- L794  f build_plan
-- L806  f install_one
+- L51  f check
+- L57  f cmd_tokens
+- L326  f _static_bat_checks
+- L754  f replay_branch_preflight
+- L775  f report_and_exit
+- L789  f build_plan
+- L801  f install_one
 
 ## tests/test_plugin_audit.py
 
@@ -452,6 +745,13 @@
 - L40  f fake_cube
 - L76  f load_tool
 - L83  f total_e
+
+## tests/test_spatial_hud.py
+
+- L30  f _read
+- L34  f SpatialHudOcclusionTests
+- L91  f SpatialHudCaptureWrapperTests
+- L132  f SpatialHudPassSplitTests
 
 ## tests/test_unlayered_waves.py
 
@@ -495,9 +795,14 @@
 
 ## tests/test_windows_apps.py
 
-- L27  f strip_cs_comments_and_strings
-- L149  f lex_powershell
-- L284  f WindowsDesktopAppsTests
+- L27  f read_c_inlined
+- L43  f strip_cs_comments_and_strings
+- L165  f lex_powershell
+- L300  f WindowsDesktopAppsTests
+- L2232  f SuiteFolderInstallTests
+- L2843  f AudioSwitcherReachabilityTests
+- L3027  f AudioSwitcherSessionSweepTests
+- L3168  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

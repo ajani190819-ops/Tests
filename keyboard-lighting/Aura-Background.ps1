@@ -364,6 +364,32 @@ public class LampEngine {
   public double Speed      = 1.0;
   public double Brightness = 1.0;
   public int    Fps        = 60;
+
+  // Animation POSITION advances by a fixed nominal step instead of by the
+  // measured frame time. Everything physical - fire and sparkle decay, palette
+  // crossfades - still uses the real dt, because that is what makes it
+  // frame-rate independent.
+  //
+  // The two want different things. A decay needs to know how much wall-clock
+  // time actually passed. A position only needs each frame to be the same
+  // distance from the last. Feeding measured dt into the phase makes the
+  // gradient advance by 16.2ms one frame, 17.1ms the next, 15.8ms after that,
+  // and when a frame misses its deadline the loop resyncs, so the next dt is
+  // short. The loop's own notes put those misses at roughly 1% of frames from
+  // ordinary scheduler jitter - about one a second at 60fps. On twelve small
+  // bar lamps that averages away; on four large deck zones with nothing between
+  // them it is exactly the "smooth, but I can still see it if I look" step.
+  //
+  // With a fixed step every displayed position is one even stride from the
+  // previous one no matter when the frame actually landed. The cost is that a
+  // sustained run of late frames makes the animation run a little slow rather
+  // than jumping to catch up - and the adaptive backoff in Loop() lowers Fps in
+  // that case, which NominalDt follows, so real-time speed is preserved. For
+  // decorative lighting even motion beats wall-clock accuracy: nobody notices a
+  // rainbow being two percent behind the clock, everybody notices a hitch.
+  // KBL_FIXED_STEP=0 restores the old measured-dt behaviour.
+  public bool   FixedStep  = true;
+  double NominalDt { get { return Fps > 0 ? 1.0 / Fps : 1.0 / 60.0; } }
   public bool   Mirror     = false;
   public bool   Reverse    = false;
   public int[]  PalR, PalG, PalB;
@@ -416,10 +442,58 @@ public class LampEngine {
   // layouts store R,G,B,I together so consecutive lamps are 4 apart.
   public bool Interleaved = false;
 
+  // ---- owning the endpoint -----------------------------------------
+  // A second writer interleaving its own frames with ours is the one cause of
+  // flicker that no amount of host-side timing can fix. Vendor lighting
+  // software contests the keyboard deck specifically and often leaves the
+  // chassis light bar alone, which is exactly the reported symptom: the four
+  // deck zones step while the twelve bar lamps stay smooth.
+  //
+  // Opening with dwShareMode 0 makes every other process's open of this HID
+  // interface fail with ERROR_SHARING_VIOLATION, so holding the handle is the
+  // cure and failing to get it is the diagnosis. BetterRGB arrived at the same
+  // design independently, after its own lights kept vanishing.
+  //
+  // Exclusive is tried first and shared is the fallback, so a machine where
+  // something else already owns the device still gets lighting rather than
+  // none. Both the first open and every reopen after a resume go through
+  // OpenHandle, so the two cannot drift apart.
+  public bool WantExclusiveLock = true;
+  public volatile bool ExclusiveLock = false;
+  public volatile int  LockFallbacks = 0;
+  // How many times a shared handle has been traded in for another attempt at
+  // the exclusive one. Logged next to fallbacks, so "fallbacks 9, retries 8"
+  // reads as what it is: we lost the open at startup and have been asking ever
+  // since, rather than as a device that keeps disappearing.
+  public volatile int  LockRetries = 0;
+  // Retry schedule, in Loop()'s own seconds. Fields rather than locals so the
+  // first attempt lands 3s after start instead of immediately after the Open()
+  // that just failed.
+  double nextLockTry = 3.0;
+  double lockTryGap  = 3.0;
+
+  bool OpenHandle() {
+    if (WantExclusiveLock) {
+      IntPtr xh = CreateFileW(DevicePath, 0xC0000000, 0, IntPtr.Zero, 3, 0, IntPtr.Zero);
+      if (xh != (IntPtr)(-1)) { h = xh; ExclusiveLock = true; return true; }
+    }
+    // 3 = FILE_SHARE_READ | FILE_SHARE_WRITE, the old behaviour.
+    IntPtr nh = CreateFileW(DevicePath, 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+    if (nh == (IntPtr)(-1)) nh = CreateFileW(DevicePath, 0x40000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+    if (nh == (IntPtr)(-1)) { h = IntPtr.Zero; ExclusiveLock = false; return false; }
+    h = nh; ExclusiveLock = false; LockFallbacks++;
+    return true;
+  }
+
   public bool Open() {
-    h = CreateFileW(DevicePath, 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-    if (h == (IntPtr)(-1)) h = CreateFileW(DevicePath, 0x40000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-    if (h == (IntPtr)(-1)) { LastError = "CreateFile failed: " + Marshal.GetLastWin32Error(); h = IntPtr.Zero; return false; }
+    if (!OpenHandle()) {
+      // Say which of the two it is likely to be, because "CreateFile failed"
+      // on its own reads as a permissions problem and this one is not.
+      LastError = "CreateFile failed: " + Marshal.GetLastWin32Error()
+                + " (another program may be holding the keyboard exclusively;"
+                + " try KBL_EXCLUSIVE_LOCK=0)";
+      return false;
+    }
 
     if (CtrlOff != null) HidD_SetFeature(h, CtrlOff, CtrlOff.Length);
 
@@ -563,7 +637,13 @@ public class LampEngine {
     double br = gr.Brightness * gr.Master;
     if (br <= 0.0005) {
       fr[i] = 0.0; fg[i] = 0.0; fb[i] = 0.0;
-      er[i] = 0.0; eg[i] = 0.0; eb[i] = 0.0;
+      // Reset to this lamp's seed, not to zero. Zeroing every lamp at once
+      // re-synced them, so when the group lit again (master slider back up, or
+      // an effect's black phase ending) all four keyboard lamps - which carry
+      // the same colour - rounded and stepped on the same frame and pulsed
+      // together. That whole-keyboard flash is what SeedDither's per-lamp phase
+      // exists to prevent; dropping to zero here undid it on every off/on cycle.
+      SeedLamp(i);
       return;
     }
     if (br < 0.9995) {
@@ -1052,6 +1132,20 @@ public class LampEngine {
   // nothing counted them - so there was no way to tell that apart from a
   // timing problem when reading the log.
   public volatile int  WriteFails = 0;
+
+  // Gap to leave between the batched feature reports that make up ONE frame.
+  // HID control transfers are scheduled per 1 ms USB frame, so two reports
+  // sent back to back can land in the same frame and the EC can drop or
+  // coalesce one of them. The deck then misses that frame while the bar keeps
+  // up, which reads as stepping rather than as a slowdown, and it is invisible
+  // in WriteFails because the transfer the host was told about succeeded.
+  // keyRGB ships the same knob for the same reason. 0 disables pacing.
+  //
+  // The cost is real but bounded: 1 ms on a 16.7 ms budget, only between
+  // batches, and it lands INSIDE the measured WriteUs window so the adaptive
+  // backoff still sees the true cost of a frame.
+  public int ReportPaceUs = 1000;
+
   int overrun = 0;                      // consecutive frames whose writes overflowed
   double[] er, eg, eb;     // carried quantisation error, for temporal dither
   double[] frPrev, fgPrev, fbPrev;   // last targets, for moving-only dither
@@ -1242,13 +1336,18 @@ public class LampEngine {
   // steps cancel instead of adding up. The golden ratio is used because
   // successive multiples of it spread out evenly and never fall into a
   // short repeating pattern.
-  void SeedDither() {
+  // One lamp's seed: a deterministic, evenly-spread starting fraction. Kept
+  // separate from SeedDither so a lamp that blacks out can be reset to its own
+  // phase rather than to zero (see SetZoneG).
+  void SeedLamp(int i) {
     const double G = 0.6180339887498949;
-    for (int i = 0; i < LampCount; i++) {
-      er[i] = ((i * G) % 1.0) - 0.5;
-      eg[i] = (((i * G) + 0.3333) % 1.0) - 0.5;
-      eb[i] = (((i * G) + 0.6667) % 1.0) - 0.5;
-    }
+    er[i] = ((i * G) % 1.0) - 0.5;
+    eg[i] = (((i * G) + 0.3333) % 1.0) - 0.5;
+    eb[i] = (((i * G) + 0.6667) % 1.0) - 0.5;
+  }
+
+  void SeedDither() {
+    for (int i = 0; i < LampCount; i++) SeedLamp(i);
   }
 
   // Quantise with error feedback: the fraction we throw away this frame is
@@ -1270,6 +1369,18 @@ public class LampEngine {
     err = x - q;
     if (err > 1.0) err = 1.0; else if (err < -1.0) err = -1.0;
     return q;
+  }
+
+  // Busy-wait a short, precise gap. Sleep on its own is too coarse to be
+  // worth calling at these lengths even with the 1 ms timer period active,
+  // and the render thread already spins for its frame deadline, so this costs
+  // nothing it was not going to cost anyway.
+  void Pace(int us) {
+    if (us <= 0) return;
+    long f = Stopwatch.Frequency;
+    long target = Stopwatch.GetTimestamp() + (us * f) / 1000000L;
+    if (us >= 3000) Thread.Sleep((us - 2000) / 1000);
+    while (Stopwatch.GetTimestamp() < target) Thread.SpinWait(40);
   }
 
   void Push(bool force) {
@@ -1324,6 +1435,10 @@ public class LampEngine {
     for (int bi = 0; bi < nbatch; bi++) {
       byte[] b = bufs[bi];
       if (!HidD_SetFeature(h, b, b.Length)) allOk = false;
+      // Separate this report from the next one of the SAME frame so they
+      // cannot share a USB frame. Never after the last batch: that would tax
+      // every frame for a gap nothing is waiting on.
+      if (bi + 1 < nbatch && ReportPaceUs > 0) Pace(ReportPaceUs);
     }
     int us = (int)((Stopwatch.GetTimestamp() - t0) * 1000000L / Stopwatch.Frequency);
     WriteUs = us;
@@ -1406,10 +1521,11 @@ public class LampEngine {
     } catch { }
     h = IntPtr.Zero;
 
-    IntPtr nh = CreateFileW(DevicePath, 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-    if (nh == (IntPtr)(-1)) nh = CreateFileW(DevicePath, 0x40000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-    if (nh == (IntPtr)(-1)) { LastError = "reopen failed: " + Marshal.GetLastWin32Error(); return false; }
-    h = nh;
+    if (!OpenHandle()) {
+      LastError = "reopen failed: " + Marshal.GetLastWin32Error()
+                + " (another program may be holding the keyboard)";
+      return false;
+    }
 
     // The firmware reverts to autonomous mode across a power cycle, so it
     // must be told again to hand control over.
@@ -1426,6 +1542,60 @@ public class LampEngine {
     failRun = 0;
     DeviceLost = false;
     Reopens++;
+    return true;
+  }
+
+  // Trade a working shared handle for the exclusive one.
+  //
+  // OpenHandle decides this once, at Open(), and until now nothing revisited
+  // it - so a rival that happened to hold the device during the single instant
+  // we started left two writers on the same LEDs for the whole session. That
+  // is not a hypothetical: the owner's log ran fourteen minutes at
+  // "lock SHARED, fallbacks 1, reopens 0", with writes costing 3-6 ms instead
+  // of the measured 2.2 ms uncontended, one write taking 34 ms, and about 5%
+  // of frames late against the ~1% ordinary scheduler jitter accounts for.
+  //
+  // Whoever holds the device exclusively wins, and a rival that only opens it
+  // to send a packet leaves gaps between its writes. This is how we take one.
+  //
+  // Our own handle has to go first, because dwShareMode 0 refuses to open
+  // while ANY handle to the device exists - including ours. That leaves a
+  // brief window holding nothing, so OpenHandle's shared fallback and the
+  // second attempt below both exist to guarantee we never return without a
+  // handle unless the device has genuinely gone away. Only the render thread
+  // calls this, between frames, like Reopen().
+  bool TryExclusiveUpgrade() {
+    if (h == IntPtr.Zero || h == (IntPtr)(-1)) return false;
+
+    try { CloseHandle(h); } catch { }
+    h = IntPtr.Zero;
+
+    bool got = OpenHandle();
+    if (!got) {
+      // Something took it in the gap. One more try after a beat, then hand it
+      // to the loop's DeviceLost path rather than spinning here.
+      Thread.Sleep(60);
+      got = OpenHandle();
+      if (!got) {
+        LastError = "lock upgrade lost the device: " + Marshal.GetLastWin32Error();
+        DeviceLost = true;
+        return false;
+      }
+    }
+    // Open again, but still shared: the rival holds it more permanently than a
+    // per-packet open. Report the loss of exclusivity, not of the device, and
+    // let the caller schedule another attempt.
+    if (!ExclusiveLock) return false;
+
+    // Same post-open sequence as Reopen(): the firmware reverts to autonomous
+    // mode when the handle goes away, and the cached previous colours no
+    // longer describe what the hardware is showing.
+    if (CtrlOff != null) HidD_SetFeature(h, CtrlOff, CtrlOff.Length);
+    if (pr != null) {
+      for (int i = 0; i < LampCount; i++) { pr[i] = -1; pg[i] = -1; pb[i] = -1; }
+    }
+    if (er != null) SeedDither();
+    lockTryGap = 3.0;
     return true;
   }
 
@@ -1633,8 +1803,9 @@ public class LampEngine {
       }
 
       // Each group keeps its own phase so changing one group's speed can
-      // never jump the other one.
-      gr.Phase += dt * gr.Speed;
+      // never jump the other one. Position takes the even nominal step; the
+      // measured dt still goes to RenderGroup for the physical decays.
+      gr.Phase += (FixedStep ? NominalDt : dt) * gr.Speed;
       RenderGroup(gr, gr.Phase, dt);
     }
   }
@@ -2044,6 +2215,23 @@ public class LampEngine {
             Thread.Sleep(400);
             next = sw.ElapsedTicks + per;
             continue;
+          }
+        }
+
+        // Still sharing the device with somebody else. Keep asking for the
+        // exclusive handle, on a gap that doubles after each refusal up to
+        // five minutes - so a machine where something genuinely owns the
+        // device is not hammered for it, while a rival that later quits is
+        // still locked out within five minutes of doing so.
+        //
+        // On success the !ExclusiveLock test keeps this out of the way. If a
+        // later resume drops us back to shared, nextLockTry is already in the
+        // past, so we try again straight away with the gap reset to 3s.
+        if (!ExclusiveLock && WantExclusiveLock && !DeviceLost && now >= nextLockTry) {
+          LockRetries++;
+          if (!TryExclusiveUpgrade()) {
+            nextLockTry = now + lockTryGap;
+            lockTryGap = Math.Min(lockTryGap * 2.0, 300.0);
           }
         }
 
@@ -3166,6 +3354,16 @@ $eng.Slots      = $slots
 $eng.ReportLen  = (Rpt-Len $rMulti)
 $eng.CtrlOff    = $ctrlOffBuf
 
+# Own the HID endpoint outright when nothing else already holds it. The engine
+# still falls back to a shared open, so this can only ever add ownership, never
+# lose the lighting. KBL_EXCLUSIVE_LOCK=0 opts out without a rebuild.
+$eng.WantExclusiveLock = -not ($env:KBL_EXCLUSIVE_LOCK -eq '0')
+
+# Advance animation position by an even nominal step rather than by measured
+# frame time, so scheduler jitter cannot make the gradient stride unevenly.
+# KBL_FIXED_STEP=0 restores the old behaviour.
+$eng.FixedStep = -not ($env:KBL_FIXED_STEP -eq '0')
+
 # --- optional data sources -------------------------------------------
 # Only started when an effect actually needs them, so the idle cost of a
 # plain gradient stays exactly what it was.
@@ -3270,6 +3468,27 @@ if ($minUpdUs -gt 0) {
 }
 Say ("  Update rate {0} fps (asked {1}, device min interval {2} us)." -f $fpsCap, $Fps, $minUpdUs) 'Gray'
 $eng.Fps        = $fpsCap
+
+# Gap between the batched reports of one frame. Back-to-back control transfers
+# can share a 1 ms USB frame and the EC can drop one, which shows up as the
+# deck missing frames while the bar keeps up. KBL_REPORT_PACE_US tunes it
+# without a rebuild; 0 turns pacing off.
+$paceUs = 1000
+if ($env:KBL_REPORT_PACE_US -match '^\d+$') { $paceUs = [int]$env:KBL_REPORT_PACE_US }
+if ($paceUs -gt 20000) { $paceUs = 20000 }
+$eng.ReportPaceUs = $paceUs
+Say ("  Report pacing {0} us between the {1} transfers of each frame." -f `
+     $paceUs, [Math]::Ceiling($lampCount/[double]$slots)) 'Gray'
+
+# The colour range the DEVICE reported, read from lamp 0 and applied to all of
+# them. Worth stating out loud because it settles an argument the timings never
+# can: if the deck only accepts a handful of levels per channel then no frame
+# rate or pacing will make a gradient smooth, and the trade-off moves to the
+# panel's Smooth colour toggle instead. It also decides whether UseDither turns
+# itself on, and on four big zones that carry the same colour dithering reads
+# as a lockstep shimmer rather than as extra depth.
+Say ("  Device colour range R{0} G{1} B{2} I{3}; temporal dither {4}." -f `
+     $RMAX, $GMAX, $BMAX, $IMAX, $(if ($eng.UseDither) { 'ON' } else { 'off' })) 'Gray'
 
 # ---- where each zone sits, as a number the effects can travel along ----
 #
@@ -3616,6 +3835,62 @@ try {
     $eng.FrameHz    = 20
 } catch { }
 
+# ---- hand over from an engine that is still alive ---------------------
+# Two engines pushing frames at the same keyboard is contention that no
+# host-side timing can fix: each runs its own 60 fps loop and the deck shows
+# both, which reads as visible stepping, while the twelve bar lamps average the
+# interleaving out and still look smooth. That is the reported symptom, and the
+# log backs it up - an exclusive open refused, "lock SHARED, fallbacks 1", with
+# an older engine still writing.
+#
+# The panel stops its own engine before starting another, but an update, a crash
+# or a second launch can leave one behind, and the engine only ever OVERWROTE
+# engine.pid without reading it, so it never knew. Ask the previous one to stop
+# and wait for it here, before taking the device, so the exclusive open below
+# has a real chance of succeeding.
+#
+# One-shot diagnostics deliberately skip this: they must never tear down the
+# engine the owner is actually using. Write-Log does not exist yet this early,
+# so anything worth logging is queued and written once the log is open.
+$script:StartupWarns = @()
+$script:PrevEngineStoodDown = $false
+if (-not ($Restore -or ($ZoneTest -ne '') -or $ChaseTest)) {
+    $prevPidFile = Join-Path $env:LOCALAPPDATA 'KeyboardLighting\engine.pid'
+    $prevPid = 0
+    try {
+        if (Test-Path $prevPidFile) {
+            $praw = (Get-Content $prevPidFile -Raw -ErrorAction SilentlyContinue)
+            if ($praw) { $praw = $praw.Trim() }
+            if ($praw -match '^\d+$') { $prevPid = [int]$praw }
+        }
+    } catch { }
+    if ($prevPid -gt 0 -and $prevPid -ne $PID) {
+        $prevProc = $null
+        try { $prevProc = [System.Diagnostics.Process]::GetProcessById($prevPid) } catch { $prevProc = $null }
+        if ($prevProc) {
+            Say ("  A previous lighting engine (pid {0}) is still running; asking it to stop." -f $prevPid) 'Yellow'
+            $prevFlag = Join-Path $env:LOCALAPPDATA 'KeyboardLighting\stop.flag'
+            try { Set-Content -Path $prevFlag -Value '1' -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
+            $prevDeadline = [DateTime]::UtcNow.AddMilliseconds(2500)
+            while ([DateTime]::UtcNow -lt $prevDeadline) {
+                try { if ($prevProc.HasExited) { break } } catch { break }
+                Start-Sleep -Milliseconds 50
+            }
+            $prevGone = $true
+            try { $prevGone = $prevProc.HasExited } catch { $prevGone = $true }
+            # Clear it here. The main loop below polls this same file, and if it
+            # were left behind this engine would immediately stop itself.
+            try { Remove-Item $prevFlag -Force -ErrorAction SilentlyContinue } catch { }
+            if ($prevGone) {
+                $script:PrevEngineStoodDown = $true
+                $script:StartupWarns += ("previous engine pid {0} was still alive at startup; it stopped on request" -f $prevPid)
+            } else {
+                $script:StartupWarns += ("previous engine pid {0} did NOT stop within 2.5s - two engines are writing to the keyboard, run Restart.bat" -f $prevPid)
+            }
+        }
+    }
+}
+
 if (-not $eng.Open()) {
     Write-Host ("  Engine could not open the device. {0}" -f $eng.LastError) -ForegroundColor Red
     Write-Host "  Run PowerShell as Administrator." -ForegroundColor Red
@@ -3624,6 +3899,41 @@ if (-not $eng.Open()) {
 
 Say ("  {0} zones, {1} per transfer, {2} transfers/frame, {3} colours (cyclic)" -f `
      $lampCount, $slots, [Math]::Ceiling($lampCount/[double]$slots), $stops.Count) 'Green'
+
+if ($eng.ExclusiveLock) {
+    Say '  Device owned exclusively - nothing else can write frames over ours.' 'DarkGray'
+} else {
+    Say '  Device opened SHARED: another program already holds it and can write' 'Yellow'
+    Say '  frames over ours at any time, which on its own makes the deck step.' 'Yellow'
+    Say '  Close Armoury Crate / ASUS lighting services, or KBL_EXCLUSIVE_LOCK=0.' 'Yellow'
+
+    # Name the likely culprit instead of leaving it to guesswork. Process NAMES
+    # only, and no process-table WMI query on purpose: enumerating command
+    # lines can hang for seconds after a sleep/wake or during a Windows Update,
+    # and this sits on the startup path of the thing that is supposed to make
+    # the keyboard behave. Our own previous instance is already accounted for above through
+    # engine.pid, so whatever still holds the device here is somebody else's.
+    # This runs once, only on the path that already means something is wrong,
+    # and every part of it is optional: failing to enumerate must never stop
+    # the lighting from starting.
+    $rivals = @()
+    foreach ($n in 'ArmouryCrate','ArmouryCrate.Service','LightingService',
+                   'ASUSLiveUpdate','ATKOSD2','GHelper','OpenRGB','SignalRGB') {
+        try { if (Get-Process -Name $n -ErrorAction SilentlyContinue) { $rivals += $n } } catch { }
+    }
+    if ($rivals.Count -gt 0) {
+        Say ("  Also running: {0}. Close these, then restart the lighting." -f ($rivals -join ', ')) 'Yellow'
+        $script:StartupWarns += ('vendor lighting processes running while the device was shared: ' + ($rivals -join ', '))
+    } elseif ($script:PrevEngineStoodDown) {
+        Say '  A previous engine was stopped, yet the device is still shared.' 'Yellow'
+        Say '  Run Restart.bat to force-stop every instance and start one clean.' 'Yellow'
+        $script:StartupWarns += 'the device was still shared after the previous engine stopped - run Restart.bat'
+    } else {
+        Say '  No known lighting software found, so a stale engine is likely.' 'Yellow'
+        Say '  Run Restart.bat to force-stop every instance and start one clean.' 'Yellow'
+        $script:StartupWarns += 'the device was shared and no known lighting process was found - run Restart.bat to clear a stale engine'
+    }
+}
 
 if ($Effect -eq 'off') {
     $eng.Blank(); $eng.Close()
@@ -3760,10 +4070,146 @@ function Write-Log($msg, $level = 'INFO') {
         }
     } catch { }
 }
+# Queued before the log was open: the handover from a previous engine, and
+# whatever was found holding the device when the exclusive open was refused.
+# WARN because each of these means two writers were fighting over the keyboard.
+try {
+    foreach ($w in $script:StartupWarns) { Write-Log $w 'WARN' }
+} catch { }
+
+# Which of the usual suspects is running, for the periodic status line. A
+# shared handle is only half a diagnosis: it says something else has the
+# device but not what. Naming it in the line that is already written once a
+# minute means the answer is in the log the owner actually pastes, instead of
+# in startup output that scrolled away hours earlier.
+#
+# Process NAMES only, and no process-table WMI query on purpose - enumerating
+# command lines can hang for seconds after a sleep/wake or during a Windows
+# Update, and this runs every minute for as long as the engine lives. Must
+# stay in step with the startup list above; a test compares the two.
+function Get-LightingRivals {
+    $found = @()
+    foreach ($n in 'ArmouryCrate','ArmouryCrate.Service','LightingService',
+                   'ASUSLiveUpdate','ATKOSD2','GHelper','OpenRGB','SignalRGB') {
+        try { if (Get-Process -Name $n -ErrorAction SilentlyContinue) { $found += $n } } catch { }
+    }
+    if ($found.Count -eq 0) { return '; no known vendor lighting process is running' }
+    return ('; also running: ' + ($found -join ', '))
+}
+
 $script:SysTick = 0
 $script:GateTick = 0
 $script:LastAc  = $null
 $script:LastPct = 100
+
+# ---- keeping G-Helper contained ---------------------------------------
+#
+# Setup sets skip_aura and pins G-Helper's brightness gate and idle timers
+# once, at install time, and nothing ever looked again. So a G-Helper update,
+# or a single click in its keyboard panel - which writes the moment you click,
+# because lighting has no Apply button - silently undid the containment and the
+# two apps went back to fighting over the keyboard.
+#
+# The engine now re-checks the same keys once a minute and, when they have
+# drifted, does what Setup does: rewrite them, restart G-Helper, then rewrite
+# them again. The restart is not optional pedantry - G-Helper only reads this
+# file at startup and saves its in-memory copy back over it on exit, so a
+# rewrite on its own gets undone the next time G-Helper closes.
+#
+# Restarting someone else's program is not free: G-Helper holds fan curves and
+# performance modes, and relaunching it from this elevated process brings it
+# back elevated. So it is rate limited to once every ten minutes, only ever
+# fires on real drift, and logs every attempt. KBL_GHELPER_WATCHDOG=0 disables
+# the whole thing.
+$script:GhWatchdogOn  = -not ($env:KBL_GHELPER_WATCHDOG -eq '0')
+$script:GhCfgPath     = Join-Path $env:APPDATA 'GHelper\config.json'
+$script:GhNextCheck   = [DateTime]::UtcNow
+$script:GhNextRestart = [DateTime]::UtcNow
+$script:GhRepairs     = 0
+$script:GhGaveUp      = $false
+# The keys Setup writes, and the only values that count as contained.
+$script:GhWant = @{
+    'skip_aura'              = 1
+    'keyboard_brightness'    = 3
+    'keyboard_brightness_ac' = 3
+    'max_brightness'         = 3
+    'keyboard_timeout'       = 0
+    'keyboard_ac_timeout'    = 0
+}
+
+function Get-GHelperDrift {
+    # Returns '' when G-Helper is absent, unreadable, or correctly contained,
+    # and a description of what drifted otherwise. A string rather than an
+    # array, so an empty result cannot be mistaken for a one-element one.
+    if (-not (Test-Path $script:GhCfgPath)) { return '' }
+    $cfg = $null
+    try {
+        $raw = Get-Content $script:GhCfgPath -Raw -ErrorAction Stop
+        if (-not $raw -or -not $raw.Trim()) { return '' }
+        $cfg = $raw | ConvertFrom-Json -ErrorAction Stop
+    } catch { return '' }
+    if (-not $cfg) { return '' }
+    $bad = @()
+    foreach ($k in $script:GhWant.Keys) {
+        $v = $cfg.$k
+        if ($null -eq $v) { $bad += ($k + ' missing'); continue }
+        $iv = $null
+        try { $iv = [int]$v } catch { $iv = $null }
+        if ($null -eq $iv) { $bad += ($k + ' not a number') }
+        elseif ($iv -ne $script:GhWant[$k]) { $bad += ($k + '=' + $v) }
+    }
+    if ($bad.Count -eq 0) { return '' }
+    return ($bad -join ', ')
+}
+
+function Repair-GHelper {
+    param([string]$Drift)
+    $script:GhRepairs++
+    Write-Log ("G-Helper containment had drifted ({0}); repairing" -f $Drift) 'WARN'
+
+    $cfg = $null
+    try {
+        $cfg = (Get-Content $script:GhCfgPath -Raw -ErrorAction Stop) | ConvertFrom-Json -ErrorAction Stop
+    } catch { }
+    if (-not $cfg) { Write-Log 'G-Helper config could not be parsed; left alone' 'WARN'; return }
+
+    foreach ($k in $script:GhWant.Keys) {
+        if ($null -ne $cfg.$k) { $cfg.$k = $script:GhWant[$k] }
+        else { Add-Member -InputObject $cfg -MemberType NoteProperty -Name $k -Value $script:GhWant[$k] -Force }
+    }
+    $json = ($cfg | ConvertTo-Json -Depth 10)
+
+    $ghPath = $null
+    try {
+        $gp = Get-Process -Name 'GHelper' -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($gp) { $ghPath = $gp.Path }
+    } catch { }
+
+    try { Copy-Item $script:GhCfgPath ($script:GhCfgPath + '.bak') -Force -ErrorAction SilentlyContinue } catch { }
+    try { $json | Set-Content -Path $script:GhCfgPath -Encoding UTF8 -ErrorAction Stop }
+    catch { Write-Log ('could not rewrite G-Helper config: ' + $_.Exception.Message) 'WARN'; return }
+
+    if (-not $ghPath) {
+        Write-Log 'G-Helper config repaired; it was not running so no restart was needed'
+        return
+    }
+    if ([DateTime]::UtcNow -lt $script:GhNextRestart) {
+        Write-Log 'G-Helper config repaired; restart skipped, one happened within the last 10 minutes' 'WARN'
+        return
+    }
+    try {
+        Get-Process -Name 'GHelper' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 900
+        # G-Helper saves its config on the way out, which would put the old
+        # values straight back, so write them a second time now it is gone.
+        $json | Set-Content -Path $script:GhCfgPath -Encoding UTF8 -ErrorAction SilentlyContinue
+        Start-Process -FilePath $ghPath -WorkingDirectory (Split-Path -Parent $ghPath)
+        $script:GhNextRestart = [DateTime]::UtcNow.AddMinutes(10)
+        Write-Log 'G-Helper restarted with the keyboard containment re-applied'
+    } catch {
+        Write-Log ('could not restart G-Helper: ' + $_.Exception.Message) 'WARN'
+    }
+}
 
 # ---- the keyboard's own backlight level ---------------------------------
 #
@@ -3851,9 +4297,13 @@ function Set-Live([int]$level) {
     }
     try { Set-Content -Path $liveFile -Value $level -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
     # Raising the software master is pointless while the EC 0..3 gate sits
-    # low - the hardware range would clamp it. Re-assert the full gate on
-    # every brightness move so "up" always actually goes up.
-    if ($level -gt 0) {
+    # low - the hardware range would clamp it. Re-assert the full gate so
+    # "up" always actually goes up, but rate limited: the fine ramp calls this
+    # dozens of times a second, and every re-assert is a WMI call plus a HID
+    # feature report competing with the frame writes for the endpoint. Half a
+    # second is far faster than anything that can pull the gate down.
+    if ($level -gt 0 -and [DateTime]::UtcNow -ge $script:GateReassertAt) {
+        $script:GateReassertAt = [DateTime]::UtcNow.AddMilliseconds(500)
         [void](Set-KbdBacklight 3)
         [void]$eng.PinGate(3)
     }
@@ -3892,10 +4342,22 @@ try {
 $script:TimingAt = [DateTime]::UtcNow.AddSeconds(5)
 $script:TimingDone = $false
 
-# Smooth master-brightness steps for the Fn F2 / F3 keys. 50/1000 = 5% per
-# press, so the keys sweep 0..100% in 20 fine steps - the same shape of
-# control as screen brightness - instead of the firmware's 4 coarse levels.
+# A TAP is deliberately coarse: 50/1000 = 5% per press, so a single keypress
+# reads as an instant response. The GLIDE is a different control and gets its
+# own numbers below - a held key that steps 5% every 150ms reads as a
+# staircase next to the screen-brightness slider, which is exactly what the
+# owner complained about.
 $step = 50
+# The glide: 1% every 30ms. Same overall speed as the old 5%-per-150ms
+# staircase (about three seconds for 0..100%) but a hundred treads instead of
+# twenty, which is what makes it read as a sweep. rampMs must stay above the
+# main loop's sleep or the extra resolution is silently thrown away.
+$rampStep = 10
+$rampMs = 30
+# How long after the last tap token the glide keeps running. Tokens arrive
+# every 60ms while a key is held, so this only has to bridge that gap; keeping
+# it small is what limits the overshoot after the key is let go.
+$loopMs = 30
 # The app asks us to stop by creating this file. Being killed outright
 # skips the cleanup below, which is what used to leave the last frame
 # frozen on the keyboard.
@@ -3909,8 +4371,7 @@ if (Test-Path $stopFile) { Remove-Item $stopFile -Force -ErrorAction SilentlyCon
 # gate - the software master is the only brightness that moves.
 $brightUpFile = Join-Path $stateDir 'bright_up.flag'
 $brightDownFile = Join-Path $stateDir 'bright_down.flag'
-$brightStepMs = 150
-$brightHoldMs = 400
+$brightHoldMs = 120
 $holdModeFile = Join-Path $stateDir 'hold_mode.txt'
 # Seed with the CURRENT token values so a restart never replays the last
 # press as a phantom tap (that was the 'slider moves on its own' bug).
@@ -3927,6 +4388,7 @@ try {
 $script:brightRampDir = 0
 $script:brightRampNext = [DateTime]::UtcNow
 $script:brightRampLast = [DateTime]::UtcNow
+$script:GateReassertAt = [DateTime]::UtcNow
 $script:brightPending = $false
 $script:brightBurst = 0
 $script:brightLatch = $false
@@ -4027,7 +4489,7 @@ try {
                     Set-Live ($script:LiveLevel + $tapDir * $step)
                     if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
                     $script:brightRampDir = $tapDir
-                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                    $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
                     $script:brightLatch = $true
                     $script:brightPending = $false
                     $script:brightBurst = 0
@@ -4036,20 +4498,26 @@ try {
                 Set-Live ($script:LiveLevel + $tapDir * $step)
                 if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
                 $script:brightRampDir = $tapDir
-                $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
-                $script:brightBurst = 3
+                $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
+                # 5% now plus 15% of fine steps = the same 20% glide as before,
+                # expressed in ramp steps so it is smooth rather than four jumps.
+                $script:brightBurst = [int](150 / $rampStep)
                 $script:brightLatch = $false
                 $script:brightPending = $false
                 $script:brightRampLast = $nowU
             } else {
-                if ($tapDir -ne $script:brightRampDir -or $nowU -ge $script:brightRampNext) {
+                # The FIRST token of a gesture is a real tap and takes the full
+                # 5%, so a single press reads instantly. Continuation tokens do
+                # not step at all - they only prove the key is still down. The
+                # fine ramp below does the moving; stepping here as well would
+                # pile 5% on top of every 1% the ramp already made.
+                $gapMs = ($nowU - $script:brightRampLast).TotalMilliseconds
+                if ($tapDir -ne $script:brightRampDir -or $gapMs -gt $brightHoldMs) {
                     Set-Live ($script:LiveLevel + $tapDir * $step)
                     if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
-                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
-                    $script:brightPending = $false
-                } else {
-                    $script:brightPending = $true
                 }
+                $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
+                $script:brightPending = $true
                 $script:brightLatch = $false
                 $script:brightRampDir = $tapDir
                 $script:brightRampLast = $nowU
@@ -4057,18 +4525,18 @@ try {
         } elseif ($script:brightRampDir -ne 0) {
             if ($script:brightBurst -gt 0) {
                 if ($nowU -ge $script:brightRampNext) {
-                    Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
+                    Set-Live ($script:LiveLevel + $script:brightRampDir * $rampStep)
                     if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
                     $script:brightBurst--
-                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                    $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
                 }
             } elseif ($script:brightLatch) {
                 if ($nowU -ge $script:brightRampNext) {
                     if (($script:brightRampDir -gt 0 -and $script:LiveLevel -lt 1000) -or
                         ($script:brightRampDir -lt 0 -and $script:LiveLevel -gt 0)) {
-                        Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
+                        Set-Live ($script:LiveLevel + $script:brightRampDir * $rampStep)
                         if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
-                        $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
+                        $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
                     } else {
                         $script:brightRampDir = 0
                         $script:brightLatch = $false
@@ -4078,10 +4546,15 @@ try {
                 if ($nowU -ge $script:brightRampLast.AddMilliseconds($brightHoldMs)) {
                     $script:brightPending = $false
                 } elseif ($nowU -ge $script:brightRampNext) {
-                    Set-Live ($script:LiveLevel + $script:brightRampDir * $step)
-                    if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
-                    $script:brightRampNext = $nowU.AddMilliseconds($brightStepMs)
-                    $script:brightPending = $false
+                    if (($script:brightRampDir -gt 0 -and $script:LiveLevel -ge 1000) -or
+                        ($script:brightRampDir -lt 0 -and $script:LiveLevel -le 0)) {
+                        $script:brightPending = $false
+                        $script:brightRampDir = 0
+                    } else {
+                        Set-Live ($script:LiveLevel + $script:brightRampDir * $rampStep)
+                        if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                        $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
+                    }
                 }
             }
         }
@@ -4108,13 +4581,19 @@ try {
         if ([DateTime]::UtcNow -gt $script:TimingAt) {
             $script:TimingAt = [DateTime]::UtcNow.AddSeconds(60)
             $budget = [int](1000000 / [Math]::Max(1, $eng.Fps))
-            $msg = ('device write {0} us/frame (worst {1}), budget {2} us at {3} fps, late frames {4}, failed writes {5}, reopens {6} in last interval' -f `
-                    $eng.WriteUs, $eng.WriteUsMax, $budget, $eng.Fps, $eng.LateFrames, $eng.WriteFails, $eng.Reopens)
+            $msg = ('device write {0} us/frame (worst {1}), budget {2} us at {3} fps, late frames {4}, failed writes {5}, reopens {6} in last interval; lock {7}, fallbacks {8}, dither {9}, range R{10}/G{11}/B{12}, lock retries {13}{14}' -f `
+                    $eng.WriteUs, $eng.WriteUsMax, $budget, $eng.Fps, $eng.LateFrames, $eng.WriteFails, $eng.Reopens, `
+                    $(if ($eng.ExclusiveLock) { 'exclusive' } else { 'SHARED' }), $eng.LockFallbacks, `
+                    $(if ($eng.UseDither) { 'on' } else { 'off' }), $eng.MaxR, $eng.MaxG, $eng.MaxB, `
+                    $eng.LockRetries, $(if ($eng.ExclusiveLock) { '' } else { (Get-LightingRivals) }))
             if (-not $script:TimingDone) {
                 $script:TimingDone = $true
                 Say ("  Timing: {0}" -f $msg) 'DarkGray'
             }
-            Write-Log $msg
+            # A shared handle is the one reading here that means another program
+            # is writing frames over ours, so it should not sit at INFO among
+            # the ordinary timings where it is easy to scroll past.
+            if ($eng.ExclusiveLock) { Write-Log $msg } else { Write-Log $msg 'WARN' }
             $eng.WriteUsMax = 0
             $eng.LateFrames = 0
             $eng.WriteFails = 0
@@ -4200,6 +4679,25 @@ try {
                 $eng.ReAssert()
                 foreach ($z in $eng.Groups) { $z.LiveDirty = $true }
             }
+        }
+
+        # --- G-Helper containment watchdog, once a minute ---
+        if ($script:GhWatchdogOn -and [DateTime]::UtcNow -ge $script:GhNextCheck) {
+            $script:GhNextCheck = [DateTime]::UtcNow.AddSeconds(60)
+            try {
+                # Stand down rather than fight. If five repairs have not made the
+                # containment stick then something else keeps rewriting that
+                # file, and restarting G-Helper every ten minutes forever is
+                # worse than leaving it alone and saying so once, loudly.
+                if ($script:GhRepairs -ge 5 -and -not $script:GhGaveUp) {
+                    $script:GhGaveUp = $true
+                    Write-Log 'G-Helper containment did not stick after 5 repairs; watchdog standing down. Run Setup.bat or set it by hand' 'WARN'
+                }
+                if (-not $script:GhGaveUp) {
+                    $ghDrift = Get-GHelperDrift
+                    if ($ghDrift) { Repair-GHelper $ghDrift }
+                }
+            } catch { }
         }
 
         if ($wmiOk) {
@@ -4463,7 +4961,7 @@ try {
             }
         }
 
-        Start-Sleep -Milliseconds 70
+        Start-Sleep -Milliseconds $loopMs
     }
 }
 finally {

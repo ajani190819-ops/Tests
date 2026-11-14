@@ -38,6 +38,14 @@ public class SpatialHud implements ClientModInitializer {
 	private static KeyMapping toggleHudKey;
 	/** One-shot guard for the late wrapper reinforce pass. */
 	private static boolean reinforcedWrappers;
+	/** How many times the capture wrappers have been re-applied after drift. */
+	private static int wrapperReinforcements;
+	/** Consecutive captured-frame misses of the hotbar that count as drift. */
+	private static final int MISSES_BEFORE_REWRAP = 3;
+	/** Hard cap on re-application passes: each nests one more wrapper. */
+	private static final int MAX_WRAPPER_PASSES = 4;
+	/** Consecutive hand-filled frames that mean a wrapper was displaced, not a pass split. */
+	private static final int FILLS_BEFORE_REWRAP = 60;
 
 	// The panel samples camera pitch once before every selected HUD extraction,
 	// so the backing and all captured roots share one mesh pose for that frame.
@@ -100,11 +108,26 @@ public class SpatialHud implements ClientModInitializer {
 				new SpatialHudPanelElement());
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
-			// One-shot, on the first tick after every mod has finished
-			// registering HUD elements: put our capture wrappers back on the
-			// outside. See reinforceStripWrappers().
+			// On the first tick after every mod has finished registering HUD
+			// elements: put our capture wrappers back on the outside. See
+			// reinforceStripWrappers().
 			if (!reinforcedWrappers) {
 				reinforcedWrappers = true;
+				reinforceStripWrappers();
+			} else if (wrapperReinforcements < MAX_WRAPPER_PASSES
+					&& (ExperimentalHudCapture.consecutiveHotbarMisses() >= MISSES_BEFORE_REWRAP
+						|| ExperimentalHudCapture.longestFillStreak() >= FILLS_BEFORE_REWRAP)) {
+				// The wrappers were displaced after that first pass: a mod that
+				// replaces a vanilla strip root late, or re-registers on a resource
+				// reload or world join, ends up outside our wrapper and draws its
+				// copy at the screen positions while the panel shows the captured
+				// one -- the status bars flickering between the two. Re-apply when
+				// the capture demonstrably stopped receiving the hotbar, but a
+				// bounded number of times, because each pass nests one more wrapper
+				// and a registry that fought us forever must not grow without limit.
+				wrapperReinforcements++;
+				LOGGER.warn("Spatial HUD: a strip root stopped reaching the panel capture through the HUD pipeline ({} missed frames, {} consecutively hand-filled); re-applying the capture wrappers (pass {} of {}).",
+						ExperimentalHudCapture.consecutiveHotbarMisses(), ExperimentalHudCapture.longestFillStreak(), wrapperReinforcements, MAX_WRAPPER_PASSES);
 				reinforceStripWrappers();
 			}
 
@@ -215,7 +238,12 @@ public class SpatialHud implements ClientModInitializer {
 	}
 
 	/** The config instance is the sole live source of truth for the Enable toggle. */
-	public static boolean isEnabled() {
+		/** The bottom-strip roots the capture collects, for the skipped-root fill. */
+	static List<Identifier> stripElements() {
+		return STRIP_ELEMENTS;
+	}
+
+public static boolean isEnabled() {
 		return SpatialHudConfig.get().enabled;
 	}
 

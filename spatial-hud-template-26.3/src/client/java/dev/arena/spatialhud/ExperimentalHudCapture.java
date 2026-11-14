@@ -14,7 +14,11 @@ import net.minecraft.resources.Identifier;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import org.joml.Vector4f;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Experimental, identity-scoped capture path for the vanilla bottom HUD.
@@ -59,6 +63,14 @@ public final class ExperimentalHudCapture {
 	private static boolean frameCapturedHotbar;
 	private static boolean loggedHotbarExtraction;
 	private static boolean loggedMissingHotbar;
+	private static int hotbarMissFrames;
+	/** Roots that already extracted into this frame's private capture. */
+	private static final Set<Identifier> capturedIds = new HashSet<>();
+	/** Consecutive frames each root had to be filled in by hand, see fillSkippedRoots. */
+	private static final Map<Identifier, Integer> fillStreak = new HashMap<>();
+	/** The current frame's tracker, kept so the fill can extract after the GUI pass. */
+	private static DeltaTracker lastDeltaTracker;
+	private static boolean loggedPassFill;
 	private static boolean loggedSlotCycling;
 	/** Becomes true after a completed capture can be drawn by Method 3 next frame. */
 	private static boolean worldTextureReady;
@@ -86,6 +98,7 @@ public final class ExperimentalHudCapture {
 		frameActive = false;
 		frameHasContent = false;
 		frameCapturedHotbar = false;
+		capturedIds.clear();
 
 		SpatialHudConfig.RenderMethod requestedMethod = SpatialHudConfig.get().selectedRenderMethod();
 		// Do not make a transient driver/companion-mod failure permanently turn
@@ -133,6 +146,15 @@ public final class ExperimentalHudCapture {
 		return sessionFallback ? failedMethod : null;
 	}
 
+	/**
+	 * Consecutive rendered frames in which the hotbar was expected but never
+	 * reached the private capture. Zero whenever a frame captured it, or whenever
+	 * the hotbar is not meant to be captured at all.
+	 */
+	static int consecutiveHotbarMisses() {
+		return hotbarMissFrames;
+	}
+
 	/** True only while the current gameplay HUD frame is collecting a texture. */
 	static boolean isFrameActive() {
 		return frameActive && !sessionFallback;
@@ -147,6 +169,7 @@ public final class ExperimentalHudCapture {
 		if (!isFrameActive()) {
 			return false;
 		}
+		lastDeltaTracker = deltaTracker;
 
 		try {
 			root.extract(capturedGraphics, deltaTracker);
@@ -162,6 +185,8 @@ public final class ExperimentalHudCapture {
 				}
 			}
 			frameHasContent = true;
+			capturedIds.add(id);
+			fillStreak.put(id, 0);   // the real HUD pipeline called it: not displaced
 			return true;
 		} catch (Throwable t) {
 			fallback(t, "extracting a selected bottom-HUD root");
@@ -293,9 +318,19 @@ public final class ExperimentalHudCapture {
 		if (!frameActive || !frameHasContent || sessionFallback) {
 			return;
 		}
-		if (SpatialHudConfig.get().showHotbar && !frameCapturedHotbar && !loggedMissingHotbar) {
-			loggedMissingHotbar = true;
-			SpatialHud.LOGGER.warn("Spatial HUD experimental capture did not receive the vanilla hotbar root. The backing may render without hotbar pixels; check the Hotbar and Spectator Menu setting and mod HUD replacement order.");
+		fillSkippedRoots();
+		if (SpatialHudConfig.get().showHotbar && !frameCapturedHotbar) {
+			// Counted, not just logged: a run of frames where the hotbar never
+			// reaches the capture is the signature of the capture wrappers having
+			// been displaced in the HUD registry (a mod registering its replacement
+			// after ours). SpatialHud watches this counter and re-applies them.
+			hotbarMissFrames++;
+			if (!loggedMissingHotbar) {
+				loggedMissingHotbar = true;
+				SpatialHud.LOGGER.warn("Spatial HUD experimental capture did not receive the vanilla hotbar root. The backing may render without hotbar pixels; check the Hotbar and Spectator Menu setting and mod HUD replacement order.");
+			}
+		} else {
+			hotbarMissFrames = 0;
 		}
 
 		try {
@@ -316,6 +351,64 @@ public final class ExperimentalHudCapture {
 			frameHasContent = false;
 			capturedGraphics = null;
 		}
+	}
+
+	/**
+	 * Completes a partial HUD frame. Gnetum and mods like it split the HUD
+	 * redraw into passes and run only some elements per frame, replaying cached
+	 * pixels for the rest on screen. Our private capture clears its texture
+	 * every frame, so a pass frame handed it a subset and the panel flickered
+	 * between partial HUDs. Any root that did not extract this frame is
+	 * extracted here, straight into the capture: an element vanilla genuinely
+	 * hides records nothing inside its own extract, so this restores skipped
+	 * pixels without ever painting something that should be absent.
+	 *
+	 * <p>A root that has to be filled for many consecutive frames was never
+	 * called by the HUD pipeline at all - the signature of a displaced capture
+	 * wrapper rather than a pass split - and {@link #longestFillStreak()} lets
+	 * SpatialHud re-apply the wrappers for that case.
+	 */
+	private static void fillSkippedRoots() {
+		if (capturedGraphics == null || lastDeltaTracker == null) {
+			return;
+		}
+		SpatialHudConfig cfg = SpatialHudConfig.get();
+		boolean filled = false;
+		for (Identifier id : SpatialHud.stripElements()) {
+			if (capturedIds.contains(id) || !cfg.showElement(id)) {
+				continue;
+			}
+			SpatialHudElement wrapper = SpatialHudElement.of(id);
+			if (wrapper == null) {
+				continue;
+			}
+			try {
+				wrapper.extractVanillaInto(capturedGraphics, lastDeltaTracker);
+				capturedIds.add(id);
+				fillStreak.merge(id, 1, Integer::sum);
+				frameHasContent = true;
+				if (id.equals(VanillaHudElements.HOTBAR)) {
+					frameCapturedHotbar = true;
+				}
+				filled = true;
+			} catch (Throwable t) {
+				fallback(t, "extracting a root the HUD pipeline skipped this frame");
+				return;
+			}
+		}
+		if (filled && !loggedPassFill) {
+			loggedPassFill = true;
+			SpatialHud.LOGGER.info("Spatial HUD is completing partial HUD frames by extracting skipped roots directly; a pass-splitting HUD mod such as Gnetum is installed.");
+		}
+	}
+
+	/** Longest run of consecutive frames in which one root had to be filled by hand. */
+	static int longestFillStreak() {
+		int longest = 0;
+		for (int streak : fillStreak.values()) {
+			longest = Math.max(longest, streak);
+		}
+		return longest;
 	}
 
 	private static void ensureRenderer() {
