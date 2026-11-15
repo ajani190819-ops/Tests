@@ -164,8 +164,12 @@ static void SetActiveBranch(HWND hwnd, const wchar_t *branch) {
     EnterCriticalSection(&g_cs);
     wcsncpy(g_activeBranch, branch, 63);
     g_activeBranch[63] = L'\0';
+    g_probeRef[0] = L'\0';
     LeaveCriticalSection(&g_cs);
+    /* An explicit Branch-menu choice means "stay here" until the owner
+       re-enables automatic following in Settings. */
     SaveBranchCfg(branch);
+    SaveFollowLatestTestBranch(FALSE);
     {
         wchar_t msg[160];
         _snwprintf(msg, 159, L"Download branch set to '%s' - refreshing update checks.", branch);

@@ -81,9 +81,13 @@ static void RefreshProjectStatuses(void) {
     BOOL kblUpd = kblKnown && RemoteDiffers(g_remKblSha, kblExeP2, remKblSz);
     if (!kblUpd) kblUpd = RemoteDiffers(g_remKblPs1Sha, kblPs1P, remPs1Sz);
 
+    /* The Hub action is not a permanent navigation button. It becomes
+       visible only after a completed remote check proves that a newer Hub
+       build exists; Update All stays available independently. */
     g_hubUpdAvail = (remHub[0] != '\0' && VerNewer(remHub, HUB_VERSION));
-    g_topBtns[1].label = g_hubUpdAvail ? L"Update Hub \x25B2" : L"Update Hub";
-    g_topBtns[1].style = g_hubUpdAvail ? BTN_AMBER : BTN_SECONDARY;
+    g_topBtns[1].label = L"Update Hub \x25B2";
+    g_topBtns[1].style = BTN_AMBER;
+    g_topBtns[1].hidden = !g_hubUpdAvail;
 
     /* Recompute every button style from a neutral base each refresh. A
        button that turned amber for an update must go back to normal the

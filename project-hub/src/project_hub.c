@@ -21,8 +21,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.47"
-#define HUB_VERSION_W     L"2.8.47"
+#define HUB_VERSION       "2.8.48"
+#define HUB_VERSION_W     L"2.8.48"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -211,7 +211,7 @@ static CRITICAL_SECTION g_cs;
 
 static ActionBtn        g_topBtns[5] = {
     { ID_BTN_REFRESH_ALL, L"Refresh",    BTN_SECONDARY, 92,  {0,0,0,0}, NULL, FALSE },
-    { ID_BTN_SELF_UPDATE, L"Update Hub", BTN_AMBER,     112, {0,0,0,0}, NULL, FALSE },
+    { ID_BTN_SELF_UPDATE, L"Update Hub", BTN_AMBER,     112, {0,0,0,0}, NULL, TRUE  },
     { ID_BTN_UPDATE_ALL,  L"Update All", BTN_PRIMARY,   108, {0,0,0,0}, NULL, FALSE },
     { ID_BTN_BRANCH,      L"Branch \x25BC", BTN_SECONDARY, 96, {0,0,0,0}, NULL, FALSE },
     { ID_BTN_SETTINGS,    L"Settings",   BTN_SECONDARY, 84, {0,0,0,0}, NULL, FALSE }
@@ -259,6 +259,9 @@ static wchar_t          g_activeBranch[64]  = L"";
 static wchar_t          g_branchMenuNames[96][64];
 static int              g_branchMenuN        = 0;
 static wchar_t          g_branchPromptOut[64];
+/* Automatic branch discovery is intentionally infrequent: startup always
+   checks, then a running hub checks again only every six hours. */
+static ULONGLONG        g_autoBranchLastCheck = 0;
 static char             g_remHubVer[32]     = "";
 static char             g_remWaveVer[32]    = "";
 static char             g_remInfillVer[32]  = "";

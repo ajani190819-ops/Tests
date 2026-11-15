@@ -14,6 +14,7 @@ static int ExtractLineAfter(const char *src, const char *key, char *out, int cap
 static void WorkerCheckRemote(void) {
     wchar_t branch[64];
     SetCheckPhase(TRUE);
+    RefreshAutomaticBranch();
     EnsureActiveBranch(branch, 64);
 
     /* The released marker is the ONLY read taken from the branch tip. Every

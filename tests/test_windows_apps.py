@@ -3009,7 +3009,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("for (int i = 4; i >= 0; i--)", rend,
                       "the header layout still places four buttons, so the "
                       "fifth is never positioned")
-        self.assertIn("for (int i = 0; i < 5; i++) {\n        if (PtInRect(&g_topBtns[i].rc, pt))",
+        self.assertIn("for (int i = 0; i < 5; i++) {\n        if (g_topBtns[i].hidden) continue;\n        if (PtInRect(&g_topBtns[i].rc, pt))",
                       rend, "the hit test cannot reach the fifth button")
 
         # The page offers exactly the modes the engine accepts, no more.
@@ -3175,6 +3175,82 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertGreaterEqual(version, (2, 8, 39),
                                 "the hub version was not bumped for the Update All "
                                 "coverage fix, so an installed hub never offers it")
+
+
+class ProjectHubUpdateVisibilityAndBranchFollowingTests(unittest.TestCase):
+    """The hub should surface actions only when they are useful, and should
+    follow the owner's newest test work without trampling an explicit choice."""
+
+    @staticmethod
+    def _hub_src() -> str:
+        return read_c_inlined("project-hub/src/project_hub.c")
+
+    def test_hub_update_action_is_hidden_until_a_newer_hub_is_verified(self):
+        src = self._hub_src()
+        top_start = src.index("static ActionBtn        g_topBtns[5]")
+        top = src[top_start:src.index("};", top_start)]
+        self.assertRegex(top,
+                         r'ID_BTN_SELF_UPDATE, L"Update Hub", BTN_AMBER,\s+112,\s+\{0,0,0,0\}, NULL, TRUE',
+                         "Update Hub starts visible before any remote version is known")
+        self.assertIn('{ ID_BTN_UPDATE_ALL,  L"Update All", BTN_PRIMARY,   108, {0,0,0,0}, NULL, FALSE }', top,
+                      "hiding the Hub updater must not hide Update All")
+
+        status_start = src.index("static void RefreshProjectStatuses(void)")
+        status = src[status_start:src.index("/* 1. Bluetooth Guard */", status_start)]
+        self.assertIn("g_hubUpdAvail = (remHub[0] != '\\0' && VerNewer(remHub, HUB_VERSION));", status)
+        self.assertIn("g_topBtns[1].hidden = !g_hubUpdAvail;", status,
+                      "a current Hub still leaves a dead Update Hub button visible")
+
+        layout_start = src.index("static void ComputeLayout(HWND hwnd)")
+        layout = src[layout_start:src.index("static int HitTestButtons", layout_start)]
+        self.assertIn("if (g_topBtns[i].hidden) {\n            SetRect(&g_topBtns[i].rc, 0, 0, 0, 0);\n            continue;\n        }", layout,
+                      "a hidden top button still consumes header space or keeps a stale hit box")
+        hit_start = src.index("static int HitTestButtons")
+        hit = src[hit_start:src.index("/* Blit the spinning emblem", hit_start)]
+        self.assertIn("if (g_topBtns[i].hidden) continue;", hit,
+                      "a hidden Update Hub rectangle is still clickable")
+        paint_start = src.index("static void PaintHubWindow")
+        paint = src[paint_start:src.index("static void ShowUtilityMenu", paint_start)]
+        self.assertIn("if (g_topBtns[i].hidden) continue;\n        DrawActionBtn", paint,
+                      "the header renderer ignores top-button visibility")
+        renderer = (ROOT / "project-hub/src/parts/ui_renderer.c").read_text(encoding="utf-8")
+        utility_start = renderer.index("static void ShowUtilityMenu")
+        utility = renderer[utility_start:]
+        self.assertIn("if (g_hubUpdAvail)\n        AppendMenuW(hMenu, MF_STRING, ID_BTN_SELF_UPDATE", utility,
+                      "the utility menu still exposes self-update while the Hub is current")
+
+    def test_latest_test_branch_setting_is_defaulted_and_manual_choice_pauses_it(self):
+        cache = (ROOT / "project-hub/src/parts/version_probe_cache.c").read_text(encoding="utf-8")
+        entry = (ROOT / "project-hub/src/parts/branch_picker_entry.c").read_text(encoding="utf-8")
+        remote = (ROOT / "project-hub/src/parts/workers_remote.c").read_text(encoding="utf-8")
+        settings = (ROOT / "project-hub/src/parts/settings_page.c").read_text(encoding="utf-8")
+
+        self.assertIn('GetPrivateProfileIntW(L"Update", L"FollowLatestTestBranch", 1, ini)', cache,
+                      "automatic following must be on by default")
+        self.assertIn('WritePrivateProfileStringW(L"Update", L"FollowLatestTestBranch", on ? L"1" : L"0", ini)', cache,
+                      "the follow setting is not persisted")
+        self.assertIn("/repos/ajani190819-ops/Tests/branches?per_page=100", cache,
+                      "automatic following does not inspect available branches")
+        self.assertIn('L"/repos/%s/%s/commits/%S"', cache,
+                      "the selected branch is not ranked by its newest commit")
+        self.assertIn("6ULL * 60ULL * 60ULL * 1000ULL", cache,
+                      "automatic branch discovery should be cached rather than run on every refresh")
+        self.assertIn("g_probeRef[0] = L'\\0';", cache,
+                      "switching automatic branches can reuse the previous branch's released commit")
+
+        self.assertIn("SaveBranchCfg(branch);\n    SaveFollowLatestTestBranch(FALSE);", entry,
+                      "choosing a branch manually must pause automatic following")
+        worker_start = remote.index("static void WorkerCheckRemote(void)")
+        worker = remote[worker_start:remote.index("/* The released marker", worker_start)]
+        self.assertLess(worker.index("RefreshAutomaticBranch();"), worker.index("EnsureActiveBranch(branch, 64);"),
+                        "the remote probe resolves a branch before automatic following runs")
+
+        self.assertIn('L"Automatically follow the newest active test branch"', settings,
+                      "Settings has no discoverable automatic-branch control")
+        self.assertIn("SetFollowLatestTestBranch(on);", settings,
+                      "the Settings checkbox does not apply the branch-follow preference")
+        self.assertIn("EnqueueTask(TASK_CHECK_REMOTE);", settings,
+                      "enabling automatic following does not check immediately")
 
 
 class AudioSwitcherReachabilityTests(unittest.TestCase):

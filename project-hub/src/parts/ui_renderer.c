@@ -128,6 +128,10 @@ static void ComputeLayout(HWND hwnd) {
     int topBtnH = S(35, dpi);
     int topBtnY = (headerH - topBtnH) / 2;
     for (int i = 4; i >= 0; i--) {
+        if (g_topBtns[i].hidden) {
+            SetRect(&g_topBtns[i].rc, 0, 0, 0, 0);
+            continue;
+        }
         int bw = S(g_topBtns[i].widthPx, dpi);
         bx -= bw;
         SetRect(&g_topBtns[i].rc, bx, topBtnY, bx + bw, topBtnY + topBtnH);
@@ -160,6 +164,7 @@ static void ComputeLayout(HWND hwnd) {
 static int HitTestButtons(POINT pt, int headerBottom, int footerTop) {
     if (PtInRect(&g_rcEmblem, pt)) return ID_EMBLEM_MENU;
     for (int i = 0; i < 5; i++) {
+        if (g_topBtns[i].hidden) continue;
         if (PtInRect(&g_topBtns[i].rc, pt)) return g_topBtns[i].id;
     }
     if (pt.y < headerBottom || pt.y > footerTop) return 0;
@@ -394,6 +399,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
     }
 
     for (int i = 0; i < 5; i++) {
+        if (g_topBtns[i].hidden) continue;
         DrawActionBtn(hdc, px, w, h, &g_topBtns[i], dpi, 0, headerH);
     }
 
@@ -467,7 +473,8 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
 static void ShowUtilityMenu(HWND hwnd) {
     HMENU hMenu = CreatePopupMenu();
     AppendMenuW(hMenu, MF_STRING, ID_MENU_SHORTCUT,  L"Pin Project Hub Shortcut to Desktop");
-    AppendMenuW(hMenu, MF_STRING, ID_BTN_SELF_UPDATE, L"Self-Update Project Hub Now");
+    if (g_hubUpdAvail)
+        AppendMenuW(hMenu, MF_STRING, ID_BTN_SELF_UPDATE, L"Self-Update Project Hub Now");
     AppendMenuW(hMenu, MF_STRING, ID_BTN_BRANCH, L"Download Branch...");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(hMenu, MF_STRING, ID_MENU_SUITE_DIR, L"Open Managed Suite Folder");

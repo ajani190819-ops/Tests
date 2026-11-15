@@ -126,6 +126,37 @@ static void SaveBranchCfg(const wchar_t *branch) {
     WritePrivateProfileStringW(L"Update", L"Branch", branch, ini);
 }
 
+/* Automatic mode follows the most recently committed Arena test branch.
+   It is on by default so a newly released branch does not require a second
+   manual Branch-menu trip. Picking a branch manually pauses it; the Settings
+   page can turn it back on at any time. */
+static BOOL FollowLatestTestBranch(void) {
+    wchar_t ini[MAX_PATH];
+    BranchCfgPath(ini, MAX_PATH);
+    return GetPrivateProfileIntW(L"Update", L"FollowLatestTestBranch", 1, ini) != 0;
+}
+
+static void SaveFollowLatestTestBranch(BOOL on) {
+    wchar_t dir[MAX_PATH], ini[MAX_PATH];
+    _snwprintf(dir, MAX_PATH - 1, L"%s\\ProjectHub", g_localApp);
+    dir[MAX_PATH - 1] = L'\0';
+    CreateDirectoryW(dir, NULL);
+    BranchCfgPath(ini, MAX_PATH);
+    WritePrivateProfileStringW(L"Update", L"FollowLatestTestBranch", on ? L"1" : L"0", ini);
+}
+
+static void SetFollowLatestTestBranch(BOOL on) {
+    SaveFollowLatestTestBranch(on);
+    if (!on) return;
+    /* Force the next worker pass to discover again rather than reusing a
+       previous manual branch or its released commit. */
+    EnterCriticalSection(&g_cs);
+    g_activeBranch[0] = L'\0';
+    g_probeRef[0] = L'\0';
+    g_autoBranchLastCheck = 0;
+    LeaveCriticalSection(&g_cs);
+}
+
 /* Per-app opt-outs. The mod card (and only it, per the owner's choice)
    can be disabled: no install, no update, Update All skips it. */
 static int g_hudDisabled = 0;
@@ -159,13 +190,13 @@ static void EnsureActiveBranch(wchar_t *outBranch, size_t cap) {
     }
     LeaveCriticalSection(&g_cs);
 
-    /* Saved user choice wins; only auto-probe when never chosen.
-       But validate the saved branch actually has app binaries - a stale
-       saved branch (from an older hub run) would otherwise make Install
-       download from a branch where no exes exist, silently failing. */
+    /* A manual selection wins only while automatic following is paused.
+       Validate a saved manual branch before using it: an old branch with no
+       app binaries would otherwise make Install fail with no useful answer. */
+    BOOL followLatest = FollowLatestTestBranch();
     wchar_t chosenBuf[64];
     const wchar_t *chosen = NULL;
-    if (LoadBranchCfg(chosenBuf, 64)) {
+    if (!followLatest && LoadBranchCfg(chosenBuf, 64)) {
         DWORD sz = 0; int st = 0;
         wchar_t probePath[256];
         _snwprintf(probePath, 255, L"/%s/%s/%s/audio-switcher/AudioSwitcher.exe",
@@ -177,6 +208,10 @@ static void EnsureActiveBranch(wchar_t *outBranch, size_t cap) {
         }
         /* else: saved branch has no exes, fall through to probing below */
     }
+    /* The worker discovers the latest test branch before it reaches here.
+       If a UI path asks first, use main until that background discovery
+       completes rather than blocking the UI on a branch scan. */
+    if (followLatest) chosen = L"main";
     if (!chosen) {
         DWORD sz = 0;
         int st = 0;
@@ -223,6 +258,110 @@ static BOOL ExtractQuotedAfter(const char *hay, const char *key, char *out, size
     while (*p && *p != quote && i + 1 < cap) out[i++] = *p++;
     out[i] = '\0';
     return i > 0;
+}
+
+
+static BOOL IsArenaTestBranch(const char *name, int len) {
+    static const char prefix[] = "arena/";
+    static const char suffix[] = "-tests";
+    int prefixLen = (int)sizeof(prefix) - 1;
+    int suffixLen = (int)sizeof(suffix) - 1;
+    return len > prefixLen + suffixLen &&
+           memcmp(name, prefix, (size_t)prefixLen) == 0 &&
+           memcmp(name + len - suffixLen, suffix, (size_t)suffixLen) == 0;
+}
+
+/* The branches API provides each tip SHA but not its commit date. Resolve the
+   small set of Arena test-branch tips once at startup, then cache the choice
+   for six hours. This is deliberate: branch discovery is a convenience, not
+   something that should spend GitHub requests every ordinary status refresh. */
+static void FindLatestArenaTestBranch(wchar_t *out, size_t cap) {
+    out[0] = L'\0';
+    DWORD listSz = 0;
+    int listSt = 0;
+    BYTE *list = HttpGetBuffer(L"api.github.com",
+                               L"/repos/ajani190819-ops/Tests/branches?per_page=100",
+                               &listSz, &listSt);
+    if (!list || listSt != 200) { free(list); return; }
+
+    char bestDate[32] = "";
+    char *scan = (char *)list;
+    while (scan && *scan) {
+        char *namePos = strstr(scan, "\"name\":\"");
+        if (!namePos) break;
+        namePos += 8;
+        char *nameEnd = strchr(namePos, '\"');
+        if (!nameEnd) break;
+        char *nextName = strstr(nameEnd + 1, "\"name\":\"");
+        int nameLen = (int)(nameEnd - namePos);
+        if (nameLen > 0 && nameLen < 64 && IsArenaTestBranch(namePos, nameLen)) {
+            char *shaPos = strstr(nameEnd, "\"sha\":\"");
+            if (shaPos && (!nextName || shaPos < nextName)) {
+                shaPos += 7;
+                char *shaEnd = strchr(shaPos, '\"');
+                int shaLen = shaEnd ? (int)(shaEnd - shaPos) : 0;
+                if (shaLen >= 7 && shaLen < 48) {
+                    char sha[48];
+                    memcpy(sha, shaPos, (size_t)shaLen);
+                    sha[shaLen] = '\0';
+                    wchar_t commitPath[256];
+                    _snwprintf(commitPath, 255, L"/repos/%s/%s/commits/%S",
+                               REPO_OWNER_W, REPO_NAME_W, sha);
+                    commitPath[255] = L'\0';
+                    DWORD commitSz = 0;
+                    int commitSt = 0;
+                    char *commit = (char *)HttpGetBuffer(L"api.github.com", commitPath,
+                                                          &commitSz, &commitSt);
+                    if (commit && commitSt == 200) {
+                        char date[32] = "";
+                        char *committer = strstr(commit, "\"committer\":");
+                        if (committer && ExtractQuotedAfter(committer, "\"date\"", date, sizeof(date)) &&
+                            (!bestDate[0] || strcmp(date, bestDate) > 0)) {
+                            memcpy(bestDate, date, sizeof(bestDate));
+                            int n = nameLen < (int)cap - 1 ? nameLen : (int)cap - 1;
+                            for (int i = 0; i < n; i++) out[i] = (wchar_t)(unsigned char)namePos[i];
+                            out[n] = L'\0';
+                        }
+                    }
+                    free(commit);
+                }
+            }
+        }
+        scan = nameEnd + 1;
+    }
+    free(list);
+}
+
+static void RefreshAutomaticBranch(void) {
+    if (!FollowLatestTestBranch()) return;
+    ULONGLONG now = GetTickCount64();
+    EnterCriticalSection(&g_cs);
+    if (g_autoBranchLastCheck && now - g_autoBranchLastCheck < 6ULL * 60ULL * 60ULL * 1000ULL) {
+        LeaveCriticalSection(&g_cs);
+        return;
+    }
+    g_autoBranchLastCheck = now;
+    LeaveCriticalSection(&g_cs);
+
+    wchar_t newest[64];
+    FindLatestArenaTestBranch(newest, 64);
+    if (!newest[0]) return;
+
+    BOOL changed = FALSE;
+    EnterCriticalSection(&g_cs);
+    if (_wcsicmp(g_activeBranch, newest) != 0) {
+        wcsncpy(g_activeBranch, newest, 63);
+        g_activeBranch[63] = L'\0';
+        g_probeRef[0] = L'\0';
+        changed = TRUE;
+    }
+    LeaveCriticalSection(&g_cs);
+    if (changed) {
+        wchar_t msg[192];
+        _snwprintf(msg, 191, L"Following newest active test branch: %s", newest);
+        msg[191] = L'\0';
+        SetFooterStatus(msg, 0);
+    }
 }
 
 /* Numeric dotted-version compare: TRUE only when a is genuinely newer than b.

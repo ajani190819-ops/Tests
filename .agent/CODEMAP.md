@@ -6,11 +6,11 @@
 
 ## project-hub/src/project_hub.c
 
-- L282  f GetWinDpi
-- L297  f S
-- L299  f ApplyModernWindowFrame
-- L318  f RebuildFontsAndIcons
-- globals: g_hInst (L197), g_hwnd (L198), g_fontHero (L199), g_fontSub (L200), g_fontTitle (L201), g_fontBody (L202), g_fontBtn (L203), g_fontBadge (L204), g_appIcon (L205), g_hdrEmblem (L206), g_cardIcons (L207), g_showEvent (L208), g_hMutex (L209), g_cs (L210), g_topBtns (L212), g_rcEmblem (L219), g_cards (L221), g_cardCount (L222), g_dynIdx (L223), g_hoverId (L224), g_scrollY (L225), g_maxScrollY (L226), g_exePath (L228), g_exeDir (L229), g_localApp (L230), g_probeRef (L234), g_roamApp (L235), g_suiteDir (L236), g_hubCfgDir (L237), g_btgDir (L238), g_btgExtraExe (L239), g_kblDir (L240), g_dnsDir (L241), g_notesDir (L242), g_audioSwitcherDir (L243), g_modsDir (L244), g_orcaBatDir (L245), g_suiteHubExe (L253), g_mirrorDirs (L254), g_mirrorCount (L255), g_activeBranch (L258), g_branchMenuNames (L259), g_branchMenuN (L260), g_branchPromptOut (L261), g_remHubVer (L262), g_remWaveVer (L263), g_remInfillVer (L264), g_remHudName (L265), g_remHudPath (L266), g_remHudSize (L267), g_statusMsg (L268), g_progressVal (L269), g_hubUpdAvail (L270), g_taskQueue (L273), g_qHead (L274), g_qTail (L275), g_qSem (L276), g_running (L277)
+- L285  f GetWinDpi
+- L300  f S
+- L302  f ApplyModernWindowFrame
+- L321  f RebuildFontsAndIcons
+- globals: g_hInst (L197), g_hwnd (L198), g_fontHero (L199), g_fontSub (L200), g_fontTitle (L201), g_fontBody (L202), g_fontBtn (L203), g_fontBadge (L204), g_appIcon (L205), g_hdrEmblem (L206), g_cardIcons (L207), g_showEvent (L208), g_hMutex (L209), g_cs (L210), g_topBtns (L212), g_rcEmblem (L219), g_cards (L221), g_cardCount (L222), g_dynIdx (L223), g_hoverId (L224), g_scrollY (L225), g_maxScrollY (L226), g_exePath (L228), g_exeDir (L229), g_localApp (L230), g_probeRef (L234), g_roamApp (L235), g_suiteDir (L236), g_hubCfgDir (L237), g_btgDir (L238), g_btgExtraExe (L239), g_kblDir (L240), g_dnsDir (L241), g_notesDir (L242), g_audioSwitcherDir (L243), g_modsDir (L244), g_orcaBatDir (L245), g_suiteHubExe (L253), g_mirrorDirs (L254), g_mirrorCount (L255), g_activeBranch (L258), g_branchMenuNames (L259), g_branchMenuN (L260), g_branchPromptOut (L261), g_autoBranchLastCheck (L264), g_remHubVer (L265), g_remWaveVer (L266), g_remInfillVer (L267), g_remHudName (L268), g_remHudPath (L269), g_remHudSize (L270), g_statusMsg (L271), g_progressVal (L272), g_hubUpdAvail (L273), g_taskQueue (L276), g_qHead (L277), g_qTail (L278), g_qSem (L279), g_running (L280)
 
 ## project-hub/src/parts/branch_picker_entry.c
 
@@ -20,8 +20,8 @@
 - L93  f PromptTextInput
 - L157  f PromptBranchName
 - L162  f SetActiveBranch
-- L180  f ShowBranchMenu
-- L216  f HandleActionCommand
+- L184  f ShowBranchMenu
+- L220  f HandleActionCommand
 
 ## project-hub/src/parts/builtin_card_text.c
 
@@ -113,19 +113,19 @@
 
 ## project-hub/src/parts/settings_page.c
 
-- L43  f SetKblPath
-- L48  f SetDnsCfgPath
-- L53  f SetStatusText
-- L58  f HoldModeCurrent  — 0 = tap, 1 = latch, 2 = burst; missing or unreadable means the default.
-- L72  f ApplyHoldMode
-- L81  f SmoothCurrent
-- L102  f ApplySmooth
-- L132  f ModNamesW
-- L140  f KeyNameW
-- L150  f ApplyDns
-- L163  f SetCtl
-- L204  f OpenSettingsWindow
-- globals: g_setHwnd (L29), g_setHold (L30), g_setSmooth (L31), g_setDnsAuto (L32), g_setDnsInt (L33), g_setStatus (L34)
+- L46  f SetKblPath
+- L51  f SetDnsCfgPath
+- L56  f SetStatusText
+- L61  f HoldModeCurrent  — 0 = tap, 1 = latch, 2 = burst; missing or unreadable means the default.
+- L75  f ApplyHoldMode
+- L84  f SmoothCurrent
+- L105  f ApplySmooth
+- L135  f ModNamesW
+- L143  f KeyNameW
+- L153  f ApplyDns
+- L166  f SetCtl
+- L218  f OpenSettingsWindow
+- globals: g_setHwnd (L31), g_setHold (L32), g_setSmooth (L33), g_setDnsAuto (L34), g_setDnsInt (L35), g_setAutoBranch (L36), g_setStatus (L37)
 
 ## project-hub/src/parts/ui_renderer.c
 
@@ -133,11 +133,11 @@
 - L31  f SmoothRoundRect
 - L89  f DrawActionBtn
 - L111  f ComputeLayout
-- L160  f HitTestButtons
-- L178  f PaintEmblemBlit
-- L205  f PaintHubWindow
-- L467  f ShowUtilityMenu
-- globals: g_frameCache (L202), g_fcW (L203)
+- L164  f HitTestButtons
+- L183  f PaintEmblemBlit
+- L210  f PaintHubWindow
+- L473  f ShowUtilityMenu
+- globals: g_frameCache (L207), g_fcW (L208)
 
 ## project-hub/src/parts/version_probe_cache.c
 
@@ -147,13 +147,19 @@
 - L107  f BranchCfgPath
 - L112  f LoadBranchCfg
 - L120  f SaveBranchCfg
-- L134  f LoadAppsCfg
-- L143  f SaveAppsCfg
-- L152  f EnsureActiveBranch
-- L214  f ExtractQuotedAfter
-- L232  f VerNewer
-- L245  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
-- globals: g_hcache (L13), g_hudDisabled (L131), g_orcaDisabled (L132)
+- L133  f FollowLatestTestBranch
+- L139  f SaveFollowLatestTestBranch
+- L148  f SetFollowLatestTestBranch
+- L165  f LoadAppsCfg
+- L174  f SaveAppsCfg
+- L183  f EnsureActiveBranch
+- L249  f ExtractQuotedAfter
+- L264  f IsArenaTestBranch
+- L278  f FindLatestArenaTestBranch
+- L335  f RefreshAutomaticBranch
+- L371  f VerNewer
+- L384  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
+- globals: g_hcache (L13), g_hudDisabled (L162), g_orcaDisabled (L163)
 
 ## project-hub/src/parts/workers_install.c
 
@@ -169,7 +175,7 @@
 
 - L4  f ExtractLineAfter
 - L14  f WorkerCheckRemote
-- L239  f StopProcessFromLock
+- L240  f StopProcessFromLock
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
@@ -805,9 +811,10 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2456  f SuiteFolderInstallTests
-- L3180  f AudioSwitcherReachabilityTests
-- L3364  f AudioSwitcherSessionSweepTests
-- L3505  f AppOpenFocusTests
+- L3180  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3256  f AudioSwitcherReachabilityTests
+- L3440  f AudioSwitcherSessionSweepTests
+- L3581  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

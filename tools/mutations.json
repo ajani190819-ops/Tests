@@ -86,8 +86,8 @@
  {
   "id": "set-04",
   "file": "project-hub/src/parts/ui_renderer.c",
-  "old": "    for (int i = 0; i < 5; i++) {\n        if (PtInRect(&g_topBtns[i].rc, pt))",
-  "new": "    for (int i = 0; i < 4; i++) {\n        if (PtInRect(&g_topBtns[i].rc, pt))",
+  "old": "    for (int i = 0; i < 5; i++) {\n        if (g_topBtns[i].hidden) continue;\n        if (PtInRect(&g_topBtns[i].rc, pt))",
+  "new": "    for (int i = 0; i < 4; i++) {\n        if (g_topBtns[i].hidden) continue;\n        if (PtInRect(&g_topBtns[i].rc, pt))",
   "label": "E fifth button not hit-testable"
  },
  {
@@ -320,5 +320,40 @@
   "old": "        if (wp != SIZE_MINIMIZED) LayoutSearchEdit();",
   "new": "        if (wp != SIZE_MINIMIZED) InvalidateRect(hwnd, NULL, FALSE);",
   "label": "P search field remains at its provisional creation rectangle"
+ },
+ {
+  "id": "hubvis-00",
+  "file": "project-hub/src/parts/refresh_statuses.c",
+  "old": "    g_topBtns[1].hidden = !g_hubUpdAvail;",
+  "new": "    g_topBtns[1].hidden = FALSE;",
+  "label": "A current Hub still shows Update Hub"
+ },
+ {
+  "id": "hubvis-01",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "        if (g_topBtns[i].hidden) {\n            SetRect(&g_topBtns[i].rc, 0, 0, 0, 0);\n            continue;\n        }\n",
+  "new": "",
+  "label": "B hidden Hub update still consumes header layout"
+ },
+ {
+  "id": "branchauto-00",
+  "file": "project-hub/src/parts/version_probe_cache.c",
+  "old": "GetPrivateProfileIntW(L\"Update\", L\"FollowLatestTestBranch\", 1, ini)",
+  "new": "GetPrivateProfileIntW(L\"Update\", L\"FollowLatestTestBranch\", 0, ini)",
+  "label": "C automatic test-branch following defaults off"
+ },
+ {
+  "id": "branchauto-01",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "    SaveBranchCfg(branch);\n    SaveFollowLatestTestBranch(FALSE);",
+  "new": "    SaveBranchCfg(branch);",
+  "label": "D manual branch choice does not pause auto following"
+ },
+ {
+  "id": "branchauto-02",
+  "file": "project-hub/src/parts/workers_remote.c",
+  "old": "    RefreshAutomaticBranch();\n    EnsureActiveBranch(branch, 64);",
+  "new": "    EnsureActiveBranch(branch, 64);",
+  "label": "E automatic branch discovery is skipped before remote checks"
  }
 ]
