@@ -34,6 +34,22 @@ discovery does the work.
 - **No live session yet - notes queue safely here and deliver on the agent's
   next turn.** First run before the agent has worked once.
 
+## Reading the window
+
+The window follows your Windows colour theme: pick light or dark in
+Settings and Agent Notes matches it, in both directions. Text colour is set
+through the rich-edit character format rather than the usual control-colour
+message, because a RichEdit50W control ignores that message completely -
+which is why an earlier build showed near-black text on a near-black box.
+
+Layout, top to bottom: the title and one line saying what the app does, the
+session link (grey text means it is showing its placeholder, "automatic -
+finds the agent's live session itself"; typed or discovered text shows in the
+normal colour), the note box, a full-width **Send to Agent** bar, and your
+recent notes with a Queued or Sent chip beside each one. Clicking into a box
+clears its placeholder; clicking out of an empty box brings it back. The
+placeholder is never saved as your link and never sent as a note.
+
 ## Privacy note
 
 The committed link file makes the inbox address discoverable by anyone who

@@ -482,10 +482,12 @@
 
 ## agent-notes/src/agent_notes.c
 
-- L75  f S
-- L82  f ApplyModernWindowFrame
-- L101  f GetWinDpi
-- globals: g_hInst (L55), g_hwnd (L56), g_fontUI (L57), g_bgBrush (L58), g_dpi (L59), g_fit (L60), g_hoverBtn (L61), g_showEvent (L62), g_link (L64), g_cfgDir (L65), g_cfgPath (L66), g_histPath (L67), g_outboxDir (L68), g_status (L69), g_lastOk (L70), g_sending (L71), g_noteHint (L72), g_lastSent (L73)
+- L39  f AppsUseLightTheme
+- L48  f InitPalette
+- L111  f S
+- L118  f ApplyModernWindowFrame
+- L137  f GetWinDpi
+- globals: g_hInst (L90), g_hwnd (L91), g_fontUI (L92), g_linkHint (L93), g_bgBrush (L94), g_dpi (L95), g_fit (L96), g_hoverBtn (L97), g_showEvent (L98), g_link (L100), g_cfgDir (L101), g_cfgPath (L102), g_histPath (L103), g_outboxDir (L104), g_status (L105), g_lastOk (L106), g_sending (L107), g_noteHint (L108), g_lastSent (L109)
 
 ## agent-notes/src/parts/config_outbox.c
 
@@ -526,14 +528,16 @@
 ## agent-notes/src/parts/ui.c
 
 - L1  S UI
-- L3  f EmbRect  — ---------------- UI ----------------
-- L7  f BtnRect
-- L12  f DrawBtn
-- L32  f HitBtn
-- L42  f DrawDot
-- L54  f PaintAll
-- L222  f NoteSetHint
-- L229  f NowStamp
+- L6  f RichTextColor
+- L20  f EmbRect
+- L24  f BtnRect
+- L29  f DrawBtn
+- L49  f HitBtn
+- L59  f DrawDot
+- L71  f PaintAll
+- L239  f NoteSetHint
+- L249  f LinkSetHint
+- L257  f NowStamp
 
 ## audio-switcher/src/audio_switcher.c
 
@@ -800,9 +804,9 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2232  f SuiteFolderInstallTests
-- L2843  f AudioSwitcherReachabilityTests
-- L3027  f AudioSwitcherSessionSweepTests
-- L3168  f AppOpenFocusTests
+- L2956  f AudioSwitcherReachabilityTests
+- L3140  f AudioSwitcherSessionSweepTests
+- L3281  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

@@ -1,12 +1,29 @@
 /* ---------------- UI ---------------- */
 
+/* RichEdit controls ignore WM_CTLCOLOREDIT entirely - the character format
+   IS the text colour. Without this the editors kept Windows' default black
+   text on the darkened surfaces: the dark-on-dark the owner reported. */
+static void RichTextColor(HWND h, COLORREF c) {
+    CHARFORMAT2W cf;
+    ZeroMemory(&cf, sizeof(cf));
+    cf.cbSize = sizeof(cf);
+    cf.dwMask = CFM_COLOR;
+    cf.crTextColor = c;
+    DWORD selA = 0, selB = 0;
+    SendMessageW(h, EM_GETSEL, (WPARAM)&selA, (LPARAM)&selB);
+    SendMessageW(h, EM_SETSEL, 0, -1);
+    SendMessageW(h, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
+    SendMessageW(h, EM_SETSEL, (WPARAM)selA, (LPARAM)selB);
+    SendMessageW(h, EM_SETCHARFORMAT, SCF_DEFAULT, (LPARAM)&cf);
+}
+
 static void EmbRect(RECT *r) {
     SetRect(r, S(20), S(22), S(20) + S(56), S(22) + S(56));
 }
 
 static void BtnRect(int i, RECT *r) {
     if (i == BTN_SAVE) SetRect(r, S(470), S(98), S(470) + S(120), S(98) + S(32));
-    else SetRect(r, S(20), S(380), S(20) + S(190), S(380) + S(38));
+    else SetRect(r, S(20), S(380), S(600), S(380) + S(40));
 }
 
 static void DrawBtn(HDC dc, int idx, const wchar_t *label, int primary) {
@@ -75,7 +92,7 @@ static void PaintAll(HWND hwnd) {
         bi.bmiHeader.biCompression = BI_RGB;
         HBITMAP dib = CreateDIBSection(dc, &bi, DIB_RGB_COLORS, (void **)&bits, NULL, 0);
         if (dib && bits) {
-            for (int i = 0; i < sz * sz; i++) bits[i] = RGB(24, 27, 36);
+            for (int i = 0; i < sz * sz; i++) bits[i] = COL_BG;
             EmbSpinDraw(bits, sz, sz, 0, 0, sz, g_spinAngle);
             HDC mdc = CreateCompatibleDC(dc);
             HGDIOBJ old = SelectObject(mdc, dib);
@@ -116,7 +133,7 @@ static void PaintAll(HWND hwnd) {
     SetTextColor(mem, COL_MUTED);
     RECT s = { S(92), S(52), W - S(20), S(84) };
     DrawTextW(mem,
-              L"Type a note and press Send to Agent - it lands in the agent's session inbox.",
+              L"Your direct line to the agent - notes queue safely when the agent is away.",
               -1, &s, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
     RECT lbl = { S(20), S(98), S(126), S(130) };
@@ -224,6 +241,17 @@ static void NoteSetHint(int on) {
     if (on) SetWindowTextW(g_hNote, HINT_TEXT);
     else SetWindowTextW(g_hNote, L"");
     g_noteHint = on;
+    /* RichEdit honours the character format, never WM_CTLCOLOREDIT: hint text
+       reads muted, real text reads the normal colour. */
+    RichTextColor(g_hNote, on ? COL_MUTED : COL_TXT);
+}
+
+static void LinkSetHint(int on) {
+    if (!g_hLink) return;
+    g_linkHint = on;
+    SetWindowTextW(g_hLink, on ? HINT_LINK : L"");
+    RichTextColor(g_hLink, on ? COL_MUTED : COL_TXT);
+    InvalidateRect(g_hLink, NULL, TRUE);
 }
 
 static void NowStamp(wchar_t *out, int cap) {
@@ -254,7 +282,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_LBUTTONUP: {
         int b = HitBtn(GET_X_LPARAM(lp), GET_Y_LPARAM(lp));
         if (b == BTN_SAVE) {
-            GetWindowTextW(g_hLink, g_link, 255);
+            if (g_linkHint) g_link[0] = L'\0';
+            else GetWindowTextW(g_hLink, g_link, 255);
             SaveConfig();
             if (g_link[0]) {
                 wcsncpy(g_status, L"Link saved - testing the connection...", 255);
@@ -303,6 +332,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 NoteSetHint(1);
                 InvalidateRect(hwnd, NULL, FALSE);
             }
+        } else if (id == ID_EDIT_LINK) {
+            if (code == EN_SETFOCUS && g_linkHint) {
+                LinkSetHint(0);
+                InvalidateRect(hwnd, NULL, FALSE);
+            } else if (code == EN_KILLFOCUS && GetWindowTextLengthW(g_hLink) <= 0) {
+                LinkSetHint(1);
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
         }
         return 0;
     }
@@ -328,7 +365,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             InvalidateRect(hwnd, &er, FALSE);
         } else if (wp == TIMER_FLUSH) {
             if (LinkDiscoveryTick()) {
+                g_linkHint = 0;
                 SetWindowTextW(g_hLink, g_link);
+                RichTextColor(g_hLink, COL_TXT);
                 wcsncpy(g_status, L"Found the agent's live session - link updated.", 255);
                 g_status[255] = L'\0';
                 InvalidateRect(hwnd, NULL, FALSE);

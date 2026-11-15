@@ -2438,6 +2438,119 @@ class SuiteFolderInstallTests(unittest.TestCase):
                           "the turn-start protocol no longer mentions %s, so the "
                           "channel's last mile rots again" % needle)
 
+    def test_agent_notes_is_readable_in_either_windows_theme(self):
+        """Dark-on-dark was never a colour-picking mistake: RichEdit50W
+        controls ignore WM_CTLCOLOREDIT entirely, so darkening the editors'
+        backgrounds left Windows' default BLACK text sitting on a near-black
+        surface. The only lever a rich edit offers is the character format
+        (EM_SETCHARFORMAT), which is what RichTextColor() now drives - and it
+        must be re-asserted every time text is replaced, because SetWindowText
+        resets a rich edit to its default formatting.
+
+        The second half of the complaint was "cumbersome": no orientation at a
+        glance, a Send button that looked like a stray chip, and a link box
+        whose placeholder did not say the box is optional. All three are
+        asserted here as behaviour, not as prose, because a comment saying
+        "we recolour the text" satisfies a naive substring check while the
+        screen stays unreadable.
+        """
+        an = (ROOT / "agent-notes" / "src" / "agent_notes.c").read_text(encoding="utf-8")
+        ui = (ROOT / "agent-notes" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        en = (ROOT / "agent-notes" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+
+        def code(src):
+            """Comments must never be able to satisfy an assertion below."""
+            src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+            return re.sub(r"//[^\n]*", "", src)
+
+        an_c, ui_c, en_c = code(an), code(ui), code(en)
+
+        # --- the palette follows the owner's Windows theme, both branches ---
+        ip = an_c[an_c.index("static void InitPalette(void) {"):]
+        ip = ip[:ip.index("\n}\n")]
+        self.assertIn("if (AppsUseLightTheme())", ip,
+                      "InitPalette never asks which theme the owner uses, so one of the "
+                      "two themes is guaranteed to be unreadable")
+        self.assertRegex(an_c, r'Themes\\\\Personalize',
+                         "theme detection no longer reads the documented Personalize key")
+        self.assertEqual(an_c.count("COL_BG      = RGB("), 2,
+                         "the palette lost one of its two schemes - a single dark "
+                         "scheme on a light desktop is the original bug")
+        self.assertNotIn("RGB(24, 27, 36)", ui_c,
+                         "the paint code hardcodes the dark backdrop again instead of "
+                         "using the theme palette")
+
+        # --- the actual fix: character format, not WM_CTLCOLOREDIT ---
+        self.assertIn("EM_SETCHARFORMAT", ui_c,
+                      "RichTextColor no longer sends EM_SETCHARFORMAT, and that is the "
+                      "ONLY message a RichEdit50W control obeys for text colour")
+        self.assertIn("cf.dwMask = CFM_COLOR;", ui_c,
+                      "the char format does not set CFM_COLOR, so the colour field is "
+                      "ignored and the text stays default black")
+        self.assertIn("SCF_SELECTION", ui_c, "existing text is not recoloured")
+        self.assertIn("SCF_DEFAULT", ui_c,
+                      "newly typed text reverts to the default colour, so the box goes "
+                      "dark-on-dark again the moment the owner types")
+        self.assertIn("EM_GETSEL", ui_c,
+                      "recolouring the whole control destroys the caret position")
+
+        # --- every editor background gets its text colour paired with it ---
+        for name, src_c, src in (("entry.c", en_c, en), ("ui.c", ui_c, ui)):
+            for m in re.finditer(r"EM_SETBKGNDCOLOR", src_c):
+                tail = src_c[m.end():m.end() + 200]
+                self.assertIn("RichTextColor", tail,
+                              "%s darkens an editor background with no matching text "
+                              "colour - that pairing is the whole fix" % name)
+
+        # --- hint text recolours with the text it replaces ---
+        for fn in ("static void NoteSetHint(int on)", "static void LinkSetHint(int on)"):
+            self.assertIn(fn, ui_c, "the %s hint setter is gone" % fn.split("(")[0])
+            body = ui_c[ui_c.index(fn):]
+            body = body[:body.index("\n}\n")]
+            self.assertIn("RichTextColor", body,
+                          "%s replaces the editor text without re-asserting the colour, "
+                          "and SetWindowText resets a rich edit to default formatting"
+                          % fn.split("(")[0])
+            self.assertRegex(body, r"COL_MUTED : COL_TXT",
+                             "%s cannot distinguish hint text from real text"
+                             % fn.split("(")[0])
+
+        # --- palette must exist before the first window is created ---
+        self.assertIn("InitPalette();", en_c,
+                      "the palette is never initialised, so every colour is 0 (black)")
+        self.assertLess(en_c.index("InitPalette();"), en_c.index("CreateWindowExW"),
+                        "windows are created before the palette is filled, so the first "
+                        "paint uses uninitialised colours")
+
+        # --- less cumbersome: orientation, full-width Send, self-explaining link ---
+        self.assertIn("Agent Notes", ui_c, "the window no longer says what it is")
+        self.assertIn("HINT_LINK", an_c, "the link box lost its explanatory placeholder")
+        self.assertIn("automatic", an, "the placeholder does not say the box is optional")
+        self.assertIn("else SetRect(r, S(20), S(380), S(600), S(380) + S(40));", ui_c,
+                      "Send is no longer the full-width action bar, so it reads as a "
+                      "stray chip instead of the window's main verb")
+        self.assertNotIn("S(20) + S(190), S(380) + S(38)", ui_c,
+                         "Send shrank back to a 190px chip")
+        paint = ui_c[ui_c.index("static void PaintAll(HWND hwnd)"):]
+        paint = paint[:paint.index("\n}\n")]
+        self.assertEqual(paint.count('L"Agent Notes"'), 1,
+                         "the title is drawn more than once, so the two copies overlap "
+                         "into unreadable mush")
+
+        # --- the placeholder must never be saved as the real link ---
+        self.assertIn("if (g_linkHint) g_link[0] = L'\\0';", ui_c,
+                      "Save persists the placeholder text as the receiver address, so the "
+                      "app posts notes to a URL that is a sentence")
+        self.assertIn("static int       g_linkHint", an_c,
+                      "the app cannot tell placeholder text from a typed link")
+        self.assertGreaterEqual(ui_c.count("g_linkHint = 0;") + en_c.count("g_linkHint = 0;"), 2,
+                                "adopting a discovered link does not clear the placeholder "
+                                "state, so a real address keeps hint formatting")
+        for m in re.finditer(r"g_linkHint = 0;", ui_c + en_c):
+            tail = (ui_c + en_c)[m.end():m.end() + 200]
+            self.assertIn("SetWindowTextW(g_hLink, g_link)", tail,
+                          "the hint flag is cleared without writing the real link in")
+
     def test_card_detail_line_survives_hidden_buttons(self):
         """The strip under each card title went blank, and it was our bug.
 

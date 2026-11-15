@@ -1,6 +1,7 @@
 /* ---------------- entry ---------------- */
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
+    InitPalette();
     (void)hPrev; (void)cmdLine; (void)nShow;
     g_hInst = hInst;
 
@@ -97,11 +98,13 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
                               g_hwnd, (HMENU)(INT_PTR)ID_EDIT_NOTE, hInst, NULL);
     if (g_hLink) {
         SendMessageW(g_hLink, EM_SETBKGNDCOLOR, 0, (LPARAM)COL_INPUT);
+        RichTextColor(g_hLink, COL_TXT);
         SendMessageW(g_hLink, WM_SETFONT, (WPARAM)g_fontUI, TRUE);
         SendMessageW(g_hLink, EM_SETLIMITTEXT, 0, 255);
     }
     if (g_hNote) {
         SendMessageW(g_hNote, EM_SETBKGNDCOLOR, 0, (LPARAM)COL_INPUT);
+        RichTextColor(g_hNote, COL_MUTED);   /* starts as hint text */
         SendMessageW(g_hNote, WM_SETFONT, (WPARAM)g_fontUI, TRUE);
         SendMessageW(g_hNote, EM_SETLIMITTEXT, 0, 4000);
         NoteSetHint(1);
@@ -115,7 +118,13 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
 
     SetTimer(g_hwnd, TIMER_FLUSH, 60000, NULL);
     SetTimer(g_hwnd, TIMER_SPIN, 50, NULL);
-    if (LinkDiscoveryTick()) SetWindowTextW(g_hLink, g_link);
+    if (LinkDiscoveryTick()) {
+        g_linkHint = 0;
+        SetWindowTextW(g_hLink, g_link);
+        RichTextColor(g_hLink, COL_TXT);
+    } else if (!g_link[0]) {
+        LinkSetHint(1);
+    }
     ShowWindow(g_hwnd, SW_SHOW);
     UpdateWindow(g_hwnd);
     SetForegroundWindow(g_hwnd);       /* an explicit Open must take focus */

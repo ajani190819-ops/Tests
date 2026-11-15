@@ -131,5 +131,75 @@
   "old": "                repointed = RepointDesktopShortcutIfPresent(lnk, g_suiteHubExe, g_suiteDir,\n                                                            L\"Project Hub - Status & Updates\");",
   "new": "                repointed = CreateShortcutLink(lnk, g_suiteHubExe, g_suiteDir,\n                                               L\"Project Hub - Status & Updates\");",
   "label": "D consolidate menu creates shortcut"
+ },
+ {
+  "id": "ntui-01",
+  "file": "agent-notes/src/parts/entry.c",
+  "old": "        RichTextColor(g_hNote, COL_MUTED);   /* starts as hint text */\n",
+  "new": "",
+  "label": "A note editor keeps default black text"
+ },
+ {
+  "id": "ntui-02",
+  "file": "agent-notes/src/parts/ui.c",
+  "old": "    RichTextColor(g_hNote, on ? COL_MUTED : COL_TXT);\n",
+  "new": "",
+  "label": "B hint swap drops the recolour"
+ },
+ {
+  "id": "ntui-03",
+  "file": "agent-notes/src/parts/ui.c",
+  "old": "    cf.dwMask = CFM_COLOR;",
+  "new": "    cf.dwMask = 0;",
+  "label": "C char format omits CFM_COLOR"
+ },
+ {
+  "id": "ntui-04",
+  "file": "agent-notes/src/agent_notes.c",
+  "old": "    if (AppsUseLightTheme()) {",
+  "new": "    if (1) {",
+  "label": "D palette ignores the Windows theme"
+ },
+ {
+  "id": "ntui-05",
+  "file": "agent-notes/src/parts/ui.c",
+  "old": "    SendMessageW(h, EM_SETCHARFORMAT, SCF_DEFAULT, (LPARAM)&cf);\n",
+  "new": "",
+  "label": "E newly typed text reverts to black"
+ },
+ {
+  "id": "ntui-06",
+  "file": "agent-notes/src/parts/entry.c",
+  "old": "    InitPalette();\n",
+  "new": "",
+  "label": "F palette never initialised"
+ },
+ {
+  "id": "ntui-07",
+  "file": "agent-notes/src/parts/ui.c",
+  "old": "            if (g_linkHint) g_link[0] = L'\\0';\n            else GetWindowTextW(g_hLink, g_link, 255);",
+  "new": "            GetWindowTextW(g_hLink, g_link, 255);",
+  "label": "G placeholder saved as the real link"
+ },
+ {
+  "id": "ntui-08",
+  "file": "agent-notes/src/parts/ui.c",
+  "old": "    else SetRect(r, S(20), S(380), S(600), S(380) + S(40));",
+  "new": "    else SetRect(r, S(20), S(380), S(20) + S(190), S(380) + S(38));",
+  "label": "H Send shrinks back to a chip"
+ },
+ {
+  "id": "ntui-09",
+  "file": "agent-notes/src/parts/ui.c",
+  "old": "    DrawTextW(mem, L\"Agent Notes\", -1, &t, DT_LEFT | DT_VCENTER | DT_SINGLELINE);",
+  "new": "    DrawTextW(mem, L\"Agent Notes\", -1, &t, DT_LEFT | DT_VCENTER | DT_SINGLELINE);\n    DrawTextW(mem, L\"Agent Notes\", -1, &t, DT_LEFT | DT_VCENTER | DT_SINGLELINE);",
+  "label": "I title drawn twice, overlapping"
+ },
+ {
+  "id": "ntui-10",
+  "file": "agent-notes/src/parts/ui.c",
+  "old": "                g_linkHint = 0;\n                SetWindowTextW(g_hLink, g_link);",
+  "new": "                SetWindowTextW(g_hLink, g_link);",
+  "label": "J adopted link keeps hint formatting"
  }
 ]
