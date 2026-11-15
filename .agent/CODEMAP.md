@@ -6,11 +6,11 @@
 
 ## project-hub/src/project_hub.c
 
-- L285  f GetWinDpi
-- L300  f S
-- L302  f ApplyModernWindowFrame
-- L321  f RebuildFontsAndIcons
-- globals: g_hInst (L197), g_hwnd (L198), g_fontHero (L199), g_fontSub (L200), g_fontTitle (L201), g_fontBody (L202), g_fontBtn (L203), g_fontBadge (L204), g_appIcon (L205), g_hdrEmblem (L206), g_cardIcons (L207), g_showEvent (L208), g_hMutex (L209), g_cs (L210), g_topBtns (L212), g_rcEmblem (L219), g_cards (L221), g_cardCount (L222), g_dynIdx (L223), g_hoverId (L224), g_scrollY (L225), g_maxScrollY (L226), g_exePath (L228), g_exeDir (L229), g_localApp (L230), g_probeRef (L234), g_roamApp (L235), g_suiteDir (L236), g_hubCfgDir (L237), g_btgDir (L238), g_btgExtraExe (L239), g_kblDir (L240), g_dnsDir (L241), g_notesDir (L242), g_audioSwitcherDir (L243), g_modsDir (L244), g_orcaBatDir (L245), g_suiteHubExe (L253), g_mirrorDirs (L254), g_mirrorCount (L255), g_activeBranch (L258), g_branchMenuNames (L259), g_branchMenuN (L260), g_branchPromptOut (L261), g_autoBranchLastCheck (L264), g_remHubVer (L265), g_remWaveVer (L266), g_remInfillVer (L267), g_remHudName (L268), g_remHudPath (L269), g_remHudSize (L270), g_statusMsg (L271), g_progressVal (L272), g_hubUpdAvail (L273), g_taskQueue (L276), g_qHead (L277), g_qTail (L278), g_qSem (L279), g_running (L280)
+- L289  f GetWinDpi
+- L304  f S
+- L306  f ApplyModernWindowFrame
+- L325  f RebuildFontsAndIcons
+- globals: g_hInst (L201), g_hwnd (L202), g_fontHero (L203), g_fontSub (L204), g_fontTitle (L205), g_fontBody (L206), g_fontBtn (L207), g_fontBadge (L208), g_appIcon (L209), g_hdrEmblem (L210), g_cardIcons (L211), g_showEvent (L212), g_hMutex (L213), g_cs (L214), g_topBtns (L216), g_rcEmblem (L223), g_cards (L225), g_cardCount (L226), g_dynIdx (L227), g_hoverId (L228), g_scrollY (L229), g_maxScrollY (L230), g_exePath (L232), g_exeDir (L233), g_localApp (L234), g_probeRef (L238), g_roamApp (L239), g_suiteDir (L240), g_hubCfgDir (L241), g_btgDir (L242), g_btgExtraExe (L243), g_kblDir (L244), g_dnsDir (L245), g_notesDir (L246), g_audioSwitcherDir (L247), g_modsDir (L248), g_orcaBatDir (L249), g_suiteHubExe (L257), g_mirrorDirs (L258), g_mirrorCount (L259), g_activeBranch (L262), g_branchMenuNames (L263), g_branchMenuN (L264), g_branchPromptOut (L265), g_autoBranchLastCheck (L268), g_remHubVer (L269), g_remWaveVer (L270), g_remInfillVer (L271), g_remHudName (L272), g_remHudPath (L273), g_remHudSize (L274), g_statusMsg (L275), g_progressVal (L276), g_hubUpdAvail (L277), g_taskQueue (L280), g_qHead (L281), g_qTail (L282), g_qSem (L283), g_running (L284)
 
 ## project-hub/src/parts/branch_picker_entry.c
 
@@ -22,6 +22,7 @@
 - L162  f SetActiveBranch
 - L184  f ShowBranchMenu
 - L220  f HandleActionCommand
+- L700  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
 
 ## project-hub/src/parts/builtin_card_text.c
 
@@ -31,8 +32,8 @@
 ## project-hub/src/parts/card_defs_verbs.c
 
 - L1  f WorkerInstallGeneric
-- L50  f HandleVerb
-- L73  f InitCardDefinitions
+- L76  f HandleVerb
+- L99  f InitCardDefinitions
 
 ## project-hub/src/parts/catalog_icons_json.c
 
@@ -55,8 +56,13 @@
 - L96  f EnsureDirTree
 - L122  f SetCheckPhase
 - L127  f SetFooterStatus
-- L136  f ReadTextFileUtf8
-- L152  f WriteBinaryFileAtomic
+- L152  f ImageFileNameW
+- L158  f FindProcessesUsingImage  — Returns -1 when the process list cannot prove the image is clear.
+- L198  f NoProcessRunsImage
+- L231  f CloseRunningImageForUpdate  — Ask every matching instance to leave, then prove every one is gone.
+- L251  f IsExeImagePath
+- L256  f ReadTextFileUtf8
+- L272  f WriteBinaryFileAtomic
 - globals: g_checkActive (L111), g_remBtgSize (L112), g_remBtgSha (L115), g_rcFooterDot (L117)
 
 ## project-hub/src/parts/emblem.c
@@ -95,14 +101,14 @@
 - L34  f AppendInstallFolder
 - L42  f AddMirrorDir
 - L55  f MirrorFileEverywhere
-- L86  f EnsureProbeRef
-- L96  f InstallRepoFileEverywhere  — One download, every copy: the suite folder plus any stray copy on disk.
-- L119  f StopForeignInstance  — A tray app started from a stray copy keeps running that stray build, and its
-- L147  f InitAllPaths
-- L350  f CheckPidLockStatus
-- L382  f CreateShortcutLink
-- L415  f RemoveLegacyDesktopShortcuts
-- L436  f RepointDesktopShortcutIfPresent
+- L91  f CloseManagedExeCopies  — One update can touch the suite install plus several registered stray copies.
+- L171  f EnsureProbeRef
+- L181  f InstallRepoFileEverywhere  — One download, every copy: the suite folder plus any stray copy on disk.
+- L199  f InitAllPaths
+- L402  f CheckPidLockStatus
+- L434  f CreateShortcutLink
+- L467  f RemoveLegacyDesktopShortcuts
+- L488  f RepointDesktopShortcutIfPresent
 
 ## project-hub/src/parts/refresh_statuses.c
 
@@ -164,12 +170,12 @@
 ## project-hub/src/parts/workers_install.c
 
 - L1  f WorkerInstallBluetoothGuard
-- L65  f WorkerInstallNotes
-- L107  f WorkerInstallDnsPilot
-- L173  f WorkerInstallKeyboardLighting
-- L267  f WorkerInstallSpatialHud
-- L329  f WorkerInstallOrcaPlugins
-- L430  f WorkerSelfUpdateHub
+- L71  f WorkerInstallNotes
+- L116  f WorkerInstallDnsPilot
+- L188  f WorkerInstallKeyboardLighting
+- L288  f WorkerInstallSpatialHud
+- L350  f WorkerInstallOrcaPlugins
+- L451  f WorkerSelfUpdateHub
 
 ## project-hub/src/parts/workers_remote.c
 
@@ -811,10 +817,10 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2456  f SuiteFolderInstallTests
-- L3180  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3256  f AudioSwitcherReachabilityTests
-- L3440  f AudioSwitcherSessionSweepTests
-- L3581  f AppOpenFocusTests
+- L3243  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3319  f AudioSwitcherReachabilityTests
+- L3503  f AudioSwitcherSessionSweepTests
+- L3644  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

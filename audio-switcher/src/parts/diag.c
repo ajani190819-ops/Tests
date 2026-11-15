@@ -267,6 +267,19 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
         return run_diagnostics(switch_idx);
     }
 
+    /* Normal window close only hides this tray app.  The Hub uses --stop
+       before an update, so request the same graceful Quit action a person
+       chooses from the tray and leave no running image behind to replace. */
+    if (cmdLine && (wcsstr(cmdLine, L"--stop") != NULL || wcsstr(cmdLine, L"-Stop") != NULL)) {
+        HWND existing = FindWindowW(L"TestsAudioSwitcherWnd", NULL);
+        if (existing) {
+            PostMessageW(existing, WM_COMMAND, MAKEWPARAM(IDM_TRAY_QUIT, 0), 0);
+            for (int i = 0; i < 40 && FindWindowW(L"TestsAudioSwitcherWnd", NULL); i++)
+                Sleep(50);
+        }
+        return 0;
+    }
+
     HANDLE hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         if (!g_silent) {

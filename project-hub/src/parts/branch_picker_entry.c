@@ -645,16 +645,20 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_HUB_SELFUPD: {
-        /* Hand the single-instance lock over BEFORE spawning the new build.
-           If this old process still holds it, the new hub sees a duplicate
-           launch, forwards to us and exits - and once we exit too nothing is
-           left running. */
-        if (g_hMutex) { CloseHandle(g_hMutex); g_hMutex = NULL; }
-        HINSTANCE hi = ShellExecuteW(NULL, L"open", g_exePath, NULL, g_exeDir, SW_SHOWNORMAL);
+        /* Do not swap our own running image.  Launch the staged build in its
+           tiny --apply-self-update mode; it waits for this process to exit
+           and performs the actual replacement only after that proof. */
+        wchar_t pending[MAX_PATH], args[96];
+        _snwprintf(pending, MAX_PATH, L"%s.pending.exe", g_exePath);
+        _snwprintf(args, 95, L"--apply-self-update=%lu", (unsigned long)GetCurrentProcessId());
+        HINSTANCE hi = FileExistsW(pending)
+                     ? ShellExecuteW(NULL, L"open", pending, args, g_exeDir, SW_HIDE)
+                     : (HINSTANCE)0;
         if ((INT_PTR)hi <= 32) {
-            SetFooterStatus(L"Project Hub updated - please reopen it.", 0);
+            SetFooterStatus(L"Could not start the safe Hub update handoff. No update was applied.", 0);
             return 0;   /* stay up rather than vanish with no successor */
         }
+        if (g_hMutex) { CloseHandle(g_hMutex); g_hMutex = NULL; }
         DestroyWindow(hwnd);
         return 0;
     }
@@ -690,8 +694,73 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
+/* The staged Hub EXE is a short-lived updater, not the interactive app.  The
+ * old Hub first exits, then this process proves that exact old image is gone
+ * before it moves the staged build into its place and launches it normally. */
+static BOOL ApplyStagedHubUpdate(PWSTR cmdLine) {
+    static const wchar_t *const flag = L"--apply-self-update=";
+    const wchar_t *arg = cmdLine ? wcsstr(cmdLine, flag) : NULL;
+    if (!arg) return FALSE;
+    DWORD oldPid = (DWORD)wcstoul(arg + wcslen(flag), NULL, 10);
+    if (!oldPid) return FALSE;
+
+    HANDLE oldProcess = OpenProcess(SYNCHRONIZE, FALSE, oldPid);
+    if (oldProcess) {
+        DWORD wait = WaitForSingleObject(oldProcess, 30000);
+        CloseHandle(oldProcess);
+        if (wait != WAIT_OBJECT_0) return FALSE;
+    } else if (GetLastError() != ERROR_INVALID_PARAMETER) {
+        return FALSE;                  /* could not prove the old Hub exited */
+    }
+
+    wchar_t pending[MAX_PATH], target[MAX_PATH], old[MAX_PATH];
+    DWORD n = GetModuleFileNameW(NULL, pending, MAX_PATH);
+    static const wchar_t *const suffix = L".pending.exe";
+    size_t suffixLen = wcslen(suffix);
+    if (n == 0 || n >= MAX_PATH || (size_t)n <= suffixLen ||
+        _wcsicmp(pending + n - suffixLen, suffix) != 0)
+        return FALSE;
+    wcsncpy(target, pending, MAX_PATH - 1);
+    target[MAX_PATH - 1] = L'\0';
+    target[n - suffixLen] = L'\0';
+
+    /* This is the self-update equivalent of CloseManagedExeCopies: a second
+       launch, a delayed shutdown, or an uninspectable image refuses the swap
+       instead of replacing a still-running Hub. */
+    if (!NoProcessRunsImage(target)) return FALSE;
+    _snwprintf(old, MAX_PATH, L"%s.old", target);
+    DeleteFileW(old);
+
+    BOOL parkedOld = FALSE;
+    for (int i = 0; i < 10 && !parkedOld; i++) {
+        parkedOld = MoveFileExW(target, old, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+        if (!parkedOld) Sleep(200);
+    }
+    if (!parkedOld) return FALSE;
+
+    BOOL installed = FALSE;
+    for (int i = 0; i < 10 && !installed; i++) {
+        installed = MoveFileExW(pending, target, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+        if (!installed) Sleep(200);
+    }
+    if (!installed) {
+        for (int i = 0; i < 10; i++) {
+            if (MoveFileExW(old, target, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) break;
+            Sleep(200);
+        }
+        return FALSE;
+    }
+
+    /* A failed relaunch leaves the new file safely installed; the owner can
+       open it normally, which is safer than rolling a verified swap back. */
+    ShellExecuteW(NULL, L"open", target, NULL, NULL, SW_SHOWNORMAL);
+    return TRUE;
+}
+
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
-    (void)hPrev; (void)cmdLine; (void)nShow;
+    (void)hPrev; (void)nShow;
+    if (cmdLine && wcsstr(cmdLine, L"--apply-self-update=") != NULL)
+        return ApplyStagedHubUpdate(cmdLine) ? 0 : 1;
     g_hInst = hInst;
 
     /* A hub that just updated itself spawns the new build while the old

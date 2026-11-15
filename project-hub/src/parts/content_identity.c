@@ -133,6 +133,126 @@ static void SetFooterStatus(const wchar_t *msg, int pct) {
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_STATUS, 0, 0);
 }
 
+/* ---- update safety: never replace a live executable ---------------------
+ *
+ * An EXE can keep running from a stray mirror even after the suite copy was
+ * refreshed.  Windows will normally reject an in-use replacement, but relying
+ * on that leaves an updater half-applied and makes an app with a permissive
+ * file handle particularly unsafe.  Scan the actual process image paths, not
+ * just a window class: a tray window can be hidden and a catalogue app need
+ * not have a suite-specific class at all.  A same-named process we cannot
+ * inspect is treated as unsafe rather than guessed away. */
+#define UPDATE_SCAN_MAX_PIDS 64
+
+typedef struct {
+    DWORD pids[UPDATE_SCAN_MAX_PIDS];
+    int count;
+} UpdateImageProcesses;
+
+static const wchar_t *ImageFileNameW(const wchar_t *path) {
+    const wchar_t *slash = path ? wcsrchr(path, L'\\') : NULL;
+    return slash ? slash + 1 : path;
+}
+
+/* Returns -1 when the process list cannot prove the image is clear. */
+static int FindProcessesUsingImage(const wchar_t *imagePath, UpdateImageProcesses *out) {
+    if (!imagePath || !imagePath[0] || !out) return -1;
+    ZeroMemory(out, sizeof(*out));
+
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) return -1;
+    PROCESSENTRY32W pe;
+    ZeroMemory(&pe, sizeof(pe));
+    pe.dwSize = sizeof(pe);
+    const wchar_t *wantName = ImageFileNameW(imagePath);
+    BOOL uncertain = FALSE;
+
+    if (Process32FirstW(snapshot, &pe)) {
+        do {
+            /* Querying every protected system process would turn a harmless
+               access denial into a false failure.  Its reported image name is
+               enough to ignore processes that cannot possibly be this app. */
+            if (_wcsicmp(pe.szExeFile, wantName) != 0) continue;
+            HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
+                                         pe.th32ProcessID);
+            if (!process) { uncertain = TRUE; continue; }
+            wchar_t processPath[MAX_PATH] = L"";
+            DWORD pathLen = MAX_PATH;
+            if (!QueryFullProcessImageNameW(process, 0, processPath, &pathLen)) {
+                uncertain = TRUE;
+            } else if (_wcsicmp(processPath, imagePath) == 0) {
+                if (out->count < UPDATE_SCAN_MAX_PIDS)
+                    out->pids[out->count++] = pe.th32ProcessID;
+                else
+                    uncertain = TRUE;
+            }
+            CloseHandle(process);
+        } while (Process32NextW(snapshot, &pe));
+    } else if (GetLastError() != ERROR_NO_MORE_FILES) {
+        uncertain = TRUE;
+    }
+    CloseHandle(snapshot);
+    return uncertain ? -1 : out->count;
+}
+
+static BOOL NoProcessRunsImage(const wchar_t *imagePath) {
+    UpdateImageProcesses found;
+    return FindProcessesUsingImage(imagePath, &found) == 0;
+}
+
+typedef struct {
+    const UpdateImageProcesses *processes;
+    UINT quitCommand;                 /* 0 means a normal WM_CLOSE */
+} UpdateCloseWindows;
+
+static BOOL CALLBACK CloseUpdateWindowProc(HWND hwnd, LPARAM lp) {
+    UpdateCloseWindows *ctx = (UpdateCloseWindows *)lp;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    for (int i = 0; i < ctx->processes->count; i++) {
+        if (ctx->processes->pids[i] != pid) continue;
+        /* The root window receives the app's normal quit route.  Do not use
+           TerminateProcess: an app that needs more time to close must block
+           the update rather than lose state or be overwritten while alive. */
+        if (GetWindow(hwnd, GW_OWNER) == NULL) {
+            if (ctx->quitCommand)
+                PostMessageW(hwnd, WM_COMMAND, MAKEWPARAM(ctx->quitCommand, 0), 0);
+            else
+                PostMessageW(hwnd, WM_CLOSE, 0, 0);
+        }
+        break;
+    }
+    return TRUE;
+}
+
+/* Ask every matching instance to leave, then prove every one is gone.  This
+ * does not treat a hidden tray window as closed: if WM_CLOSE merely hides an
+ * app, the final process scan fails and the caller must refuse the update. */
+static BOOL CloseRunningImageForUpdate(const wchar_t *imagePath, UINT quitCommand) {
+    UpdateImageProcesses found;
+    int count = FindProcessesUsingImage(imagePath, &found);
+    if (count < 0) return FALSE;
+    if (count == 0) return TRUE;
+
+    UpdateCloseWindows ctx;
+    ctx.processes = &found;
+    ctx.quitCommand = quitCommand;
+    EnumWindows(CloseUpdateWindowProc, (LPARAM)&ctx);
+
+    for (int attempt = 0; attempt < 30; attempt++) {
+        Sleep(100);
+        count = FindProcessesUsingImage(imagePath, &found);
+        if (count == 0) return TRUE;
+        if (count < 0) return FALSE;
+    }
+    return FALSE;
+}
+
+static BOOL IsExeImagePath(const wchar_t *path) {
+    const wchar_t *dot = path ? wcsrchr(path, L'.') : NULL;
+    return dot && _wcsicmp(dot, L".exe") == 0;
+}
+
 static char *ReadTextFileUtf8(const wchar_t *path, DWORD *outLen) {
     HANDLE hf = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                             NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -164,6 +284,13 @@ static BOOL WriteBinaryFileAtomic(const wchar_t *dest, const BYTE *data, DWORD l
     BOOL ok = WriteFile(hf, data, len, &wr, NULL) && (wr == len);
     CloseHandle(hf);
     if (!ok) { DeleteFileW(tmp); return FALSE; }
+    /* The preflight asks the app to quit before any download is installed.
+       Check once more at the exact replacement boundary so a just-restarted
+       mirror cannot slip between that preflight and this atomic move. */
+    if (IsExeImagePath(dest) && !NoProcessRunsImage(dest)) {
+        DeleteFileW(tmp);
+        return FALSE;
+    }
     if (!MoveFileExW(tmp, dest, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
         DeleteFileW(tmp);
         return FALSE;

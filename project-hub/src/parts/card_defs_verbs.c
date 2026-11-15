@@ -5,6 +5,10 @@ static void WorkerInstallGeneric(int idx, BOOL launchAfter) {
         SetFooterStatus(L"Install not configured for this app - check hub configuration.", 0);
         return;
     }
+    /* Audio Switcher is the one built-in dispatched through this generic
+       worker, but it has its own mirror registry discovered at startup. */
+    int mirrorSlot = (c->exeName && _wcsicmp(c->exeName, L"AudioSwitcher.exe") == 0)
+                   ? MIRROR_AUDIO : MIRROR_GENERIC;
     wchar_t branch[64];
     EnsureProbeRef(branch, 64);
     EnsureDirTree(c->appDir);
@@ -12,16 +16,38 @@ static void WorkerInstallGeneric(int idx, BOOL launchAfter) {
     wchar_t destExe[MAX_PATH], msg[256];
     _snwprintf(destExe, MAX_PATH - 1, L"%s\\%s", c->appDir, c->exeName);
     destExe[MAX_PATH - 1] = L'\0';
+    /* Audio Switcher now advertises the same --stop contract as the other
+       tray apps.  The command is a best-effort first route; the shared gate
+       below still proves every managed copy exited before it may be written. */
+    if (c->exeName && _wcsicmp(c->exeName, L"AudioSwitcher.exe") == 0 && FileExistsW(destExe)) {
+        SHELLEXECUTEINFOW stop;
+        ZeroMemory(&stop, sizeof(stop));
+        stop.cbSize = sizeof(stop);
+        stop.fMask = SEE_MASK_NOCLOSEPROCESS;
+        stop.lpFile = destExe;
+        stop.lpParameters = L"--stop";
+        stop.nShow = SW_HIDE;
+        if (ShellExecuteExW(&stop) && stop.hProcess) {
+            WaitForSingleObject(stop.hProcess, 2500);
+            CloseHandle(stop.hProcess);
+        }
+    }
+    /* This covers the primary suite copy AND every registered stray copy
+       before InstallRepoFileEverywhere writes either one.  Audio Switcher's
+       usual WM_CLOSE hides to its tray, so give its explicit Quit command;
+       every other catalogue app gets a normal WM_CLOSE and must actually exit
+       or the update is refused. */
+    UINT quitCommand = (c->exeName && _wcsicmp(c->exeName, L"AudioSwitcher.exe") == 0)
+                     ? AUDIO_SWITCHER_QUIT_COMMAND : 0;
+    if (!CloseManagedExeCopies(mirrorSlot, c->appDir, c->exeName,
+                               c->title ? c->title : L"The app", quitCommand))
+        return;
+
     _snwprintf(msg, 255, L"Downloading %s from GitHub...", c->title ? c->title : L"app");
     SetFooterStatus(msg, 60);
 
-    /* A tray app still running from a stray copy would hold that copy's exe
-       lock and its single-instance mutex, so the fresh suite build could
-       neither replace it nor start next to it. */
-    StopForeignInstance(L"TestsAudioSwitcherWnd", c->appDir);
-
     int mirrors = 0;
-    if (!InstallRepoFileEverywhere(MIRROR_GENERIC, branch, c->exeRepo, c->appDir,
+    if (!InstallRepoFileEverywhere(mirrorSlot, branch, c->exeRepo, c->appDir,
                                    c->exeName, &mirrors)) {
         SetFooterStatus(L"Could not save the file - close the app if it is open, then retry.", 0);
         return;

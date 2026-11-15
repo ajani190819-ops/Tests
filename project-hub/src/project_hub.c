@@ -8,6 +8,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <windowsx.h>
+#include <tlhelp32.h>
 #include <commctrl.h>
 #include <shellapi.h>
 #include <shlobj.h>
@@ -21,8 +22,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.48"
-#define HUB_VERSION_W     L"2.8.48"
+#define HUB_VERSION       "2.8.49"
+#define HUB_VERSION_W     L"2.8.49"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -93,6 +94,9 @@
 #define ID_AUDIOSWITCHER_OPEN   1707
 #define ID_AUDIOSWITCHER_UPDATE 1708
 #define ID_AUDIOSWITCHER_FOLDER 1709
+/* Audio Switcher's documented tray Quit command.  It is a graceful close
+   request for the updater, unlike WM_CLOSE which intentionally only hides. */
+#define AUDIO_SWITCHER_QUIT_COMMAND 201
 
 /* Dynamic catalog button ids: ID_DYN_BASE + appIndex*10 + buttonIndex */
 #define ID_DYN_BASE          1800

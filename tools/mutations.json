@@ -355,5 +355,40 @@
   "old": "    RefreshAutomaticBranch();\n    EnsureActiveBranch(branch, 64);",
   "new": "    EnsureActiveBranch(branch, 64);",
   "label": "E automatic branch discovery is skipped before remote checks"
+ },
+ {
+  "id": "close-00",
+  "file": "project-hub/src/parts/install_folder.c",
+  "old": "        if (!CloseRunningImageForUpdate(paths[i], quitCommand)) {",
+  "new": "        if (0) {",
+  "label": "F managed app copies are no longer asked to close before update"
+ },
+ {
+  "id": "close-01",
+  "file": "project-hub/src/parts/content_identity.c",
+  "old": "    if (IsExeImagePath(dest) && !NoProcessRunsImage(dest)) {\n        DeleteFileW(tmp);\n        return FALSE;\n    }\n",
+  "new": "",
+  "label": "G executable replacement loses its last-moment running-process check"
+ },
+ {
+  "id": "close-02",
+  "file": "project-hub/src/parts/card_defs_verbs.c",
+  "old": "    if (!CloseManagedExeCopies(mirrorSlot, c->appDir, c->exeName,\n                               c->title ? c->title : L\"The app\", quitCommand))\n        return;\n",
+  "new": "",
+  "label": "H a catalogue app update bypasses the close-and-verify gate"
+ },
+ {
+  "id": "close-03",
+  "file": "project-hub/src/parts/card_defs_verbs.c",
+  "old": "                   ? MIRROR_AUDIO : MIRROR_GENERIC;",
+  "new": "                   ? MIRROR_GENERIC : MIRROR_GENERIC;",
+  "label": "I Audio Switcher stray copies bypass the managed close-and-mirror set"
+ },
+ {
+  "id": "close-04",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "    if (!NoProcessRunsImage(target)) return FALSE;\n",
+  "new": "",
+  "label": "J staged Hub handoff swaps the old image without proving it has closed"
  }
 ]

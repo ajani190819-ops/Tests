@@ -2536,7 +2536,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
                          "the suite folder is no longer recognised as the managed home, "
                          "so its copy would not be created on a first install")
 
-        for call in ("InstallRepoFileEverywhere(MIRROR_GENERIC",
+        for call in ("InstallRepoFileEverywhere(mirrorSlot",
                      "InstallRepoFileEverywhere(MIRROR_DNS",
                      "InstallRepoFileEverywhere(MIRROR_NOTES"):
             self.assertIn(call, src, f"{call}...) is gone - that installer went back "
@@ -2587,24 +2587,71 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertGreaterEqual(src.count("AppendInstallFolder("), 4,
                                 "only a couple of cards report where they install")
 
-    def test_update_replaces_a_stray_running_copy_instead_of_leaving_it_alive(self):
+    def test_update_closes_and_proves_every_managed_executable_copy_is_gone(self):
+        """An update must close the app first, not discover its file lock after
+        writing one of several mirrors.  The gate is process-image based so it
+        covers same-folder, stray, hidden-tray, and catalogue apps alike."""
         src = self._hub_src()
+        install = (ROOT / "project-hub" / "src" / "parts" / "install_folder.c").read_text(encoding="utf-8")
+        identity = (ROOT / "project-hub" / "src" / "parts" / "content_identity.c").read_text(encoding="utf-8")
+        workers = (ROOT / "project-hub" / "src" / "parts" / "workers_install.c").read_text(encoding="utf-8")
+        cards = (ROOT / "project-hub" / "src" / "parts" / "card_defs_verbs.c").read_text(encoding="utf-8")
+        audio = (ROOT / "audio-switcher" / "src" / "parts" / "diag.c").read_text(encoding="utf-8")
 
-        # Audio Switcher has no --stop switch and its single-instance mutex makes
-        # a freshly launched suite copy exit at once, so the old tray instance
-        # would survive its own update.
-        self.assertIn('StopForeignInstance(L"TestsAudioSwitcherWnd", c->appDir);', src,
-                      "a tray app running from a stray copy survives its update")
-        start = src.index("static BOOL StopForeignInstance(")
-        body = src[start:start + 1800]
-        self.assertIn("QueryFullProcessImageNameW(hp, 0, img, &n)", body,
-                      "the hub no longer checks which folder the running instance "
-                      "was launched from")
-        self.assertIn("_wcsicmp(dir, primaryDir) != 0", body,
-                      "the hub would close the instance it is about to relaunch")
-        self.assertIn("TerminateProcess(hp, 0)", body,
-                      "a foreign instance that ignores WM_CLOSE keeps its exe locked, "
-                      "so the stray copy can never be overwritten")
+        self.assertIn("#include <tlhelp32.h>", src,
+                      "the Hub cannot enumerate live process images before an update")
+        scan_start = identity.index("static int FindProcessesUsingImage(")
+        scan = identity[scan_start:identity.index("static BOOL NoProcessRunsImage(", scan_start)]
+        self.assertIn("CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)", scan)
+        self.assertIn("QueryFullProcessImageNameW(process, 0, processPath, &pathLen)", scan,
+                      "the close gate no longer proves the process came from the managed path")
+        self.assertIn("return uncertain ? -1 : out->count;", scan,
+                      "an uninspectable same-named process is guessed safe")
+
+        gate_start = install.index("static BOOL CloseManagedExeCopies(")
+        gate = install[gate_start:install.index("static void EnsureProbeRef(", gate_start)]
+        self.assertIn("g_mirrorCount[slot]", gate,
+                      "the close gate ignores registered stray copies")
+        self.assertIn("CloseRunningImageForUpdate(paths[i], quitCommand)", gate,
+                      "the close gate no longer asks each managed running copy to exit")
+        self.assertIn("NoProcessRunsImage(paths[i])", gate,
+                      "the close gate no longer verifies every image exited")
+        self.assertIn("No files were changed", gate,
+                      "a still-running app is not reported as a refused update")
+
+        atomic_start = identity.index("static BOOL WriteBinaryFileAtomic(")
+        atomic = identity[atomic_start:atomic_start + 1700]
+        self.assertIn("IsExeImagePath(dest) && !NoProcessRunsImage(dest)", atomic,
+                      "an app can restart after preflight and still be overwritten")
+        mirror_start = install.index("static int MirrorFileEverywhere(")
+        mirror = install[mirror_start:mirror_start + 1800]
+        self.assertIn("IsExeImagePath(alt) && !NoProcessRunsImage(alt)", mirror,
+                      "a reopened stray mirror can be overwritten after the gate")
+
+        for call in (
+            "CloseManagedExeCopies(MIRROR_BTG, g_btgDir, L\"BluetoothGuard.exe\"",
+            "CloseManagedExeCopies(MIRROR_KBL, g_kblDir, L\"KeyboardLighting.exe\"",
+            "CloseManagedExeCopies(MIRROR_DNS, g_dnsDir, L\"DnsPilot.exe\"",
+            "CloseManagedExeCopies(MIRROR_NOTES, g_notesDir, L\"AgentNotes.exe\"",
+            "CloseManagedExeCopies(mirrorSlot, c->appDir, c->exeName,",
+        ):
+            self.assertIn(call, workers + cards,
+                          "%s is missing, so that app can be written while open" % call)
+
+        self.assertIn("? MIRROR_AUDIO : MIRROR_GENERIC;", cards,
+                      "Audio Switcher lost its own registered mirror set in the generic worker")
+        self.assertIn("InstallRepoFileEverywhere(mirrorSlot", cards,
+                      "the generic worker closes Audio Switcher mirrors but then writes a different set")
+        self.assertIn('stop.lpParameters = L"--stop";', cards,
+                      "Audio Switcher no longer receives its graceful stop request")
+        self.assertIn("AUDIO_SWITCHER_QUIT_COMMAND", cards,
+                      "Audio Switcher's tray-only WM_CLOSE is no longer given its real Quit command")
+        self.assertIn('wcsstr(cmdLine, L"--stop")', audio,
+                      "Audio Switcher itself does not support the updater stop contract")
+        self.assertIn("IDM_TRAY_QUIT", audio,
+                      "Audio Switcher --stop does not follow the app's graceful tray Quit path")
+        self.assertNotIn("static BOOL StopForeignInstance(", src,
+                         "the old Audio-Switcher-only forced termination path remains instead of the shared safe gate")
 
     def test_agent_notes_discovers_the_live_session_itself(self):
         """The notes channel used to need a pasted link that went stale.
@@ -3132,6 +3179,22 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "after a self-update a pinned Desktop shortcut still points at "
                       "the unmanaged copy")
         self.assertIn("free(newBytes);", body, "the downloaded hub bytes leak")
+        self.assertIn('L"%s.pending.exe", g_exePath', body,
+                      "the self-update no longer stages a separate handoff executable")
+        self.assertNotIn("MoveFileExW(g_exePath,", body,
+                         "the worker swaps the interactive Hub while it is still running")
+
+        handoff = (ROOT / "project-hub" / "src" / "parts" / "branch_picker_entry.c").read_text(encoding="utf-8")
+        apply_start = handoff.index("static BOOL ApplyStagedHubUpdate(")
+        apply = handoff[apply_start:handoff.index("int WINAPI wWinMain", apply_start)]
+        self.assertIn("WaitForSingleObject(oldProcess, 30000)", apply,
+                      "the staged updater does not wait for the old Hub to close")
+        self.assertIn("if (!NoProcessRunsImage(target)) return FALSE;", apply,
+                      "the staged updater swaps a Hub image without proving it is no longer running")
+        self.assertIn("MoveFileExW(target, old, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)", apply)
+        self.assertIn("MoveFileExW(pending, target, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)", apply)
+        self.assertIn('L"--apply-self-update=%lu"', handoff,
+                      "the old Hub relaunches immediately instead of using the safe staged handoff")
 
         # One click to consolidate without waiting for the next self-update.
         self.assertIn("#define ID_MENU_HUB_TOSUITE", src)

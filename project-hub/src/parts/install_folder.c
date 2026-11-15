@@ -68,6 +68,10 @@ static int MirrorFileEverywhere(int slot, const wchar_t *primaryPath) {
                        (_wcsnicmp(g_mirrorDirs[slot][i], g_suiteDir, wcslen(g_suiteDir)) == 0 &&
                         g_mirrorDirs[slot][i][wcslen(g_suiteDir)] == L'\\');
         if (!FileExistsW(alt) && !inSuite) continue;
+        /* A mirror is an app copy, not a cache.  Never copy over it while its
+           process is alive; the preflight below normally made this true, and
+           this last check closes the race with a user reopening it. */
+        if (IsExeImagePath(alt) && !NoProcessRunsImage(alt)) continue;
         EnsureDirTree(g_mirrorDirs[slot][i]);
         if (CopyFileW(primaryPath, alt, FALSE)) {
             wchar_t ads[MAX_PATH + 24];
@@ -77,6 +81,87 @@ static int MirrorFileEverywhere(int slot, const wchar_t *primaryPath) {
         }
     }
     return mirrored;
+}
+
+/* One update can touch the suite install plus several registered stray copies.
+ * Close and verify ALL of those images before writing the first byte of any
+ * one of them.  Existing apps with a real --stop route use it in their own
+ * installer first; this is the uniform final gate for same-folder copies,
+ * foreign copies, and catalogue apps. */
+static BOOL CloseManagedExeCopies(int slot, const wchar_t *primaryDir,
+                                  const wchar_t *fileName, const wchar_t *appName,
+                                  UINT quitCommand) {
+    wchar_t paths[MAX_MIRRORS + 1][MAX_PATH];
+    int pathCount = 0;
+    if (!primaryDir || !primaryDir[0] || !fileName || !fileName[0]) return FALSE;
+
+    _snwprintf(paths[pathCount], MAX_PATH - 1, L"%s\\%s", primaryDir, fileName);
+    paths[pathCount][MAX_PATH - 1] = L'\0';
+    pathCount++;
+    if (slot >= 0 && slot <= MIRROR_HUB) {
+        for (int i = 0; i < g_mirrorCount[slot] && pathCount < MAX_MIRRORS + 1; i++) {
+            wchar_t candidate[MAX_PATH];
+            _snwprintf(candidate, MAX_PATH - 1, L"%s\\%s", g_mirrorDirs[slot][i], fileName);
+            candidate[MAX_PATH - 1] = L'\0';
+            BOOL duplicate = FALSE;
+            for (int j = 0; j < pathCount; j++)
+                if (_wcsicmp(paths[j], candidate) == 0) { duplicate = TRUE; break; }
+            if (!duplicate) {
+                wcsncpy(paths[pathCount], candidate, MAX_PATH - 1);
+                paths[pathCount][MAX_PATH - 1] = L'\0';
+                pathCount++;
+            }
+        }
+    }
+
+    BOOL running = FALSE;
+    for (int i = 0; i < pathCount; i++) {
+        UpdateImageProcesses found;
+        int count = FindProcessesUsingImage(paths[i], &found);
+        if (count < 0) {
+            wchar_t msg[320];
+            _snwprintf(msg, 319, L"Could not verify that %s is closed. No update was applied.",
+                       appName ? appName : L"the app");
+            msg[319] = L'\0';
+            SetFooterStatus(msg, 0);
+            return FALSE;                 /* fail closed, never guess */
+        }
+        if (count > 0) running = TRUE;
+    }
+    if (running) {
+        wchar_t msg[320];
+        _snwprintf(msg, 319, L"Closing %s before applying its update...",
+                   appName ? appName : L"the app");
+        msg[319] = L'\0';
+        SetFooterStatus(msg, 12);
+    }
+
+    for (int i = 0; i < pathCount; i++) {
+        if (!CloseRunningImageForUpdate(paths[i], quitCommand)) {
+            wchar_t msg[320];
+            _snwprintf(msg, 319,
+                       L"%s is still running. No files were changed — quit it and retry.",
+                       appName ? appName : L"The app");
+            msg[319] = L'\0';
+            SetFooterStatus(msg, 0);
+            return FALSE;
+        }
+    }
+    /* CloseRunningImageForUpdate proves each path independently.  Retain an
+       explicit final pass because a mirror can be launched while another copy
+       is processing its close request. */
+    for (int i = 0; i < pathCount; i++) {
+        if (!NoProcessRunsImage(paths[i])) {
+            wchar_t msg[320];
+            _snwprintf(msg, 319,
+                       L"%s reopened during the update check. No files were changed — retry.",
+                       appName ? appName : L"The app");
+            msg[319] = L'\0';
+            SetFooterStatus(msg, 0);
+            return FALSE;
+        }
+    }
+    return TRUE;
 }
 
 /* Downloads honour the released marker as well: an update clicked while the
@@ -109,39 +194,6 @@ static BOOL InstallRepoFileEverywhere(int slot, const wchar_t *branch,
     int n = MirrorFileEverywhere(slot, dest);
     if (outMirrors) *outMirrors = n;
     return TRUE;
-}
-
-/* A tray app started from a stray copy keeps running that stray build, and its
- * single-instance mutex makes the fresh suite copy exit immediately - the user
- * would keep using the old build after a successful update. Close the foreign
- * instance so the copy from the suite folder is the one that comes back up.
- * Only ever called for a copy that is about to be replaced anyway. */
-static BOOL StopForeignInstance(const wchar_t *wndClass, const wchar_t *primaryDir) {
-    HWND hw = FindWindowW(wndClass, NULL);
-    if (!hw) return FALSE;
-    DWORD pid = 0;
-    GetWindowThreadProcessId(hw, &pid);
-    if (!pid) return FALSE;
-    HANDLE hp = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, FALSE, pid);
-    if (!hp) return FALSE;
-    wchar_t img[MAX_PATH] = L"";
-    DWORD n = MAX_PATH;
-    BOOL foreign = FALSE;
-    if (QueryFullProcessImageNameW(hp, 0, img, &n)) {
-        wchar_t dir[MAX_PATH];
-        wcsncpy(dir, img, MAX_PATH - 1);
-        dir[MAX_PATH - 1] = L'\0';
-        wchar_t *sl = wcsrchr(dir, L'\\');
-        if (sl) *sl = L'\0';
-        foreign = (_wcsicmp(dir, primaryDir) != 0);
-    }
-    if (foreign) {
-        PostMessageW(hw, WM_CLOSE, 0, 0);
-        if (WaitForSingleObject(hp, 1200) == WAIT_TIMEOUT) TerminateProcess(hp, 0);
-        WaitForSingleObject(hp, 1200);
-    }
-    CloseHandle(hp);
-    return foreign;
 }
 
 static void InitAllPaths(void) {
