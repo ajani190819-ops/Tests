@@ -97,7 +97,7 @@ typedef struct {
     int     have;             /* 0 nothing, 1 partial, 2 complete */
     wchar_t fetched[24];      /* local HH:MM of the fetch */
     wchar_t tz[48];
-    double  tempF, feelsF, rh, windMph, precipIn;
+    double  tempF, feelsF, rh, windMph, windGustMph, cloudCover, precipIn;
     int     wcode;
     double  dMaxF, dMinF, dPoP, dSumIn;   /* today, straight from the API */
     double  hT[FC_HOURS], hPoP[FC_HOURS], hP[FC_HOURS];

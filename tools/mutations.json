@@ -294,6 +294,27 @@
   "label": "M stale geocoding response is accepted"
  },
  {
+  "id": "wx-17",
+  "file": "weather-radar/src/parts/forecast.c",
+  "old": "weather_code,wind_speed_10m,wind_gusts_10m,cloud_cover,precipitation",
+  "new": "weather_code,wind_speed_10m,precipitation",
+  "label": "Q current conditions lose gust and cloud context"
+ },
+ {
+  "id": "wx-18",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "#define RADAR_FOCUS_PX 512",
+  "new": "#define RADAR_FOCUS_PX 768",
+  "label": "R radar falls back to an unreadable full-grid shrink"
+ },
+ {
+  "id": "wx-19",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "light     moderate     heavy     intense",
+  "new": "radar echoes",
+  "label": "S radar intensity legend loses its meanings"
+ },
+ {
   "id": "hub-18",
   "file": "project-hub/src/parts/refresh_statuses.c",
   "old": "            c->btns[action].hidden = !showAction;",

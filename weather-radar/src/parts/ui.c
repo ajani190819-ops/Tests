@@ -6,9 +6,14 @@
    RichEdit lesson from Agent Notes applies in reverse here: an EDIT DOES
    honour WM_CTLCOLOREDIT, so the hint text colour lives in that handler. */
 
-#define WIN_LW 1010
-#define WIN_LH 800
+#define WIN_LW 1120
+#define WIN_LH 960
 #define LEFT_W 252
+/* The radar host's free imagery is most useful at zoom 8.  Draw the centred
+   two-tile focus from our three-tile fetch rather than shrinking the entire
+   768px region into the pane: it keeps nearby rain readable without asking
+   the host for a closer, unavailable zoom. */
+#define RADAR_FOCUS_PX 512
 
 static void BtnRect(int i, RECT *r) {
     switch (i) {
@@ -16,16 +21,19 @@ static void BtnRect(int i, RECT *r) {
     case BTN_KEEP:    SetRect(r, S(126), S(110), S(182), S(140)); break;
     case BTN_DROP:    SetRect(r, S(188), S(110), S(244), S(140)); break;
     case BTN_REFRESH: SetRect(r, S(WIN_LW - 16 - 104), S(16), S(WIN_LW - 16), S(48)); break;
-    case BTN_PREV:    SetRect(r, S(272), S(452), S(308), S(480)); break;
-    case BTN_PLAY:    SetRect(r, S(314), S(452), S(372), S(480)); break;
-    case BTN_NEXT:    SetRect(r, S(378), S(452), S(414), S(480)); break;
-    case BTN_ZOOM:    SetRect(r, S(420), S(452), S(496), S(480)); break;
+    case BTN_PREV:    SetRect(r, S(272), S(468), S(308), S(496)); break;
+    case BTN_PLAY:    SetRect(r, S(314), S(468), S(372), S(496)); break;
+    case BTN_NEXT:    SetRect(r, S(378), S(468), S(414), S(496)); break;
+    case BTN_ZOOM:    SetRect(r, S(420), S(468), S(510), S(496)); break;
     default:          SetRect(r, 0, 0, 0, 0); break;
     }
 }
 
 static void RadarImageRect(RECT *r) {
-    SetRect(r, S(272), S(492), S(WIN_LW - 28), S(WIN_LH - 108));
+    /* Keep a full, nearly square local-radar canvas below its own controls.
+       The former 200px-high strip made every road, echo and timestamp too
+       small to interpret even though the worker had fetched a real 768px map. */
+    SetRect(r, S(272), S(508), S(WIN_LW - 28), S(WIN_LH - 94));
 }
 
 /* Search-result and saved-place rows are plain painted rows: clickable,
@@ -115,7 +123,7 @@ static void FrameTimeText(long long t, int kind, wchar_t *out, int cap) {
 
 static void PaintNowCard(HDC mem, const RECT *card) {
     DrawRoundedBox(mem, card, S(14), COL_CARD, COL_CARD_BD);
-    RECT inner = { card->left + S(18), card->top + S(10), card->right - S(18), card->bottom - S(10) };
+    RECT inner = { card->left + S(18), card->top + S(8), card->right - S(18), card->bottom - S(8) };
     if (!g_fc.have) {
         DrawTextAt(mem, L"Fetching the current conditions...", &inner, g_fontUI,
                    COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
@@ -123,55 +131,65 @@ static void PaintNowCard(HDC mem, const RECT *card) {
     }
     wchar_t big[24];
     _snwprintf(big, 23, L"%d°", (int)llround(g_fc.tempF));
-    /* The temperature owns the left block. Forecast details sit beside it,
-       never underneath the large glyph where they became unreadable. */
+    /* A clear at-a-glance block: the temperature remains prominent while the
+       decision details have four separate lines instead of one crammed run. */
     RECT tr = { inner.left, inner.top, inner.left + S(132), inner.bottom };
     DrawTextAt(mem, big, &tr, g_fontBig, COL_TXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     int detailLeft = inner.left + S(138);
-    RECT cr = { detailLeft, inner.top + S(1), inner.right, inner.top + S(27) };
+    RECT cr = { detailLeft, inner.top, inner.right, inner.top + S(22) };
     DrawTextAt(mem, WxCodeText(g_fc.wcode), &cr, g_fontTitle, COL_TXT,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
     wchar_t line[192];
-    _snwprintf(line, 191, L"Feels %d°  ·  Humidity %d%%  ·  Wind %d mph%s",
+    _snwprintf(line, 191, L"Feels %d°  ·  Humidity %d%%  ·  Cloud %d%%",
                (int)llround(g_fc.feelsF), (int)llround(g_fc.rh),
-               (int)llround(g_fc.windMph), WxCodeIsWet(g_fc.wcode) ? L"  ·  raining now" : L"");
+               (int)llround(g_fc.cloudCover));
     line[191] = L'\0';
-    RECT lr = { detailLeft, inner.top + S(27), inner.right, inner.top + S(48) };
-    DrawTextAt(mem, line, &lr, g_fontUI, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    wchar_t today[96];
-    _snwprintf(today, 95, L"Today: high %d°  ·  low %d°",
-               (int)llround(g_fc.dMaxF), (int)llround(g_fc.dMinF));
-    today[95] = L'\0';
-    RECT dr = { detailLeft, inner.top + S(49), inner.right, inner.bottom };
-    DrawTextAt(mem, today, &dr, g_fontUI, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    RECT lr = { detailLeft, inner.top + S(22), inner.right, inner.top + S(40) };
+    DrawTextAt(mem, line, &lr, g_fontSmall, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+    _snwprintf(line, 191, L"Wind %d mph  ·  Gusts %d mph  ·  Rain now %.2f in",
+               (int)llround(g_fc.windMph), (int)llround(g_fc.windGustMph), g_fc.precipIn);
+    line[191] = L'\0';
+    RECT wr = { detailLeft, inner.top + S(40), inner.right, inner.top + S(58) };
+    DrawTextAt(mem, line, &wr, g_fontSmall, WxCodeIsWet(g_fc.wcode) ? COL_RAIN : COL_MUTED,
+               DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+    _snwprintf(line, 191, L"Today: %d° / %d°  ·  rain up to %d%%  ·  total %.2f in",
+               (int)llround(g_fc.dMaxF), (int)llround(g_fc.dMinF),
+               (int)llround(g_fc.dPoP), g_fc.dSumIn);
+    line[191] = L'\0';
+    RECT dr = { detailLeft, inner.top + S(58), inner.right, inner.bottom };
+    DrawTextAt(mem, line, &dr, g_fontSmall, COL_TXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 }
 
 /* The headline: the ensemble fraction, in words and as a bar, next to the
    coverage-blended figure so the two can be compared at a glance. */
 static void PaintHonestCard(HDC mem, const RECT *card) {
     DrawRoundedBox(mem, card, S(14), COL_CARD, COL_CARD_BD);
-    RECT lbl = { card->left + S(18), card->top + S(10), card->right - S(18), card->top + S(30) };
-    DrawTextAt(mem, L"Chance of Rain Here · Next 6 Hours", &lbl, g_fontSmall, COL_MUTED,
+    RECT lbl = { card->left + S(18), card->top + S(8), card->right - S(18), card->top + S(25) };
+    DrawTextAt(mem, L"Rain at your exact location · next 6 hours", &lbl, g_fontSmall, COL_MUTED,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
     int start = g_fc.have ? g_fc.nowIdx : 0;
     double honest = EnsWindowProb(&g_ens, start, 6);
     double blended = g_fc.have ? PoPWindowMax(&g_fc, 0, 6) : NAN;
 
-    RECT big = { card->left + S(18), card->top + S(28), card->left + S(150), card->top + S(78) };
+    RECT big = { card->left + S(18), card->top + S(24), card->left + S(140), card->top + S(76) };
     wchar_t pct[16];
     if (isnan(honest)) wcscpy(pct, L"--");
     else _snwprintf(pct, 15, L"%d%%", (int)llround(honest * 100.0));
     DrawTextAt(mem, pct, &big, g_fontBig, COL_RAIN, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
-    /* the bar: honest odds as a fill, blended PoP as a hollow tick */
-    RECT bar = { card->left + S(160), card->top + S(44), card->right - S(24), card->top + S(62) };
+    /* The fill is the member share at this point.  The gold tick is retained
+       as the regional/coverage number, clearly labelled but never promoted to
+       the headline. */
+    RECT bar = { card->left + S(150), card->top + S(37), card->right - S(22), card->top + S(55) };
     DrawRoundedBox(mem, &bar, S(9), COL_INPUT, COL_DIV);
     if (!isnan(honest)) {
         RECT fill = bar;
         int w = (int)((bar.right - bar.left) * honest);
-        if (w > S(6)) fill.right = bar.left + w;
-        else fill.right = bar.left + S(6);
+        fill.right = bar.left + (w > S(6) ? w : S(6));
         DrawRoundedBox(mem, &fill, S(9), COL_RAIN, COL_RAIN);
     }
     if (!isnan(blended)) {
@@ -184,39 +202,26 @@ static void PaintHonestCard(HDC mem, const RECT *card) {
         DeleteObject(p);
     }
 
-    RECT den = { card->left + S(18), card->top + S(80), card->right - S(18), card->top + S(100) };
-    wchar_t dentxt[256];
+    wchar_t detail[192];
     if (g_ens.have && !isnan(honest)) {
-        int wet = (int)llround(honest * 100.0 + 0.0001);
-        _snwprintf(dentxt, 255,
-                   L"Ensemble: %d%% from %d %s members at this exact point.",
-                   wet, g_ens.members, g_ens.model);
+        _snwprintf(detail, 191, L"Blue: %d ensemble members here  ·  Gold tick: %d%% regional coverage-blended forecast",
+                   g_ens.members, isnan(blended) ? 0 : (int)llround(blended));
     } else {
-        wcscpy(dentxt, L"The ensemble did not answer - no honest number beats a borrowed one.");
+        wcscpy(detail, L"Ensemble unavailable — no borrowed probability is shown as yours.");
     }
-    dentxt[255] = L'\0';
-    DrawTextAt(mem, dentxt, &den, g_fontUI, COL_TXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-
-    RECT cmp = { card->left + S(18), card->top + S(100), card->right - S(18), card->bottom - S(8) };
-    wchar_t cmptxt[256];
-    if (!isnan(blended))
-        _snwprintf(cmptxt, 255,
-                   L"Gold mark: %d%% coverage-blended forecast — shown for comparison, not as the headline.",
-                   (int)llround(blended));
-    else
-        wcscpy(cmptxt, L"Gold marks show the coverage-blended forecast when it is available.");
-    cmptxt[255] = L'\0';
-    DrawTextAt(mem, cmptxt, &cmp, g_fontSmall, COL_MUTED,
+    detail[191] = L'\0';
+    RECT dr = { card->left + S(150), card->top + S(58), card->right - S(18), card->bottom - S(6) };
+    DrawTextAt(mem, detail, &dr, g_fontSmall, COL_MUTED,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 }
 
 static void PaintHourlyCard(HDC mem, const RECT *card) {
     DrawRoundedBox(mem, card, S(14), COL_CARD, COL_CARD_BD);
-    RECT lbl = { card->left + S(18), card->top + S(8), card->right - S(18), card->top + S(26) };
-    DrawTextAt(mem, L"Next 12 Hours", &lbl, g_fontSmall, COL_MUTED,
+    RECT lbl = { card->left + S(18), card->top + S(8), card->right - S(18), card->top + S(25) };
+    DrawTextAt(mem, L"Next 12 hours · odds, amount, temperature", &lbl, g_fontSmall, COL_MUTED,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    RECT key = { card->left + S(150), card->top + S(8), card->right - S(18), card->top + S(26) };
-    DrawTextAt(mem, L"Blue = ensemble share   ·   Gold = coverage blend", &key,
+    RECT key = { card->left + S(300), card->top + S(8), card->right - S(18), card->top + S(25) };
+    DrawTextAt(mem, L"Blue = ensemble odds  ·  Gold = regional coverage", &key,
                g_fontSmall, COL_MUTED, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     if (!g_fc.have || g_fc.hN <= 0) {
         RECT w = { card->left + S(18), card->top + S(40), card->right - S(18), card->bottom - S(24) };
@@ -225,9 +230,9 @@ static void PaintHourlyCard(HDC mem, const RECT *card) {
         return;
     }
     int n = g_fc.hN < HOURLY_SHOWN ? g_fc.hN : HOURLY_SHOWN;
-    /* Reserve one clean line above for temperatures and one below for times.
-       The old legend shared the time-label strip, which made both illegible. */
-    RECT plot = { card->left + S(18), card->top + S(50), card->right - S(18), card->bottom - S(24) };
+    /* Each hour has its own text lanes: temperature and exact-point odds above
+       the chart, forecast amount below it, then time.  Nothing shares a row. */
+    RECT plot = { card->left + S(18), card->top + S(60), card->right - S(18), card->bottom - S(43) };
     int colW = (plot.right - plot.left) / n;
     int start = g_fc.nowIdx;
     for (int k = 0; k < n; k++) {
@@ -252,16 +257,30 @@ static void PaintHourlyCard(HDC mem, const RECT *card) {
             SelectObject(mem, op);
             DeleteObject(p);
         }
-        RECT hr = { x0 - S(6), plot.bottom + S(4), x1 + S(6), card->bottom - S(4) };
-        DrawTextAt(mem, g_fc.hLabel[k], &hr, g_fontSmall, COL_MUTED,
-                   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        wchar_t tmp[12];
+
+        wchar_t tmp[16];
         if (!isnan(g_fc.hT[k])) {
-            _snwprintf(tmp, 11, L"%d°", (int)llround(g_fc.hT[k]));
-            RECT tr2 = { x0 - S(6), card->top + S(30), x1 + S(6), plot.top - S(4) };
-            DrawTextAt(mem, tmp, &tr2, g_fontSmall, COL_TXT,
+            _snwprintf(tmp, 15, L"%d°", (int)llround(g_fc.hT[k]));
+            RECT tr = { x0 - S(6), card->top + S(27), x1 + S(6), card->top + S(43) };
+            DrawTextAt(mem, tmp, &tr, g_fontSmall, COL_TXT,
                        DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         }
+        if (!isnan(honest)) {
+            _snwprintf(tmp, 15, L"%d%%", (int)llround(honest * 100.0));
+            RECT or = { x0 - S(6), card->top + S(43), x1 + S(6), plot.top - S(2) };
+            DrawTextAt(mem, tmp, &or, g_fontSmall, COL_RAIN,
+                       DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+        if (!isnan(g_fc.hP[k])) {
+            if (g_fc.hP[k] < 0.005) wcscpy(tmp, L"dry");
+            else _snwprintf(tmp, 15, L"%.2f\"", g_fc.hP[k]);
+            RECT ar = { x0 - S(8), plot.bottom + S(2), x1 + S(8), plot.bottom + S(16) };
+            DrawTextAt(mem, tmp, &ar, g_fontSmall, COL_MUTED,
+                       DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+        RECT hr = { x0 - S(6), plot.bottom + S(17), x1 + S(6), card->bottom - S(3) };
+        DrawTextAt(mem, g_fc.hLabel[k], &hr, g_fontSmall, COL_MUTED,
+                   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
 }
 
@@ -299,28 +318,43 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
         bi.bmiHeader.biPlanes = 1;
         bi.bmiHeader.biBitCount = 32;
         bi.bmiHeader.biCompression = BI_RGB;
+        /* A centred local focus makes weather around the selected place large
+           enough to read.  The worker still fetches three tiles, so this is a
+           display crop rather than a costly or unsupported closer tile zoom. */
+        int srcLeft = (GRID_PX - RADAR_FOCUS_PX) / 2;
+        int srcTop = (GRID_PX - RADAR_FOCUS_PX) / 2;
         EnterCriticalSection(&g_lock);
-        StretchDIBits(mem, d.left, d.top, side, side, 0, 0, GRID_PX, GRID_PX,
-                      g_view, &bi, DIB_RGB_COLORS, SRCCOPY);
+        StretchDIBits(mem, d.left, d.top, side, side, srcLeft, srcTop,
+                      RADAR_FOCUS_PX, RADAR_FOCUS_PX, g_view, &bi,
+                      DIB_RGB_COLORS, SRCCOPY);
         LeaveCriticalSection(&g_lock);
-        /* crosshair on the exact place pixel */
+        /* Crosshair on the exact place pixel, translated through the same
+           focused crop used for the map so it cannot drift away from home. */
         if (hasPlace) {
             int tx = 0, ty = 0;
             GridFor(g_baseKey[0] > 0 ? g_baseKey[0] : g_zoom, pl.lat, pl.lon, &tx, &ty);
             double px = 0, py = 0;
             PlacePixelInGrid(g_baseKey[0] > 0 ? g_baseKey[0] : g_zoom, pl.lat, pl.lon,
                              tx, ty, &px, &py);
-            int cx = d.left + (int)(px / (double)GRID_PX * (double)side);
-            int cy = d.top + (int)(py / (double)GRID_PX * (double)side);
-            HPEN p = CreatePen(PS_SOLID, S(2), RGB(255, 255, 255));
-            HGDIOBJ op = SelectObject(mem, p);
-            MoveToEx(mem, cx - S(9), cy, NULL); LineTo(mem, cx - S(3), cy);
-            MoveToEx(mem, cx + S(3), cy, NULL); LineTo(mem, cx + S(9), cy);
-            MoveToEx(mem, cx, cy - S(9), NULL); LineTo(mem, cx, cy - S(3));
-            MoveToEx(mem, cx, cy + S(3), NULL); LineTo(mem, cx, cy + S(9));
-            SelectObject(mem, op);
-            DeleteObject(p);
-            Ellipse(mem, cx - S(3), cy - S(3), cx + S(3), cy + S(3));
+            int cx = d.left + (int)((px - srcLeft) / (double)RADAR_FOCUS_PX * (double)side);
+            int cy = d.top + (int)((py - srcTop) / (double)RADAR_FOCUS_PX * (double)side);
+            if (cx >= d.left && cx < d.right && cy >= d.top && cy < d.bottom) {
+                /* Two contrasting rings remain visible over both pale roads
+                   and the strongest red/yellow precipitation echoes. */
+                HPEN outer = CreatePen(PS_SOLID, S(3), RGB(20, 24, 34));
+                HPEN inner = CreatePen(PS_SOLID, S(2), RGB(255, 255, 255));
+                HGDIOBJ op = SelectObject(mem, outer);
+                Ellipse(mem, cx - S(10), cy - S(10), cx + S(10), cy + S(10));
+                SelectObject(mem, inner);
+                MoveToEx(mem, cx - S(14), cy, NULL); LineTo(mem, cx - S(4), cy);
+                MoveToEx(mem, cx + S(4), cy, NULL); LineTo(mem, cx + S(14), cy);
+                MoveToEx(mem, cx, cy - S(14), NULL); LineTo(mem, cx, cy - S(4));
+                MoveToEx(mem, cx, cy + S(4), NULL); LineTo(mem, cx, cy + S(14));
+                Ellipse(mem, cx - S(6), cy - S(6), cx + S(6), cy + S(6));
+                SelectObject(mem, op);
+                DeleteObject(inner);
+                DeleteObject(outer);
+            }
         }
     } else {
         DrawRoundedBox(mem, &img, S(10), COL_INPUT, COL_DIV);
@@ -343,6 +377,24 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
     if (ready == 1 && view) {
         RECT nr = { img.left + S(8), img.top + S(32), img.left + S(330), img.top + S(54) };
         DrawTextAt(mem, L"No rain echoes in this frame.", &nr, g_fontSmall, COL_MUTED,
+                   DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    }
+    if (ready == 2 && view) {
+        /* RainViewer uses colour to communicate intensity.  Name that scale
+           on the map so the coloured cells become an actionable answer rather
+           than an unexplained overlay. */
+        RECT legend = { img.left + S(8), img.bottom - S(30), img.left + S(316), img.bottom - S(8) };
+        DrawRoundedBox(mem, &legend, S(8), COL_CARD, COL_CARD_BD);
+        RECT sw = { legend.left + S(7), legend.top + S(6), legend.left + S(19), legend.bottom - S(6) };
+        DrawRoundedBox(mem, &sw, S(3), RGB(70, 140, 245), RGB(70, 140, 245));
+        sw.left += S(66); sw.right += S(66);
+        DrawRoundedBox(mem, &sw, S(3), RGB(52, 190, 110), RGB(52, 190, 110));
+        sw.left += S(66); sw.right += S(66);
+        DrawRoundedBox(mem, &sw, S(3), RGB(251, 191, 36), RGB(251, 191, 36));
+        sw.left += S(66); sw.right += S(66);
+        DrawRoundedBox(mem, &sw, S(3), RGB(240, 82, 82), RGB(240, 82, 82));
+        RECT lt = { legend.left + S(23), legend.top, legend.right - S(4), legend.bottom };
+        DrawTextAt(mem, L"light     moderate     heavy     intense", &lt, g_fontSmall, COL_TXT,
                    DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
     if (note) {
@@ -446,13 +498,16 @@ static void PaintAll(HWND hwnd) {
 
     PaintLeftColumn(mem);
 
-    RECT nowCard = { S(260), S(70), S(WIN_LW - 16), S(166) };
+    /* Wide decision cards avoid forcing current conditions or ensemble context
+       into illegible columns, while the lower half is now reserved for the
+       enlarged, high-contrast local radar instead of a thin map strip. */
+    RECT nowCard = { S(260), S(70), S(WIN_LW - 16), S(172) };
     PaintNowCard(mem, &nowCard);
-    RECT honestCard = { S(260), S(174), S(WIN_LW - 16), S(300) };
+    RECT honestCard = { S(260), S(180), S(WIN_LW - 16), S(282) };
     PaintHonestCard(mem, &honestCard);
-    RECT hourCard = { S(260), S(308), S(WIN_LW - 16), S(436) };
+    RECT hourCard = { S(260), S(290), S(WIN_LW - 16), S(452) };
     PaintHourlyCard(mem, &hourCard);
-    RECT radarCard = { S(260), S(444), S(WIN_LW - 16), S(WIN_LH - 56) };
+    RECT radarCard = { S(260), S(460), S(WIN_LW - 16), S(WIN_LH - 56) };
     /* Paint the card first: it is opaque, so controls must be drawn over it. */
     PaintRadarPane(mem, &radarCard);
     DrawBtn(mem, BTN_PREV, L"<", 0);

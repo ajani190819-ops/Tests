@@ -1519,19 +1519,38 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         grid so the map appeared as broken horizontal bands."""
         ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
         radar = (ROOT / "weather-radar" / "src" / "parts" / "radar.c").read_text(encoding="utf-8")
-        self.assertIn("#define WIN_LH 800", ui)
+        forecast = (ROOT / "weather-radar" / "src" / "parts" / "forecast.c").read_text(encoding="utf-8")
+        self.assertIn("wind_gusts_10m,cloud_cover", forecast,
+                      "the selected balanced current-conditions view stopped requesting gust and cloud context")
+        self.assertIn('f->windGustMph = JNum(JGet(cur, "wind_gusts_10m"));', forecast)
+        self.assertIn('f->cloudCover = JNum(JGet(cur, "cloud_cover"));', forecast)
+        self.assertIn("#define WIN_LH 960", ui,
+                      "the decision view regressed to the short canvas that made radar unreadable")
+        self.assertIn("#define RADAR_FOCUS_PX 512", ui,
+                      "the legible local-radar focus crop disappeared")
         self.assertIn("static int SavedHeadingY(void)", ui)
         self.assertIn("if (wp != SIZE_MINIMIZED) LayoutSearchEdit();", ui,
                       "the native search field is not corrected after the window receives its final size")
         hourly = ui[ui.index("static void PaintHourlyCard("):ui.index("static void PaintRadarPane", ui.index("static void PaintHourlyCard("))]
-        self.assertIn("card->top + S(50)", hourly,
-                      "the graph no longer reserves a separate row for temperatures")
+        self.assertIn("Next 12 hours · odds, amount, temperature", hourly,
+                      "the hourly decision lanes lost their explicit meaning")
+        self.assertIn("Blue = ensemble odds  ·  Gold = regional coverage", hourly,
+                      "the visual difference between exact-point odds and regional PoP is unlabeled")
+        self.assertIn("g_fc.hP[k]", hourly,
+                      "hourly rain amount vanished from the decision view")
         self.assertNotIn("RECT leg", hourly,
                          "the hourly legend overlaps the time labels again")
         paint = ui[ui.index("static void PaintAll(HWND hwnd)"):ui.index("static void StatusSet", ui.index("static void PaintAll(HWND hwnd)"))]
         self.assertLess(paint.index("PaintRadarPane(mem, &radarCard);"),
                         paint.index("DrawBtn(mem, BTN_PREV"),
                         "the radar card paints over its own playback controls")
+        pane = ui[ui.index("static void PaintRadarPane("):ui.index("static void PaintAll", ui.index("static void PaintRadarPane("))]
+        self.assertIn("RADAR_FOCUS_PX", pane,
+                      "the enlarged radar pane is no longer drawn from the readable local focus")
+        self.assertIn("light     moderate     heavy     intense", pane,
+                      "radar colours no longer have a visible intensity legend")
+        self.assertIn("cx - S(14)", pane,
+                      "the location marker is too small to find over precipitation")
         self.assertIn("uint32_t tile[TILE_PX * TILE_PX];", radar)
         self.assertIn("for (int row = 0; row < TILE_PX; row++)", radar)
         self.assertIn("memcpy(dstRow, tile + (size_t)row * TILE_PX", radar,

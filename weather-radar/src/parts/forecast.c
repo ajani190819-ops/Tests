@@ -21,7 +21,7 @@ static void BuildForecastUrl(const Place *p, wchar_t *url, int cap) {
     _snwprintf(url, cap - 1,
                L"https://api.open-meteo.com/v1/forecast?latitude=%.5f&longitude=%.5f"
                L"&current=temperature_2m,apparent_temperature,relative_humidity_2m,"
-               L"weather_code,wind_speed_10m,precipitation"
+               L"weather_code,wind_speed_10m,wind_gusts_10m,cloud_cover,precipitation"
                L"&hourly=temperature_2m,precipitation_probability,precipitation,weather_code"
                L"&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,"
                L"precipitation_sum,weather_code"
@@ -68,6 +68,8 @@ static void FetchForecast(const Place *p) {
         f->feelsF  = JNum(JGet(cur, "apparent_temperature"));
         f->rh      = JNum(JGet(cur, "relative_humidity_2m"));
         f->windMph = JNum(JGet(cur, "wind_speed_10m"));
+        f->windGustMph = JNum(JGet(cur, "wind_gusts_10m"));
+        f->cloudCover = JNum(JGet(cur, "cloud_cover"));
         f->precipIn = JNum(JGet(cur, "precipitation"));
         f->wcode   = (int)JNum(JGet(cur, "weather_code"));
         f->have = 1;
