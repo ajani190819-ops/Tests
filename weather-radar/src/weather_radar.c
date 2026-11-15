@@ -1,0 +1,184 @@
+/* WeatherRadar - pick a place, read an honest chance of rain, watch the radar.
+ *
+ * The point of this app is one number most weather apps get wrong on purpose.
+ * The "chance of rain" everybody shows is PoP = confidence x areal coverage:
+ * a forecaster who is certain half the metro gets wet reports 50%, and an app
+ * that blends 40 km grid cells into your street reports the same 50% whether
+ * the rain lands on you or 20 miles away. It is a statement about an AREA.
+ *
+ * This app asks the question you actually meant - "will it rain HERE?" - and
+ * answers it the only honest way available without a forecaster: run the
+ * ensemble. Open-Meteo serves every member of the GFS ensemble separately
+ * (precipitation_member01..memberNN), so the fraction of members that put
+ * >= 0.1 mm at these exact coordinates in the window IS the probability, by
+ * definition, with no coverage term smuggled in. The denominator is the
+ * members that actually reported that hour, because members stop producing
+ * values past their own forecast horizon and counting a missing member as
+ * "dry" would quietly deflate every long-range number.
+ *
+ * The coverage-blended figure is still fetched and drawn - as a hollow tick
+ * beside each honest bar - so the difference is visible instead of claimed.
+ *
+ * Radar: RainViewer frames (past + nowcast) composited over OpenStreetMap
+ * tiles, both decoded through WIC, which is reached with CoCreateInstance so
+ * windowscodecs.dll never enters this exe's import table (the suite's PE
+ * contract allows stock system DLLs only).
+ *
+ * Modularized like every other suite app: this file is ONE translation unit
+ * that textually includes the part files in dependency order. Edit the parts.
+ */
+/* COBJMACROS before the headers: the WIC calls below use the C method
+   macros, so the COM vtable layout never appears by hand. */
+#define COBJMACROS
+#include <windows.h>
+#include <windowsx.h>
+#include <commctrl.h>
+#include <shellapi.h>
+#include <shlobj.h>
+#include <winhttp.h>
+#include <wincodec.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <wchar.h>
+
+#define APP_TITLE_W   L"Weather Radar"
+#define APP_DIRNAME_W L"WeatherRadar"
+#define MUTEX_NAME    L"Local\\Tests_WeatherRadar_SingleInstance_v1"
+#define SHOW_EVENT    L"Local\\Tests_WeatherRadar_Show_v1"
+#define HTTP_UA       L"TestsSuite-WeatherRadar/1.0 (personal desktop app; contact: owner)"
+
+#define WM_APP_DATA   (WM_APP + 7)     /* worker -> UI: staging result is ready */
+#define WM_APP_STATUS (WM_APP + 8)     /* worker -> UI: status line text */
+
+enum { BTN_SEARCH = 0, BTN_REFRESH, BTN_PLAY, BTN_PREV, BTN_NEXT,
+       BTN_KEEP, BTN_DROP, BTN_ZOOM, BTN_COUNT };
+enum { TIMER_EMBLEM = 1, TIMER_ANIM = 2, TIMER_REFRESH = 3 };
+#define ID_EDIT_SEARCH 101
+#define HINT_SEARCH    L"city or postcode - press Search"
+
+/* What "rain" means for the honest probability. 0.1 mm/h is the WMO trace
+   threshold: below it a gauge reports nothing, so a member under it did not
+   forecast rain at this point, however much it rained next door. */
+#define RAIN_MM        0.1
+
+#define MAX_PLACES     8
+#define MAX_SEARCH     8
+#define MAX_FRAMES     32
+#define FC_HOURS       48
+#define HOURLY_SHOWN   12
+#define MAX_MEMBERS    64
+#define GRID_TILES     3               /* 3x3 tiles per radar view */
+#define TILE_PX        256
+#define GRID_PX        (GRID_TILES * TILE_PX)
+
+/* Worker jobs. One thread, one queued job at a time: the UI never blocks and
+   a job always writes to staging, never to what is on screen. */
+enum { JOB_NONE = 0, JOB_GEOCODE, JOB_FORECAST, JOB_ENSEMBLE,
+       JOB_RADAR_CATALOG, JOB_TILES };
+
+typedef struct {
+    wchar_t name[96];
+    wchar_t region[96];       /* "Florida, United States" */
+    double  lat, lon;
+} Place;
+
+typedef struct {
+    long long time;           /* unix seconds, UTC */
+    char      path[96];       /* RainViewer frame path */
+    int       kind;           /* 0 = past (observed), 1 = nowcast (modelled) */
+} RadarFrame;
+
+/* One forecast API call: current conditions, today's daily row, hourly rows. */
+typedef struct {
+    int     have;             /* 0 nothing, 1 partial, 2 complete */
+    wchar_t fetched[24];      /* local HH:MM of the fetch */
+    wchar_t tz[48];
+    double  tempF, feelsF, rh, windMph, precipIn;
+    int     wcode;
+    double  dMaxF, dMinF, dPoP, dSumIn;   /* today, straight from the API */
+    double  hT[FC_HOURS], hPoP[FC_HOURS], hP[FC_HOURS];
+    int     hCode[FC_HOURS];
+    wchar_t hLabel[FC_HOURS][8];
+    int     hN;
+    int     nowIdx;           /* index into the hourly arrays of "now" */
+} Forecast;
+
+/* The ensemble member matrix, and the probabilities derived from it. */
+typedef struct {
+    int     have;
+    int     members;          /* distinct member series found */
+    int     hours;
+    double  mm[MAX_MEMBERS][FC_HOURS];   /* NAN where the member reported nothing */
+    double  prob[FC_HOURS];   /* honest per-hour probability, 0..1 */
+    int     reported[FC_HOURS];          /* denominator actually used per hour */
+    wchar_t model[40];
+} Ensemble;
+
+static HINSTANCE g_hInst;
+static HWND      g_hwnd, g_hSearch;
+static HFONT     g_fontUI, g_fontTitle, g_fontBig, g_fontBtn, g_fontSmall;
+static HBRUSH    g_bgBrush;
+static UINT      g_dpi = 96;
+static int       g_fit = 100;
+static int       g_hoverBtn = -1;
+static CRITICAL_SECTION g_lock;
+
+/* theme-aware palette (filled by InitPalette before the first window exists) */
+static COLORREF COL_BG, COL_CARD, COL_INPUT, COL_TXT, COL_MUTED, COL_ACCENT;
+static COLORREF COL_WARN, COL_GOOD, COL_DIV, COL_HOT, COL_CARD_BD, COL_RAIN;
+
+static wchar_t g_cfgDir[MAX_PATH];
+static wchar_t g_cfgPath[MAX_PATH];
+static wchar_t g_cacheDir[MAX_PATH];
+static wchar_t g_status[320] = L"Pick a place to begin.";
+static int     g_statusKind = 0;        /* 0 neutral, 1 good, 2 warn */
+
+static Place   g_places[MAX_PLACES];
+static int     g_placeN = 0;
+static int     g_placeSel = -1;
+static Place   g_search[MAX_SEARCH];
+static int     g_searchN = 0;
+static int     g_searchSel = -1;
+static wchar_t g_query[96] = L"";
+static int     g_searchHint = 1;
+
+static Forecast  g_fc;
+static Ensemble  g_ens;
+static Forecast  g_fcStage;
+static Ensemble  g_ensStage;
+
+static RadarFrame g_frames[MAX_FRAMES];
+static int        g_frameN = 0;
+static int        g_frameSel = 0;
+static int        g_playing = 0;
+static int        g_zoom = 8;           /* 8 first; falls back to 7 if empty */
+static wchar_t    g_radarHost[160] = L"";
+static int        g_radarNote = 0;      /* 1 = fell back to zoom 7 */
+
+/* decoded imagery: 768x768 each, owned by whoever the UI currently points at */
+static uint32_t *g_view = NULL;         /* composited radar over basemap */
+static uint32_t *g_viewStage = NULL;
+static uint32_t *g_base = NULL;         /* cached basemap grid */
+static int       g_baseKey[3] = { -1, -1, -1 };   /* zoom, tx, ty */
+static int       g_viewReady = 0;
+
+
+static int S(int px) {
+    return MulDiv(MulDiv(px, (int)g_dpi, 96), g_fit, 100);
+}
+
+/* ---- modularized (unity build): each section lives in its own file under
+      parts/ and is textually included here IN DEPENDENCY ORDER, so
+      weather_radar.c is still ONE translation unit. ---- */
+#include "parts/util.c"
+#include "parts/json.c"
+#include "parts/net.c"
+#include "parts/places.c"
+#include "parts/radar.c"
+#include "parts/forecast.c"
+#include "parts/workers.c"
+#include "parts/ui.c"
+#include "parts/entry.c"

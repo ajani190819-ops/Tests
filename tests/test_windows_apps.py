@@ -465,6 +465,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             "keyboard-lighting/KeyboardLighting.exe",
             "dns-pilot/DnsPilot.exe",
             "agent-notes/AgentNotes.exe",
+            "weather-radar/WeatherRadar.exe",
         ):
             exe = ROOT / rel
             self.assertTrue(exe.exists(), f"Missing standalone native executable {rel}")
@@ -1285,14 +1286,23 @@ class WindowsDesktopAppsTests(unittest.TestCase):
 
         self.assertEqual(len(ids), len(set(ids)),
                          f"duplicate ids in suite-apps.json: {ids}")
-        # Every built-in card the hub renders should be described by the
-        # catalog, so its text survives a catalog refresh.
-        self.assertEqual(sorted(known), sorted(ids),
-                         f"suite-apps.json and the hub's built-in slots disagree.\n"
-                         f"  hub knows:      {sorted(known)}\n"
-                         f"  catalog lists:  {sorted(ids)}\n"
-                         f"A built-in card missing from the catalog is never "
-                         f"repopulated after the string pool is reset.")
+        # Every built-in card the hub renders must be described by the
+        # catalog, so its text survives a catalog refresh. The catalog may
+        # ALSO list dynamic apps the hub has no built-in slot for - that is
+        # the whole point of AddCatalogCard - so the old equality assertion
+        # became wrong the day the eighth app shipped: what must hold is
+        # built-ins ⊆ catalog, and every non-built-in entry carries an exe,
+        # because AddCatalogCard returns early without one and the card
+        # would then render with no install path at all.
+        for kid in known:
+            self.assertIn(kid, ids,
+                          f"built-in hub card '{kid}' is missing from suite-apps.json, "
+                          f"so its text dies the next time the string pool resets")
+        for app_id, app in zip(ids, apps):
+            if app_id not in known:
+                self.assertTrue(str(app.get("exe", "")).strip(),
+                                f"suite-apps.json '{app_id}' is not a built-in slot and has "
+                                f"no exe, so AddCatalogCard drops it silently")
 
     def _parse_builtin_btnid(self, hub_c):
         """Reimplement BuiltInBtnId in Python straight from the C source.
@@ -1326,6 +1336,153 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             return 0
 
         return known, defines, btn_id
+
+    def test_weather_radar_shows_the_honest_probability_not_the_blended_one(self):
+        """The owner's ask was pointed: predict the weather for a place they
+        pick, show a radar, and make the chance of rain the ACTUAL chance -
+        not the coverage-blended PoP every other app headlines.
+
+        PoP = confidence x areal coverage. "50% chance of rain" from a
+        blended product can mean "I am certain half the region gets wet",
+        which is not an answer to "will it rain on me?". The only honest
+        point probability available without a forecaster is the ensemble:
+        Open-Meteo serves each GFS member as its own precipitation series, so
+        the share of members reaching the WMO trace threshold (0.1 mm) at
+        these exact coordinates IS the probability, with no areal term.
+
+        Two traps the assertions below exist for:
+          * members stop reporting past their own horizon and the API writes
+            null. Counting silence as "dry" silently deflates every number,
+            so the denominator must be the members that REPORTED the hour.
+          * the blended figure must stay visible but visibly second: it is
+            drawn as a hollow tick, never as the headline number.
+        """
+        main = (ROOT / "weather-radar" / "src" / "weather_radar.c").read_text(encoding="utf-8")
+        fc = (ROOT / "weather-radar" / "src" / "parts" / "forecast.c").read_text(encoding="utf-8")
+        rd = (ROOT / "weather-radar" / "src" / "parts" / "radar.c").read_text(encoding="utf-8")
+        pl = (ROOT / "weather-radar" / "src" / "parts" / "places.c").read_text(encoding="utf-8")
+        ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        wk = (ROOT / "weather-radar" / "src" / "parts" / "workers.c").read_text(encoding="utf-8")
+
+        def code(src):
+            # Strip comments WITHOUT eating URLs: "https://" carries a "//"
+            # that a naive line-comment regex reads as the start of one.
+            src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+            return re.sub(r"(?<!:)//[^\n]*", "", src)
+
+        mc, fcc, rdc, uic = code(main), code(fc), code(rd), code(ui)
+
+        # --- the honest number: ensemble fraction at the exact point ---
+        self.assertIn("models=gfs_seamless", fcc,
+                      "the ensemble request no longer names a model, so the API "
+                      "answers with nothing to count")
+        self.assertIn('strncmp(c->key, "precipitation_member", 20)', fcc,
+                      "members are no longer discovered by key prefix, so a model "
+                      "with a different member count silently loses members")
+        self.assertRegex(mc, r"#define RAIN_MM\s+0\.1",
+                         "the rain threshold moved off the WMO trace value; 0.1 mm is "
+                         "where a gauge starts reporting anything at all")
+        self.assertIn("if (v >= RAIN_MM) wet++;", fcc,
+                      "a member is counted wet on any nonzero value, so a trace "
+                      "drizzle of 0.01 mm inflates the headline odds")
+
+        # --- null is absent, not dry: the denominator trap ---
+        ens = fcc[fcc.index("static void FetchEnsemble("):]
+        ens = ens[:ens.index("\n}\n")]
+        self.assertIn("if (isnan(v)) continue;", ens,
+                      "a member that reported nothing for the hour is counted as dry, "
+                      "which deflates every longer-range probability toward zero")
+        self.assertIn("e->reported[h] = reported;", ens,
+                      "the per-hour denominator is not recorded, so the UI cannot say "
+                      "how many members the fraction is out of")
+        win = fcc[fcc.index("static double EnsWindowProb("):]
+        win = win[:win.index("\n}\n")]
+        self.assertIn("if (!any) continue;", win,
+                      "a member with no reported hour in the window votes 'dry' in the "
+                      "window probability")
+        self.assertIn("return reporting > 0 ? (double)wet / (double)reporting : NAN;", win,
+                      "the window probability is not a member fraction")
+
+        # --- the blended figure stays visible, but as the tick, not the headline ---
+        self.assertIn("PoPWindowMax", fcc, "the coverage-blended comparison vanished")
+        head = uic[uic.index("static void PaintHonestCard("):]
+        head = head[:head.index("\n}\n")]
+        self.assertLess(head.index("EnsWindowProb(&g_ens, start, 6)"),
+                        head.index("PoPWindowMax(&g_fc, 0, 6)"),
+                        "the headline number is the blended PoP and the honest one is "
+                        "the footnote - exactly the inversion the owner rejected")
+        self.assertIn('wcscpy(pct, L"--")', head,
+                      "with no ensemble answer the card invents a number instead of "
+                      "saying it has none")
+        self.assertIn("coverage-blended", head,
+                      "the card never says what the other number is, so the contrast "
+                      "is a claim instead of a label")
+
+        # --- radar: catalog, tile URL, cache clocks, zoom fallback ---
+        self.assertIn("https://api.rainviewer.com/public/weather-maps.json", rdc,
+                      "the frame catalog endpoint moved")
+        self.assertIn('L"%s%hs/256/%d/%d/%d/2/1_1.png"', rdc,
+                      "the RainViewer tile URL is not host+path+256+z/x/y+scheme2+"
+                      "smooth1_snow1, so every tile 404s")
+        self.assertIn("https://tile.openstreetmap.org/%d/%d/%d.png", rdc,
+                      "the basemap URL changed; radar tiles are transparent and need "
+                      "something under them")
+        self.assertIn('FetchTileGrid(L"rv", z, tx, ty', rdc,
+                      "radar frames stopped using their own cache family")
+        self.assertIn("2 * 24 * 3600", rdc, "radar frames cache for the wrong window")
+        self.assertIn("30 * 24 * 3600", rdc,
+                      "basemap tiles no longer cache a month, so every launch "
+                      "re-downloads the same nine map tiles")
+        self.assertIn("if (dst[i] & 0xFF000000u)", rdc,
+                      "an empty tile is no longer detected by its alpha, so the zoom "
+                      "fallback can never see a placeholder")
+        self.assertIn("z = 7;", rdc,
+                      "the free-tier zoom cap has no fallback: beyond it the host "
+                      "answers 200 with an empty PNG and the pane shows nothing")
+        self.assertIn("openstreetmap contributors", ui.lower(),
+                      "OSM tiles ship without the credit their licence requires")
+        self.assertIn("rainviewer", ui.lower(),
+                      "the radar pane does not credit RainViewer for the frames")
+
+        # --- WIC through COM, never through the import table ---
+        self.assertIn("CoCreateInstance(&CLSID_WICImagingFactory", rdc,
+                      "WIC is no longer reached via CoCreateInstance")
+        bw = (ROOT / "tools" / "build_windows.py").read_text(encoding="utf-8")
+        self.assertNotIn("windowscodecs", bw,
+                         "windowscodecs is linked statically, which puts a non-contract "
+                         "DLL into the exe's import table")
+
+        # --- the UI thread never fetches ---
+        self.assertNotIn("HttpGetBuf(", uic,
+                         "a paint or click handler fetches synchronously, so a slow "
+                         "tile host freezes the window")
+        self.assertIn("CreateThread(NULL, 0, WorkerMain", wk,
+                      "the worker thread is gone; every fetch is now on the UI thread")
+        self.assertIn("PostMessageW(g_hwnd, WM_APP_DATA", fc + rdc + pl,
+                      "results are not handed to the UI thread by message, so a paint "
+                      "can read a half-filled struct")
+
+        # --- places persist in the app's own config.ini ---
+        self.assertIn("CSIDL_LOCAL_APPDATA", pl,
+                      "places no longer live under %LOCALAPPDATA%")
+        self.assertIn('config.ini", g_cfgDir', pl,
+                      "the place list does not live in the app's own config file")
+        keep = pl[pl.index("static void RememberPlace("):]
+        keep = keep[:keep.index("\n}\n")]
+        self.assertIn("SavePlaces();", keep,
+                      "remembering a place does not persist it, so the next launch "
+                      "forgets the owner's town")
+        self.assertIn("CreateMutexW(NULL, FALSE, MUTEX_NAME)",
+                      (ROOT / "weather-radar" / "src" / "parts" / "entry.c").read_text(encoding="utf-8"),
+                      "two copies could fight over the same config and cache")
+
+        # --- theme-aware like the rest of the suite ---
+        ut = (ROOT / "weather-radar" / "src" / "parts" / "util.c").read_text(encoding="utf-8")
+        utc = code(ut)
+        ip = utc[utc.index("static void InitPalette(void) {"):]
+        ip = ip[:ip.index("\n}\n")]
+        self.assertIn("if (AppsUseLightTheme())", ip,
+                      "the window ignores the owner's Windows theme again")
 
     def test_hud_and_orca_cards_expose_update_folder_remove_disable(self):
         """Both cards were redesigned to match the other app cards: Update (shown

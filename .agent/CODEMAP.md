@@ -634,7 +634,7 @@
 - L45  f target_key
 - L62  f ensure_zig_python
 - L78  f build_target
-- L109  f main
+- L114  f main
 
 ## tools/bump_version.py
 
@@ -674,9 +674,10 @@
 - L388  f build_icon_dns_pilot
 - L410  f build_icon_agent_notes
 - L451  f build_icon_audio_switcher
-- L479  f save_multi_ico
-- L511  f main
-- L611  f export_spin_loops
+- L479  f build_icon_weather_radar
+- L525  f save_multi_ico
+- L557  f main
+- L658  f export_spin_loops
 
 ## tools/mutate.py
 
@@ -803,10 +804,10 @@
 - L43  f strip_cs_comments_and_strings
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
-- L2232  f SuiteFolderInstallTests
-- L2956  f AudioSwitcherReachabilityTests
-- L3140  f AudioSwitcherSessionSweepTests
-- L3281  f AppOpenFocusTests
+- L2389  f SuiteFolderInstallTests
+- L3113  f AudioSwitcherReachabilityTests
+- L3297  f AudioSwitcherSessionSweepTests
+- L3438  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

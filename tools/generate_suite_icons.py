@@ -476,6 +476,52 @@ def build_icon_audio_switcher(size: int = 512, small: bool = False) -> Image.Ima
     return composite_elevated_layer(base, speaker_a, (165, 243, 252), (37, 99, 235), (56, 189, 248))
 
 
+def build_icon_weather_radar(size: int = 512, small: bool = False) -> Image.Image:
+    """Filled rain cloud: the one glyph that still reads at 16px.
+
+    Indigo keeps it clear of DNS Pilot's cyan and Audio Switcher's sky blue.
+    The cloud is a filled union of three discs over a rounded base (an outline
+    cloud breaks apart where the arcs overlap), and the drops are filled
+    teardrops. A thin sweep arc under the cloud nods at the radar pane and is
+    dropped in the small frames, where it would close into a blob.
+    """
+    base = make_squircle_base(size, (79, 70, 229))
+
+    def cloud_fn(d: ImageDraw.ImageDraw, s: int):
+        cx, cy = s * 0.50, s * 0.40
+        r = s * 0.155
+        d.ellipse([cx - r * 2.05, cy - r * 0.55, cx - r * 0.35, cy + r * 1.15], fill=255)
+        d.ellipse([cx - r * 1.15, cy - r * 1.45, cx + r * 0.85, cy + r * 0.55], fill=255)
+        d.ellipse([cx + r * 0.25, cy - r * 0.75, cx + r * 2.05, cy + r * 1.05], fill=255)
+        d.rounded_rectangle([cx - r * 1.9, cy + r * 0.25, cx + r * 1.9, cy + r * 1.15],
+                            radius=r * 0.45, fill=255)
+
+    cloud_a = draw_antialias_mask(size, cloud_fn)
+    composite_elevated_layer(base, cloud_a, (224, 231, 255), (129, 140, 248), (99, 102, 241))
+
+    drops = ((0.40, 0.635), (0.60, 0.635)) if small else ((0.345, 0.635), (0.50, 0.685), (0.655, 0.635))
+    for i, (dx, dy) in enumerate(drops):
+        def drop_fn(d: ImageDraw.ImageDraw, s: int, dx=dx, dy=dy):
+            cx, cy = s * dx, s * dy
+            r = s * (0.055 if small else 0.046)
+            d.polygon([(cx, cy - r * 2.1), (cx - r, cy + r * 0.2), (cx + r, cy + r * 0.2)],
+                      fill=255)
+            d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=255)
+        drop_a = draw_antialias_mask(size, drop_fn)
+        composite_elevated_layer(base, drop_a, (191, 219, 254), (30, 64, 175),
+                                 (96, 165, 250) if i == len(drops) // 2 else None)
+
+    if not small:
+        def sweep_fn(d: ImageDraw.ImageDraw, s: int):
+            cx, cy = s * 0.50, s * 0.47
+            w = max(2, int(s * 0.020))
+            for rad, a0, a1 in ((s * 0.345, 35, 145), (s * 0.425, 50, 130)):
+                d.arc([cx - rad, cy - rad, cx + rad, cy + rad], a0, a1, fill=255, width=w)
+        sweep_a = draw_antialias_mask(size, sweep_fn)
+        composite_elevated_layer(base, sweep_a, (165, 180, 252), (49, 46, 129))
+    return base
+
+
 def save_multi_ico(build, ico_path: Path, png_path: Path = None):
     """Write a true multi-size ICO where EVERY size is rendered analytically
     at its own resolution (with small-size stroke boosts) instead of being
@@ -524,6 +570,7 @@ def main():
         ("DNS Pilot",         build_icon_dns_pilot,         ROOT / "dns-pilot" / "dnspilot.ico",              BRAND_DIR / "icon-dns-pilot.png"),
         ("Agent Notes",       build_icon_agent_notes,       ROOT / "agent-notes" / "agent-notes.ico",         BRAND_DIR / "icon-agent-notes.png"),
         ("Audio Switcher",    build_icon_audio_switcher,    ROOT / "audio-switcher" / "audio-switcher.ico",   BRAND_DIR / "icon-audio-switcher.png"),
+        ("Weather Radar",     build_icon_weather_radar,     ROOT / "weather-radar" / "weather-radar.ico",      BRAND_DIR / "icon-weather-radar.png"),
     ]
 
     for _, build, ico_p, png_p in icons:

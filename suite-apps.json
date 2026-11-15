@@ -1,88 +1,100 @@
 {
-  "apps": [
-    {
-      "id": "btguard",
-      "title": "Bluetooth Guard",
-      "blurb": "Phone audio protection",
-      "exe": "bluetooth-guard/BluetoothGuard.exe",
-      "dir": "BluetoothGuard",
-      "icon": "bluetooth-guard/btguard.ico",
-      "shortcut": "Bluetooth Guard",
-      "buttons": "update:Update:74,open:Open:68,folder:Folder:68,stop:Stop:62",
-      "state": "btguard",
-      "worker": "btguard"
-    },
-    {
-      "id": "kbl",
-      "title": "Keyboard Lighting",
-      "blurb": "ROG Strix G16 RGB lighting",
-      "exe": "keyboard-lighting/KeyboardLighting.exe",
-      "dir": "KeyboardLighting",
-      "icon": "keyboard-lighting/app.ico",
-      "shortcut": "Keyboard Lighting",
-      "buttons": "update:Update:74,open:Open:68,folder:Folder:68,unfreeze:Unfreeze:84",
-      "state": "kbl",
-      "worker": "kbl"
-    },
-    {
-      "id": "hud",
-      "title": "Spatial HUD",
-      "blurb": "Minecraft 26.3 Fabric mod",
-      "exe": "",
-      "dir": "SpatialHudUpdater",
-      "icon": "docs/brand/spatial-hud.ico",
-      "shortcut": "Spatial HUD Updater",
-      "buttons": "updatemod:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
-      "state": "hud",
-      "worker": "hud"
-    },
-    {
-      "id": "orca",
-      "title": "OrcaSlicer Plugins",
-      "blurb": "Wave Overhangs & Unlayered Infill",
-      "exe": "",
-      "dir": "OrcaPlugins",
-      "icon": "docs/brand/orca-plugins.ico",
-      "shortcut": "Orca Plugins",
-      "buttons": "update:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
-      "state": "orca",
-      "worker": "orca"
-    },
-    {
-      "id": "dnspilot",
-      "title": "DNS Pilot",
-      "blurb": "Fast DNS benchmark & auto-pilot",
-      "exe": "dns-pilot/DnsPilot.exe",
-      "dir": "DnsPilot",
-      "icon": "dns-pilot/dnspilot.ico",
-      "shortcut": "DNS Pilot",
-      "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
-      "state": "dnspilot",
-      "worker": "dnspilot"
-    },
-    {
-      "id": "agentnotes",
-      "title": "Agent Notes",
-      "blurb": "Quick notes straight to the agent",
-      "exe": "agent-notes/AgentNotes.exe",
-      "dir": "AgentNotes",
-      "icon": "agent-notes/agent-notes.ico",
-      "shortcut": "Agent Notes",
-      "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
-      "state": "agentnotes",
-      "worker": "agentnotes"
-    },
-    {
-      "id": "audioswitcher",
-      "title": "Audio Switcher",
-      "blurb": "Per-app volume & audio output switching",
-      "exe": "audio-switcher/AudioSwitcher.exe",
-      "dir": "AudioSwitcher",
-      "icon": "audio-switcher/audio-switcher.ico",
-      "shortcut": "Audio Switcher",
-      "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
-      "state": "audioswitcher",
-      "worker": "audioswitcher"
-    }
-  ]
+ "apps": [
+  {
+   "id": "btguard",
+   "title": "Bluetooth Guard",
+   "blurb": "Phone audio protection",
+   "exe": "bluetooth-guard/BluetoothGuard.exe",
+   "dir": "BluetoothGuard",
+   "icon": "bluetooth-guard/btguard.ico",
+   "shortcut": "Bluetooth Guard",
+   "buttons": "update:Update:74,open:Open:68,folder:Folder:68,stop:Stop:62",
+   "state": "btguard",
+   "worker": "btguard"
+  },
+  {
+   "id": "kbl",
+   "title": "Keyboard Lighting",
+   "blurb": "ROG Strix G16 RGB lighting",
+   "exe": "keyboard-lighting/KeyboardLighting.exe",
+   "dir": "KeyboardLighting",
+   "icon": "keyboard-lighting/app.ico",
+   "shortcut": "Keyboard Lighting",
+   "buttons": "update:Update:74,open:Open:68,folder:Folder:68,unfreeze:Unfreeze:84",
+   "state": "kbl",
+   "worker": "kbl"
+  },
+  {
+   "id": "hud",
+   "title": "Spatial HUD",
+   "blurb": "Minecraft 26.3 Fabric mod",
+   "exe": "",
+   "dir": "SpatialHudUpdater",
+   "icon": "docs/brand/spatial-hud.ico",
+   "shortcut": "Spatial HUD Updater",
+   "buttons": "updatemod:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
+   "state": "hud",
+   "worker": "hud"
+  },
+  {
+   "id": "orca",
+   "title": "OrcaSlicer Plugins",
+   "blurb": "Wave Overhangs & Unlayered Infill",
+   "exe": "",
+   "dir": "OrcaPlugins",
+   "icon": "docs/brand/orca-plugins.ico",
+   "shortcut": "Orca Plugins",
+   "buttons": "update:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
+   "state": "orca",
+   "worker": "orca"
+  },
+  {
+   "id": "dnspilot",
+   "title": "DNS Pilot",
+   "blurb": "Fast DNS benchmark & auto-pilot",
+   "exe": "dns-pilot/DnsPilot.exe",
+   "dir": "DnsPilot",
+   "icon": "dns-pilot/dnspilot.ico",
+   "shortcut": "DNS Pilot",
+   "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
+   "state": "dnspilot",
+   "worker": "dnspilot"
+  },
+  {
+   "id": "agentnotes",
+   "title": "Agent Notes",
+   "blurb": "Quick notes straight to the agent",
+   "exe": "agent-notes/AgentNotes.exe",
+   "dir": "AgentNotes",
+   "icon": "agent-notes/agent-notes.ico",
+   "shortcut": "Agent Notes",
+   "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
+   "state": "agentnotes",
+   "worker": "agentnotes"
+  },
+  {
+   "id": "audioswitcher",
+   "title": "Audio Switcher",
+   "blurb": "Per-app volume & audio output switching",
+   "exe": "audio-switcher/AudioSwitcher.exe",
+   "dir": "AudioSwitcher",
+   "icon": "audio-switcher/audio-switcher.ico",
+   "shortcut": "Audio Switcher",
+   "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
+   "state": "audioswitcher",
+   "worker": "audioswitcher"
+  },
+  {
+   "id": "weatherradar",
+   "title": "Weather Radar",
+   "blurb": "Honest rain odds + live radar",
+   "exe": "weather-radar/WeatherRadar.exe",
+   "dir": "WeatherRadar",
+   "icon": "weather-radar/weather-radar.ico",
+   "shortcut": "Weather Radar",
+   "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
+   "state": "weatherradar",
+   "worker": "weatherradar"
+  }
+ ]
 }

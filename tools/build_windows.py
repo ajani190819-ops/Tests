@@ -91,13 +91,18 @@ def build_target(zig_py: str, env: dict, name: str, rc_dir: pathlib.Path,
             [zig_py, "-m", "ziglang", "rc", "/fo", str(res_path), rc_file],
             cwd=rc_dir, env=env, check=True,
         )
-        subprocess.run(
+        cc = subprocess.run(
             [zig_py, "-m", "ziglang", "cc", "-target", "x86_64-windows-gnu",
              "-Os", "-s", "-Wall", "-Wextra", "-Werror",
              "-Wl,--subsystem,windows", "-municode",
              str(c_file), str(res_path), *libs, "-o", str(out_exe)],
-            cwd=ROOT, env=env, check=True,
+            cwd=ROOT, env=env, capture_output=True, text=True,
         )
+        if cc.returncode != 0:
+            # The compiler's diagnostics ARE the deliverable of a failed
+            # build; swallowing them turns every error into a blind retry.
+            tail = "\n".join(cc.stderr.strip().splitlines()[:40])
+            return f"FAIL  {out_exe.relative_to(ROOT)}\n{tail}"
         size_kb = out_exe.stat().st_size // 1024
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         cache.write_text(key)
@@ -167,6 +172,15 @@ def main() -> int:
             ROOT / "agent-notes" / "AgentNotes.exe",
             ["-luser32", "-lgdi32", "-lshell32", "-ladvapi32",
              "-lcomctl32", "-lwinhttp"],
+        ),
+        (
+            "weatherradar",
+            ROOT / "weather-radar" / "src",
+            "weather.rc",
+            ROOT / "weather-radar" / "src" / "weather_radar.c",
+            ROOT / "weather-radar" / "WeatherRadar.exe",
+            ["-luser32", "-lgdi32", "-lshell32", "-ladvapi32",
+             "-lcomctl32", "-lwinhttp", "-lole32", "-luuid", "-lshlwapi"],
         ),
     ]
 

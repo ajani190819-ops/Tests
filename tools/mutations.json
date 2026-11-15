@@ -201,5 +201,75 @@
   "old": "                g_linkHint = 0;\n                SetWindowTextW(g_hLink, g_link);",
   "new": "                SetWindowTextW(g_hLink, g_link);",
   "label": "J adopted link keeps hint formatting"
+ },
+ {
+  "id": "wx-01",
+  "file": "weather-radar/src/weather_radar.c",
+  "old": "#define RAIN_MM        0.1",
+  "new": "#define RAIN_MM        0.0",
+  "label": "A rain threshold drops to zero"
+ },
+ {
+  "id": "wx-02",
+  "file": "weather-radar/src/parts/forecast.c",
+  "old": "            if (isnan(v)) continue;      /* this member's horizon ended: absent, not dry */\n            reported++;",
+  "new": "            reported++;",
+  "label": "B silent members counted as dry"
+ },
+ {
+  "id": "wx-03",
+  "file": "weather-radar/src/parts/forecast.c",
+  "old": "        if (!any) continue;\n        reporting++;",
+  "new": "        reporting++;",
+  "label": "C window probability counts absent members"
+ },
+ {
+  "id": "wx-04",
+  "file": "weather-radar/src/parts/radar.c",
+  "old": "L\"%s%hs/256/%d/%d/%d/2/1_1.png\"",
+  "new": "L\"%s%hs/256/%d/%d/%d/2/1_0.png\"",
+  "label": "D radar tile URL loses the snow flag"
+ },
+ {
+  "id": "wx-05",
+  "file": "weather-radar/src/parts/radar.c",
+  "old": "CoCreateInstance(&CLSID_WICImagingFactory",
+  "new": "CoGetClassObject(&CLSID_WICImagingFactory",
+  "label": "E WIC no longer created through CoCreateInstance"
+ },
+ {
+  "id": "wx-06",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "static void PaintAll(HWND hwnd) {",
+  "new": "static void PaintAll(HWND hwnd) {\n    HttpBuf probe;\n    HttpGetBuf(L\"https://example.invalid/\", &probe);",
+  "label": "F the paint path fetches synchronously"
+ },
+ {
+  "id": "wx-07",
+  "file": "weather-radar/src/parts/radar.c",
+  "old": "FetchTileGrid(L\"rv\", z, tx, ty, g_frames[frameIdx].path, radar,\n                            2 * 24 * 3600);",
+  "new": "FetchTileGrid(L\"rv\", z, tx, ty, g_frames[frameIdx].path, radar,\n                            30 * 24 * 3600);",
+  "label": "G radar frames cached for a month"
+ },
+ {
+  "id": "wx-08",
+  "file": "weather-radar/src/parts/radar.c",
+  "old": "        if (any || z <= 7) break;\n        z = 7;   /* free-tier placeholder fallback */",
+  "new": "        break;",
+  "label": "H zoom-cap fallback removed"
+ },
+ {
+  "id": "wx-09",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "    double honest = EnsWindowProb(&g_ens, start, 6);\n    double blended = g_fc.have ? PoPWindowMax(&g_fc, 0, 6) : NAN;",
+  "new": "    double honest = g_fc.have ? PoPWindowMax(&g_fc, 0, 6) : NAN;\n    double blended = EnsWindowProb(&g_ens, start, 6);",
+  "label": "I blended PoP becomes the headline"
+ },
+ {
+  "id": "wx-10",
+  "file": "weather-radar/src/parts/places.c",
+  "old": "    g_places[g_placeN] = *p;\n    g_placeSel = g_placeN;\n    g_placeN++;\n    SavePlaces();",
+  "new": "    g_places[g_placeN] = *p;\n    g_placeSel = g_placeN;\n    g_placeN++;",
+  "label": "J a kept place is never persisted"
  }
 ]
