@@ -7,7 +7,7 @@
    honour WM_CTLCOLOREDIT, so the hint text colour lives in that handler. */
 
 #define WIN_LW 1010
-#define WIN_LH 720
+#define WIN_LH 800
 #define LEFT_W 252
 
 static void BtnRect(int i, RECT *r) {
@@ -25,7 +25,7 @@ static void BtnRect(int i, RECT *r) {
 }
 
 static void RadarImageRect(RECT *r) {
-    SetRect(r, S(272), S(492), S(WIN_LW - 28), S(WIN_LH - 96));
+    SetRect(r, S(272), S(492), S(WIN_LW - 28), S(WIN_LH - 108));
 }
 
 /* Search-result and saved-place rows are plain painted rows: clickable,
@@ -36,9 +36,16 @@ static int SearchRowRect(int i, RECT *r) {
     return 1;
 }
 
+/* Search results vary from a city to a very broad postcode. Saved places
+   begin immediately below them, so neither list can paint over the other. */
+static int SavedHeadingY(void) {
+    return S(172 + g_searchN * 30 + 12);
+}
+
 static int SavedRowRect(int i, RECT *r) {
     if (i < 0 || i >= g_placeN) return 0;
-    SetRect(r, S(16), S(388) + i * S(30), S(244), S(388) + i * S(30) + S(28));
+    int top = SavedHeadingY() + S(22) + i * S(30);
+    SetRect(r, S(16), top, S(244), top + S(28));
     return 1;
 }
 
@@ -47,7 +54,7 @@ static int SavedRowRect(int i, RECT *r) {
    it before the window knows its DPI was what left it over the header/buttons. */
 static void LayoutSearchEdit(void) {
     if (!g_hSearch) return;
-    RECT r = { S(18), S(72), S(242), S(100) };
+    RECT r = { S(18), S(73), S(242), S(100) };
     SetWindowPos(g_hSearch, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top,
                  SWP_NOZORDER | SWP_NOACTIVATE);
     if (g_fontUI) SendMessageW(g_hSearch, WM_SETFONT, (WPARAM)g_fontUI, TRUE);
@@ -116,22 +123,26 @@ static void PaintNowCard(HDC mem, const RECT *card) {
     }
     wchar_t big[24];
     _snwprintf(big, 23, L"%d°", (int)llround(g_fc.tempF));
-    RECT tr = { inner.left, inner.top, inner.left + S(120), inner.bottom };
+    /* The temperature owns the left block. Forecast details sit beside it,
+       never underneath the large glyph where they became unreadable. */
+    RECT tr = { inner.left, inner.top, inner.left + S(132), inner.bottom };
     DrawTextAt(mem, big, &tr, g_fontBig, COL_TXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    RECT cr = { inner.left + S(120), inner.top + S(4), inner.right, inner.top + S(30) };
+    int detailLeft = inner.left + S(138);
+    RECT cr = { detailLeft, inner.top + S(1), inner.right, inner.top + S(27) };
     DrawTextAt(mem, WxCodeText(g_fc.wcode), &cr, g_fontTitle, COL_TXT,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     wchar_t line[192];
     _snwprintf(line, 191, L"Feels %d°  ·  Humidity %d%%  ·  Wind %d mph%s",
                (int)llround(g_fc.feelsF), (int)llround(g_fc.rh),
-               (int)llround(g_fc.windMph),
-               WxCodeIsWet(g_fc.wcode) ? L"  ·  raining now" : L"");
+               (int)llround(g_fc.windMph), WxCodeIsWet(g_fc.wcode) ? L"  ·  raining now" : L"");
     line[191] = L'\0';
-    RECT lr = { inner.left + S(120), inner.top + S(32), inner.right, inner.bottom - S(2) };
+    RECT lr = { detailLeft, inner.top + S(27), inner.right, inner.top + S(48) };
     DrawTextAt(mem, line, &lr, g_fontUI, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    wchar_t today[128];
-    _snwprintf(today, 127, L"Today %d° / %d°", (int)llround(g_fc.dMaxF), (int)llround(g_fc.dMinF));
-    RECT dr = { inner.left, inner.top + S(34), inner.left + S(180), inner.bottom - S(2) };
+    wchar_t today[96];
+    _snwprintf(today, 95, L"Today: high %d°  ·  low %d°",
+               (int)llround(g_fc.dMaxF), (int)llround(g_fc.dMinF));
+    today[95] = L'\0';
+    RECT dr = { detailLeft, inner.top + S(49), inner.right, inner.bottom };
     DrawTextAt(mem, today, &dr, g_fontUI, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 }
 
@@ -140,7 +151,7 @@ static void PaintNowCard(HDC mem, const RECT *card) {
 static void PaintHonestCard(HDC mem, const RECT *card) {
     DrawRoundedBox(mem, card, S(14), COL_CARD, COL_CARD_BD);
     RECT lbl = { card->left + S(18), card->top + S(10), card->right - S(18), card->top + S(30) };
-    DrawTextAt(mem, L"CHANCE OF RAIN HERE - NEXT 6 HOURS", &lbl, g_fontSmall, COL_MUTED,
+    DrawTextAt(mem, L"Chance of Rain Here · Next 6 Hours", &lbl, g_fontSmall, COL_MUTED,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
     int start = g_fc.have ? g_fc.nowIdx : 0;
@@ -178,7 +189,7 @@ static void PaintHonestCard(HDC mem, const RECT *card) {
     if (g_ens.have && !isnan(honest)) {
         int wet = (int)llround(honest * 100.0 + 0.0001);
         _snwprintf(dentxt, 255,
-                   L"%d%% of the %d %s members put at least 0.1 mm on this exact spot in that window.",
+                   L"Ensemble: %d%% from %d %s members at this exact point.",
                    wet, g_ens.members, g_ens.model);
     } else {
         wcscpy(dentxt, L"The ensemble did not answer - no honest number beats a borrowed one.");
@@ -190,12 +201,10 @@ static void PaintHonestCard(HDC mem, const RECT *card) {
     wchar_t cmptxt[256];
     if (!isnan(blended))
         _snwprintf(cmptxt, 255,
-                   L"The tick at %d%% is the coverage-blended PoP most apps show as \"chance of "
-                   L"rain\": it folds HOW MUCH AREA gets wet into the odds. This card does not.",
+                   L"Gold mark: %d%% coverage-blended forecast — shown for comparison, not as the headline.",
                    (int)llround(blended));
     else
-        wcscpy(cmptxt, L"Most apps' \"chance of rain\" blends areal coverage into the odds; "
-                       L"this card counts ensemble members instead.");
+        wcscpy(cmptxt, L"Gold marks show the coverage-blended forecast when it is available.");
     cmptxt[255] = L'\0';
     DrawTextAt(mem, cmptxt, &cmp, g_fontSmall, COL_MUTED,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
@@ -204,8 +213,11 @@ static void PaintHonestCard(HDC mem, const RECT *card) {
 static void PaintHourlyCard(HDC mem, const RECT *card) {
     DrawRoundedBox(mem, card, S(14), COL_CARD, COL_CARD_BD);
     RECT lbl = { card->left + S(18), card->top + S(8), card->right - S(18), card->top + S(26) };
-    DrawTextAt(mem, L"NEXT 12 HOURS - HONEST ODDS PER HOUR", &lbl, g_fontSmall, COL_MUTED,
+    DrawTextAt(mem, L"Next 12 Hours", &lbl, g_fontSmall, COL_MUTED,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    RECT key = { card->left + S(150), card->top + S(8), card->right - S(18), card->top + S(26) };
+    DrawTextAt(mem, L"Blue = ensemble share   ·   Gold = coverage blend", &key,
+               g_fontSmall, COL_MUTED, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     if (!g_fc.have || g_fc.hN <= 0) {
         RECT w = { card->left + S(18), card->top + S(40), card->right - S(18), card->bottom - S(24) };
         DrawTextAt(mem, L"Waiting for the hourly forecast...", &w, g_fontUI, COL_MUTED,
@@ -213,7 +225,9 @@ static void PaintHourlyCard(HDC mem, const RECT *card) {
         return;
     }
     int n = g_fc.hN < HOURLY_SHOWN ? g_fc.hN : HOURLY_SHOWN;
-    RECT plot = { card->left + S(18), card->top + S(34), card->right - S(18), card->bottom - S(26) };
+    /* Reserve one clean line above for temperatures and one below for times.
+       The old legend shared the time-label strip, which made both illegible. */
+    RECT plot = { card->left + S(18), card->top + S(50), card->right - S(18), card->bottom - S(24) };
     int colW = (plot.right - plot.left) / n;
     int start = g_fc.nowIdx;
     for (int k = 0; k < n; k++) {
@@ -238,21 +252,17 @@ static void PaintHourlyCard(HDC mem, const RECT *card) {
             SelectObject(mem, op);
             DeleteObject(p);
         }
-        RECT hr = { x0 - S(6), plot.bottom + S(2), x1 + S(6), plot.bottom + S(20) };
+        RECT hr = { x0 - S(6), plot.bottom + S(4), x1 + S(6), card->bottom - S(4) };
         DrawTextAt(mem, g_fc.hLabel[k], &hr, g_fontSmall, COL_MUTED,
                    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         wchar_t tmp[12];
         if (!isnan(g_fc.hT[k])) {
             _snwprintf(tmp, 11, L"%d°", (int)llround(g_fc.hT[k]));
-            RECT tr2 = { x0 - S(6), plot.top - S(16), x1 + S(6), plot.top - S(2) };
+            RECT tr2 = { x0 - S(6), card->top + S(30), x1 + S(6), plot.top - S(4) };
             DrawTextAt(mem, tmp, &tr2, g_fontSmall, COL_TXT,
                        DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         }
     }
-    RECT leg = { card->left + S(18), card->bottom - S(22), card->right - S(18), card->bottom - S(6) };
-    DrawTextAt(mem, L"filled bar = honest odds (ensemble share)   ·   yellow tick = the "
-                    L"coverage-blended PoP most apps show",
-               &leg, g_fontSmall, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 }
 
 static void PaintRadarPane(HDC mem, const RECT *card) {
@@ -355,7 +365,7 @@ static void PaintLeftColumn(HDC mem) {
 
     if (g_searchN > 0) {
         RECT lbl = { S(16), S(148), S(244), S(168) };
-        DrawTextAt(mem, L"MATCHES - CLICK ONE", &lbl, g_fontSmall, COL_MUTED,
+        DrawTextAt(mem, L"Matches — choose one", &lbl, g_fontSmall, COL_MUTED,
                    DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         for (int i = 0; i < g_searchN; i++) {
             RECT r;
@@ -370,12 +380,13 @@ static void PaintLeftColumn(HDC mem) {
                        DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
         }
     }
-    RECT sl = { S(16), S(366), S(244), S(386) };
-    DrawTextAt(mem, L"SAVED PLACES", &sl, g_fontSmall, COL_MUTED,
+    int savedY = SavedHeadingY();
+    RECT sl = { S(16), savedY, S(244), savedY + S(20) };
+    DrawTextAt(mem, L"Saved Places", &sl, g_fontSmall, COL_MUTED,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     if (g_placeN == 0) {
-        RECT e = { S(16), S(388), S(244), S(430) };
-        DrawTextAt(mem, L"Nothing saved yet - search, click a match, then Keep.",
+        RECT e = { S(16), savedY + S(22), S(244), savedY + S(64) };
+        DrawTextAt(mem, L"No saved places yet — search, choose a match, then Keep.",
                    &e, g_fontSmall, COL_MUTED, DT_LEFT | DT_TOP | DT_WORDBREAK);
     }
     for (int i = 0; i < g_placeN; i++) {
@@ -442,13 +453,14 @@ static void PaintAll(HWND hwnd) {
     RECT hourCard = { S(260), S(308), S(WIN_LW - 16), S(436) };
     PaintHourlyCard(mem, &hourCard);
     RECT radarCard = { S(260), S(444), S(WIN_LW - 16), S(WIN_LH - 56) };
+    /* Paint the card first: it is opaque, so controls must be drawn over it. */
+    PaintRadarPane(mem, &radarCard);
     DrawBtn(mem, BTN_PREV, L"<", 0);
     DrawBtn(mem, BTN_PLAY, g_playing ? L"Pause" : L"Play", 0);
     DrawBtn(mem, BTN_NEXT, L">", 0);
     wchar_t zl[24];
     _snwprintf(zl, 23, L"zoom %d", g_zoom);
     DrawBtn(mem, BTN_ZOOM, zl, 0);
-    PaintRadarPane(mem, &radarCard);
 
     /* status strip */
     RECT ss = { S(16), S(WIN_LH - 44), S(WIN_LW - 16), S(WIN_LH - 16) };
@@ -572,6 +584,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     case WM_APP_SEARCH:
         SubmitSearch();
+        return 0;
+    case WM_SIZE:
+        /* A child EDIT is not repainted by the parent's DIB. Re-apply its
+           final scaled rectangle once Windows has sized the top-level window. */
+        if (wp != SIZE_MINIMIZED) LayoutSearchEdit();
         return 0;
     case WM_PAINT:
         PaintAll(hwnd);

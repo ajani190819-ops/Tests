@@ -299,5 +299,26 @@
   "old": "            c->btns[action].hidden = !showAction;",
   "new": "            c->btns[action].hidden = FALSE;",
   "label": "R current dynamic card keeps its Update button"
+ },
+ {
+  "id": "wx-14",
+  "file": "weather-radar/src/parts/radar.c",
+  "old": "            for (int row = 0; row < TILE_PX; row++) {\n                uint32_t *dstRow = dst + (size_t)(gy * TILE_PX + row) * GRID_PX +\n                                   (size_t)gx * TILE_PX;\n                memcpy(dstRow, tile + (size_t)row * TILE_PX, TILE_PX * sizeof(uint32_t));\n            }",
+  "new": "            memcpy(dst + (size_t)(gy * TILE_PX) * GRID_PX + (size_t)gx * TILE_PX,\n                   tile, TILE_PX * TILE_PX * sizeof(uint32_t));",
+  "label": "N map tiles wrap into horizontal stripes"
+ },
+ {
+  "id": "wx-15",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "    PaintRadarPane(mem, &radarCard);\n    DrawBtn(mem, BTN_PREV, L\"<\", 0);",
+  "new": "    DrawBtn(mem, BTN_PREV, L\"<\", 0);\n    PaintRadarPane(mem, &radarCard);",
+  "label": "O radar card covers its playback controls"
+ },
+ {
+  "id": "wx-16",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "        if (wp != SIZE_MINIMIZED) LayoutSearchEdit();",
+  "new": "        if (wp != SIZE_MINIMIZED) InvalidateRect(hwnd, NULL, FALSE);",
+  "label": "P search field remains at its provisional creation rectangle"
  }
 ]

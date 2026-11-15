@@ -1512,6 +1512,31 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("ticket == g_searchTicket", places)
         self.assertIn("g_searchStageTicket == g_searchTicket", ui)
 
+    def test_weather_radar_layout_keeps_text_controls_and_tiles_separate(self):
+        """The owner's screenshot caught three visual defects static data tests
+        cannot see: hourly labels sharing the legend strip, opaque radar paint
+        covering its controls, and 256px tiles written straight into a 768px
+        grid so the map appeared as broken horizontal bands."""
+        ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        radar = (ROOT / "weather-radar" / "src" / "parts" / "radar.c").read_text(encoding="utf-8")
+        self.assertIn("#define WIN_LH 800", ui)
+        self.assertIn("static int SavedHeadingY(void)", ui)
+        self.assertIn("if (wp != SIZE_MINIMIZED) LayoutSearchEdit();", ui,
+                      "the native search field is not corrected after the window receives its final size")
+        hourly = ui[ui.index("static void PaintHourlyCard("):ui.index("static void PaintRadarPane", ui.index("static void PaintHourlyCard("))]
+        self.assertIn("card->top + S(50)", hourly,
+                      "the graph no longer reserves a separate row for temperatures")
+        self.assertNotIn("RECT leg", hourly,
+                         "the hourly legend overlaps the time labels again")
+        paint = ui[ui.index("static void PaintAll(HWND hwnd)"):ui.index("static void StatusSet", ui.index("static void PaintAll(HWND hwnd)"))]
+        self.assertLess(paint.index("PaintRadarPane(mem, &radarCard);"),
+                        paint.index("DrawBtn(mem, BTN_PREV"),
+                        "the radar card paints over its own playback controls")
+        self.assertIn("uint32_t tile[TILE_PX * TILE_PX];", radar)
+        self.assertIn("for (int row = 0; row < TILE_PX; row++)", radar)
+        self.assertIn("memcpy(dstRow, tile + (size_t)row * TILE_PX", radar,
+                      "a 256px tile is copied contiguously into the 768px map and wraps into stripes")
+
     def test_dynamic_catalog_cards_hide_update_when_their_build_is_current(self):
         """Weather Radar is the first non-built-in hub card. It kept its Update
         button after a successful install because the generic status sweep only

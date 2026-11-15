@@ -195,7 +195,12 @@ static int FetchTileGrid(const wchar_t *prefix, int z, int tx, int ty,
                 _snwprintf(url, 511, L"https://tile.openstreetmap.org/%d/%d/%d.png",
                            z, tx + gx, ty + gy);
             url[511] = L'\0';
-            uint32_t *tile = dst + (size_t)(gy * TILE_PX) * GRID_PX + (size_t)gx * TILE_PX;
+            /* A tile is 256 pixels wide but the stitched map is 768 pixels
+               wide. Decode contiguously, then place each source row at its
+               true destination stride; writing direct used to wrap into three
+               thin horizontal bands instead of a map. */
+            uint32_t tile[TILE_PX * TILE_PX];
+            ZeroMemory(tile, sizeof(tile));
             wchar_t cpath[MAX_PATH];
             CacheNameFor(prefix, url, cpath, MAX_PATH);
 
@@ -204,14 +209,16 @@ static int FetchTileGrid(const wchar_t *prefix, int z, int tx, int ty,
             hb.len = 0;
             if (CacheAgeSecOk(cpath, cacheSec) && ReadWholeFileW(cpath, &hb.data, &hb.len)) {
                 /* served from disk: same bytes, no second request */
-            } else if (!HttpGetBuf(url, &hb)) {
-                for (int i = 0; i < TILE_PX * TILE_PX; i++) tile[i] = 0;
-                continue;
-            } else {
+            } else if (HttpGetBuf(url, &hb)) {
                 WriteWholeFileW(cpath, hb.data, hb.len);
             }
-            if (WicDecodePng256(hb.data, hb.len, tile)) any = 1;
+            if (hb.data && WicDecodePng256(hb.data, hb.len, tile)) any = 1;
             HttpBufFree(&hb);
+            for (int row = 0; row < TILE_PX; row++) {
+                uint32_t *dstRow = dst + (size_t)(gy * TILE_PX + row) * GRID_PX +
+                                   (size_t)gx * TILE_PX;
+                memcpy(dstRow, tile + (size_t)row * TILE_PX, TILE_PX * sizeof(uint32_t));
+            }
         }
     }
     return any;
