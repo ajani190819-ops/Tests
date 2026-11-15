@@ -22,9 +22,10 @@ Read only the files needed for the current task, and always read them in **one p
 | Orca plugin plans or open work | `docs/ROADMAP.md` | — |
 | Committing, building, or an Orca plugin release | `.agent/rules/release.md` (+ the relevant plugin changelog) | `python3 tools/build_windows.py && python3 tools/check_all.py` |
 | Repo layout, where a file/symbol lives, or the `parts/` modularization | `.agent/rules/repo-map.md` | — |
+| Project orientation, app roles, or the Google Drive guide | `.agent/DRIVE_GUIDE.md` | — |
 
 ## Maintenance rules
 
 - Keep `.agent/STATE.md` current and scannable (no hard length cap — the old 120-line budget is retired).
 - Put stable technical invariants in `.agent/facts/` so no future session ever wastes time re-discovering them.
-- Never duplicate prose across multiple docs — link to the single source of truth.
+- Never duplicate authoritative prose across Git docs — link to the single source of truth. The owner-approved Drive Project Guide is the concise, human-readable mirror; keep its details high-level and correct it from Git when needed.

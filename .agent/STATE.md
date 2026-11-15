@@ -3,7 +3,7 @@
 **Active Working Branch:** the current `arena/<id>-tests` session branch — read it
 from git (`git rev-parse --abbrev-ref HEAD`), never hardcode it. A hardcoded name
 here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
-**Last Updated:** 2026-11-15 - Project Hub update ergonomics: `Update Hub` now stays absent until the release marker proves a newer Hub build; `Update All` remains. Settings now defaults to following the most recently committed `arena/*-tests` branch, checks on startup and then at a six-hour interval, and manual Branch selection pauses the setting. Weather Radar readability repair remains released.
+**Last Updated:** 2026-11-15 - Added the owner-facing Google Drive **Tests Project Guide** while keeping Git canonical: `.agent/DRIVE_GUIDE.md` stores the durable link and synchronization rule; Drive is a concise app/architecture mirror, not an implementation dependency. Project Hub update ergonomics: `Update Hub` stays absent until the release marker proves a newer Hub build; `Update All` remains. Settings defaults to following the most recently committed `arena/*-tests` branch, checks on startup and then at a six-hour interval, and manual Branch selection pauses the setting. Weather Radar readability repair remains released.
 
 ## Turn protocol (do this literally)
 

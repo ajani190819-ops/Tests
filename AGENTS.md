@@ -16,7 +16,11 @@ default assistant habits wherever the two disagree.
    message (simple answer first). Transition fallback: the legacy Google
    Drive doc "Agent Notes - Tests repo" (id
    `1XRzQ4yhq2slvH1E2r2t9c7uK-vGcI1EBAxQOmSZArN8`) is checked too until the
-   owner retires it.
+   owner retires it. The separate Drive **Tests Project Guide** is the
+   owner-friendly architecture and app overview; `.agent/DRIVE_GUIDE.md`
+   records its link and sync contract. Git remains authoritative: read the
+   focused Git documentation for implementation work, and update the Drive
+   guide only after the corresponding Git change is verified.
 2. **Re-align git history if needed** (the sandbox rebuilds `.git` between
    turns while working files survive) — see `.agent/rules/execution.md` (git recovery).
 3. **One parallel read batch:** `.agent/STATE.md`, `.agent/CODEMAP.md`,
@@ -27,6 +31,7 @@ default assistant habits wherever the two disagree.
 Companion documents (read only when relevant):
 
 * `.agent/INDEX.md` — topic map and one-shot build/test table.
+* `.agent/DRIVE_GUIDE.md` — linked Drive Project Guide and the Git/Drive synchronization contract.
 * `.agent/CODEMAP.md` — generated function/landmark index (fast lookup).
 * `.agent/rules/execution.md` — Fast Execution Protocol + owner standing preferences.
 * `.agent/rules/repo-map.md` — repo map + code-map / modularization navigation.
