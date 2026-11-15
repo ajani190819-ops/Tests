@@ -476,38 +476,50 @@ def build_icon_audio_switcher(size: int = 512, small: bool = False) -> Image.Ima
     return composite_elevated_layer(base, speaker_a, (165, 243, 252), (37, 99, 235), (56, 189, 248))
 
 
-def build_icon_clipboard_memory(size: int = 512, small: bool = False) -> Image.Image:
-    base = make_squircle_base(size, (16, 185, 129))  # Active Mint green - distinct clipboard color
+def build_icon_weather_radar(size: int = 512, small: bool = False) -> Image.Image:
+    """Filled rain cloud: the one glyph that still reads at 16px.
 
-    # Clipboard icon: page with folded top corner + paperclip across it.
-    # Clear clipboard symbol at all sizes.
-    def clip_fn(d: ImageDraw.ImageDraw, s: int):
-        w = int(s * (0.07 if small else 0.05))
-        cx, cy = s * 0.50, s * 0.52
-        # Clipboard page body
-        d.rounded_rectangle([s * 0.24, s * 0.24, s * 0.76, s * 0.76], radius=s * 0.06, fill=255)
-        # Folded top-right corner (makes it look like a page/clipboard)
-        d.polygon([(s * 0.58, s * 0.24), (s * 0.76, s * 0.24), (s * 0.76, s * 0.42)], fill=255)
-        d.line([(s * 0.58, s * 0.24), (s * 0.76, s * 0.42)], fill=255, width=w)
-        # Paperclip wire loop across the page
-        pts = []
-        for k in range(41):
-            t = k / 40.0
-            ang = t * 4.2
-            r_ell = s * 0.09
-            x = cx + math.cos(ang) * r_ell
-            y = cy + math.sin(ang) * r_ell * 0.55
-            pts.append((x, y))
-        d.line(pts, fill=255, width=w, joint="curve")
-        for px0, py0 in (pts[0], pts[-1]):
-            rr = w * 0.5
-            d.ellipse([px0 - rr, py0 - rr, px0 + rr, py0 + rr], fill=255)
-        # Text lines on the page
-        d.rounded_rectangle([s * 0.34, s * 0.60, s * 0.66, s * 0.64], radius=s * 0.02, fill=255)
-        d.rounded_rectangle([s * 0.34, s * 0.68, s * 0.60, s * 0.72], radius=s * 0.02, fill=255)
+    Indigo keeps it clear of DNS Pilot's cyan and Audio Switcher's sky blue.
+    The cloud is a filled union of three discs over a rounded base (an outline
+    cloud breaks apart where the arcs overlap), and the drops are filled
+    teardrops. A thin sweep arc under the cloud nods at the radar pane and is
+    dropped in the small frames, where it would close into a blob.
+    """
+    base = make_squircle_base(size, (79, 70, 229))
 
-    clip_a = draw_antialias_mask(size, clip_fn)
-    return composite_elevated_layer(base, clip_a, (102, 236, 178), (5, 150, 105), (16, 185, 129))
+    def cloud_fn(d: ImageDraw.ImageDraw, s: int):
+        cx, cy = s * 0.50, s * 0.40
+        r = s * 0.155
+        d.ellipse([cx - r * 2.05, cy - r * 0.55, cx - r * 0.35, cy + r * 1.15], fill=255)
+        d.ellipse([cx - r * 1.15, cy - r * 1.45, cx + r * 0.85, cy + r * 0.55], fill=255)
+        d.ellipse([cx + r * 0.25, cy - r * 0.75, cx + r * 2.05, cy + r * 1.05], fill=255)
+        d.rounded_rectangle([cx - r * 1.9, cy + r * 0.25, cx + r * 1.9, cy + r * 1.15],
+                            radius=r * 0.45, fill=255)
+
+    cloud_a = draw_antialias_mask(size, cloud_fn)
+    composite_elevated_layer(base, cloud_a, (224, 231, 255), (129, 140, 248), (99, 102, 241))
+
+    drops = ((0.40, 0.635), (0.60, 0.635)) if small else ((0.345, 0.635), (0.50, 0.685), (0.655, 0.635))
+    for i, (dx, dy) in enumerate(drops):
+        def drop_fn(d: ImageDraw.ImageDraw, s: int, dx=dx, dy=dy):
+            cx, cy = s * dx, s * dy
+            r = s * (0.055 if small else 0.046)
+            d.polygon([(cx, cy - r * 2.1), (cx - r, cy + r * 0.2), (cx + r, cy + r * 0.2)],
+                      fill=255)
+            d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=255)
+        drop_a = draw_antialias_mask(size, drop_fn)
+        composite_elevated_layer(base, drop_a, (191, 219, 254), (30, 64, 175),
+                                 (96, 165, 250) if i == len(drops) // 2 else None)
+
+    if not small:
+        def sweep_fn(d: ImageDraw.ImageDraw, s: int):
+            cx, cy = s * 0.50, s * 0.47
+            w = max(2, int(s * 0.020))
+            for rad, a0, a1 in ((s * 0.345, 35, 145), (s * 0.425, 50, 130)):
+                d.arc([cx - rad, cy - rad, cx + rad, cy + rad], a0, a1, fill=255, width=w)
+        sweep_a = draw_antialias_mask(size, sweep_fn)
+        composite_elevated_layer(base, sweep_a, (165, 180, 252), (49, 46, 129))
+    return base
 
 
 def save_multi_ico(build, ico_path: Path, png_path: Path = None):
@@ -558,7 +570,7 @@ def main():
         ("DNS Pilot",         build_icon_dns_pilot,         ROOT / "dns-pilot" / "dnspilot.ico",              BRAND_DIR / "icon-dns-pilot.png"),
         ("Agent Notes",       build_icon_agent_notes,       ROOT / "agent-notes" / "agent-notes.ico",         BRAND_DIR / "icon-agent-notes.png"),
         ("Audio Switcher",    build_icon_audio_switcher,    ROOT / "audio-switcher" / "audio-switcher.ico",   BRAND_DIR / "icon-audio-switcher.png"),
-        ("Clipboard Memory",  build_icon_clipboard_memory,  ROOT / "clipboard-memory" / "clipboard-memory.ico", BRAND_DIR / "icon-clipboard-memory.png"),
+        ("Weather Radar",     build_icon_weather_radar,     ROOT / "weather-radar" / "weather-radar.ico",      BRAND_DIR / "icon-weather-radar.png"),
     ]
 
     for _, build, ico_p, png_p in icons:

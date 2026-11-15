@@ -11,12 +11,35 @@ import net.minecraft.resources.Identifier;
  * the capture is running, the root is fed into the private texture instead.
  */
 final class SpatialHudElement implements HudElement {
+	/**
+	 * Live wrappers by root id, so the capture can reach the vanilla chain of a
+	 * root that a pass-splitting HUD mod (Gnetum) skipped this frame.
+	 */
+	private static final java.util.Map<Identifier, SpatialHudElement> INSTANCES =
+			new java.util.HashMap<>();
+
+	static SpatialHudElement of(Identifier id) {
+		return INSTANCES.get(id);
+	}
+
 	private final Identifier id;
 	private final HudElement vanilla;
 
 	SpatialHudElement(Identifier id, HudElement vanilla) {
 		this.id = id;
 		this.vanilla = vanilla;
+		INSTANCES.put(id, this);
+	}
+
+	/**
+	 * Extracts the wrapped vanilla chain straight into the private capture,
+	 * bypassing whoever was supposed to call this element this frame. A root
+	 * Gnetum skipped gets its pixels back; a root vanilla genuinely hides
+	 * extracts nothing, because each element's visibility lives inside its own
+	 * extract, so this never paints something that should be absent.
+	 */
+	void extractVanillaInto(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
+		vanilla.extractRenderState(graphics, deltaTracker);
 	}
 
 	@Override

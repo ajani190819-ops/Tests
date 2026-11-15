@@ -89,6 +89,101 @@ engine is not running the strip dims and the labels say OFF.
 Every one of these takes effect the moment you change it. Nothing
 restarts and there is no Apply button.
 
+## M4 and M5 as brightness keys
+
+By default those keys do something else entirely, so they have to be
+pointed at brightness in G-Helper. In G-Helper's **Extra** panel, set each
+key's action to **Custom**.
+
+**Point them at the app. This is the good route.** Put the full path in
+quotes, with the flag:
+
+```
+"C:\Users\<you>\AppData\Local\Programs\TestsSuite\KeyboardLighting\KeyboardLighting.exe" -BrightUp
+```
+
+and the same with `-BrightDown` on the other key.
+
+Each press writes a small token that the running engine turns into one 5%
+brightness step. Holding then sweeps smoothly, because the panel also
+watches the ASUS key stream itself and keeps emitting paced tokens for as
+long as the key is down - and it works out which code is M4 and which is
+M5 by watching these tokens arrive, saving them to `presets.ini`.
+
+As of 2.8.8 this costs no UAC prompt. The app used to demand
+administrator just to start, and Windows enforces that before any of its
+code runs, so G-Helper was triggering a consent dialog on every press to
+write a file that needs no privileges at all.
+
+### Holding the key down
+
+Right-click the tray icon and open **M4/M5 Brightness Keys**. Three
+behaviours, and the engine picks the choice up on its next tick, so
+nothing restarts:
+
+| Choice | What a press does |
+|---|---|
+| **Sweep While Held** | the default. One press steps 5% for an instant response, then holding glides at 1% every 30ms - about a hundred small steps over the same three seconds, so it reads as a sweep like the screen-brightness slider rather than a staircase. Letting go stops it |
+| **Press To Glide, Press To Stop** | one press starts the same glide and it continues on its own. Press the same key again to stop where you are; reaching either end also stops it |
+| **Press For A 20% Glide** | every press glides 20% in small steps, so five presses cover the whole range |
+
+Underneath, a greyed-out line reports whether the app can actually see
+your M-keys:
+
+| It says | What it means |
+|---|---|
+| **Hold Ready** | Sweep While Held will work |
+| **Still Learning** | it recognises one of the two keys - press each a couple more times |
+| **Not Recognised** | it cannot see the keys at all, so **Sweep While Held gives one step per press and nothing more**. Use one of the other two: they glide inside the engine, so they work without the keys being recognised |
+
+Learning happens by watching the keys while G-Helper's Custom action
+fires, so it needs a few presses after the app starts. If it never gets
+there that is not something you set up wrong - some ASUS firmware sends
+one press report for those keys and no release report, and with no
+release to watch there is no way to tell a held key from a tapped one.
+
+### The popup
+
+The brightness popup matches your Windows theme - light body on a light
+desktop, dark on a dark one - and borrows the Windows flyout's shape: the
+same sun glyph, a thin rounded track with a filled portion and a round
+thumb at the current level. Like Windows it shows no percentage; the
+thumb position is the reading. It appears whenever brightness changes
+from outside the window - M4/M5, the Fn keys, the panel - and fades after
+a second and a half.
+
+**The keystroke alternative - worse, but needs no update.** G-Helper's
+Custom field also accepts space-separated key codes (up to three), so the
+same keys can emit a combination this app listens for instead of
+launching anything:
+
+| Instead of | Put |
+|---|---|
+| `-BrightUp` | `0x11 0x12 0x26` |
+| `-BrightDown` | `0x11 0x12 0x28` |
+
+That is Ctrl+Alt+Up and Ctrl+Alt+Down, which the panel owns as
+`RegisterHotKey` combinations. It works on older builds too, because no
+process is launched. But only reach for it if you cannot update: every
+press is a single 10% step with no hold-to-sweep, since nothing writes
+the tokens the hold logic learns from - and if the keys were already
+learned, it can double-step.
+
+Whichever route you use, the combination is configurable in
+`%LOCALAPPDATA%\KeyboardLighting\presets.ini` as the Win32
+`RegisterHotKey` codes. Restart the app after editing. If something else
+already holds Ctrl+Alt+Up/Down, the app falls back to Ctrl+Alt+F5 and F6.
+
+```
+[Keys]
+UpMod=3
+UpKey=38
+DownMod=3
+DownKey=40
+```
+
+`3` is Ctrl+Alt, `38` is Up and `40` is Down. A `0x` prefix works too.
+
 ## Updating
 
 It checks for updates in the background at startup. If it finds one, the
@@ -112,18 +207,28 @@ folder** to jump straight there. There are two files:
 | `panel.log` | the control panel - settings changes, engine starts and stops |
 | `engine.log` | the lighting engine, including the timing line below |
 
-The engine writes a timing line a few seconds after it starts, which is
-what to look at if the lighting is not smooth:
+The engine writes a timing line a few seconds after it starts, and then
+once a minute from then on. This is what to look at if the lighting is
+not smooth:
 
 ```
-device write 1840 us/frame (worst 3200), budget 16666 us at 60 fps, late frames 0
+device write 1840 us/frame (worst 3200), budget 16666 us at 60 fps, late frames 0,
+failed writes 0, reopens 0 in last interval; lock exclusive, fallbacks 0,
+dither off, range R255/G255/B255, lock retries 0
 ```
 
-`device write` is how long the keyboard actually takes to accept a frame
-and `budget` is how long there is to spare. If the write is a large
-fraction of the budget, or `late frames` keeps climbing, the hardware
-cannot keep up with the requested rate and the engine will lower it
-automatically. Both files are capped at 256 KB.
+| Reading | What it tells you |
+|---|---|
+| `device write` near `budget` | the keyboard cannot take frames that fast, and the engine lowers the rate on its own |
+| `late frames` climbing | the same thing seen from the other end - frames are missing their slot |
+| `failed writes` not zero | the device is refusing frames: a busy endpoint, or a handle that died across a sleep |
+| `lock SHARED` | **another program has the keyboard** and can write frames over ours. This is the one that makes the keys step while the light bar stays smooth. The line also names which of Armoury Crate, the ASUS lighting services, G-Helper, OpenRGB and SignalRGB are running, so you do not have to guess. Close them, or just wait - see `lock retries` below. Logged as a warning, not as info |
+| `fallbacks` climbing | the engine keeps ending up with a shared handle: once at startup, then once per failed retry, plus any sleep/resume that loses the device |
+| `lock retries` climbing | the engine is still trying to take the keyboard for itself. **Whoever opens the device first wins**, so a program that was already running when this one started gets there first - and this app used to accept that for the whole session. It now gives up its shared handle and asks again, backing off from 3 seconds to once every 5 minutes. If the other program only opens the keyboard to send a packet, one of those attempts lands in a gap and the line changes to `lock exclusive`. If it holds the keyboard permanently, `retries` climbs forever and the fix is to close it |
+| `range` below 255 | the keyboard only accepts a few colour levels per channel, so no frame rate will make a gradient perfectly smooth. The **Smooth colour** toggle is then the trade-off: leave it on for solid steps, turn it off to let the engine dither and fill the gaps in between |
+| `dither on` | the engine is faking colour levels the hardware does not have. Good against banding, but on four large zones it can read as a shimmer |
+
+Both files are capped at 256 KB.
 
 ## Important
 
@@ -176,17 +281,44 @@ if it needs you to exit first.
 
 ## G-Helper
 
-You can keep using G-Helper. `Setup.bat` sets one option in it,
-`skip_aura`, which stops it pushing its own keyboard colours when it
-starts. Everything else in G-Helper is untouched: fan curves,
-performance modes, the Fn brightness keys, battery limits, all of it.
+You can keep using G-Helper. `Setup.bat` sets six options in it so that
+it leaves the keyboard alone:
 
-Without that setting the two apps fight over the keyboard every time
-G-Helper launches. With it, your colours and patterns always win.
+| Setting | What it does |
+|---|---|
+| `skip_aura` = 1 | stops it pushing its own keyboard colours at startup |
+| `keyboard_brightness`, `keyboard_brightness_ac`, `max_brightness` = 3 | holds its four-step backlight gate at full, so it cannot dim the keyboard underneath this app |
+| `keyboard_timeout`, `keyboard_ac_timeout` = 0 | kills its idle timer, which otherwise dims the keyboard to nothing after a minute on battery |
 
-If you ever want G-Helper's own lighting modes back, open
-`%AppData%\GHelper\config.json` and change `"skip_aura": 1` to `0`, or
-just uninstall this app.
+Binding M4/M5 to brightness is a separate thing and is *not* set by
+`Setup.bat` - see [M4 and M5 as brightness keys](#m4-and-m5-as-brightness-keys).
+
+Everything else in G-Helper is untouched: fan curves, performance modes,
+the Fn brightness keys, battery limits, all of it.
+
+Without those the two apps fight over the keyboard every time G-Helper
+launches. With them, your colours and patterns always win.
+
+**The engine keeps checking.** G-Helper has no Apply button for lighting -
+it writes the moment you click - and it rewrites its own config file when
+it closes. So one click in its keyboard panel, or an update, used to undo
+the containment silently, and nothing noticed. The engine now re-reads
+`%AppData%\GHelper\config.json` once a minute and, if those six settings
+have drifted, puts them back, restarts G-Helper, then writes them a second
+time - a rewrite on its own is undone by G-Helper's exit-save. Each repair
+is recorded in `engine.log`.
+
+Restarting G-Helper is not free: it holds your fan curves and performance
+modes, and it comes back elevated because this app runs elevated. So it
+happens at most once every ten minutes, and if five repairs have not made
+it stick the watchdog stands down and says so in the log instead of
+fighting forever. Set `KBL_GHELPER_WATCHDOG` to `0` to turn it off.
+
+**To get G-Helper's own lighting modes back**, set `KBL_GHELPER_WATCHDOG`
+to `0` *first*, and only then change `"skip_aura": 1` to `0` in
+`%AppData%\GHelper\config.json`. Changing `skip_aura` on its own no
+longer works - the watchdog puts it back within a minute. Or just
+uninstall this app, which takes the watchdog with it.
 
 ## Writing your own effect
 

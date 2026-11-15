@@ -181,7 +181,7 @@ class Launcher {
     }
 }
 
-Write-Host '   [3/4] Creating Desktop & Start Menu shortcuts...' -ForegroundColor Gray
+Write-Host '   [3/4] Creating Start Menu shortcut...' -ForegroundColor Gray
 function Set-Shortcut([string]$lnkPath) {
     try {
         $sh  = New-Object -ComObject WScript.Shell
@@ -199,9 +199,11 @@ function Set-Shortcut([string]$lnkPath) {
     } catch { return $false }
 }
 
+# Start Menu only. A Desktop shortcut here used to be re-created on every
+# update, which is how they accumulated on the Desktop; the owner asked for
+# that to stop. The Start Menu entry is enough to launch it by hand.
 [void](Set-Shortcut (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Bluetooth Guard.lnk'))
-[void](Set-Shortcut (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Bluetooth Guard.lnk'))
-Write-Host '   [OK]   Shortcuts ready on Desktop and Start Menu.' -ForegroundColor Green
+Write-Host '   [OK]   Start Menu shortcut ready.' -ForegroundColor Green
 
 if (-not $NoAutostart) {
     try {

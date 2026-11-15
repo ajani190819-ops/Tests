@@ -538,11 +538,18 @@ public final class WorldSpaceHudRenderer {
 					centerZ - rightZ * halfWidth + topZ * halfHeight);
 		}
 		// Occlusion is the player's choice. On, blocks and mobs in front of the
-		// panel hide it. Body exclusion (both views) lets the player's own body,
-		// hand, armour and particles stop hiding it, and blocks and mobs stop too
-		// (see SpatialHudConfig).
+		// panel hide it. The body-exclusion option exempts the player's own body,
+		// hand, armour and particles -- but only in third person, where your model
+		// really is between the camera and the panel. An earlier revision applied
+		// it in first person as well, and because it defaults to on while Occlusion
+		// also defaults to on, the net effect was that the Occlusion toggle appeared
+		// to do nothing: occlude computed false at the defaults and the panel took
+		// the see-through path over everything. Restricting the exception to the
+		// view it is named for makes first-person occlusion work as the setting
+		// reads, and keeps the body from hiding the panel in third person.
+		boolean thirdPerson = !Minecraft.getInstance().options.getCameraType().isFirstPerson();
 		boolean occlude = cfg.horizontalPanelOcclusion
-				&& !cfg.horizontalPanelThirdPersonException;
+				&& !(cfg.horizontalPanelThirdPersonException && thirdPerson);
 		// Occlusion off needs the see-through path. If it cannot run, draw occluded.
 		if (!occlude && !WorldSpaceSolidQuad.openPathReady()) {
 			occlude = true;

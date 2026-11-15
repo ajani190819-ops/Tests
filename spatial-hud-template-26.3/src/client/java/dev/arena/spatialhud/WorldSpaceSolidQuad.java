@@ -23,12 +23,17 @@ import java.util.List;
  *
  * <p>Three layers, from back to front, all in the same plane:</p>
  * <ol>
- * <li>The purple fill, inset inside the border (solid phase).</li>
+ * <li>The purple fill, inset inside the border.</li>
  * <li>The captured HUD band, lifted a tiny step toward the viewer so it never
- * fights the fill (translucent phase). It sits above a strip of fill at the
- * bottom, so the hotbar is not pressed against the border.</li>
- * <li>The white border ring around both (solid phase).</li>
+ * fights the fill. It sits above a strip of fill at the bottom, so the hotbar is
+ * not pressed against the border.</li>
+ * <li>The white border ring around both.</li>
  * </ol>
+ *
+ * <p>When occluded, all three are depth-tested translucent geometry submitted in
+ * the level's translucent phase, so world geometry in front of the panel hides
+ * the whole panel, not just the picture. When open, fill and border use the
+ * see-through text type with a white texture for solid colour.</p>
  *
  * <p>Two depth modes. <em>Occluded</em> is depth-tested, so blocks and mobs in front
  * of the panel hide it. <em>Open</em> has no depth test and no depth write, so
@@ -64,16 +69,29 @@ final class WorldSpaceSolidQuad {
 		BAND_OCCLUDED,
 		/** Captured HUD band, no depth test or write. */
 		BAND_OPEN,
+		/**
+		 * Solid rectangle (fill or border) tinted over the 1x1 white texture,
+		 * depth-tested. This is what makes Occlusion cover the whole panel: the
+		 * fill and border used to draw through a debug render type whose state is
+		 * not part of the normal depth-tested world, so with Occlusion on the HUD
+		 * picture was hidden by blocks while its purple frame showed through them.
+		 */
+		RECT_OCCLUDED,
 		/** Solid rectangle (fill or border) with the white texture, no depth test or write. */
 		RECT_OPEN
 	}
 
-	private static final FeatureRendererType<QuadSubmit> QUAD_TYPE =
-			FeatureRendererType.create("spatialhud_solid_quad");
+	/** True for the modes that use the entity vertex layout and depth test. */
+	private static boolean entityLayout(Mode mode) {
+		return mode == Mode.BAND_OCCLUDED || mode == Mode.RECT_OCCLUDED;
+	}
+
 	private static final FeatureRendererType<TexturedSubmit> BAND_TYPE =
 			FeatureRendererType.create("spatialhud_captured_band");
 	private static final FeatureRendererType<TexturedSubmit> BAND_OPEN_TYPE =
 			FeatureRendererType.create("spatialhud_captured_band_open");
+	private static final FeatureRendererType<TexturedSubmit> RECT_OCCLUDED_TYPE =
+			FeatureRendererType.create("spatialhud_solid_rect_occluded");
 	private static final FeatureRendererType<TexturedSubmit> RECT_OPEN_TYPE =
 			FeatureRendererType.create("spatialhud_solid_rect_open");
 
@@ -81,6 +99,7 @@ final class WorldSpaceSolidQuad {
 	private static boolean loggedBandDraw;
 	private static boolean openDisabled;
 	private static boolean bandDisabled;
+	private static boolean rectDisabled;
 
 	private WorldSpaceSolidQuad() {
 	}
@@ -91,9 +110,9 @@ final class WorldSpaceSolidQuad {
 			return;
 		}
 		registered = true;
-		FeatureRendererRegistry.register(QUAD_TYPE, QuadRenderer::new);
 		FeatureRendererRegistry.register(BAND_TYPE, () -> new TexturedRenderer(Mode.BAND_OCCLUDED));
 		FeatureRendererRegistry.register(BAND_OPEN_TYPE, () -> new TexturedRenderer(Mode.BAND_OPEN));
+		FeatureRendererRegistry.register(RECT_OCCLUDED_TYPE, () -> new TexturedRenderer(Mode.RECT_OCCLUDED));
 		FeatureRendererRegistry.register(RECT_OPEN_TYPE, () -> new TexturedRenderer(Mode.RECT_OPEN));
 	}
 
@@ -282,7 +301,14 @@ final class WorldSpaceSolidQuad {
 						new Corner(p00, 0f, 0f), new Corner(p10, 0f, 0f),
 						new Corner(p11, 0f, 0f), new Corner(p01, 0f, 0f)));
 			} else {
-				collector.submitCustom(SubmitRenderPhases.SOLID, new QuadSubmit(pose, color, p00, p10, p11, p01));
+				// Depth-tested, in the translucent phase with the captured band, so
+				// it lands after the opaque world and before nothing: blocks in
+				// front of the panel now hide the fill and border exactly as they
+				// hide the band.
+				collector.submitCustom(SubmitRenderPhases.TRANSLUCENT_CUSTOM_GEOMETRY,
+						new TexturedSubmit(Mode.RECT_OCCLUDED, pose, shape.normal(), color,
+								new Corner(p00, 0f, 0f), new Corner(p10, 0f, 0f),
+								new Corner(p11, 0f, 0f), new Corner(p01, 0f, 0f)));
 			}
 		}
 	}
@@ -360,15 +386,6 @@ final class WorldSpaceSolidQuad {
 		return new Vec3(v.x / length, v.y / length, v.z / length);
 	}
 
-	/** One occluded solid quad, waiting to be drawn in the SOLID phase. */
-	record QuadSubmit(PoseStack.Pose pose, int color, Vec3 bottomLeft, Vec3 bottomRight,
-			Vec3 topRight, Vec3 topLeft) implements SubmitNode {
-		@Override
-		public FeatureRendererType<? extends SubmitNode> featureType() {
-			return QUAD_TYPE;
-		}
-	}
-
 	/** One corner of a textured quad: a world position and its texture coordinates. */
 	record Corner(Vec3 point, float u, float v) {
 	}
@@ -381,29 +398,9 @@ final class WorldSpaceSolidQuad {
 			return switch (mode) {
 				case BAND_OCCLUDED -> BAND_TYPE;
 				case BAND_OPEN -> BAND_OPEN_TYPE;
+				case RECT_OCCLUDED -> RECT_OCCLUDED_TYPE;
 				case RECT_OPEN -> RECT_OPEN_TYPE;
 			};
-		}
-	}
-
-	private static final class QuadRenderer extends RenderTypeFeatureRenderer<QuadSubmit> {
-		@Override
-		protected void buildGroup(FeatureFrameContext context, List<QuadSubmit> submits) {
-			if (submits.isEmpty()) {
-				return;
-			}
-			// Depth-tested fill, no depth write.
-			VertexConsumer buffer = getVertexBuilder(RenderTypes.debugFilledBox());
-			for (QuadSubmit submit : submits) {
-				buffer.addVertex(submit.pose(), (float) submit.bottomLeft().x, (float) submit.bottomLeft().y,
-						(float) submit.bottomLeft().z).setColor(submit.color());
-				buffer.addVertex(submit.pose(), (float) submit.bottomRight().x, (float) submit.bottomRight().y,
-						(float) submit.bottomRight().z).setColor(submit.color());
-				buffer.addVertex(submit.pose(), (float) submit.topRight().x, (float) submit.topRight().y,
-						(float) submit.topRight().z).setColor(submit.color());
-				buffer.addVertex(submit.pose(), (float) submit.topLeft().x, (float) submit.topLeft().y,
-						(float) submit.topLeft().z).setColor(submit.color());
-			}
 		}
 	}
 
@@ -419,7 +416,7 @@ final class WorldSpaceSolidQuad {
 			if (submits.isEmpty()) {
 				return;
 			}
-			if (mode == Mode.BAND_OCCLUDED ? bandDisabled : openDisabled) {
+			if (disabled()) {
 				return;
 			}
 			try {
@@ -434,19 +431,32 @@ final class WorldSpaceSolidQuad {
 				}
 			} catch (Throwable t) {
 				// Never let a draw take the game down. Open modes fall back to occluded;
-				// the occluded band has no fallback, so it stops drawing.
+				// the occluded modes have no fallback, so they stop drawing.
 				if (mode == Mode.BAND_OCCLUDED) {
 					bandDisabled = true;
 					SpatialHud.LOGGER.error("Spatial HUD: the captured band stopped drawing after an error.", t);
+				} else if (mode == Mode.RECT_OCCLUDED) {
+					rectDisabled = true;
+					SpatialHud.LOGGER.error("Spatial HUD: the occluded panel fill stopped drawing after an error.", t);
 				} else {
 					disableOpenPath("a draw in open mode failed", t);
 				}
 			}
 		}
 
+		/** Whether this mode has latched off for the session after a draw error. */
+		private boolean disabled() {
+			return switch (mode) {
+				case BAND_OCCLUDED -> bandDisabled;
+				case RECT_OCCLUDED -> rectDisabled;
+				case BAND_OPEN, RECT_OPEN -> openDisabled;
+			};
+		}
+
 		private RenderType renderType() {
 			return switch (mode) {
 				case BAND_OCCLUDED -> RenderTypes.entityTranslucent(CapturedHudTexture.ID, false);
+				case RECT_OCCLUDED -> RenderTypes.entityTranslucent(SolidColorTexture.ID, false);
 				case BAND_OPEN -> RenderTypes.textSeeThrough(CapturedHudTexture.ID);
 				case RECT_OPEN -> RenderTypes.textSeeThrough(SolidColorTexture.ID);
 			};
@@ -466,7 +476,7 @@ final class WorldSpaceSolidQuad {
 
 		private void writeCorner(VertexConsumer buffer, TexturedSubmit submit, Corner corner) {
 			Vec3 p = corner.point();
-			if (mode == Mode.BAND_OCCLUDED) {
+			if (entityLayout(mode)) {
 				Vec3 n = submit.normal();
 				buffer.addVertex(submit.pose(), (float) p.x, (float) p.y, (float) p.z)
 						.setColor(submit.color())

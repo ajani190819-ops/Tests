@@ -1,14 +1,14 @@
 # ====================================================================
 #  Audio Switcher - Setup & Updater
 #
-#  Verifies AudioSwitcher.exe is present, creates the Start menu and Desktop
-#  shortcuts, sets it to start when you log in (silent, elevated,
+#  Verifies AudioSwitcher.exe is present, creates the Start menu
+#  shortcut, sets it to start when you log in (silent, elevated,
 #  scheduled task - no permission prompt at boot), launches Audio Switcher,
 #  and verifies that it started cleanly.
 #
 #  Run it any time. It works out what is needed and does it:
 #    - checks AudioSwitcher.exe is present
-#    - creates the Start menu and Desktop shortcuts
+#    - creates the Start menu shortcut (never Desktop, on purpose)
 #    - sets it to start when you log in
 #    - tests that it actually works, and tells you what is wrong if not
 #
@@ -48,7 +48,7 @@ if (-not (Test-Path $Exe)) {
 }
 Write-Host '   [OK]   AudioSwitcher.exe verified on disk.' -ForegroundColor Green
 
-Write-Host '   [2/4] Creating Desktop & Start Menu shortcuts...' -ForegroundColor Gray
+Write-Host '   [2/4] Creating Start Menu shortcut...' -ForegroundColor Gray
 function Set-Shortcut([string]$lnkPath) {
     try {
         $sh  = New-Object -ComObject WScript.Shell
@@ -62,9 +62,11 @@ function Set-Shortcut([string]$lnkPath) {
     } catch { return $false }
 }
 
+# Start Menu only. A Desktop shortcut here used to be re-created on every
+# update, which is how they accumulated on the Desktop; the owner asked for
+# that to stop. The Start Menu entry is enough to launch it by hand.
 [void](Set-Shortcut (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Audio Switcher.lnk'))
-[void](Set-Shortcut (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Audio Switcher.lnk'))
-Write-Host '   [OK]   Shortcuts ready on Desktop and Start Menu.' -ForegroundColor Green
+Write-Host '   [OK]   Start Menu shortcut ready.' -ForegroundColor Green
 
 if (-not $NoAutostart) {
     Write-Host '   [3/4] Setting automatic Windows startup...' -ForegroundColor Gray
