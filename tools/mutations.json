@@ -271,5 +271,33 @@
   "old": "    g_places[g_placeN] = *p;\n    g_placeSel = g_placeN;\n    g_placeN++;\n    SavePlaces();",
   "new": "    g_places[g_placeN] = *p;\n    g_placeSel = g_placeN;\n    g_placeN++;",
   "label": "J a kept place is never persisted"
+ },
+ {
+  "id": "wx-11",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "        LayoutSearchEdit();\n        InvalidateRect(hwnd, NULL, TRUE);",
+  "new": "        InvalidateRect(hwnd, NULL, TRUE);",
+  "label": "K search edit is not relaid out after DPI changes"
+ },
+ {
+  "id": "wx-12",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "        PostMessageW(GetParent(edit), WM_APP_SEARCH, 0, 0);",
+  "new": "        PostMessageW(GetParent(edit), WM_APP_STATUS, 0, 0);",
+  "label": "L Return no longer submits the place search"
+ },
+ {
+  "id": "wx-13",
+  "file": "weather-radar/src/parts/places.c",
+  "old": "    current = (ticket == g_searchTicket);",
+  "new": "    current = 1;",
+  "label": "M stale geocoding response is accepted"
+ },
+ {
+  "id": "hub-18",
+  "file": "project-hub/src/parts/refresh_statuses.c",
+  "old": "            c->btns[action].hidden = !showAction;",
+  "new": "            c->btns[action].hidden = FALSE;",
+  "label": "R current dynamic card keeps its Update button"
  }
 ]

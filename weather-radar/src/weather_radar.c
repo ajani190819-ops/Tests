@@ -52,6 +52,7 @@
 
 #define WM_APP_DATA   (WM_APP + 7)     /* worker -> UI: staging result is ready */
 #define WM_APP_STATUS (WM_APP + 8)     /* worker -> UI: status line text */
+#define WM_APP_SEARCH (WM_APP + 9)     /* edit Return -> UI search submit */
 
 enum { BTN_SEARCH = 0, BTN_REFRESH, BTN_PLAY, BTN_PREV, BTN_NEXT,
        BTN_KEEP, BTN_DROP, BTN_ZOOM, BTN_COUNT };
@@ -120,7 +121,7 @@ typedef struct {
 static HINSTANCE g_hInst;
 static HWND      g_hwnd, g_hSearch;
 static HFONT     g_fontUI, g_fontTitle, g_fontBig, g_fontBtn, g_fontSmall;
-static HBRUSH    g_bgBrush;
+static HBRUSH    g_bgBrush, g_inputBrush;
 static UINT      g_dpi = 96;
 static int       g_fit = 100;
 static int       g_hoverBtn = -1;
@@ -140,8 +141,12 @@ static Place   g_places[MAX_PLACES];
 static int     g_placeN = 0;
 static int     g_placeSel = -1;
 static Place   g_search[MAX_SEARCH];
+static Place   g_searchStage[MAX_SEARCH];
 static int     g_searchN = 0;
+static int     g_searchStageN = 0;
 static int     g_searchSel = -1;
+static DWORD   g_searchTicket = 0;
+static DWORD   g_searchStageTicket = 0;
 static wchar_t g_query[96] = L"";
 static int     g_searchHint = 1;
 

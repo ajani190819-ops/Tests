@@ -458,7 +458,9 @@ static void RefreshProjectStatuses(void) {
         }
     }
 
-    /* 7+. Catalog extras: generic installed / update state */
+    /* 7+. Catalog extras: generic installed / update state. Dynamic cards
+       must follow the same rule as built-ins: Install while missing, Update
+       only for a verified newer remote build, otherwise hide that action. */
     for (int i = 7; i < g_cardCount; i++) {
         ProjectCard *c = &g_cards[i];
         wchar_t exePath[MAX_PATH], altPath[MAX_PATH];
@@ -473,16 +475,18 @@ static void RefreshProjectStatuses(void) {
         DWORD locSz = LocalSizeOf(exePath);
         BOOL known = (c->remSize > 0 && locSz > 0);
         BOOL upd = has && known && RemoteDiffers(c->remSha, exePath, c->remSize);
+        int action = -1, open = -1;
+        for (int b = 0; b < c->btnCount; b++) {
+            const wchar_t *verb = c->btns[b].verb;
+            if (!verb) continue;
+            if (action < 0 &&
+                (wcscmp(verb, L"install") == 0 || wcscmp(verb, L"update") == 0))
+                action = b;
+            if (open < 0 && wcscmp(verb, L"open") == 0) open = b;
+        }
         if (!has) {
             wcsncpy(c->badge, L"Setup Ready", 47);
             c->badgeKind = BADGE_WARN;
-            for (int b = 0; b < c->btnCount; b++)
-                if (c->btns[b].verb &&
-                    (wcscmp(c->btns[b].verb, L"install") == 0 ||
-                     wcscmp(c->btns[b].verb, L"open") == 0)) {
-                    c->btns[b].style = BTN_PRIMARY;
-                    break;
-                }
             _snwprintf(c->detail, 255, L"%s  \x00B7  Click Install to set up",
                        c->blurb ? c->blurb : L"Suite app");
         } else {
@@ -492,16 +496,16 @@ static void RefreshProjectStatuses(void) {
                        c->blurb ? c->blurb : L"Suite app");
             AppendInstallFolder(c->detail, c->appDir);
         }
+        if (action >= 0) {
+            BOOL showAction = !has || (known && upd);
+            c->btns[action].label = !has ? L"Install" : L"Update";
+            c->btns[action].style = !has ? BTN_PRIMARY : (upd ? BTN_AMBER : BTN_SECONDARY);
+            c->btns[action].hidden = !showAction;
+        }
+        if (open >= 0) c->btns[open].hidden = !has;
         if (has && known) {
             wcsncat(c->badge, upd ? L"  \x00B7  Update Ready" : L"  \x00B7  Up to Date", 47);
-            if (upd) {
-                c->badgeKind = BADGE_WARN;
-                for (int b = 0; b < c->btnCount; b++)
-                    if (c->btns[b].verb && wcscmp(c->btns[b].verb, L"update") == 0) {
-                        c->btns[b].style = BTN_AMBER;
-                        break;
-                    }
-            }
+            if (upd) c->badgeKind = BADGE_WARN;
         }
         c->badge[47] = L'\0';
     }

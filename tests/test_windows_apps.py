@@ -1484,6 +1484,48 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("if (AppsUseLightTheme())", ip,
                       "the window ignores the owner's Windows theme again")
 
+    def test_weather_search_field_scales_and_submits_without_stale_results(self):
+        """Weather Radar's one native child control used its creation-time 96 DPI
+        rectangle while the painted UI used the final monitor DPI and fit. It
+        overlapped the header on scaled screens, and Return did nothing. Search
+        answers now stage through the worker so an older response cannot replace
+        the query the owner just typed."""
+        main = (ROOT / "weather-radar" / "src" / "weather_radar.c").read_text(encoding="utf-8")
+        ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        places = (ROOT / "weather-radar" / "src" / "parts" / "places.c").read_text(encoding="utf-8")
+        workers = (ROOT / "weather-radar" / "src" / "parts" / "workers.c").read_text(encoding="utf-8")
+
+        self.assertIn("static void LayoutSearchEdit(void)", ui)
+        self.assertIn("SetWindowPos(g_hSearch", ui)
+        self.assertIn("LayoutSearchEdit();\n        InvalidateRect(hwnd, NULL, TRUE);", ui,
+                      "the search control is not relaid out after a DPI change")
+        self.assertIn("g_inputBrush = CreateSolidBrush(COL_INPUT);",
+                      (ROOT / "weather-radar" / "src" / "parts" / "entry.c").read_text(encoding="utf-8"))
+        self.assertIn("SetWindowSubclass(g_hSearch, SearchEditSubclass", ui)
+        self.assertIn("PostMessageW(GetParent(edit), WM_APP_SEARCH, 0, 0);", ui,
+                      "Return in the search box is not routed to the real submit path")
+        self.assertIn("case WM_APP_SEARCH:\n        SubmitSearch();", ui)
+        self.assertIn("GetWindowTextW(g_hSearch, g_query, 96);", ui,
+                      "Search uses a stale EN_CHANGE copy instead of the current edit text")
+        self.assertIn("g_searchStage", main)
+        self.assertIn("GeocodeSearch(query, ticket);", workers)
+        self.assertIn("ticket == g_searchTicket", places)
+        self.assertIn("g_searchStageTicket == g_searchTicket", ui)
+
+    def test_dynamic_catalog_cards_hide_update_when_their_build_is_current(self):
+        """Weather Radar is the first non-built-in hub card. It kept its Update
+        button after a successful install because the generic status sweep only
+        ever made that button amber; unlike the built-ins it never hid it again."""
+        src = (ROOT / "project-hub" / "src" / "parts" / "refresh_statuses.c").read_text(encoding="utf-8")
+        block = src[src.index("/* 7+. Catalog extras"):src.index("if (g_hwnd) InvalidateRect", src.index("/* 7+. Catalog extras"))]
+        self.assertIn("BOOL showAction = !has || (known && upd);", block)
+        self.assertIn("c->btns[action].hidden = !showAction;", block,
+                      "a current dynamic app still renders a clickable Update button")
+        self.assertIn("c->btns[action].label = !has ? L\"Install\" : L\"Update\";", block)
+        self.assertIn("if (open >= 0) c->btns[open].hidden = !has;", block)
+        self.assertIn("RemoteDiffers(c->remSha, exePath, c->remSize)", block,
+                      "dynamic cards must use exact content identity before claiming an update")
+
     def test_hud_and_orca_cards_expose_update_folder_remove_disable(self):
         """Both cards were redesigned to match the other app cards: Update (shown
         only when an update is available), Folder, Remove, Disable -- dropping the

@@ -42,6 +42,28 @@ static int SavedRowRect(int i, RECT *r) {
     return 1;
 }
 
+/* The edit is a real child window, unlike the rest of this painted UI.
+   Give it the same scaled inner rectangle as the drawn search field; creating
+   it before the window knows its DPI was what left it over the header/buttons. */
+static void LayoutSearchEdit(void) {
+    if (!g_hSearch) return;
+    RECT r = { S(18), S(72), S(242), S(100) };
+    SetWindowPos(g_hSearch, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top,
+                 SWP_NOZORDER | SWP_NOACTIVATE);
+    if (g_fontUI) SendMessageW(g_hSearch, WM_SETFONT, (WPARAM)g_fontUI, TRUE);
+}
+
+static LRESULT CALLBACK SearchEditSubclass(HWND edit, UINT msg, WPARAM wp, LPARAM lp,
+                                            UINT_PTR id, DWORD_PTR ref) {
+    (void)id;
+    (void)ref;
+    if (msg == WM_KEYDOWN && wp == VK_RETURN) {
+        PostMessageW(GetParent(edit), WM_APP_SEARCH, 0, 0);
+        return 0;
+    }
+    return DefSubclassProc(edit, msg, wp, lp);
+}
+
 static int HitBtn(int x, int y) {
     RECT r;
     POINT pt = { x, y };
@@ -489,21 +511,46 @@ static void StepFrame(int delta) {
     InvalidateRect(g_hwnd, NULL, FALSE);
 }
 
+static int SearchTextIsBlank(const wchar_t *text) {
+    while (*text == L' ' || *text == L'\t' || *text == L'\r' || *text == L'\n') text++;
+    return *text == L'\0';
+}
+
+static void SubmitSearch(void) {
+    if (!g_hSearch || g_searchHint) {
+        StatusSet(L"Type a city or postcode first.", 2);
+        return;
+    }
+    GetWindowTextW(g_hSearch, g_query, 96);
+    if (SearchTextIsBlank(g_query)) {
+        StatusSet(L"Type a city or postcode first.", 2);
+        return;
+    }
+    /* Clear the old choices before the new worker response is ready, so a
+       click can never select a result for the previous query. */
+    g_searchN = 0;
+    g_searchSel = -1;
+    StatusSet(L"Searching...", 0);
+    RequestSearch(g_query);
+    InvalidateRect(g_hwnd, NULL, FALSE);
+}
+
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_CREATE: {
         g_hSearch = CreateWindowExW(0, L"EDIT", L"",
             WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
-            S(17), S(71), S(244 - 17), S(102 - 71),
-            hwnd, (HMENU)(intptr_t)ID_EDIT_SEARCH, g_hInst, NULL);
+            0, 0, 1, 1, hwnd, (HMENU)(intptr_t)ID_EDIT_SEARCH, g_hInst, NULL);
         SetWindowTextW(g_hSearch, HINT_SEARCH);
+        SetWindowSubclass(g_hSearch, SearchEditSubclass, 1, 0);
+        LayoutSearchEdit();
         return 0;
     }
     case WM_CTLCOLOREDIT: {
         HDC h = (HDC)wp;
         SetTextColor(h, g_searchHint ? COL_MUTED : COL_TXT);
         SetBkColor(h, COL_INPUT);
-        return (LRESULT)g_bgBrush;
+        return (LRESULT)(g_inputBrush ? g_inputBrush : g_bgBrush);
     }
     case WM_COMMAND: {
         int id = LOWORD(wp);
@@ -523,6 +570,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         return 0;
     }
+    case WM_APP_SEARCH:
+        SubmitSearch();
+        return 0;
     case WM_PAINT:
         PaintAll(hwnd);
         return 0;
@@ -542,12 +592,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (b >= 0) {
             switch (b) {
             case BTN_SEARCH:
-                if (g_query[0]) {
-                    StatusSet(L"Searching...", 0);
-                    RequestSearch(g_query);
-                } else {
-                    StatusSet(L"Type a city or postcode first.", 2);
-                }
+                SubmitSearch();
                 break;
             case BTN_REFRESH: {
                 const Place *p = CurrentPlace();
@@ -650,8 +695,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             g_ens = g_ensStage;
             LeaveCriticalSection(&g_lock);
         } else if (kind == JOB_GEOCODE) {
-            int n = g_searchN;
+            int n = 0;
+            int current = (g_searchStageTicket == g_searchTicket);
+            if (current) {
+                g_searchN = g_searchStageN;
+                memcpy(g_search, g_searchStage, sizeof(Place) * (size_t)g_searchN);
+                g_searchSel = -1;
+                n = g_searchN;
+            }
             LeaveCriticalSection(&g_lock);
+            if (!current) return 0;
             wchar_t m[96];
             if (n > 0) {
                 _snwprintf(m, 95, L"%d match%s - click the one you mean.", n, n == 1 ? L"" : L"es");
@@ -685,6 +738,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         RECT *pr = (RECT *)lp;
         SetWindowPos(hwnd, NULL, pr->left, pr->top, pr->right - pr->left,
                      pr->bottom - pr->top, SWP_NOZORDER | SWP_NOACTIVATE);
+        LayoutSearchEdit();
         InvalidateRect(hwnd, NULL, TRUE);
         return 0;
     }
@@ -692,6 +746,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         KillTimer(hwnd, TIMER_ANIM);
         KillTimer(hwnd, TIMER_REFRESH);
         KillTimer(hwnd, TIMER_EMBLEM);
+        if (g_inputBrush) { DeleteObject(g_inputBrush); g_inputBrush = NULL; }
+        if (g_bgBrush) { DeleteObject(g_bgBrush); g_bgBrush = NULL; }
         PostQuitMessage(0);
         return 0;
     }

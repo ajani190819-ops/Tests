@@ -101,9 +101,20 @@ static void DropSelectedPlace(void) {
 /* Geocoding: Open-Meteo's own search endpoint, no key, no third-party
    middleman. Results are shown as rows the owner clicks - picking a place
    must be a choice, never a guess. */
-static void GeocodeSearch(const wchar_t *query) {
-    g_searchN = 0;
-    g_searchSel = -1;
+static int SearchTicketIsCurrent(DWORD ticket) {
+    int current;
+    EnterCriticalSection(&g_lock);
+    current = (ticket == g_searchTicket);
+    LeaveCriticalSection(&g_lock);
+    return current;
+}
+
+/* Geocoding is a worker job. It builds a local list first, then publishes one
+   complete answer to the UI; an older HTTP response cannot overwrite a newer
+   query while the owner is typing. */
+static void GeocodeSearch(const wchar_t *query, DWORD ticket) {
+    Place matches[MAX_SEARCH];
+    int matchN = 0;
     char utf[256], enc[700];
     WideToUtf8(query, utf, 256);
     UrlEncodeUtf8(utf, enc, 700);
@@ -114,19 +125,19 @@ static void GeocodeSearch(const wchar_t *query) {
     url[1023] = L'\0';
     HttpBuf b;
     if (!HttpGetBuf(url, &b)) {
-        PostMessageW(g_hwnd, WM_APP_STATUS, 2, (LPARAM)(intptr_t)_wcsdup(
-            L"Could not reach the geocoding service - check the connection."));
+        if (SearchTicketIsCurrent(ticket))
+            PostMessageW(g_hwnd, WM_APP_STATUS, 2, (LPARAM)(intptr_t)_wcsdup(
+                L"Could not reach the geocoding service - check the connection."));
         return;
     }
     JNode *root = JsonParse(b.data);
     JNode *res = root ? JGet(root, "results") : NULL;
     if (res && res->type == J_ARR) {
-        int i = 0;
-        for (JNode *c = res->child; c && i < MAX_SEARCH; c = c->next, i++) {
+        for (JNode *c = res->child; c && matchN < MAX_SEARCH; c = c->next) {
             JNode *lat = JGet(c, "latitude"), *lon = JGet(c, "longitude");
             JNode *nm = JGet(c, "name");
             if (!lat || !lon || !nm || !nm->str) continue;
-            Place *p = &g_search[i];
+            Place *p = &matches[matchN++];
             ZeroMemory(p, sizeof(*p));
             Utf8ToWide(nm->str, p->name, 96);
             wchar_t a1[96] = L"", ct[96] = L"";
@@ -139,11 +150,21 @@ static void GeocodeSearch(const wchar_t *query) {
             p->region[95] = L'\0';
             p->lat = lat->num;
             p->lon = lon->num;
-            g_searchN = i + 1;
         }
     }
     HttpBufFree(&b);
-    if (g_searchN == 0)
+
+    EnterCriticalSection(&g_lock);
+    int current = (ticket == g_searchTicket);
+    if (current) {
+        memcpy(g_searchStage, matches, sizeof(Place) * (size_t)matchN);
+        g_searchStageN = matchN;
+        g_searchStageTicket = ticket;
+    }
+    LeaveCriticalSection(&g_lock);
+    if (!current) return;
+
+    if (matchN == 0)
         PostMessageW(g_hwnd, WM_APP_STATUS, 2, (LPARAM)(intptr_t)_wcsdup(
             L"No place by that name - try the city, or the nearest bigger town."));
     PostMessageW(g_hwnd, WM_APP_DATA, JOB_GEOCODE, 0);

@@ -62,7 +62,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
 
     MakeFonts();
     g_bgBrush = CreateSolidBrush(COL_BG);
-    SendMessageW(g_hSearch, WM_SETFONT, (WPARAM)g_fontUI, TRUE);
+    g_inputBrush = CreateSolidBrush(COL_INPUT);
+    LayoutSearchEdit();
     ApplyModernWindowFrame(hwnd);
 
     RECT desired = { 0, 0, S(WIN_LW), S(WIN_LH) };
