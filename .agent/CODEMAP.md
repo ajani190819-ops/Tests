@@ -23,7 +23,7 @@
 - L184  f ShowBranchMenu
 - L225  f ShowRunningAgentNotes
 - L239  f HandleActionCommand
-- L760  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
+- L764  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
 
 ## project-hub/src/parts/builtin_card_text.c
 
@@ -143,21 +143,23 @@
 - L39  f HubTrayShowAgentWaitingAlert
 - L53  f HubTrayPollAgentWait
 - L69  f HubTrayPollWeatherAlert
-- L96  f HubTrayRestore
-- L117  f HubTrayInit
-- L139  f HubTrayRemove
-- L151  f HubTrayAppWindow
-- L155  f HubTrayShowApp
-- L166  f HubTrayHideApp
-- L171  f HubTrayStopExe
-- L191  f HubTrayFindCardByExe
-- L198  f HubTrayOpenWeather
-- L215  f HubTrayOpenApp
-- L238  f HubTrayRunControl
-- L253  f HubTrayToggleBluetooth
-- L261  f HubTrayAppendApp
-- L280  f HubTrayShowMenu
-- L315  f HubTrayHandleCommand
+- L96  f HubTrayPublishHostMarker
+- L101  f HubTrayRestore
+- L127  f HubTrayEnsureLive  — NIM_ADD can lose a startup race with Explorer without producing a later
+- L136  f HubTrayInit
+- L158  f HubTrayRemove
+- L170  f HubTrayAppWindow
+- L174  f HubTrayShowApp
+- L185  f HubTrayHideApp
+- L190  f HubTrayStopExe
+- L210  f HubTrayFindCardByExe
+- L217  f HubTrayOpenWeather
+- L234  f HubTrayOpenApp
+- L257  f HubTrayRunControl
+- L272  f HubTrayToggleBluetooth
+- L280  f HubTrayAppendApp
+- L299  f HubTrayShowMenu
+- L334  f HubTrayHandleCommand
 
 ## project-hub/src/parts/ui_renderer.c
 
@@ -1062,10 +1064,10 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2627  f SuiteFolderInstallTests
-- L3649  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3725  f AudioSwitcherReachabilityTests
-- L3909  f AudioSwitcherSessionSweepTests
-- L4050  f AppOpenFocusTests
+- L3663  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3739  f AudioSwitcherReachabilityTests
+- L3923  f AudioSwitcherSessionSweepTests
+- L4064  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

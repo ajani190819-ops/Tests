@@ -718,6 +718,10 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 InvalidateRect(hwnd, &g_rcFooterDot, FALSE);
             return 0;
         }
+        /* A transient Explorer-startup failure must not leave the suite
+           permanently on its separate fallback icons. This publishes the
+           capability only after the Hub's own icon is live. */
+        HubTrayEnsureLive();
         /* The agent app writes only an opaque active-wait token locally. The
            Hub owns the one notification-area icon and relays the generic
            native alert without learning Arena question text. */

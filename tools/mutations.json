@@ -567,6 +567,13 @@
   "label": "Project Hub does not recreate its unified tray icon after Explorer restarts"
  },
  {
+  "id": "trayhub-06",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "        HubTrayEnsureLive();",
+  "new": "        /* startup tray retry removed. */",
+  "label": "Project Hub never retries a transient initial tray registration failure"
+ },
+ {
   "id": "brand-00",
   "file": "tools/generate_suite_icons.py",
   "old": "    for stale in REDUNDANT_BRAND_EXPORTS:",

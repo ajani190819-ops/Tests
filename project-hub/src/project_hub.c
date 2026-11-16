@@ -402,6 +402,7 @@ static void RebuildFontsAndIcons(HWND hwnd) {
 /* ---- Unified notification-area tray (implemented after the command router). */
 static void HubTrayInit(void);
 static void HubTrayRestore(void);
+static void HubTrayEnsureLive(void);
 static void HubTrayRemove(void);
 static void HubTrayShowMenu(HWND hwnd);
 static void HubTrayPollAgentWait(void);

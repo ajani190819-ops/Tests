@@ -93,6 +93,11 @@ static void HubTrayPollWeatherAlert(void) {
     WritePrivateProfileStringW(L"Tray", L"SeenWeatherAlert", g_hubSeenRainAlert, hubCfg);
 }
 
+static void HubTrayPublishHostMarker(void) {
+    if (!g_trayHostEvent)
+        g_trayHostEvent = CreateEventW(NULL, TRUE, TRUE, HUB_TRAY_HOST_EVENT);
+}
+
 static void HubTrayRestore(void) {
     if (!g_hubNid.cbSize) return;
     if (!Shell_NotifyIconW(NIM_ADD, &g_hubNid)) {
@@ -110,8 +115,22 @@ static void HubTrayRestore(void) {
     Shell_NotifyIconW(NIM_SETVERSION, &g_hubNid);
     /* Do this only after NIM_ADD succeeds. Apps must retain their individual
        fallback icons if Windows declines the Hub notification-area icon. */
-    if (!g_trayHostEvent)
-        g_trayHostEvent = CreateEventW(NULL, TRUE, TRUE, HUB_TRAY_HOST_EVENT);
+    HubTrayPublishHostMarker();
+}
+
+/* NIM_ADD can lose a startup race with Explorer without producing a later
+ * TaskbarCreated broadcast for this window.  Do not advertise ownership until
+ * the icon exists, but retry a failed registration on the Hub's lightweight
+ * timer so the suite does not remain in fallback mode for an entire session.
+ * The same retry also recovers a rare CreateEvent failure after a successful
+ * icon registration. */
+static void HubTrayEnsureLive(void) {
+    if (!g_hubNid.cbSize) return;
+    if (!g_hubTrayVisible) {
+        HubTrayRestore();
+        return;
+    }
+    HubTrayPublishHostMarker();
 }
 
 static void HubTrayInit(void) {

@@ -2961,6 +2961,20 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("HubTrayInit();", hub_ui)
         self.assertIn("HubTrayRestore();", hub_ui,
                       "Explorer/taskbar restart leaves the Hub icon missing")
+        self.assertIn("HubTrayEnsureLive();", hub_ui,
+                      "a transient Hub tray registration failure leaves every app on fallback icons")
+        retry_start = tray.index("static void HubTrayEnsureLive(void)")
+        retry = tray[retry_start:tray.index("static void HubTrayInit(void)", retry_start)]
+        self.assertIn("if (!g_hubTrayVisible)", retry,
+                      "the Hub no longer retries a failed initial NIM_ADD")
+        self.assertIn("HubTrayRestore();", retry,
+                      "the Hub retry does not recreate its tray icon")
+        self.assertIn("HubTrayPublishHostMarker();", retry,
+                      "a successful Hub icon cannot recover a failed host-marker create")
+        marker_start = tray.index("static void HubTrayPublishHostMarker(void)")
+        marker = tray[marker_start:tray.index("static void HubTrayRestore(void)", marker_start)]
+        self.assertIn("CreateEventW(NULL, TRUE, TRUE, HUB_TRAY_HOST_EVENT)", marker,
+                      "the retry cannot republish the live Hub host capability")
         self.assertIn("HubTrayRemove();", hub_ui)
         self.assertIn("SuiteTaskbarCreatedMessage", host)
         self.assertIn("WM_HUB_TRAYICON", hub)
