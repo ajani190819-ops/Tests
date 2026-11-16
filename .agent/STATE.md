@@ -1,14 +1,20 @@
 # Repository Current State
 
 **Active branch:** read with `git rev-parse --abbrev-ref HEAD`; never hardcode it.
-**Last updated:** 2026-11-16. Git is authoritative for implementation, tests,
+**Last updated:** 2026-11-15. Git is authoritative for implementation, tests,
 release records, and compact offline safety facts. Drive holds extended narrative.
 
 ## Released work
 
-- **Project Hub 2.8.50:** `Update Hub` appears only for a verified newer remote
+- **Project Hub 2.8.51:** `Update Hub` appears only for a verified newer remote
   build; `Update All` remains. Default-on newest-test-branch following ranks
   qualifying branch-tip commit dates. A manual Branch choice pauses it.
+- **Agent Notes waiting receipts:** implementation `ad9232009b9f38c287727123ddd404b204ce26e1`,
+  released by marker `5343e54`. The direct local outbox records **Saved** only
+  after the live receiver flushes `.agent/INBOX.md`, then **Read** only after an
+  agent checkpoint captured before that inbox read. A running app hides to the
+  Windows notification area and shows a native visual "agent is waiting" alert;
+  sound is persistent opt-in (default off), and no Run key/task/service is added.
 - **Shared Tri-Spoke engine:** `shared/win32/suite_emblem.c` is the sole native
   renderer for Project Hub, Agent Notes, Audio Switcher, and Weather Radar.
   Consumers use `SuiteEmblemDibPixel` for raw DIB backgrounds, own placement,
