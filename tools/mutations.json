@@ -574,6 +574,27 @@
   "label": "Project Hub never retries a transient initial tray registration failure"
  },
  {
+  "id": "trayhub-07",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    if (!HubTrayShowAgentWaitingAlert()) return;",
+  "new": "    HubTrayShowAgentWaitingAlert();",
+  "label": "Hub marks an Agent Notes wait seen when Windows rejected its notification"
+ },
+ {
+  "id": "trayhub-08",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    return notified;\n}\n\nstatic void HubTrayPollAgentWait(void) {",
+  "new": "    return TRUE;\n}\n\nstatic void HubTrayPollAgentWait(void) {",
+  "label": "Hub treats a failed Agent Notes notification as successfully shown"
+ },
+ {
+  "id": "trayhub-09",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    if (!notified) return;  /* leave the token pending for the next Hub poll */\n    wcsncpy(g_hubSeenRainAlert, token, 79);",
+  "new": "    wcsncpy(g_hubSeenRainAlert, token, 79);",
+  "label": "Hub drops a rain alert token when Windows rejects its notification"
+ },
+ {
   "id": "brand-00",
   "file": "tools/generate_suite_icons.py",
   "old": "    for stale in REDUNDANT_BRAND_EXPORTS:",

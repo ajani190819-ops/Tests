@@ -141,25 +141,25 @@
 - L23  f HubTrayAgentWaitSound
 - L29  f HubTrayToggleAgentWaitSound
 - L39  f HubTrayShowAgentWaitingAlert
-- L53  f HubTrayPollAgentWait
-- L69  f HubTrayPollWeatherAlert
-- L96  f HubTrayPublishHostMarker
-- L101  f HubTrayRestore
-- L127  f HubTrayEnsureLive  — NIM_ADD can lose a startup race with Explorer without producing a later
-- L136  f HubTrayInit
-- L158  f HubTrayRemove
-- L170  f HubTrayAppWindow
-- L174  f HubTrayShowApp
-- L185  f HubTrayHideApp
-- L190  f HubTrayStopExe
-- L210  f HubTrayFindCardByExe
-- L217  f HubTrayOpenWeather
-- L234  f HubTrayOpenApp
-- L257  f HubTrayRunControl
-- L272  f HubTrayToggleBluetooth
-- L280  f HubTrayAppendApp
-- L299  f HubTrayShowMenu
-- L334  f HubTrayHandleCommand
+- L54  f HubTrayPollAgentWait
+- L72  f HubTrayPollWeatherAlert
+- L100  f HubTrayPublishHostMarker
+- L105  f HubTrayRestore
+- L131  f HubTrayEnsureLive  — NIM_ADD can lose a startup race with Explorer without producing a later
+- L140  f HubTrayInit
+- L162  f HubTrayRemove
+- L174  f HubTrayAppWindow
+- L178  f HubTrayShowApp
+- L189  f HubTrayHideApp
+- L194  f HubTrayStopExe
+- L214  f HubTrayFindCardByExe
+- L221  f HubTrayOpenWeather
+- L238  f HubTrayOpenApp
+- L261  f HubTrayRunControl
+- L276  f HubTrayToggleBluetooth
+- L284  f HubTrayAppendApp
+- L303  f HubTrayShowMenu
+- L338  f HubTrayHandleCommand
 
 ## project-hub/src/parts/ui_renderer.c
 
@@ -1064,10 +1064,10 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2627  f SuiteFolderInstallTests
-- L3663  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3739  f AudioSwitcherReachabilityTests
-- L3923  f AudioSwitcherSessionSweepTests
-- L4064  f AppOpenFocusTests
+- L3683  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3759  f AudioSwitcherReachabilityTests
+- L3943  f AudioSwitcherSessionSweepTests
+- L4084  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

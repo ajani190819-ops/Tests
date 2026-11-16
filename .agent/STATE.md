@@ -1,16 +1,16 @@
 # Repository Current State
 
 **Active branch:** read with `git rev-parse --abbrev-ref HEAD`; never hardcode it.
-**Last updated:** 2026-11-15. Git is authoritative for implementation, tests,
+**Last updated:** 2026-11-16. Git is authoritative for implementation, tests,
 release records, and compact offline safety facts. Drive holds extended narrative.
 
 ## Released work
 
-- **Project Hub 2.8.52:** `Update Hub` appears only for a verified newer remote
-  build; `Update All` remains. Default-on newest-test-branch following ranks
-  qualifying branch-tip commit dates, persists that selected branch for Agent
-  Notes session discovery, and a manual Branch choice pauses it. Hub Open
-  directly reveals a tray-hidden Agent Notes window before attempting a launch.
+- **Project Hub 2.8.54:** the live unified tray handles suite Open/Hide/Quit,
+  safe toggles, and Agent Notes/Weather alerts; app icons are fallbacks only.
+  Alerts retry until Windows accepts them. `Update Hub` requires a verified
+  newer build; default-on newest-test-branch following and Hub reveal of
+  tray-hidden Agent Notes remain.
 - **Agent Notes waiting receipts:** implementation `ad9232009b9f38c287727123ddd404b204ce26e1`,
   released by marker `5343e54`. The direct local outbox records **Saved** only
   after the live receiver flushes `.agent/INBOX.md`, then **Read** only after an

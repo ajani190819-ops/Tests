@@ -3055,6 +3055,26 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("HubTrayPollAgentWait", tray)
         self.assertIn("Agent is waiting for input", tray)
         self.assertIn("NIIF_INFO | (HubTrayAgentWaitSound() ? 0 : NIIF_NOSOUND)", tray)
+        wait_alert_start = tray.index("static BOOL HubTrayShowAgentWaitingAlert(void)")
+        wait_alert = tray[wait_alert_start:tray.index("\n}\n", wait_alert_start)]
+        self.assertIn("BOOL notified = Shell_NotifyIconW(NIM_MODIFY, &g_hubNid);", wait_alert)
+        self.assertIn("return notified;", wait_alert,
+                      "the Hub cannot tell whether Windows accepted an agent-wait alert")
+        wait_poll_start = tray.index("static void HubTrayPollAgentWait(void)")
+        wait_poll = tray[wait_poll_start:tray.index("\n}\n", wait_poll_start)]
+        self.assertIn("if (!HubTrayShowAgentWaitingAlert()) return;", wait_poll,
+                      "a failed wait alert is marked seen instead of retried")
+        self.assertLess(wait_poll.index("if (!HubTrayShowAgentWaitingAlert()) return;"),
+                        wait_poll.index("wcsncpy(g_hubSeenAgentWait"),
+                        "the Hub persists the wait token before Windows accepts its alert")
+        weather_poll_start = tray.index("static void HubTrayPollWeatherAlert(void)")
+        weather_poll = tray[weather_poll_start:tray.index("\n}\n", weather_poll_start)]
+        self.assertIn("BOOL notified = Shell_NotifyIconW(NIM_MODIFY, &g_hubNid);", weather_poll)
+        self.assertIn("if (!notified) return;", weather_poll,
+                      "a failed rain alert is marked seen instead of retried")
+        self.assertLess(weather_poll.index("if (!notified) return;"),
+                        weather_poll.index("wcsncpy(g_hubSeenRainAlert"),
+                        "the Hub persists the rain token before Windows accepts its alert")
         show_rain = weather_alerts[weather_alerts.index("static void ShowRainAlert("):]
         show_rain = show_rain[:show_rain.index("\n}\n")]
         self.assertIn("PublishHubRainAlert(p, odds);", show_rain)
