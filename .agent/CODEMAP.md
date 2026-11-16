@@ -879,26 +879,26 @@
 
 ## tools/notes_server.py
 
-- L138  f utc_now
-- L143  f empty_state
-- L153  f normalise_state
-- L209  f state_lock
-- L237  f load_state
-- L244  f save_state
-- L267  f set_waiting
-- L277  f clear_waiting
-- L284  f begin_inbox_checkpoint
-- L302  f mark_checkpoint_read
-- L322  f public_status
-- L332  f receipt_status
-- L348  f sanitize_note
-- L361  f rate_limit_allow
-- L376  f receipt_in_inbox
-- L390  f append_inbox
-- L398  f persist_note
-- L438  f Handler
-- L555  f initialise_inbox
-- L570  f main
+- L140  f utc_now
+- L145  f empty_state
+- L155  f normalise_state
+- L211  f state_lock
+- L239  f load_state
+- L246  f save_state
+- L269  f set_waiting
+- L279  f clear_waiting
+- L286  f begin_inbox_checkpoint
+- L304  f mark_checkpoint_read
+- L324  f public_status
+- L334  f receipt_status
+- L350  f sanitize_note
+- L363  f rate_limit_allow
+- L378  f receipt_in_inbox
+- L392  f append_inbox
+- L400  f persist_note
+- L440  f Handler
+- L557  f initialise_inbox
+- L572  f main
 
 ## tools/sync_changelog.py
 
