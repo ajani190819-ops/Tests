@@ -4,7 +4,16 @@ static const wchar_t *g_className = L"WeatherRadarMainV1";
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
     (void)hPrev;
-    (void)cmdLine;
+    /* Hub's Quit action must use the explicit exit route: ordinary WM_CLOSE
+       intentionally hides this rain watcher. */
+    if (cmdLine && wcsstr(cmdLine, L"--stop")) {
+        HWND existing = FindWindowW(g_className, NULL);
+        if (existing) {
+            PostMessageW(existing, WM_COMMAND, MAKEWPARAM(ID_TRAY_EXIT, 0), 0);
+            for (int i = 0; i < 40 && FindWindowW(g_className, NULL); i++) Sleep(50);
+        }
+        return 0;
+    }
     g_hInst = hInst;
 
     HANDLE mtx = CreateMutexW(NULL, FALSE, MUTEX_NAME);
@@ -82,6 +91,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     g_radarSpinAngle = SuiteEmblemAngleNow(GetTickCount64(), 30000ULL);
     SetTimer(hwnd, TIMER_EMBLEM, 50, NULL);
     SetTimer(hwnd, TIMER_REFRESH, 10 * 60 * 1000, NULL);
+    SetTimer(hwnd, TIMER_TRAY_SYNC, 2000, NULL);
     if (g_placeSel >= 0 && g_placeSel < g_placeN) {
         wchar_t m[160];
         _snwprintf(m, 159, L"%s - fetching forecast, ensemble and radar...",

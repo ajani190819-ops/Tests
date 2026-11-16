@@ -19,6 +19,7 @@
 #include <string.h>
 #include <wchar.h>
 #include <math.h>
+#include "../../shared/win32/hub_tray_host.h"
 
 /* ============================================================================
  *  Audio Switcher - Native Win32 Suite App

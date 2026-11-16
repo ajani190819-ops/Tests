@@ -53,6 +53,20 @@ static int ForecastIsRainingNow(const Forecast *f) {
            code == 80 || code == 81 || code == 82;
 }
 
+static void WeatherTraySync(void) {
+    int wantOwnIcon = !SuiteHubOwnsTray();
+    if (wantOwnIcon && !g_trayVisible) {
+        if (Shell_NotifyIconW(NIM_ADD, &g_nid)) {
+            g_trayVisible = 1;
+            g_nid.uVersion = NOTIFYICON_VERSION_4;
+            Shell_NotifyIconW(NIM_SETVERSION, &g_nid);
+        }
+    } else if (!wantOwnIcon && g_trayVisible) {
+        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_trayVisible = 0;
+    }
+}
+
 static void WeatherTrayInit(void) {
     ZeroMemory(&g_nid, sizeof(g_nid));
     g_nid.cbSize = sizeof(g_nid);
@@ -63,14 +77,12 @@ static void WeatherTrayInit(void) {
     g_nid.hIcon = LoadIconW(g_hInst, MAKEINTRESOURCEW(1));
     wcsncpy(g_nid.szTip, L"Weather Radar - exact-place rain watch", 127);
     g_nid.szTip[127] = L'\0';
-    if (Shell_NotifyIconW(NIM_ADD, &g_nid)) {
-        g_nid.uVersion = NOTIFYICON_VERSION_4;
-        Shell_NotifyIconW(NIM_SETVERSION, &g_nid);
-    }
+    WeatherTraySync();
 }
 
 static void WeatherTrayRemove(void) {
-    if (g_nid.cbSize) Shell_NotifyIconW(NIM_DELETE, &g_nid);
+    if (g_trayVisible) Shell_NotifyIconW(NIM_DELETE, &g_nid);
+    g_trayVisible = 0;
     ZeroMemory(&g_nid, sizeof(g_nid));
 }
 
@@ -89,7 +101,7 @@ static void ShowWeatherTrayMenu(HWND hwnd) {
 }
 
 static void WeatherTrayHintOnce(void) {
-    if (g_trayHinted || !g_nid.cbSize) return;
+    if (g_trayHinted || !g_nid.cbSize || !g_trayVisible) return;
     g_trayHinted = 1;
     g_nid.uFlags = NIF_INFO;
     g_nid.dwInfoFlags = NIIF_INFO;
@@ -101,8 +113,27 @@ static void WeatherTrayHintOnce(void) {
     g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 }
 
+static void PublishHubRainAlert(const Place *p, double odds) {
+    wchar_t token[64], title[64], body[256];
+    _snwprintf(token, 63, L"%llu", (unsigned long long)UnixNowSeconds());
+    _snwprintf(title, 63, L"Rain likely near %s", p->name);
+    _snwprintf(body, 255,
+               L"Exact-location ensemble chance: %d%% within the next %d hours. Open Weather Radar for details.",
+               (int)(odds * 100.0 + 0.5), RAIN_ALERT_HOURS);
+    token[63] = title[63] = body[255] = L'\0';
+    /* Commit the token last: Hub ignores an alert until the title and body are
+       both already durable, so it cannot relay a half-written notification. */
+    WritePrivateProfileStringW(L"HubRelay", L"RainTitle", title, g_cfgPath);
+    WritePrivateProfileStringW(L"HubRelay", L"RainBody", body, g_cfgPath);
+    WritePrivateProfileStringW(L"HubRelay", L"RainToken", token, g_cfgPath);
+}
+
 static void ShowRainAlert(const Place *p, double odds) {
-    if (!g_nid.cbSize) return;
+    if (!g_trayVisible && SuiteHubOwnsTray()) {
+        PublishHubRainAlert(p, odds);
+        return;
+    }
+    if (!g_nid.cbSize || !g_trayVisible) return;
     g_nid.uFlags = NIF_INFO;
     g_nid.dwInfoFlags = NIIF_WARNING;
     _snwprintf(g_nid.szInfoTitle, 63, L"Rain likely near %s", p->name);

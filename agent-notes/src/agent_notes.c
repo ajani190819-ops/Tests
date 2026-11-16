@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include "../../shared/win32/hub_tray_host.h"
 
 #define APP_TITLE_W   L"Agent Notes"
 #define MUTEX_NAME    L"Local\\Tests_AgentNotes_SingleInstance_v1"
@@ -80,7 +81,7 @@ static void InitPalette(void) {
 #endif
 
 enum { BTN_SEND = 0, BTN_COUNT };
-enum { TIMER_FLUSH = 1, TIMER_SPIN = 2, TIMER_WATCH = 3 };
+enum { TIMER_FLUSH = 1, TIMER_SPIN = 2, TIMER_WATCH = 3, TIMER_TRAY_SYNC = 4 };
 enum { ID_TRAY_OPEN = 201, ID_TRAY_SOUND = 202, ID_TRAY_EXIT = 203 };
 #define ID_EDIT_NOTE   102
 /* Project Hub sends this standard WM_COMMAND before it replaces the EXE.
@@ -102,6 +103,7 @@ static int       g_fit = 100;      /* uniform shrink so the window always fits t
 static int       g_hoverBtn = -1;
 static HANDLE    g_showEvent = NULL;
 static NOTIFYICONDATAW g_nid;
+static int       g_trayVisible = 0;  /* Hub owns the one suite icon when present */
 
 static wchar_t   g_link[256] = L"";
 static wchar_t   g_cfgDir[MAX_PATH] = L"";

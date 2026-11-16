@@ -43,6 +43,7 @@
 #include <string.h>
 #include <math.h>
 #include <wchar.h>
+#include "../../shared/win32/hub_tray_host.h"
 
 #define APP_TITLE_W   L"Weather Radar"
 #define APP_DIRNAME_W L"WeatherRadar"
@@ -57,7 +58,7 @@
 
 enum { BTN_SEARCH = 0, BTN_REFRESH, BTN_PLAY, BTN_PREV, BTN_NEXT,
        BTN_KEEP, BTN_DROP, BTN_ZOOM, BTN_COUNT };
-enum { TIMER_EMBLEM = 1, TIMER_ANIM = 2, TIMER_REFRESH = 3 };
+enum { TIMER_EMBLEM = 1, TIMER_ANIM = 2, TIMER_REFRESH = 3, TIMER_TRAY_SYNC = 4 };
 enum { ID_TRAY_OPEN = 201, ID_TRAY_EXIT = 202 };
 #define ID_EDIT_SEARCH 101
 #define HINT_SEARCH    L"city or postcode - press Search"
@@ -155,6 +156,7 @@ static wchar_t g_cacheDir[MAX_PATH];
 static wchar_t g_status[320] = L"Pick a place to begin.";
 static int     g_statusKind = 0;        /* 0 neutral, 1 good, 2 warn */
 static NOTIFYICONDATAW g_nid;
+static int       g_trayVisible = 0;
 static int     g_quitting = 0;
 static int     g_trayHinted = 0;
 

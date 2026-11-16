@@ -28,6 +28,7 @@
 #include <winhttp.h>
 #include <math.h>
 #include <stdint.h>
+#include "../../shared/win32/hub_tray_host.h"
 
 #ifndef GGI_MARK_NONEXISTING_GLYPHS
 #define GGI_MARK_NONEXISTING_GLYPHS 1

@@ -6,6 +6,7 @@ static HINSTANCE g_hInst = NULL;
 static HWND   g_hwnd = NULL;
 static HICON  g_app_icon = NULL;
 static NOTIFYICONDATAW g_nid = {0};
+static BOOL   g_trayVisible = FALSE;
 static BOOL   g_quitting = FALSE;
 static BOOL   g_silent = FALSE;
 /* Single-instance "show the window" signalling. A second launch (the Hub's

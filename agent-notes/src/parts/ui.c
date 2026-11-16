@@ -257,6 +257,13 @@ static void NowStamp(wchar_t *out, int cap) {
 }
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == SuiteTaskbarCreatedMessage()) {
+        /* Explorer discarded every notification icon. Re-add only our fallback
+           if the Hub capability is not live. */
+        g_trayVisible = 0;
+        AgentNotesTraySync();
+        return 0;
+    }
     switch (msg) {
     case WM_CREATE:
         return 0;
@@ -380,6 +387,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             /* Network polling happens on a worker so a dead session cannot
                freeze the composer or notification-area menu. */
             StartStatusPoll();
+        } else if (wp == TIMER_TRAY_SYNC) {
+            /* This lightweight local capability probe restores the fallback
+               icon quickly after Hub quits or its tray host disappears. */
+            AgentNotesTraySync();
         }
         return 0;
     case WM_DESTROY:
@@ -387,6 +398,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         KillTimer(hwnd, TIMER_FLUSH);
         KillTimer(hwnd, TIMER_SPIN);
         KillTimer(hwnd, TIMER_WATCH);
+        KillTimer(hwnd, TIMER_TRAY_SYNC);
         AgentNotesTrayRemove();
         ReleaseAgentNotesEmblem();
         if (g_bgBrush) DeleteObject(g_bgBrush);

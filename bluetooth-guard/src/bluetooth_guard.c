@@ -17,6 +17,7 @@
 #include <devicetopology.h>
 #include <bluetoothapis.h>
 #include <math.h>
+#include "../../shared/win32/hub_tray_host.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -150,6 +151,7 @@ static HDEVNOTIFY       g_devNotifyIface = NULL;
 static HDEVNOTIFY       g_devNotifyRadio = NULL;
 static HANDLE           g_radioNotifyHandle = NULL;
 static NOTIFYICONDATAW  g_nid;
+static BOOL             g_trayVisible = FALSE;
 static BOOL             g_quitting   = FALSE;
 static BOOL             g_guardOn    = TRUE;
 static BOOL             g_autostart  = TRUE;

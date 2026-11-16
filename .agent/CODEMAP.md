@@ -6,11 +6,11 @@
 
 ## project-hub/src/project_hub.c
 
-- L292  f GetWinDpi
-- L307  f S
-- L309  f ApplyModernWindowFrame
-- L328  f RebuildFontsAndIcons
-- globals: g_hInst (L204), g_hwnd (L205), g_fontHero (L206), g_fontSub (L207), g_fontTitle (L208), g_fontBody (L209), g_fontBtn (L210), g_fontBadge (L211), g_appIcon (L212), g_hdrEmblem (L213), g_cardIcons (L214), g_showEvent (L215), g_hMutex (L216), g_cs (L217), g_topBtns (L219), g_rcEmblem (L226), g_cards (L228), g_cardCount (L229), g_dynIdx (L230), g_hoverId (L231), g_scrollY (L232), g_maxScrollY (L233), g_exePath (L235), g_exeDir (L236), g_localApp (L237), g_probeRef (L241), g_roamApp (L242), g_suiteDir (L243), g_hubCfgDir (L244), g_btgDir (L245), g_btgExtraExe (L246), g_kblDir (L247), g_dnsDir (L248), g_notesDir (L249), g_audioSwitcherDir (L250), g_modsDir (L251), g_orcaBatDir (L252), g_suiteHubExe (L260), g_mirrorDirs (L261), g_mirrorCount (L262), g_activeBranch (L265), g_branchMenuNames (L266), g_branchMenuN (L267), g_branchPromptOut (L268), g_autoBranchLastCheck (L271), g_remHubVer (L272), g_remWaveVer (L273), g_remInfillVer (L274), g_remHudName (L275), g_remHudPath (L276), g_remHudSize (L277), g_statusMsg (L278), g_progressVal (L279), g_hubUpdAvail (L280), g_taskQueue (L283), g_qHead (L284), g_qTail (L285), g_qSem (L286), g_running (L287)
+- L329  f GetWinDpi
+- L344  f S
+- L346  f ApplyModernWindowFrame
+- L365  f RebuildFontsAndIcons
+- globals: g_hInst (L235), g_hwnd (L236), g_fontHero (L237), g_fontSub (L238), g_fontTitle (L239), g_fontBody (L240), g_fontBtn (L241), g_fontBadge (L242), g_appIcon (L243), g_hdrEmblem (L244), g_cardIcons (L245), g_showEvent (L246), g_hMutex (L247), g_trayHostEvent (L248), g_hubNid (L249), g_hubTrayVisible (L250), g_hubQuitting (L251), g_hubSeenAgentWait (L252), g_hubSeenRainAlert (L253), g_cs (L254), g_topBtns (L256), g_rcEmblem (L263), g_cards (L265), g_cardCount (L266), g_dynIdx (L267), g_hoverId (L268), g_scrollY (L269), g_maxScrollY (L270), g_exePath (L272), g_exeDir (L273), g_localApp (L274), g_probeRef (L278), g_roamApp (L279), g_suiteDir (L280), g_hubCfgDir (L281), g_btgDir (L282), g_btgExtraExe (L283), g_kblDir (L284), g_dnsDir (L285), g_notesDir (L286), g_audioSwitcherDir (L287), g_modsDir (L288), g_orcaBatDir (L289), g_suiteHubExe (L297), g_mirrorDirs (L298), g_mirrorCount (L299), g_activeBranch (L302), g_branchMenuNames (L303), g_branchMenuN (L304), g_branchPromptOut (L305), g_autoBranchLastCheck (L308), g_remHubVer (L309), g_remWaveVer (L310), g_remInfillVer (L311), g_remHudName (L312), g_remHudPath (L313), g_remHudSize (L314), g_statusMsg (L315), g_progressVal (L316), g_hubUpdAvail (L317), g_taskQueue (L320), g_qHead (L321), g_qTail (L322), g_qSem (L323), g_running (L324)
 
 ## project-hub/src/parts/branch_picker_entry.c
 
@@ -23,7 +23,7 @@
 - L184  f ShowBranchMenu
 - L225  f ShowRunningAgentNotes
 - L239  f HandleActionCommand
-- L729  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
+- L760  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
 
 ## project-hub/src/parts/builtin_card_text.c
 
@@ -132,6 +132,32 @@
 - L218  f OpenSettingsWindow
 - globals: g_setHwnd (L31), g_setHold (L32), g_setSmooth (L33), g_setDnsAuto (L34), g_setDnsInt (L35), g_setAutoBranch (L36), g_setStatus (L37)
 
+## project-hub/src/parts/tray_unified.c
+
+- L9  f HubTrayAgentNotesCfg
+- L14  f HubTrayConfig
+- L18  f HubTrayWeatherCfg
+- L23  f HubTrayAgentWaitSound
+- L29  f HubTrayToggleAgentWaitSound
+- L39  f HubTrayShowAgentWaitingAlert
+- L53  f HubTrayPollAgentWait
+- L69  f HubTrayPollWeatherAlert
+- L96  f HubTrayRestore
+- L117  f HubTrayInit
+- L139  f HubTrayRemove
+- L151  f HubTrayAppWindow
+- L155  f HubTrayShowApp
+- L166  f HubTrayHideApp
+- L171  f HubTrayStopExe
+- L191  f HubTrayFindCardByExe
+- L198  f HubTrayOpenWeather
+- L215  f HubTrayOpenApp
+- L238  f HubTrayRunControl
+- L253  f HubTrayToggleBluetooth
+- L261  f HubTrayAppendApp
+- L280  f HubTrayShowMenu
+- L315  f HubTrayHandleCommand
+
 ## project-hub/src/parts/ui_renderer.c
 
 - L18  f FillCanvasRect
@@ -184,8 +210,8 @@
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
-- L182  f ArmFastBurstWindow
-- globals: g_hwnd (L147), g_appIcon (L148), g_devNotifyIface (L149), g_devNotifyRadio (L150), g_radioNotifyHandle (L151), g_nid (L152), g_quitting (L153), g_guardOn (L154), g_autostart (L155), g_autostartExplicit (L156), g_radioOn (L157), g_trayHinted (L158), g_showEvent (L159), g_lock (L160), g_devices (L162), g_devCount (L163), g_hits (L165), g_hitCount (L166), g_hoverIdx (L167), g_scrollY (L168), g_contentH (L169), g_fastBurstUntil (L171), g_manualGraceUntil (L172)
+- L184  f ArmFastBurstWindow
+- globals: g_hwnd (L148), g_appIcon (L149), g_devNotifyIface (L150), g_devNotifyRadio (L151), g_radioNotifyHandle (L152), g_nid (L153), g_trayVisible (L154), g_quitting (L155), g_guardOn (L156), g_autostart (L157), g_autostartExplicit (L158), g_radioOn (L159), g_trayHinted (L160), g_showEvent (L161), g_lock (L162), g_devices (L164), g_devCount (L165), g_hits (L167), g_hitCount (L168), g_hoverIdx (L169), g_scrollY (L170), g_contentH (L171), g_fastBurstUntil (L173), g_manualGraceUntil (L174)
 
 ## bluetooth-guard/src/parts/autostart_rules.c
 
@@ -203,9 +229,9 @@
 - L100  f DoConnectNow  — Actively connect device right now!
 - L109  f DoForgetDevice
 - L116  f InitPaths
-- L126  f WriteHeartbeat
-- L147  f IsAutostartEnabled
-- L160  f RunHiddenCmd
+- L128  f WriteHeartbeat
+- L149  f IsAutostartEnabled
+- L162  f RunHiddenCmd
 
 ## bluetooth-guard/src/parts/device_classify.c
 
@@ -234,11 +260,11 @@
 - L2  f BoostProcessAndShutdownPriority  — Maximize CPU scheduling priority & disable Windows 11 EcoQoS throttling so boot/wake reaction is ins
 - L23  f RegisterBluetoothNotifications  — Subscribe to live kernel Bluetooth HCI / radio interface notifications for <1ms connect detection
 - L58  f UnregisterBluetoothNotifications
-- L73  f GetWinDpi
-- L88  f S
-- L90  f ApplyModernWindowFrame
-- L106  f InitBluetoothApis
-- globals: g_queue (L64), g_qHead (L65), g_qTail (L66), g_qSem (L67), g_workerRun (L68), g_cfgDir (L69), g_rulesPath (L70), g_lockPath (L71)
+- L75  f GetWinDpi
+- L90  f S
+- L92  f ApplyModernWindowFrame
+- L108  f InitBluetoothApis
+- globals: g_queue (L64), g_qHead (L65), g_qTail (L66), g_qSem (L67), g_workerRun (L68), g_cfgDir (L69), g_rulesPath (L70), g_lockPath (L71), g_hubTogglePath (L72), g_hubExitPath (L73)
 
 ## bluetooth-guard/src/parts/ui_controls.c
 
@@ -257,24 +283,28 @@
 
 - L1  f RenderWindow
 - L254  f HandleHitClick
-- L342  f ShowTrayMenu
+- L342  f BluetoothTraySync
+- L355  f TakeHubOneShot
+- L361  f ApplyHubGuardToggle
+- L369  f ApplyHubExit
+- L376  f ShowTrayMenu
 
 ## keyboard-lighting/src/keyboard_lighting.c
 
-- L243  f GetWinDpi
-- L258  f S
-- L260  f ApplyModernWindowFrame
-- L278  f FileExistsW
-- L283  f EnsureDirTree
-- L298  f CheckIsAdmin
-- L310  f ReadFileUtf8
-- L326  f WriteAtomicUtf8
-- L342  f ParseHexColor
-- L351  f FormatHexColor
-- L355  f FindEffectIndex
-- L365  f CurGroup
-- L369  f InitDefaultCfg
-- globals: g_hwnd (L182), g_appIcon (L183), g_nid (L184), g_showEvent (L185), g_engineProc (L186), g_enginePid (L187), g_isAdmin (L188), g_autostart (L189), g_wantOff (L190), g_quitting (L191), g_trayHinted (L192), g_downloading (L193), g_cfg (L195), g_tab (L196), g_hits (L197), g_hitCount (L198), g_hoverIdx (L199), g_dragKind (L200), g_dragIdx (L201), g_dragRect (L202), g_scrollY (L203), g_contentH (L204), g_applyPending (L205), g_applyAtTick (L206), g_liveCols (L209), g_liveKbdN (L210), g_liveBarN (L211), g_hasLiveFrame (L212), g_lastFrameTick (L213), g_toastText (L216), g_toastAt (L217), g_lastFnPoll (L218), g_exePath (L221), g_exeDir (L222), g_cfgDir (L223), g_panelPath (L224), g_themePath (L225), g_livePath (L226), g_framePath (L227), g_layoutPath (L228), g_lockPath (L229), g_showPath (L230), g_engPidPath (L231), g_stopPath (L232), g_brightUpPath (L233), g_brightDownPath (L234), g_holdModePath (L235), g_engineScript (L236), g_zonesBat (L237), g_statusText (L238)
+- L247  f GetWinDpi
+- L262  f S
+- L264  f ApplyModernWindowFrame
+- L282  f FileExistsW
+- L287  f EnsureDirTree
+- L302  f CheckIsAdmin
+- L314  f ReadFileUtf8
+- L330  f WriteAtomicUtf8
+- L346  f ParseHexColor
+- L355  f FormatHexColor
+- L359  f FindEffectIndex
+- L369  f CurGroup
+- L373  f InitDefaultCfg
+- globals: g_hwnd (L183), g_appIcon (L184), g_nid (L185), g_trayVisible (L186), g_showEvent (L187), g_engineProc (L188), g_enginePid (L189), g_isAdmin (L190), g_autostart (L191), g_wantOff (L192), g_quitting (L193), g_trayHinted (L194), g_downloading (L195), g_cfg (L197), g_tab (L198), g_hits (L199), g_hitCount (L200), g_hoverIdx (L201), g_dragKind (L202), g_dragIdx (L203), g_dragRect (L204), g_scrollY (L205), g_contentH (L206), g_applyPending (L207), g_applyAtTick (L208), g_liveCols (L211), g_liveKbdN (L212), g_liveBarN (L213), g_hasLiveFrame (L214), g_lastFrameTick (L215), g_toastText (L218), g_toastAt (L219), g_lastFnPoll (L220), g_exePath (L223), g_exeDir (L224), g_cfgDir (L225), g_panelPath (L226), g_themePath (L227), g_livePath (L228), g_framePath (L229), g_layoutPath (L230), g_lockPath (L231), g_showPath (L232), g_engPidPath (L233), g_stopPath (L234), g_brightUpPath (L235), g_brightDownPath (L236), g_holdModePath (L237), g_hubTogglePath (L238), g_hubExitPath (L239), g_engineScript (L240), g_zonesBat (L241), g_statusText (L242)
 
 ## keyboard-lighting/src/parts/brightness_hotkeys.c
 
@@ -383,8 +413,11 @@
 - L70  f RelaunchElevated
 - L91  f EnsureLogonTask
 - L137  f HandleHitAction
-- L229  f ShowTrayContextMenu
-- L513  f InitKblPaths
+- L229  f KeyboardTraySync
+- L242  f ApplyHubLightingToggle
+- L248  f ApplyHubExit
+- L255  f ShowTrayContextMenu
+- L548  f InitKblPaths
 - globals: g_pickOrig (L6), g_pickLast (L7), g_pickIdx (L8), g_pickLive (L9)
 
 ## keyboard-lighting/src/parts/ui_renderer.c
@@ -430,7 +463,7 @@
 
 - L1  S config
 - L2  f LoadConfig  — ---- config ----
-- L25  f SaveConfig
+- L27  f SaveConfig
 
 ## dns-pilot/src/parts/dns_probe.c
 
@@ -459,11 +492,11 @@
 ## dns-pilot/src/parts/resolver_catalogue.c
 
 - L1  S resolver catalogue: primary + secondary per family
-- L58  f WCpy
-- L92  f S
-- L98  f ApplyModernWindowFrame
-- L117  f Widen
-- globals: g_rows (L41), g_rowCount (L42), g_hwnd (L50), g_hIcon (L51), g_nid (L52), g_exitMsg (L53), g_quitting (L54), g_trayHinted (L55), g_fontUI (L56), g_dpi (L62), g_testing (L63), g_testedCount (L64), g_exitStop (L65), g_testNext (L66), g_topRow (L67), g_hoverBtn (L68), g_lastTestAt (L69), g_elevated (L70), g_auto (L71), g_intervalMin (L72), g_autoRun (L73), g_status (L74), g_adName (L75), g_ifIndex (L76), g_curV4 (L77), g_curV6 (L78), g_statsCs (L80), g_statsLine (L81), g_statsRun (L82), g_gwIp (L83), g_gwIsV6 (L84), g_srcV6 (L85), g_srcV6LL (L86), g_hasGlobalV6 (L87), g_cfgPath (L88), g_lastV4 (L89), g_best4 (L90), g_dpi (L92)
+- L59  f WCpy
+- L95  f S
+- L101  f ApplyModernWindowFrame
+- L120  f Widen
+- globals: g_rows (L41), g_rowCount (L42), g_hwnd (L50), g_hIcon (L51), g_nid (L52), g_trayVisible (L53), g_exitMsg (L54), g_quitting (L55), g_trayHinted (L56), g_fontUI (L57), g_dpi (L63), g_testing (L64), g_testedCount (L65), g_exitStop (L66), g_testNext (L67), g_topRow (L68), g_hoverBtn (L69), g_lastTestAt (L70), g_elevated (L71), g_auto (L72), g_intervalMin (L73), g_autoRun (L74), g_status (L75), g_adName (L76), g_ifIndex (L77), g_curV4 (L78), g_curV6 (L79), g_statsCs (L81), g_statsLine (L82), g_statsRun (L83), g_gwIp (L84), g_gwIsV6 (L85), g_srcV6 (L86), g_srcV6LL (L87), g_hasGlobalV6 (L88), g_cfgPath (L89), g_hubTogglePath (L90), g_hubExitPath (L91), g_lastV4 (L92), g_best4 (L93), g_dpi (L95)
 
 ## dns-pilot/src/parts/speed_test.c
 
@@ -483,22 +516,28 @@
 - L184  f BtnRect
 - L191  f FillSolid
 - L197  f DrawBtn
-- L218  f ShowTrayContextMenu
-- L234  f RowRect
-- L244  f PaintAll
-- L436  f HitBtn
-- L447  f UpdateStatusAfterTest
-- L495  f DoApplyFastest
-- globals: g_rcEmblem (L10), g_embCache (L81), g_frameCache (L241), g_fcW (L242)
+- L218  f DnsTraySync
+- L230  f ApplyHubAutoToggle
+- L239  f ApplyHubExit
+- L248  f ShowTrayContextMenu
+- L264  f RowRect
+- L274  f PaintAll
+- L466  f HitBtn
+- L477  f UpdateStatusAfterTest
+- L525  f DoApplyFastest
+- L761  f RequestHubOneShot
+- L782  f RequestHubAutoToggle
+- L783  f RequestHubExit
+- globals: g_rcEmblem (L10), g_embCache (L81), g_frameCache (L271), g_fcW (L272)
 
 ## agent-notes/src/agent_notes.c
 
-- L41  f AppsUseLightTheme
-- L50  f InitPalette
-- L122  f S
-- L129  f ApplyModernWindowFrame
-- L148  f GetWinDpi
-- globals: g_hInst (L96), g_hwnd (L97), g_fontUI (L98), g_bgBrush (L99), g_dpi (L100), g_fit (L101), g_hoverBtn (L102), g_showEvent (L103), g_nid (L104), g_link (L106), g_cfgDir (L107), g_cfgPath (L108), g_histPath (L109), g_outboxDir (L110), g_status (L111), g_lastOk (L112), g_sending (L113), g_noteHint (L114), g_quitting (L115), g_waitSound (L116), g_seenWait (L117), g_activeWait (L118), g_statusPollActive (L119), g_lastSent (L120)
+- L42  f AppsUseLightTheme
+- L51  f InitPalette
+- L124  f S
+- L131  f ApplyModernWindowFrame
+- L150  f GetWinDpi
+- globals: g_hInst (L97), g_hwnd (L98), g_fontUI (L99), g_bgBrush (L100), g_dpi (L101), g_fit (L102), g_hoverBtn (L103), g_showEvent (L104), g_nid (L105), g_trayVisible (L106), g_link (L108), g_cfgDir (L109), g_cfgPath (L110), g_histPath (L111), g_outboxDir (L112), g_status (L113), g_lastOk (L114), g_sending (L115), g_noteHint (L116), g_quitting (L117), g_waitSound (L118), g_seenWait (L119), g_activeWait (L120), g_statusPollActive (L121), g_lastSent (L122)
 
 ## agent-notes/src/parts/config_outbox.c
 
@@ -557,14 +596,16 @@
 
 ## agent-notes/src/parts/wait_alerts.c
 
-- L18  f UpdateAgentNotesTrayTip
-- L29  f AgentNotesTrayInit
-- L45  f AgentNotesTrayRemove
-- L50  f ShowAgentWaitingAlert
-- L68  f ShowAgentNotesTrayMenu
-- L84  f JsonBoolTrue
-- L144  f StartStatusPoll
-- L151  f HandleStatusPoll
+- L21  f AgentNotesTraySync
+- L39  f UpdateAgentNotesTrayTip
+- L50  f AgentNotesTrayInit
+- L63  f AgentNotesTrayRemove
+- L72  f PublishHubWaitRelay
+- L76  f ShowAgentWaitingAlert
+- L94  f ShowAgentNotesTrayMenu
+- L110  f JsonBoolTrue
+- L170  f StartStatusPoll
+- L177  f HandleStatusPoll
 
 ## audio-switcher/src/audio_switcher.c
 
@@ -634,6 +675,7 @@
 - L454  f ui_update_values
 - L505  f refresh_ui
 - L524  f ui_status_text  — Footer status line.
+- L555  f AudioTraySync
 - globals: g_ui_endpoint_sig (L16), g_ui_session_sig (L17), g_y_outputs_header (L21), g_y_apps_header (L22), g_y_footer (L23), g_truncated_endpoints (L24), g_truncated_sessions (L25), g_ep_card (L29), g_ss_card (L30), g_ep_rows (L31), g_ss_rows (L32), g_scroll_offset (L41), g_scroll_range (L42), g_viewport_h (L43), g_ep_max (L44), g_ss_max (L45), g_ep_scroll_max (L46), g_ss_scroll_max (L47), g_row_ep_h (L123)
 
 ## audio-switcher/src/parts/vtable_asserts.c
@@ -641,14 +683,14 @@
 
 ## audio-switcher/src/parts/window_ui_tray.c
 
-- L50  f S
-- globals: g_hInst (L5), g_hwnd (L6), g_app_icon (L7), g_nid (L8), g_quitting (L9), g_silent (L10), g_showEvent (L18), g_showThread (L19), g_showThreadRun (L20), g_btn_refresh (L26), g_endpoint_ctrls (L37), g_session_ctrls (L47), g_dpi (L49), g_dpi (L50), g_rcEmblem (L53)
+- L51  f S
+- globals: g_hInst (L5), g_hwnd (L6), g_app_icon (L7), g_nid (L8), g_trayVisible (L9), g_quitting (L10), g_silent (L11), g_showEvent (L19), g_showThread (L20), g_showThreadRun (L21), g_btn_refresh (L27), g_endpoint_ctrls (L38), g_session_ctrls (L48), g_dpi (L50), g_dpi (L51), g_rcEmblem (L54)
 
 ## weather-radar/src/weather_radar.c
 
-- L203  f S
-- L210  f RadarTileZoomForDisplay
-- globals: g_hInst (L139), g_hwnd (L140), g_fontUI (L141), g_bgBrush (L142), g_dpi (L143), g_fit (L144), g_hoverBtn (L145), g_lock (L146), g_cfgDir (L152), g_cfgPath (L153), g_cacheDir (L154), g_status (L155), g_statusKind (L156), g_nid (L157), g_quitting (L158), g_trayHinted (L159), g_rainAlertEpisode (L163), g_rainAlertLastEpoch (L164), g_rainAlertLat (L165), g_places (L167), g_placeN (L168), g_placeSel (L169), g_search (L170), g_searchStage (L171), g_searchN (L172), g_searchStageN (L173), g_searchSel (L174), g_searchTicket (L175), g_searchStageTicket (L176), g_placeTicket (L177), g_query (L178), g_searchHint (L179), g_fc (L181), g_ens (L182), g_fcStage (L183), g_ensStage (L184), g_frames (L186), g_frameN (L187), g_frameSel (L188), g_playing (L189), g_zoom (L190), g_radarHost (L191), g_radarNote (L193), g_view (L196), g_viewStage (L197), g_base (L198), g_baseKey (L199), g_viewReady (L200)
+- L205  f S
+- L212  f RadarTileZoomForDisplay
+- globals: g_hInst (L140), g_hwnd (L141), g_fontUI (L142), g_bgBrush (L143), g_dpi (L144), g_fit (L145), g_hoverBtn (L146), g_lock (L147), g_cfgDir (L153), g_cfgPath (L154), g_cacheDir (L155), g_status (L156), g_statusKind (L157), g_nid (L158), g_trayVisible (L159), g_quitting (L160), g_trayHinted (L161), g_rainAlertEpisode (L165), g_rainAlertLastEpoch (L166), g_rainAlertLat (L167), g_places (L169), g_placeN (L170), g_placeSel (L171), g_search (L172), g_searchStage (L173), g_searchN (L174), g_searchStageN (L175), g_searchSel (L176), g_searchTicket (L177), g_searchStageTicket (L178), g_placeTicket (L179), g_query (L180), g_searchHint (L181), g_fc (L183), g_ens (L184), g_fcStage (L185), g_ensStage (L186), g_frames (L188), g_frameN (L189), g_frameSel (L190), g_playing (L191), g_zoom (L192), g_radarHost (L193), g_radarNote (L195), g_view (L198), g_viewStage (L199), g_base (L200), g_baseKey (L201), g_viewReady (L202)
 
 ## weather-radar/src/parts/alerts.c
 
@@ -657,13 +699,15 @@
 - L22  f LoadRainAlertState
 - L33  f SaveRainAlertState
 - L48  f ForecastIsRainingNow
-- L56  f WeatherTrayInit
-- L72  f WeatherTrayRemove
-- L77  f ShowWeatherTrayMenu
-- L91  f WeatherTrayHintOnce
-- L104  f ShowRainAlert
-- L118  f RainAlertRemember
-- L126  f RainAlertConsider
+- L56  f WeatherTraySync
+- L70  f WeatherTrayInit
+- L83  f WeatherTrayRemove
+- L89  f ShowWeatherTrayMenu
+- L103  f WeatherTrayHintOnce
+- L116  f PublishHubRainAlert
+- L131  f ShowRainAlert
+- L149  f RainAlertRemember
+- L157  f RainAlertConsider
 
 ## weather-radar/src/parts/emblem.c
 
@@ -1017,10 +1061,10 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2627  f SuiteFolderInstallTests
-- L3520  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3596  f AudioSwitcherReachabilityTests
-- L3780  f AudioSwitcherSessionSweepTests
-- L3921  f AppOpenFocusTests
+- L3629  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3705  f AudioSwitcherReachabilityTests
+- L3889  f AudioSwitcherSessionSweepTests
+- L4030  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

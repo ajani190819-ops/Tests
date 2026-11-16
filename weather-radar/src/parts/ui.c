@@ -659,6 +659,11 @@ static void SubmitSearch(void) {
 }
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == SuiteTaskbarCreatedMessage()) {
+        g_trayVisible = 0;
+        WeatherTraySync();
+        return 0;
+    }
     switch (msg) {
     case WM_CREATE: {
         g_hSearch = CreateWindowExW(0, L"EDIT", L"",
@@ -848,6 +853,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
             return 0;
         }
+        if (wp == TIMER_TRAY_SYNC) {
+            WeatherTraySync();
+            return 0;
+        }
         return 0;
     case WM_APP_DATA: {
         int kind = (int)wp;
@@ -923,6 +932,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         KillTimer(hwnd, TIMER_ANIM);
         KillTimer(hwnd, TIMER_REFRESH);
         KillTimer(hwnd, TIMER_EMBLEM);
+        KillTimer(hwnd, TIMER_TRAY_SYNC);
         WeatherTrayRemove();
         if (g_inputBrush) { DeleteObject(g_inputBrush); g_inputBrush = NULL; }
         if (g_bgBrush) { DeleteObject(g_bgBrush); g_bgBrush = NULL; }

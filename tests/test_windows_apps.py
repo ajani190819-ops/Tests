@@ -2920,6 +2920,115 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("(INT_PTR)launched <= 32", action,
                       "a failed Agent Notes launch still reports success to the owner")
 
+    def test_unified_hub_tray_consolidates_icons_and_safe_controls(self):
+        """The owner selected one Project Hub tray icon, with app windows and
+        safe toggles reachable from it. Individual icons remain a fallback only
+        when the Hub host is absent; no sign-in/startup behaviour is added."""
+        hub = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        hub_ui = (ROOT / "project-hub" / "src" / "parts" / "branch_picker_entry.c").read_text(encoding="utf-8")
+        tray = (ROOT / "project-hub" / "src" / "parts" / "tray_unified.c").read_text(encoding="utf-8")
+        host = (ROOT / "shared" / "win32" / "hub_tray_host.h").read_text(encoding="utf-8")
+        notes_watch = (ROOT / "agent-notes" / "src" / "parts" / "wait_alerts.c").read_text(encoding="utf-8")
+        weather_alerts = (ROOT / "weather-radar" / "src" / "parts" / "alerts.c").read_text(encoding="utf-8")
+        weather_entry = (ROOT / "weather-radar" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+        kbl = (ROOT / "keyboard-lighting" / "src" / "parts" / "picker_window_entry.c").read_text(encoding="utf-8")
+        dns = (ROOT / "dns-pilot" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        btg = (ROOT / "bluetooth-guard" / "src" / "parts" / "window_entry.c").read_text(encoding="utf-8")
+
+        self.assertIn("HUB_TRAY_HOST_EVENT", host)
+        self.assertIn("OpenEventW(SYNCHRONIZE", host,
+                      "apps no longer probe whether the Hub owns the suite tray")
+        self.assertIn("HubTrayInit();", hub_ui)
+        self.assertIn("HubTrayRestore();", hub_ui,
+                      "Explorer/taskbar restart leaves the Hub icon missing")
+        self.assertIn("HubTrayRemove();", hub_ui)
+        self.assertIn("SuiteTaskbarCreatedMessage", host)
+        self.assertIn("WM_HUB_TRAYICON", hub)
+        self.assertIn("Shell_NotifyIconW(NIM_ADD, &g_hubNid)", tray)
+        self.assertIn("CreateEventW(NULL, TRUE, TRUE, HUB_TRAY_HOST_EVENT)", tray,
+                      "Hub does not publish its successfully-created tray host")
+        self.assertIn("CloseHandle(g_trayHostEvent)", tray,
+                      "app fallback icons cannot recover after Hub exits")
+        self.assertIn("if (!g_hubQuitting)", hub_ui)
+        self.assertIn("ShowWindow(hwnd, SW_HIDE);", hub_ui,
+                      "normal Hub close no longer hides to the unified tray")
+        self.assertIn("ID_TRAY_HUB_EXIT", tray)
+
+        # Every tray-owning native app must suppress only its duplicate icon
+        # while the new Hub host is actually present, then keep its fallback.
+        app_sources = {
+            "Agent Notes": ROOT / "agent-notes" / "src" / "parts" / "wait_alerts.c",
+            "Bluetooth Guard": ROOT / "bluetooth-guard" / "src" / "parts" / "window_entry.c",
+            "Keyboard Lighting": ROOT / "keyboard-lighting" / "src" / "parts" / "picker_window_entry.c",
+            "DNS Pilot": ROOT / "dns-pilot" / "src" / "parts" / "ui.c",
+            "Audio Switcher": ROOT / "audio-switcher" / "src" / "parts" / "ui_reconcile.c",
+            "Weather Radar": ROOT / "weather-radar" / "src" / "parts" / "alerts.c",
+        }
+        for name, path in app_sources.items():
+            src = path.read_text(encoding="utf-8")
+            self.assertIn("SuiteHubOwnsTray()", src,
+                          f"{name} keeps a duplicate icon while Hub owns the tray")
+            self.assertIn("NIM_DELETE", src,
+                          f"{name} cannot remove its duplicate tray icon")
+            self.assertIn("NIM_ADD", src,
+                          f"{name} cannot restore its fallback tray icon when Hub exits")
+
+        # Every owner receives TaskbarCreated so Explorer restarts do not strand
+        # either the unified icon or the independent fallback path.
+        taskbar_receivers = {
+            "Agent Notes": ROOT / "agent-notes" / "src" / "parts" / "ui.c",
+            "Bluetooth Guard": ROOT / "bluetooth-guard" / "src" / "parts" / "window_entry.c",
+            "Keyboard Lighting": ROOT / "keyboard-lighting" / "src" / "parts" / "picker_window_entry.c",
+            "DNS Pilot": ROOT / "dns-pilot" / "src" / "parts" / "ui.c",
+            "Audio Switcher": ROOT / "audio-switcher" / "src" / "parts" / "ui_reconcile.c",
+            "Weather Radar": ROOT / "weather-radar" / "src" / "parts" / "ui.c",
+        }
+        for name, path in taskbar_receivers.items():
+            self.assertIn("SuiteTaskbarCreatedMessage()", path.read_text(encoding="utf-8"),
+                          f"{name} cannot restore its fallback after an Explorer restart")
+
+        for needle in ("Agent Notes", "Bluetooth Guard", "Keyboard Lighting", "DNS Pilot",
+                       "Audio Switcher", "Weather Radar", "Show window", "Hide window", "Quit"):
+            self.assertIn(needle, tray,
+                          f"the unified Hub tray no longer exposes {needle}")
+        self.assertIn("Toggle Guard Enabled", tray)
+        self.assertIn("Toggle Lighting On or Off", tray)
+        self.assertIn("Toggle DNS Auto-Pilot", tray)
+        self.assertIn("--hub-toggle-guard", tray)
+        self.assertIn("--hub-toggle", tray)
+        self.assertIn("--hub-toggle-auto", tray)
+        self.assertIn("ApplyHubGuardToggle", btg)
+        self.assertIn("ApplyHubLightingToggle", kbl)
+        self.assertIn("RequestHubAutoToggle", dns)
+        # Elevated controls and quit are file-based companion requests, never
+        # a cross-integrity WM_COMMAND that can be silently blocked by UIPI.
+        self.assertNotIn("SendMessage", tray)
+        self.assertIn("--hub-exit", tray)
+        for src, name in ((btg, "Bluetooth Guard"), (kbl, "Keyboard Lighting"),
+                          (dns, "DNS Pilot")):
+            self.assertIn("ApplyHubExit", src,
+                          f"{name} does not consume the elevated-safe Hub quit token")
+            self.assertIn("if (ApplyHubExit()) return 0;", src,
+                          f"{name} never applies the Hub exit token on its live timer")
+            self.assertIn("OpenMutexW(SYNCHRONIZE", src,
+                          f"{name} can leave a Hub token for a future launch")
+        self.assertIn('wcsstr(cmdLine, L"--stop")', weather_entry,
+                      "Weather Radar still has no explicit non-hiding quit route")
+
+        # Agent Notes waiting and Weather Radar rain alerts remain native
+        # Windows notifications through the one Hub icon, not silently lost.
+        self.assertIn('L"HubRelay", L"WaitId"', notes_watch)
+        self.assertIn("HubTrayPollAgentWait", tray)
+        self.assertIn("Agent is waiting for input", tray)
+        self.assertIn("NIIF_INFO | (HubTrayAgentWaitSound() ? 0 : NIIF_NOSOUND)", tray)
+        show_rain = weather_alerts[weather_alerts.index("static void ShowRainAlert("):]
+        show_rain = show_rain[:show_rain.index("\n}\n")]
+        self.assertIn("PublishHubRainAlert(p, odds);", show_rain)
+        self.assertIn("HubTrayPollWeatherAlert", tray)
+        self.assertIn("Exact-location ensemble chance", weather_alerts)
+        self.assertNotRegex(hub + tray, r"(?i)(RegSetValue.*\\\\Run|schtasks|CreateService)",
+                            "the unified Hub tray silently added startup persistence")
+
     def test_agent_notes_is_readable_in_either_windows_theme(self):
         """Agent Notes used to expose the internal session URL despite automatic
         discovery, making a no-setup outbox look broken and leaving a second,

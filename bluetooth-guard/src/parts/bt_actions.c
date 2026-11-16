@@ -121,6 +121,8 @@ static void InitPaths(void) {
     CreateDirectoryW(g_cfgDir, NULL);
     _snwprintf(g_rulesPath, MAX_PATH, L"%s\\rules.txt", g_cfgDir);
     _snwprintf(g_lockPath, MAX_PATH, L"%s\\running.lock", g_cfgDir);
+    _snwprintf(g_hubTogglePath, MAX_PATH, L"%s\\hub-toggle-guard.flag", g_cfgDir);
+    _snwprintf(g_hubExitPath, MAX_PATH, L"%s\\hub-exit.flag", g_cfgDir);
 }
 
 static void WriteHeartbeat(void) {

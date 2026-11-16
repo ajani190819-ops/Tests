@@ -21,9 +21,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include "../../shared/win32/hub_tray_host.h"
 
-#define HUB_VERSION       "2.8.52"
-#define HUB_VERSION_W     L"2.8.52"
+#define HUB_VERSION       "2.8.53"
+#define HUB_VERSION_W     L"2.8.53"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -35,6 +36,36 @@
 #define WM_HUB_REFRESH    (WM_APP + 10)
 #define WM_HUB_STATUS     (WM_APP + 11)
 #define WM_HUB_SELFUPD    (WM_APP + 12)
+#define WM_HUB_TRAYICON   (WM_APP + 13)
+
+/* The host event is created only after this icon is successfully registered.
+   Current suite apps use it as a capability probe: while it exists they hide
+   their duplicate notification-area icons, and restore them if Hub exits. */
+#define ID_TRAY_HUB_OPEN       1901
+#define ID_TRAY_HUB_FOLDER     1902
+#define ID_TRAY_HUB_EXIT       1903
+#define ID_TRAY_NOTES_SOUND    1904
+#define ID_TRAY_NOTES_OPEN     1910
+#define ID_TRAY_NOTES_HIDE     1911
+#define ID_TRAY_NOTES_QUIT     1912
+#define ID_TRAY_BTG_OPEN       1920
+#define ID_TRAY_BTG_HIDE       1921
+#define ID_TRAY_BTG_TOGGLE     1922
+#define ID_TRAY_BTG_QUIT       1923
+#define ID_TRAY_KBL_OPEN       1930
+#define ID_TRAY_KBL_HIDE       1931
+#define ID_TRAY_KBL_TOGGLE     1932
+#define ID_TRAY_KBL_QUIT       1933
+#define ID_TRAY_DNS_OPEN       1940
+#define ID_TRAY_DNS_HIDE       1941
+#define ID_TRAY_DNS_TOGGLE     1942
+#define ID_TRAY_DNS_QUIT       1943
+#define ID_TRAY_AUDIO_OPEN     1950
+#define ID_TRAY_AUDIO_HIDE     1951
+#define ID_TRAY_AUDIO_QUIT     1952
+#define ID_TRAY_WEATHER_OPEN   1960
+#define ID_TRAY_WEATHER_HIDE   1961
+#define ID_TRAY_WEATHER_QUIT   1962
 
 /* Embedded multi-resolution 32-bit RGBA icons in hub.rc */
 #define RES_ICON_APP         1
@@ -214,6 +245,12 @@ static HICON            g_hdrEmblem   = NULL;
 static HICON            g_cardIcons[MAX_APPS];
 static HANDLE           g_showEvent   = NULL;
 static HANDLE           g_hMutex      = NULL;
+static HANDLE           g_trayHostEvent = NULL;
+static NOTIFYICONDATAW  g_hubNid;
+static BOOL             g_hubTrayVisible = FALSE;
+static BOOL             g_hubQuitting = FALSE;
+static wchar_t          g_hubSeenAgentWait[80];
+static wchar_t          g_hubSeenRainAlert[80];
 static CRITICAL_SECTION g_cs;
 
 static ActionBtn        g_topBtns[5] = {
@@ -362,6 +399,15 @@ static void RebuildFontsAndIcons(HWND hwnd) {
 }
 
 
+/* ---- Unified notification-area tray (implemented after the command router). */
+static void HubTrayInit(void);
+static void HubTrayRestore(void);
+static void HubTrayRemove(void);
+static void HubTrayShowMenu(HWND hwnd);
+static void HubTrayPollAgentWait(void);
+static void HubTrayPollWeatherAlert(void);
+static int HubTrayHandleCommand(HWND hwnd, int id);
+
 /* ---- modularized (unity build): each section lives in its own file under
       parts/ and is textually included here IN ORIGINAL ORDER, so project_hub.c
       is still ONE translation unit. Edit the part files; the build compiles
@@ -382,3 +428,4 @@ static void RebuildFontsAndIcons(HWND hwnd) {
 #include "parts/ui_renderer.c"
 #include "parts/settings_page.c"
 #include "parts/branch_picker_entry.c"
+#include "parts/tray_unified.c"

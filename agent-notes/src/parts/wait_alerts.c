@@ -15,8 +15,29 @@ typedef struct {
     int readCount;
 } StatusPollResult;
 
+/* The unified Project Hub icon is opt-in by presence, not a new startup
+   facility. If Hub is not running (or it crashes), this app restores its own
+   normal tray fallback on the next watcher tick. */
+static void AgentNotesTraySync(void) {
+    /* Hub's shared tray menu writes this existing preference in the same
+       config file; refresh it here so a fallback alert honors the choice too. */
+    g_waitSound = GetPrivateProfileIntW(L"AgentNotes", L"WaitSound", g_waitSound ? 1 : 0,
+                                        g_cfgPath) ? 1 : 0;
+    int wantOwnIcon = !SuiteHubOwnsTray();
+    if (wantOwnIcon && !g_trayVisible) {
+        if (Shell_NotifyIconW(NIM_ADD, &g_nid)) {
+            g_trayVisible = 1;
+            g_nid.uVersion = NOTIFYICON_VERSION_4;
+            Shell_NotifyIconW(NIM_SETVERSION, &g_nid);
+        }
+    } else if (!wantOwnIcon && g_trayVisible) {
+        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_trayVisible = 0;
+    }
+}
+
 static void UpdateAgentNotesTrayTip(void) {
-    if (!g_nid.cbSize) return;
+    if (!g_nid.cbSize || !g_trayVisible) return;
     g_nid.uFlags = NIF_TIP;
     wcsncpy(g_nid.szTip, g_activeWait[0]
                          ? L"Agent Notes - agent is waiting for input"
@@ -36,19 +57,24 @@ static void AgentNotesTrayInit(void) {
     g_nid.hIcon = LoadIconW(g_hInst, MAKEINTRESOURCEW(1));
     wcsncpy(g_nid.szTip, L"Agent Notes - direct notes and waiting alerts", 127);
     g_nid.szTip[127] = L'\0';
-    if (Shell_NotifyIconW(NIM_ADD, &g_nid)) {
-        g_nid.uVersion = NOTIFYICON_VERSION_4;
-        Shell_NotifyIconW(NIM_SETVERSION, &g_nid);
-    }
+    AgentNotesTraySync();
 }
 
 static void AgentNotesTrayRemove(void) {
-    if (g_nid.cbSize) Shell_NotifyIconW(NIM_DELETE, &g_nid);
+    if (g_trayVisible) Shell_NotifyIconW(NIM_DELETE, &g_nid);
+    g_trayVisible = 0;
     ZeroMemory(&g_nid, sizeof(g_nid));
 }
 
+/* The Hub reads only this opaque wait id and creates the visible notification
+   when it owns the tray. No question text or note content crosses this local
+   handoff. The legacy Agent Notes icon still alerts whenever Hub is absent. */
+static void PublishHubWaitRelay(const wchar_t *waitId) {
+    WritePrivateProfileStringW(L"HubRelay", L"WaitId", waitId ? waitId : L"", g_cfgPath);
+}
+
 static void ShowAgentWaitingAlert(void) {
-    if (!g_nid.cbSize) return;
+    if (!g_nid.cbSize || !g_trayVisible) return;
     g_nid.uFlags = NIF_INFO;
     /* NIIF_NOSOUND asks Windows to keep the standard visual alert quiet. When
        the owner enables sound we deliberately omit that flag: Windows uses
@@ -159,7 +185,11 @@ static void HandleStatusPoll(StatusPollResult *result) {
         if (result->waiting) {
             wcsncpy(g_activeWait, result->waitId, 79);
             g_activeWait[79] = L'\0';
+            PublishHubWaitRelay(result->waitId);
             if (wcscmp(result->waitId, g_seenWait) != 0) {
+                /* When the Hub owns the tray it relays this same generic
+                   wait through its one icon. If Hub is not available, our
+                   restored fallback icon preserves the existing alert. */
                 ShowAgentWaitingAlert();
                 wcsncpy(g_seenWait, result->waitId, 79);
                 g_seenWait[79] = L'\0';
@@ -171,6 +201,7 @@ static void HandleStatusPoll(StatusPollResult *result) {
             }
         } else if (g_activeWait[0]) {
             g_activeWait[0] = L'\0';
+            PublishHubWaitRelay(L"");
         }
         UpdateAgentNotesTrayTip();
 

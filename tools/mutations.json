@@ -518,6 +518,48 @@
   "label": "Hub Open no longer reveals a tray-hidden Agent Notes window"
  },
  {
+  "id": "trayhub-00",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    g_trayHostEvent = CreateEventW(NULL, TRUE, TRUE, HUB_TRAY_HOST_EVENT);",
+  "new": "    g_trayHostEvent = NULL;",
+  "label": "Unified Hub tray never publishes its live-host capability"
+ },
+ {
+  "id": "trayhub-01",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "        if (!g_hubQuitting) {\n            ShowWindow(hwnd, SW_HIDE);\n            return 0;\n        }",
+  "new": "        if (0) {\n            ShowWindow(hwnd, SW_HIDE);\n            return 0;\n        }",
+  "label": "Normal Hub close exits instead of preserving the unified tray"
+ },
+ {
+  "id": "trayhub-02",
+  "file": "agent-notes/src/parts/wait_alerts.c",
+  "old": "            PublishHubWaitRelay(result->waitId);",
+  "new": "            /* Hub wait relay removed */",
+  "label": "Agent Notes wait state is no longer relayed to the unified Hub icon"
+ },
+ {
+  "id": "trayhub-03",
+  "file": "weather-radar/src/parts/alerts.c",
+  "old": "        PublishHubRainAlert(p, odds);\n        return;",
+  "new": "        return;",
+  "label": "Weather Radar drops rain alerts whenever Hub owns the tray"
+ },
+ {
+  "id": "trayhub-04",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "        if (ApplyHubExit()) return 0;",
+  "new": "        if (0) return 0;",
+  "label": "Bluetooth Guard leaves the elevated-safe Hub quit request unconsumed"
+ },
+ {
+  "id": "trayhub-05",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "        HubTrayRestore();",
+  "new": "        /* Explorer recovery removed. */",
+  "label": "Project Hub does not recreate its unified tray icon after Explorer restarts"
+ },
+ {
   "id": "brand-00",
   "file": "tools/generate_suite_icons.py",
   "old": "    for stale in REDUNDANT_BRAND_EXPORTS:",

@@ -5,6 +5,8 @@ static void LoadConfig(void) {
     wcsncat(dir, APP_DIR_NAME, MAX_PATH - wcslen(dir) - 1);
     CreateDirectoryW(dir, NULL);
     _snwprintf(g_cfgPath, MAX_PATH, L"%s\\config.ini", dir);
+    _snwprintf(g_hubTogglePath, MAX_PATH, L"%s\\hub-toggle-auto.flag", dir);
+    _snwprintf(g_hubExitPath, MAX_PATH, L"%s\\hub-exit.flag", dir);
     g_auto = GetPrivateProfileIntW(L"Pilot", L"Auto", 0, g_cfgPath);
     g_intervalMin = GetPrivateProfileIntW(L"Pilot", L"IntervalMin", 30, g_cfgPath);
     if (g_intervalMin != 0 && g_intervalMin < 5) g_intervalMin = 5;

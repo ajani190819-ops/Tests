@@ -127,6 +127,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
        the owner launches Agent Notes, and ordinary window close hides it to
        the notification area until the explicit Exit command. */
     SetTimer(g_hwnd, TIMER_WATCH, 15000, NULL);
+    SetTimer(g_hwnd, TIMER_TRAY_SYNC, 2000, NULL);
     g_spinAngle = SuiteEmblemAngleNow(GetTickCount64(), 30000ULL);
     SetTimer(g_hwnd, TIMER_SPIN, 50, NULL);
     if (LinkDiscoveryTick()) {

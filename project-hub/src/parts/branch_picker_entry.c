@@ -559,11 +559,16 @@ static void HandleActionCommand(HWND hwnd, int id) {
 }
 
 static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == SuiteTaskbarCreatedMessage()) {
+        HubTrayRestore();
+        return 0;
+    }
     switch (msg) {
     case WM_CREATE:
         ApplyModernWindowFrame(hwnd);
         RebuildFontsAndIcons(hwnd);
         LoadAppsCfg();
+        HubTrayInit();
         InitCardDefinitions();
         RefreshProjectStatuses();
         SetTimer(hwnd, 1, 2000, NULL);
@@ -661,8 +666,20 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_COMMAND:
-        HandleActionCommand(hwnd, LOWORD(wp));
+        if (!HubTrayHandleCommand(hwnd, LOWORD(wp)))
+            HandleActionCommand(hwnd, LOWORD(wp));
         return 0;
+
+    case WM_HUB_TRAYICON: {
+        UINT event = LOWORD((DWORD)lp);
+        if (event == WM_LBUTTONUP || event == WM_LBUTTONDBLCLK) {
+            ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+        } else if (event == WM_RBUTTONUP || event == WM_CONTEXTMENU) {
+            HubTrayShowMenu(hwnd);
+        }
+        return 0;
+    }
 
     case WM_HUB_REFRESH:
         RefreshProjectStatuses();
@@ -701,6 +718,11 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 InvalidateRect(hwnd, &g_rcFooterDot, FALSE);
             return 0;
         }
+        /* The agent app writes only an opaque active-wait token locally. The
+           Hub owns the one notification-area icon and relays the generic
+           native alert without learning Arena question text. */
+        HubTrayPollAgentWait();
+        HubTrayPollWeatherAlert();
         if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {
             ShowWindow(hwnd, SW_SHOWNORMAL);
             SetForegroundWindow(hwnd);
@@ -715,7 +737,16 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         return 0;
 
+    case WM_CLOSE:
+        if (!g_hubQuitting) {
+            ShowWindow(hwnd, SW_HIDE);
+            return 0;
+        }
+        DestroyWindow(hwnd);
+        return 0;
+
     case WM_DESTROY:
+        HubTrayRemove();
         ReleaseWayfinderEmblem();
         PostQuitMessage(0);
         return 0;
