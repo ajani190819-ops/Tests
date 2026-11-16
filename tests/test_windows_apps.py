@@ -2813,14 +2813,34 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "Audio Switcher lost its own registered mirror set in the generic worker")
         self.assertIn("InstallRepoFileEverywhere(mirrorSlot", cards,
                       "the generic worker closes Audio Switcher mirrors but then writes a different set")
-        self.assertIn('stop.lpParameters = L"--stop";', cards,
+        self.assertIn("RequestManagedExeCopiesStop(mirrorSlot, c->appDir, c->exeName);", cards,
+                      "a catalogue tray app no longer receives its explicit exit request")
+        self.assertLess(cards.index("RequestManagedExeCopiesStop(mirrorSlot"),
+                        cards.index("CloseManagedExeCopies(mirrorSlot"),
+                        "the graceful stop request runs after the close-and-prove gate")
+        self.assertIn('_wcsicmp(c->exeName, L"AudioSwitcher.exe") == 0', cards,
                       "Audio Switcher no longer receives its graceful stop request")
+        self.assertIn('_wcsicmp(c->exeName, L"WeatherRadar.exe") == 0', cards,
+                      "Weather Radar update falls back to its tray-hiding WM_CLOSE")
+        stop_start = install.index("static void RequestManagedExeCopiesStop(")
+        stop = install[stop_start:install.index("static BOOL CloseManagedExeCopies(", stop_start)]
+        self.assertIn("g_mirrorCount[slot]", stop,
+                      "the explicit stop route ignores registered catalogue mirrors")
+        self.assertIn('stop.lpParameters = L"--stop";', stop,
+                      "the explicit stop route no longer invokes the app's real exit command")
+        self.assertIn("WaitForSingleObject(stop.hProcess, 2500)", stop,
+                      "the updater races immediately past the explicit stop helper")
         self.assertIn("AUDIO_SWITCHER_QUIT_COMMAND", cards,
                       "Audio Switcher's tray-only WM_CLOSE is no longer given its real Quit command")
         self.assertIn('wcsstr(cmdLine, L"--stop")', audio,
                       "Audio Switcher itself does not support the updater stop contract")
         self.assertIn("IDM_TRAY_QUIT", audio,
                       "Audio Switcher --stop does not follow the app's graceful tray Quit path")
+        weather = (ROOT / "weather-radar" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+        self.assertIn('wcsstr(cmdLine, L"--stop")', weather,
+                      "Weather Radar itself does not support the updater stop contract")
+        self.assertIn("ID_TRAY_EXIT", weather,
+                      "Weather Radar --stop does not follow the app's graceful tray Exit path")
         self.assertNotIn("static BOOL StopForeignInstance(", src,
                          "the old Audio-Switcher-only forced termination path remains instead of the shared safe gate")
 

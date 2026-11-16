@@ -16,22 +16,15 @@ static void WorkerInstallGeneric(int idx, BOOL launchAfter) {
     wchar_t destExe[MAX_PATH], msg[256];
     _snwprintf(destExe, MAX_PATH - 1, L"%s\\%s", c->appDir, c->exeName);
     destExe[MAX_PATH - 1] = L'\0';
-    /* Audio Switcher now advertises the same --stop contract as the other
-       tray apps.  The command is a best-effort first route; the shared gate
-       below still proves every managed copy exited before it may be written. */
-    if (c->exeName && _wcsicmp(c->exeName, L"AudioSwitcher.exe") == 0 && FileExistsW(destExe)) {
-        SHELLEXECUTEINFOW stop;
-        ZeroMemory(&stop, sizeof(stop));
-        stop.cbSize = sizeof(stop);
-        stop.fMask = SEE_MASK_NOCLOSEPROCESS;
-        stop.lpFile = destExe;
-        stop.lpParameters = L"--stop";
-        stop.nShow = SW_HIDE;
-        if (ShellExecuteExW(&stop) && stop.hProcess) {
-            WaitForSingleObject(stop.hProcess, 2500);
-            CloseHandle(stop.hProcess);
-        }
-    }
+    /* These tray apps expose --stop because their ordinary WM_CLOSE hides the
+       running watcher.  Request that real exit route for the suite image AND
+       any registered stray image; the shared gate below still proves they all
+       exited before it may write either one. */
+    BOOL hasExplicitStopRoute = c->exeName &&
+        (_wcsicmp(c->exeName, L"AudioSwitcher.exe") == 0 ||
+         _wcsicmp(c->exeName, L"WeatherRadar.exe") == 0);
+    if (hasExplicitStopRoute)
+        RequestManagedExeCopiesStop(mirrorSlot, c->appDir, c->exeName);
     /* This covers the primary suite copy AND every registered stray copy
        before InstallRepoFileEverywhere writes either one.  Audio Switcher's
        usual WM_CLOSE hides to its tray, so give its explicit Quit command;

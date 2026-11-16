@@ -33,8 +33,8 @@
 ## project-hub/src/parts/card_defs_verbs.c
 
 - L1  f WorkerInstallGeneric
-- L76  f HandleVerb
-- L99  f InitCardDefinitions
+- L69  f HandleVerb
+- L92  f InitCardDefinitions
 
 ## project-hub/src/parts/catalog_icons_json.c
 
@@ -100,14 +100,15 @@
 - L34  f AppendInstallFolder
 - L42  f AddMirrorDir
 - L55  f MirrorFileEverywhere
-- L91  f CloseManagedExeCopies  — One update can touch the suite install plus several registered stray copies.
-- L171  f EnsureProbeRef
-- L181  f InstallRepoFileEverywhere  — One download, every copy: the suite folder plus any stray copy on disk.
-- L199  f InitAllPaths
-- L402  f CheckPidLockStatus
-- L434  f CreateShortcutLink
-- L467  f RemoveLegacyDesktopShortcuts
-- L488  f RepointDesktopShortcutIfPresent
+- L92  f RequestManagedExeCopiesStop  — Catalogue tray apps with an explicit --stop contract must receive it at
+- L138  f CloseManagedExeCopies  — One update can touch the suite install plus several registered stray copies.
+- L218  f EnsureProbeRef
+- L228  f InstallRepoFileEverywhere  — One download, every copy: the suite folder plus any stray copy on disk.
+- L246  f InitAllPaths
+- L449  f CheckPidLockStatus
+- L481  f CreateShortcutLink
+- L514  f RemoveLegacyDesktopShortcuts
+- L535  f RepointDesktopShortcutIfPresent
 
 ## project-hub/src/parts/refresh_statuses.c
 
@@ -1061,10 +1062,10 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2627  f SuiteFolderInstallTests
-- L3629  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3705  f AudioSwitcherReachabilityTests
-- L3889  f AudioSwitcherSessionSweepTests
-- L4030  f AppOpenFocusTests
+- L3649  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3725  f AudioSwitcherReachabilityTests
+- L3909  f AudioSwitcherSessionSweepTests
+- L4050  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

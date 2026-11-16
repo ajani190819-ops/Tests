@@ -83,6 +83,53 @@ static int MirrorFileEverywhere(int slot, const wchar_t *primaryPath) {
     return mirrored;
 }
 
+/* Catalogue tray apps with an explicit --stop contract must receive it at
+ * every managed image path, not only at the suite copy.  A catalogue mirror
+ * can be the currently running copy, and its ordinary WM_CLOSE deliberately
+ * hides to the notification area.  This is deliberately only a request: the
+ * close gate immediately below is still the authority that proves no matching
+ * process remains before an updater writes a byte. */
+static void RequestManagedExeCopiesStop(int slot, const wchar_t *primaryDir,
+                                        const wchar_t *fileName) {
+    wchar_t paths[MAX_MIRRORS + 1][MAX_PATH];
+    int pathCount = 0;
+    if (!primaryDir || !primaryDir[0] || !fileName || !fileName[0]) return;
+
+    _snwprintf(paths[pathCount], MAX_PATH - 1, L"%s\\%s", primaryDir, fileName);
+    paths[pathCount][MAX_PATH - 1] = L'\0';
+    pathCount++;
+    if (slot >= 0 && slot <= MIRROR_HUB) {
+        for (int i = 0; i < g_mirrorCount[slot] && pathCount < MAX_MIRRORS + 1; i++) {
+            wchar_t candidate[MAX_PATH];
+            _snwprintf(candidate, MAX_PATH - 1, L"%s\\%s", g_mirrorDirs[slot][i], fileName);
+            candidate[MAX_PATH - 1] = L'\0';
+            BOOL duplicate = FALSE;
+            for (int j = 0; j < pathCount; j++)
+                if (_wcsicmp(paths[j], candidate) == 0) { duplicate = TRUE; break; }
+            if (!duplicate) {
+                wcsncpy(paths[pathCount], candidate, MAX_PATH - 1);
+                paths[pathCount][MAX_PATH - 1] = L'\0';
+                pathCount++;
+            }
+        }
+    }
+
+    for (int i = 0; i < pathCount; i++) {
+        if (!FileExistsW(paths[i])) continue;
+        SHELLEXECUTEINFOW stop;
+        ZeroMemory(&stop, sizeof(stop));
+        stop.cbSize = sizeof(stop);
+        stop.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI;
+        stop.lpFile = paths[i];
+        stop.lpParameters = L"--stop";
+        stop.nShow = SW_HIDE;
+        if (ShellExecuteExW(&stop) && stop.hProcess) {
+            WaitForSingleObject(stop.hProcess, 2500);
+            CloseHandle(stop.hProcess);
+        }
+    }
+}
+
 /* One update can touch the suite install plus several registered stray copies.
  * Close and verify ALL of those images before writing the first byte of any
  * one of them.  Existing apps with a real --stop route use it in their own

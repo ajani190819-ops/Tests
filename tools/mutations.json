@@ -441,6 +441,13 @@
   "label": "J staged Hub handoff swaps the old image without proving it has closed"
  },
  {
+  "id": "close-05",
+  "file": "project-hub/src/parts/card_defs_verbs.c",
+  "old": "    BOOL hasExplicitStopRoute = c->exeName &&\n        (_wcsicmp(c->exeName, L\"AudioSwitcher.exe\") == 0 ||\n         _wcsicmp(c->exeName, L\"WeatherRadar.exe\") == 0);\n    if (hasExplicitStopRoute)\n        RequestManagedExeCopiesStop(mirrorSlot, c->appDir, c->exeName);\n",
+  "new": "    BOOL hasExplicitStopRoute = c->exeName &&\n        _wcsicmp(c->exeName, L\"AudioSwitcher.exe\") == 0;\n    if (hasExplicitStopRoute)\n        RequestManagedExeCopiesStop(mirrorSlot, c->appDir, c->exeName);\n",
+  "label": "K Weather Radar update loses its explicit tray-safe stop request"
+ },
+ {
   "id": "emblem-00",
   "file": "shared/win32/suite_emblem.c",
   "old": "static uint32_t SuiteEmblemDibPixel(COLORREF color) {",
