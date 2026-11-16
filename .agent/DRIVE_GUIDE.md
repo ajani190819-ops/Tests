@@ -2,6 +2,8 @@
 
 **Drive guide:** [Tests Project Guide](https://docs.google.com/document/d/1Fp4zZcQrljlHDMMu6h2u5WMRgBju1_M5D3yafTJgslQ/edit?usp=drivesdk)
 **Drive file ID:** `1Fp4zZcQrljlHDMMu6h2u5WMRgBju1_M5D3yafTJgslQ`
+**Documentation archive:** [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk)
+**Archive file ID:** `1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io`
 
 ## Role split
 

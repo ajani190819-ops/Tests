@@ -4104,7 +4104,7 @@ class WaveOverhangsCheck(orca.script.ScriptPluginCapabilityBase):
                    "--- what changed recently ---"]
             msg.extend(CHANGELOG_RECENT.splitlines())
             msg.append("")
-            msg.append("Full history: plugins/wave-overhangs/CHANGELOG.md in the repo.")
+            msg.append("Full history: https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk")
             return orca.ExecutionResult.failure(
                 orca.PluginResult.RecoverableError, "\n".join(msg))
         lines.append("deps: numpy + shapely loaded at startup (audit-safe)")
@@ -4226,7 +4226,7 @@ class WaveOverhangsCheck(orca.script.ScriptPluginCapabilityBase):
         lines.append("--- what changed recently ---")
         lines.extend(CHANGELOG_RECENT.splitlines())
         lines.append("")
-        lines.append("Full history: plugins/wave-overhangs/CHANGELOG.md in the repo.")
+        lines.append("Full history: https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk")
         if self._want_guide():
             lines.append("")
             lines.extend(settings_guide_lines(cfg))

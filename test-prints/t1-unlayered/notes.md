@@ -1,7 +1,5 @@
-# t1 — holes
+# T1 unlayered test note
 
-Uploaded 2026-10-02. Already processed by **Unlayered Infill v0.4.7**, so it
-shows a result rather than providing a clean input.
+The print assets remain in Git because tests and reproducible investigations may need them.
 
-Use it to check the nozzle-clearance work added in 0.4.8: the waved infill
-around the holes is exactly where a later flat move can pass under a crest.
+The full pre-migration narrative and history are preserved in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk). Git retains only material required to build, run, test, release, or recover the project offline.
