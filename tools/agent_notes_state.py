@@ -2,7 +2,7 @@
 """Local-only state transitions for the Agent Notes wait/receipt protocol.
 
 This helper never sends a control request through the public preview. It edits
-the receiver's ignored local state under the same lock the receiver uses.
+the protocol module's ignored local state under the same lock as the API bridge.
 
 Use only these truthful transitions:
   * ``waiting`` immediately before an Arena reply/tool call that leaves the
@@ -20,7 +20,10 @@ from __future__ import annotations
 import argparse
 import sys
 
-import notes_server
+try:
+    from . import agent_notes_protocol as protocol
+except ImportError:  # direct script execution from tools/agent_notes_state.py
+    import agent_notes_protocol as protocol
 
 
 def main() -> int:
@@ -31,21 +34,21 @@ def main() -> int:
 
     try:
         if args.command == "waiting":
-            wait_id = notes_server.set_waiting()
+            wait_id = protocol.set_waiting()
             print(f"published generic Agent Notes wait state: {wait_id}")
         elif args.command == "checkpoint":
             # Token only: callers can safely capture it in a shell variable.
-            print(notes_server.begin_inbox_checkpoint())
+            print(protocol.begin_inbox_checkpoint())
         elif args.command == "mark-read":
             if not args.checkpoint:
                 parser.error("mark-read requires the checkpoint token created before the inbox read")
-            count = notes_server.mark_checkpoint_read(args.checkpoint)
+            count = protocol.mark_checkpoint_read(args.checkpoint)
             print(f"acknowledged {count} Agent Notes receipt(s) after inbox checkpoint")
         elif args.command == "clear-wait":
-            notes_server.clear_waiting()
+            protocol.clear_waiting()
             print("cleared Agent Notes wait state")
         else:
-            print(notes_server.public_status())
+            print(protocol.public_status())
     except (OSError, TimeoutError, ValueError) as exc:
         print(f"Agent Notes state was not updated: {exc}", file=sys.stderr)
         return 1

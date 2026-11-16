@@ -29,7 +29,8 @@ REG = ROOT / "tools" / "mutations.json"
 
 
 def run_suite() -> int:
-    r = subprocess.run([sys.executable, "-m", "unittest", "tests.test_windows_apps"],
+    r = subprocess.run([sys.executable, "-m", "unittest", "tests.test_windows_apps",
+                        "tests.test_agent_notes"],
                        capture_output=True, text=True, cwd=str(ROOT))
     return r.returncode
 

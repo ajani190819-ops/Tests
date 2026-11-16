@@ -621,5 +621,33 @@
   "old": "    for stale in REDUNDANT_BRAND_EXPORTS:",
   "new": "    for stale in ():",
   "label": "Icon regeneration no longer removes duplicate aliases"
+ },
+ {
+  "id": "notes-api-00",
+  "file": "tools/agent_notes_protocol.py",
+  "old": "        receipt_id = receipt_in_inbox(note_key)\n        if receipt_id:\n",
+  "new": "        receipt_id = receipt_in_inbox(note_key)\n        if False:\n",
+  "label": "Agent Notes retry duplicates an inbox append after receipt-state failure"
+ },
+ {
+  "id": "notes-api-01",
+  "file": "tools/notes_server.py",
+  "old": "        if self.headers.get(\"Origin\"):\n",
+  "new": "        if False:\n",
+  "label": "Agent Notes API accepts cross-origin browser writes"
+ },
+ {
+  "id": "notes-api-02",
+  "file": "tools/agent_notes_protocol.py",
+  "old": "        f.flush()\n        os.fsync(f.fileno())\n    os.replace(tmp, STATE)",
+  "new": "        f.flush()\n    os.replace(tmp, STATE)",
+  "label": "Agent Notes reports a receipt before flushing inbox data to disk"
+ },
+ {
+  "id": "notes-api-03",
+  "file": "tools/agent_notes_protocol.py",
+  "old": "    with INBOX.open(\"a\", encoding=\"utf-8\") as f:\n        f.write(entry)\n        f.flush()\n        os.fsync(f.fileno())\n",
+  "new": "    with INBOX.open(\"a\", encoding=\"utf-8\") as f:\n        f.write(entry)\n        f.flush()\n",
+  "label": "Agent Notes returns a saved receipt before the inbox append is durable"
  }
 ]

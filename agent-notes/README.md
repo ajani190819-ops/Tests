@@ -3,8 +3,10 @@
 Agent Notes is the direct, durable companion channel for the active Arena
 session. It automatically discovers `.agent/AGENT_LINK.txt`, preserves unsent
 notes in `%LOCALAPPDATA%\AgentNotes\outbox`, and reports two distinct states:
-**Saved** only after `tools/notes_server.py` persisted the live `.agent/INBOX.md`
-write, then **Read** only after the agent's required inbox checkpoint.
+**Saved** only after the API bridge persisted the live `.agent/INBOX.md` write,
+then **Read** only after the agent's required inbox checkpoint. The receiver is
+an API bridge, not a second browser-based notes page; the native app remains
+the owner-facing delivery UI.
 
 While the app is running, closing its window keeps a notification-area watcher
 alive. It shows a native visual Windows alert when the agent publishes a generic

@@ -861,9 +861,29 @@
 - L118  f build
 - L143  f main
 
+## tools/agent_notes_protocol.py
+
+- L38  f utc_now
+- L43  f empty_state
+- L53  f normalise_state
+- L109  f state_lock
+- L137  f load_state
+- L144  f save_state
+- L167  f set_waiting
+- L177  f clear_waiting
+- L184  f begin_inbox_checkpoint
+- L202  f mark_checkpoint_read
+- L222  f public_status
+- L232  f receipt_status
+- L248  f sanitize_note
+- L261  f receipt_in_inbox
+- L275  f append_inbox
+- L283  f persist_note
+- L328  f initialise_inbox
+
 ## tools/agent_notes_state.py
 
-- L26  f main
+- L29  f main
 
 ## tools/build_windows.py
 
@@ -924,30 +944,13 @@
 ## tools/mutate.py
 
 - L31  f run_suite
-- L37  f main
+- L38  f main
 
 ## tools/notes_server.py
 
-- L140  f utc_now
-- L145  f empty_state
-- L155  f normalise_state
-- L211  f state_lock
-- L239  f load_state
-- L246  f save_state
-- L269  f set_waiting
-- L279  f clear_waiting
-- L286  f begin_inbox_checkpoint
-- L304  f mark_checkpoint_read
-- L324  f public_status
-- L334  f receipt_status
-- L350  f sanitize_note
-- L363  f rate_limit_allow
-- L378  f receipt_in_inbox
-- L392  f append_inbox
-- L400  f persist_note
-- L440  f Handler
-- L557  f initialise_inbox
-- L572  f main
+- L43  f rate_limit_allow
+- L58  f Handler
+- L165  f main
 
 ## tools/sync_changelog.py
 
@@ -978,6 +981,10 @@
 - L168  f base
 - L176  f plugin
 - L181  f install
+
+## tests/test_agent_notes.py
+
+- L24  f AgentNotesApiTests
 
 ## tests/test_installer.py
 
@@ -1063,10 +1070,10 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2627  f SuiteFolderInstallTests
-- L3696  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3844  f AudioSwitcherReachabilityTests
-- L4028  f AudioSwitcherSessionSweepTests
-- L4169  f AppOpenFocusTests
+- L3708  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3856  f AudioSwitcherReachabilityTests
+- L4040  f AudioSwitcherSessionSweepTests
+- L4181  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

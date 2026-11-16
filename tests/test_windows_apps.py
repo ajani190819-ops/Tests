@@ -3194,6 +3194,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
         ui = (ROOT / "agent-notes" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
         entry = (ROOT / "agent-notes" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
         server = (ROOT / "tools" / "notes_server.py").read_text(encoding="utf-8")
+        protocol = (ROOT / "tools" / "agent_notes_protocol.py").read_text(encoding="utf-8")
         state = (ROOT / "tools" / "agent_notes_state.py").read_text(encoding="utf-8")
         hub = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
         workers = (ROOT / "project-hub" / "src" / "parts" / "workers_install.c").read_text(encoding="utf-8")
@@ -3207,18 +3208,29 @@ class SuiteFolderInstallTests(unittest.TestCase):
         # Receiver-side acceptance means an fsync'ed inbox append plus an
         # opaque receipt. Retry uses a stable client key, so a crash between
         # the two local files recovers instead of duplicating the note.
-        for needle in ("/status", "/receipt/", "X-Agent-Note-Key", "os.fsync(f.fileno())",
-                       "receipt_in_inbox", "persist_note", "state_lock"):
+        for needle in ("/status", "/receipt/", "X-Agent-Note-Key", "Origin"):
             self.assertIn(needle, server,
-                          f"receiver lost {needle}, weakening the durable receipt protocol")
-        self.assertIn("<!-- AgentNotes key={note_key} receipt={receipt_id} -->", server)
+                          f"API bridge lost {needle}, weakening delivery or its browser boundary")
+        for needle in ("receipt_in_inbox", "persist_note", "state_lock"):
+            self.assertIn(needle, protocol,
+                          f"durable protocol lost {needle}, weakening its receipt guarantees")
+        save_state_impl = protocol[protocol.index("def save_state("):]
+        save_state_impl = save_state_impl[:save_state_impl.index("\ndef set_waiting(")]
+        append_impl = protocol[protocol.index("def append_inbox("):]
+        append_impl = append_impl[:append_impl.index("\ndef persist_note(")]
+        for durable_write in (save_state_impl, append_impl):
+            self.assertIn("f.flush()\n        os.fsync(f.fileno())", durable_write,
+                        "a receipt or its inbox note can be acknowledged before disk flush")
+        self.assertIn("<!-- AgentNotes key={note_key} receipt={receipt_id} -->", protocol)
         self.assertIn('"state": "saved"', server)
-        self.assertIn('"state": "read"', server)
+        self.assertIn('"state": "read"', protocol)
+        self.assertNotIn("PAGE =", server,
+                         "the API bridge grew a second browser-based notes UI")
         self.assertIn("begin_inbox_checkpoint", state)
         self.assertIn("mark_checkpoint_read", state)
         self.assertIn('choices=("waiting", "checkpoint", "mark-read", "clear-wait", "status")', state)
-        self.assertIn("notes_server.begin_inbox_checkpoint()", state)
-        self.assertIn("notes_server.mark_checkpoint_read(args.checkpoint)", state)
+        self.assertIn("protocol.begin_inbox_checkpoint()", state)
+        self.assertIn("protocol.mark_checkpoint_read(args.checkpoint)", state)
 
         # Do not delete a local outbox item merely because a response was 200.
         # Its durable receipt must first be recorded locally; only then may the
