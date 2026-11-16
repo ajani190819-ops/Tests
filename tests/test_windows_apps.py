@@ -1515,8 +1515,9 @@ class WindowsDesktopAppsTests(unittest.TestCase):
     def test_weather_radar_layout_keeps_text_controls_and_tiles_separate(self):
         """The owner's screenshot caught three visual defects static data tests
         cannot see: hourly labels sharing the legend strip, opaque radar paint
-        covering its controls, and 256px tiles written straight into a 768px
-        grid so the map appeared as broken horizontal bands."""
+        covering its controls, 256px tiles written straight into a 768px grid
+        so the map appeared as broken horizontal bands, and the promised
+        suite mark existing as a dead/nonexistent Weather Radar header."""
         ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
         radar = (ROOT / "weather-radar" / "src" / "parts" / "radar.c").read_text(encoding="utf-8")
         forecast = (ROOT / "weather-radar" / "src" / "parts" / "forecast.c").read_text(encoding="utf-8")
@@ -1551,6 +1552,19 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "radar colours no longer have a visible intensity legend")
         self.assertIn("cx - S(14)", pane,
                       "the location marker is too small to find over precipitation")
+        emblem = (ROOT / "weather-radar" / "src" / "parts" / "emblem.c").read_text(encoding="utf-8")
+        entry = (ROOT / "weather-radar" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+        main = (ROOT / "weather-radar" / "src" / "weather_radar.c").read_text(encoding="utf-8")
+        self.assertIn('#include "parts/emblem.c"', main,
+                      "Weather Radar has no suite-emblem renderer at all")
+        self.assertIn("SetTimer(hwnd, TIMER_EMBLEM, 50, NULL);", entry,
+                      "the Weather Radar emblem never receives animation ticks")
+        self.assertIn("RadarEmbSpinDraw", ui,
+                      "the Weather Radar header paints a static or missing mark")
+        self.assertIn("g_radarSpinAngle += 6.283185307179586 / 600.0;", ui,
+                      "the Weather Radar header mark no longer turns")
+        self.assertIn("GetRValue(COL_ACCENT)", emblem,
+                      "the Weather Radar emblem ignores the active light/dark palette")
         self.assertIn("uint32_t tile[TILE_PX * TILE_PX];", radar)
         self.assertIn("for (int row = 0; row < TILE_PX; row++)", radar)
         self.assertIn("memcpy(dstRow, tile + (size_t)row * TILE_PX", radar,

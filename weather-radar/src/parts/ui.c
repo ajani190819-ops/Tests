@@ -15,6 +15,10 @@
    the host for a closer, unavailable zoom. */
 #define RADAR_FOCUS_PX 512
 
+static void RadarEmblemRect(RECT *r) {
+    SetRect(r, S(14), S(10), S(56), S(52));
+}
+
 static void BtnRect(int i, RECT *r) {
     switch (i) {
     case BTN_SEARCH:  SetRect(r, S(16), S(110), S(120), S(140)); break;
@@ -463,6 +467,38 @@ static void PaintAll(HWND hwnd) {
     GetClientRect(hwnd, &cr);
     int W = cr.right, H = cr.bottom;
 
+    /* The 50ms emblem timer invalidates only this small square. Avoid
+       rebuilding the large radar DIB just to turn the suite mark a fraction. */
+    RECT emblem;
+    RadarEmblemRect(&emblem);
+    if (ps.rcPaint.left >= emblem.left && ps.rcPaint.top >= emblem.top &&
+        ps.rcPaint.right <= emblem.right && ps.rcPaint.bottom <= emblem.bottom) {
+        int side = emblem.right - emblem.left;
+        uint32_t *spinBits = NULL;
+        BITMAPINFO spinBi;
+        ZeroMemory(&spinBi, sizeof(spinBi));
+        spinBi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        spinBi.bmiHeader.biWidth = side;
+        spinBi.bmiHeader.biHeight = -side;
+        spinBi.bmiHeader.biPlanes = 1;
+        spinBi.bmiHeader.biBitCount = 32;
+        spinBi.bmiHeader.biCompression = BI_RGB;
+        HBITMAP spinDib = CreateDIBSection(dc, &spinBi, DIB_RGB_COLORS,
+                                            (void **)&spinBits, NULL, 0);
+        if (spinDib && spinBits) {
+            for (int i = 0; i < side * side; i++) spinBits[i] = COL_BG;
+            RadarEmbSpinDraw(spinBits, side, side, 0, 0, side, g_radarSpinAngle);
+            HDC spinDc = CreateCompatibleDC(dc);
+            HGDIOBJ spinOld = SelectObject(spinDc, spinDib);
+            BitBlt(dc, emblem.left, emblem.top, side, side, spinDc, 0, 0, SRCCOPY);
+            SelectObject(spinDc, spinOld);
+            DeleteDC(spinDc);
+            DeleteObject(spinDib);
+        }
+        EndPaint(hwnd, &ps);
+        return;
+    }
+
     BITMAPINFO bi;
     ZeroMemory(&bi, sizeof(bi));
     bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
@@ -480,13 +516,12 @@ static void PaintAll(HWND hwnd) {
     RECT full = { 0, 0, W, H };
     FillRect(mem, &full, g_bgBrush);
 
-    /* header */
-    HICON ico = (HICON)LoadImageW(g_hInst, MAKEINTRESOURCE(1), IMAGE_ICON, S(32), S(32),
-                                  LR_DEFAULTCOLOR);
-    if (ico) { DrawIconEx(mem, S(16), S(14), ico, S(32), S(32), 0, NULL, DI_NORMAL); DestroyIcon(ico); }
-    RECT tt = { S(56), S(12), S(560), S(38) };
+    /* header: the suite emblem is alive here too, not a dead app-icon copy. */
+    RECT headerEmblem;
+    RadarEmblemRect(&headerEmblem);
+    RECT tt = { S(68), S(12), S(560), S(38) };
     DrawTextAt(mem, APP_TITLE_W, &tt, g_fontTitle, COL_TXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    RECT stt = { S(56), S(36), S(560), S(56) };
+    RECT stt = { S(68), S(36), S(560), S(56) };
     DrawTextAt(mem, L"Honest rain odds from the ensemble, plus live radar", &stt,
                g_fontSmall, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     DrawBtn(mem, BTN_REFRESH, L"Refresh", 0);
@@ -523,7 +558,11 @@ static void PaintAll(HWND hwnd) {
     DrawTextAt(mem, g_status, &ss, g_fontUI, scol,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
-    if (bits) GdiFlush();
+    if (bits) {
+        GdiFlush();
+        RadarEmbSpinDraw(bits, W, H, headerEmblem.left, headerEmblem.top,
+                         headerEmblem.right - headerEmblem.left, g_radarSpinAngle);
+    }
     BitBlt(dc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
     if (dib) { SelectObject(mem, old); DeleteObject(dib); }
     DeleteDC(mem);
@@ -734,8 +773,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     case WM_TIMER:
         if (wp == TIMER_EMBLEM) {
-            /* no emblem here; the timer just retires: nothing to animate in
-               the header, so this arm stays quiet on purpose */
+            /* Calm idle motion: one complete turn every thirty seconds. */
+            g_radarSpinAngle += 6.283185307179586 / 600.0;
+            if (g_radarSpinAngle > 6.283185307179586)
+                g_radarSpinAngle -= 6.283185307179586;
+            RECT emblem;
+            RadarEmblemRect(&emblem);
+            InvalidateRect(hwnd, &emblem, FALSE);
             return 0;
         }
         if (wp == TIMER_ANIM) {
@@ -820,6 +864,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         KillTimer(hwnd, TIMER_EMBLEM);
         if (g_inputBrush) { DeleteObject(g_inputBrush); g_inputBrush = NULL; }
         if (g_bgBrush) { DeleteObject(g_bgBrush); g_bgBrush = NULL; }
+        free(g_radarEmbCache.src);
+        g_radarEmbCache.src = NULL;
         PostQuitMessage(0);
         return 0;
     }

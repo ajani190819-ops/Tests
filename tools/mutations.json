@@ -315,6 +315,20 @@
   "label": "S radar intensity legend loses its meanings"
  },
  {
+  "id": "wx-20",
+  "file": "weather-radar/src/parts/entry.c",
+  "old": "    SetTimer(hwnd, TIMER_EMBLEM, 50, NULL);",
+  "new": "    /* header animation disabled */",
+  "label": "T Weather Radar never starts its spinning suite emblem"
+ },
+ {
+  "id": "wx-21",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "            g_radarSpinAngle += 6.283185307179586 / 600.0;",
+  "new": "            g_radarSpinAngle += 0.0;",
+  "label": "U Weather Radar emblem timer no longer advances the mark"
+ },
+ {
   "id": "hub-18",
   "file": "project-hub/src/parts/refresh_statuses.c",
   "old": "            c->btns[action].hidden = !showAction;",

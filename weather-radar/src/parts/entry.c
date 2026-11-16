@@ -77,6 +77,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     UpdateWindow(hwnd);
 
     WorkerStart();
+    SetTimer(hwnd, TIMER_EMBLEM, 50, NULL);
     SetTimer(hwnd, TIMER_REFRESH, 10 * 60 * 1000, NULL);
     if (g_placeSel >= 0 && g_placeSel < g_placeN) {
         wchar_t m[160];

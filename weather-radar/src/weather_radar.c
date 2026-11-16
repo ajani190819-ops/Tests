@@ -185,5 +185,6 @@ static int S(int px) {
 #include "parts/radar.c"
 #include "parts/forecast.c"
 #include "parts/workers.c"
+#include "parts/emblem.c"
 #include "parts/ui.c"
 #include "parts/entry.c"
