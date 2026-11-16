@@ -849,8 +849,9 @@
 - L451  f build_icon_audio_switcher
 - L479  f build_icon_weather_radar
 - L525  f save_multi_ico
-- L557  f main
-- L658  f export_spin_loops
+- L564  f RemoveRedundantBrandExports
+- L575  f main
+- L672  f export_spin_loops
 
 ## tools/mutate.py
 
@@ -977,11 +978,11 @@
 - L43  f strip_cs_comments_and_strings
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
-- L2594  f SuiteFolderInstallTests
-- L3357  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3433  f AudioSwitcherReachabilityTests
-- L3617  f AudioSwitcherSessionSweepTests
-- L3758  f AppOpenFocusTests
+- L2615  f SuiteFolderInstallTests
+- L3378  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3454  f AudioSwitcherReachabilityTests
+- L3638  f AudioSwitcherSessionSweepTests
+- L3779  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

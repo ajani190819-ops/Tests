@@ -1212,6 +1212,27 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             count = int.from_bytes(raw[4:6], "little")
             self.assertGreaterEqual(count, 5, f"{rel_ico} should include multi-DPI icon frames")
 
+    def test_brand_exports_keep_one_canonical_copy_per_asset(self):
+        """The icon generator used to write six legacy aliases that were exact
+        copies of the canonical masters. They added roughly twenty-six MiB to every
+        clone without serving an executable or the spin preview."""
+        gen = (ROOT / "tools" / "generate_suite_icons.py").read_text(encoding="utf-8")
+        brand = ROOT / "docs" / "brand"
+        self.assertIn("REDUNDANT_BRAND_EXPORTS", gen)
+        self.assertIn("for stale in REDUNDANT_BRAND_EXPORTS", gen)
+        self.assertIn("RemoveRedundantBrandExports()", gen)
+        for rel in (
+            "icon-project-hub.png", "tri-spoke-spin-1024.webp",
+            "tri-spoke-spin-1024.gif", "spin.html",
+        ):
+            self.assertTrue((brand / rel).is_file(), f"canonical brand export missing: {rel}")
+        for rel in (
+            "project-hub-icon-2048.png", "project-hub-icon-1024.png",
+            "tri-spoke-emblem-2048.png", "tri-spoke-emblem-1024.png",
+            "tri-spoke-spin.webp", "tri-spoke-spin.gif",
+        ):
+            self.assertFalse((brand / rel).exists(), f"redundant brand alias returned: {rel}")
+
     def test_suite_apps_catalog_is_complete_and_matches_the_hub(self):
         """suite-apps.json is the hub's data-driven extension point: one entry
         adds a card with no hub rebuild. It had no test coverage at all, which

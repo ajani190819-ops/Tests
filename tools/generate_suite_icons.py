@@ -554,6 +554,24 @@ def save_multi_ico(build, ico_path: Path, png_path: Path = None):
     ico_path.write_bytes(out + entries + data)
 
 
+REDUNDANT_BRAND_EXPORTS = (
+    "project-hub-icon-2048.png", "project-hub-icon-1024.png",
+    "tri-spoke-emblem-2048.png", "tri-spoke-emblem-1024.png",
+    "tri-spoke-spin.webp", "tri-spoke-spin.gif",
+)
+
+
+def RemoveRedundantBrandExports():
+    """Remove retired aliases that were exact byte-for-byte duplicates.
+
+    The 1024 spin pair and icon-project-hub.png remain canonical. Keeping one
+    URL per rendered asset avoids a 26 MiB clone/download tax without changing
+    any executable resource or referenced preview.
+    """
+    for stale in REDUNDANT_BRAND_EXPORTS:
+        (BRAND_DIR / stale).unlink(missing_ok=True)
+
+
 def main():
     BRAND_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -628,14 +646,10 @@ def main():
     preview_path = BRAND_DIR / "suite-icons-preview.png"
     sheet.convert("RGB").save(preview_path, format="PNG")
 
-    # Profile-photo exports: the SHADED glyph (rim + gradient + glow, exactly
-    # the desktop icon treatment people liked) on full transparency. The old
-    # flat emblem and the old squircle-plate versions both read wrong once a
-    # site flattened them; this is the look the spin loop uses too.
-    build_icon_project_hub(2048).save(BRAND_DIR / "project-hub-icon-2048.png")
-    build_icon_project_hub(1024).save(BRAND_DIR / "project-hub-icon-1024.png")
-    build_icon_project_hub(2048).save(BRAND_DIR / "tri-spoke-emblem-2048.png")
-    build_icon_project_hub(1024).save(BRAND_DIR / "tri-spoke-emblem-1024.png")
+    # icon-project-hub.png above is the one 2048px Project Hub/profile export.
+    # Earlier names held byte-identical copies, which bloated every clone.
+    # Remove them on regeneration so a manual icon refresh cannot restore them.
+    RemoveRedundantBrandExports()
 
     # Seamless 360-degree spin loop of the shaded glyph - NO background.
     # GIF transparency is 1-bit, so the soft rim/glow edges are ordered-
@@ -686,7 +700,6 @@ def export_spin_loops(size: int = 1024, frames: int = 180, ms: int = 66):
                      duration=ms, loop=0, quality=85, method=4)
 
     _save_webp(BRAND_DIR / "tri-spoke-spin-1024.webp")
-    _save_webp(BRAND_DIR / "tri-spoke-spin.webp")
 
     # GIF: 256 colours + 1-bit alpha. The SDF edge is ~2px anti-aliased;
     # ordered-dithering ONLY that narrow band keeps the silhouette smooth
@@ -718,7 +731,6 @@ def export_spin_loops(size: int = 1024, frames: int = 180, ms: int = 66):
                            transparency=trans_idx, optimize=False)
 
     _save_gif(BRAND_DIR / "tri-spoke-spin-1024.gif")
-    _save_gif(BRAND_DIR / "tri-spoke-spin.gif")
 
     html = """<!doctype html>
 <meta charset="utf-8">

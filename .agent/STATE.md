@@ -24,7 +24,7 @@ release records, and compact offline safety facts. Drive holds extended narrativ
   plugin changelog windows, version-sync anchors, installers, tests, config, and
   runtime assets.
 
-## Active efficiency system
+## Efficiency system and completed audit
 
 - Default agent orientation is `AGENTS.md`, this state file, and
   `.agent/rules/execution.md`, plus a topic file only when needed. Generated
@@ -32,12 +32,17 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 - `tools/check_context_budget.py`, run by `tools/check_all.py`, caps the four
   orientation files at 15,000 total characters and forbids a mandatory CODEMAP
   read. This reduces avoidable context without weakening focused review/tests.
+- The final size sweep removed six unreferenced byte-identical brand aliases;
+  regeneration now removes them too. The canonical spin/web assets and suite
+  icons remain unchanged, saving about 26 MiB per clone/download.
+- Repository audit: all tracked Python files compile; shell syntax, Windows
+  build, check suite, mutation suite, generated artifacts, and Git diff checks
+  pass. The Spatial HUD needs JDK 25; its GitHub workflow provisions it, while
+  this sandbox has no Java runtime, so an in-sandbox Gradle build is impossible.
 
 ## Next approved work
 
-1. Finish the repository age/error audit and research pass, then perform the
-   final measured refactor/efficiency sweep without reducing quality.
-2. Weather Radar five-day planner: equal rain, temperature, cloud, and wind
+1. Weather Radar five-day planner: equal rain, temperature, cloud, and wind
    daily categories; selected day/category gives hourly detail, compact trend,
    and plain-English reading. Rain remains primary; exact ensemble odds stay
    distinct from regional coverage; humidity stays supporting.

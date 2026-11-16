@@ -488,5 +488,12 @@
   "old": "            if (!current) return 0; /* an old location finished after a new selection */",
   "new": "            if (0) return 0; /* an old location finished after a new selection */",
   "label": "Late old-place forecast can replace current place"
+ },
+ {
+  "id": "brand-00",
+  "file": "tools/generate_suite_icons.py",
+  "old": "    for stale in REDUNDANT_BRAND_EXPORTS:",
+  "new": "    for stale in ():",
+  "label": "Icon regeneration no longer removes duplicate aliases"
  }
 ]
