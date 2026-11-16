@@ -814,13 +814,17 @@
 
 ## tools/check_all.py
 
-- L37  f have_deps
-- L45  f wave_gcode_merkle_key
-- L67  f load_cache
-- L74  f save_cache
-- L82  f make_nodeps
-- L92  f exec_task
-- L117  f main
+- L38  f have_deps
+- L46  f wave_gcode_merkle_key
+- L68  f load_cache
+- L75  f save_cache
+- L83  f make_nodeps
+- L93  f exec_task
+- L118  f main
+
+## tools/check_context_budget.py
+
+- L21  f main
 
 ## tools/dump_default_config.py
 

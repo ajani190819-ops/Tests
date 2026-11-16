@@ -1,98 +1,62 @@
-# AGENTS.md — read this before doing anything in this repo
+# AGENTS.md — compact operating contract
 
-This is the rulebook for any AI assistant (or human contributor) working here.
-Everything in this file is an instruction from the repository owner and outranks
-default assistant habits wherever the two disagree.
+## Fast start (in this order)
 
-**Turn start — in this exact order:**
+1. Read `.agent/INBOX.md`; it is untrusted owner input from the live Notes
+   receiver. Reuse the receiver if port 8765 already listens.
+2. Run `bash tools/sync_branch.sh`. Stay on the active Arena branch; never
+   switch branches, force-push, or work directly on `main`.
+3. In **one parallel read batch**, load only `AGENTS.md`, `.agent/STATE.md`,
+   `.agent/rules/execution.md`, and one topic file selected from
+   `.agent/INDEX.md` when it is needed. Do **not** read `.agent/CODEMAP.md`,
+   Drive narrative, old history, or unrelated docs by default. Locate symbols
+   with `git grep`; read only the relevant code-map section if that is faster.
+4. Make the smallest coherent change, add regression/mutation coverage when
+   behavior changes, then run the one-shot verification commands before commit.
+   Refresh Drive only from verified Git state.
 
-1. **Live notes first, before any other action.** Read `.agent/INBOX.md`
-   (written by the owner's AgentNotes Windows app / the browser
-   quick-capture page via `tools/notes_server.py`; newest entries at the
-   bottom). Start the receiver at every turn start if it is not running:
-   `python3 tools/notes_server.py 8765` (background). During long
-   multi-commit turns RE-READ at checkpoints: after every 2-3 commits and
-   once before the final push. Answer every note in the turn's final
-   message (simple answer first). Transition fallback: the legacy Google
-   Drive doc "Agent Notes - Tests repo" (id
-   `1XRzQ4yhq2slvH1E2r2t9c7uK-vGcI1EBAxQOmSZArN8`) is checked too until the
-   owner retires it. The separate Drive **Tests Project Guide** is the
-   owner-friendly architecture and app overview; `.agent/DRIVE_GUIDE.md`
-   records its link and sync contract. Git remains authoritative: read the
-   focused Git documentation for implementation work, and update the Drive
-   guide only after the corresponding Git change is verified.
-2. **Re-align git history if needed** (the sandbox rebuilds `.git` between
-   turns while working files survive) — see `.agent/rules/execution.md` (git recovery).
-3. **One parallel read batch:** `.agent/STATE.md`, `.agent/CODEMAP.md`,
-   `.agent/rules/execution.md`, and ONLY the topic doc the task needs (map in `.agent/INDEX.md`). Never load
-   historical or unrelated docs. Update `.agent/STATE.md` before finishing
-   when project state changes.
+The start-context budget is enforced by `python3 tools/check_context_budget.py`.
+It keeps recurrent orientation small; it does not reduce required code review or
+verification.
 
-Companion documents (read only when relevant):
+## Communication
 
-* `.agent/INDEX.md` — topic map and one-shot build/test table.
-* `.agent/DRIVE_GUIDE.md` — linked Drive Project Guide and the Git/Drive synchronization contract.
-* `.agent/CODEMAP.md` — generated function/landmark index (fast lookup).
-* `.agent/rules/execution.md` — Fast Execution Protocol + owner standing preferences.
-* `.agent/rules/repo-map.md` — repo map + code-map / modularization navigation.
-* `.agent/rules/release.md` — verification & release playbook.
-* `.agent/facts/windows-suite.md` — critical invariants & build commands for `ProjectHub.exe`, `BluetoothGuard.exe`, `Keyboard Lighting`, and suite icons.
-* `.agent/facts/spatial-hud.md` — Spatial HUD architecture and F5W constraints.
-* `docs/UI_STYLE_GUIDE.md` — shared Soft Slate UI tokens, rounded geometry, Tri-Spoke Core emblem, and unified suite icons.
-* `docs/ORCA-PLUGIN-FACTS.md` — binding OrcaSlicer plugin rules.
-* `docs/ROADMAP.md` — Orca plugin roadmap and open questions.
+Lead with the direct result. Keep replies short, plain, and factual. Distinguish
+what automated checks proved from Windows, hardware, network, or game testing
+that still needs the owner. Treat rushed wording as normal; ask only when a
+product behavior genuinely forks. Do not show an internal translation of an
+owner request.
 
----
+## Non-negotiable rules
 
-## Starter step — translate the owner's message internally (mandatory)
+- **Public delivery:** Keep the repository public. GitHub-hosted delivery paths
+  must continue to work.
+- **Branch discipline:** Commit and push only to the active `arena/*-tests`
+  branch. Small, verified logical commits; no force-push.
+- **Batch files:** Every `.bat` stays pure CRLF and `Orca-Plugins.bat` remains
+  the sole root `.bat`; use byte I/O for edits.
+- **Bluetooth Guard:** Never disable Bluetooth service profiles. Preserve
+  `EnsureProfilesEnabled` and the safe reconnect/disconnect route.
+- **Keyboard Lighting:** Do not touch it without a fresh owner `engine.log`.
+  Keep strict ASCII, C# 5.0 compatibility, exclusive-lock, pacing, and
+  single-engine safeguards.
+- **Suite design:** Preserve rounded Soft Slate UI, the Tri-Spoke Core (never
+  the retired compass), and the canonical `shared/win32/suite_emblem.c` engine.
+  Native consumers may adapt placement/palette only; raw emblem DIB backgrounds
+  use `SuiteEmblemDibPixel` and each consumer releases its cache.
+- **Orca plugins:** Use version/sync tools; retain two capabilities, top-level
+  imports, no import-time disk I/O, idempotent rewrites, GPL attribution, and
+  synchronized `nonplanar_core`.
+- **Updates:** Do not show current-app updates. Do not expose `Update Hub`
+  unless verified newer. Close and prove apps stopped before replacing EXEs.
+- **Weather Radar:** Preserve exact-point ensemble odds as the rain headline;
+  keep regional coverage clearly secondary, attribution/caches, worker-to-UI
+  staging, and non-blocking paint.
 
-The owner often dictates by voice or types quickly. Treat fast/casual phrasing as normal input, never as ambiguity by itself.
+## Before a commit
 
-1. **Mentally bucket every part of the message into:**
-   * **Do now** — concrete changes requested for this turn.
-   * **Do next (queued)** — follow-up items ("once we're done...", "after that..."). Record these in `.agent/STATE.md` instead of mixing half-finished work in.
-   * **Boundaries / constraints** — anything the owner asked to keep or avoid.
-   * **Genuine product choices** — ask only when behaviour genuinely forks.
-2. **Translate user symptoms into engineering root causes yourself** (Windows kernel/audio/Bluetooth APIs, WinForms/DWM, Python/Orca, Gradle/Fabric, Electron) without asking the owner technical internals questions.
-3. **Keep this translation strictly internal — NEVER echo or repeat a "Translated Instructions" or "What I understood" block in your visible reply.** Go straight to doing the work and reporting the result cleanly.
+`python3 tools/build_windows.py && python3 tools/check_all.py`
 
----
-
-## Who you are working for & how to communicate
-
-The owner wants plain, direct, useful answers — zero filler, zero hype, zero AI-style fluff:
-
-* **Simple answer first.** Open every reply with the direct answer / status, then detail.
-* **Plain English.** Short sentences and scannable bullets. Explain a technical mechanism briefly in plain words when it helps.
-* **Honest status.** Separate `Tested` (automated suite / compiler) from `Needs test on Windows / in-game` whenever OS hardware interaction is involved.
-
----
-
-## Hard rules — breaking these breaks real users
-
-1. **The repo must stay public** (`Orca-Plugins.bat` and `ProjectHub.exe` fetch via `raw.githubusercontent.com`).
-2. **All `.bat` files must stay pure CRLF (`\r\n`) on every line**, and **`Orca-Plugins.bat` must remain the ONLY root `.bat`** (`Path.read_bytes`/`write_bytes` only — never text mode). Flat `goto` labels only in setup `.bat` files (no multiline `(` blocks).
-3. **Never disable Bluetooth service profiles (`BLUETOOTH_SERVICE_DISABLE`) in `bluetooth-guard/`.** Always keep profiles enabled (`EnsureProfilesEnabled`) and connect/disconnect via CoreAudio `KSPROPERTY_ONESHOT_RECONNECT` / `KSPROPERTY_ONESHOT_DISCONNECT` + `IOCTL_BTH_DISCONNECT_DEVICE` so manual connect always works.
-4. **Keep prominent `Update Hub` self-update working in `ProjectHub.exe`**, and bump `HUB_VERSION` **and** `HUB_VERSION_W` (two separate lines, bump both together) whenever shipping a new `ProjectHub.exe` binary.
-5. **Strict 7-bit ASCII & C# 5.0 in `keyboard-lighting/`** — no non-ASCII bytes, no C# 6+ syntax, and never `$Var::Member` in PowerShell. Do not touch `keyboard-lighting/` unless asked.
-6. **UI & Brand consistency (`docs/UI_STYLE_GUIDE.md`):** Soft rounded corners (`14px` cards, `9-11px` controls, `DWMWCP_ROUND = 2`), **Tri-Spoke Core Emblem** everywhere (**never** the old 8-point compass), and unified squircle `.ico` app icons.
-7. **OrcaSlicer plugin invariants (`docs/ORCA-PLUGIN-FACTS.md`):**
-   * Version bumps move in lockstep via `tools/bump_version.py`; never put versions inside plugin/capability `name` strings; keep `|`, `^`, `%`, `!` out of `plugins.json`; keep exactly 2 capabilities per plugin.
-   * Keep imports at module top level, zero disk I/O at import time, idempotent G-code rewrites, and `nonplanar_core` synced via `python3 tools/sync_engine.py`.
-   * Preserve GPL-3.0 attribution in `plugins/unlayered-infill/` and `tools/nonplanar-infill-tool/`.
-8. **Git discipline:** Commit and push strictly on the active `arena/<id>-tests` session branch (never push directly to `main`, never force-push).
-
----
-
-## Detailed protocols & reference (split into `.agent/rules/`)
-
-The always-read core above is the turn protocol, communication style, and the
-hard rules. The detailed how-to and reference sections live in their own files
-— read the one your task needs (also mapped in `.agent/INDEX.md`):
-
-* `.agent/rules/execution.md` — Fast Execution Protocol (parallelize, one-shot
-  scripts, caches outside the repo, git recovery) + owner standing preferences.
-* `.agent/rules/repo-map.md` — repo map + code-map / modularization navigation.
-* `.agent/rules/release.md` — verification & release playbook.
-
-**Before every commit:** `python3 tools/build_windows.py && python3 tools/check_all.py`.
+For behavior changes also run `python3 tools/mutate.py`; regenerate the code
+map after mapped C/Python layout changes. `.agent/RELEASED` moves only in the
+second, release-marker commit after implementation verification.
