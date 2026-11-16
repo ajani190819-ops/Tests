@@ -93,6 +93,8 @@ here went stale twice and sent `tools/sync_branch.sh` at the wrong branch.
 
 ## Open Threads / Next Actions
 
+0. **Queued — Weather Radar five-day planner.** The owner chose four primary daily categories: **Rain, temperature, cloud cover, and wind**. The next Weather Radar planning pass should show five days plus an hourly view for the selected day. Selecting a category/day should reveal both a small trend chart and a plain-English reading. Rain remains the primary measure and must preserve the exact-location ensemble headline, with the regional coverage-blended probability retained only as its labeled comparison; humidity remains in current conditions and selected-day detail rather than becoming a fifth primary card. The released balanced daily/radar view and its attribution/cache/worker contracts remain the baseline.
+
 1. **Keyboard flicker — read the engine log before touching anything else.**
    Owner report: individual updates are visible; the four KEYBOARD zones step
    while the twelve LIGHT-BAR lamps stay smooth, on a built-in pattern. That
