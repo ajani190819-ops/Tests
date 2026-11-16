@@ -496,10 +496,10 @@
 
 - L39  f AppsUseLightTheme
 - L48  f InitPalette
-- L111  f S
-- L118  f ApplyModernWindowFrame
-- L137  f GetWinDpi
-- globals: g_hInst (L90), g_hwnd (L91), g_fontUI (L92), g_linkHint (L93), g_bgBrush (L94), g_dpi (L95), g_fit (L96), g_hoverBtn (L97), g_showEvent (L98), g_link (L100), g_cfgDir (L101), g_cfgPath (L102), g_histPath (L103), g_outboxDir (L104), g_status (L105), g_lastOk (L106), g_sending (L107), g_noteHint (L108), g_lastSent (L109)
+- L108  f S
+- L115  f ApplyModernWindowFrame
+- L134  f GetWinDpi
+- globals: g_hInst (L88), g_hwnd (L89), g_fontUI (L90), g_bgBrush (L91), g_dpi (L92), g_fit (L93), g_hoverBtn (L94), g_showEvent (L95), g_link (L97), g_cfgDir (L98), g_cfgPath (L99), g_histPath (L100), g_outboxDir (L101), g_status (L102), g_lastOk (L103), g_sending (L104), g_noteHint (L105), g_lastSent (L106)
 
 ## agent-notes/src/parts/config_outbox.c
 
@@ -519,9 +519,9 @@
 ## agent-notes/src/parts/emblem.c
 
 - L9  f EmbRasterize
-- L80  f EmbCacheEnsure
-- L95  f EmbSpinDraw
-- globals: g_embCache (L77), g_spinAngle (L78)
+- L82  f EmbCacheEnsure
+- L97  f EmbSpinDraw
+- globals: g_embCache (L79), g_spinAngle (L80)
 
 ## agent-notes/src/parts/entry.c
 
@@ -543,13 +543,14 @@
 - L6  f RichTextColor
 - L20  f EmbRect
 - L24  f BtnRect
-- L29  f DrawBtn
-- L49  f HitBtn
-- L59  f DrawDot
-- L71  f PaintAll
-- L239  f NoteSetHint
-- L249  f LinkSetHint
-- L257  f NowStamp
+- L29  f DrawRoundedSurface
+- L42  f DrawBtn
+- L54  f HitBtn
+- L64  f DrawDot
+- L76  f DeliverySummary
+- L83  f PaintAll
+- L228  f NoteSetHint
+- L235  f NowStamp
 
 ## audio-switcher/src/audio_switcher.c
 
@@ -817,10 +818,10 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2489  f SuiteFolderInstallTests
-- L3276  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3352  f AudioSwitcherReachabilityTests
-- L3536  f AudioSwitcherSessionSweepTests
-- L3677  f AppOpenFocusTests
+- L3243  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3319  f AudioSwitcherReachabilityTests
+- L3503  f AudioSwitcherSessionSweepTests
+- L3644  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

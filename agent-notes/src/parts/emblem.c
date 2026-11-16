@@ -60,9 +60,11 @@ static void EmbRasterize(uint32_t *dst, int n) {
             if (alpha < 0) alpha = 0; else if (alpha > 1) alpha = 1;
             double t = x0 * 0.3 + y0 * 0.7;
             if (t < 0) t = 0; else if (t > 1) t = 1;
-            double fr = 246.0 * (1 - t) + 196.0 * t;
-            double fg = 249.0 * (1 - t) + 212.0 * t;
-            double fb = 254.0 * (1 - t) + 234.0 * t;
+            /* Fixed pale art vanished against the light palette. Blend the
+               active accent into readable primary text in either theme. */
+            double fr = (double)GetRValue(COL_ACCENT) * (1 - t) + (double)GetRValue(COL_TXT) * t;
+            double fg = (double)GetGValue(COL_ACCENT) * (1 - t) + (double)GetGValue(COL_TXT) * t;
+            double fb = (double)GetBValue(COL_ACCENT) * (1 - t) + (double)GetBValue(COL_TXT) * t;
             dst[j * n + i] = RGB((int)(fr + 0.5), (int)(fg + 0.5), (int)(fb + 0.5)) |
                              ((DWORD)(int)(alpha * 255.0 + 0.5) << 24);
         }

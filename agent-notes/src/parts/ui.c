@@ -1,8 +1,8 @@
 /* ---------------- UI ---------------- */
 
 /* RichEdit controls ignore WM_CTLCOLOREDIT entirely - the character format
-   IS the text colour. Without this the editors kept Windows' default black
-   text on the darkened surfaces: the dark-on-dark the owner reported. */
+   is the text colour. Without this the editor kept Windows' default black
+   text on a dark surface. */
 static void RichTextColor(HWND h, COLORREF c) {
     CHARFORMAT2W cf;
     ZeroMemory(&cf, sizeof(cf));
@@ -22,8 +22,21 @@ static void EmbRect(RECT *r) {
 }
 
 static void BtnRect(int i, RECT *r) {
-    if (i == BTN_SAVE) SetRect(r, S(470), S(98), S(470) + S(120), S(98) + S(32));
-    else SetRect(r, S(20), S(380), S(600), S(380) + S(40));
+    (void)i;
+    SetRect(r, S(20), S(410), S(600), S(454));
+}
+
+static void DrawRoundedSurface(HDC dc, const RECT *r, int radius,
+                               COLORREF fill, COLORREF edge) {
+    HBRUSH b = CreateSolidBrush(fill);
+    HPEN p = CreatePen(PS_SOLID, 1, edge);
+    HGDIOBJ ob = SelectObject(dc, b);
+    HGDIOBJ op = SelectObject(dc, p);
+    RoundRect(dc, r->left, r->top, r->right, r->bottom, S(radius), S(radius));
+    SelectObject(dc, ob);
+    SelectObject(dc, op);
+    DeleteObject(b);
+    DeleteObject(p);
 }
 
 static void DrawBtn(HDC dc, int idx, const wchar_t *label, int primary) {
@@ -31,15 +44,7 @@ static void DrawBtn(HDC dc, int idx, const wchar_t *label, int primary) {
     BtnRect(idx, &r);
     COLORREF fill = primary ? COL_ACCENT : COL_INPUT;
     COLORREF edge = (g_hoverBtn == idx) ? COL_HOT : COL_DIV;
-    HBRUSH b = CreateSolidBrush(fill);
-    HPEN p = CreatePen(PS_SOLID, 1, edge);
-    HGDIOBJ ob = SelectObject(dc, b);
-    HGDIOBJ op = SelectObject(dc, p);
-    RoundRect(dc, r.left, r.top, r.right, r.bottom, S(10), S(10));
-    SelectObject(dc, ob);
-    SelectObject(dc, op);
-    DeleteObject(b);
-    DeleteObject(p);
+    DrawRoundedSurface(dc, &r, 10, fill, edge);
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, primary ? COL_BG : COL_TXT);
     SelectObject(dc, g_fontBtn);
@@ -68,6 +73,13 @@ static void DrawDot(HDC dc, int cx, int cy, int rad, COLORREF col) {
     DeleteObject(p);
 }
 
+static const wchar_t *DeliverySummary(void) {
+    if (g_sending) return L"Delivering queued notes now.";
+    if (g_lastOk == 1) return L"Recent delivery confirmed. New notes send automatically.";
+    if (g_link[0]) return L"Checking the saved agent session automatically.";
+    return L"Looking for the agent session. Notes queue safely in the meantime.";
+}
+
 static void PaintAll(HWND hwnd) {
     PAINTSTRUCT ps;
     HDC dc = BeginPaint(hwnd, &ps);
@@ -75,7 +87,7 @@ static void PaintAll(HWND hwnd) {
     GetClientRect(hwnd, &rc);
     int W = rc.right, H = rc.bottom;
 
-    /* Spin fast-path: only the emblem square is dirty - repaint just it. */
+    /* Spin fast-path: only the emblem square is dirty. */
     RECT er;
     EmbRect(&er);
     if (ps.rcPaint.left >= er.left && ps.rcPaint.top >= er.top &&
@@ -105,7 +117,6 @@ static void PaintAll(HWND hwnd) {
         return;
     }
 
-    /* Full paint into a top-down 32-bit DIB (GDI text + emblem pixels). */
     uint32_t *bits = NULL;
     BITMAPINFO bi;
     ZeroMemory(&bi, sizeof(bi));
@@ -122,74 +133,55 @@ static void PaintAll(HWND hwnd) {
 
     RECT full = { 0, 0, W, H };
     FillRect(mem, &full, g_bgBrush);
-
     SetBkMode(mem, TRANSPARENT);
-    SetTextColor(mem, COL_TXT);
-    SelectObject(mem, g_fontTitle);
-    RECT t = { S(92), S(20), W - S(20), S(52) };
-    DrawTextW(mem, L"Agent Notes", -1, &t, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
+    SelectObject(mem, g_fontTitle);
+    SetTextColor(mem, COL_TXT);
+    RECT title = { S(92), S(20), W - S(20), S(50) };
+    DrawTextW(mem, L"Agent Notes", -1, &title, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     SelectObject(mem, g_fontUI);
     SetTextColor(mem, COL_MUTED);
-    RECT s = { S(92), S(52), W - S(20), S(84) };
-    DrawTextW(mem,
-              L"Your direct line to the agent - notes queue safely when the agent is away.",
-              -1, &s, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    RECT subtitle = { S(92), S(51), W - S(20), S(78) };
+    DrawTextW(mem, L"Send a note directly to the agent. Delivery is automatic.", -1, &subtitle,
+              DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
-    RECT lbl = { S(20), S(98), S(126), S(130) };
+    /* No link box or setup action: session discovery is background plumbing. */
+    RECT delivery = { S(17), S(98), W - S(17), S(148) };
+    DrawRoundedSurface(mem, &delivery, 14, COL_CARD, COL_CARD_BD);
+    COLORREF deliveryCol = g_lastOk == 0 ? COL_WARN : (g_lastOk == 1 ? COL_GOOD : COL_ACCENT);
+    DrawDot(mem, S(34), S(119), S(4), deliveryCol);
+    SetTextColor(mem, COL_TXT);
+    RECT dTitle = { S(48), S(104), W - S(28), S(122) };
+    DrawTextW(mem, L"Automatic delivery", -1, &dTitle, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     SetTextColor(mem, COL_MUTED);
-    DrawTextW(mem, L"Session link", -1, &lbl, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    RECT dText = { S(48), S(122), W - S(28), S(142) };
+    DrawTextW(mem, DeliverySummary(), -1, &dText,
+              DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
-    RECT nlbl = { S(20), S(152), W - S(20), S(178) };
-    DrawTextW(mem, L"New note", -1, &nlbl, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-
-    /* Soft-slate rounded control surfaces. The RichEdit children paint on
-       top of these; the rounded fill shows at the corners. */
-    {
-        HBRUSH b = CreateSolidBrush(COL_INPUT);
-        HPEN p = CreatePen(PS_SOLID, 1, COL_DIV);
-        HGDIOBJ ob = SelectObject(mem, b);
-        HGDIOBJ op = SelectObject(mem, p);
-        RECT fr1 = { S(127), S(95), S(463), S(133) };
-        RoundRect(mem, fr1.left, fr1.top, fr1.right, fr1.bottom, S(10), S(10));
-        RECT fr2 = { S(17), S(175), S(603), S(371) };
-        RoundRect(mem, fr2.left, fr2.top, fr2.right, fr2.bottom, S(14), S(14));
-        SelectObject(mem, ob);
-        SelectObject(mem, op);
-        DeleteObject(b);
-        DeleteObject(p);
-    }
-
-    DrawBtn(mem, BTN_SAVE, L"Save Link", 0);
+    SetTextColor(mem, COL_MUTED);
+    RECT noteLabel = { S(20), S(166), W - S(20), S(187) };
+    DrawTextW(mem, L"New note", -1, &noteLabel, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    RECT noteSurface = { S(17), S(188), W - S(17), S(400) };
+    DrawRoundedSurface(mem, &noteSurface, 14, COL_INPUT, COL_DIV);
     DrawBtn(mem, BTN_SEND, L"Send to Agent", 1);
 
-    /* Recent notes: live Sent/Queued state (outbox file exists = queued). */
-    RECT rl = { S(20), S(438), W - S(20), S(462) };
+    RECT recentLabel = { S(20), S(470), W - S(20), S(491) };
     SetTextColor(mem, COL_MUTED);
-    DrawTextW(mem, L"Recent notes", -1, &rl, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    {
-        HBRUSH b = CreateSolidBrush(COL_CARD);
-        HPEN p = CreatePen(PS_SOLID, 1, COL_CARD_BD);
-        HGDIOBJ ob = SelectObject(mem, b);
-        HGDIOBJ op = SelectObject(mem, p);
-        RECT cardRc = { S(17), S(462), W - S(17), S(550) };
-        RoundRect(mem, cardRc.left, cardRc.top, cardRc.right, cardRc.bottom, S(14), S(14));
-        SelectObject(mem, ob);
-        SelectObject(mem, op);
-        DeleteObject(b);
-        DeleteObject(p);
-    }
+    DrawTextW(mem, L"Recent activity", -1, &recentLabel, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    RECT history = { S(17), S(494), W - S(17), S(590) };
+    DrawRoundedSurface(mem, &history, 14, COL_CARD, COL_CARD_BD);
+
     SelectObject(mem, g_fontUI);
     for (int i = 0; i < HIST_SHOW && i < g_histN; i++) {
-        int y = S(466) + i * S(26);
+        int y = S(498) + i * S(28);
         wchar_t qp[MAX_PATH + 96];
         _snwprintf(qp, MAX_PATH + 95, L"%s\\%s", g_outboxDir, g_hist[i].name);
         int queued = FileExistsW(qp);
-        DrawDot(mem, S(28), y + S(10), S(3), queued ? COL_WARN : COL_GOOD);
-        RECT st = { S(42), y, S(42) + S(78), y + S(21) };
+        DrawDot(mem, S(30), y + S(10), S(3), queued ? COL_WARN : COL_GOOD);
+        RECT stamp = { S(44), y, S(44) + S(78), y + S(22) };
         SetTextColor(mem, COL_MUTED);
-        DrawTextW(mem, g_hist[i].stamp, -1, &st, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-        RECT chip = { S(124), y + S(1), S(124) + S(62), y + S(20) };
+        DrawTextW(mem, g_hist[i].stamp, -1, &stamp, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        RECT chip = { S(126), y + S(1), S(126) + S(62), y + S(21) };
         HPEN p = CreatePen(PS_SOLID, 1, queued ? COL_WARN : COL_GOOD);
         HGDIOBJ op = SelectObject(mem, p);
         HGDIOBJ ob = SelectObject(mem, GetStockObject(NULL_BRUSH));
@@ -200,33 +192,30 @@ static void PaintAll(HWND hwnd) {
         SetTextColor(mem, queued ? COL_WARN : COL_GOOD);
         DrawTextW(mem, queued ? L"Queued" : L"Sent", -1, &chip,
                   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        RECT sn = { S(198), y, W - S(24), y + S(21) };
+        RECT snip = { S(200), y, W - S(24), y + S(22) };
         SetTextColor(mem, COL_TXT);
-        DrawTextW(mem, g_hist[i].snip, -1, &sn,
+        DrawTextW(mem, g_hist[i].snip, -1, &snip,
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     }
     if (g_histN == 0) {
-        RECT e = { S(42), S(466), W - S(24), S(487) };
+        RECT empty = { S(42), S(526), W - S(24), S(550) };
         SetTextColor(mem, COL_MUTED);
-        DrawTextW(mem, L"Notes you send will show up here.", -1, &e,
+        DrawTextW(mem, L"Your sent and queued notes will appear here.", -1, &empty,
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
 
-    /* Status strip: dot + what is going on right now. */
-    int sy = H - S(36);
-    DrawDot(mem, S(26), sy + S(14), S(4),
+    int statusY = H - S(38);
+    DrawDot(mem, S(26), statusY + S(14), S(4),
             g_lastOk == 0 ? COL_WARN : (g_lastOk == 1 ? COL_GOOD : COL_MUTED));
-    RECT fr = { S(42), sy, W - S(20), sy + S(28) };
-    SetTextColor(mem, (g_lastOk == 0) ? COL_WARN : ((g_lastOk == 1) ? COL_GOOD : COL_MUTED));
-    DrawTextW(mem, g_status, -1, &fr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    RECT status = { S(42), statusY, W - S(20), statusY + S(28) };
+    SetTextColor(mem, g_lastOk == 0 ? COL_WARN : (g_lastOk == 1 ? COL_GOOD : COL_MUTED));
+    DrawTextW(mem, g_status, -1, &status,
+              DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
     if (bits) {
-        /* GDI batches its draws - flush before touching the DIB pixels, or
-           the batched fills can land on top of the emblem as a ghost square. */
         GdiFlush();
         EmbSpinDraw(bits, W, H, er.left, er.top, er.right - er.left, g_spinAngle);
     }
-
     BitBlt(dc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
     if (dib) {
         SelectObject(mem, old);
@@ -238,20 +227,9 @@ static void PaintAll(HWND hwnd) {
 
 static void NoteSetHint(int on) {
     if (!g_hNote) return;
-    if (on) SetWindowTextW(g_hNote, HINT_TEXT);
-    else SetWindowTextW(g_hNote, L"");
+    SetWindowTextW(g_hNote, on ? HINT_TEXT : L"");
     g_noteHint = on;
-    /* RichEdit honours the character format, never WM_CTLCOLOREDIT: hint text
-       reads muted, real text reads the normal colour. */
     RichTextColor(g_hNote, on ? COL_MUTED : COL_TXT);
-}
-
-static void LinkSetHint(int on) {
-    if (!g_hLink) return;
-    g_linkHint = on;
-    SetWindowTextW(g_hLink, on ? HINT_LINK : L"");
-    RichTextColor(g_hLink, on ? COL_MUTED : COL_TXT);
-    InvalidateRect(g_hLink, NULL, TRUE);
 }
 
 static void NowStamp(wchar_t *out, int cap) {
@@ -281,19 +259,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     case WM_LBUTTONUP: {
         int b = HitBtn(GET_X_LPARAM(lp), GET_Y_LPARAM(lp));
-        if (b == BTN_SAVE) {
-            if (g_linkHint) g_link[0] = L'\0';
-            else GetWindowTextW(g_hLink, g_link, 255);
-            SaveConfig();
-            if (g_link[0]) {
-                wcsncpy(g_status, L"Link saved - testing the connection...", 255);
-                StartFlush();
-            } else {
-                wcsncpy(g_status, L"Link cleared.", 255);
-            }
-            g_status[255] = L'\0';
-            InvalidateRect(hwnd, NULL, FALSE);
-        } else if (b == BTN_SEND) {
+        if (b == BTN_SEND) {
             int empty = (g_noteHint || GetWindowTextLengthW(g_hNote) <= 0);
             if (empty) {
                 wcsncpy(g_status, L"Nothing to send - type a note first.", 255);
@@ -321,10 +287,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         return 0;
     }
-    case WM_COMMAND: {
-        int id = LOWORD(wp);
-        int code = HIWORD(wp);
-        if (id == ID_EDIT_NOTE) {
+    case WM_COMMAND:
+        if (LOWORD(wp) == ID_EDIT_NOTE) {
+            int code = HIWORD(wp);
             if (code == EN_SETFOCUS && g_noteHint) {
                 NoteSetHint(0);
                 InvalidateRect(hwnd, NULL, FALSE);
@@ -332,30 +297,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 NoteSetHint(1);
                 InvalidateRect(hwnd, NULL, FALSE);
             }
-        } else if (id == ID_EDIT_LINK) {
-            if (code == EN_SETFOCUS && g_linkHint) {
-                LinkSetHint(0);
-                InvalidateRect(hwnd, NULL, FALSE);
-            } else if (code == EN_KILLFOCUS && GetWindowTextLengthW(g_hLink) <= 0) {
-                LinkSetHint(1);
-                InvalidateRect(hwnd, NULL, FALSE);
-            }
         }
         return 0;
-    }
     case WM_CTLCOLOREDIT: {
         HDC h = (HDC)wp;
-        if ((HWND)lp == g_hNote && g_noteHint) {
-            SetTextColor(h, COL_MUTED);
-        } else {
-            SetTextColor(h, COL_TXT);
-        }
+        SetTextColor(h, g_noteHint ? COL_MUTED : COL_TXT);
         SetBkColor(h, COL_INPUT);
         return (LRESULT)g_bgBrush;
     }
     case WM_TIMER:
         if (wp == TIMER_SPIN) {
-            /* One turn per 30 s idle; per 8 s while a send is in flight. */
             double rate = g_sending ? (6.283185307179586 / 8.0)
                                     : (6.283185307179586 / 30.0);
             g_spinAngle += rate * 0.05;
@@ -365,10 +316,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             InvalidateRect(hwnd, &er, FALSE);
         } else if (wp == TIMER_FLUSH) {
             if (LinkDiscoveryTick()) {
-                g_linkHint = 0;
-                SetWindowTextW(g_hLink, g_link);
-                RichTextColor(g_hLink, COL_TXT);
-                wcsncpy(g_status, L"Found the agent's live session - link updated.", 255);
+                wcsncpy(g_status, L"Agent session found - queued notes will deliver automatically.", 255);
                 g_status[255] = L'\0';
                 InvalidateRect(hwnd, NULL, FALSE);
             }
@@ -383,4 +331,3 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
-

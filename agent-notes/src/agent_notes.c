@@ -7,9 +7,9 @@
  * soon as the session link answers again.
  *
  * UI: always-spinning Tri-Spoke Core emblem (the hub's SDF renderer, one
- * turn per 30 s idle / 8 s while sending), guided note box with a live
- * hint, a recent-notes list whose Sent/Queued state is derived from the
- * outbox, and a connection status strip.
+ * turn per 30 s idle / 8 s while sending), one guided note composer, a
+ * recent-notes list whose Sent/Queued state is derived from the outbox, and
+ * a connection status strip. The session endpoint is automatic, never input.
  */
 #include <windows.h>
 #include <richedit.h>
@@ -77,20 +77,17 @@ static void InitPalette(void) {
 #define EM_SETBKGNDCOLOR (WM_USER + 67)   /* rich edit background color */
 #endif
 
-enum { BTN_SAVE = 0, BTN_SEND, BTN_COUNT };
+enum { BTN_SEND = 0, BTN_COUNT };
 enum { TIMER_FLUSH = 1, TIMER_SPIN = 2 };
-#define ID_EDIT_LINK   101
 #define ID_EDIT_NOTE   102
 
-#define HINT_TEXT  L"Type your note here, then press Send to Agent - it lands in the agent's inbox."
-#define HINT_LINK  L"automatic - finds the agent's live session itself"
+#define HINT_TEXT  L"Type a note for the agent. It is safely queued if the session is away."
 #define HIST_MAX   20
 #define HIST_SHOW  3
 
 static HINSTANCE g_hInst;
-static HWND      g_hwnd, g_hNote, g_hLink;
+static HWND      g_hwnd, g_hNote;
 static HFONT     g_fontUI, g_fontTitle, g_fontBtn;
-static int       g_linkHint = 0;
 static HBRUSH    g_bgBrush;
 static UINT      g_dpi = 96;
 static int       g_fit = 100;      /* uniform shrink so the window always fits the screen */

@@ -1,58 +1,48 @@
 # Agent Notes
 
-The direct channel from you to the agent: type a note, press **Send to
-Agent**, and it lands in the agent's inbox at the start of the next turn.
+A direct, no-setup note channel from the owner to the current agent session.
 
-## How a note travels
+Type a note and choose **Send to Agent**. There is no URL to paste, save, or
+manage. The application finds the live session from the branch selected in
+Project Hub and sends to it automatically.
 
-1. This app posts the note to the agent's workspace receiver.
-2. If the receiver is not listening (the agent is away, or the workspace
-   reset), the note stays in an outbox folder on your disk -
-   `%LOCALAPPDATA%\AgentNotes\outbox` - and is retried every 60 seconds.
-   A note shows **Queued** while its outbox file exists and **Sent** once a
-   delivery was confirmed. Nothing is ever deleted before confirmation, so
-   nothing is ever lost.
-3. The agent reads its inbox at every turn start and treats what it finds
-   there as instructions from you.
+## Delivery and safety
 
-## The link - you never paste it again
+1. Every note is first written to `%LOCALAPPDATA%\AgentNotes\outbox`.
+2. When the current agent receiver is available, the note is delivered and its
+   outbox file is removed only after the receiver confirms success.
+3. If the agent is away, the note is shown as **Queued** and stays on disk.
+   Agent Notes checks again every minute and sends automatically when a live
+   session is found. Nothing is discarded because a workspace was offline or
+   reset.
+4. The agent reads `.agent/INBOX.md` at the start of its next turn.
 
-The agent commits `.agent/AGENT_LINK.txt` (the public address of its current
-workspace) to your branch every turn it works. This app reads your hub's
-branch setting, fetches that file, and adopts the address **only after its
-health probe answers** - so a dead or half-written link can never replace a
-working one. The link box remains for unusual cases; leave it alone and
-discovery does the work.
-
-## Status strip, plain English
-
-- **Found the agent's live session - link updated.** Discovery just followed
-  the agent to a new workspace.
-- **Delivered N notes | last note sent HH:MM.** All caught up.
-- **Agent offline - N queued notes stay safe here and deliver the moment a
-  session is live.** Normal while the agent is away. Not an error.
-- **No live session yet - notes queue safely here and deliver on the agent's
-  next turn.** First run before the agent has worked once.
+The app discovers the current endpoint from `.agent/AGENT_LINK.txt` on the
+branch configured in Project Hub. It adopts an endpoint only after its health
+check answers, so a stale branch file cannot silently replace a working route.
+This is background delivery plumbing, not an owner setting.
 
 ## Reading the window
 
-The window follows your Windows colour theme: pick light or dark in
-Settings and Agent Notes matches it, in both directions. Text colour is set
-through the rich-edit character format rather than the usual control-colour
-message, because a RichEdit50W control ignores that message completely -
-which is why an earlier build showed near-black text on a near-black box.
+- **Automatic delivery** is an informational status card. It tells you whether
+  Agent Notes is searching, sending, has recently confirmed delivery, or has a
+  saved session to check. It is not an editable setting.
+- **New note** is the only input. The hint disappears when you start typing and
+  returns if you leave an empty draft.
+- **Send to Agent** queues the note immediately, then attempts delivery in the
+  background.
+- **Recent activity** lists the newest notes. Green **Sent** means delivery was
+  confirmed; amber **Queued** means it remains safe in the local outbox and
+  will retry automatically.
+- The bottom status line gives the most recent delivery result in plain English.
 
-Layout, top to bottom: the title and one line saying what the app does, the
-session link (grey text means it is showing its placeholder, "automatic -
-finds the agent's live session itself"; typed or discovered text shows in the
-normal colour), the note box, a full-width **Send to Agent** bar, and your
-recent notes with a Queued or Sent chip beside each one. Clicking into a box
-clears its placeholder; clicking out of an empty box brings it back. The
-placeholder is never saved as your link and never sent as a note.
+Agent Notes follows the active Windows light or dark theme. Its header uses the
+suite’s animated Tri-Spoke Core emblem, and its single-instance behavior brings
+the existing window to the front when Project Hub opens it again.
 
 ## Privacy note
 
-The committed link file makes the inbox address discoverable by anyone who
-can read the repository. The receiver rate-limits, sanitises and tags the
-provenance of every entry, and the agent treats inbox content as untrusted
-input regardless of source.
+The session receiver is reachable from the address recorded in the repository
+for the active agent session. The receiver rate-limits and records note
+provenance, and the agent treats inbox text as untrusted input until it is
+verified as an owner request.

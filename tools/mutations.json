@@ -176,31 +176,38 @@
  },
  {
   "id": "ntui-07",
-  "file": "agent-notes/src/parts/ui.c",
-  "old": "            if (g_linkHint) g_link[0] = L'\\0';\n            else GetWindowTextW(g_hLink, g_link, 255);",
-  "new": "            GetWindowTextW(g_hLink, g_link, 255);",
-  "label": "G placeholder saved as the real link"
+  "file": "agent-notes/src/agent_notes.c",
+  "old": "static HWND      g_hwnd, g_hNote;",
+  "new": "static HWND      g_hwnd, g_hNote, g_hLink;",
+  "label": "G Agent Notes restores a manual session-link control"
  },
  {
   "id": "ntui-08",
   "file": "agent-notes/src/parts/ui.c",
-  "old": "    else SetRect(r, S(20), S(380), S(600), S(380) + S(40));",
-  "new": "    else SetRect(r, S(20), S(380), S(20) + S(190), S(380) + S(38));",
-  "label": "H Send shrinks back to a chip"
+  "old": "    SetRect(r, S(20), S(410), S(600), S(454));",
+  "new": "    SetRect(r, S(20), S(410), S(20) + S(190), S(448));",
+  "label": "H Send shrinks back to a narrow chip"
  },
  {
   "id": "ntui-09",
   "file": "agent-notes/src/parts/ui.c",
-  "old": "    DrawTextW(mem, L\"Agent Notes\", -1, &t, DT_LEFT | DT_VCENTER | DT_SINGLELINE);",
-  "new": "    DrawTextW(mem, L\"Agent Notes\", -1, &t, DT_LEFT | DT_VCENTER | DT_SINGLELINE);\n    DrawTextW(mem, L\"Agent Notes\", -1, &t, DT_LEFT | DT_VCENTER | DT_SINGLELINE);",
+  "old": "    DrawTextW(mem, L\"Agent Notes\", -1, &title, DT_LEFT | DT_VCENTER | DT_SINGLELINE);",
+  "new": "    DrawTextW(mem, L\"Agent Notes\", -1, &title, DT_LEFT | DT_VCENTER | DT_SINGLELINE);\n    DrawTextW(mem, L\"Agent Notes\", -1, &title, DT_LEFT | DT_VCENTER | DT_SINGLELINE);",
   "label": "I title drawn twice, overlapping"
  },
  {
   "id": "ntui-10",
   "file": "agent-notes/src/parts/ui.c",
-  "old": "                g_linkHint = 0;\n                SetWindowTextW(g_hLink, g_link);",
-  "new": "                SetWindowTextW(g_hLink, g_link);",
-  "label": "J adopted link keeps hint formatting"
+  "old": "            if (LinkDiscoveryTick()) {",
+  "new": "            if (0) {",
+  "label": "J Agent Notes no longer rediscovers a new session while retrying"
+ },
+ {
+  "id": "ntui-11",
+  "file": "agent-notes/src/parts/emblem.c",
+  "old": "(double)GetRValue(COL_ACCENT)",
+  "new": "246.0",
+  "label": "K Agent Notes emblem falls back to a pale fixed light-theme colour"
  },
  {
   "id": "wx-01",
