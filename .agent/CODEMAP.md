@@ -6,11 +6,11 @@
 
 ## project-hub/src/project_hub.c
 
-- L282  f GetWinDpi
-- L297  f S
-- L299  f ApplyModernWindowFrame
-- L318  f RebuildFontsAndIcons
-- globals: g_hInst (L197), g_hwnd (L198), g_fontHero (L199), g_fontSub (L200), g_fontTitle (L201), g_fontBody (L202), g_fontBtn (L203), g_fontBadge (L204), g_appIcon (L205), g_hdrEmblem (L206), g_cardIcons (L207), g_showEvent (L208), g_hMutex (L209), g_cs (L210), g_topBtns (L212), g_rcEmblem (L219), g_cards (L221), g_cardCount (L222), g_dynIdx (L223), g_hoverId (L224), g_scrollY (L225), g_maxScrollY (L226), g_exePath (L228), g_exeDir (L229), g_localApp (L230), g_probeRef (L234), g_roamApp (L235), g_suiteDir (L236), g_hubCfgDir (L237), g_btgDir (L238), g_btgExtraExe (L239), g_kblDir (L240), g_dnsDir (L241), g_notesDir (L242), g_audioSwitcherDir (L243), g_modsDir (L244), g_orcaBatDir (L245), g_suiteHubExe (L253), g_mirrorDirs (L254), g_mirrorCount (L255), g_activeBranch (L258), g_branchMenuNames (L259), g_branchMenuN (L260), g_branchPromptOut (L261), g_remHubVer (L262), g_remWaveVer (L263), g_remInfillVer (L264), g_remHudName (L265), g_remHudPath (L266), g_remHudSize (L267), g_statusMsg (L268), g_progressVal (L269), g_hubUpdAvail (L270), g_taskQueue (L273), g_qHead (L274), g_qTail (L275), g_qSem (L276), g_running (L277)
+- L329  f GetWinDpi
+- L344  f S
+- L346  f ApplyModernWindowFrame
+- L365  f RebuildFontsAndIcons
+- globals: g_hInst (L235), g_hwnd (L236), g_fontHero (L237), g_fontSub (L238), g_fontTitle (L239), g_fontBody (L240), g_fontBtn (L241), g_fontBadge (L242), g_appIcon (L243), g_hdrEmblem (L244), g_cardIcons (L245), g_showEvent (L246), g_hMutex (L247), g_trayHostEvent (L248), g_hubNid (L249), g_hubTrayVisible (L250), g_hubQuitting (L251), g_hubSeenAgentWait (L252), g_hubSeenRainAlert (L253), g_cs (L254), g_topBtns (L256), g_rcEmblem (L263), g_cards (L265), g_cardCount (L266), g_dynIdx (L267), g_hoverId (L268), g_scrollY (L269), g_maxScrollY (L270), g_exePath (L272), g_exeDir (L273), g_localApp (L274), g_probeRef (L278), g_roamApp (L279), g_suiteDir (L280), g_hubCfgDir (L281), g_btgDir (L282), g_btgExtraExe (L283), g_kblDir (L284), g_dnsDir (L285), g_notesDir (L286), g_audioSwitcherDir (L287), g_modsDir (L288), g_orcaBatDir (L289), g_suiteHubExe (L297), g_mirrorDirs (L298), g_mirrorCount (L299), g_activeBranch (L302), g_branchMenuNames (L303), g_branchMenuN (L304), g_branchPromptOut (L305), g_autoBranchLastCheck (L308), g_remHubVer (L309), g_remWaveVer (L310), g_remInfillVer (L311), g_remHudName (L312), g_remHudPath (L313), g_remHudSize (L314), g_statusMsg (L315), g_progressVal (L316), g_hubUpdAvail (L317), g_taskQueue (L320), g_qHead (L321), g_qTail (L322), g_qSem (L323), g_running (L324)
 
 ## project-hub/src/parts/branch_picker_entry.c
 
@@ -20,8 +20,10 @@
 - L93  f PromptTextInput
 - L157  f PromptBranchName
 - L162  f SetActiveBranch
-- L180  f ShowBranchMenu
-- L216  f HandleActionCommand
+- L184  f ShowBranchMenu
+- L225  f ShowRunningAgentNotes
+- L239  f HandleActionCommand
+- L764  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
 
 ## project-hub/src/parts/builtin_card_text.c
 
@@ -31,8 +33,8 @@
 ## project-hub/src/parts/card_defs_verbs.c
 
 - L1  f WorkerInstallGeneric
-- L50  f HandleVerb
-- L73  f InitCardDefinitions
+- L69  f HandleVerb
+- L92  f InitCardDefinitions
 
 ## project-hub/src/parts/catalog_icons_json.c
 
@@ -55,20 +57,23 @@
 - L96  f EnsureDirTree
 - L122  f SetCheckPhase
 - L127  f SetFooterStatus
-- L136  f ReadTextFileUtf8
-- L152  f WriteBinaryFileAtomic
+- L152  f ImageFileNameW
+- L158  f FindProcessesUsingImage  — Returns -1 when the process list cannot prove the image is clear.
+- L198  f NoProcessRunsImage
+- L231  f CloseRunningImageForUpdate  — Ask every matching instance to leave, then prove every one is gone.
+- L251  f IsExeImagePath
+- L256  f ReadTextFileUtf8
+- L272  f WriteBinaryFileAtomic
 - globals: g_checkActive (L111), g_remBtgSize (L112), g_remBtgSha (L115), g_rcFooterDot (L117)
 
 ## project-hub/src/parts/emblem.c
 
-- L8  f EmbRasterize
-- L85  f EmbCacheEnsure
-- L100  f EmbSpinDraw
-- L157  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
-- L162  f FileExistsW
-- L167  f LocalSizeOf
-- L177  f FileHealthyW
-- globals: g_embCache (L83)
+- L7  f DrawWayfinderEmblem
+- L16  f ReleaseWayfinderEmblem
+- L20  f FileExistsW
+- L25  f LocalSizeOf
+- L35  f FileHealthyW
+- globals: g_hubEmblem (L5)
 
 ## project-hub/src/parts/enqueue_restart_prompts.c
 
@@ -95,14 +100,15 @@
 - L34  f AppendInstallFolder
 - L42  f AddMirrorDir
 - L55  f MirrorFileEverywhere
-- L86  f EnsureProbeRef
-- L96  f InstallRepoFileEverywhere  — One download, every copy: the suite folder plus any stray copy on disk.
-- L119  f StopForeignInstance  — A tray app started from a stray copy keeps running that stray build, and its
-- L147  f InitAllPaths
-- L350  f CheckPidLockStatus
-- L382  f CreateShortcutLink
-- L415  f RemoveLegacyDesktopShortcuts
-- L436  f RepointDesktopShortcutIfPresent
+- L92  f RequestManagedExeCopiesStop  — Catalogue tray apps with an explicit --stop contract must receive it at
+- L138  f CloseManagedExeCopies  — One update can touch the suite install plus several registered stray copies.
+- L218  f EnsureProbeRef
+- L228  f InstallRepoFileEverywhere  — One download, every copy: the suite folder plus any stray copy on disk.
+- L246  f InitAllPaths
+- L449  f CheckPidLockStatus
+- L481  f CreateShortcutLink
+- L514  f RemoveLegacyDesktopShortcuts
+- L535  f RepointDesktopShortcutIfPresent
 
 ## project-hub/src/parts/refresh_statuses.c
 
@@ -113,19 +119,47 @@
 
 ## project-hub/src/parts/settings_page.c
 
-- L43  f SetKblPath
-- L48  f SetDnsCfgPath
-- L53  f SetStatusText
-- L58  f HoldModeCurrent  — 0 = tap, 1 = latch, 2 = burst; missing or unreadable means the default.
-- L72  f ApplyHoldMode
-- L81  f SmoothCurrent
-- L102  f ApplySmooth
-- L132  f ModNamesW
-- L140  f KeyNameW
-- L150  f ApplyDns
-- L163  f SetCtl
-- L204  f OpenSettingsWindow
-- globals: g_setHwnd (L29), g_setHold (L30), g_setSmooth (L31), g_setDnsAuto (L32), g_setDnsInt (L33), g_setStatus (L34)
+- L46  f SetKblPath
+- L51  f SetDnsCfgPath
+- L56  f SetStatusText
+- L61  f HoldModeCurrent  — 0 = tap, 1 = latch, 2 = burst; missing or unreadable means the default.
+- L75  f ApplyHoldMode
+- L84  f SmoothCurrent
+- L105  f ApplySmooth
+- L135  f ModNamesW
+- L143  f KeyNameW
+- L153  f ApplyDns
+- L166  f SetCtl
+- L218  f OpenSettingsWindow
+- globals: g_setHwnd (L31), g_setHold (L32), g_setSmooth (L33), g_setDnsAuto (L34), g_setDnsInt (L35), g_setAutoBranch (L36), g_setStatus (L37)
+
+## project-hub/src/parts/tray_unified.c
+
+- L9  f HubTrayAgentNotesCfg
+- L14  f HubTrayConfig
+- L18  f HubTrayWeatherCfg
+- L23  f HubTrayAgentWaitSound
+- L29  f HubTrayToggleAgentWaitSound
+- L39  f HubTrayShowAgentWaitingAlert
+- L53  f HubTrayPollAgentWait
+- L69  f HubTrayPollWeatherAlert
+- L96  f HubTrayPublishHostMarker
+- L101  f HubTrayRestore
+- L127  f HubTrayEnsureLive  — NIM_ADD can lose a startup race with Explorer without producing a later
+- L136  f HubTrayInit
+- L158  f HubTrayRemove
+- L170  f HubTrayAppWindow
+- L174  f HubTrayShowApp
+- L185  f HubTrayHideApp
+- L190  f HubTrayStopExe
+- L210  f HubTrayFindCardByExe
+- L217  f HubTrayOpenWeather
+- L234  f HubTrayOpenApp
+- L257  f HubTrayRunControl
+- L272  f HubTrayToggleBluetooth
+- L280  f HubTrayAppendApp
+- L299  f HubTrayShowMenu
+- L334  f HubTrayHandleCommand
 
 ## project-hub/src/parts/ui_renderer.c
 
@@ -133,11 +167,11 @@
 - L31  f SmoothRoundRect
 - L89  f DrawActionBtn
 - L111  f ComputeLayout
-- L160  f HitTestButtons
-- L178  f PaintEmblemBlit
-- L205  f PaintHubWindow
-- L467  f ShowUtilityMenu
-- globals: g_frameCache (L202), g_fcW (L203)
+- L164  f HitTestButtons
+- L183  f PaintEmblemBlit
+- L208  f PaintHubWindow
+- L471  f ShowUtilityMenu
+- globals: g_frameCache (L205), g_fcW (L206)
 
 ## project-hub/src/parts/version_probe_cache.c
 
@@ -147,34 +181,40 @@
 - L107  f BranchCfgPath
 - L112  f LoadBranchCfg
 - L120  f SaveBranchCfg
-- L134  f LoadAppsCfg
-- L143  f SaveAppsCfg
-- L152  f EnsureActiveBranch
-- L214  f ExtractQuotedAfter
-- L232  f VerNewer
-- L245  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
-- globals: g_hcache (L13), g_hudDisabled (L131), g_orcaDisabled (L132)
+- L133  f FollowLatestTestBranch
+- L139  f SaveFollowLatestTestBranch
+- L148  f SetFollowLatestTestBranch
+- L165  f LoadAppsCfg
+- L174  f SaveAppsCfg
+- L183  f EnsureActiveBranch
+- L249  f ExtractQuotedAfter
+- L264  f IsArenaTestBranch
+- L278  f FindLatestArenaTestBranch
+- L335  f RefreshAutomaticBranch
+- L376  f VerNewer
+- L389  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
+- globals: g_hcache (L13), g_hudDisabled (L162), g_orcaDisabled (L163)
 
 ## project-hub/src/parts/workers_install.c
 
 - L1  f WorkerInstallBluetoothGuard
-- L65  f WorkerInstallNotes
-- L107  f WorkerInstallDnsPilot
-- L173  f WorkerInstallKeyboardLighting
-- L267  f WorkerInstallSpatialHud
-- L329  f WorkerInstallOrcaPlugins
-- L430  f WorkerSelfUpdateHub
+- L71  f WorkerInstallNotes
+- L119  f WorkerInstallDnsPilot
+- L191  f WorkerInstallKeyboardLighting
+- L291  f WorkerInstallSpatialHud
+- L353  f WorkerInstallOrcaPlugins
+- L454  f WorkerSelfUpdateHub
 
 ## project-hub/src/parts/workers_remote.c
 
 - L4  f ExtractLineAfter
 - L14  f WorkerCheckRemote
-- L239  f StopProcessFromLock
+- L240  f StopProcessFromLock
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
-- L182  f ArmFastBurstWindow
-- globals: g_hwnd (L147), g_appIcon (L148), g_devNotifyIface (L149), g_devNotifyRadio (L150), g_radioNotifyHandle (L151), g_nid (L152), g_quitting (L153), g_guardOn (L154), g_autostart (L155), g_autostartExplicit (L156), g_radioOn (L157), g_trayHinted (L158), g_showEvent (L159), g_lock (L160), g_devices (L162), g_devCount (L163), g_hits (L165), g_hitCount (L166), g_hoverIdx (L167), g_scrollY (L168), g_contentH (L169), g_fastBurstUntil (L171), g_manualGraceUntil (L172)
+- L184  f ArmFastBurstWindow
+- globals: g_hwnd (L148), g_appIcon (L149), g_devNotifyIface (L150), g_devNotifyRadio (L151), g_radioNotifyHandle (L152), g_nid (L153), g_trayVisible (L154), g_quitting (L155), g_guardOn (L156), g_autostart (L157), g_autostartExplicit (L158), g_radioOn (L159), g_trayHinted (L160), g_showEvent (L161), g_lock (L162), g_devices (L164), g_devCount (L165), g_hits (L167), g_hitCount (L168), g_hoverIdx (L169), g_scrollY (L170), g_contentH (L171), g_fastBurstUntil (L173), g_manualGraceUntil (L174)
 
 ## bluetooth-guard/src/parts/autostart_rules.c
 
@@ -192,9 +232,9 @@
 - L100  f DoConnectNow  — Actively connect device right now!
 - L109  f DoForgetDevice
 - L116  f InitPaths
-- L126  f WriteHeartbeat
-- L147  f IsAutostartEnabled
-- L160  f RunHiddenCmd
+- L128  f WriteHeartbeat
+- L149  f IsAutostartEnabled
+- L162  f RunHiddenCmd
 
 ## bluetooth-guard/src/parts/device_classify.c
 
@@ -223,11 +263,11 @@
 - L2  f BoostProcessAndShutdownPriority  — Maximize CPU scheduling priority & disable Windows 11 EcoQoS throttling so boot/wake reaction is ins
 - L23  f RegisterBluetoothNotifications  — Subscribe to live kernel Bluetooth HCI / radio interface notifications for <1ms connect detection
 - L58  f UnregisterBluetoothNotifications
-- L73  f GetWinDpi
-- L88  f S
-- L90  f ApplyModernWindowFrame
-- L106  f InitBluetoothApis
-- globals: g_queue (L64), g_qHead (L65), g_qTail (L66), g_qSem (L67), g_workerRun (L68), g_cfgDir (L69), g_rulesPath (L70), g_lockPath (L71)
+- L75  f GetWinDpi
+- L90  f S
+- L92  f ApplyModernWindowFrame
+- L108  f InitBluetoothApis
+- globals: g_queue (L64), g_qHead (L65), g_qTail (L66), g_qSem (L67), g_workerRun (L68), g_cfgDir (L69), g_rulesPath (L70), g_lockPath (L71), g_hubTogglePath (L72), g_hubExitPath (L73)
 
 ## bluetooth-guard/src/parts/ui_controls.c
 
@@ -246,24 +286,28 @@
 
 - L1  f RenderWindow
 - L254  f HandleHitClick
-- L342  f ShowTrayMenu
+- L342  f BluetoothTraySync
+- L355  f TakeHubOneShot
+- L361  f ApplyHubGuardToggle
+- L369  f ApplyHubExit
+- L376  f ShowTrayMenu
 
 ## keyboard-lighting/src/keyboard_lighting.c
 
-- L243  f GetWinDpi
-- L258  f S
-- L260  f ApplyModernWindowFrame
-- L278  f FileExistsW
-- L283  f EnsureDirTree
-- L298  f CheckIsAdmin
-- L310  f ReadFileUtf8
-- L326  f WriteAtomicUtf8
-- L342  f ParseHexColor
-- L351  f FormatHexColor
-- L355  f FindEffectIndex
-- L365  f CurGroup
-- L369  f InitDefaultCfg
-- globals: g_hwnd (L182), g_appIcon (L183), g_nid (L184), g_showEvent (L185), g_engineProc (L186), g_enginePid (L187), g_isAdmin (L188), g_autostart (L189), g_wantOff (L190), g_quitting (L191), g_trayHinted (L192), g_downloading (L193), g_cfg (L195), g_tab (L196), g_hits (L197), g_hitCount (L198), g_hoverIdx (L199), g_dragKind (L200), g_dragIdx (L201), g_dragRect (L202), g_scrollY (L203), g_contentH (L204), g_applyPending (L205), g_applyAtTick (L206), g_liveCols (L209), g_liveKbdN (L210), g_liveBarN (L211), g_hasLiveFrame (L212), g_lastFrameTick (L213), g_toastText (L216), g_toastAt (L217), g_lastFnPoll (L218), g_exePath (L221), g_exeDir (L222), g_cfgDir (L223), g_panelPath (L224), g_themePath (L225), g_livePath (L226), g_framePath (L227), g_layoutPath (L228), g_lockPath (L229), g_showPath (L230), g_engPidPath (L231), g_stopPath (L232), g_brightUpPath (L233), g_brightDownPath (L234), g_holdModePath (L235), g_engineScript (L236), g_zonesBat (L237), g_statusText (L238)
+- L247  f GetWinDpi
+- L262  f S
+- L264  f ApplyModernWindowFrame
+- L282  f FileExistsW
+- L287  f EnsureDirTree
+- L302  f CheckIsAdmin
+- L314  f ReadFileUtf8
+- L330  f WriteAtomicUtf8
+- L346  f ParseHexColor
+- L355  f FormatHexColor
+- L359  f FindEffectIndex
+- L369  f CurGroup
+- L373  f InitDefaultCfg
+- globals: g_hwnd (L183), g_appIcon (L184), g_nid (L185), g_trayVisible (L186), g_showEvent (L187), g_engineProc (L188), g_enginePid (L189), g_isAdmin (L190), g_autostart (L191), g_wantOff (L192), g_quitting (L193), g_trayHinted (L194), g_downloading (L195), g_cfg (L197), g_tab (L198), g_hits (L199), g_hitCount (L200), g_hoverIdx (L201), g_dragKind (L202), g_dragIdx (L203), g_dragRect (L204), g_scrollY (L205), g_contentH (L206), g_applyPending (L207), g_applyAtTick (L208), g_liveCols (L211), g_liveKbdN (L212), g_liveBarN (L213), g_hasLiveFrame (L214), g_lastFrameTick (L215), g_toastText (L218), g_toastAt (L219), g_lastFnPoll (L220), g_exePath (L223), g_exeDir (L224), g_cfgDir (L225), g_panelPath (L226), g_themePath (L227), g_livePath (L228), g_framePath (L229), g_layoutPath (L230), g_lockPath (L231), g_showPath (L232), g_engPidPath (L233), g_stopPath (L234), g_brightUpPath (L235), g_brightDownPath (L236), g_holdModePath (L237), g_hubTogglePath (L238), g_hubExitPath (L239), g_engineScript (L240), g_zonesBat (L241), g_statusText (L242)
 
 ## keyboard-lighting/src/parts/brightness_hotkeys.c
 
@@ -372,8 +416,11 @@
 - L70  f RelaunchElevated
 - L91  f EnsureLogonTask
 - L137  f HandleHitAction
-- L229  f ShowTrayContextMenu
-- L513  f InitKblPaths
+- L229  f KeyboardTraySync
+- L242  f ApplyHubLightingToggle
+- L248  f ApplyHubExit
+- L255  f ShowTrayContextMenu
+- L548  f InitKblPaths
 - globals: g_pickOrig (L6), g_pickLast (L7), g_pickIdx (L8), g_pickLive (L9)
 
 ## keyboard-lighting/src/parts/ui_renderer.c
@@ -419,7 +466,7 @@
 
 - L1  S config
 - L2  f LoadConfig  — ---- config ----
-- L25  f SaveConfig
+- L27  f SaveConfig
 
 ## dns-pilot/src/parts/dns_probe.c
 
@@ -448,11 +495,11 @@
 ## dns-pilot/src/parts/resolver_catalogue.c
 
 - L1  S resolver catalogue: primary + secondary per family
-- L58  f WCpy
-- L92  f S
-- L98  f ApplyModernWindowFrame
-- L117  f Widen
-- globals: g_rows (L41), g_rowCount (L42), g_hwnd (L50), g_hIcon (L51), g_nid (L52), g_exitMsg (L53), g_quitting (L54), g_trayHinted (L55), g_fontUI (L56), g_dpi (L62), g_testing (L63), g_testedCount (L64), g_exitStop (L65), g_testNext (L66), g_topRow (L67), g_hoverBtn (L68), g_lastTestAt (L69), g_elevated (L70), g_auto (L71), g_intervalMin (L72), g_autoRun (L73), g_status (L74), g_adName (L75), g_ifIndex (L76), g_curV4 (L77), g_curV6 (L78), g_statsCs (L80), g_statsLine (L81), g_statsRun (L82), g_gwIp (L83), g_gwIsV6 (L84), g_srcV6 (L85), g_srcV6LL (L86), g_hasGlobalV6 (L87), g_cfgPath (L88), g_lastV4 (L89), g_best4 (L90), g_dpi (L92)
+- L59  f WCpy
+- L95  f S
+- L101  f ApplyModernWindowFrame
+- L120  f Widen
+- globals: g_rows (L41), g_rowCount (L42), g_hwnd (L50), g_hIcon (L51), g_nid (L52), g_trayVisible (L53), g_exitMsg (L54), g_quitting (L55), g_trayHinted (L56), g_fontUI (L57), g_dpi (L63), g_testing (L64), g_testedCount (L65), g_exitStop (L66), g_testNext (L67), g_topRow (L68), g_hoverBtn (L69), g_lastTestAt (L70), g_elevated (L71), g_auto (L72), g_intervalMin (L73), g_autoRun (L74), g_status (L75), g_adName (L76), g_ifIndex (L77), g_curV4 (L78), g_curV6 (L79), g_statsCs (L81), g_statsLine (L82), g_statsRun (L83), g_gwIp (L84), g_gwIsV6 (L85), g_srcV6 (L86), g_srcV6LL (L87), g_hasGlobalV6 (L88), g_cfgPath (L89), g_hubTogglePath (L90), g_hubExitPath (L91), g_lastV4 (L92), g_best4 (L93), g_dpi (L95)
 
 ## dns-pilot/src/parts/speed_test.c
 
@@ -472,44 +519,51 @@
 - L184  f BtnRect
 - L191  f FillSolid
 - L197  f DrawBtn
-- L218  f ShowTrayContextMenu
-- L234  f RowRect
-- L244  f PaintAll
-- L436  f HitBtn
-- L447  f UpdateStatusAfterTest
-- L495  f DoApplyFastest
-- globals: g_rcEmblem (L10), g_embCache (L81), g_frameCache (L241), g_fcW (L242)
+- L218  f DnsTraySync
+- L230  f ApplyHubAutoToggle
+- L239  f ApplyHubExit
+- L248  f ShowTrayContextMenu
+- L264  f RowRect
+- L274  f PaintAll
+- L466  f HitBtn
+- L477  f UpdateStatusAfterTest
+- L525  f DoApplyFastest
+- L761  f RequestHubOneShot
+- L782  f RequestHubAutoToggle
+- L783  f RequestHubExit
+- globals: g_rcEmblem (L10), g_embCache (L81), g_frameCache (L271), g_fcW (L272)
 
 ## agent-notes/src/agent_notes.c
 
-- L39  f AppsUseLightTheme
-- L48  f InitPalette
-- L111  f S
-- L118  f ApplyModernWindowFrame
-- L137  f GetWinDpi
-- globals: g_hInst (L90), g_hwnd (L91), g_fontUI (L92), g_linkHint (L93), g_bgBrush (L94), g_dpi (L95), g_fit (L96), g_hoverBtn (L97), g_showEvent (L98), g_link (L100), g_cfgDir (L101), g_cfgPath (L102), g_histPath (L103), g_outboxDir (L104), g_status (L105), g_lastOk (L106), g_sending (L107), g_noteHint (L108), g_lastSent (L109)
+- L42  f AppsUseLightTheme
+- L51  f InitPalette
+- L124  f S
+- L131  f ApplyModernWindowFrame
+- L150  f GetWinDpi
+- globals: g_hInst (L97), g_hwnd (L98), g_fontUI (L99), g_bgBrush (L100), g_dpi (L101), g_fit (L102), g_hoverBtn (L103), g_showEvent (L104), g_nid (L105), g_trayVisible (L106), g_link (L108), g_cfgDir (L109), g_cfgPath (L110), g_histPath (L111), g_outboxDir (L112), g_status (L113), g_lastOk (L114), g_sending (L115), g_noteHint (L116), g_quitting (L117), g_waitSound (L118), g_seenWait (L119), g_activeWait (L120), g_statusPollActive (L121), g_lastSent (L122)
 
 ## agent-notes/src/parts/config_outbox.c
 
-- L1  S config + outbox + history
-- L3  f InitPaths  — ---------------- config + outbox + history ----------------
+- L1  S config + outbox + receipt history
+- L3  f InitPaths  — ---------------- config + outbox + receipt history ----------------
 - L14  f LoadConfig
-- L18  f SaveConfig
-- L22  f OutboxCount
-- L35  f FileExistsW
-- L51  f HistSave
-- L73  f HistLoad
-- L109  f HistAdd
-- L120  f HistSnip
-- L130  f OutboxAdd
-- globals: g_hist (L48), g_histN (L49)
+- L20  f SaveConfig
+- L26  f OutboxCount
+- L39  f FileExistsW
+- L58  f HistSave
+- L84  f HistLoad
+- L135  f HistAdd
+- L151  f HistMarkSaved
+- L164  f HistMarkReceiptRead
+- L175  f HistSnip
+- L185  f OutboxAdd
+- globals: g_hist (L55), g_histN (L56)
 
 ## agent-notes/src/parts/emblem.c
 
-- L9  f EmbRasterize
-- L80  f EmbCacheEnsure
-- L95  f EmbSpinDraw
-- globals: g_embCache (L77), g_spinAngle (L78)
+- L8  f DrawAgentNotesEmblem
+- L16  f ReleaseAgentNotesEmblem
+- globals: g_agentNotesEmblem (L5), g_spinAngle (L6)
 
 ## agent-notes/src/parts/entry.c
 
@@ -518,12 +572,15 @@
 ## agent-notes/src/parts/http_agent.c
 
 - L1  S HTTP to the agent session
-- L3  f HttpPostNote  — ---------------- HTTP to the agent session ----------------
-- L43  f FlushOutbox
-- L115  f HttpGetText
-- L155  f HealthOk
-- L163  f LinkDiscoveryTick
-- L193  f StartFlush
+- L6  f JsonStringField
+- L26  f JsonFieldEquals
+- L31  f HttpPostNote
+- L86  f FlushOutbox
+- L174  f HttpGetText
+- L214  f HealthOk
+- L230  f LinkDiscoveryTick
+- L267  f StartFlush
+- globals: g_lastLinkDiscoveryAt (L228)
 
 ## agent-notes/src/parts/ui.c
 
@@ -531,13 +588,27 @@
 - L6  f RichTextColor
 - L20  f EmbRect
 - L24  f BtnRect
-- L29  f DrawBtn
-- L49  f HitBtn
-- L59  f DrawDot
-- L71  f PaintAll
-- L239  f NoteSetHint
-- L249  f LinkSetHint
-- L257  f NowStamp
+- L29  f DrawRoundedSurface
+- L42  f DrawBtn
+- L54  f HitBtn
+- L64  f DrawDot
+- L76  f DeliverySummary
+- L84  f PaintAll
+- L244  f NoteSetHint
+- L251  f NowStamp
+
+## agent-notes/src/parts/wait_alerts.c
+
+- L21  f AgentNotesTraySync
+- L39  f UpdateAgentNotesTrayTip
+- L50  f AgentNotesTrayInit
+- L63  f AgentNotesTrayRemove
+- L72  f PublishHubWaitRelay
+- L76  f ShowAgentWaitingAlert
+- L94  f ShowAgentNotesTrayMenu
+- L110  f JsonBoolTrue
+- L170  f StartStatusPoll
+- L177  f HandleStatusPoll
 
 ## audio-switcher/src/audio_switcher.c
 
@@ -557,14 +628,12 @@
 - L20  f ui_brush
 - L34  f ui_fonts_create
 - L49  f ui_fonts_destroy
-- L98  f EmbRasterize  — Tri-Spoke Core Emblem - analytic sub-pixel SDF renderer, ported 1:1 from Project Hub
-- L169  f EmbCacheEnsure
-- L184  f EmbSpinDraw
-- L237  f DrawWayfinderEmblem
-- L243  f PaintEmblemBlit  — Blit the spinning emblem square straight to a DC (spin fast-path).
-- L264  f GetWinDpi
-- L271  f update_volume_text
-- globals: g_font_ui (L11), g_font_head (L12), g_font_small (L13), g_hover_btn (L14), g_embCache (L167)
+- L101  f DrawAudioSwitcherEmblem
+- L110  f ReleaseAudioSwitcherEmblem
+- L115  f PaintEmblemBlit  — Blit the spinning emblem square straight to a DC (spin fast-path).
+- L135  f GetWinDpi
+- L142  f update_volume_text
+- globals: g_font_ui (L11), g_font_head (L12), g_font_small (L13), g_hover_btn (L14), g_audioSwitcherEmblem (L99)
 
 ## audio-switcher/src/parts/diag.c
 
@@ -609,6 +678,7 @@
 - L454  f ui_update_values
 - L505  f refresh_ui
 - L524  f ui_status_text  — Footer status line.
+- L555  f AudioTraySync
 - globals: g_ui_endpoint_sig (L16), g_ui_session_sig (L17), g_y_outputs_header (L21), g_y_apps_header (L22), g_y_footer (L23), g_truncated_endpoints (L24), g_truncated_sessions (L25), g_ep_card (L29), g_ss_card (L30), g_ep_rows (L31), g_ss_rows (L32), g_scroll_offset (L41), g_scroll_range (L42), g_viewport_h (L43), g_ep_max (L44), g_ss_max (L45), g_ep_scroll_max (L46), g_ss_scroll_max (L47), g_row_ep_h (L123)
 
 ## audio-switcher/src/parts/vtable_asserts.c
@@ -616,25 +686,193 @@
 
 ## audio-switcher/src/parts/window_ui_tray.c
 
-- L50  f S
-- globals: g_hInst (L5), g_hwnd (L6), g_app_icon (L7), g_nid (L8), g_quitting (L9), g_silent (L10), g_showEvent (L18), g_showThread (L19), g_showThreadRun (L20), g_btn_refresh (L26), g_endpoint_ctrls (L37), g_session_ctrls (L47), g_dpi (L49), g_dpi (L50), g_rcEmblem (L53)
+- L51  f S
+- globals: g_hInst (L5), g_hwnd (L6), g_app_icon (L7), g_nid (L8), g_trayVisible (L9), g_quitting (L10), g_silent (L11), g_showEvent (L19), g_showThread (L20), g_showThreadRun (L21), g_btn_refresh (L27), g_endpoint_ctrls (L38), g_session_ctrls (L48), g_dpi (L50), g_dpi (L51), g_rcEmblem (L54)
+
+## weather-radar/src/weather_radar.c
+
+- L205  f S
+- L212  f RadarTileZoomForDisplay
+- globals: g_hInst (L140), g_hwnd (L141), g_fontUI (L142), g_bgBrush (L143), g_dpi (L144), g_fit (L145), g_hoverBtn (L146), g_lock (L147), g_cfgDir (L153), g_cfgPath (L154), g_cacheDir (L155), g_status (L156), g_statusKind (L157), g_nid (L158), g_trayVisible (L159), g_quitting (L160), g_trayHinted (L161), g_rainAlertEpisode (L165), g_rainAlertLastEpoch (L166), g_rainAlertLat (L167), g_places (L169), g_placeN (L170), g_placeSel (L171), g_search (L172), g_searchStage (L173), g_searchN (L174), g_searchStageN (L175), g_searchSel (L176), g_searchTicket (L177), g_searchStageTicket (L178), g_placeTicket (L179), g_query (L180), g_searchHint (L181), g_fc (L183), g_ens (L184), g_fcStage (L185), g_ensStage (L186), g_frames (L188), g_frameN (L189), g_frameSel (L190), g_playing (L191), g_zoom (L192), g_radarHost (L193), g_radarNote (L195), g_view (L198), g_viewStage (L199), g_base (L200), g_baseKey (L201), g_viewReady (L202)
+
+## weather-radar/src/parts/alerts.c
+
+- L7  f RainAlertPlaceMatches
+- L13  f UnixNowSeconds
+- L22  f LoadRainAlertState
+- L33  f SaveRainAlertState
+- L48  f ForecastIsRainingNow
+- L56  f WeatherTraySync
+- L70  f WeatherTrayInit
+- L83  f WeatherTrayRemove
+- L89  f ShowWeatherTrayMenu
+- L103  f WeatherTrayHintOnce
+- L116  f PublishHubRainAlert
+- L131  f ShowRainAlert
+- L149  f RainAlertRemember
+- L157  f RainAlertConsider
+
+## weather-radar/src/parts/emblem.c
+
+- L8  f DrawWeatherRadarEmblem
+- L16  f ReleaseWeatherRadarEmblem
+- globals: g_weatherRadarEmblem (L5), g_radarSpinAngle (L6)
+
+## weather-radar/src/parts/entry.c
+
+- L1  S entry: wWinMain
+- globals: g_className (L3)
+
+## weather-radar/src/parts/forecast.c
+
+- L20  f BuildForecastUrl
+- L34  f BuildEnsembleUrl
+- L45  f HourLabelFromIso
+- L55  f FetchForecast
+- L129  f FetchEnsemble
+- L179  f EnsWindowProb
+- L200  f PoPWindowMax
+
+## weather-radar/src/parts/json.c
+
+- L36  f JNew
+- L44  f JSkipWs
+- L50  f JDecodeString
+- L118  f JParseValue
+- L191  f JsonParse
+- L200  f JGet
+- L207  f JLen
+- L214  f JAt
+- L225  f JNum
+- globals: g_jpool (L33), g_jused (L34)
+
+## weather-radar/src/parts/net.c
+
+- L1  S net: WinHTTP GET + tile cache
+- L8  f HttpBufFree
+- L17  f HttpGetBuf
+- L84  f CacheNameFor
+- L96  f CacheAgeSecOk
+
+## weather-radar/src/parts/places.c
+
+- L7  f InitPaths
+- L26  f LoadPlaces
+- L48  f SavePlaces
+- L71  f RememberPlace
+- L92  f DropSelectedPlace
+- L104  f SearchTicketIsCurrent
+- L115  f GeocodeSearch
+
+## weather-radar/src/parts/radar.c
+
+- L17  f WicEnsure
+- L30  f WicDecodePng256
+- L72  S slippy-map tile maths
+- L74  f Lon2Tile  — ---------------- slippy-map tile maths ----------------
+- L82  f Lat2Tile
+- L96  f GridFor
+- L110  f PlacePixelInGrid
+- L120  S frame catalog
+- L122  f RadarCatalogFetch  — ---------------- frame catalog ----------------
+- L180  S tile fetching into a 768x768 grid
+- L185  f FetchTileGrid
+- L229  f BaseGridEnsure
+- L245  f RadarViewBuild
+- globals: g_wicFactory (L15)
+
+## weather-radar/src/parts/ui.c
+
+- L19  f RadarEmblemRect
+- L23  f BtnRect
+- L37  f RadarImageRect
+- L46  f SearchRowRect
+- L54  f SavedHeadingY
+- L58  f SavedRowRect
+- L68  f LayoutSearchEdit
+- L87  f HitBtn
+- L97  f DrawBtn
+- L109  f FrameTimeText  — unix seconds -> "14:20" (plus the day when it is not today), local time
+- L129  f PaintNowCard
+- L173  f PaintHonestCard
+- L223  f PaintHourlyCard
+- L292  f PaintRadarPane
+- L431  f PaintLeftColumn
+- L480  f PaintAll
+- L589  f StatusSet
+- L596  f CurrentPlace
+- L600  f OnPickSearchRow
+- L612  f OnPickSavedRow
+- L625  f StepFrame
+- L637  f SearchTextIsBlank
+- L642  f SubmitSearch
+
+## weather-radar/src/parts/util.c
+
+- L1  S util: palette, dpi, files, text
+- L3  f AppsUseLightTheme  — ---------------- util: palette, dpi, files, text ----------------
+- L15  f InitPalette
+- L49  f ApplyModernWindowFrame
+- L68  f GetWinDpi
+- L74  f MakeFonts
+- L94  S files
+- L96  f DirExistsW  — ---------------- files ----------------
+- L101  f EnsureDirW
+- L111  f ReadWholeFileW
+- L128  f WriteWholeFileW
+- L139  f PruneCacheDir
+- L168  S text
+- L170  f Utf8ToWide  — ---------------- text ----------------
+- L177  f WideToUtf8
+- L186  f UrlEncodeUtf8
+- L203  f NowLocalStamp
+- L211  f WxCodeText  — WMO weather codes, the words people actually use.
+- L239  f WxCodeIsWet  — Is this code any kind of wet weather?
+- L244  f MixCol
+- L251  f DrawRoundedBox
+- L263  f DrawTextAt
+
+## weather-radar/src/parts/workers.c
+
+- L17  f StartJob
+- L30  f PopJob
+- L90  f WorkerStart
+- L97  f RequestPlaceData
+- L112  f RequestTiles
+- L116  f RequestSearch
+- globals: g_workerThread (L8), g_jobEvent (L9), g_jobs (L10), g_jobHead (L11), g_reqPlace (L12), g_reqHas (L13), g_reqQuery (L14), g_reqSearchTicket (L15)
+
+## shared/win32/suite_emblem.c
+
+- L28  f SuiteEmblemDibRgb
+- L34  f SuiteEmblemDibPixel
+- L39  f SuiteEmblemAngleNow  — One shared timebase for the calm suite default: one turn every 30 seconds.
+- L47  f SuiteEmblemResolvePalette
+- L61  f SuiteEmblemRasterize
+- L145  f SuiteEmblemRelease
+- L155  f SuiteEmblemEnsure
+- L176  f SuiteEmblemDraw  — Alpha-composite the rotated transparent mark into an AARRGGBB DIB canvas.
 
 ## tools/agent_map.py
 
-- L43  f comment_purpose
-- L67  f scan_c
-- L92  f scan_py
-- L103  f c_file_list
-- L115  f build
-- L140  f main
+- L46  f comment_purpose
+- L70  f scan_c
+- L95  f scan_py
+- L106  f c_file_list
+- L118  f build
+- L143  f main
+
+## tools/agent_notes_state.py
+
+- L26  f main
 
 ## tools/build_windows.py
 
-- L40  f zig_version
-- L45  f target_key
-- L62  f ensure_zig_python
-- L78  f build_target
-- L114  f main
+- L50  f zig_version
+- L55  f target_key
+- L76  f ensure_zig_python
+- L92  f build_target
+- L128  f main
 
 ## tools/bump_version.py
 
@@ -645,13 +883,17 @@
 
 ## tools/check_all.py
 
-- L37  f have_deps
-- L45  f wave_gcode_merkle_key
-- L67  f load_cache
-- L74  f save_cache
-- L82  f make_nodeps
-- L92  f exec_task
-- L117  f main
+- L38  f have_deps
+- L46  f wave_gcode_merkle_key
+- L68  f load_cache
+- L75  f save_cache
+- L83  f make_nodeps
+- L93  f exec_task
+- L118  f main
+
+## tools/check_context_budget.py
+
+- L21  f main
 
 ## tools/dump_default_config.py
 
@@ -676,8 +918,9 @@
 - L451  f build_icon_audio_switcher
 - L479  f build_icon_weather_radar
 - L525  f save_multi_ico
-- L557  f main
-- L658  f export_spin_loops
+- L564  f RemoveRedundantBrandExports
+- L575  f main
+- L672  f export_spin_loops
 
 ## tools/mutate.py
 
@@ -686,10 +929,26 @@
 
 ## tools/notes_server.py
 
-- L124  f sanitize_note
-- L142  f rate_limit_allow
-- L159  f Handler
-- L278  f main
+- L140  f utc_now
+- L145  f empty_state
+- L155  f normalise_state
+- L211  f state_lock
+- L239  f load_state
+- L246  f save_state
+- L269  f set_waiting
+- L279  f clear_waiting
+- L286  f begin_inbox_checkpoint
+- L304  f mark_checkpoint_read
+- L324  f public_status
+- L334  f receipt_status
+- L350  f sanitize_note
+- L363  f rate_limit_allow
+- L378  f receipt_in_inbox
+- L392  f append_inbox
+- L400  f persist_note
+- L440  f Handler
+- L557  f initialise_inbox
+- L572  f main
 
 ## tools/sync_changelog.py
 
@@ -804,10 +1063,11 @@
 - L43  f strip_cs_comments_and_strings
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
-- L2389  f SuiteFolderInstallTests
-- L3113  f AudioSwitcherReachabilityTests
-- L3297  f AudioSwitcherSessionSweepTests
-- L3438  f AppOpenFocusTests
+- L2627  f SuiteFolderInstallTests
+- L3663  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3739  f AudioSwitcherReachabilityTests
+- L3923  f AudioSwitcherSessionSweepTests
+- L4064  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

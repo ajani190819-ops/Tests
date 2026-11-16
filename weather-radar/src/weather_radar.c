@@ -43,6 +43,7 @@
 #include <string.h>
 #include <math.h>
 #include <wchar.h>
+#include "../../shared/win32/hub_tray_host.h"
 
 #define APP_TITLE_W   L"Weather Radar"
 #define APP_DIRNAME_W L"WeatherRadar"
@@ -52,12 +53,24 @@
 
 #define WM_APP_DATA   (WM_APP + 7)     /* worker -> UI: staging result is ready */
 #define WM_APP_STATUS (WM_APP + 8)     /* worker -> UI: status line text */
+#define WM_APP_SEARCH (WM_APP + 9)     /* edit Return -> UI search submit */
+#define WM_TRAYICON    (WM_APP + 10)    /* notification-area interaction */
 
 enum { BTN_SEARCH = 0, BTN_REFRESH, BTN_PLAY, BTN_PREV, BTN_NEXT,
        BTN_KEEP, BTN_DROP, BTN_ZOOM, BTN_COUNT };
-enum { TIMER_EMBLEM = 1, TIMER_ANIM = 2, TIMER_REFRESH = 3 };
+enum { TIMER_EMBLEM = 1, TIMER_ANIM = 2, TIMER_REFRESH = 3, TIMER_TRAY_SYNC = 4 };
+enum { ID_TRAY_OPEN = 201, ID_TRAY_EXIT = 202 };
 #define ID_EDIT_SEARCH 101
 #define HINT_SEARCH    L"city or postcode - press Search"
+
+/* Owner-set rain alert policy: exact-location ensemble probability only.
+   A qualifying episode emits once, then stays latched through the rain (and
+   across a restart) until both the current weather and near-term forecast are
+   dry. The cooldown is a second, independent anti-spam guard. */
+#define RAIN_ALERT_PROB          0.66
+#define RAIN_ALERT_HOURS         3
+#define RAIN_ALERT_COOLDOWN_SEC  (3ULL * 60ULL * 60ULL)
+#define RAIN_ALERT_TRACE_IN      0.004
 
 /* What "rain" means for the honest probability. 0.1 mm/h is the WMO trace
    threshold: below it a gauge reports nothing, so a member under it did not
@@ -73,6 +86,13 @@ enum { TIMER_EMBLEM = 1, TIMER_ANIM = 2, TIMER_REFRESH = 3 };
 #define GRID_TILES     3               /* 3x3 tiles per radar view */
 #define TILE_PX        256
 #define GRID_PX        (GRID_TILES * TILE_PX)
+/* RainViewer imagery is available only through host level 8 in this app's
+   route. Higher owner-selected levels are honest local detail crops from that
+   latest available imagery, not unsupported network requests masquerading as
+   more precise radar data. */
+#define RADAR_TILE_ZOOM_MIN     7
+#define RADAR_TILE_ZOOM_MAX     8
+#define RADAR_DISPLAY_ZOOM_MAX  10
 
 /* Worker jobs. One thread, one queued job at a time: the UI never blocks and
    a job always writes to staging, never to what is on screen. */
@@ -96,7 +116,7 @@ typedef struct {
     int     have;             /* 0 nothing, 1 partial, 2 complete */
     wchar_t fetched[24];      /* local HH:MM of the fetch */
     wchar_t tz[48];
-    double  tempF, feelsF, rh, windMph, precipIn;
+    double  tempF, feelsF, rh, windMph, windGustMph, cloudCover, precipIn;
     int     wcode;
     double  dMaxF, dMinF, dPoP, dSumIn;   /* today, straight from the API */
     double  hT[FC_HOURS], hPoP[FC_HOURS], hP[FC_HOURS];
@@ -120,7 +140,7 @@ typedef struct {
 static HINSTANCE g_hInst;
 static HWND      g_hwnd, g_hSearch;
 static HFONT     g_fontUI, g_fontTitle, g_fontBig, g_fontBtn, g_fontSmall;
-static HBRUSH    g_bgBrush;
+static HBRUSH    g_bgBrush, g_inputBrush;
 static UINT      g_dpi = 96;
 static int       g_fit = 100;
 static int       g_hoverBtn = -1;
@@ -135,13 +155,28 @@ static wchar_t g_cfgPath[MAX_PATH];
 static wchar_t g_cacheDir[MAX_PATH];
 static wchar_t g_status[320] = L"Pick a place to begin.";
 static int     g_statusKind = 0;        /* 0 neutral, 1 good, 2 warn */
+static NOTIFYICONDATAW g_nid;
+static int       g_trayVisible = 0;
+static int     g_quitting = 0;
+static int     g_trayHinted = 0;
+
+/* Persisted one-place episode state prevents a restart or a 10-minute refresh
+   from re-announcing rain that has already begun. */
+static int       g_rainAlertEpisode = 0;
+static ULONGLONG g_rainAlertLastEpoch = 0;
+static double    g_rainAlertLat = NAN, g_rainAlertLon = NAN;
 
 static Place   g_places[MAX_PLACES];
 static int     g_placeN = 0;
 static int     g_placeSel = -1;
 static Place   g_search[MAX_SEARCH];
+static Place   g_searchStage[MAX_SEARCH];
 static int     g_searchN = 0;
+static int     g_searchStageN = 0;
 static int     g_searchSel = -1;
+static DWORD   g_searchTicket = 0;
+static DWORD   g_searchStageTicket = 0;
+static DWORD   g_placeTicket = 0;       /* rejects late forecast results for an old place */
 static wchar_t g_query[96] = L"";
 static int     g_searchHint = 1;
 
@@ -154,9 +189,10 @@ static RadarFrame g_frames[MAX_FRAMES];
 static int        g_frameN = 0;
 static int        g_frameSel = 0;
 static int        g_playing = 0;
-static int        g_zoom = 8;           /* 8 first; falls back to 7 if empty */
+static int        g_zoom = 8;           /* selected display detail: 7 through 10 */
 static wchar_t    g_radarHost[160] = L"";
-static int        g_radarNote = 0;      /* 1 = fell back to zoom 7 */
+/* 1 = host fell back to its available level; 2 = local detail beyond host 8 */
+static int        g_radarNote = 0;
 
 /* decoded imagery: 768x768 each, owned by whoever the UI currently points at */
 static uint32_t *g_view = NULL;         /* composited radar over basemap */
@@ -170,6 +206,15 @@ static int S(int px) {
     return MulDiv(MulDiv(px, (int)g_dpi, 96), g_fit, 100);
 }
 
+/* Keep network requests inside the known available imagery range. Display
+   levels 9 and 10 are deliberately local crops of level 8, preserving the
+   selected-place focus without claiming a non-existent finer radar source. */
+static int RadarTileZoomForDisplay(int displayZoom) {
+    if (displayZoom > RADAR_TILE_ZOOM_MAX) return RADAR_TILE_ZOOM_MAX;
+    if (displayZoom < RADAR_TILE_ZOOM_MIN) return RADAR_TILE_ZOOM_MIN;
+    return displayZoom;
+}
+
 /* ---- modularized (unity build): each section lives in its own file under
       parts/ and is textually included here IN DEPENDENCY ORDER, so
       weather_radar.c is still ONE translation unit. ---- */
@@ -179,6 +224,9 @@ static int S(int px) {
 #include "parts/places.c"
 #include "parts/radar.c"
 #include "parts/forecast.c"
+#include "parts/alerts.c"
 #include "parts/workers.c"
+#include "../../shared/win32/suite_emblem.c"
+#include "parts/emblem.c"
 #include "parts/ui.c"
 #include "parts/entry.c"

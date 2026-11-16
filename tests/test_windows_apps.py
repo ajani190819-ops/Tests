@@ -1212,6 +1212,27 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             count = int.from_bytes(raw[4:6], "little")
             self.assertGreaterEqual(count, 5, f"{rel_ico} should include multi-DPI icon frames")
 
+    def test_brand_exports_keep_one_canonical_copy_per_asset(self):
+        """The icon generator used to write six legacy aliases that were exact
+        copies of the canonical masters. They added roughly twenty-six MiB to every
+        clone without serving an executable or the spin preview."""
+        gen = (ROOT / "tools" / "generate_suite_icons.py").read_text(encoding="utf-8")
+        brand = ROOT / "docs" / "brand"
+        self.assertIn("REDUNDANT_BRAND_EXPORTS", gen)
+        self.assertIn("for stale in REDUNDANT_BRAND_EXPORTS", gen)
+        self.assertIn("RemoveRedundantBrandExports()", gen)
+        for rel in (
+            "icon-project-hub.png", "tri-spoke-spin-1024.webp",
+            "tri-spoke-spin-1024.gif", "spin.html",
+        ):
+            self.assertTrue((brand / rel).is_file(), f"canonical brand export missing: {rel}")
+        for rel in (
+            "project-hub-icon-2048.png", "project-hub-icon-1024.png",
+            "tri-spoke-emblem-2048.png", "tri-spoke-emblem-1024.png",
+            "tri-spoke-spin.webp", "tri-spoke-spin.gif",
+        ):
+            self.assertFalse((brand / rel).exists(), f"redundant brand alias returned: {rel}")
+
     def test_suite_apps_catalog_is_complete_and_matches_the_hub(self):
         """suite-apps.json is the hub's data-driven extension point: one entry
         adds a card with no hub rebuild. It had no test coverage at all, which
@@ -1436,9 +1457,21 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("if (dst[i] & 0xFF000000u)", rdc,
                       "an empty tile is no longer detected by its alpha, so the zoom "
                       "fallback can never see a placeholder")
-        self.assertIn("z = 7;", rdc,
-                      "the free-tier zoom cap has no fallback: beyond it the host "
-                      "answers 200 with an empty PNG and the pane shows nothing")
+        self.assertIn("z = RADAR_TILE_ZOOM_MIN;", rdc,
+                      "the source-level fallback is gone: a placeholder response would leave "
+                      "the pane without available imagery")
+
+        # The owner can now request closer detail without sending RainViewer
+        # unsupported level-9/10 calls. Levels 9 and 10 are visibly tighter
+        # local crops of the available level-8 source; level 7/8 transitions
+        # still fetch the distinct available source grids.
+        self.assertIn("#define RADAR_DISPLAY_ZOOM_MAX  10", main)
+        self.assertIn("RadarTileZoomForDisplay(displayZoom)", rdc)
+        self.assertIn("g_zoom = (g_zoom >= RADAR_DISPLAY_ZOOM_MAX) ? RADAR_TILE_ZOOM_MIN : g_zoom + 1;", ui)
+        self.assertIn("if (oldTileZoom != newTileZoom) RequestTiles();", ui)
+        self.assertIn("int localSteps = displayZoom - sourceZoom;", ui)
+        self.assertIn("focusPx /= 2;", ui)
+        self.assertIn("detail zoom — sourced from host level 8", ui)
         self.assertIn("openstreetmap contributors", ui.lower(),
                       "OSM tiles ship without the credit their licence requires")
         self.assertIn("rainviewer", ui.lower(),
@@ -1483,6 +1516,211 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         ip = ip[:ip.index("\n}\n")]
         self.assertIn("if (AppsUseLightTheme())", ip,
                       "the window ignores the owner's Windows theme again")
+
+    def test_weather_radar_alert_uses_exact_ensemble_and_latches_one_rain_episode(self):
+        """Rain alerts are only useful when they answer the point question and
+        never recur while the same shower is underway. The selected-place
+        worker ticket also prevents a late forecast for somewhere else from
+        announcing rain at the current place."""
+        main = (ROOT / "weather-radar" / "src" / "weather_radar.c").read_text(encoding="utf-8")
+        alerts = (ROOT / "weather-radar" / "src" / "parts" / "alerts.c").read_text(encoding="utf-8")
+        ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        workers = (ROOT / "weather-radar" / "src" / "parts" / "workers.c").read_text(encoding="utf-8")
+        forecast = (ROOT / "weather-radar" / "src" / "parts" / "forecast.c").read_text(encoding="utf-8")
+        entry = (ROOT / "weather-radar" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+
+        self.assertRegex(main, r"#define RAIN_ALERT_PROB\s+0\.66")
+        self.assertRegex(main, r"#define RAIN_ALERT_HOURS\s+3")
+        self.assertIn("RAIN_ALERT_COOLDOWN_SEC", main)
+        self.assertIn("EnsWindowProb(&g_ens, 0, RAIN_ALERT_HOURS)", alerts,
+                      "the alert stopped using exact-location ensemble odds")
+        self.assertNotIn("PoPWindowMax", alerts,
+                         "regional coverage-blended PoP must never trigger the alert")
+        self.assertIn("ForecastIsRainingNow", alerts)
+        self.assertLess(alerts.index("if (raining) {"), alerts.index("ShowRainAlert(p, odds);"),
+                        "an ongoing shower can reappear as a new about-to-rain alert")
+        self.assertIn("if (samePlace && g_rainAlertEpisode) return;", alerts,
+                      "a qualifying episode no longer suppresses duplicate alerts")
+        self.assertIn("LoadRainAlertState", alerts)
+        self.assertIn("SaveRainAlertState", alerts)
+        self.assertIn("Shell_NotifyIconW(NIM_MODIFY", alerts,
+                      "the rain watch no longer delivers through the Windows notification area")
+        self.assertIn("WeatherTrayInit();", entry)
+        self.assertIn("ShowWindow(hwnd, SW_HIDE);", ui,
+                      "closing Weather Radar stops the watcher instead of keeping it in the tray")
+        self.assertIn("ID_TRAY_EXIT", ui,
+                      "a hidden continuous watcher has no explicit exit path")
+
+        self.assertIn("g_placeTicket", main)
+        self.assertIn("FetchForecast(&p, ticket)", workers)
+        self.assertIn("FetchEnsemble(&p, ticket)", workers)
+        self.assertIn("ticket == g_placeTicket", ui,
+                      "a late reply for a previous place can overwrite the selected forecast")
+        self.assertIn("(LPARAM)(uintptr_t)ticket", forecast,
+                      "the worker no longer labels a forecast result with its place generation")
+
+    def test_weather_search_field_scales_and_submits_without_stale_results(self):
+        """Weather Radar's one native child control used its creation-time 96 DPI
+        rectangle while the painted UI used the final monitor DPI and fit. It
+        overlapped the header on scaled screens, and Return did nothing. Search
+        answers now stage through the worker so an older response cannot replace
+        the query the owner just typed."""
+        main = (ROOT / "weather-radar" / "src" / "weather_radar.c").read_text(encoding="utf-8")
+        ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        places = (ROOT / "weather-radar" / "src" / "parts" / "places.c").read_text(encoding="utf-8")
+        workers = (ROOT / "weather-radar" / "src" / "parts" / "workers.c").read_text(encoding="utf-8")
+
+        self.assertIn("static void LayoutSearchEdit(void)", ui)
+        self.assertIn("SetWindowPos(g_hSearch", ui)
+        self.assertIn("LayoutSearchEdit();\n        InvalidateRect(hwnd, NULL, TRUE);", ui,
+                      "the search control is not relaid out after a DPI change")
+        self.assertIn("g_inputBrush = CreateSolidBrush(COL_INPUT);",
+                      (ROOT / "weather-radar" / "src" / "parts" / "entry.c").read_text(encoding="utf-8"))
+        self.assertIn("SetWindowSubclass(g_hSearch, SearchEditSubclass", ui)
+        self.assertIn("PostMessageW(GetParent(edit), WM_APP_SEARCH, 0, 0);", ui,
+                      "Return in the search box is not routed to the real submit path")
+        self.assertIn("case WM_APP_SEARCH:\n        SubmitSearch();", ui)
+        self.assertIn("GetWindowTextW(g_hSearch, g_query, 96);", ui,
+                      "Search uses a stale EN_CHANGE copy instead of the current edit text")
+        self.assertIn("g_searchStage", main)
+        self.assertIn("GeocodeSearch(query, ticket);", workers)
+        self.assertIn("ticket == g_searchTicket", places)
+        self.assertIn("g_searchStageTicket == g_searchTicket", ui)
+
+    def test_weather_radar_layout_keeps_text_controls_and_tiles_separate(self):
+        """The owner's screenshot caught three visual defects static data tests
+        cannot see: hourly labels sharing the legend strip, opaque radar paint
+        covering its controls, 256px tiles written straight into a 768px grid
+        so the map appeared as broken horizontal bands, and the promised
+        suite mark existing as a dead/nonexistent Weather Radar header."""
+        ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        radar = (ROOT / "weather-radar" / "src" / "parts" / "radar.c").read_text(encoding="utf-8")
+        forecast = (ROOT / "weather-radar" / "src" / "parts" / "forecast.c").read_text(encoding="utf-8")
+        self.assertIn("wind_gusts_10m,cloud_cover", forecast,
+                      "the selected balanced current-conditions view stopped requesting gust and cloud context")
+        self.assertIn('f->windGustMph = JNum(JGet(cur, "wind_gusts_10m"));', forecast)
+        self.assertIn('f->cloudCover = JNum(JGet(cur, "cloud_cover"));', forecast)
+        self.assertIn("#define WIN_LH 960", ui,
+                      "the decision view regressed to the short canvas that made radar unreadable")
+        self.assertIn("#define RADAR_FOCUS_PX 512", ui,
+                      "the legible local-radar focus crop disappeared")
+        self.assertIn("static int SavedHeadingY(void)", ui)
+        self.assertIn("if (wp != SIZE_MINIMIZED) LayoutSearchEdit();", ui,
+                      "the native search field is not corrected after the window receives its final size")
+        hourly = ui[ui.index("static void PaintHourlyCard("):ui.index("static void PaintRadarPane", ui.index("static void PaintHourlyCard("))]
+        self.assertIn("Next 12 hours · odds, amount, temperature", hourly,
+                      "the hourly decision lanes lost their explicit meaning")
+        self.assertIn("Blue = ensemble odds  ·  Gold = regional coverage", hourly,
+                      "the visual difference between exact-point odds and regional PoP is unlabeled")
+        self.assertIn("g_fc.hP[k]", hourly,
+                      "hourly rain amount vanished from the decision view")
+        self.assertNotIn("RECT leg", hourly,
+                         "the hourly legend overlaps the time labels again")
+        paint = ui[ui.index("static void PaintAll(HWND hwnd)"):ui.index("static void StatusSet", ui.index("static void PaintAll(HWND hwnd)"))]
+        self.assertLess(paint.index("PaintRadarPane(mem, &radarCard);"),
+                        paint.index("DrawBtn(mem, BTN_PREV"),
+                        "the radar card paints over its own playback controls")
+        pane = ui[ui.index("static void PaintRadarPane("):ui.index("static void PaintAll", ui.index("static void PaintRadarPane("))]
+        self.assertIn("RADAR_FOCUS_PX", pane,
+                      "the enlarged radar pane is no longer drawn from the readable local focus")
+        self.assertIn("light     moderate     heavy     intense", pane,
+                      "radar colours no longer have a visible intensity legend")
+        self.assertIn("cx - S(14)", pane,
+                      "the location marker is too small to find over precipitation")
+        emblem = (ROOT / "weather-radar" / "src" / "parts" / "emblem.c").read_text(encoding="utf-8")
+        engine = (ROOT / "shared" / "win32" / "suite_emblem.c").read_text(encoding="utf-8")
+        entry = (ROOT / "weather-radar" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+        main = (ROOT / "weather-radar" / "src" / "weather_radar.c").read_text(encoding="utf-8")
+        self.assertIn('#include "../../shared/win32/suite_emblem.c"', main,
+                      "Weather Radar bypasses the canonical suite-emblem engine")
+        self.assertIn("SetTimer(hwnd, TIMER_EMBLEM, 50, NULL);", entry,
+                      "the Weather Radar emblem never receives animation ticks")
+        self.assertIn("DrawWeatherRadarEmblem", ui,
+                      "the Weather Radar header paints a static or missing mark")
+        self.assertIn("g_radarSpinAngle += 6.283185307179586 / 600.0;", ui,
+                      "the Weather Radar header mark no longer turns")
+        self.assertIn("SuiteEmblemResolvePalette(COL_BG, COL_ACCENT, COL_TXT", emblem,
+                      "the Weather Radar adapter ignores the active light/dark palette")
+        self.assertIn("SuiteEmblemDibPixel(COL_BG)", ui,
+                      "the narrow Weather Radar repaint writes a raw COLORREF into its DIB")
+        self.assertIn("SuiteEmblemDraw", engine,
+                      "the shared engine lost the transparent Tri-Spoke draw path")
+        self.assertIn("uint32_t tile[TILE_PX * TILE_PX];", radar)
+        self.assertIn("for (int row = 0; row < TILE_PX; row++)", radar)
+        self.assertIn("memcpy(dstRow, tile + (size_t)row * TILE_PX", radar,
+                      "a 256px tile is copied contiguously into the 768px map and wraps into stripes")
+
+    def test_suite_header_emblem_has_one_dib_safe_engine(self):
+        """All native spinning headers must share one renderer.  Four copied SDF
+        loops had already drifted into an opaque brown/gold box in three apps;
+        this contract leaves adapters only and makes raw COLORREF DIB fills a
+        detectable regression rather than a screenshot surprise."""
+        engine_path = ROOT / "shared" / "win32" / "suite_emblem.c"
+        self.assertTrue(engine_path.exists(), "the reusable native emblem engine is missing")
+        engine = engine_path.read_text(encoding="utf-8")
+        for needle in (
+            "typedef struct SuiteEmblemEngine",
+            "SuiteEmblemDibPixel",
+            "SuiteEmblemResolvePalette",
+            "SuiteEmblemAngleNow",
+            "SuiteEmblemRelease",
+            "SuiteEmblemDraw",
+            "straight-alpha AARRGGBB DIB pixels",
+        ):
+            self.assertIn(needle, engine, "shared emblem engine lost `%s`" % needle)
+
+        consumers = (
+            ("project-hub/src/project_hub.c", "project-hub/src/parts/emblem.c", "DrawWayfinderEmblem"),
+            ("agent-notes/src/agent_notes.c", "agent-notes/src/parts/emblem.c", "DrawAgentNotesEmblem"),
+            ("audio-switcher/src/audio_switcher.c", "audio-switcher/src/parts/control_theming.c", "DrawAudioSwitcherEmblem"),
+            ("weather-radar/src/weather_radar.c", "weather-radar/src/parts/emblem.c", "DrawWeatherRadarEmblem"),
+        )
+        for main_rel, adapter_rel, draw_name in consumers:
+            main = (ROOT / main_rel).read_text(encoding="utf-8")
+            adapter = (ROOT / adapter_rel).read_text(encoding="utf-8")
+            self.assertIn('#include "../../shared/win32/suite_emblem.c"', main,
+                          "%s stopped including the canonical engine" % main_rel)
+            self.assertIn("SuiteEmblemDraw", adapter,
+                          "%s reimplemented or bypassed the canonical draw path" % adapter_rel)
+            self.assertIn(draw_name, adapter,
+                          "%s has no app-local placement adapter" % adapter_rel)
+            for retired in ("EmbRasterize", "RadarEmbRasterize", "EmbCache", "RadarEmbCache",
+                            "EMB_SDF_SCALE", "EMB_SDF_BOOST"):
+                self.assertNotIn(retired, adapter,
+                                 "%s restored a divergent `%s` renderer" % (adapter_rel, retired))
+
+        for paint_rel in (
+            "project-hub/src/parts/ui_renderer.c",
+            "agent-notes/src/parts/ui.c",
+            "audio-switcher/src/parts/control_theming.c",
+            "weather-radar/src/parts/ui.c",
+        ):
+            paint = (ROOT / paint_rel).read_text(encoding="utf-8")
+            self.assertIn("SuiteEmblemDibPixel(COL_BG)", paint,
+                          "%s can write a raw COLORREF background into an emblem DIB" % paint_rel)
+        self.assertNotIn("bits[i] = COL_BG", (ROOT / "agent-notes/src/parts/ui.c").read_text(encoding="utf-8"))
+        self.assertNotIn("spinBits[i] = COL_BG", (ROOT / "weather-radar/src/parts/ui.c").read_text(encoding="utf-8"))
+
+        builder = (ROOT / "tools" / "build_windows.py").read_text(encoding="utf-8")
+        self.assertIn("TARGET_SHARED_SOURCES", builder,
+                      "shared emblem edits can reuse stale native EXEs")
+        for target in ("audioswitcher", "hub", "agentnotes", "weatherradar"):
+            self.assertIn('"%s"' % target, builder,
+                          "the %s cache key omits the shared engine" % target)
+
+    def test_dynamic_catalog_cards_hide_update_when_their_build_is_current(self):
+        """Weather Radar is the first non-built-in hub card. It kept its Update
+        button after a successful install because the generic status sweep only
+        ever made that button amber; unlike the built-ins it never hid it again."""
+        src = (ROOT / "project-hub" / "src" / "parts" / "refresh_statuses.c").read_text(encoding="utf-8")
+        block = src[src.index("/* 7+. Catalog extras"):src.index("if (g_hwnd) InvalidateRect", src.index("/* 7+. Catalog extras"))]
+        self.assertIn("BOOL showAction = !has || (known && upd);", block)
+        self.assertIn("c->btns[action].hidden = !showAction;", block,
+                      "a current dynamic app still renders a clickable Update button")
+        self.assertIn("c->btns[action].label = !has ? L\"Install\" : L\"Update\";", block)
+        self.assertIn("if (open >= 0) c->btns[open].hidden = !has;", block)
+        self.assertIn("RemoteDiffers(c->remSha, exePath, c->remSize)", block,
+                      "dynamic cards must use exact content identity before claiming an update")
 
     def test_hud_and_orca_cards_expose_update_folder_remove_disable(self):
         """Both cards were redesigned to match the other app cards: Update (shown
@@ -2469,7 +2707,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
                          "the suite folder is no longer recognised as the managed home, "
                          "so its copy would not be created on a first install")
 
-        for call in ("InstallRepoFileEverywhere(MIRROR_GENERIC",
+        for call in ("InstallRepoFileEverywhere(mirrorSlot",
                      "InstallRepoFileEverywhere(MIRROR_DNS",
                      "InstallRepoFileEverywhere(MIRROR_NOTES"):
             self.assertIn(call, src, f"{call}...) is gone - that installer went back "
@@ -2520,24 +2758,91 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertGreaterEqual(src.count("AppendInstallFolder("), 4,
                                 "only a couple of cards report where they install")
 
-    def test_update_replaces_a_stray_running_copy_instead_of_leaving_it_alive(self):
+    def test_update_closes_and_proves_every_managed_executable_copy_is_gone(self):
+        """An update must close the app first, not discover its file lock after
+        writing one of several mirrors.  The gate is process-image based so it
+        covers same-folder, stray, hidden-tray, and catalogue apps alike."""
         src = self._hub_src()
+        install = (ROOT / "project-hub" / "src" / "parts" / "install_folder.c").read_text(encoding="utf-8")
+        identity = (ROOT / "project-hub" / "src" / "parts" / "content_identity.c").read_text(encoding="utf-8")
+        workers = (ROOT / "project-hub" / "src" / "parts" / "workers_install.c").read_text(encoding="utf-8")
+        cards = (ROOT / "project-hub" / "src" / "parts" / "card_defs_verbs.c").read_text(encoding="utf-8")
+        audio = (ROOT / "audio-switcher" / "src" / "parts" / "diag.c").read_text(encoding="utf-8")
 
-        # Audio Switcher has no --stop switch and its single-instance mutex makes
-        # a freshly launched suite copy exit at once, so the old tray instance
-        # would survive its own update.
-        self.assertIn('StopForeignInstance(L"TestsAudioSwitcherWnd", c->appDir);', src,
-                      "a tray app running from a stray copy survives its update")
-        start = src.index("static BOOL StopForeignInstance(")
-        body = src[start:start + 1800]
-        self.assertIn("QueryFullProcessImageNameW(hp, 0, img, &n)", body,
-                      "the hub no longer checks which folder the running instance "
-                      "was launched from")
-        self.assertIn("_wcsicmp(dir, primaryDir) != 0", body,
-                      "the hub would close the instance it is about to relaunch")
-        self.assertIn("TerminateProcess(hp, 0)", body,
-                      "a foreign instance that ignores WM_CLOSE keeps its exe locked, "
-                      "so the stray copy can never be overwritten")
+        self.assertIn("#include <tlhelp32.h>", src,
+                      "the Hub cannot enumerate live process images before an update")
+        scan_start = identity.index("static int FindProcessesUsingImage(")
+        scan = identity[scan_start:identity.index("static BOOL NoProcessRunsImage(", scan_start)]
+        self.assertIn("CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)", scan)
+        self.assertIn("QueryFullProcessImageNameW(process, 0, processPath, &pathLen)", scan,
+                      "the close gate no longer proves the process came from the managed path")
+        self.assertIn("return uncertain ? -1 : out->count;", scan,
+                      "an uninspectable same-named process is guessed safe")
+
+        gate_start = install.index("static BOOL CloseManagedExeCopies(")
+        gate = install[gate_start:install.index("static void EnsureProbeRef(", gate_start)]
+        self.assertIn("g_mirrorCount[slot]", gate,
+                      "the close gate ignores registered stray copies")
+        self.assertIn("CloseRunningImageForUpdate(paths[i], quitCommand)", gate,
+                      "the close gate no longer asks each managed running copy to exit")
+        self.assertIn("NoProcessRunsImage(paths[i])", gate,
+                      "the close gate no longer verifies every image exited")
+        self.assertIn("No files were changed", gate,
+                      "a still-running app is not reported as a refused update")
+
+        atomic_start = identity.index("static BOOL WriteBinaryFileAtomic(")
+        atomic = identity[atomic_start:atomic_start + 1700]
+        self.assertIn("IsExeImagePath(dest) && !NoProcessRunsImage(dest)", atomic,
+                      "an app can restart after preflight and still be overwritten")
+        mirror_start = install.index("static int MirrorFileEverywhere(")
+        mirror = install[mirror_start:mirror_start + 1800]
+        self.assertIn("IsExeImagePath(alt) && !NoProcessRunsImage(alt)", mirror,
+                      "a reopened stray mirror can be overwritten after the gate")
+
+        for call in (
+            "CloseManagedExeCopies(MIRROR_BTG, g_btgDir, L\"BluetoothGuard.exe\"",
+            "CloseManagedExeCopies(MIRROR_KBL, g_kblDir, L\"KeyboardLighting.exe\"",
+            "CloseManagedExeCopies(MIRROR_DNS, g_dnsDir, L\"DnsPilot.exe\"",
+            "CloseManagedExeCopies(MIRROR_NOTES, g_notesDir, L\"AgentNotes.exe\"",
+            "CloseManagedExeCopies(mirrorSlot, c->appDir, c->exeName,",
+        ):
+            self.assertIn(call, workers + cards,
+                          "%s is missing, so that app can be written while open" % call)
+
+        self.assertIn("? MIRROR_AUDIO : MIRROR_GENERIC;", cards,
+                      "Audio Switcher lost its own registered mirror set in the generic worker")
+        self.assertIn("InstallRepoFileEverywhere(mirrorSlot", cards,
+                      "the generic worker closes Audio Switcher mirrors but then writes a different set")
+        self.assertIn("RequestManagedExeCopiesStop(mirrorSlot, c->appDir, c->exeName);", cards,
+                      "a catalogue tray app no longer receives its explicit exit request")
+        self.assertLess(cards.index("RequestManagedExeCopiesStop(mirrorSlot"),
+                        cards.index("CloseManagedExeCopies(mirrorSlot"),
+                        "the graceful stop request runs after the close-and-prove gate")
+        self.assertIn('_wcsicmp(c->exeName, L"AudioSwitcher.exe") == 0', cards,
+                      "Audio Switcher no longer receives its graceful stop request")
+        self.assertIn('_wcsicmp(c->exeName, L"WeatherRadar.exe") == 0', cards,
+                      "Weather Radar update falls back to its tray-hiding WM_CLOSE")
+        stop_start = install.index("static void RequestManagedExeCopiesStop(")
+        stop = install[stop_start:install.index("static BOOL CloseManagedExeCopies(", stop_start)]
+        self.assertIn("g_mirrorCount[slot]", stop,
+                      "the explicit stop route ignores registered catalogue mirrors")
+        self.assertIn('stop.lpParameters = L"--stop";', stop,
+                      "the explicit stop route no longer invokes the app's real exit command")
+        self.assertIn("WaitForSingleObject(stop.hProcess, 2500)", stop,
+                      "the updater races immediately past the explicit stop helper")
+        self.assertIn("AUDIO_SWITCHER_QUIT_COMMAND", cards,
+                      "Audio Switcher's tray-only WM_CLOSE is no longer given its real Quit command")
+        self.assertIn('wcsstr(cmdLine, L"--stop")', audio,
+                      "Audio Switcher itself does not support the updater stop contract")
+        self.assertIn("IDM_TRAY_QUIT", audio,
+                      "Audio Switcher --stop does not follow the app's graceful tray Quit path")
+        weather = (ROOT / "weather-radar" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+        self.assertIn('wcsstr(cmdLine, L"--stop")', weather,
+                      "Weather Radar itself does not support the updater stop contract")
+        self.assertIn("ID_TRAY_EXIT", weather,
+                      "Weather Radar --stop does not follow the app's graceful tray Exit path")
+        self.assertNotIn("static BOOL StopForeignInstance(", src,
+                         "the old Audio-Switcher-only forced termination path remains instead of the shared safe gate")
 
     def test_agent_notes_discovers_the_live_session_itself(self):
         """The notes channel used to need a pasted link that went stale.
@@ -2556,8 +2861,10 @@ class SuiteFolderInstallTests(unittest.TestCase):
         link" - queued-is-not-broken is the whole point.
         """
         ha = (ROOT / "agent-notes" / "src" / "parts" / "http_agent.c").read_text(encoding="utf-8")
+        watch = (ROOT / "agent-notes" / "src" / "parts" / "wait_alerts.c").read_text(encoding="utf-8")
         ui = (ROOT / "agent-notes" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
         en = (ROOT / "agent-notes" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+        branch_cache = (ROOT / "project-hub" / "src" / "parts" / "version_probe_cache.c").read_text(encoding="utf-8")
 
         self.assertIn(".agent/AGENT_LINK.txt", ha,
                       "the app no longer polls the committed session link, so the "
@@ -2567,9 +2874,22 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("if (!HealthOk(cand)) return 0;", ha,
                       "a discovered link is adopted without proving it is live, so a "
                       "dead session would replace a working link")
-        self.assertIn("LinkDiscoveryTick()", ui,
-                      "the flush timer never runs discovery, so a new session is only "
-                      "found by restarting the app")
+        self.assertIn("LINK_DISCOVERY_INTERVAL_MS", ha,
+                      "the live-link refresh has no bounded polling interval")
+        self.assertIn("if (LinkDiscoveryTick()) result->linkFound = 1;", watch,
+                      "the watcher stopped refreshing a saved link, so a prior Arena "
+                      "sandbox can strand every queued note")
+        self.assertNotIn("if (!g_link[0] && LinkDiscoveryTick())", watch,
+                         "the watcher only discovers when its saved link is blank; "
+                         "a stale but non-empty previous-session link can never recover")
+        auto_refresh = branch_cache[branch_cache.index("static void RefreshAutomaticBranch(void)"):]
+        auto_refresh = auto_refresh[:auto_refresh.index("\n}\n")]
+        self.assertIn("SaveBranchCfg(newest);", auto_refresh,
+                      "automatic Hub branch following is not persisted for Agent Notes, "
+                      "so it can keep polling a previously selected dead branch")
+        self.assertIn("StartStatusPoll()", ui,
+                      "the background wait/receipt poll no longer rediscovers a new session, so "
+                      "the owner would have to restart the app")
         self.assertIn("LinkDiscoveryTick()", en,
                       "startup never runs discovery, so an app opened after a new "
                       "session began waits a full minute for its first tick")
@@ -2579,9 +2899,9 @@ class SuiteFolderInstallTests(unittest.TestCase):
 
         fo = ha[ha.index("static int FlushOutbox("):]
         fo = fo[:fo.index("\n}\n")]
-        self.assertEqual(fo.count("DeleteFileW(path);"), 1,
+        self.assertEqual(fo.count("HistMarkSaved(fd.cFileName, receipt) && DeleteFileW(path)"), 1,
                          "the outbox delete moved - queued notes must survive failures")
-        self.assertLess(fo.index("HttpPostNote(g_link"), fo.index("DeleteFileW(path);"),
+        self.assertLess(fo.index("HttpPostNote(g_link"), fo.index("HistMarkSaved(fd.cFileName, receipt)"),
                         "an outbox file is deleted before delivery is confirmed, so a "
                         "crash mid-flush loses the note")
 
@@ -2595,22 +2915,159 @@ class SuiteFolderInstallTests(unittest.TestCase):
                           "the turn-start protocol no longer mentions %s, so the "
                           "channel's last mile rots again" % needle)
 
-    def test_agent_notes_is_readable_in_either_windows_theme(self):
-        """Dark-on-dark was never a colour-picking mistake: RichEdit50W
-        controls ignore WM_CTLCOLOREDIT entirely, so darkening the editors'
-        backgrounds left Windows' default BLACK text sitting on a near-black
-        surface. The only lever a rich edit offers is the character format
-        (EM_SETCHARFORMAT), which is what RichTextColor() now drives - and it
-        must be re-asserted every time text is replaced, because SetWindowText
-        resets a rich edit to its default formatting.
+    def test_hub_open_reveals_a_running_agent_notes_window(self):
+        """Agent Notes normally hides to its tray. A Hub Open click must reveal
+        that instance itself instead of silently starting a second process and
+        hoping Windows grants the already-running process foreground access."""
+        entry = (ROOT / "project-hub" / "src" / "parts" / "branch_picker_entry.c").read_text(encoding="utf-8")
+        show = entry[entry.index("static int ShowRunningAgentNotes(void)"):]
+        show = show[:show.index("\n}\n")]
+        action = entry[entry.index("case ID_NOTES_OPEN:"):]
+        action = action[:action.index("    case ID_NOTES_UPDATE:")]
 
-        The second half of the complaint was "cumbersome": no orientation at a
-        glance, a Send button that looked like a stray chip, and a link box
-        whose placeholder did not say the box is optional. All three are
-        asserted here as behaviour, not as prose, because a comment saying
-        "we recolour the text" satisfies a naive substring check while the
-        screen stays unreadable.
-        """
+        self.assertIn('FindWindowW(L"AgentNotesWnd", NULL)', show,
+                      "Hub Open cannot find the tray-hidden Agent Notes window")
+        self.assertIn("ShowWindow(notes, SW_SHOW);", show,
+                      "Hub Open no longer makes the hidden Agent Notes window visible")
+        self.assertIn("SetWindowPos(notes, HWND_TOP", show,
+                      "the revealed window can remain behind Project Hub and look unopened")
+        self.assertIn("SetForegroundWindow(notes);", show,
+                      "the revealed Agent Notes window is not brought forward")
+        self.assertIn("if (ShowRunningAgentNotes())", action,
+                      "Hub Open launches blindly instead of revealing the already-running app")
+        self.assertIn("HINSTANCE launched = ShellExecuteW", action,
+                      "Hub no longer launches Agent Notes when no existing window is present")
+        self.assertIn("(INT_PTR)launched <= 32", action,
+                      "a failed Agent Notes launch still reports success to the owner")
+
+    def test_unified_hub_tray_consolidates_icons_and_safe_controls(self):
+        """The owner selected one Project Hub tray icon, with app windows and
+        safe toggles reachable from it. Individual icons remain a fallback only
+        when the Hub host is absent; no sign-in/startup behaviour is added."""
+        hub = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        hub_ui = (ROOT / "project-hub" / "src" / "parts" / "branch_picker_entry.c").read_text(encoding="utf-8")
+        tray = (ROOT / "project-hub" / "src" / "parts" / "tray_unified.c").read_text(encoding="utf-8")
+        host = (ROOT / "shared" / "win32" / "hub_tray_host.h").read_text(encoding="utf-8")
+        notes_watch = (ROOT / "agent-notes" / "src" / "parts" / "wait_alerts.c").read_text(encoding="utf-8")
+        weather_alerts = (ROOT / "weather-radar" / "src" / "parts" / "alerts.c").read_text(encoding="utf-8")
+        weather_entry = (ROOT / "weather-radar" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+        kbl = (ROOT / "keyboard-lighting" / "src" / "parts" / "picker_window_entry.c").read_text(encoding="utf-8")
+        dns = (ROOT / "dns-pilot" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        btg = (ROOT / "bluetooth-guard" / "src" / "parts" / "window_entry.c").read_text(encoding="utf-8")
+
+        self.assertIn("HUB_TRAY_HOST_EVENT", host)
+        self.assertIn("OpenEventW(SYNCHRONIZE", host,
+                      "apps no longer probe whether the Hub owns the suite tray")
+        self.assertIn("HubTrayInit();", hub_ui)
+        self.assertIn("HubTrayRestore();", hub_ui,
+                      "Explorer/taskbar restart leaves the Hub icon missing")
+        self.assertIn("HubTrayEnsureLive();", hub_ui,
+                      "a transient Hub tray registration failure leaves every app on fallback icons")
+        retry_start = tray.index("static void HubTrayEnsureLive(void)")
+        retry = tray[retry_start:tray.index("static void HubTrayInit(void)", retry_start)]
+        self.assertIn("if (!g_hubTrayVisible)", retry,
+                      "the Hub no longer retries a failed initial NIM_ADD")
+        self.assertIn("HubTrayRestore();", retry,
+                      "the Hub retry does not recreate its tray icon")
+        self.assertIn("HubTrayPublishHostMarker();", retry,
+                      "a successful Hub icon cannot recover a failed host-marker create")
+        marker_start = tray.index("static void HubTrayPublishHostMarker(void)")
+        marker = tray[marker_start:tray.index("static void HubTrayRestore(void)", marker_start)]
+        self.assertIn("CreateEventW(NULL, TRUE, TRUE, HUB_TRAY_HOST_EVENT)", marker,
+                      "the retry cannot republish the live Hub host capability")
+        self.assertIn("HubTrayRemove();", hub_ui)
+        self.assertIn("SuiteTaskbarCreatedMessage", host)
+        self.assertIn("WM_HUB_TRAYICON", hub)
+        self.assertIn("Shell_NotifyIconW(NIM_ADD, &g_hubNid)", tray)
+        self.assertIn("CreateEventW(NULL, TRUE, TRUE, HUB_TRAY_HOST_EVENT)", tray,
+                      "Hub does not publish its successfully-created tray host")
+        self.assertIn("CloseHandle(g_trayHostEvent)", tray,
+                      "app fallback icons cannot recover after Hub exits")
+        self.assertIn("if (!g_hubQuitting)", hub_ui)
+        self.assertIn("ShowWindow(hwnd, SW_HIDE);", hub_ui,
+                      "normal Hub close no longer hides to the unified tray")
+        self.assertIn("ID_TRAY_HUB_EXIT", tray)
+
+        # Every tray-owning native app must suppress only its duplicate icon
+        # while the new Hub host is actually present, then keep its fallback.
+        app_sources = {
+            "Agent Notes": ROOT / "agent-notes" / "src" / "parts" / "wait_alerts.c",
+            "Bluetooth Guard": ROOT / "bluetooth-guard" / "src" / "parts" / "window_entry.c",
+            "Keyboard Lighting": ROOT / "keyboard-lighting" / "src" / "parts" / "picker_window_entry.c",
+            "DNS Pilot": ROOT / "dns-pilot" / "src" / "parts" / "ui.c",
+            "Audio Switcher": ROOT / "audio-switcher" / "src" / "parts" / "ui_reconcile.c",
+            "Weather Radar": ROOT / "weather-radar" / "src" / "parts" / "alerts.c",
+        }
+        for name, path in app_sources.items():
+            src = path.read_text(encoding="utf-8")
+            self.assertIn("SuiteHubOwnsTray()", src,
+                          f"{name} keeps a duplicate icon while Hub owns the tray")
+            self.assertIn("NIM_DELETE", src,
+                          f"{name} cannot remove its duplicate tray icon")
+            self.assertIn("NIM_ADD", src,
+                          f"{name} cannot restore its fallback tray icon when Hub exits")
+
+        # Every owner receives TaskbarCreated so Explorer restarts do not strand
+        # either the unified icon or the independent fallback path.
+        taskbar_receivers = {
+            "Agent Notes": ROOT / "agent-notes" / "src" / "parts" / "ui.c",
+            "Bluetooth Guard": ROOT / "bluetooth-guard" / "src" / "parts" / "window_entry.c",
+            "Keyboard Lighting": ROOT / "keyboard-lighting" / "src" / "parts" / "picker_window_entry.c",
+            "DNS Pilot": ROOT / "dns-pilot" / "src" / "parts" / "ui.c",
+            "Audio Switcher": ROOT / "audio-switcher" / "src" / "parts" / "ui_reconcile.c",
+            "Weather Radar": ROOT / "weather-radar" / "src" / "parts" / "ui.c",
+        }
+        for name, path in taskbar_receivers.items():
+            self.assertIn("SuiteTaskbarCreatedMessage()", path.read_text(encoding="utf-8"),
+                          f"{name} cannot restore its fallback after an Explorer restart")
+
+        for needle in ("Agent Notes", "Bluetooth Guard", "Keyboard Lighting", "DNS Pilot",
+                       "Audio Switcher", "Weather Radar", "Show window", "Hide window", "Quit"):
+            self.assertIn(needle, tray,
+                          f"the unified Hub tray no longer exposes {needle}")
+        self.assertIn("Toggle Guard Enabled", tray)
+        self.assertIn("Toggle Lighting On or Off", tray)
+        self.assertIn("Toggle DNS Auto-Pilot", tray)
+        self.assertIn("--hub-toggle-guard", tray)
+        self.assertIn("--hub-toggle", tray)
+        self.assertIn("--hub-toggle-auto", tray)
+        self.assertIn("ApplyHubGuardToggle", btg)
+        self.assertIn("ApplyHubLightingToggle", kbl)
+        self.assertIn("RequestHubAutoToggle", dns)
+        # Elevated controls and quit are file-based companion requests, never
+        # a cross-integrity WM_COMMAND that can be silently blocked by UIPI.
+        self.assertNotIn("SendMessage", tray)
+        self.assertIn("--hub-exit", tray)
+        for src, name in ((btg, "Bluetooth Guard"), (kbl, "Keyboard Lighting"),
+                          (dns, "DNS Pilot")):
+            self.assertIn("ApplyHubExit", src,
+                          f"{name} does not consume the elevated-safe Hub quit token")
+            self.assertIn("if (ApplyHubExit()) return 0;", src,
+                          f"{name} never applies the Hub exit token on its live timer")
+            self.assertIn("OpenMutexW(SYNCHRONIZE", src,
+                          f"{name} can leave a Hub token for a future launch")
+        self.assertIn('wcsstr(cmdLine, L"--stop")', weather_entry,
+                      "Weather Radar still has no explicit non-hiding quit route")
+
+        # Agent Notes waiting and Weather Radar rain alerts remain native
+        # Windows notifications through the one Hub icon, not silently lost.
+        self.assertIn('L"HubRelay", L"WaitId"', notes_watch)
+        self.assertIn("HubTrayPollAgentWait", tray)
+        self.assertIn("Agent is waiting for input", tray)
+        self.assertIn("NIIF_INFO | (HubTrayAgentWaitSound() ? 0 : NIIF_NOSOUND)", tray)
+        show_rain = weather_alerts[weather_alerts.index("static void ShowRainAlert("):]
+        show_rain = show_rain[:show_rain.index("\n}\n")]
+        self.assertIn("PublishHubRainAlert(p, odds);", show_rain)
+        self.assertIn("HubTrayPollWeatherAlert", tray)
+        self.assertIn("Exact-location ensemble chance", weather_alerts)
+        self.assertNotRegex(hub + tray, r"(?i)(RegSetValue.*\\\\Run|schtasks|CreateService)",
+                            "the unified Hub tray silently added startup persistence")
+
+    def test_agent_notes_is_readable_in_either_windows_theme(self):
+        """Agent Notes used to expose the internal session URL despite automatic
+        discovery, making a no-setup outbox look broken and leaving a second,
+        irrelevant control in the way.  The refreshed app has one composer,
+        automatic delivery status, and theme-correct RichEdit text."""
         an = (ROOT / "agent-notes" / "src" / "agent_notes.c").read_text(encoding="utf-8")
         ui = (ROOT / "agent-notes" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
         en = (ROOT / "agent-notes" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
@@ -2631,82 +3088,155 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertRegex(an_c, r'Themes\\\\Personalize',
                          "theme detection no longer reads the documented Personalize key")
         self.assertEqual(an_c.count("COL_BG      = RGB("), 2,
-                         "the palette lost one of its two schemes - a single dark "
-                         "scheme on a light desktop is the original bug")
+                         "the palette lost one of its two schemes")
         self.assertNotIn("RGB(24, 27, 36)", ui_c,
                          "the paint code hardcodes the dark backdrop again instead of "
                          "using the theme palette")
+        emblem = (ROOT / "agent-notes" / "src" / "parts" / "emblem.c").read_text(encoding="utf-8")
+        engine = (ROOT / "shared" / "win32" / "suite_emblem.c").read_text(encoding="utf-8")
+        self.assertIn("SuiteEmblemResolvePalette(COL_BG, COL_ACCENT, COL_TXT", emblem,
+                      "the spinning emblem uses a fixed pale colour and vanishes in light mode")
+        self.assertIn("if (luma >= 160)", engine,
+                      "the shared emblem has no light-surface contrast branch")
+        self.assertIn("*nearColor = accent;", engine,
+                      "the shared emblem ignores the app's readable accent on a light surface")
+        self.assertIn("*farColor = text;", engine,
+                      "the shared emblem ignores readable primary text on a light surface")
 
-        # --- the actual fix: character format, not WM_CTLCOLOREDIT ---
-        self.assertIn("EM_SETCHARFORMAT", ui_c,
-                      "RichTextColor no longer sends EM_SETCHARFORMAT, and that is the "
-                      "ONLY message a RichEdit50W control obeys for text colour")
-        self.assertIn("cf.dwMask = CFM_COLOR;", ui_c,
-                      "the char format does not set CFM_COLOR, so the colour field is "
-                      "ignored and the text stays default black")
-        self.assertIn("SCF_SELECTION", ui_c, "existing text is not recoloured")
-        self.assertIn("SCF_DEFAULT", ui_c,
-                      "newly typed text reverts to the default colour, so the box goes "
-                      "dark-on-dark again the moment the owner types")
-        self.assertIn("EM_GETSEL", ui_c,
-                      "recolouring the whole control destroys the caret position")
+        # --- RichEdit must explicitly receive both existing and future colour ---
+        self.assertIn("EM_SETCHARFORMAT", ui_c)
+        self.assertIn("cf.dwMask = CFM_COLOR;", ui_c)
+        self.assertIn("SCF_SELECTION", ui_c)
+        self.assertIn("SCF_DEFAULT", ui_c)
+        self.assertIn("EM_GETSEL", ui_c)
+        for m in re.finditer(r"EM_SETBKGNDCOLOR", en_c):
+            tail = en_c[m.end():m.end() + 200]
+            self.assertIn("RichTextColor", tail,
+                          "the note editor background has no matching RichEdit text colour")
 
-        # --- every editor background gets its text colour paired with it ---
-        for name, src_c, src in (("entry.c", en_c, en), ("ui.c", ui_c, ui)):
-            for m in re.finditer(r"EM_SETBKGNDCOLOR", src_c):
-                tail = src_c[m.end():m.end() + 200]
-                self.assertIn("RichTextColor", tail,
-                              "%s darkens an editor background with no matching text "
-                              "colour - that pairing is the whole fix" % name)
+        note_hint = ui_c[ui_c.index("static void NoteSetHint(int on)"):]
+        note_hint = note_hint[:note_hint.index("\n}\n")]
+        self.assertIn("RichTextColor", note_hint)
+        self.assertRegex(note_hint, r"COL_MUTED : COL_TXT")
 
-        # --- hint text recolours with the text it replaces ---
-        for fn in ("static void NoteSetHint(int on)", "static void LinkSetHint(int on)"):
-            self.assertIn(fn, ui_c, "the %s hint setter is gone" % fn.split("(")[0])
-            body = ui_c[ui_c.index(fn):]
-            body = body[:body.index("\n}\n")]
-            self.assertIn("RichTextColor", body,
-                          "%s replaces the editor text without re-asserting the colour, "
-                          "and SetWindowText resets a rich edit to default formatting"
-                          % fn.split("(")[0])
-            self.assertRegex(body, r"COL_MUTED : COL_TXT",
-                             "%s cannot distinguish hint text from real text"
-                             % fn.split("(")[0])
-
-        # --- palette must exist before the first window is created ---
-        self.assertIn("InitPalette();", en_c,
-                      "the palette is never initialised, so every colour is 0 (black)")
-        self.assertLess(en_c.index("InitPalette();"), en_c.index("CreateWindowExW"),
-                        "windows are created before the palette is filled, so the first "
-                        "paint uses uninitialised colours")
-
-        # --- less cumbersome: orientation, full-width Send, self-explaining link ---
-        self.assertIn("Agent Notes", ui_c, "the window no longer says what it is")
-        self.assertIn("HINT_LINK", an_c, "the link box lost its explanatory placeholder")
-        self.assertIn("automatic", an, "the placeholder does not say the box is optional")
-        self.assertIn("else SetRect(r, S(20), S(380), S(600), S(380) + S(40));", ui_c,
-                      "Send is no longer the full-width action bar, so it reads as a "
-                      "stray chip instead of the window's main verb")
+        # --- exactly one owner-facing input: the note composer ---
+        combined = an_c + ui_c + en_c
+        for retired in ("g_hLink", "g_linkHint", "HINT_LINK", "ID_EDIT_LINK",
+                        "BTN_SAVE", "LinkSetHint", "Save Link", "Session link"):
+            self.assertNotIn(retired, combined,
+                             "%s remains in the app, so the owner is still asked to "
+                             "manage an automatic session endpoint" % retired)
+        self.assertEqual(en_c.count('L"RichEdit50W"'), 1,
+                         "Agent Notes exposes more than the one intended note composer")
+        self.assertIn("Automatic delivery", ui_c,
+                      "the replacement for the removed URL field does not explain delivery")
+        self.assertIn("DeliverySummary()", ui_c,
+                      "the delivery card does not report its automatic state")
+        self.assertIn("Recent activity", ui_c)
+        self.assertIn("SetRect(r, S(20), S(410), S(600), S(454));", ui_c,
+                      "Send is no longer the full-width primary action")
         self.assertNotIn("S(20) + S(190), S(380) + S(38)", ui_c,
-                         "Send shrank back to a 190px chip")
+                         "Send shrank back to the old narrow chip")
         paint = ui_c[ui_c.index("static void PaintAll(HWND hwnd)"):]
         paint = paint[:paint.index("\n}\n")]
         self.assertEqual(paint.count('L"Agent Notes"'), 1,
-                         "the title is drawn more than once, so the two copies overlap "
-                         "into unreadable mush")
+                         "the title is drawn more than once and overlaps itself")
 
-        # --- the placeholder must never be saved as the real link ---
-        self.assertIn("if (g_linkHint) g_link[0] = L'\\0';", ui_c,
-                      "Save persists the placeholder text as the receiver address, so the "
-                      "app posts notes to a URL that is a sentence")
-        self.assertIn("static int       g_linkHint", an_c,
-                      "the app cannot tell placeholder text from a typed link")
-        self.assertGreaterEqual(ui_c.count("g_linkHint = 0;") + en_c.count("g_linkHint = 0;"), 2,
-                                "adopting a discovered link does not clear the placeholder "
-                                "state, so a real address keeps hint formatting")
-        for m in re.finditer(r"g_linkHint = 0;", ui_c + en_c):
-            tail = (ui_c + en_c)[m.end():m.end() + 200]
-            self.assertIn("SetWindowTextW(g_hLink, g_link)", tail,
-                          "the hint flag is cleared without writing the real link in")
+        # Discovery still happens at startup, and later wait/receipt checks use
+        # a worker so an unavailable preview link cannot freeze the composer.
+        self.assertIn("StartStatusPoll()", ui_c)
+        self.assertIn("LinkDiscoveryTick()", en_c)
+        self.assertIn("Agent session found - notes will deliver automatically.", en,
+                      "startup discovery still leaves the owner looking for a link field")
+
+    def test_agent_notes_waiting_alerts_and_two_stage_receipts(self):
+        """A sent HTTP request is not evidence the agent read a note, and an
+        app cannot promise an alert while its device/process/network is away.
+        The owner selected a native visual wait alert (sound opt-in) plus a
+        truthful local-inbox receipt followed by an explicit checkpoint read."""
+        app = (ROOT / "agent-notes" / "src" / "agent_notes.c").read_text(encoding="utf-8")
+        config = (ROOT / "agent-notes" / "src" / "parts" / "config_outbox.c").read_text(encoding="utf-8")
+        http = (ROOT / "agent-notes" / "src" / "parts" / "http_agent.c").read_text(encoding="utf-8")
+        watch = (ROOT / "agent-notes" / "src" / "parts" / "wait_alerts.c").read_text(encoding="utf-8")
+        ui = (ROOT / "agent-notes" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        entry = (ROOT / "agent-notes" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+        server = (ROOT / "tools" / "notes_server.py").read_text(encoding="utf-8")
+        state = (ROOT / "tools" / "agent_notes_state.py").read_text(encoding="utf-8")
+        hub = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        workers = (ROOT / "project-hub" / "src" / "parts" / "workers_install.c").read_text(encoding="utf-8")
+
+        def code(src):
+            src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+            return re.sub(r"//[^\n]*", "", src)
+
+        config_c, http_c, watch_c, ui_c, entry_c = map(code, (config, http, watch, ui, entry))
+
+        # Receiver-side acceptance means an fsync'ed inbox append plus an
+        # opaque receipt. Retry uses a stable client key, so a crash between
+        # the two local files recovers instead of duplicating the note.
+        for needle in ("/status", "/receipt/", "X-Agent-Note-Key", "os.fsync(f.fileno())",
+                       "receipt_in_inbox", "persist_note", "state_lock"):
+            self.assertIn(needle, server,
+                          f"receiver lost {needle}, weakening the durable receipt protocol")
+        self.assertIn("<!-- AgentNotes key={note_key} receipt={receipt_id} -->", server)
+        self.assertIn('"state": "saved"', server)
+        self.assertIn('"state": "read"', server)
+        self.assertIn("begin_inbox_checkpoint", state)
+        self.assertIn("mark_checkpoint_read", state)
+        self.assertIn('choices=("waiting", "checkpoint", "mark-read", "clear-wait", "status")', state)
+        self.assertIn("notes_server.begin_inbox_checkpoint()", state)
+        self.assertIn("notes_server.mark_checkpoint_read(args.checkpoint)", state)
+
+        # Do not delete a local outbox item merely because a response was 200.
+        # Its durable receipt must first be recorded locally; only then may the
+        # retry-safe source file disappear.
+        self.assertIn("HttpPostNote(g_link, L\"/note\", noteKey", http_c)
+        self.assertIn("HistMarkSaved(fd.cFileName, receipt) && DeleteFileW(path)", http_c)
+        self.assertLess(http_c.index("HistMarkSaved(fd.cFileName, receipt)"),
+                        http_c.index("DeleteFileW(path)"),
+                        "Agent Notes deletes an outbox note before saving its inbox receipt")
+        self.assertIn("HistMarkReceiptRead", config_c)
+        self.assertIn("Saved", ui_c)
+        self.assertIn("Read", ui_c)
+        self.assertIn("Inbox persistence is confirmed; read acknowledgement follows separately.", ui)
+
+        # A regular Windows notification-area visual is the alert. Sound is
+        # quiet by default through NIIF_NOSOUND, persists only if selected,
+        # and no custom mixer/sound file is introduced.
+        self.assertIn("Shell_NotifyIconW(NIM_ADD", watch_c)
+        self.assertIn("Shell_NotifyIconW(NIM_MODIFY", watch_c)
+        self.assertIn("NIIF_INFO | (g_waitSound ? 0 : NIIF_NOSOUND)", watch_c)
+        self.assertIn("Play a sound for waiting alerts", watch)
+        self.assertIn("WaitSound", config_c)
+        self.assertIn("StartStatusPoll", watch_c)
+        self.assertIn("CreateThread", watch_c)
+        self.assertIn("TIMER_WATCH, 15000", entry_c)
+        self.assertIn("            StartStatusPoll();\n", ui_c,
+                      "the live watcher timer no longer starts its background session poll")
+        self.assertIn("ShowWindow(hwnd, SW_HIDE)", ui_c)
+        self.assertIn("Exit (stop waiting alerts)", watch)
+        self.assertIn("if (wcscmp(result->waitId, g_seenWait) != 0)", watch_c,
+                      "a freshly published agent wait no longer produces a native alert")
+        self.assertNotRegex(app + watch + entry, r"(?i)(RegSetValue.*\\\\Run|schtasks|CreateService)",
+                            "Agent Notes silently added a sign-in/service startup path")
+
+        # The tray watcher must have an explicit updater exit route. Ordinary
+        # WM_CLOSE now hides it, so the generic close route would correctly
+        # fail safe but could never update a resident Agent Notes process.
+        self.assertIn("AGENT_NOTES_EXIT_COMMAND", hub)
+        self.assertIn("MAKEWPARAM(AGENT_NOTES_EXIT_COMMAND, 0)", workers)
+        self.assertIn("L\"Agent Notes\", AGENT_NOTES_EXIT_COMMAND", workers)
+        self.assertIn('wcsstr(cmdLine, L"--stop")', entry_c)
+
+        rules = (ROOT / ".agent" / "rules" / "execution.md").read_text(encoding="utf-8")
+        for needle in ("agent_notes_state.py checkpoint", "agent_notes_state.py mark-read",
+                       "agent_notes_state.py waiting", "agent_notes_state.py clear-wait",
+                       "notes_server.py"):
+            self.assertIn(needle, rules,
+                          f"the agent contract omits {needle}, so read/wait state can drift")
+        ignored = (ROOT / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn(".agent/NOTES_STATE.json", ignored,
+                      "private receipt/wait state could leak into the public repository")
 
     def test_card_detail_line_survives_hidden_buttons(self):
         """The strip under each card title went blank, and it was our bug.
@@ -2779,6 +3309,10 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("rglob", bw,
                       "the cache key no longer covers the whole src dir, so a "
                       "resource or icon change would reuse a stale EXE")
+        self.assertIn("TARGET_SHARED_SOURCES", bw,
+                      "a shared native source can change without invalidating its consumer EXE")
+        self.assertIn("target_key(name, rc_dir, libs, zig_ver)", bw,
+                      "the build key does not identify which shared sources a target consumes")
         self.assertIn("out_exe.exists()", bw,
                       "the cache would claim success for an EXE that is not there")
 
@@ -2942,7 +3476,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("for (int i = 4; i >= 0; i--)", rend,
                       "the header layout still places four buttons, so the "
                       "fifth is never positioned")
-        self.assertIn("for (int i = 0; i < 5; i++) {\n        if (PtInRect(&g_topBtns[i].rc, pt))",
+        self.assertIn("for (int i = 0; i < 5; i++) {\n        if (g_topBtns[i].hidden) continue;\n        if (PtInRect(&g_topBtns[i].rc, pt))",
                       rend, "the hit test cannot reach the fifth button")
 
         # The page offers exactly the modes the engine accepts, no more.
@@ -3065,6 +3599,22 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "after a self-update a pinned Desktop shortcut still points at "
                       "the unmanaged copy")
         self.assertIn("free(newBytes);", body, "the downloaded hub bytes leak")
+        self.assertIn('L"%s.pending.exe", g_exePath', body,
+                      "the self-update no longer stages a separate handoff executable")
+        self.assertNotIn("MoveFileExW(g_exePath,", body,
+                         "the worker swaps the interactive Hub while it is still running")
+
+        handoff = (ROOT / "project-hub" / "src" / "parts" / "branch_picker_entry.c").read_text(encoding="utf-8")
+        apply_start = handoff.index("static BOOL ApplyStagedHubUpdate(")
+        apply = handoff[apply_start:handoff.index("int WINAPI wWinMain", apply_start)]
+        self.assertIn("WaitForSingleObject(oldProcess, 30000)", apply,
+                      "the staged updater does not wait for the old Hub to close")
+        self.assertIn("if (!NoProcessRunsImage(target)) return FALSE;", apply,
+                      "the staged updater swaps a Hub image without proving it is no longer running")
+        self.assertIn("MoveFileExW(target, old, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)", apply)
+        self.assertIn("MoveFileExW(pending, target, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)", apply)
+        self.assertIn('L"--apply-self-update=%lu"', handoff,
+                      "the old Hub relaunches immediately instead of using the safe staged handoff")
 
         # One click to consolidate without waiting for the next self-update.
         self.assertIn("#define ID_MENU_HUB_TOSUITE", src)
@@ -3108,6 +3658,82 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertGreaterEqual(version, (2, 8, 39),
                                 "the hub version was not bumped for the Update All "
                                 "coverage fix, so an installed hub never offers it")
+
+
+class ProjectHubUpdateVisibilityAndBranchFollowingTests(unittest.TestCase):
+    """The hub should surface actions only when they are useful, and should
+    follow the owner's newest test work without trampling an explicit choice."""
+
+    @staticmethod
+    def _hub_src() -> str:
+        return read_c_inlined("project-hub/src/project_hub.c")
+
+    def test_hub_update_action_is_hidden_until_a_newer_hub_is_verified(self):
+        src = self._hub_src()
+        top_start = src.index("static ActionBtn        g_topBtns[5]")
+        top = src[top_start:src.index("};", top_start)]
+        self.assertRegex(top,
+                         r'ID_BTN_SELF_UPDATE, L"Update Hub", BTN_AMBER,\s+112,\s+\{0,0,0,0\}, NULL, TRUE',
+                         "Update Hub starts visible before any remote version is known")
+        self.assertIn('{ ID_BTN_UPDATE_ALL,  L"Update All", BTN_PRIMARY,   108, {0,0,0,0}, NULL, FALSE }', top,
+                      "hiding the Hub updater must not hide Update All")
+
+        status_start = src.index("static void RefreshProjectStatuses(void)")
+        status = src[status_start:src.index("/* 1. Bluetooth Guard */", status_start)]
+        self.assertIn("g_hubUpdAvail = (remHub[0] != '\\0' && VerNewer(remHub, HUB_VERSION));", status)
+        self.assertIn("g_topBtns[1].hidden = !g_hubUpdAvail;", status,
+                      "a current Hub still leaves a dead Update Hub button visible")
+
+        layout_start = src.index("static void ComputeLayout(HWND hwnd)")
+        layout = src[layout_start:src.index("static int HitTestButtons", layout_start)]
+        self.assertIn("if (g_topBtns[i].hidden) {\n            SetRect(&g_topBtns[i].rc, 0, 0, 0, 0);\n            continue;\n        }", layout,
+                      "a hidden top button still consumes header space or keeps a stale hit box")
+        hit_start = src.index("static int HitTestButtons")
+        hit = src[hit_start:src.index("/* Blit the spinning emblem", hit_start)]
+        self.assertIn("if (g_topBtns[i].hidden) continue;", hit,
+                      "a hidden Update Hub rectangle is still clickable")
+        paint_start = src.index("static void PaintHubWindow")
+        paint = src[paint_start:src.index("static void ShowUtilityMenu", paint_start)]
+        self.assertIn("if (g_topBtns[i].hidden) continue;\n        DrawActionBtn", paint,
+                      "the header renderer ignores top-button visibility")
+        renderer = (ROOT / "project-hub/src/parts/ui_renderer.c").read_text(encoding="utf-8")
+        utility_start = renderer.index("static void ShowUtilityMenu")
+        utility = renderer[utility_start:]
+        self.assertIn("if (g_hubUpdAvail)\n        AppendMenuW(hMenu, MF_STRING, ID_BTN_SELF_UPDATE", utility,
+                      "the utility menu still exposes self-update while the Hub is current")
+
+    def test_latest_test_branch_setting_is_defaulted_and_manual_choice_pauses_it(self):
+        cache = (ROOT / "project-hub/src/parts/version_probe_cache.c").read_text(encoding="utf-8")
+        entry = (ROOT / "project-hub/src/parts/branch_picker_entry.c").read_text(encoding="utf-8")
+        remote = (ROOT / "project-hub/src/parts/workers_remote.c").read_text(encoding="utf-8")
+        settings = (ROOT / "project-hub/src/parts/settings_page.c").read_text(encoding="utf-8")
+
+        self.assertIn('GetPrivateProfileIntW(L"Update", L"FollowLatestTestBranch", 1, ini)', cache,
+                      "automatic following must be on by default")
+        self.assertIn('WritePrivateProfileStringW(L"Update", L"FollowLatestTestBranch", on ? L"1" : L"0", ini)', cache,
+                      "the follow setting is not persisted")
+        self.assertIn("/repos/ajani190819-ops/Tests/branches?per_page=100", cache,
+                      "automatic following does not inspect available branches")
+        self.assertIn('L"/repos/%s/%s/commits/%S"', cache,
+                      "the selected branch is not ranked by its newest commit")
+        self.assertIn("6ULL * 60ULL * 60ULL * 1000ULL", cache,
+                      "automatic branch discovery should be cached rather than run on every refresh")
+        self.assertIn("g_probeRef[0] = L'\\0';", cache,
+                      "switching automatic branches can reuse the previous branch's released commit")
+
+        self.assertIn("SaveBranchCfg(branch);\n    SaveFollowLatestTestBranch(FALSE);", entry,
+                      "choosing a branch manually must pause automatic following")
+        worker_start = remote.index("static void WorkerCheckRemote(void)")
+        worker = remote[worker_start:remote.index("/* The released marker", worker_start)]
+        self.assertLess(worker.index("RefreshAutomaticBranch();"), worker.index("EnsureActiveBranch(branch, 64);"),
+                        "the remote probe resolves a branch before automatic following runs")
+
+        self.assertIn('L"Automatically follow the newest active test branch"', settings,
+                      "Settings has no discoverable automatic-branch control")
+        self.assertIn("SetFollowLatestTestBranch(on);", settings,
+                      "the Settings checkbox does not apply the branch-follow preference")
+        self.assertIn("EnqueueTask(TASK_CHECK_REMOTE);", settings,
+                      "enabling automatic following does not check immediately")
 
 
 class AudioSwitcherReachabilityTests(unittest.TestCase):

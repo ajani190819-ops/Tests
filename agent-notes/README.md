@@ -1,58 +1,18 @@
 # Agent Notes
 
-The direct channel from you to the agent: type a note, press **Send to
-Agent**, and it lands in the agent's inbox at the start of the next turn.
+Agent Notes is the direct, durable companion channel for the active Arena
+session. It automatically discovers `.agent/AGENT_LINK.txt`, preserves unsent
+notes in `%LOCALAPPDATA%\AgentNotes\outbox`, and reports two distinct states:
+**Saved** only after `tools/notes_server.py` persisted the live `.agent/INBOX.md`
+write, then **Read** only after the agent's required inbox checkpoint.
 
-## How a note travels
+While the app is running, closing its window keeps a notification-area watcher
+alive. It shows a native visual Windows alert when the agent publishes a generic
+waiting-for-owner-input state. Sound is a persistent, opt-in tray-menu setting
+defaulting **off**; no custom audio engine, task, service, or run-at-sign-in
+registration is created. Use the tray **Exit** command to stop the watcher.
 
-1. This app posts the note to the agent's workspace receiver.
-2. If the receiver is not listening (the agent is away, or the workspace
-   reset), the note stays in an outbox folder on your disk -
-   `%LOCALAPPDATA%\AgentNotes\outbox` - and is retried every 60 seconds.
-   A note shows **Queued** while its outbox file exists and **Sent** once a
-   delivery was confirmed. Nothing is ever deleted before confirmation, so
-   nothing is ever lost.
-3. The agent reads its inbox at every turn start and treats what it finds
-   there as instructions from you.
-
-## The link - you never paste it again
-
-The agent commits `.agent/AGENT_LINK.txt` (the public address of its current
-workspace) to your branch every turn it works. This app reads your hub's
-branch setting, fetches that file, and adopts the address **only after its
-health probe answers** - so a dead or half-written link can never replace a
-working one. The link box remains for unusual cases; leave it alone and
-discovery does the work.
-
-## Status strip, plain English
-
-- **Found the agent's live session - link updated.** Discovery just followed
-  the agent to a new workspace.
-- **Delivered N notes | last note sent HH:MM.** All caught up.
-- **Agent offline - N queued notes stay safe here and deliver the moment a
-  session is live.** Normal while the agent is away. Not an error.
-- **No live session yet - notes queue safely here and deliver on the agent's
-  next turn.** First run before the agent has worked once.
-
-## Reading the window
-
-The window follows your Windows colour theme: pick light or dark in
-Settings and Agent Notes matches it, in both directions. Text colour is set
-through the rich-edit character format rather than the usual control-colour
-message, because a RichEdit50W control ignores that message completely -
-which is why an earlier build showed near-black text on a near-black box.
-
-Layout, top to bottom: the title and one line saying what the app does, the
-session link (grey text means it is showing its placeholder, "automatic -
-finds the agent's live session itself"; typed or discovered text shows in the
-normal colour), the note box, a full-width **Send to Agent** bar, and your
-recent notes with a Queued or Sent chip beside each one. Clicking into a box
-clears its placeholder; clicking out of an empty box brings it back. The
-placeholder is never saved as your link and never sent as a note.
-
-## Privacy note
-
-The committed link file makes the inbox address discoverable by anyone who
-can read the repository. The receiver rate-limits, sanitises and tags the
-provenance of every entry, and the agent treats inbox content as untrusted
-input regardless of source.
+The full pre-migration narrative and history are preserved in the [Tests
+Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk). Git retains
+only material required to build, run, test, release, or recover the project
+offline.

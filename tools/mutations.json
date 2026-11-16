@@ -86,8 +86,8 @@
  {
   "id": "set-04",
   "file": "project-hub/src/parts/ui_renderer.c",
-  "old": "    for (int i = 0; i < 5; i++) {\n        if (PtInRect(&g_topBtns[i].rc, pt))",
-  "new": "    for (int i = 0; i < 4; i++) {\n        if (PtInRect(&g_topBtns[i].rc, pt))",
+  "old": "    for (int i = 0; i < 5; i++) {\n        if (g_topBtns[i].hidden) continue;\n        if (PtInRect(&g_topBtns[i].rc, pt))",
+  "new": "    for (int i = 0; i < 4; i++) {\n        if (g_topBtns[i].hidden) continue;\n        if (PtInRect(&g_topBtns[i].rc, pt))",
   "label": "E fifth button not hit-testable"
  },
  {
@@ -176,31 +176,38 @@
  },
  {
   "id": "ntui-07",
-  "file": "agent-notes/src/parts/ui.c",
-  "old": "            if (g_linkHint) g_link[0] = L'\\0';\n            else GetWindowTextW(g_hLink, g_link, 255);",
-  "new": "            GetWindowTextW(g_hLink, g_link, 255);",
-  "label": "G placeholder saved as the real link"
+  "file": "agent-notes/src/agent_notes.c",
+  "old": "static HWND      g_hwnd, g_hNote;",
+  "new": "static HWND      g_hwnd, g_hNote, g_hLink;",
+  "label": "G Agent Notes restores a manual session-link control"
  },
  {
   "id": "ntui-08",
   "file": "agent-notes/src/parts/ui.c",
-  "old": "    else SetRect(r, S(20), S(380), S(600), S(380) + S(40));",
-  "new": "    else SetRect(r, S(20), S(380), S(20) + S(190), S(380) + S(38));",
-  "label": "H Send shrinks back to a chip"
+  "old": "    SetRect(r, S(20), S(410), S(600), S(454));",
+  "new": "    SetRect(r, S(20), S(410), S(20) + S(190), S(448));",
+  "label": "H Send shrinks back to a narrow chip"
  },
  {
   "id": "ntui-09",
   "file": "agent-notes/src/parts/ui.c",
-  "old": "    DrawTextW(mem, L\"Agent Notes\", -1, &t, DT_LEFT | DT_VCENTER | DT_SINGLELINE);",
-  "new": "    DrawTextW(mem, L\"Agent Notes\", -1, &t, DT_LEFT | DT_VCENTER | DT_SINGLELINE);\n    DrawTextW(mem, L\"Agent Notes\", -1, &t, DT_LEFT | DT_VCENTER | DT_SINGLELINE);",
+  "old": "    DrawTextW(mem, L\"Agent Notes\", -1, &title, DT_LEFT | DT_VCENTER | DT_SINGLELINE);",
+  "new": "    DrawTextW(mem, L\"Agent Notes\", -1, &title, DT_LEFT | DT_VCENTER | DT_SINGLELINE);\n    DrawTextW(mem, L\"Agent Notes\", -1, &title, DT_LEFT | DT_VCENTER | DT_SINGLELINE);",
   "label": "I title drawn twice, overlapping"
  },
  {
   "id": "ntui-10",
   "file": "agent-notes/src/parts/ui.c",
-  "old": "                g_linkHint = 0;\n                SetWindowTextW(g_hLink, g_link);",
-  "new": "                SetWindowTextW(g_hLink, g_link);",
-  "label": "J adopted link keeps hint formatting"
+  "old": "            StartStatusPoll();\n",
+  "new": "            if (0) StartStatusPoll();\n",
+  "label": "J Agent Notes stops its background wait/session polling"
+ },
+ {
+  "id": "ntui-11",
+  "file": "agent-notes/src/parts/emblem.c",
+  "old": "SuiteEmblemResolvePalette(COL_BG, COL_ACCENT, COL_TXT, &nearColor, &farColor);",
+  "new": "nearColor = RGB(246, 249, 254); farColor = RGB(196, 212, 234);",
+  "label": "K Agent Notes emblem falls back to a pale fixed light-theme colour"
  },
  {
   "id": "wx-01",
@@ -254,9 +261,9 @@
  {
   "id": "wx-08",
   "file": "weather-radar/src/parts/radar.c",
-  "old": "        if (any || z <= 7) break;\n        z = 7;   /* free-tier placeholder fallback */",
+  "old": "        if (any || z <= RADAR_TILE_ZOOM_MIN) break;\n        z = RADAR_TILE_ZOOM_MIN;   /* host placeholder fallback */",
   "new": "        break;",
-  "label": "H zoom-cap fallback removed"
+  "label": "H available-source fallback removed"
  },
  {
   "id": "wx-09",
@@ -271,5 +278,306 @@
   "old": "    g_places[g_placeN] = *p;\n    g_placeSel = g_placeN;\n    g_placeN++;\n    SavePlaces();",
   "new": "    g_places[g_placeN] = *p;\n    g_placeSel = g_placeN;\n    g_placeN++;",
   "label": "J a kept place is never persisted"
+ },
+ {
+  "id": "wx-11",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "        LayoutSearchEdit();\n        InvalidateRect(hwnd, NULL, TRUE);",
+  "new": "        InvalidateRect(hwnd, NULL, TRUE);",
+  "label": "K search edit is not relaid out after DPI changes"
+ },
+ {
+  "id": "wx-12",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "        PostMessageW(GetParent(edit), WM_APP_SEARCH, 0, 0);",
+  "new": "        PostMessageW(GetParent(edit), WM_APP_STATUS, 0, 0);",
+  "label": "L Return no longer submits the place search"
+ },
+ {
+  "id": "wx-13",
+  "file": "weather-radar/src/parts/places.c",
+  "old": "    current = (ticket == g_searchTicket);",
+  "new": "    current = 1;",
+  "label": "M stale geocoding response is accepted"
+ },
+ {
+  "id": "wx-17",
+  "file": "weather-radar/src/parts/forecast.c",
+  "old": "weather_code,wind_speed_10m,wind_gusts_10m,cloud_cover,precipitation",
+  "new": "weather_code,wind_speed_10m,precipitation",
+  "label": "Q current conditions lose gust and cloud context"
+ },
+ {
+  "id": "wx-18",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "#define RADAR_FOCUS_PX 512",
+  "new": "#define RADAR_FOCUS_PX 768",
+  "label": "R radar falls back to an unreadable full-grid shrink"
+ },
+ {
+  "id": "wx-19",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "light     moderate     heavy     intense",
+  "new": "radar echoes",
+  "label": "S radar intensity legend loses its meanings"
+ },
+ {
+  "id": "wx-20",
+  "file": "weather-radar/src/parts/entry.c",
+  "old": "    SetTimer(hwnd, TIMER_EMBLEM, 50, NULL);",
+  "new": "    /* header animation disabled */",
+  "label": "T Weather Radar never starts its spinning suite emblem"
+ },
+ {
+  "id": "wx-21",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "            g_radarSpinAngle += 6.283185307179586 / 600.0;",
+  "new": "            g_radarSpinAngle += 0.0;",
+  "label": "U Weather Radar emblem timer no longer advances the mark"
+ },
+ {
+  "id": "wx-22",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "                g_zoom = (g_zoom >= RADAR_DISPLAY_ZOOM_MAX) ? RADAR_TILE_ZOOM_MIN : g_zoom + 1;",
+  "new": "                g_zoom = 8;",
+  "label": "V Weather Radar zoom button no longer increments into local detail levels"
+ },
+ {
+  "id": "hub-18",
+  "file": "project-hub/src/parts/refresh_statuses.c",
+  "old": "            c->btns[action].hidden = !showAction;",
+  "new": "            c->btns[action].hidden = FALSE;",
+  "label": "R current dynamic card keeps its Update button"
+ },
+ {
+  "id": "wx-14",
+  "file": "weather-radar/src/parts/radar.c",
+  "old": "            for (int row = 0; row < TILE_PX; row++) {\n                uint32_t *dstRow = dst + (size_t)(gy * TILE_PX + row) * GRID_PX +\n                                   (size_t)gx * TILE_PX;\n                memcpy(dstRow, tile + (size_t)row * TILE_PX, TILE_PX * sizeof(uint32_t));\n            }",
+  "new": "            memcpy(dst + (size_t)(gy * TILE_PX) * GRID_PX + (size_t)gx * TILE_PX,\n                   tile, TILE_PX * TILE_PX * sizeof(uint32_t));",
+  "label": "N map tiles wrap into horizontal stripes"
+ },
+ {
+  "id": "wx-15",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "    PaintRadarPane(mem, &radarCard);\n    DrawBtn(mem, BTN_PREV, L\"<\", 0);",
+  "new": "    DrawBtn(mem, BTN_PREV, L\"<\", 0);\n    PaintRadarPane(mem, &radarCard);",
+  "label": "O radar card covers its playback controls"
+ },
+ {
+  "id": "wx-16",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "        if (wp != SIZE_MINIMIZED) LayoutSearchEdit();",
+  "new": "        if (wp != SIZE_MINIMIZED) InvalidateRect(hwnd, NULL, FALSE);",
+  "label": "P search field remains at its provisional creation rectangle"
+ },
+ {
+  "id": "hubvis-00",
+  "file": "project-hub/src/parts/refresh_statuses.c",
+  "old": "    g_topBtns[1].hidden = !g_hubUpdAvail;",
+  "new": "    g_topBtns[1].hidden = FALSE;",
+  "label": "A current Hub still shows Update Hub"
+ },
+ {
+  "id": "hubvis-01",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "        if (g_topBtns[i].hidden) {\n            SetRect(&g_topBtns[i].rc, 0, 0, 0, 0);\n            continue;\n        }\n",
+  "new": "",
+  "label": "B hidden Hub update still consumes header layout"
+ },
+ {
+  "id": "branchauto-00",
+  "file": "project-hub/src/parts/version_probe_cache.c",
+  "old": "GetPrivateProfileIntW(L\"Update\", L\"FollowLatestTestBranch\", 1, ini)",
+  "new": "GetPrivateProfileIntW(L\"Update\", L\"FollowLatestTestBranch\", 0, ini)",
+  "label": "C automatic test-branch following defaults off"
+ },
+ {
+  "id": "branchauto-01",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "    SaveBranchCfg(branch);\n    SaveFollowLatestTestBranch(FALSE);",
+  "new": "    SaveBranchCfg(branch);",
+  "label": "D manual branch choice does not pause auto following"
+ },
+ {
+  "id": "branchauto-02",
+  "file": "project-hub/src/parts/workers_remote.c",
+  "old": "    RefreshAutomaticBranch();\n    EnsureActiveBranch(branch, 64);",
+  "new": "    EnsureActiveBranch(branch, 64);",
+  "label": "E automatic branch discovery is skipped before remote checks"
+ },
+ {
+  "id": "close-00",
+  "file": "project-hub/src/parts/install_folder.c",
+  "old": "        if (!CloseRunningImageForUpdate(paths[i], quitCommand)) {",
+  "new": "        if (0) {",
+  "label": "F managed app copies are no longer asked to close before update"
+ },
+ {
+  "id": "close-01",
+  "file": "project-hub/src/parts/content_identity.c",
+  "old": "    if (IsExeImagePath(dest) && !NoProcessRunsImage(dest)) {\n        DeleteFileW(tmp);\n        return FALSE;\n    }\n",
+  "new": "",
+  "label": "G executable replacement loses its last-moment running-process check"
+ },
+ {
+  "id": "close-02",
+  "file": "project-hub/src/parts/card_defs_verbs.c",
+  "old": "    if (!CloseManagedExeCopies(mirrorSlot, c->appDir, c->exeName,\n                               c->title ? c->title : L\"The app\", quitCommand))\n        return;\n",
+  "new": "",
+  "label": "H a catalogue app update bypasses the close-and-verify gate"
+ },
+ {
+  "id": "close-03",
+  "file": "project-hub/src/parts/card_defs_verbs.c",
+  "old": "                   ? MIRROR_AUDIO : MIRROR_GENERIC;",
+  "new": "                   ? MIRROR_GENERIC : MIRROR_GENERIC;",
+  "label": "I Audio Switcher stray copies bypass the managed close-and-mirror set"
+ },
+ {
+  "id": "close-04",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "    if (!NoProcessRunsImage(target)) return FALSE;\n",
+  "new": "",
+  "label": "J staged Hub handoff swaps the old image without proving it has closed"
+ },
+ {
+  "id": "close-05",
+  "file": "project-hub/src/parts/card_defs_verbs.c",
+  "old": "    BOOL hasExplicitStopRoute = c->exeName &&\n        (_wcsicmp(c->exeName, L\"AudioSwitcher.exe\") == 0 ||\n         _wcsicmp(c->exeName, L\"WeatherRadar.exe\") == 0);\n    if (hasExplicitStopRoute)\n        RequestManagedExeCopiesStop(mirrorSlot, c->appDir, c->exeName);\n",
+  "new": "    BOOL hasExplicitStopRoute = c->exeName &&\n        _wcsicmp(c->exeName, L\"AudioSwitcher.exe\") == 0;\n    if (hasExplicitStopRoute)\n        RequestManagedExeCopiesStop(mirrorSlot, c->appDir, c->exeName);\n",
+  "label": "K Weather Radar update loses its explicit tray-safe stop request"
+ },
+ {
+  "id": "emblem-00",
+  "file": "shared/win32/suite_emblem.c",
+  "old": "static uint32_t SuiteEmblemDibPixel(COLORREF color) {",
+  "new": "static uint32_t LegacyDibPixel(COLORREF color) {",
+  "label": "V shared engine loses the only approved COLORREF-to-DIB conversion"
+ },
+ {
+  "id": "emblem-01",
+  "file": "agent-notes/src/agent_notes.c",
+  "old": "#include \"../../shared/win32/suite_emblem.c\"",
+  "new": "/* canonical emblem engine omitted */",
+  "label": "W Agent Notes can bypass the canonical emblem engine"
+ },
+ {
+  "id": "emblem-02",
+  "file": "agent-notes/src/parts/ui.c",
+  "old": "bits[i] = SuiteEmblemDibPixel(COL_BG);",
+  "new": "bits[i] = COL_BG;",
+  "label": "X Agent Notes writes raw COLORREF pixels into its narrow emblem DIB"
+ },
+ {
+  "id": "emblem-03",
+  "file": "audio-switcher/src/parts/control_theming.c",
+  "old": "SuiteEmblemDraw(&g_audioSwitcherEmblem, pixels, width, height, x, y, size,\n                    SuiteEmblemAngleNow(GetTickCount64(), 30000ULL),\n                    nearColor, farColor);",
+  "new": "/* a local copied renderer would go here */",
+  "label": "Y Audio Switcher stops using the canonical transparent draw path"
+ },
+ {
+  "id": "emblem-04",
+  "file": "shared/win32/suite_emblem.c",
+  "old": "    if (luma >= 160) {",
+  "new": "    if (0) {",
+  "label": "Z light themes lose their readable emblem palette branch"
+ },
+ {
+  "id": "wr-alert-00",
+  "file": "weather-radar/src/parts/alerts.c",
+  "old": "    double odds = EnsWindowProb(&g_ens, 0, RAIN_ALERT_HOURS);",
+  "new": "    double odds = PoPWindowMax(&g_fc, 0, RAIN_ALERT_HOURS);",
+  "label": "Rain alert switched to regional coverage probability"
+ },
+ {
+  "id": "wr-alert-01",
+  "file": "weather-radar/src/parts/alerts.c",
+  "old": "    if (samePlace && g_rainAlertEpisode) return;",
+  "new": "    if (0) return;",
+  "label": "Rain episode duplicate-alert latch removed"
+ },
+ {
+  "id": "wr-alert-02",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "            if (!current) return 0; /* an old location finished after a new selection */",
+  "new": "            if (0) return 0; /* an old location finished after a new selection */",
+  "label": "Late old-place forecast can replace current place"
+ },
+ {
+  "id": "notes-receipt-00",
+  "file": "agent-notes/src/parts/wait_alerts.c",
+  "old": "            if (wcscmp(result->waitId, g_seenWait) != 0) {",
+  "new": "            if (0) {",
+  "label": "Agent Notes never emits a native alert for a newly published wait"
+ },
+ {
+  "id": "notes-discovery-00",
+  "file": "agent-notes/src/parts/wait_alerts.c",
+  "old": "    if (LinkDiscoveryTick()) result->linkFound = 1;",
+  "new": "    if (!g_link[0] && LinkDiscoveryTick()) result->linkFound = 1;",
+  "label": "Agent Notes stops refreshing a stale saved session link"
+ },
+ {
+  "id": "hub-notes-open-00",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "        if (ShowRunningAgentNotes()) {",
+  "new": "        if (0 && ShowRunningAgentNotes()) {",
+  "label": "Hub Open no longer reveals a tray-hidden Agent Notes window"
+ },
+ {
+  "id": "trayhub-00",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    g_trayHostEvent = CreateEventW(NULL, TRUE, TRUE, HUB_TRAY_HOST_EVENT);",
+  "new": "    g_trayHostEvent = NULL;",
+  "label": "Unified Hub tray never publishes its live-host capability"
+ },
+ {
+  "id": "trayhub-01",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "        if (!g_hubQuitting) {\n            ShowWindow(hwnd, SW_HIDE);\n            return 0;\n        }",
+  "new": "        if (0) {\n            ShowWindow(hwnd, SW_HIDE);\n            return 0;\n        }",
+  "label": "Normal Hub close exits instead of preserving the unified tray"
+ },
+ {
+  "id": "trayhub-02",
+  "file": "agent-notes/src/parts/wait_alerts.c",
+  "old": "            PublishHubWaitRelay(result->waitId);",
+  "new": "            /* Hub wait relay removed */",
+  "label": "Agent Notes wait state is no longer relayed to the unified Hub icon"
+ },
+ {
+  "id": "trayhub-03",
+  "file": "weather-radar/src/parts/alerts.c",
+  "old": "        PublishHubRainAlert(p, odds);\n        return;",
+  "new": "        return;",
+  "label": "Weather Radar drops rain alerts whenever Hub owns the tray"
+ },
+ {
+  "id": "trayhub-04",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "        if (ApplyHubExit()) return 0;",
+  "new": "        if (0) return 0;",
+  "label": "Bluetooth Guard leaves the elevated-safe Hub quit request unconsumed"
+ },
+ {
+  "id": "trayhub-05",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "        HubTrayRestore();",
+  "new": "        /* Explorer recovery removed. */",
+  "label": "Project Hub does not recreate its unified tray icon after Explorer restarts"
+ },
+ {
+  "id": "trayhub-06",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "        HubTrayEnsureLive();",
+  "new": "        /* startup tray retry removed. */",
+  "label": "Project Hub never retries a transient initial tray registration failure"
+ },
+ {
+  "id": "brand-00",
+  "file": "tools/generate_suite_icons.py",
+  "old": "    for stale in REDUNDANT_BRAND_EXPORTS:",
+  "new": "    for stale in ():",
+  "label": "Icon regeneration no longer removes duplicate aliases"
  }
 ]

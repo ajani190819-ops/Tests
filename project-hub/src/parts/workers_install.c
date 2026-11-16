@@ -29,6 +29,11 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
         }
         Sleep(300);
     }
+    /* --stop is Bluetooth Guard's graceful route.  Verify every suite and
+       stray mirror is really gone before the downloader can replace one. */
+    if (!CloseManagedExeCopies(MIRROR_BTG, g_btgDir, L"BluetoothGuard.exe",
+                               L"Bluetooth Guard", 0))
+        return FALSE;
 
     SetFooterStatus(L"Downloading latest BluetoothGuard.exe from GitHub...", 60);
     if (!DownloadRawRepoFile(branch, L"bluetooth-guard/BluetoothGuard.exe", destExe)) {
@@ -37,7 +42,8 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
     }
 
     /* Also keep any previously launched standalone copy (e.g. in Downloads) in sync! */
-    if (g_btgExtraExe[0] && _wcsicmp(g_btgExtraExe, destExe) != 0) {
+    if (g_btgExtraExe[0] && _wcsicmp(g_btgExtraExe, destExe) != 0 &&
+        NoProcessRunsImage(g_btgExtraExe)) {
         CopyFileW(destExe, g_btgExtraExe, FALSE);
     }
     /* ... and every other copy found at startup, suite folder included. */
@@ -67,15 +73,21 @@ static void WorkerInstallNotes(BOOL launchAfter) {
     EnsureProbeRef(branch, 64);
     EnsureDirTree(g_notesDir);
 
-    /* close an open notes window first so the exe is not locked */
+    /* Agent Notes now stays resident when its ordinary window is closed so it
+       can watch for a waiting agent. Ask its explicit Exit command instead;
+       the common gate applies that command to every registered mirror and
+       then proves all image paths are gone before any write. */
     BOOL wasRunning = FALSE;
     HWND hNotes = FindWindowW(L"AgentNotesWnd", NULL);
     if (hNotes) {
         wasRunning = TRUE;
-        SetFooterStatus(L"Closing Agent Notes for a clean update...", 8);
-        PostMessageW(hNotes, WM_CLOSE, 0, 0);
+        SetFooterStatus(L"Stopping Agent Notes for a clean update...", 8);
+        PostMessageW(hNotes, WM_COMMAND, MAKEWPARAM(AGENT_NOTES_EXIT_COMMAND, 0), 0);
         Sleep(300);
     }
+    if (!CloseManagedExeCopies(MIRROR_NOTES, g_notesDir, L"AgentNotes.exe",
+                               L"Agent Notes", AGENT_NOTES_EXIT_COMMAND))
+        return;
 
     wchar_t destExe[MAX_PATH];
     _snwprintf(destExe, MAX_PATH, L"%s\\AgentNotes.exe", g_notesDir);
@@ -137,6 +149,12 @@ static void WorkerInstallDnsPilot(BOOL launchAfter) {
         }
         Sleep(300);
     }
+    /* DNS Pilot's --stop requests a real tray exit.  Do not trust the launch
+       result alone: an old or foreign copy must be absent before any mirror
+       is replaced. */
+    if (!CloseManagedExeCopies(MIRROR_DNS, g_dnsDir, L"DnsPilot.exe",
+                               L"DNS Pilot", 0))
+        return;
 
     wchar_t destExe[MAX_PATH];
     _snwprintf(destExe, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
@@ -202,6 +220,12 @@ static void WorkerInstallKeyboardLighting(void) {
     _snwprintf(lp, MAX_PATH, L"%s\\KeyboardLighting\\engine.pid", g_localApp);
     StopProcessFromLock(lp);
     Sleep(300);
+    /* The helper locks take care of the old engine too; the common gate then
+       proves no visible, trayed, or stray KeyboardLighting.exe remains before
+       we delete or download any of its update files. */
+    if (!CloseManagedExeCopies(MIRROR_KBL, g_kblDir, L"KeyboardLighting.exe",
+                               L"Keyboard Lighting", 0))
+        return;
     _snwprintf(uiDll, MAX_PATH, L"%s\\Ui.dll", g_kblDir);
     DeleteFileW(uiDll);
 
@@ -432,78 +456,47 @@ static void WorkerSelfUpdateHub(void) {
     EnsureProbeRef(branch, 64);
     SetFooterStatus(L"Downloading latest ProjectHub.exe from GitHub...", 50);
 
-    wchar_t newExe[MAX_PATH], oldExe[MAX_PATH];
-    _snwprintf(newExe, MAX_PATH, L"%s.new", g_exePath);
-    _snwprintf(oldExe, MAX_PATH, L"%s.old", g_exePath);
-    DeleteFileW(oldExe);
+    /* A running program cannot close itself and then continue replacing its
+       own image.  Stage the fresh EXE under a distinct .pending.exe name;
+       the staged process is a tiny handoff worker that waits for this Hub to
+       exit, proves this image is no longer live, and only then swaps it. */
+    wchar_t pendingExe[MAX_PATH];
+    _snwprintf(pendingExe, MAX_PATH, L"%s.pending.exe", g_exePath);
+    DeleteFileW(pendingExe);
 
     /* Hold the bytes so the suite folder copy can be written from the same
        download: a hub launched from Downloads must not leave the suite folder
        holding the previous build. */
     DWORD newLen = 0;
     BYTE *newBytes = DownloadRepoBytes(branch, L"project-hub/ProjectHub.exe", &newLen);
-    if (!newBytes || !WriteBinaryFileAtomic(newExe, newBytes, newLen)) {
+    if (!newBytes || !WriteBinaryFileAtomic(pendingExe, newBytes, newLen)) {
         free(newBytes);
-        SetFooterStatus(L"Could not download ProjectHub.exe from GitHub.", 0);
+        SetFooterStatus(L"Could not download ProjectHub.exe. No update was applied.", 0);
         return;
     }
 
-    /* The running image can be renamed away but not overwritten. The second
-       move must therefore never be allowed to fail with the old exe already
-       renamed - that is how ProjectHub.exe could disappear from disk.
-       Retry through transient locks (AV scans love fresh downloads), and if
-       it still fails put the old exe back so the hub always stays present. */
-    /* Transient locks (AV scans love fresh downloads) can bounce this
-       rename a few times - retry before giving up and keeping the hub. */
-    BOOL renamed = FALSE;
-    for (int i = 0; i < 5 && !renamed; i++) {
-        renamed = MoveFileExW(g_exePath, oldExe, MOVEFILE_REPLACE_EXISTING);
-        if (!renamed) Sleep(200);
-    }
-    if (!renamed) {
-        DeleteFileW(newExe);
-        free(newBytes);
-        SetFooterStatus(L"Could not replace ProjectHub.exe on disk.", 0);
-        return;
-    }
-
-    BOOL swapped = FALSE;
-    for (int i = 0; i < 10 && !swapped; i++) {
-        swapped = MoveFileExW(newExe, g_exePath, MOVEFILE_REPLACE_EXISTING);
-        if (!swapped) Sleep(300);
-    }
-    if (!swapped) {
-        for (int i = 0; i < 10; i++) {
-            if (MoveFileExW(oldExe, g_exePath, MOVEFILE_REPLACE_EXISTING)) break;
-            Sleep(300);
-        }
-        if (FileExistsW(g_exePath)) {
-            DeleteFileW(newExe);
-            SetFooterStatus(L"Could not install the update - kept the current Project Hub.", 0);
-        } else {
-            SetFooterStatus(L"Update failed - ProjectHub.exe.old still holds the last good hub.", 0);
-        }
-        free(newBytes);
-        return;
-    }
-
-    /* Same bytes into the suite folder, and point the Desktop shortcut at that
-       copy so the hub the user launches next time is the managed one. */
+    /* This is a separate managed executable too.  WriteBinaryFileAtomic has
+       the same exact-image final check as all app installers; if it remains
+       live, do not split a Hub update across two copies. */
     if (g_suiteHubExe[0] && _wcsicmp(g_suiteHubExe, g_exePath) != 0) {
-        if (WriteBinaryFileAtomic(g_suiteHubExe, newBytes, newLen)) {
-            wchar_t desk[MAX_PATH], lnk[MAX_PATH];
-            if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
-                _snwprintf(lnk, MAX_PATH, L"%s\\Project Hub.lnk", desk);
-                if (RepointDesktopShortcutIfPresent(lnk, g_suiteHubExe, g_suiteDir,
-                                                     L"Project Hub - Status & Updates"))
-                    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
-            }
+        if (!WriteBinaryFileAtomic(g_suiteHubExe, newBytes, newLen)) {
+            DeleteFileW(pendingExe);
+            free(newBytes);
+            SetFooterStatus(L"Project Hub is still running from its suite copy. No update was applied.", 0);
+            return;
+        }
+        wchar_t desk[MAX_PATH], lnk[MAX_PATH];
+        if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
+            _snwprintf(lnk, MAX_PATH, L"%s\\Project Hub.lnk", desk);
+            if (RepointDesktopShortcutIfPresent(lnk, g_suiteHubExe, g_suiteDir,
+                                                L"Project Hub - Status & Updates"))
+                SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
         }
     }
     free(newBytes);
 
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
-    SetFooterStatus(L"Project Hub updated — relaunching...", 100);
+    SetFooterStatus(L"Project Hub update staged — closing, then applying it...", 100);
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_SELFUPD, 0, 0);
 }
 

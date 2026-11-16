@@ -23,7 +23,12 @@ Every desktop application in this repository shares one calm, approachable, unif
    - Never use sharp `0px` box corners, harsh white borders, or busy background crosshairs.
 2. **Suite Tri-Spoke Core Emblem Everywhere (No Compass Icon):**
    - Every app header and icon watermark uses the **Tri-Spoke Core Emblem** (`docs/brand/suite-emblem.png` / `docs/brand/emblem.ico`: outer thin ring, three 120-degree curved arcs separated at 12, 4, and 8 o'clock, three double-parallel radial spokes, and a center disc with an upward triangle cutout). Never use the old 8-point compass emblem.
-3. **Cohesive App Icon Suite (`tools/generate_suite_icons.py`):**
+3. **Native Header Emblem Engine (One Source, No Forks):**
+   - Native Win32 headers use [`shared/win32/suite_emblem.c`](../shared/win32/suite_emblem.c), included once by the app's unity-build root and called through a tiny app-local placement adapter.
+   - The engine owns the analytic geometry, supersampled cache, thirty-second time helper, palette choice, alpha compositing, and cache release. Dark slate headers use the canonical Platinum-Ice/Soft-Sky gradient; light themes use the app's accessible accent-to-text gradient.
+   - Header paint code must initialize a 32-bit DIB with `SuiteEmblemDibPixel(COL_BG)`, never a raw `COLORREF`. This preserves transparent compositing and prevents the opaque brown/gold square regression.
+   - A future native app adds an adapter and the source include; it must not copy SDF, cache, rotation, or pixel-blending math. Add the engine to that target's `TARGET_SHARED_SOURCES` build-cache entry too.
+4. **Cohesive App Icon Suite (`tools/generate_suite_icons.py`):**
    - Every app icon is built on the **exact same brushed dark slate Windows 11 superellipse squircle** with a subtle recessed Tri-Spoke Core motif, soft top-left studio lighting, and a distinct per-app Fluent accent color:
      - **Project Hub:** Platinum-Ice & Soft Sky (`#93C5FD` / `#F8FAFC`) — full Tri-Spoke Core Medallion
      - **Bluetooth Guard:** Soft Cobalt-Sky (`#60A5FA` -> `#2563EB`) — rounded Bluetooth shield badge
@@ -31,7 +36,7 @@ Every desktop application in this repository shares one calm, approachable, unif
      - **Spatial HUD:** Warm Amber-Gold (`#FDE68A` -> `#D97706`) — soft isometric 3D cube
      - **OrcaSlicer Plugins:** Soft Mint-Emerald (`#6EE7B7` -> `#10B981`) — non-planar wave ribbons
      - **Arena Link:** Soft Teal-Mint (`#5EEAD4` -> `#14B8A6`) — rounded interlocking link glyph
-4. **Calm, Natural Typography:**
+5. **Calm, Natural Typography:**
    - Use natural **Title Case** (`Project Hub`, `Bluetooth Guard`, `Keyboard Lighting`) and plain human sentences rather than shouty wide-spaced all-caps strings or raw `C:\Users\...` file paths.
 
 ---

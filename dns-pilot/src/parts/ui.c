@@ -215,6 +215,36 @@ static void DrawBtn(HDC dc, int idx, const wchar_t *label, int primary, int ambe
     DrawTextW(dc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 }
 
+static void DnsTraySync(void) {
+    int wantOwnIcon = !SuiteHubOwnsTray();
+    if (wantOwnIcon && !g_trayVisible) {
+        if (Shell_NotifyIconW(NIM_ADD, &g_nid)) g_trayVisible = 1;
+    } else if (!wantOwnIcon && g_trayVisible) {
+        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_trayVisible = 0;
+    }
+}
+
+/* The Hub sends this as a local one-shot rather than a window command, because
+   DNS Pilot may be elevated to apply DNS while the ordinary Hub is not. */
+static void ApplyHubAutoToggle(void) {
+    DWORD attr = GetFileAttributesW(g_hubTogglePath);
+    if (attr == INVALID_FILE_ATTRIBUTES || (attr & FILE_ATTRIBUTE_DIRECTORY) ||
+        !DeleteFileW(g_hubTogglePath)) return;
+    g_auto = !g_auto;
+    SaveConfig();
+    InvalidateRect(g_hwnd, NULL, FALSE);
+}
+
+static BOOL ApplyHubExit(void) {
+    DWORD attr = GetFileAttributesW(g_hubExitPath);
+    if (attr == INVALID_FILE_ATTRIBUTES || (attr & FILE_ATTRIBUTE_DIRECTORY) ||
+        !DeleteFileW(g_hubExitPath)) return FALSE;
+    g_quitting = 1;
+    DestroyWindow(g_hwnd);
+    return TRUE;
+}
+
 static void ShowTrayContextMenu(HWND hwnd) {
     HMENU hMenu = CreatePopupMenu();
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_OPEN, L"Open DNS Pilot");
@@ -531,6 +561,11 @@ static void DoApplyFastest(int announce) {
 }
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == SuiteTaskbarCreatedMessage()) {
+        g_trayVisible = 0;
+        DnsTraySync();
+        return 0;
+    }
     switch (msg) {
     case WM_PAINT:
         PaintAll(hwnd);
@@ -628,6 +663,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             InvalidateRect(hwnd, &g_rcEmblem, FALSE);
             return 0;
         }
+        if (wp == 3) {
+            DnsTraySync();
+            ApplyHubAutoToggle();
+            if (ApplyHubExit()) return 0;
+            return 0;
+        }
         if (wp == 1 && g_auto && g_elevated && !g_testing) {
             ULONGLONG now = GetTickCount64();
             if (g_intervalMin == 0) {
@@ -679,7 +720,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
            the watch and the stats strip all keep running in the background. */
         if (!g_quitting) {
             ShowWindow(hwnd, SW_HIDE);
-            if (!g_trayHinted) {
+            if (!g_trayHinted && g_trayVisible) {
                 g_trayHinted = 1;
                 g_nid.uFlags = NIF_INFO;
                 wcsncpy(g_nid.szInfoTitle, L"DNS Pilot is running in the tray", 63);
@@ -694,7 +735,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_DESTROY:
         KillTimer(hwnd, 1);
         KillTimer(hwnd, 2);
-        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        KillTimer(hwnd, 3);
+        if (g_trayVisible) Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_trayVisible = 0;
         g_statsRun = 0;
         InterlockedExchange(&g_exitStop, 1);
         /* Never free g_watchCs while a watch tick can still hold it - that
@@ -715,6 +758,30 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
+static void RequestHubOneShot(const wchar_t *name) {
+    /* Only a live Pilot may receive a one-shot. The mutex probe avoids leaving
+       a command behind for an unrelated future launch and works across the
+       elevated Pilot / ordinary Hub integrity boundary. */
+    HANDLE running = OpenMutexW(SYNCHRONIZE, FALSE, SINGLE_MUTEX_NAME);
+    if (!running) return;
+    CloseHandle(running);
+    wchar_t dir[MAX_PATH], flag[MAX_PATH];
+    GetEnvironmentVariableW(L"LOCALAPPDATA", dir, MAX_PATH);
+    wcsncat(dir, APP_DIR_NAME, MAX_PATH - wcslen(dir) - 1);
+    CreateDirectoryW(dir, NULL);
+    _snwprintf(flag, MAX_PATH, L"%s\\%s", dir, name);
+    HANDLE f = CreateFileW(flag, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                           FILE_ATTRIBUTE_NORMAL, NULL);
+    if (f != INVALID_HANDLE_VALUE) {
+        DWORD wrote = 0;
+        WriteFile(f, "1", 1, &wrote, NULL);
+        CloseHandle(f);
+    }
+}
+
+static void RequestHubAutoToggle(void) { RequestHubOneShot(L"hub-toggle-auto.flag"); }
+static void RequestHubExit(void) { RequestHubOneShot(L"hub-exit.flag"); }
+
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
     (void)hPrev;
     (void)nShow;
@@ -732,6 +799,14 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
                 Sleep(50);
             }
         }
+        return 0;
+    }
+    if (cmdLine && wcsstr(cmdLine, L"--hub-toggle-auto") != NULL) {
+        RequestHubAutoToggle();
+        return 0;
+    }
+    if (cmdLine && wcsstr(cmdLine, L"--hub-exit") != NULL) {
+        RequestHubExit();
         return 0;
     }
 
@@ -843,7 +918,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     g_nid.uCallbackMessage = WM_TRAYICON;
     g_nid.hIcon            = g_hIcon;
     wcsncpy(g_nid.szTip, L"DNS Pilot - Auto-Pilot DNS switching", 127);
-    Shell_NotifyIconW(NIM_ADD, &g_nid);
+    DnsTraySync();
 
     /* -Silent: start hidden in the tray (the hub uses this to put an
        updated pilot back the way it was instead of popping the window) */
@@ -853,6 +928,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     InitializeCriticalSection(&g_watchCs);
     SetTimer(g_hwnd, 1, 10000, NULL);
     SetTimer(g_hwnd, 2, 50, NULL);     /* emblem spin repaint */
+    SetTimer(g_hwnd, 3, 2000, NULL);   /* lightweight unified-tray fallback */
 
     /* live stats strip: 1 Hz, one worker thread, ping + passive counters */
     InitializeCriticalSection(&g_statsCs);

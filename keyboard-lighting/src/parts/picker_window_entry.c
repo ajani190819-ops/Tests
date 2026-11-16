@@ -226,6 +226,32 @@ static void HandleHitAction(HWND hwnd, int hitIdx) {
     InvalidateRect(hwnd, NULL, FALSE);
 }
 
+static void KeyboardTraySync(void) {
+    BOOL wantOwnIcon = !SuiteHubOwnsTray();
+    if (wantOwnIcon && !g_trayVisible) {
+        if (Shell_NotifyIconW(NIM_ADD, &g_nid)) g_trayVisible = TRUE;
+    } else if (!wantOwnIcon && g_trayVisible) {
+        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_trayVisible = FALSE;
+    }
+}
+
+/* Hub writes this one-shot only after proving the app is running. A file is
+   used instead of a cross-integrity WM_COMMAND because Keyboard Lighting can
+   be elevated for hardware access while Project Hub is not. */
+static void ApplyHubLightingToggle(void) {
+    if (!FileExistsW(g_hubTogglePath) || !DeleteFileW(g_hubTogglePath)) return;
+    if (g_wantOff) StartEngine(); else TurnAllLightsOff();
+    InvalidateRect(g_hwnd, NULL, FALSE);
+}
+
+static BOOL ApplyHubExit(void) {
+    if (!FileExistsW(g_hubExitPath) || !DeleteFileW(g_hubExitPath)) return FALSE;
+    g_quitting = TRUE;
+    DestroyWindow(g_hwnd);
+    return TRUE;
+}
+
 static void ShowTrayContextMenu(HWND hwnd) {
     HMENU hMenu = CreatePopupMenu();
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_OPEN, L"Open Keyboard Lighting");
@@ -270,6 +296,11 @@ static void ShowTrayContextMenu(HWND hwnd) {
 }
 
 static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == SuiteTaskbarCreatedMessage()) {
+        g_trayVisible = FALSE;
+        KeyboardTraySync();
+        return 0;
+    }
     switch (msg) {
     case WM_CREATE:
         ApplyModernWindowFrame(hwnd);
@@ -458,6 +489,9 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 InvalidateRect(hwnd, NULL, FALSE);
             }
         } else if (wp == 2) {
+            KeyboardTraySync();
+            ApplyHubLightingToggle();
+            if (ApplyHubExit()) return 0;
             WriteHeartbeat();
             WatchBrightTokens();
             PollFnBrightness();
@@ -488,7 +522,7 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_CLOSE:
         if (!g_quitting) {
             ShowWindow(hwnd, SW_HIDE);
-            if (!g_trayHinted) {
+            if (!g_trayHinted && g_trayVisible) {
                 g_trayHinted = TRUE;
                 g_nid.uFlags = NIF_INFO;
                 wcsncpy(g_nid.szInfoTitle, L"Keyboard Lighting is active in tray", 63);
@@ -501,7 +535,8 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_DESTROY:
-        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        if (g_trayVisible) Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_trayVisible = FALSE;
         StopEngine(TRUE);
         DeleteFileW(g_lockPath);
         PostQuitMessage(0);
@@ -534,6 +569,8 @@ static void InitKblPaths(void) {
     _snwprintf(g_brightUpPath,   MAX_PATH, L"%s\\bright_up.flag", g_cfgDir);
     _snwprintf(g_brightDownPath, MAX_PATH, L"%s\\bright_down.flag", g_cfgDir);
     _snwprintf(g_holdModePath,   MAX_PATH, L"%s\\hold_mode.txt", g_cfgDir);
+    _snwprintf(g_hubTogglePath,  MAX_PATH, L"%s\\hub-toggle-lighting.flag", g_cfgDir);
+    _snwprintf(g_hubExitPath,    MAX_PATH, L"%s\\hub-exit.flag", g_cfgDir);
     {
         wchar_t p[MAX_PATH];
         _snwprintf(p, MAX_PATH, L"%s\\presets.ini", g_cfgDir);
@@ -560,6 +597,21 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     if (cmdLine && (wcsstr(cmdLine, L"--stop") != NULL || wcsstr(cmdLine, L"-Stop") != NULL)) {
         StopEngine(TRUE);
         KillPidFromFile(g_lockPath);
+        return 0;
+    }
+
+    /* Hub tray requests work even when this app is elevated. The companion
+       writes a one-shot only after proving a current instance owns the mutex,
+       so no command can surprise a later ordinary launch. */
+    if (cmdLine && (wcsstr(cmdLine, L"--hub-toggle") != NULL ||
+                    wcsstr(cmdLine, L"--hub-exit") != NULL)) {
+        const wchar_t *token = wcsstr(cmdLine, L"--hub-exit")
+                             ? g_hubExitPath : g_hubTogglePath;
+        HANDLE running = OpenMutexW(SYNCHRONIZE, FALSE, SINGLE_MUTEX_NAME);
+        if (running) {
+            WriteAtomicUtf8(token, "1");
+            CloseHandle(running);
+        }
         return 0;
     }
 
@@ -680,7 +732,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     g_nid.uCallbackMessage = WM_TRAYICON;
     g_nid.hIcon            = g_appIcon;
     wcsncpy(g_nid.szTip, L"Keyboard Lighting - ROG Strix G16", 127);
-    Shell_NotifyIconW(NIM_ADD, &g_nid);
+    KeyboardTraySync();
 
     StartEngine();
 

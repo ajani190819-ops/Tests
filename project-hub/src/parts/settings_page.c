@@ -1,10 +1,9 @@
 /* ---- Suite settings page -------------------------------------------
    One small window holding the settings that used to need each app's
-   tray: Keyboard Lighting's M4/M5 hold behaviour and Smooth colour, and
-   DNS Pilot's auto-pilot and check interval. The owner asked for a
-   single place in the hub instead of hunting through tray menus, and
-   chose this over per-app dialogs because the whole list is six
-   controls.
+   tray: Keyboard Lighting's M4/M5 hold behaviour and Smooth colour, DNS
+   Pilot's auto-pilot and check interval, and the Hub's branch-following
+   preference. The owner asked for a single place in the hub instead of
+   hunting through tray menus.
 
    Every control writes the SAME file the app itself uses, in the same
    format, so there is one source of truth per setting and no second
@@ -25,12 +24,16 @@
 #define IDS_DNS_INT      2010
 #define IDS_DNS_NOTE     2011
 #define IDS_STATUS       2012
+#define IDS_BRANCH_GROUP 2013
+#define IDS_FOLLOW_LATEST 2014
+#define IDS_BRANCH_NOTE  2015
 
 static HWND g_setHwnd    = NULL;
 static HWND g_setHold[3];
 static HWND g_setSmooth  = NULL;
 static HWND g_setDnsAuto = NULL;
 static HWND g_setDnsInt  = NULL;
+static HWND g_setAutoBranch = NULL;
 static HWND g_setStatus  = NULL;
 
 /* The three values the lighting engine accepts, verbatim. The engine
@@ -194,6 +197,17 @@ static LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM l
             SetStatusText(L"DNS Pilot saved - applies next time DNS Pilot starts.");
             return 0;
         }
+        if (id == IDS_FOLLOW_LATEST) {
+            int on = (SendMessageW(g_setAutoBranch, BM_GETCHECK, 0, 0) & BST_CHECKED) ? 1 : 0;
+            SetFollowLatestTestBranch(on);
+            if (on) {
+                SetStatusText(L"Automatic branch following is on - checking the newest test branch now.");
+                EnqueueTask(TASK_CHECK_REMOTE);
+            } else {
+                SetStatusText(L"Automatic branch following is paused - choose a branch from the header.");
+            }
+            return 0;
+        }
         return 0;
     }
     if (msg == WM_CLOSE) { DestroyWindow(hwnd); return 0; }
@@ -212,7 +226,7 @@ static void OpenSettingsWindow(HWND owner) {
     wc.lpszClassName = L"HubSuiteSettingsWnd";
     RegisterClassExW(&wc);   /* second and later calls fail harmlessly */
     int dpi = GetWinDpi(NULL);
-    int W = MulDiv(480, dpi, 96), H = MulDiv(408, dpi, 96);
+    int W = MulDiv(480, dpi, 96), H = MulDiv(476, dpi, 96);
     RECT rr;
     GetWindowRect(owner, &rr);
     int x = rr.left + ((rr.right - rr.left) - W) / 2;
@@ -261,9 +275,18 @@ static void OpenSettingsWindow(HWND owner) {
     SetCtl(0, L"STATIC", L"DNS Pilot reads these when it starts, so restart it to apply.",
            xL, 262, CW, 18, IDS_DNS_NOTE, g_setHwnd, dpi);
 
+    SetCtl(0, L"STATIC", L"Project Hub updates", xL, 298, CW, 18,
+           IDS_BRANCH_GROUP, g_setHwnd, dpi);
+    g_setAutoBranch = SetCtl(BS_AUTOCHECKBOX, L"BUTTON",
+                             L"Automatically follow the newest active test branch",
+                             xL, 322, CW, 20, IDS_FOLLOW_LATEST, g_setHwnd, dpi);
+    SetCtl(0, L"STATIC",
+           L"Choosing a branch manually pauses this. Turn it back on here whenever you want.",
+           xL, 348, CW, 28, IDS_BRANCH_NOTE, g_setHwnd, dpi);
+
     g_setStatus = SetCtl(0, L"STATIC",
                          L"Changes save as soon as you make them.",
-                         xL, 330, CW, 34, IDS_STATUS, g_setHwnd, dpi);
+                         xL, 394, CW, 34, IDS_STATUS, g_setHwnd, dpi);
 
     int mode = HoldModeCurrent();
     for (int i = 0; i < 3; i++)
@@ -295,6 +318,8 @@ static void OpenSettingsWindow(HWND owner) {
         selIdx = (int)idx;
     }
     SendMessageW(g_setDnsInt, CB_SETCURSEL, (WPARAM)selIdx, 0);
+    SendMessageW(g_setAutoBranch, BM_SETCHECK,
+                 FollowLatestTestBranch() ? BST_CHECKED : BST_UNCHECKED, 0);
 
     ShowWindow(g_setHwnd, SW_SHOWNOACTIVATE);
     UpdateWindow(g_setHwnd);

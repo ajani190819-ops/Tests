@@ -19,6 +19,7 @@
 #include <string.h>
 #include <wchar.h>
 #include <math.h>
+#include "../../shared/win32/hub_tray_host.h"
 
 /* ============================================================================
  *  Audio Switcher - Native Win32 Suite App
@@ -66,10 +67,6 @@
 #define IDM_TRAY_OPEN       200
 #define IDM_TRAY_QUIT       201
 #define IDM_REFRESH         300
-
-/* Tri-Spoke Core Emblem - same SDF renderer as Project Hub */
-#define EMB_SDF_SCALE 0.92
-#define EMB_SDF_BOOST 0.012
 
 /* --- COM / Core Audio GUIDs --- */
 typedef const GUID *LPCGEVENTCONTEXT;
@@ -286,6 +283,7 @@ typedef struct ComBase { const void* lpVtbl; } ComBase;
 #include "parts/audio_subsystem.c"
 #include "parts/remembered_levels.c"
 #include "parts/window_ui_tray.c"
+#include "../../shared/win32/suite_emblem.c"
 #include "parts/control_theming.c"
 #include "parts/ui_reconcile.c"
 #include "parts/diag.c"

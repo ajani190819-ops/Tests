@@ -69,6 +69,8 @@ static volatile LONG    g_workerRun  = 1;
 static wchar_t          g_cfgDir[MAX_PATH];
 static wchar_t          g_rulesPath[MAX_PATH];
 static wchar_t          g_lockPath[MAX_PATH];
+static wchar_t          g_hubTogglePath[MAX_PATH];
+static wchar_t          g_hubExitPath[MAX_PATH];
 
 static int GetWinDpi(HWND hwnd) {
     HMODULE u32 = GetModuleHandleW(L"user32.dll");

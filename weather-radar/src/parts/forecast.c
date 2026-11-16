@@ -21,7 +21,7 @@ static void BuildForecastUrl(const Place *p, wchar_t *url, int cap) {
     _snwprintf(url, cap - 1,
                L"https://api.open-meteo.com/v1/forecast?latitude=%.5f&longitude=%.5f"
                L"&current=temperature_2m,apparent_temperature,relative_humidity_2m,"
-               L"weather_code,wind_speed_10m,precipitation"
+               L"weather_code,wind_speed_10m,wind_gusts_10m,cloud_cover,precipitation"
                L"&hourly=temperature_2m,precipitation_probability,precipitation,weather_code"
                L"&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,"
                L"precipitation_sum,weather_code"
@@ -52,7 +52,7 @@ static void HourLabelFromIso(const char *iso, wchar_t *out, int cap) {
     wcscpy(out, L"--:--");
 }
 
-static void FetchForecast(const Place *p) {
+static void FetchForecast(const Place *p, DWORD ticket) {
     wchar_t url[1400];
     BuildForecastUrl(p, url, 1400);
     HttpBuf b;
@@ -68,6 +68,8 @@ static void FetchForecast(const Place *p) {
         f->feelsF  = JNum(JGet(cur, "apparent_temperature"));
         f->rh      = JNum(JGet(cur, "relative_humidity_2m"));
         f->windMph = JNum(JGet(cur, "wind_speed_10m"));
+        f->windGustMph = JNum(JGet(cur, "wind_gusts_10m"));
+        f->cloudCover = JNum(JGet(cur, "cloud_cover"));
         f->precipIn = JNum(JGet(cur, "precipitation"));
         f->wcode   = (int)JNum(JGet(cur, "weather_code"));
         f->have = 1;
@@ -117,14 +119,14 @@ static void FetchForecast(const Place *p) {
     }
     NowLocalStamp(f->fetched, 24);
     HttpBufFree(&b);
-    PostMessageW(g_hwnd, WM_APP_DATA, JOB_FORECAST, 0);
+    PostMessageW(g_hwnd, WM_APP_DATA, JOB_FORECAST, (LPARAM)(uintptr_t)ticket);
 }
 
 /* Fill the member matrix and derive the per-hour honest probability.
    Members are discovered by key prefix rather than by a hard-coded count,
    because the GFS ensemble member count is a property of the model, not of
    this app: whatever the API serves gets counted. */
-static void FetchEnsemble(const Place *p) {
+static void FetchEnsemble(const Place *p, DWORD ticket) {
     wchar_t url[900];
     BuildEnsembleUrl(p, url, 900);
     HttpBuf b;
@@ -168,7 +170,7 @@ static void FetchEnsemble(const Place *p) {
     }
     e->have = member > 0;
     HttpBufFree(&b);
-    PostMessageW(g_hwnd, WM_APP_DATA, JOB_ENSEMBLE, 0);
+    PostMessageW(g_hwnd, WM_APP_DATA, JOB_ENSEMBLE, (LPARAM)(uintptr_t)ticket);
 }
 
 /* Honest probability that it rains HERE at least once inside

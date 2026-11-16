@@ -339,6 +339,40 @@ static void HandleHitClick(int hitIdx) {
     }
 }
 
+static void BluetoothTraySync(void) {
+    BOOL wantOwnIcon = !SuiteHubOwnsTray();
+    if (wantOwnIcon && !g_trayVisible) {
+        if (Shell_NotifyIconW(NIM_ADD, &g_nid)) g_trayVisible = TRUE;
+    } else if (!wantOwnIcon && g_trayVisible) {
+        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_trayVisible = FALSE;
+    }
+}
+
+/* The Hub's companion invocation writes a one-shot under the owner's local
+   data. This keeps toggles and explicit quit working if this guard is elevated
+   while Project Hub is not; a cross-integrity WM_COMMAND is not dependable. */
+static BOOL TakeHubOneShot(const wchar_t *path) {
+    DWORD attr = GetFileAttributesW(path);
+    if (attr == INVALID_FILE_ATTRIBUTES || (attr & FILE_ATTRIBUTE_DIRECTORY)) return FALSE;
+    return DeleteFileW(path);
+}
+
+static void ApplyHubGuardToggle(void) {
+    if (!TakeHubOneShot(g_hubTogglePath)) return;
+    g_guardOn = !g_guardOn;
+    SaveRules();
+    ReleaseSemaphore(g_qSem, 1, NULL);
+    InvalidateRect(g_hwnd, NULL, FALSE);
+}
+
+static BOOL ApplyHubExit(void) {
+    if (!TakeHubOneShot(g_hubExitPath)) return FALSE;
+    g_quitting = TRUE;
+    DestroyWindow(g_hwnd);
+    return TRUE;
+}
+
 static void ShowTrayMenu(void) {
     HMENU hMenu = CreatePopupMenu();
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_OPEN, L"Open Bluetooth Guard");
@@ -366,6 +400,11 @@ static void ShowTrayMenu(void) {
 }
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == SuiteTaskbarCreatedMessage()) {
+        g_trayVisible = FALSE;
+        BluetoothTraySync();
+        return 0;
+    }
     switch (msg) {
     case WM_CREATE:
         ApplyModernWindowFrame(hwnd);
@@ -468,6 +507,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_TIMER:
         if (wp == 3) { InvalidateRect(hwnd, NULL, FALSE); return 0; }
+        BluetoothTraySync();
+        ApplyHubGuardToggle();
+        if (ApplyHubExit()) return 0;
         CheckForegroundManualIntent();
         if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {
             ShowWindow(hwnd, SW_SHOWNORMAL);
@@ -524,7 +566,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_CLOSE:
         if (!g_quitting) {
             ShowWindow(hwnd, SW_HIDE);
-            if (!g_trayHinted) {
+            if (!g_trayHinted && g_trayVisible) {
                 g_trayHinted = TRUE;
                 g_nid.uFlags = NIF_INFO;
                 wcsncpy(g_nid.szInfoTitle, L"Bluetooth Guard is active in tray", 63);
@@ -538,7 +580,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_DESTROY:
         UnregisterBluetoothNotifications();
-        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        if (g_trayVisible) Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_trayVisible = FALSE;
         DeleteFileW(g_lockPath);
         PostQuitMessage(0);
         return 0;
@@ -553,6 +596,26 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
 
     BOOL silent = (cmdLine && (wcsstr(cmdLine, L"--silent") != NULL ||
                                wcsstr(cmdLine, L"--startup") != NULL));
+
+    if (cmdLine && (wcsstr(cmdLine, L"--hub-toggle-guard") != NULL ||
+                    wcsstr(cmdLine, L"--hub-exit") != NULL)) {
+        const wchar_t *token = wcsstr(cmdLine, L"--hub-exit")
+                             ? g_hubExitPath : g_hubTogglePath;
+        /* Leave no instruction behind for a future launch: this companion
+           succeeds only after it proves a current guard owns the mutex. */
+        HANDLE running = OpenMutexW(SYNCHRONIZE, FALSE, SINGLE_MUTEX_NAME);
+        if (running) {
+            HANDLE f = CreateFileW(token, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                                   FILE_ATTRIBUTE_NORMAL, NULL);
+            if (f != INVALID_HANDLE_VALUE) {
+                DWORD wrote = 0;
+                WriteFile(f, "1", 1, &wrote, NULL);
+                CloseHandle(f);
+            }
+            CloseHandle(running);
+        }
+        return 0;
+    }
 
     if (cmdLine && wcsstr(cmdLine, L"--stop")) {
         FILE *fp = _wfopen(g_lockPath, L"r");
@@ -623,7 +686,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     g_nid.uCallbackMessage = WM_TRAYICON;
     g_nid.hIcon            = g_appIcon;
     wcsncpy(g_nid.szTip, L"Bluetooth Guard (High-Priority Active)", 127);
-    Shell_NotifyIconW(NIM_ADD, &g_nid);
+    BluetoothTraySync();
 
     HANDLE hThread = CreateThread(NULL, 0, WorkerThread, NULL, 0, NULL);
 

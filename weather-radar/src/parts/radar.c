@@ -195,7 +195,12 @@ static int FetchTileGrid(const wchar_t *prefix, int z, int tx, int ty,
                 _snwprintf(url, 511, L"https://tile.openstreetmap.org/%d/%d/%d.png",
                            z, tx + gx, ty + gy);
             url[511] = L'\0';
-            uint32_t *tile = dst + (size_t)(gy * TILE_PX) * GRID_PX + (size_t)gx * TILE_PX;
+            /* A tile is 256 pixels wide but the stitched map is 768 pixels
+               wide. Decode contiguously, then place each source row at its
+               true destination stride; writing direct used to wrap into three
+               thin horizontal bands instead of a map. */
+            uint32_t tile[TILE_PX * TILE_PX];
+            ZeroMemory(tile, sizeof(tile));
             wchar_t cpath[MAX_PATH];
             CacheNameFor(prefix, url, cpath, MAX_PATH);
 
@@ -204,14 +209,16 @@ static int FetchTileGrid(const wchar_t *prefix, int z, int tx, int ty,
             hb.len = 0;
             if (CacheAgeSecOk(cpath, cacheSec) && ReadWholeFileW(cpath, &hb.data, &hb.len)) {
                 /* served from disk: same bytes, no second request */
-            } else if (!HttpGetBuf(url, &hb)) {
-                for (int i = 0; i < TILE_PX * TILE_PX; i++) tile[i] = 0;
-                continue;
-            } else {
+            } else if (HttpGetBuf(url, &hb)) {
                 WriteWholeFileW(cpath, hb.data, hb.len);
             }
-            if (WicDecodePng256(hb.data, hb.len, tile)) any = 1;
+            if (hb.data && WicDecodePng256(hb.data, hb.len, tile)) any = 1;
             HttpBufFree(&hb);
+            for (int row = 0; row < TILE_PX; row++) {
+                uint32_t *dstRow = dst + (size_t)(gy * TILE_PX + row) * GRID_PX +
+                                   (size_t)gx * TILE_PX;
+                memcpy(dstRow, tile + (size_t)row * TILE_PX, TILE_PX * sizeof(uint32_t));
+            }
         }
     }
     return any;
@@ -231,10 +238,10 @@ static int BaseGridEnsure(int z, int tx, int ty) {
 }
 
 /* Composite one radar frame over the basemap into g_viewStage, then hand the
-   buffer to the UI thread. Tries zoom 8 (about 470 km across) and, if every
-   tile of the frame comes back transparent - the tile host answers 200 with
-   a placeholder beyond its free zoom - retries the whole grid at zoom 7 and
-   says so on the pane instead of silently showing a smaller map than asked. */
+   buffer to the UI thread. It requests only the host-supported level selected
+   by RadarTileZoomForDisplay (7 or 8). If level 8 returns all-transparent
+   placeholders, retry the whole grid at 7. UI levels 9 and 10 are local detail
+   crops of the available source, not false higher-resolution tile requests. */
 static void RadarViewBuild(const Place *p, int frameIdx) {
     if (!g_radarHost[0] || frameIdx < 0 || frameIdx >= g_frameN) return;
     if (!g_viewStage) g_viewStage = (uint32_t *)malloc((size_t)GRID_PX * GRID_PX * 4);
@@ -242,15 +249,21 @@ static void RadarViewBuild(const Place *p, int frameIdx) {
     uint32_t *radar = (uint32_t *)malloc((size_t)GRID_PX * GRID_PX * 4);
     if (!radar) return;
 
-    int z = g_zoom, tx = 0, ty = 0, any = 0;
+    int displayZoom = 8;
+    EnterCriticalSection(&g_lock);
+    displayZoom = g_zoom;
+    LeaveCriticalSection(&g_lock);
+    int requestedTileZoom = RadarTileZoomForDisplay(displayZoom);
+    int z = requestedTileZoom, tx = 0, ty = 0, any = 0;
     for (int attempt = 0; attempt < 2; attempt++) {
         GridFor(z, p->lat, p->lon, &tx, &ty);
         any = FetchTileGrid(L"rv", z, tx, ty, g_frames[frameIdx].path, radar,
                             2 * 24 * 3600);
-        if (any || z <= 7) break;
-        z = 7;   /* free-tier placeholder fallback */
+        if (any || z <= RADAR_TILE_ZOOM_MIN) break;
+        z = RADAR_TILE_ZOOM_MIN;   /* host placeholder fallback */
     }
-    g_radarNote = (z != 8) ? 1 : 0;
+    int radarNote = (z != requestedTileZoom) ? 1
+                  : (displayZoom > z ? 2 : 0);
     if (any) {
         BaseGridEnsure(z, tx, ty);
     } else {
@@ -281,6 +294,7 @@ static void RadarViewBuild(const Place *p, int frameIdx) {
     g_view = g_viewStage;
     g_viewStage = old ? old : NULL;
     g_viewReady = any ? 2 : 1;
+    g_radarNote = radarNote;
     g_baseKey[0] = z;
     g_baseKey[1] = tx;
     g_baseKey[2] = ty;

@@ -552,7 +552,22 @@ static void ui_status_text(wchar_t *out, size_t cap) {
 }
 
 
+static void AudioTraySync(void) {
+    BOOL wantOwnIcon = !SuiteHubOwnsTray();
+    if (wantOwnIcon && !g_trayVisible) {
+        if (Shell_NotifyIconW(NIM_ADD, &g_nid)) g_trayVisible = TRUE;
+    } else if (!wantOwnIcon && g_trayVisible) {
+        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_trayVisible = FALSE;
+    }
+}
+
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == SuiteTaskbarCreatedMessage()) {
+        g_trayVisible = FALSE;
+        AudioTraySync();
+        return 0;
+    }
     switch (msg) {
     case WM_CREATE: {
         g_hwnd = hwnd;
@@ -567,7 +582,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         g_nid.uCallbackMessage = WM_TRAYICON;
         g_nid.hIcon = g_app_icon;
         wcscpy(g_nid.szTip, L"Audio Switcher - per-app volume & output switching");
-        Shell_NotifyIconW(NIM_ADD, &g_nid);
+        AudioTraySync();
 
         ui_fonts_create();
 
@@ -607,7 +622,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         g_quitting = TRUE;
         KillTimer(hwnd, 1);
         KillTimer(hwnd, 2);
-        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        ReleaseAudioSwitcherEmblem();
+        if (g_trayVisible) Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_trayVisible = FALSE;
         sessions_cleanup();
         endpoints_cleanup();
         com_release_enumerator();
@@ -825,6 +842,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_TIMER:
         if (wp == 1) {
+            AudioTraySync();
             /* Re-read endpoints too, not just sessions: plugging in headphones
              * must appear without a manual Refresh, and if the user switches
              * the default device in Windows' own settings the "current output"

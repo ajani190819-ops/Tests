@@ -13,6 +13,7 @@
 #include <shlobj.h>
 #include <winhttp.h>
 #include <math.h>
+#include "../../shared/win32/hub_tray_host.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -182,6 +183,7 @@ typedef struct {
 static HWND             g_hwnd         = NULL;
 static HICON            g_appIcon      = NULL;
 static NOTIFYICONDATAW  g_nid;
+static BOOL             g_trayVisible = FALSE;
 static HANDLE           g_showEvent    = NULL;
 static HANDLE           g_engineProc   = NULL;
 static DWORD            g_enginePid    = 0;
@@ -233,6 +235,8 @@ static wchar_t          g_stopPath[MAX_PATH];
 static wchar_t          g_brightUpPath[MAX_PATH];
 static wchar_t          g_brightDownPath[MAX_PATH];
 static wchar_t          g_holdModePath[MAX_PATH];
+static wchar_t          g_hubTogglePath[MAX_PATH];
+static wchar_t          g_hubExitPath[MAX_PATH];
 static wchar_t          g_engineScript[MAX_PATH];
 static wchar_t          g_zonesBat[MAX_PATH];
 static wchar_t          g_statusText[256] = L"Starting ROG Strix G16 lighting engine...";

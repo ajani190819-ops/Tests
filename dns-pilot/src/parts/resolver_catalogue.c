@@ -50,6 +50,7 @@ static int g_rowCount = 0;
 static HWND        g_hwnd = NULL;
 static HICON       g_hIcon = NULL;
 static NOTIFYICONDATAW g_nid;
+static int         g_trayVisible = 0;
 static UINT        g_exitMsg = 0;
 static int         g_quitting = 0;
 static int         g_trayHinted = 0;
@@ -86,6 +87,8 @@ static char         g_srcV6[64] = "";  /* adapter's own v6 for ICMP6 source */
 static char         g_srcV6LL[64] = "";/* link-local v6 (fe80::) for LL targets */
 static int          g_hasGlobalV6 = 0; /* adapter has a global (2000::/3) v6 */
 static wchar_t     g_cfgPath[MAX_PATH];
+static wchar_t     g_hubTogglePath[MAX_PATH];
+static wchar_t     g_hubExitPath[MAX_PATH];
 static char        g_lastV4[64] = "", g_lastV6[64] = "";
 static int         g_best4 = -1, g_best6 = -1;
 

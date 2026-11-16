@@ -1,8 +1,21 @@
 /* ---------------- entry ---------------- */
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
+    /* Project Hub invokes --stop before it replaces a resident watcher. This
+       route exits rather than treating WM_CLOSE as a normal hide-to-tray. */
+    if (cmdLine && wcsstr(cmdLine, L"--stop")) {
+        HWND running = FindWindowW(L"AgentNotesWnd", NULL);
+        if (running) {
+            DWORD_PTR reply = 0;
+            SendMessageTimeoutW(running, WM_COMMAND,
+                                MAKEWPARAM(AGENT_NOTES_EXIT_COMMAND, 0), 0,
+                                SMTO_ABORTIFHUNG | SMTO_BLOCK, 2000, &reply);
+        }
+        return 0;
+    }
+
     InitPalette();
-    (void)hPrev; (void)cmdLine; (void)nShow;
+    (void)hPrev; (void)nShow;
     g_hInst = hInst;
 
     CreateMutexW(NULL, FALSE, MUTEX_NAME);
@@ -50,15 +63,16 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
        GetWinDpi would cut the layout off on any scaled display. */
     g_hwnd = CreateWindowExW(0, wc.lpszClassName, APP_TITLE_W, WS_OVERLAPPEDWINDOW,
                              CW_USEDEFAULT, CW_USEDEFAULT,
-                             S(620), S(600),
+                             S(620), S(690),
                              NULL, NULL, hInst, NULL);
     if (!g_hwnd) return 1;
 
+    AgentNotesTrayInit();
     g_dpi = GetWinDpi(g_hwnd);
     {
         /* Size to the true DPI, then shrink uniformly if that would not fit
            the work area - the layout can never be cut off on any display. */
-        RECT wrc = { 0, 0, S(620), S(600) };
+        RECT wrc = { 0, 0, S(620), S(690) };
         AdjustWindowRectEx(&wrc, WS_OVERLAPPEDWINDOW, FALSE, 0);
         RECT wa;
         SystemParametersInfoW(SPI_GETWORKAREA, 0, &wa, 0);
@@ -71,7 +85,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
             g_fit = (fx < fy) ? fx : fy;
             if (g_fit < 50) g_fit = 50;
             if (g_fit > 100) g_fit = 100;
-            RECT w2 = { 0, 0, S(620), S(600) };
+            RECT w2 = { 0, 0, S(620), S(690) };
             AdjustWindowRectEx(&w2, WS_OVERLAPPEDWINDOW, FALSE, 0);
             wrc = w2;
         }
@@ -85,23 +99,14 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     g_fontTitle = CreateFontW(-S(22), 0, 0, 0, FW_SEMIBOLD, 0, 0, 0, 0, 0, 0, 0, 0, L"Segoe UI");
     g_fontBtn = CreateFontW(-S(13), 0, 0, 0, FW_SEMIBOLD, 0, 0, 0, 0, 0, 0, 0, 0, L"Segoe UI");
 
-    /* rich-edits give us dark, standard multiline/single-line inputs */
+    /* One focused composer. The session endpoint is discovered and maintained
+       in the background; the owner never needs a URL field or setup action. */
     LoadLibraryW(L"msftedit.dll");
-    g_hLink = CreateWindowExW(0, L"RichEdit50W", g_link,
-                              WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
-                              S(130), S(98), S(330), S(32),
-                              g_hwnd, (HMENU)(INT_PTR)ID_EDIT_LINK, hInst, NULL);
     g_hNote = CreateWindowExW(0, L"RichEdit50W", L"",
                               WS_CHILD | WS_VISIBLE | WS_TABSTOP |
                               ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL,
-                              S(20), S(178), S(580), S(190),
+                              S(20), S(194), S(580), S(198),
                               g_hwnd, (HMENU)(INT_PTR)ID_EDIT_NOTE, hInst, NULL);
-    if (g_hLink) {
-        SendMessageW(g_hLink, EM_SETBKGNDCOLOR, 0, (LPARAM)COL_INPUT);
-        RichTextColor(g_hLink, COL_TXT);
-        SendMessageW(g_hLink, WM_SETFONT, (WPARAM)g_fontUI, TRUE);
-        SendMessageW(g_hLink, EM_SETLIMITTEXT, 0, 255);
-    }
     if (g_hNote) {
         SendMessageW(g_hNote, EM_SETBKGNDCOLOR, 0, (LPARAM)COL_INPUT);
         RichTextColor(g_hNote, COL_MUTED);   /* starts as hint text */
@@ -111,20 +116,25 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     }
 
     if (OutboxCount() > 0)
-        _snwprintf(g_status, 255, L"%d queued note(s) found - delivering when reachable.",
+        _snwprintf(g_status, 255, L"%d queued note(s) found - delivery will resume automatically.",
                    OutboxCount());
-    else if (g_link[0])
+    else
         wcsncpy(g_status, L"Ready - type a note and press Send to Agent.", 255);
 
     SetTimer(g_hwnd, TIMER_FLUSH, 60000, NULL);
+    /* Waiting status is intentionally checked in a worker every 15 seconds.
+       There is no sign-in task or background service: this starts only after
+       the owner launches Agent Notes, and ordinary window close hides it to
+       the notification area until the explicit Exit command. */
+    SetTimer(g_hwnd, TIMER_WATCH, 15000, NULL);
+    SetTimer(g_hwnd, TIMER_TRAY_SYNC, 2000, NULL);
+    g_spinAngle = SuiteEmblemAngleNow(GetTickCount64(), 30000ULL);
     SetTimer(g_hwnd, TIMER_SPIN, 50, NULL);
     if (LinkDiscoveryTick()) {
-        g_linkHint = 0;
-        SetWindowTextW(g_hLink, g_link);
-        RichTextColor(g_hLink, COL_TXT);
-    } else if (!g_link[0]) {
-        LinkSetHint(1);
+        wcsncpy(g_status, L"Agent session found - notes will deliver automatically.", 255);
+        g_status[255] = L'\0';
     }
+    StartStatusPoll();
     ShowWindow(g_hwnd, SW_SHOW);
     UpdateWindow(g_hwnd);
     SetForegroundWindow(g_hwnd);       /* an explicit Open must take focus */

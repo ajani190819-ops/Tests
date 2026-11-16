@@ -12,6 +12,7 @@ static int    g_jobHead = 0, g_jobTail = 0;
 static Place  g_reqPlace;
 static int    g_reqHas = 0;
 static wchar_t g_reqQuery[96];
+static DWORD   g_reqSearchTicket = 0;
 
 static void StartJob(int kind) {
     EnterCriticalSection(&g_lock);
@@ -44,16 +45,40 @@ static DWORD WINAPI WorkerMain(LPVOID arg) {
         int j;
         while ((j = PopJob()) != JOB_NONE) {
             switch (j) {
-            case JOB_GEOCODE:       GeocodeSearch(g_reqQuery); break;
-            case JOB_FORECAST:      if (g_reqHas) FetchForecast(&g_reqPlace); break;
-            case JOB_ENSEMBLE:      if (g_reqHas) FetchEnsemble(&g_reqPlace); break;
+            case JOB_GEOCODE: {
+                wchar_t query[96];
+                DWORD ticket;
+                EnterCriticalSection(&g_lock);
+                wcsncpy(query, g_reqQuery, 95);
+                query[95] = L'\0';
+                ticket = g_reqSearchTicket;
+                LeaveCriticalSection(&g_lock);
+                GeocodeSearch(query, ticket);
+                break;
+            }
+            case JOB_FORECAST: {
+                Place p; int have; DWORD ticket;
+                EnterCriticalSection(&g_lock);
+                p = g_reqPlace; have = g_reqHas; ticket = g_placeTicket;
+                LeaveCriticalSection(&g_lock);
+                if (have) FetchForecast(&p, ticket);
+                break;
+            }
+            case JOB_ENSEMBLE: {
+                Place p; int have; DWORD ticket;
+                EnterCriticalSection(&g_lock);
+                p = g_reqPlace; have = g_reqHas; ticket = g_placeTicket;
+                LeaveCriticalSection(&g_lock);
+                if (have) FetchEnsemble(&p, ticket);
+                break;
+            }
             case JOB_RADAR_CATALOG: RadarCatalogFetch(); break;
             case JOB_TILES: {
-                int fi;
+                Place p; int have, fi;
                 EnterCriticalSection(&g_lock);
-                fi = g_frameSel;
+                p = g_reqPlace; have = g_reqHas; fi = g_frameSel;
                 LeaveCriticalSection(&g_lock);
-                if (g_reqHas) RadarViewBuild(&g_reqPlace, fi);
+                if (have) RadarViewBuild(&p, fi);
                 break;
             }
             default: break;
@@ -73,6 +98,8 @@ static void RequestPlaceData(const Place *p) {
     EnterCriticalSection(&g_lock);
     g_reqPlace = *p;
     g_reqHas = 1;
+    g_placeTicket++;
+    if (g_placeTicket == 0) g_placeTicket = 1;
     LeaveCriticalSection(&g_lock);
     g_fc.have = 0;
     g_ens.have = 0;
@@ -90,6 +117,9 @@ static void RequestSearch(const wchar_t *q) {
     EnterCriticalSection(&g_lock);
     wcsncpy(g_reqQuery, q, 95);
     g_reqQuery[95] = L'\0';
+    g_searchTicket++;
+    if (g_searchTicket == 0) g_searchTicket = 1;
+    g_reqSearchTicket = g_searchTicket;
     LeaveCriticalSection(&g_lock);
     StartJob(JOB_GEOCODE);
 }

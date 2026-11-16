@@ -164,8 +164,12 @@ static void SetActiveBranch(HWND hwnd, const wchar_t *branch) {
     EnterCriticalSection(&g_cs);
     wcsncpy(g_activeBranch, branch, 63);
     g_activeBranch[63] = L'\0';
+    g_probeRef[0] = L'\0';
     LeaveCriticalSection(&g_cs);
+    /* An explicit Branch-menu choice means "stay here" until the owner
+       re-enables automatic following in Settings. */
     SaveBranchCfg(branch);
+    SaveFollowLatestTestBranch(FALSE);
     {
         wchar_t msg[160];
         _snwprintf(msg, 159, L"Download branch set to '%s' - refreshing update checks.", branch);
@@ -211,6 +215,25 @@ static void ShowBranchMenu(HWND hwnd) {
                        pt.x, pt.y, 0, hwnd, NULL);
     }
     DestroyMenu(hMenu);
+}
+
+/* "Open" is a show-or-launch action. Agent Notes normally hides to its tray,
+   so relying on a second EXE launch makes the hub look unresponsive whenever
+   the existing instance cannot take foreground through Windows' focus rules.
+   The Hub owns the user click, so it can make the known live window visible
+   directly; a new process is needed only when no window exists. */
+static int ShowRunningAgentNotes(void) {
+    HWND notes = FindWindowW(L"AgentNotesWnd", NULL);
+    if (!notes) return 0;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(notes, &pid);
+    if (pid) AllowSetForegroundWindow(pid);
+    if (IsIconic(notes)) ShowWindow(notes, SW_RESTORE);
+    else ShowWindow(notes, SW_SHOW);
+    SetWindowPos(notes, HWND_TOP, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+    SetForegroundWindow(notes);
+    return 1;
 }
 
 static void HandleActionCommand(HWND hwnd, int id) {
@@ -339,11 +362,20 @@ static void HandleActionCommand(HWND hwnd, int id) {
         break;
 
     case ID_NOTES_OPEN:
-        _snwprintf(p, MAX_PATH, L"%s\\AgentNotes.exe", g_notesDir);
-        if (FileExistsW(p)) ShellExecuteW(hwnd, L"open", p, NULL, g_notesDir, SW_SHOWNORMAL);
-        else {
-            SetFooterStatus(L"Agent Notes: fetching latest AgentNotes.exe from GitHub...", 25);
-            EnqueueTask(TASK_OPEN_OR_INSTALL_NOTES);
+        if (ShowRunningAgentNotes()) {
+            SetFooterStatus(L"Agent Notes opened.", 0);
+        } else {
+            _snwprintf(p, MAX_PATH, L"%s\\AgentNotes.exe", g_notesDir);
+            if (FileExistsW(p)) {
+                HINSTANCE launched = ShellExecuteW(hwnd, L"open", p, NULL, g_notesDir, SW_SHOWNORMAL);
+                if ((INT_PTR)launched <= 32)
+                    SetFooterStatus(L"Could not open Agent Notes. Use Folder to verify its installed file.", 0);
+                else
+                    SetFooterStatus(L"Opening Agent Notes...", 0);
+            } else {
+                SetFooterStatus(L"Agent Notes: fetching latest AgentNotes.exe from GitHub...", 25);
+                EnqueueTask(TASK_OPEN_OR_INSTALL_NOTES);
+            }
         }
         break;
     case ID_NOTES_UPDATE:
@@ -527,11 +559,16 @@ static void HandleActionCommand(HWND hwnd, int id) {
 }
 
 static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == SuiteTaskbarCreatedMessage()) {
+        HubTrayRestore();
+        return 0;
+    }
     switch (msg) {
     case WM_CREATE:
         ApplyModernWindowFrame(hwnd);
         RebuildFontsAndIcons(hwnd);
         LoadAppsCfg();
+        HubTrayInit();
         InitCardDefinitions();
         RefreshProjectStatuses();
         SetTimer(hwnd, 1, 2000, NULL);
@@ -629,8 +666,20 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_COMMAND:
-        HandleActionCommand(hwnd, LOWORD(wp));
+        if (!HubTrayHandleCommand(hwnd, LOWORD(wp)))
+            HandleActionCommand(hwnd, LOWORD(wp));
         return 0;
+
+    case WM_HUB_TRAYICON: {
+        UINT event = LOWORD((DWORD)lp);
+        if (event == WM_LBUTTONUP || event == WM_LBUTTONDBLCLK) {
+            ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+        } else if (event == WM_RBUTTONUP || event == WM_CONTEXTMENU) {
+            HubTrayShowMenu(hwnd);
+        }
+        return 0;
+    }
 
     case WM_HUB_REFRESH:
         RefreshProjectStatuses();
@@ -641,16 +690,20 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_HUB_SELFUPD: {
-        /* Hand the single-instance lock over BEFORE spawning the new build.
-           If this old process still holds it, the new hub sees a duplicate
-           launch, forwards to us and exits - and once we exit too nothing is
-           left running. */
-        if (g_hMutex) { CloseHandle(g_hMutex); g_hMutex = NULL; }
-        HINSTANCE hi = ShellExecuteW(NULL, L"open", g_exePath, NULL, g_exeDir, SW_SHOWNORMAL);
+        /* Do not swap our own running image.  Launch the staged build in its
+           tiny --apply-self-update mode; it waits for this process to exit
+           and performs the actual replacement only after that proof. */
+        wchar_t pending[MAX_PATH], args[96];
+        _snwprintf(pending, MAX_PATH, L"%s.pending.exe", g_exePath);
+        _snwprintf(args, 95, L"--apply-self-update=%lu", (unsigned long)GetCurrentProcessId());
+        HINSTANCE hi = FileExistsW(pending)
+                     ? ShellExecuteW(NULL, L"open", pending, args, g_exeDir, SW_HIDE)
+                     : (HINSTANCE)0;
         if ((INT_PTR)hi <= 32) {
-            SetFooterStatus(L"Project Hub updated - please reopen it.", 0);
+            SetFooterStatus(L"Could not start the safe Hub update handoff. No update was applied.", 0);
             return 0;   /* stay up rather than vanish with no successor */
         }
+        if (g_hMutex) { CloseHandle(g_hMutex); g_hMutex = NULL; }
         DestroyWindow(hwnd);
         return 0;
     }
@@ -665,6 +718,15 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 InvalidateRect(hwnd, &g_rcFooterDot, FALSE);
             return 0;
         }
+        /* A transient Explorer-startup failure must not leave the suite
+           permanently on its separate fallback icons. This publishes the
+           capability only after the Hub's own icon is live. */
+        HubTrayEnsureLive();
+        /* The agent app writes only an opaque active-wait token locally. The
+           Hub owns the one notification-area icon and relays the generic
+           native alert without learning Arena question text. */
+        HubTrayPollAgentWait();
+        HubTrayPollWeatherAlert();
         if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {
             ShowWindow(hwnd, SW_SHOWNORMAL);
             SetForegroundWindow(hwnd);
@@ -679,15 +741,90 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         return 0;
 
+    case WM_CLOSE:
+        if (!g_hubQuitting) {
+            ShowWindow(hwnd, SW_HIDE);
+            return 0;
+        }
+        DestroyWindow(hwnd);
+        return 0;
+
     case WM_DESTROY:
+        HubTrayRemove();
+        ReleaseWayfinderEmblem();
         PostQuitMessage(0);
         return 0;
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
+/* The staged Hub EXE is a short-lived updater, not the interactive app.  The
+ * old Hub first exits, then this process proves that exact old image is gone
+ * before it moves the staged build into its place and launches it normally. */
+static BOOL ApplyStagedHubUpdate(PWSTR cmdLine) {
+    static const wchar_t *const flag = L"--apply-self-update=";
+    const wchar_t *arg = cmdLine ? wcsstr(cmdLine, flag) : NULL;
+    if (!arg) return FALSE;
+    DWORD oldPid = (DWORD)wcstoul(arg + wcslen(flag), NULL, 10);
+    if (!oldPid) return FALSE;
+
+    HANDLE oldProcess = OpenProcess(SYNCHRONIZE, FALSE, oldPid);
+    if (oldProcess) {
+        DWORD wait = WaitForSingleObject(oldProcess, 30000);
+        CloseHandle(oldProcess);
+        if (wait != WAIT_OBJECT_0) return FALSE;
+    } else if (GetLastError() != ERROR_INVALID_PARAMETER) {
+        return FALSE;                  /* could not prove the old Hub exited */
+    }
+
+    wchar_t pending[MAX_PATH], target[MAX_PATH], old[MAX_PATH];
+    DWORD n = GetModuleFileNameW(NULL, pending, MAX_PATH);
+    static const wchar_t *const suffix = L".pending.exe";
+    size_t suffixLen = wcslen(suffix);
+    if (n == 0 || n >= MAX_PATH || (size_t)n <= suffixLen ||
+        _wcsicmp(pending + n - suffixLen, suffix) != 0)
+        return FALSE;
+    wcsncpy(target, pending, MAX_PATH - 1);
+    target[MAX_PATH - 1] = L'\0';
+    target[n - suffixLen] = L'\0';
+
+    /* This is the self-update equivalent of CloseManagedExeCopies: a second
+       launch, a delayed shutdown, or an uninspectable image refuses the swap
+       instead of replacing a still-running Hub. */
+    if (!NoProcessRunsImage(target)) return FALSE;
+    _snwprintf(old, MAX_PATH, L"%s.old", target);
+    DeleteFileW(old);
+
+    BOOL parkedOld = FALSE;
+    for (int i = 0; i < 10 && !parkedOld; i++) {
+        parkedOld = MoveFileExW(target, old, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+        if (!parkedOld) Sleep(200);
+    }
+    if (!parkedOld) return FALSE;
+
+    BOOL installed = FALSE;
+    for (int i = 0; i < 10 && !installed; i++) {
+        installed = MoveFileExW(pending, target, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+        if (!installed) Sleep(200);
+    }
+    if (!installed) {
+        for (int i = 0; i < 10; i++) {
+            if (MoveFileExW(old, target, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) break;
+            Sleep(200);
+        }
+        return FALSE;
+    }
+
+    /* A failed relaunch leaves the new file safely installed; the owner can
+       open it normally, which is safer than rolling a verified swap back. */
+    ShellExecuteW(NULL, L"open", target, NULL, NULL, SW_SHOWNORMAL);
+    return TRUE;
+}
+
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
-    (void)hPrev; (void)cmdLine; (void)nShow;
+    (void)hPrev; (void)nShow;
+    if (cmdLine && wcsstr(cmdLine, L"--apply-self-update=") != NULL)
+        return ApplyStagedHubUpdate(cmdLine) ? 0 : 1;
     g_hInst = hInst;
 
     /* A hub that just updated itself spawns the new build while the old

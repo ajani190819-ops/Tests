@@ -31,7 +31,8 @@ TOOLS = [["tools/sync_engine.py", "--check"],
          ["tools/sync_changelog.py", "--check"],
          ["tools/dump_default_config.py", "--check"],
          ["tools/bump_version.py", "--check-docs"],
-         ["tools/agent_map.py", "--check"]]
+         ["tools/agent_map.py", "--check"],
+         ["tools/check_context_budget.py"]]
 
 
 def have_deps():
