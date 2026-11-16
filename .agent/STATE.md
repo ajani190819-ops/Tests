@@ -6,11 +6,12 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 
 ## Released work
 
-- **Project Hub 2.8.54:** the live unified tray handles suite Open/Hide/Quit,
-  safe toggles, and Agent Notes/Weather alerts; app icons are fallbacks only.
-  Alerts retry until Windows accepts them. `Update Hub` requires a verified
-  newer build; default-on newest-test-branch following and Hub reveal of
-  tray-hidden Agent Notes remain.
+- **Project Hub 2.8.55:** the blue/silver Tri-Spoke Hub icon now registers with
+  its HWND bound before `WM_CREATE`, so suite icons can defer to it. Open/Hide/
+  Quit, safe toggles, Agent Notes/Weather alerts, and alert retries remain.
+  Default-on branch discovery accepts JSON whitespace, retries failures with
+  5–60 minute backoff, and caches success for six hours. `Update Hub` requires
+  a verified newer build; tray-hidden Agent Notes can be revealed.
 - **Agent Notes waiting receipts:** implementation `ad9232009b9f38c287727123ddd404b204ce26e1`,
   released by marker `5343e54`. The direct local outbox records **Saved** only
   after the live receiver flushes `.agent/INBOX.md`, then **Read** only after an
@@ -26,11 +27,10 @@ release records, and compact offline safety facts. Drive holds extended narrativ
   area on close and sends a native Windows shell alert only at **66%+ exact-point
   ensemble odds in 3 hours**. The three-hour cooldown and persisted episode latch
   suppress duplicates while rain is under way. Regional coverage odds never alert.
-- **Documentation archive:** full pre-migration text for 29 human-facing files
-  is in [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
-  Commit `39f71df` replaced them with compact Git stubs while preserving current
-  plugin changelog windows, version-sync anchors, installers, tests, config, and
-  runtime assets.
+- **Documentation archive:** full text for 29 human-facing files remains in
+  [Drive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk);
+  `39f71df` left compact Git stubs plus current changelogs, version anchors,
+  installers, tests, config, and runtime assets.
 
 ## Efficiency system and completed audit
 
