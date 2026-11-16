@@ -690,9 +690,9 @@
 
 ## weather-radar/src/weather_radar.c
 
-- L205  f S
-- L212  f RadarTileZoomForDisplay
-- globals: g_hInst (L140), g_hwnd (L141), g_fontUI (L142), g_bgBrush (L143), g_dpi (L144), g_fit (L145), g_hoverBtn (L146), g_lock (L147), g_cfgDir (L153), g_cfgPath (L154), g_cacheDir (L155), g_status (L156), g_statusKind (L157), g_nid (L158), g_trayVisible (L159), g_quitting (L160), g_trayHinted (L161), g_rainAlertEpisode (L165), g_rainAlertLastEpoch (L166), g_rainAlertLat (L167), g_places (L169), g_placeN (L170), g_placeSel (L171), g_search (L172), g_searchStage (L173), g_searchN (L174), g_searchStageN (L175), g_searchSel (L176), g_searchTicket (L177), g_searchStageTicket (L178), g_placeTicket (L179), g_query (L180), g_searchHint (L181), g_fc (L183), g_ens (L184), g_fcStage (L185), g_ensStage (L186), g_frames (L188), g_frameN (L189), g_frameSel (L190), g_playing (L191), g_zoom (L192), g_radarHost (L193), g_radarNote (L195), g_view (L198), g_viewStage (L199), g_base (L200), g_baseKey (L201), g_viewReady (L202)
+- L206  f S
+- L213  f RadarTileZoomForDisplay
+- globals: g_hInst (L141), g_hwnd (L142), g_fontUI (L143), g_bgBrush (L144), g_dpi (L145), g_fit (L146), g_hoverBtn (L147), g_lock (L148), g_cfgDir (L154), g_cfgPath (L155), g_cacheDir (L156), g_status (L157), g_statusKind (L158), g_nid (L159), g_trayVisible (L160), g_quitting (L161), g_trayHinted (L162), g_rainAlertEpisode (L166), g_rainAlertLastEpoch (L167), g_rainAlertLat (L168), g_places (L170), g_placeN (L171), g_placeSel (L172), g_search (L173), g_searchStage (L174), g_searchN (L175), g_searchStageN (L176), g_searchSel (L177), g_searchTicket (L178), g_searchStageTicket (L179), g_placeTicket (L180), g_query (L181), g_searchHint (L182), g_fc (L184), g_ens (L185), g_fcStage (L186), g_ensStage (L187), g_frames (L189), g_frameN (L190), g_frameSel (L191), g_playing (L192), g_zoom (L193), g_radarHost (L194), g_radarNote (L196), g_view (L199), g_viewStage (L200), g_base (L201), g_baseKey (L202), g_viewReady (L203)
 
 ## weather-radar/src/parts/alerts.c
 
@@ -774,10 +774,10 @@
 - L110  f PlacePixelInGrid
 - L120  S frame catalog
 - L122  f RadarCatalogFetch  — ---------------- frame catalog ----------------
-- L180  S tile fetching into a 768x768 grid
-- L185  f FetchTileGrid
-- L229  f BaseGridEnsure
-- L245  f RadarViewBuild
+- L209  S tile fetching into a 768x768 grid
+- L214  f FetchTileGrid
+- L258  f BaseGridEnsure
+- L274  f RadarViewBuild
 - globals: g_wicFactory (L15)
 
 ## weather-radar/src/parts/ui.c
@@ -796,15 +796,15 @@
 - L173  f PaintHonestCard
 - L223  f PaintHourlyCard
 - L292  f PaintRadarPane
-- L431  f PaintLeftColumn
-- L480  f PaintAll
-- L589  f StatusSet
-- L596  f CurrentPlace
-- L600  f OnPickSearchRow
-- L612  f OnPickSavedRow
-- L625  f StepFrame
-- L637  f SearchTextIsBlank
-- L642  f SubmitSearch
+- L450  f PaintLeftColumn
+- L499  f PaintAll
+- L608  f StatusSet
+- L615  f CurrentPlace
+- L619  f OnPickSearchRow
+- L631  f OnPickSavedRow
+- L644  f StepFrame
+- L656  f SearchTextIsBlank
+- L661  f SubmitSearch
 
 ## weather-radar/src/parts/util.c
 
@@ -1069,11 +1069,11 @@
 - L43  f strip_cs_comments_and_strings
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
-- L2627  f SuiteFolderInstallTests
-- L3708  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3856  f AudioSwitcherReachabilityTests
-- L4040  f AudioSwitcherSessionSweepTests
-- L4181  f AppOpenFocusTests
+- L2656  f SuiteFolderInstallTests
+- L3737  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3885  f AudioSwitcherReachabilityTests
+- L4069  f AudioSwitcherSessionSweepTests
+- L4210  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

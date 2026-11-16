@@ -644,10 +644,38 @@
   "label": "Agent Notes reports a receipt before flushing inbox data to disk"
  },
  {
+  "id": "wx-23",
+  "file": "weather-radar/src/parts/radar.c",
+  "old": "    g_frameSel = firstForecast >= 0 ? firstForecast\n                : (latestObserved >= 0 ? latestObserved : 0);",
+  "new": "    g_frameSel = latestObserved >= 0 ? latestObserved : 0;",
+  "label": "Weather Radar opens on observed frames instead of the nearest future nowcast"
+ },
+ {
+  "id": "wx-24",
+  "file": "weather-radar/src/weather_radar.c",
+  "old": "#define MAX_PAST_FRAMES 24",
+  "new": "#define MAX_PAST_FRAMES 12",
+  "label": "Weather Radar truncates the expanded observed timeline back to twelve frames"
+ },
+ {
+  "id": "wx-25",
+  "file": "weather-radar/src/weather_radar.c",
+  "old": "#define MAX_FRAMES     64",
+  "new": "#define MAX_FRAMES     32",
+  "label": "Weather Radar caps the timeline before its expanded forecast frame capacity"
+ },
+ {
   "id": "notes-api-03",
   "file": "tools/agent_notes_protocol.py",
   "old": "    with INBOX.open(\"a\", encoding=\"utf-8\") as f:\n        f.write(entry)\n        f.flush()\n        os.fsync(f.fileno())\n",
   "new": "    with INBOX.open(\"a\", encoding=\"utf-8\") as f:\n        f.write(entry)\n        f.flush()\n",
   "label": "Agent Notes returns a saved receipt before the inbox append is durable"
+ },
+ {
+  "id": "wx-26",
+  "file": "weather-radar/src/parts/radar.c",
+  "old": "        while (j >= 0 && g_frames[j].time > current.time) {\n",
+  "new": "        while (0) {\n",
+  "label": "Weather Radar plays forecast frames in provider order instead of chronological order"
  }
 ]

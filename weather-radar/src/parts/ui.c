@@ -306,6 +306,13 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
     int fsel = g_frameSel;
     long long ftime = (frames > 0 && fsel < frames) ? g_frames[fsel].time : 0;
     int fkind = (frames > 0 && fsel < frames) ? g_frames[fsel].kind : 0;
+    int forecastN = 0, forecastPos = 0;
+    for (int i = 0; i < frames; i++) {
+        if (g_frames[i].kind == 1) {
+            forecastN++;
+            if (i == fsel) forecastPos = forecastN;
+        }
+    }
     Place pl = g_reqPlace;
     int hasPlace = g_reqHas;
     LeaveCriticalSection(&g_lock);
@@ -391,6 +398,18 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
         RECT tr = { img.left + S(8), img.top + S(6), img.left + S(330), img.top + S(28) };
         DrawRoundedBox(mem, &tr, S(8), COL_CARD, COL_CARD_BD);
         DrawTextAt(mem, ft, &tr, g_fontSmall, COL_TXT, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        wchar_t step[32];
+        if (forecastN > 0 && fkind && forecastPos > 0)
+            _snwprintf(step, 31, L"Forecast %d/%d", forecastPos, forecastN);
+        else if (forecastN > 0)
+            _snwprintf(step, 31, L"Forecast · %d steps", forecastN);
+        else
+            wcscpy(step, L"No forecast frames");
+        step[31] = L'\0';
+        RECT fr = { img.left + S(340), img.top + S(6), img.left + S(510), img.top + S(28) };
+        DrawRoundedBox(mem, &fr, S(8), COL_CARD, COL_CARD_BD);
+        DrawTextAt(mem, step, &fr, g_fontSmall, forecastN > 0 ? COL_ACCENT : COL_MUTED,
+                   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
     if (ready == 1 && view) {
         RECT nr = { img.left + S(8), img.top + S(32), img.left + S(330), img.top + S(54) };
@@ -416,7 +435,7 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
                    DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
     if (note) {
-        RECT zr = { img.right - S(360), img.top + S(6), img.right - S(8), img.top + S(28) };
+        RECT zr = { img.left + S(520), img.top + S(6), img.right - S(8), img.top + S(28) };
         const wchar_t *zoomNote = note == 1
             ? L"radar source limited — using available imagery"
             : L"detail zoom — sourced from host level 8";

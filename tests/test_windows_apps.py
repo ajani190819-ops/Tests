@@ -1442,6 +1442,35 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         # --- radar: catalog, tile URL, cache clocks, zoom fallback ---
         self.assertIn("https://api.rainviewer.com/public/weather-maps.json", rdc,
                       "the frame catalog endpoint moved")
+        self.assertIn("#define MAX_FRAMES     64", mc,
+                      "the radar timeline still caps its available observed/forecast frames "
+                      "at 32, truncating longer nowcast timelines")
+        self.assertIn("#define MAX_PAST_FRAMES 24", mc,
+                      "the timeline still discards all but twelve recent observed frames")
+        self.assertIn("int nowcastTotal = nowcast ? JLen(nowcast) : 0;", rdc)
+        self.assertIn("int forecastKeep = nowcastTotal < MAX_FRAMES ? nowcastTotal : MAX_FRAMES;", rdc)
+        self.assertIn("int pastKeep = MAX_FRAMES - forecastKeep;", rdc)
+        self.assertIn("if (pastKeep > MAX_PAST_FRAMES) pastKeep = MAX_PAST_FRAMES;", rdc)
+        self.assertIn("int start = total > pastKeep ? total - pastKeep : 0;", rdc)
+        self.assertIn("g_frameN < pastKeep", rdc)
+        self.assertIn("for (int i = 0; i < total && g_frameN < MAX_FRAMES; i++)", rdc,
+                      "nowcast frames are not retained ahead of older observations")
+        self.assertIn("while (j >= 0 && g_frames[j].time > current.time)", rdc,
+                      "provider timestamps are not sorted into chronological playback order")
+        self.assertIn("g_frameSel = firstForecast >= 0 ? firstForecast", rdc,
+                      "the preview still opens on past observations when a future nowcast exists")
+        self.assertIn("g_frames[i].time <= g_frames[latestObserved].time", rdc,
+                      "a nowcast timestamp at or before the newest observation is presented as future")
+        self.assertIn("g_frames[i].time < g_frames[firstForecast].time", rdc,
+                      "the initial preview skips the nearest expected time")
+        self.assertIn('L"Forecast %d/%d"', uic,
+                      "the map does not identify the selected future step in its timeline")
+        self.assertIn('L"Forecast · %d steps"', uic,
+                      "the map hides how many forecast steps are available while an observation is selected")
+        self.assertIn('L"No forecast frames"', uic,
+                      "the map silently implies future data when the provider publishes none")
+        self.assertIn("img.left + S(520)", uic,
+                      "the zoom note overlaps the new forecast-step badge")
         self.assertIn('L"%s%hs/256/%d/%d/%d/2/1_1.png"', rdc,
                       "the RainViewer tile URL is not host+path+256+z/x/y+scheme2+"
                       "smooth1_snow1, so every tile 404s")
