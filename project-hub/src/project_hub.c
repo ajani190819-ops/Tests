@@ -23,8 +23,8 @@
 #include <wchar.h>
 #include "../../shared/win32/hub_tray_host.h"
 
-#define HUB_VERSION       "2.8.54"
-#define HUB_VERSION_W     L"2.8.54"
+#define HUB_VERSION       "2.8.55"
+#define HUB_VERSION_W     L"2.8.55"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -303,9 +303,10 @@ static wchar_t          g_activeBranch[64]  = L"";
 static wchar_t          g_branchMenuNames[96][64];
 static int              g_branchMenuN        = 0;
 static wchar_t          g_branchPromptOut[64];
-/* Automatic branch discovery is intentionally infrequent: startup always
-   checks, then a running hub checks again only every six hours. */
+/* Successful branch discovery is cached for six hours. Failed API scans use
+   bounded retry backoff so a transient outage cannot strand automatic mode. */
 static ULONGLONG        g_autoBranchLastCheck = 0;
+static ULONGLONG        g_autoBranchRetryDelay = 0;
 static char             g_remHubVer[32]     = "";
 static char             g_remWaveVer[32]    = "";
 static char             g_remInfillVer[32]  = "";

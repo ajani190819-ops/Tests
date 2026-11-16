@@ -2959,6 +2959,15 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("OpenEventW(SYNCHRONIZE", host,
                       "apps no longer probe whether the Hub owns the suite tray")
         self.assertIn("HubTrayInit();", hub_ui)
+        nc_create_start = hub_ui.index("case WM_NCCREATE:")
+        nc_create_end = hub_ui.index("case WM_CREATE:", nc_create_start)
+        nc_create = hub_ui[nc_create_start:nc_create_end]
+        self.assertIn("g_hwnd = hwnd;", nc_create,
+                      "WM_CREATE runs before CreateWindowEx returns, so the tray NID otherwise gets a NULL HWND")
+        self.assertIn("return DefWindowProcW(hwnd, msg, wp, lp);", nc_create,
+                      "the Hub no longer preserves default WM_NCCREATE handling")
+        self.assertLess(nc_create_end, hub_ui.index("HubTrayInit();", nc_create_end),
+                        "the notification icon must be registered only after the global HWND is bound")
         self.assertIn("HubTrayRestore();", hub_ui,
                       "Explorer/taskbar restart leaves the Hub icon missing")
         self.assertIn("HubTrayEnsureLive();", hub_ui,
@@ -2978,6 +2987,10 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("HubTrayRemove();", hub_ui)
         self.assertIn("SuiteTaskbarCreatedMessage", host)
         self.assertIn("WM_HUB_TRAYICON", hub)
+        hub_resource = (ROOT / "project-hub/src/hub.rc").read_text(encoding="utf-8")
+        self.assertRegex(hub_resource, r'(?m)^1 ICON "\.\./hub\.ico"$')
+        self.assertIn("g_hubNid.hIcon = g_appIcon;", tray,
+                      "the Hub tray is not using its blue/silver Tri-Spoke application icon")
         self.assertIn("Shell_NotifyIconW(NIM_ADD, &g_hubNid)", tray)
         self.assertIn("CreateEventW(NULL, TRUE, TRUE, HUB_TRAY_HOST_EVENT)", tray,
                       "Hub does not publish its successfully-created tray host")
@@ -3736,8 +3749,17 @@ class ProjectHubUpdateVisibilityAndBranchFollowingTests(unittest.TestCase):
                       "automatic following does not inspect available branches")
         self.assertIn('L"/repos/%s/%s/commits/%S"', cache,
                       "the selected branch is not ranked by its newest commit")
-        self.assertIn("6ULL * 60ULL * 60ULL * 1000ULL", cache,
-                      "automatic branch discovery should be cached rather than run on every refresh")
+        branch_json = (ROOT / "project-hub/src/parts/branch_json.h").read_text(encoding="utf-8")
+        self.assertIn("HubBranchJsonExtractArenaTips", cache,
+                      "automatic following still depends on exact compact-JSON token spelling")
+        self.assertIn("HubBranchCheckInterval(g_autoBranchRetryDelay)", cache,
+                      "failed discovery still uses the six-hour success cache interval")
+        self.assertIn("g_autoBranchRetryDelay = HubBranchRetryAfterFailure(g_autoBranchRetryDelay);", cache,
+                      "failed API scans do not schedule a bounded retry")
+        self.assertIn("g_autoBranchRetryDelay = 0; /* successful result returns to the six-hour cache */", cache,
+                      "a successful scan does not clear the failure backoff")
+        self.assertIn("while (*p == ' ' || *p == '\\t' || *p == '\\r' || *p == '\\n') p++;", branch_json,
+                      "the branch-list parser does not accept ordinary JSON whitespace")
         self.assertIn("g_probeRef[0] = L'\\0';", cache,
                       "switching automatic branches can reuse the previous branch's released commit")
 
@@ -3754,6 +3776,69 @@ class ProjectHubUpdateVisibilityAndBranchFollowingTests(unittest.TestCase):
                       "the Settings checkbox does not apply the branch-follow preference")
         self.assertIn("EnqueueTask(TASK_CHECK_REMOTE);", settings,
                       "enabling automatic following does not check immediately")
+
+    def test_branch_json_reader_and_retry_policy_with_realistic_api_payload(self):
+        """Exercise the exact portable C parser used by the Hub, not a Python
+        reimplementation: GitHub JSON may contain whitespace and nested values,
+        and an unsuccessful scan must back off then retry before six hours."""
+        import shutil
+        import subprocess
+        import tempfile
+
+        header = ROOT / "project-hub/src/parts/branch_json.h"
+        self.assertTrue(header.exists(), "the tested portable branch parser is missing")
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            self.skipTest("a native C compiler is required for the portable parser test")
+
+        payload = [
+            {"name": "main", "commit": {"sha": "a" * 40}},
+            {"name": "arena/old-tests", "commit": {
+                "sha": "b" * 40,
+                "message": {"name": "nested-name-is-not-a-branch", "sha": "c" * 40},
+            }},
+            {"name": "arena/not-a-test", "commit": {"sha": "d" * 40}},
+            {"name": "arena/new-tests", "commit": {
+                "sha": "e" * 40,
+                "message": "quoted fake key: \\\"name\\\": \\\"arena/wrong-tests\\\"",
+            }},
+        ]
+        payload_literal = json.dumps(json.dumps(payload, indent=2))
+        harness = f'''#include <string.h>
+#include "project-hub/src/parts/branch_json.h"
+int main(void) {{
+    const char payload[] = {payload_literal};
+    HubBranchTip tips[8];
+    int count = HubBranchJsonExtractArenaTips(payload, tips, 8);
+    if (count != 2) return 1;
+    if (strcmp(tips[0].name, "arena/old-tests") != 0 || tips[0].sha[0] != 'b') return 2;
+    if (strcmp(tips[1].name, "arena/new-tests") != 0 || tips[1].sha[0] != 'e') return 3;
+    if (HubBranchJsonExtractArenaTips("[ {{ bad }} ]", tips, 8) != -1) return 4;
+    if (HubBranchCheckInterval(0) != 21600000ULL) return 5;
+    if (HubBranchCheckInterval(300000ULL) != 300000ULL) return 6;
+    if (HubBranchRetryAfterFailure(0) != 300000ULL) return 7;
+    if (HubBranchRetryAfterFailure(300000ULL) != 600000ULL) return 8;
+    if (HubBranchRetryAfterFailure(600000ULL) != 1200000ULL) return 9;
+    if (HubBranchRetryAfterFailure(1200000ULL) != 2400000ULL) return 10;
+    if (HubBranchRetryAfterFailure(2400000ULL) != 3600000ULL) return 11;
+    if (HubBranchRetryAfterFailure(3600000ULL) != 3600000ULL) return 12;
+    return 0;
+}}
+'''
+        with tempfile.TemporaryDirectory(prefix="hub-branch-json-") as td:
+            source = Path(td) / "branch_json_test.c"
+            exe = Path(td) / "branch_json_test"
+            source.write_text(harness, encoding="utf-8")
+            compiled = subprocess.run(
+                [compiler, "-std=c99", "-Wall", "-Wextra", "-Werror",
+                 "-I", str(ROOT), str(source), "-o", str(exe)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(compiled.returncode, 0,
+                             "portable branch parser did not compile:\\n" + compiled.stderr)
+            ran = subprocess.run([str(exe)], capture_output=True, text=True)
+            self.assertEqual(ran.returncode, 0,
+                             "branch JSON/backoff behavior failed with code " + str(ran.returncode))
 
 
 class AudioSwitcherReachabilityTests(unittest.TestCase):

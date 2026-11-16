@@ -6,11 +6,11 @@
 
 ## project-hub/src/project_hub.c
 
-- L329  f GetWinDpi
-- L344  f S
-- L346  f ApplyModernWindowFrame
-- L365  f RebuildFontsAndIcons
-- globals: g_hInst (L235), g_hwnd (L236), g_fontHero (L237), g_fontSub (L238), g_fontTitle (L239), g_fontBody (L240), g_fontBtn (L241), g_fontBadge (L242), g_appIcon (L243), g_hdrEmblem (L244), g_cardIcons (L245), g_showEvent (L246), g_hMutex (L247), g_trayHostEvent (L248), g_hubNid (L249), g_hubTrayVisible (L250), g_hubQuitting (L251), g_hubSeenAgentWait (L252), g_hubSeenRainAlert (L253), g_cs (L254), g_topBtns (L256), g_rcEmblem (L263), g_cards (L265), g_cardCount (L266), g_dynIdx (L267), g_hoverId (L268), g_scrollY (L269), g_maxScrollY (L270), g_exePath (L272), g_exeDir (L273), g_localApp (L274), g_probeRef (L278), g_roamApp (L279), g_suiteDir (L280), g_hubCfgDir (L281), g_btgDir (L282), g_btgExtraExe (L283), g_kblDir (L284), g_dnsDir (L285), g_notesDir (L286), g_audioSwitcherDir (L287), g_modsDir (L288), g_orcaBatDir (L289), g_suiteHubExe (L297), g_mirrorDirs (L298), g_mirrorCount (L299), g_activeBranch (L302), g_branchMenuNames (L303), g_branchMenuN (L304), g_branchPromptOut (L305), g_autoBranchLastCheck (L308), g_remHubVer (L309), g_remWaveVer (L310), g_remInfillVer (L311), g_remHudName (L312), g_remHudPath (L313), g_remHudSize (L314), g_statusMsg (L315), g_progressVal (L316), g_hubUpdAvail (L317), g_taskQueue (L320), g_qHead (L321), g_qTail (L322), g_qSem (L323), g_running (L324)
+- L330  f GetWinDpi
+- L345  f S
+- L347  f ApplyModernWindowFrame
+- L366  f RebuildFontsAndIcons
+- globals: g_hInst (L235), g_hwnd (L236), g_fontHero (L237), g_fontSub (L238), g_fontTitle (L239), g_fontBody (L240), g_fontBtn (L241), g_fontBadge (L242), g_appIcon (L243), g_hdrEmblem (L244), g_cardIcons (L245), g_showEvent (L246), g_hMutex (L247), g_trayHostEvent (L248), g_hubNid (L249), g_hubTrayVisible (L250), g_hubQuitting (L251), g_hubSeenAgentWait (L252), g_hubSeenRainAlert (L253), g_cs (L254), g_topBtns (L256), g_rcEmblem (L263), g_cards (L265), g_cardCount (L266), g_dynIdx (L267), g_hoverId (L268), g_scrollY (L269), g_maxScrollY (L270), g_exePath (L272), g_exeDir (L273), g_localApp (L274), g_probeRef (L278), g_roamApp (L279), g_suiteDir (L280), g_hubCfgDir (L281), g_btgDir (L282), g_btgExtraExe (L283), g_kblDir (L284), g_dnsDir (L285), g_notesDir (L286), g_audioSwitcherDir (L287), g_modsDir (L288), g_orcaBatDir (L289), g_suiteHubExe (L297), g_mirrorDirs (L298), g_mirrorCount (L299), g_activeBranch (L302), g_branchMenuNames (L303), g_branchMenuN (L304), g_branchPromptOut (L305), g_autoBranchLastCheck (L308), g_autoBranchRetryDelay (L309), g_remHubVer (L310), g_remWaveVer (L311), g_remInfillVer (L312), g_remHudName (L313), g_remHudPath (L314), g_remHudSize (L315), g_statusMsg (L316), g_progressVal (L317), g_hubUpdAvail (L318), g_taskQueue (L321), g_qHead (L322), g_qTail (L323), g_qSem (L324), g_running (L325)
 
 ## project-hub/src/parts/branch_picker_entry.c
 
@@ -23,7 +23,7 @@
 - L184  f ShowBranchMenu
 - L225  f ShowRunningAgentNotes
 - L239  f HandleActionCommand
-- L764  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
+- L771  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
 
 ## project-hub/src/parts/builtin_card_text.c
 
@@ -175,25 +175,24 @@
 
 ## project-hub/src/parts/version_probe_cache.c
 
-- L15  f HttpGetCached
-- L78  f DownloadRepoBytes
-- L89  f DownloadRawRepoFile
-- L107  f BranchCfgPath
-- L112  f LoadBranchCfg
-- L120  f SaveBranchCfg
-- L133  f FollowLatestTestBranch
-- L139  f SaveFollowLatestTestBranch
-- L148  f SetFollowLatestTestBranch
-- L165  f LoadAppsCfg
-- L174  f SaveAppsCfg
-- L183  f EnsureActiveBranch
-- L249  f ExtractQuotedAfter
-- L264  f IsArenaTestBranch
-- L278  f FindLatestArenaTestBranch
-- L335  f RefreshAutomaticBranch
+- L17  f HttpGetCached
+- L80  f DownloadRepoBytes
+- L91  f DownloadRawRepoFile
+- L109  f BranchCfgPath
+- L114  f LoadBranchCfg
+- L122  f SaveBranchCfg
+- L135  f FollowLatestTestBranch
+- L141  f SaveFollowLatestTestBranch
+- L150  f SetFollowLatestTestBranch
+- L168  f LoadAppsCfg
+- L177  f SaveAppsCfg
+- L186  f EnsureActiveBranch
+- L252  f ExtractQuotedAfter
+- L271  f FindLatestArenaTestBranch
+- L325  f RefreshAutomaticBranch
 - L376  f VerNewer
 - L389  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
-- globals: g_hcache (L13), g_hudDisabled (L162), g_orcaDisabled (L163)
+- globals: g_hcache (L15), g_hudDisabled (L165), g_orcaDisabled (L166)
 
 ## project-hub/src/parts/workers_install.c
 
@@ -1064,10 +1063,10 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2627  f SuiteFolderInstallTests
-- L3683  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3759  f AudioSwitcherReachabilityTests
-- L3943  f AudioSwitcherSessionSweepTests
-- L4084  f AppOpenFocusTests
+- L3696  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3844  f AudioSwitcherReachabilityTests
+- L4028  f AudioSwitcherSessionSweepTests
+- L4169  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

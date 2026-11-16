@@ -595,6 +595,27 @@
   "label": "Hub drops a rain alert token when Windows rejects its notification"
  },
  {
+  "id": "trayhub-10",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "        g_hwnd = hwnd;\n        return DefWindowProcW(hwnd, msg, wp, lp);",
+  "new": "        return DefWindowProcW(hwnd, msg, wp, lp);",
+  "label": "Hub tray registers before CreateWindowEx publishes its HWND"
+ },
+ {
+  "id": "branch-follow-00",
+  "file": "project-hub/src/parts/branch_json.h",
+  "old": "    while (*p == ' ' || *p == '\\t' || *p == '\\r' || *p == '\\n') p++;",
+  "new": "    while (0) p++;",
+  "label": "Whitespace in GitHub branch JSON makes automatic discovery fail"
+ },
+ {
+  "id": "branch-follow-01",
+  "file": "project-hub/src/parts/version_probe_cache.c",
+  "old": "        g_autoBranchRetryDelay = HubBranchRetryAfterFailure(g_autoBranchRetryDelay);",
+  "new": "        g_autoBranchRetryDelay = 0;",
+  "label": "A failed GitHub scan suppresses automatic-branch retries for six hours"
+ },
+ {
   "id": "brand-00",
   "file": "tools/generate_suite_icons.py",
   "old": "    for stale in REDUNDANT_BRAND_EXPORTS:",

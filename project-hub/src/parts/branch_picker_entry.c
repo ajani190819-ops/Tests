@@ -564,6 +564,13 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
     switch (msg) {
+    case WM_NCCREATE:
+        /* CreateWindowEx sends WM_NCCREATE/WM_CREATE before returning. Bind
+           the shared HWND now: HubTrayInit runs in WM_CREATE and otherwise
+           tries NIM_ADD with the still-NULL global g_hwnd. */
+        g_hwnd = hwnd;
+        return DefWindowProcW(hwnd, msg, wp, lp);
+
     case WM_CREATE:
         ApplyModernWindowFrame(hwnd);
         RebuildFontsAndIcons(hwnd);
