@@ -467,5 +467,26 @@
   "old": "    if (luma >= 160) {",
   "new": "    if (0) {",
   "label": "Z light themes lose their readable emblem palette branch"
+ },
+ {
+  "id": "wr-alert-00",
+  "file": "weather-radar/src/parts/alerts.c",
+  "old": "    double odds = EnsWindowProb(&g_ens, 0, RAIN_ALERT_HOURS);",
+  "new": "    double odds = PoPWindowMax(&g_fc, 0, RAIN_ALERT_HOURS);",
+  "label": "Rain alert switched to regional coverage probability"
+ },
+ {
+  "id": "wr-alert-01",
+  "file": "weather-radar/src/parts/alerts.c",
+  "old": "    if (samePlace && g_rainAlertEpisode) return;",
+  "new": "    if (0) return;",
+  "label": "Rain episode duplicate-alert latch removed"
+ },
+ {
+  "id": "wr-alert-02",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "            if (!current) return 0; /* an old location finished after a new selection */",
+  "new": "            if (0) return 0; /* an old location finished after a new selection */",
+  "label": "Late old-place forecast can replace current place"
  }
 ]

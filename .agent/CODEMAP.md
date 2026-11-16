@@ -629,8 +629,23 @@
 
 ## weather-radar/src/weather_radar.c
 
-- L174  f S
-- globals: g_hInst (L121), g_hwnd (L122), g_fontUI (L123), g_bgBrush (L124), g_dpi (L125), g_fit (L126), g_hoverBtn (L127), g_lock (L128), g_cfgDir (L134), g_cfgPath (L135), g_cacheDir (L136), g_status (L137), g_statusKind (L138), g_places (L140), g_placeN (L141), g_placeSel (L142), g_search (L143), g_searchStage (L144), g_searchN (L145), g_searchStageN (L146), g_searchSel (L147), g_searchTicket (L148), g_searchStageTicket (L149), g_query (L150), g_searchHint (L151), g_fc (L153), g_ens (L154), g_fcStage (L155), g_ensStage (L156), g_frames (L158), g_frameN (L159), g_frameSel (L160), g_playing (L161), g_zoom (L162), g_radarHost (L163), g_radarNote (L164), g_view (L167), g_viewStage (L168), g_base (L169), g_baseKey (L170), g_viewReady (L171)
+- L195  f S
+- globals: g_hInst (L132), g_hwnd (L133), g_fontUI (L134), g_bgBrush (L135), g_dpi (L136), g_fit (L137), g_hoverBtn (L138), g_lock (L139), g_cfgDir (L145), g_cfgPath (L146), g_cacheDir (L147), g_status (L148), g_statusKind (L149), g_nid (L150), g_quitting (L151), g_trayHinted (L152), g_rainAlertEpisode (L156), g_rainAlertLastEpoch (L157), g_rainAlertLat (L158), g_places (L160), g_placeN (L161), g_placeSel (L162), g_search (L163), g_searchStage (L164), g_searchN (L165), g_searchStageN (L166), g_searchSel (L167), g_searchTicket (L168), g_searchStageTicket (L169), g_placeTicket (L170), g_query (L171), g_searchHint (L172), g_fc (L174), g_ens (L175), g_fcStage (L176), g_ensStage (L177), g_frames (L179), g_frameN (L180), g_frameSel (L181), g_playing (L182), g_zoom (L183), g_radarHost (L184), g_radarNote (L185), g_view (L188), g_viewStage (L189), g_base (L190), g_baseKey (L191), g_viewReady (L192)
+
+## weather-radar/src/parts/alerts.c
+
+- L7  f RainAlertPlaceMatches
+- L13  f UnixNowSeconds
+- L22  f LoadRainAlertState
+- L33  f SaveRainAlertState
+- L48  f ForecastIsRainingNow
+- L56  f WeatherTrayInit
+- L72  f WeatherTrayRemove
+- L77  f ShowWeatherTrayMenu
+- L91  f WeatherTrayHintOnce
+- L104  f ShowRainAlert
+- L118  f RainAlertRemember
+- L126  f RainAlertConsider
 
 ## weather-radar/src/parts/emblem.c
 
@@ -756,10 +771,10 @@
 
 - L17  f StartJob
 - L30  f PopJob
-- L76  f WorkerStart
-- L83  f RequestPlaceData
-- L96  f RequestTiles
-- L100  f RequestSearch
+- L90  f WorkerStart
+- L97  f RequestPlaceData
+- L112  f RequestTiles
+- L116  f RequestSearch
 - globals: g_workerThread (L8), g_jobEvent (L9), g_jobs (L10), g_jobHead (L11), g_reqPlace (L12), g_reqHas (L13), g_reqQuery (L14), g_reqSearchTicket (L15)
 
 ## shared/win32/suite_emblem.c
@@ -958,11 +973,11 @@
 - L43  f strip_cs_comments_and_strings
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
-- L2552  f SuiteFolderInstallTests
-- L3315  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3391  f AudioSwitcherReachabilityTests
-- L3575  f AudioSwitcherSessionSweepTests
-- L3716  f AppOpenFocusTests
+- L2594  f SuiteFolderInstallTests
+- L3357  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3433  f AudioSwitcherReachabilityTests
+- L3617  f AudioSwitcherSessionSweepTests
+- L3758  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

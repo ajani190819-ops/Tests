@@ -56,15 +56,29 @@ static DWORD WINAPI WorkerMain(LPVOID arg) {
                 GeocodeSearch(query, ticket);
                 break;
             }
-            case JOB_FORECAST:      if (g_reqHas) FetchForecast(&g_reqPlace); break;
-            case JOB_ENSEMBLE:      if (g_reqHas) FetchEnsemble(&g_reqPlace); break;
+            case JOB_FORECAST: {
+                Place p; int have; DWORD ticket;
+                EnterCriticalSection(&g_lock);
+                p = g_reqPlace; have = g_reqHas; ticket = g_placeTicket;
+                LeaveCriticalSection(&g_lock);
+                if (have) FetchForecast(&p, ticket);
+                break;
+            }
+            case JOB_ENSEMBLE: {
+                Place p; int have; DWORD ticket;
+                EnterCriticalSection(&g_lock);
+                p = g_reqPlace; have = g_reqHas; ticket = g_placeTicket;
+                LeaveCriticalSection(&g_lock);
+                if (have) FetchEnsemble(&p, ticket);
+                break;
+            }
             case JOB_RADAR_CATALOG: RadarCatalogFetch(); break;
             case JOB_TILES: {
-                int fi;
+                Place p; int have, fi;
                 EnterCriticalSection(&g_lock);
-                fi = g_frameSel;
+                p = g_reqPlace; have = g_reqHas; fi = g_frameSel;
                 LeaveCriticalSection(&g_lock);
-                if (g_reqHas) RadarViewBuild(&g_reqPlace, fi);
+                if (have) RadarViewBuild(&p, fi);
                 break;
             }
             default: break;
@@ -84,6 +98,8 @@ static void RequestPlaceData(const Place *p) {
     EnterCriticalSection(&g_lock);
     g_reqPlace = *p;
     g_reqHas = 1;
+    g_placeTicket++;
+    if (g_placeTicket == 0) g_placeTicket = 1;
     LeaveCriticalSection(&g_lock);
     g_fc.have = 0;
     g_ens.have = 0;

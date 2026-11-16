@@ -1484,6 +1484,48 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("if (AppsUseLightTheme())", ip,
                       "the window ignores the owner's Windows theme again")
 
+    def test_weather_radar_alert_uses_exact_ensemble_and_latches_one_rain_episode(self):
+        """Rain alerts are only useful when they answer the point question and
+        never recur while the same shower is underway. The selected-place
+        worker ticket also prevents a late forecast for somewhere else from
+        announcing rain at the current place."""
+        main = (ROOT / "weather-radar" / "src" / "weather_radar.c").read_text(encoding="utf-8")
+        alerts = (ROOT / "weather-radar" / "src" / "parts" / "alerts.c").read_text(encoding="utf-8")
+        ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        workers = (ROOT / "weather-radar" / "src" / "parts" / "workers.c").read_text(encoding="utf-8")
+        forecast = (ROOT / "weather-radar" / "src" / "parts" / "forecast.c").read_text(encoding="utf-8")
+        entry = (ROOT / "weather-radar" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+
+        self.assertRegex(main, r"#define RAIN_ALERT_PROB\s+0\.66")
+        self.assertRegex(main, r"#define RAIN_ALERT_HOURS\s+3")
+        self.assertIn("RAIN_ALERT_COOLDOWN_SEC", main)
+        self.assertIn("EnsWindowProb(&g_ens, 0, RAIN_ALERT_HOURS)", alerts,
+                      "the alert stopped using exact-location ensemble odds")
+        self.assertNotIn("PoPWindowMax", alerts,
+                         "regional coverage-blended PoP must never trigger the alert")
+        self.assertIn("ForecastIsRainingNow", alerts)
+        self.assertLess(alerts.index("if (raining) {"), alerts.index("ShowRainAlert(p, odds);"),
+                        "an ongoing shower can reappear as a new about-to-rain alert")
+        self.assertIn("if (samePlace && g_rainAlertEpisode) return;", alerts,
+                      "a qualifying episode no longer suppresses duplicate alerts")
+        self.assertIn("LoadRainAlertState", alerts)
+        self.assertIn("SaveRainAlertState", alerts)
+        self.assertIn("Shell_NotifyIconW(NIM_MODIFY", alerts,
+                      "the rain watch no longer delivers through the Windows notification area")
+        self.assertIn("WeatherTrayInit();", entry)
+        self.assertIn("ShowWindow(hwnd, SW_HIDE);", ui,
+                      "closing Weather Radar stops the watcher instead of keeping it in the tray")
+        self.assertIn("ID_TRAY_EXIT", ui,
+                      "a hidden continuous watcher has no explicit exit path")
+
+        self.assertIn("g_placeTicket", main)
+        self.assertIn("FetchForecast(&p, ticket)", workers)
+        self.assertIn("FetchEnsemble(&p, ticket)", workers)
+        self.assertIn("ticket == g_placeTicket", ui,
+                      "a late reply for a previous place can overwrite the selected forecast")
+        self.assertIn("(LPARAM)(uintptr_t)ticket", forecast,
+                      "the worker no longer labels a forecast result with its place generation")
+
     def test_weather_search_field_scales_and_submits_without_stale_results(self):
         """Weather Radar's one native child control used its creation-time 96 DPI
         rectangle while the painted UI used the final monitor DPI and fit. It

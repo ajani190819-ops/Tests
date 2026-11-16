@@ -52,7 +52,7 @@ static void HourLabelFromIso(const char *iso, wchar_t *out, int cap) {
     wcscpy(out, L"--:--");
 }
 
-static void FetchForecast(const Place *p) {
+static void FetchForecast(const Place *p, DWORD ticket) {
     wchar_t url[1400];
     BuildForecastUrl(p, url, 1400);
     HttpBuf b;
@@ -119,14 +119,14 @@ static void FetchForecast(const Place *p) {
     }
     NowLocalStamp(f->fetched, 24);
     HttpBufFree(&b);
-    PostMessageW(g_hwnd, WM_APP_DATA, JOB_FORECAST, 0);
+    PostMessageW(g_hwnd, WM_APP_DATA, JOB_FORECAST, (LPARAM)(uintptr_t)ticket);
 }
 
 /* Fill the member matrix and derive the per-hour honest probability.
    Members are discovered by key prefix rather than by a hard-coded count,
    because the GFS ensemble member count is a property of the model, not of
    this app: whatever the API serves gets counted. */
-static void FetchEnsemble(const Place *p) {
+static void FetchEnsemble(const Place *p, DWORD ticket) {
     wchar_t url[900];
     BuildEnsembleUrl(p, url, 900);
     HttpBuf b;
@@ -170,7 +170,7 @@ static void FetchEnsemble(const Place *p) {
     }
     e->have = member > 0;
     HttpBufFree(&b);
-    PostMessageW(g_hwnd, WM_APP_DATA, JOB_ENSEMBLE, 0);
+    PostMessageW(g_hwnd, WM_APP_DATA, JOB_ENSEMBLE, (LPARAM)(uintptr_t)ticket);
 }
 
 /* Honest probability that it rains HERE at least once inside

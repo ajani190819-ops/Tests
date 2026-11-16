@@ -23,6 +23,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     InitPalette();
     InitPaths();
     LoadPlaces();
+    LoadRainAlertState();
 
     WNDCLASSEXW wc;
     ZeroMemory(&wc, sizeof(wc));
@@ -43,6 +44,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
                                 NULL, NULL, hInst, NULL);
     if (!hwnd) return 1;
     g_hwnd = hwnd;
+    WeatherTrayInit();
     g_dpi = GetWinDpi(hwnd);
 
     /* Fit the fixed logical layout onto whatever screen is there: shrink

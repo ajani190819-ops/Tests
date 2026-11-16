@@ -661,6 +661,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_COMMAND: {
         int id = LOWORD(wp);
         int code = HIWORD(wp);
+        if (id == ID_TRAY_OPEN) {
+            ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+            return 0;
+        }
+        if (id == ID_TRAY_EXIT) {
+            g_quitting = 1;
+            DestroyWindow(hwnd);
+            return 0;
+        }
         if (id == ID_EDIT_SEARCH) {
             if (code == EN_SETFOCUS && g_searchHint) {
                 g_searchHint = 0;
@@ -678,6 +688,24 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     case WM_APP_SEARCH:
         SubmitSearch();
+        return 0;
+    case WM_TRAYICON: {
+        UINT event = LOWORD((DWORD)lp);
+        if (event == WM_LBUTTONUP || event == WM_LBUTTONDBLCLK) {
+            ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+        } else if (event == WM_RBUTTONUP || event == WM_CONTEXTMENU) {
+            ShowWeatherTrayMenu(hwnd);
+        }
+        return 0;
+    }
+    case WM_CLOSE:
+        if (!g_quitting) {
+            ShowWindow(hwnd, SW_HIDE);
+            WeatherTrayHintOnce();
+            return 0;
+        }
+        DestroyWindow(hwnd);
         return 0;
     case WM_SIZE:
         /* A child EDIT is not repainted by the parent's DIB. Re-apply its
@@ -797,19 +825,26 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_APP_DATA: {
         int kind = (int)wp;
+        DWORD ticket = (DWORD)(uintptr_t)lp;
         EnterCriticalSection(&g_lock);
         if (kind == JOB_FORECAST) {
-            g_fc = g_fcStage;
+            int current = (ticket == g_placeTicket);
+            if (current) g_fc = g_fcStage;
             wchar_t m[160];
             _snwprintf(m, 159, L"Forecast for %s updated at %s.",
                        (g_placeSel >= 0 && g_placeSel < g_placeN) ? g_places[g_placeSel].name : L"the place",
                        g_fc.fetched);
             m[159] = L'\0';
             LeaveCriticalSection(&g_lock);
+            if (!current) return 0; /* an old location finished after a new selection */
             StatusSet(m, 1);
+            RainAlertConsider(CurrentPlace());
         } else if (kind == JOB_ENSEMBLE) {
-            g_ens = g_ensStage;
+            int current = (ticket == g_placeTicket);
+            if (current) g_ens = g_ensStage;
             LeaveCriticalSection(&g_lock);
+            if (!current) return 0; /* never mix ensemble odds between places */
+            RainAlertConsider(CurrentPlace());
         } else if (kind == JOB_GEOCODE) {
             int n = 0;
             int current = (g_searchStageTicket == g_searchTicket);
@@ -862,6 +897,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         KillTimer(hwnd, TIMER_ANIM);
         KillTimer(hwnd, TIMER_REFRESH);
         KillTimer(hwnd, TIMER_EMBLEM);
+        WeatherTrayRemove();
         if (g_inputBrush) { DeleteObject(g_inputBrush); g_inputBrush = NULL; }
         if (g_bgBrush) { DeleteObject(g_bgBrush); g_bgBrush = NULL; }
         ReleaseWeatherRadarEmblem();
