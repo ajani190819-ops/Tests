@@ -74,8 +74,9 @@ static void DrawDot(HDC dc, int cx, int cy, int rad, COLORREF col) {
 }
 
 static const wchar_t *DeliverySummary(void) {
+    if (g_activeWait[0]) return L"The agent is waiting for your input in Arena.";
     if (g_sending) return L"Delivering queued notes now.";
-    if (g_lastOk == 1) return L"Recent delivery confirmed. New notes send automatically.";
+    if (g_lastOk == 1) return L"Inbox persistence is confirmed; read acknowledgement follows separately.";
     if (g_link[0]) return L"Checking the saved agent session automatically.";
     return L"Looking for the agent session. Notes queue safely in the meantime.";
 }
@@ -177,20 +178,25 @@ static void PaintAll(HWND hwnd) {
         wchar_t qp[MAX_PATH + 96];
         _snwprintf(qp, MAX_PATH + 95, L"%s\\%s", g_outboxDir, g_hist[i].name);
         int queued = FileExistsW(qp);
-        DrawDot(mem, S(30), y + S(10), S(3), queued ? COL_WARN : COL_GOOD);
+        const wchar_t *receiptState = queued ? L"Queued"
+                                     : (g_hist[i].receipt[0]
+                                        ? (g_hist[i].read ? L"Read" : L"Saved")
+                                        : L"Sent");
+        COLORREF receiptCol = queued ? COL_WARN : (g_hist[i].read ? COL_ACCENT : COL_GOOD);
+        DrawDot(mem, S(30), y + S(10), S(3), receiptCol);
         RECT stamp = { S(44), y, S(44) + S(78), y + S(22) };
         SetTextColor(mem, COL_MUTED);
         DrawTextW(mem, g_hist[i].stamp, -1, &stamp, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         RECT chip = { S(126), y + S(1), S(126) + S(62), y + S(21) };
-        HPEN p = CreatePen(PS_SOLID, 1, queued ? COL_WARN : COL_GOOD);
+        HPEN p = CreatePen(PS_SOLID, 1, receiptCol);
         HGDIOBJ op = SelectObject(mem, p);
         HGDIOBJ ob = SelectObject(mem, GetStockObject(NULL_BRUSH));
         RoundRect(mem, chip.left, chip.top, chip.right, chip.bottom, S(10), S(10));
         SelectObject(mem, ob);
         SelectObject(mem, op);
         DeleteObject(p);
-        SetTextColor(mem, queued ? COL_WARN : COL_GOOD);
-        DrawTextW(mem, queued ? L"Queued" : L"Sent", -1, &chip,
+        SetTextColor(mem, receiptCol);
+        DrawTextW(mem, receiptState, -1, &chip,
                   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         RECT snip = { S(200), y, W - S(24), y + S(22) };
         SetTextColor(mem, COL_TXT);
@@ -203,6 +209,16 @@ static void PaintAll(HWND hwnd) {
         DrawTextW(mem, L"Your sent and queued notes will appear here.", -1, &empty,
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
+
+    wchar_t alertLine[220];
+    _snwprintf(alertLine, 219,
+               L"Waiting alerts: visual on  \x00B7  sound %s  \x00B7  close hides to the notification area.",
+               g_waitSound ? L"on" : L"off");
+    alertLine[219] = L'\0';
+    RECT alerts = { S(22), H - S(67), W - S(20), H - S(45) };
+    SetTextColor(mem, COL_MUTED);
+    DrawTextW(mem, alertLine, -1, &alerts,
+              DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
     int statusY = H - S(38);
     DrawDot(mem, S(26), statusY + S(14), S(4),
@@ -287,8 +303,29 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         return 0;
     }
-    case WM_COMMAND:
-        if (LOWORD(wp) == ID_EDIT_NOTE) {
+    case WM_COMMAND: {
+        int id = LOWORD(wp);
+        if (id == ID_TRAY_OPEN) {
+            ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+            return 0;
+        }
+        if (id == ID_TRAY_SOUND) {
+            g_waitSound = !g_waitSound;
+            SaveConfig();
+            wcsncpy(g_status, g_waitSound
+                              ? L"Waiting-alert sound is on. Windows controls the standard notification sound."
+                              : L"Waiting-alert sound is off. Visual alerts remain on.", 255);
+            g_status[255] = L'\0';
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 0;
+        }
+        if (id == ID_TRAY_EXIT) {
+            g_quitting = 1;
+            DestroyWindow(hwnd);
+            return 0;
+        }
+        if (id == ID_EDIT_NOTE) {
             int code = HIWORD(wp);
             if (code == EN_SETFOCUS && g_noteHint) {
                 NoteSetHint(0);
@@ -299,12 +336,35 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
         }
         return 0;
+    }
     case WM_CTLCOLOREDIT: {
         HDC h = (HDC)wp;
         SetTextColor(h, g_noteHint ? COL_MUTED : COL_TXT);
         SetBkColor(h, COL_INPUT);
         return (LRESULT)g_bgBrush;
     }
+    case WM_NOTES_STATUS:
+        HandleStatusPoll((StatusPollResult *)wp);
+        return 0;
+    case WM_TRAYICON: {
+        UINT event = LOWORD((DWORD)lp);
+        if (event == WM_LBUTTONUP || event == WM_LBUTTONDBLCLK) {
+            ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+        } else if (event == WM_RBUTTONUP || event == WM_CONTEXTMENU) {
+            ShowAgentNotesTrayMenu(hwnd);
+        }
+        return 0;
+    }
+    case WM_CLOSE:
+        if (!g_quitting) {
+            ShowWindow(hwnd, SW_HIDE);
+            wcsncpy(g_status, L"Agent Notes is still watching in the notification area. Use its Exit menu to stop alerts.", 255);
+            g_status[255] = L'\0';
+            return 0;
+        }
+        DestroyWindow(hwnd);
+        return 0;
     case WM_TIMER:
         if (wp == TIMER_SPIN) {
             double rate = g_sending ? (6.283185307179586 / 8.0)
@@ -315,18 +375,24 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             EmbRect(&er);
             InvalidateRect(hwnd, &er, FALSE);
         } else if (wp == TIMER_FLUSH) {
-            if (LinkDiscoveryTick()) {
-                wcsncpy(g_status, L"Agent session found - queued notes will deliver automatically.", 255);
-                g_status[255] = L'\0';
-                InvalidateRect(hwnd, NULL, FALSE);
-            }
             if (OutboxCount() > 0 && !g_sending) StartFlush();
+        } else if (wp == TIMER_WATCH) {
+            /* Network polling happens on a worker so a dead session cannot
+               freeze the composer or notification-area menu. */
+            StartStatusPoll();
         }
         return 0;
     case WM_DESTROY:
+        g_quitting = 1;
         KillTimer(hwnd, TIMER_FLUSH);
         KillTimer(hwnd, TIMER_SPIN);
+        KillTimer(hwnd, TIMER_WATCH);
+        AgentNotesTrayRemove();
         ReleaseAgentNotesEmblem();
+        if (g_bgBrush) DeleteObject(g_bgBrush);
+        if (g_fontUI) DeleteObject(g_fontUI);
+        if (g_fontTitle) DeleteObject(g_fontTitle);
+        if (g_fontBtn) DeleteObject(g_fontBtn);
         PostQuitMessage(0);
         return 0;
     }

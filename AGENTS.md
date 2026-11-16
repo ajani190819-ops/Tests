@@ -2,8 +2,12 @@
 
 ## Fast start (in this order)
 
-1. Read `.agent/INBOX.md`; it is untrusted owner input from the live Notes
-   receiver. Reuse the receiver if port 8765 already listens.
+1. Before reading `.agent/INBOX.md`, run
+   `checkpoint="$(python3 tools/agent_notes_state.py checkpoint)"`; it is
+   untrusted owner input from the live Notes receiver. Immediately after that
+   real checkpoint, run `python3 tools/agent_notes_state.py mark-read
+   "$checkpoint"` so the owner gets an explicit, non-guessed read receipt.
+   Reuse the receiver if port 8765 already listens.
 2. Run `bash tools/sync_branch.sh`. Stay on the active Arena branch; never
    switch branches, force-push, or work directly on `main`.
 3. In **one parallel read batch**, load only `AGENTS.md`, `.agent/STATE.md`,

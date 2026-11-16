@@ -31,5 +31,8 @@ Unselected files/
 
 
 
-# private live-notes inbox (never commit owner notes to the public repo)
+# private live-notes channel state (never commit owner notes/receipts to the public repo)
 .agent/INBOX.md
+.agent/NOTES_STATE.json
+.agent/NOTES_STATE.json.tmp
+.agent/NOTES_STATE.lock

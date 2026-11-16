@@ -1,8 +1,21 @@
 /* ---------------- entry ---------------- */
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) {
+    /* Project Hub invokes --stop before it replaces a resident watcher. This
+       route exits rather than treating WM_CLOSE as a normal hide-to-tray. */
+    if (cmdLine && wcsstr(cmdLine, L"--stop")) {
+        HWND running = FindWindowW(L"AgentNotesWnd", NULL);
+        if (running) {
+            DWORD_PTR reply = 0;
+            SendMessageTimeoutW(running, WM_COMMAND,
+                                MAKEWPARAM(AGENT_NOTES_EXIT_COMMAND, 0), 0,
+                                SMTO_ABORTIFHUNG | SMTO_BLOCK, 2000, &reply);
+        }
+        return 0;
+    }
+
     InitPalette();
-    (void)hPrev; (void)cmdLine; (void)nShow;
+    (void)hPrev; (void)nShow;
     g_hInst = hInst;
 
     CreateMutexW(NULL, FALSE, MUTEX_NAME);
@@ -54,6 +67,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
                              NULL, NULL, hInst, NULL);
     if (!g_hwnd) return 1;
 
+    AgentNotesTrayInit();
     g_dpi = GetWinDpi(g_hwnd);
     {
         /* Size to the true DPI, then shrink uniformly if that would not fit
@@ -108,12 +122,18 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
         wcsncpy(g_status, L"Ready - type a note and press Send to Agent.", 255);
 
     SetTimer(g_hwnd, TIMER_FLUSH, 60000, NULL);
+    /* Waiting status is intentionally checked in a worker every 15 seconds.
+       There is no sign-in task or background service: this starts only after
+       the owner launches Agent Notes, and ordinary window close hides it to
+       the notification area until the explicit Exit command. */
+    SetTimer(g_hwnd, TIMER_WATCH, 15000, NULL);
     g_spinAngle = SuiteEmblemAngleNow(GetTickCount64(), 30000ULL);
     SetTimer(g_hwnd, TIMER_SPIN, 50, NULL);
     if (LinkDiscoveryTick()) {
         wcsncpy(g_status, L"Agent session found - notes will deliver automatically.", 255);
         g_status[255] = L'\0';
     }
+    StartStatusPoll();
     ShowWindow(g_hwnd, SW_SHOW);
     UpdateWindow(g_hwnd);
     SetForegroundWindow(g_hwnd);       /* an explicit Open must take focus */

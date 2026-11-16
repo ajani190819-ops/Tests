@@ -198,9 +198,9 @@
  {
   "id": "ntui-10",
   "file": "agent-notes/src/parts/ui.c",
-  "old": "            if (LinkDiscoveryTick()) {",
-  "new": "            if (0) {",
-  "label": "J Agent Notes no longer rediscovers a new session while retrying"
+  "old": "            StartStatusPoll();\n",
+  "new": "            if (0) StartStatusPoll();\n",
+  "label": "J Agent Notes stops its background wait/session polling"
  },
  {
   "id": "ntui-11",
@@ -488,6 +488,13 @@
   "old": "            if (!current) return 0; /* an old location finished after a new selection */",
   "new": "            if (0) return 0; /* an old location finished after a new selection */",
   "label": "Late old-place forecast can replace current place"
+ },
+ {
+  "id": "notes-receipt-00",
+  "file": "agent-notes/src/parts/wait_alerts.c",
+  "old": "            if (wcscmp(result->waitId, g_seenWait) != 0) {",
+  "new": "            if (0) {",
+  "label": "Agent Notes never emits a native alert for a newly published wait"
  },
  {
   "id": "brand-00",

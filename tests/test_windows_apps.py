@@ -2840,9 +2840,9 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("if (!HealthOk(cand)) return 0;", ha,
                       "a discovered link is adopted without proving it is live, so a "
                       "dead session would replace a working link")
-        self.assertIn("LinkDiscoveryTick()", ui,
-                      "the flush timer never runs discovery, so a new session is only "
-                      "found by restarting the app")
+        self.assertIn("StartStatusPoll()", ui,
+                      "the background wait/receipt poll no longer rediscovers a new session, so "
+                      "the owner would have to restart the app")
         self.assertIn("LinkDiscoveryTick()", en,
                       "startup never runs discovery, so an app opened after a new "
                       "session began waits a full minute for its first tick")
@@ -2852,9 +2852,9 @@ class SuiteFolderInstallTests(unittest.TestCase):
 
         fo = ha[ha.index("static int FlushOutbox("):]
         fo = fo[:fo.index("\n}\n")]
-        self.assertEqual(fo.count("DeleteFileW(path);"), 1,
+        self.assertEqual(fo.count("HistMarkSaved(fd.cFileName, receipt) && DeleteFileW(path)"), 1,
                          "the outbox delete moved - queued notes must survive failures")
-        self.assertLess(fo.index("HttpPostNote(g_link"), fo.index("DeleteFileW(path);"),
+        self.assertLess(fo.index("HttpPostNote(g_link"), fo.index("HistMarkSaved(fd.cFileName, receipt)"),
                         "an outbox file is deleted before delivery is confirmed, so a "
                         "crash mid-flush loses the note")
 
@@ -2947,11 +2947,101 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertEqual(paint.count('L"Agent Notes"'), 1,
                          "the title is drawn more than once and overlaps itself")
 
-        # Discovery still happens in the background at startup and during retry.
-        self.assertIn("LinkDiscoveryTick()", ui_c)
+        # Discovery still happens at startup, and later wait/receipt checks use
+        # a worker so an unavailable preview link cannot freeze the composer.
+        self.assertIn("StartStatusPoll()", ui_c)
         self.assertIn("LinkDiscoveryTick()", en_c)
         self.assertIn("Agent session found - notes will deliver automatically.", en,
                       "startup discovery still leaves the owner looking for a link field")
+
+    def test_agent_notes_waiting_alerts_and_two_stage_receipts(self):
+        """A sent HTTP request is not evidence the agent read a note, and an
+        app cannot promise an alert while its device/process/network is away.
+        The owner selected a native visual wait alert (sound opt-in) plus a
+        truthful local-inbox receipt followed by an explicit checkpoint read."""
+        app = (ROOT / "agent-notes" / "src" / "agent_notes.c").read_text(encoding="utf-8")
+        config = (ROOT / "agent-notes" / "src" / "parts" / "config_outbox.c").read_text(encoding="utf-8")
+        http = (ROOT / "agent-notes" / "src" / "parts" / "http_agent.c").read_text(encoding="utf-8")
+        watch = (ROOT / "agent-notes" / "src" / "parts" / "wait_alerts.c").read_text(encoding="utf-8")
+        ui = (ROOT / "agent-notes" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        entry = (ROOT / "agent-notes" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+        server = (ROOT / "tools" / "notes_server.py").read_text(encoding="utf-8")
+        state = (ROOT / "tools" / "agent_notes_state.py").read_text(encoding="utf-8")
+        hub = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
+        workers = (ROOT / "project-hub" / "src" / "parts" / "workers_install.c").read_text(encoding="utf-8")
+
+        def code(src):
+            src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+            return re.sub(r"//[^\n]*", "", src)
+
+        config_c, http_c, watch_c, ui_c, entry_c = map(code, (config, http, watch, ui, entry))
+
+        # Receiver-side acceptance means an fsync'ed inbox append plus an
+        # opaque receipt. Retry uses a stable client key, so a crash between
+        # the two local files recovers instead of duplicating the note.
+        for needle in ("/status", "/receipt/", "X-Agent-Note-Key", "os.fsync(f.fileno())",
+                       "receipt_in_inbox", "persist_note", "state_lock"):
+            self.assertIn(needle, server,
+                          f"receiver lost {needle}, weakening the durable receipt protocol")
+        self.assertIn("<!-- AgentNotes key={note_key} receipt={receipt_id} -->", server)
+        self.assertIn('"state": "saved"', server)
+        self.assertIn('"state": "read"', server)
+        self.assertIn("begin_inbox_checkpoint", state)
+        self.assertIn("mark_checkpoint_read", state)
+        self.assertIn('choices=("waiting", "checkpoint", "mark-read", "clear-wait", "status")', state)
+        self.assertIn("notes_server.begin_inbox_checkpoint()", state)
+        self.assertIn("notes_server.mark_checkpoint_read(args.checkpoint)", state)
+
+        # Do not delete a local outbox item merely because a response was 200.
+        # Its durable receipt must first be recorded locally; only then may the
+        # retry-safe source file disappear.
+        self.assertIn("HttpPostNote(g_link, L\"/note\", noteKey", http_c)
+        self.assertIn("HistMarkSaved(fd.cFileName, receipt) && DeleteFileW(path)", http_c)
+        self.assertLess(http_c.index("HistMarkSaved(fd.cFileName, receipt)"),
+                        http_c.index("DeleteFileW(path)"),
+                        "Agent Notes deletes an outbox note before saving its inbox receipt")
+        self.assertIn("HistMarkReceiptRead", config_c)
+        self.assertIn("Saved", ui_c)
+        self.assertIn("Read", ui_c)
+        self.assertIn("Inbox persistence is confirmed; read acknowledgement follows separately.", ui)
+
+        # A regular Windows notification-area visual is the alert. Sound is
+        # quiet by default through NIIF_NOSOUND, persists only if selected,
+        # and no custom mixer/sound file is introduced.
+        self.assertIn("Shell_NotifyIconW(NIM_ADD", watch_c)
+        self.assertIn("Shell_NotifyIconW(NIM_MODIFY", watch_c)
+        self.assertIn("NIIF_INFO | (g_waitSound ? 0 : NIIF_NOSOUND)", watch_c)
+        self.assertIn("Play a sound for waiting alerts", watch)
+        self.assertIn("WaitSound", config_c)
+        self.assertIn("StartStatusPoll", watch_c)
+        self.assertIn("CreateThread", watch_c)
+        self.assertIn("TIMER_WATCH, 15000", entry_c)
+        self.assertIn("            StartStatusPoll();\n", ui_c,
+                      "the live watcher timer no longer starts its background session poll")
+        self.assertIn("ShowWindow(hwnd, SW_HIDE)", ui_c)
+        self.assertIn("Exit (stop waiting alerts)", watch)
+        self.assertIn("if (wcscmp(result->waitId, g_seenWait) != 0)", watch_c,
+                      "a freshly published agent wait no longer produces a native alert")
+        self.assertNotRegex(app + watch + entry, r"(?i)(RegSetValue.*\\\\Run|schtasks|CreateService)",
+                            "Agent Notes silently added a sign-in/service startup path")
+
+        # The tray watcher must have an explicit updater exit route. Ordinary
+        # WM_CLOSE now hides it, so the generic close route would correctly
+        # fail safe but could never update a resident Agent Notes process.
+        self.assertIn("AGENT_NOTES_EXIT_COMMAND", hub)
+        self.assertIn("MAKEWPARAM(AGENT_NOTES_EXIT_COMMAND, 0)", workers)
+        self.assertIn("L\"Agent Notes\", AGENT_NOTES_EXIT_COMMAND", workers)
+        self.assertIn('wcsstr(cmdLine, L"--stop")', entry_c)
+
+        rules = (ROOT / ".agent" / "rules" / "execution.md").read_text(encoding="utf-8")
+        for needle in ("agent_notes_state.py checkpoint", "agent_notes_state.py mark-read",
+                       "agent_notes_state.py waiting", "agent_notes_state.py clear-wait",
+                       "notes_server.py"):
+            self.assertIn(needle, rules,
+                          f"the agent contract omits {needle}, so read/wait state can drift")
+        ignored = (ROOT / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn(".agent/NOTES_STATE.json", ignored,
+                      "private receipt/wait state could leak into the public repository")
 
     def test_card_detail_line_survives_hidden_buttons(self):
         """The strip under each card title went blank, and it was our bug.

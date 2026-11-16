@@ -185,7 +185,7 @@ def main() -> int:
             ROOT / "agent-notes" / "src" / "agent_notes.c",
             ROOT / "agent-notes" / "AgentNotes.exe",
             ["-luser32", "-lgdi32", "-lshell32", "-ladvapi32",
-             "-lcomctl32", "-lwinhttp"],
+             "-lcomctl32", "-lwinhttp", "-lbcrypt"],
         ),
         (
             "weatherradar",

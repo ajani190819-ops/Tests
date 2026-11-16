@@ -22,8 +22,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.50"
-#define HUB_VERSION_W     L"2.8.50"
+#define HUB_VERSION       "2.8.51"
+#define HUB_VERSION_W     L"2.8.51"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -97,6 +97,9 @@
 /* Audio Switcher's documented tray Quit command.  It is a graceful close
    request for the updater, unlike WM_CLOSE which intentionally only hides. */
 #define AUDIO_SWITCHER_QUIT_COMMAND 201
+/* Agent Notes normally hides on WM_CLOSE so its tray watcher continues. This
+   command is its explicit real-exit route before an updater writes the EXE. */
+#define AGENT_NOTES_EXIT_COMMAND 203
 
 /* Dynamic catalog button ids: ID_DYN_BASE + appIndex*10 + buttonIndex */
 #define ID_DYN_BASE          1800

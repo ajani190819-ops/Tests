@@ -1,15 +1,17 @@
 /* AgentNotes - quick notes from the owner straight to the agent workspace.
  *
- * No Google middleman: this little suite app POSTs notes directly to the
- * agent session's notes server (tools/notes_server.py behind the Arena
- * preview link). While the agent is offline the notes queue locally in
- * %LOCALAPPDATA%\AgentNotes\outbox\ and are delivered automatically as
- * soon as the session link answers again.
+ * No Google middleman: this suite app POSTs notes directly to the active
+ * session's notes server. While the receiver is unavailable, notes stay in
+ * %LOCALAPPDATA%\AgentNotes\outbox and retry automatically. A successful
+ * receiver write produces a durable inbox receipt; the agent later marks that
+ * receipt read only after its required INBOX checkpoint.
  *
- * UI: always-spinning Tri-Spoke Core emblem (the hub's SDF renderer, one
- * turn per 30 s idle / 8 s while sending), one guided note composer, a
- * recent-notes list whose Sent/Queued state is derived from the outbox, and
- * a connection status strip. The session endpoint is automatic, never input.
+ * Agent Notes also watches the same session while it is running. When the
+ * agent publishes a generic waiting-for-input state, a notification-area
+ * alert is shown once. The Windows visual alert is on by default; its normal
+ * system sound is an explicit, persisted opt-in, never custom mixed audio.
+ * Closing the window keeps this watcher in the notification area. The app
+ * deliberately does not register itself to start at sign-in.
  */
 #include <windows.h>
 #include <richedit.h>
@@ -17,6 +19,7 @@
 #include <winhttp.h>
 #include <commctrl.h>
 #include <shellapi.h>
+#include <bcrypt.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,8 +34,7 @@
 /* The palette follows the Windows app theme, exactly like the lighting
    flyout does. These are globals, not defines: InitPalette fills them before
    the first window exists. The dark values are the original slate scheme;
-   the light values keep every text-on-surface pair at reading contrast,
-   which the old single dark scheme never managed on a light desktop. */
+   the light values keep every text-on-surface pair at reading contrast. */
 static COLORREF COL_BG, COL_CARD, COL_INPUT, COL_TXT, COL_MUTED, COL_ACCENT;
 static COLORREF COL_WARN, COL_GOOD, COL_DIV, COL_HOT, COL_CARD_BD;
 
@@ -78,8 +80,14 @@ static void InitPalette(void) {
 #endif
 
 enum { BTN_SEND = 0, BTN_COUNT };
-enum { TIMER_FLUSH = 1, TIMER_SPIN = 2 };
+enum { TIMER_FLUSH = 1, TIMER_SPIN = 2, TIMER_WATCH = 3 };
+enum { ID_TRAY_OPEN = 201, ID_TRAY_SOUND = 202, ID_TRAY_EXIT = 203 };
 #define ID_EDIT_NOTE   102
+/* Project Hub sends this standard WM_COMMAND before it replaces the EXE.
+   Keep it equal to the tray Exit command so hidden watcher windows exit too. */
+#define AGENT_NOTES_EXIT_COMMAND ID_TRAY_EXIT
+#define WM_TRAYICON     (WM_APP + 29)
+#define WM_NOTES_STATUS (WM_APP + 30)
 
 #define HINT_TEXT  L"Type a note for the agent. It is safely queued if the session is away."
 #define HIST_MAX   20
@@ -93,6 +101,7 @@ static UINT      g_dpi = 96;
 static int       g_fit = 100;      /* uniform shrink so the window always fits the screen */
 static int       g_hoverBtn = -1;
 static HANDLE    g_showEvent = NULL;
+static NOTIFYICONDATAW g_nid;
 
 static wchar_t   g_link[256] = L"";
 static wchar_t   g_cfgDir[MAX_PATH] = L"";
@@ -103,6 +112,11 @@ static wchar_t   g_status[256] = L"No live session yet - notes queue safely here
 static int       g_lastOk = -1;          /* -1 unknown, 0 failed, 1 delivered */
 static int       g_sending = 0;
 static int       g_noteHint = 1;         /* note box is showing the hint */
+static int       g_quitting = 0;
+static int       g_waitSound = 0;        /* off until the owner explicitly opts in */
+static wchar_t   g_seenWait[80] = L"";   /* persisted: avoids alerting again on restart */
+static wchar_t   g_activeWait[80] = L"";
+static volatile LONG g_statusPollActive = 0;
 static wchar_t   g_lastSent[16] = L"";
 
 static int S(int px) {
@@ -144,6 +158,7 @@ static UINT GetWinDpi(HWND h) {
       this one file. ---- */
 #include "parts/config_outbox.c"
 #include "parts/http_agent.c"
+#include "parts/wait_alerts.c"
 #include "../../shared/win32/suite_emblem.c"
 #include "parts/emblem.c"
 #include "parts/ui.c"

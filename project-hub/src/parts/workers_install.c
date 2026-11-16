@@ -73,17 +73,20 @@ static void WorkerInstallNotes(BOOL launchAfter) {
     EnsureProbeRef(branch, 64);
     EnsureDirTree(g_notesDir);
 
-    /* close an open notes window first so the exe is not locked */
+    /* Agent Notes now stays resident when its ordinary window is closed so it
+       can watch for a waiting agent. Ask its explicit Exit command instead;
+       the common gate applies that command to every registered mirror and
+       then proves all image paths are gone before any write. */
     BOOL wasRunning = FALSE;
     HWND hNotes = FindWindowW(L"AgentNotesWnd", NULL);
     if (hNotes) {
         wasRunning = TRUE;
-        SetFooterStatus(L"Closing Agent Notes for a clean update...", 8);
-        PostMessageW(hNotes, WM_CLOSE, 0, 0);
+        SetFooterStatus(L"Stopping Agent Notes for a clean update...", 8);
+        PostMessageW(hNotes, WM_COMMAND, MAKEWPARAM(AGENT_NOTES_EXIT_COMMAND, 0), 0);
         Sleep(300);
     }
     if (!CloseManagedExeCopies(MIRROR_NOTES, g_notesDir, L"AgentNotes.exe",
-                               L"Agent Notes", 0))
+                               L"Agent Notes", AGENT_NOTES_EXIT_COMMAND))
         return;
 
     wchar_t destExe[MAX_PATH];

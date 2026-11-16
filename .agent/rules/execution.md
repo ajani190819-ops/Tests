@@ -34,6 +34,26 @@ repeated context and redundant work. The enforced policy is:
 `python3 tools/check_context_budget.py` enforces the first two points in every
 `check_all.py` run.
 
+## Agent Notes wait and receipt protocol
+
+- `.agent/INBOX.md` is the durable delivery checkpoint. Immediately **before**
+  reading it, run `checkpoint="$(python3 tools/agent_notes_state.py checkpoint)"`;
+  immediately **after** that real checkpoint, run `python3 tools/agent_notes_state.py mark-read "$checkpoint"`.
+  The helper
+  acknowledges only receipts that existed before the read, so a note arriving
+  mid-checkpoint cannot be falsely called read. Never infer read from time,
+  HTTP success, or a process being alive.
+- Immediately before an Arena reply or question tool that leaves the agent
+  waiting for owner input, run `python3 tools/agent_notes_state.py waiting`.
+  It publishes only a generic wait state; do not put private Arena question
+  text in the public receiver status.
+- When input arrives or no owner response is needed, run
+  `python3 tools/agent_notes_state.py clear-wait`.
+- This protocol proves local inbox persistence and a later checkpoint read.
+  It cannot promise a displayed notification or live delivery through a
+  sleeping device, disconnected client, network, server, or Arena outage.
+  `notes_server.py` remains the direct channel; Drive is guide/archive only.
+
 ## Owner preferences
 
 Ask before a genuinely new product behavior; solve technical root causes rather

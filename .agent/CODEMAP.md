@@ -6,11 +6,11 @@
 
 ## project-hub/src/project_hub.c
 
-- L289  f GetWinDpi
-- L304  f S
-- L306  f ApplyModernWindowFrame
-- L325  f RebuildFontsAndIcons
-- globals: g_hInst (L201), g_hwnd (L202), g_fontHero (L203), g_fontSub (L204), g_fontTitle (L205), g_fontBody (L206), g_fontBtn (L207), g_fontBadge (L208), g_appIcon (L209), g_hdrEmblem (L210), g_cardIcons (L211), g_showEvent (L212), g_hMutex (L213), g_cs (L214), g_topBtns (L216), g_rcEmblem (L223), g_cards (L225), g_cardCount (L226), g_dynIdx (L227), g_hoverId (L228), g_scrollY (L229), g_maxScrollY (L230), g_exePath (L232), g_exeDir (L233), g_localApp (L234), g_probeRef (L238), g_roamApp (L239), g_suiteDir (L240), g_hubCfgDir (L241), g_btgDir (L242), g_btgExtraExe (L243), g_kblDir (L244), g_dnsDir (L245), g_notesDir (L246), g_audioSwitcherDir (L247), g_modsDir (L248), g_orcaBatDir (L249), g_suiteHubExe (L257), g_mirrorDirs (L258), g_mirrorCount (L259), g_activeBranch (L262), g_branchMenuNames (L263), g_branchMenuN (L264), g_branchPromptOut (L265), g_autoBranchLastCheck (L268), g_remHubVer (L269), g_remWaveVer (L270), g_remInfillVer (L271), g_remHudName (L272), g_remHudPath (L273), g_remHudSize (L274), g_statusMsg (L275), g_progressVal (L276), g_hubUpdAvail (L277), g_taskQueue (L280), g_qHead (L281), g_qTail (L282), g_qSem (L283), g_running (L284)
+- L292  f GetWinDpi
+- L307  f S
+- L309  f ApplyModernWindowFrame
+- L328  f RebuildFontsAndIcons
+- globals: g_hInst (L204), g_hwnd (L205), g_fontHero (L206), g_fontSub (L207), g_fontTitle (L208), g_fontBody (L209), g_fontBtn (L210), g_fontBadge (L211), g_appIcon (L212), g_hdrEmblem (L213), g_cardIcons (L214), g_showEvent (L215), g_hMutex (L216), g_cs (L217), g_topBtns (L219), g_rcEmblem (L226), g_cards (L228), g_cardCount (L229), g_dynIdx (L230), g_hoverId (L231), g_scrollY (L232), g_maxScrollY (L233), g_exePath (L235), g_exeDir (L236), g_localApp (L237), g_probeRef (L241), g_roamApp (L242), g_suiteDir (L243), g_hubCfgDir (L244), g_btgDir (L245), g_btgExtraExe (L246), g_kblDir (L247), g_dnsDir (L248), g_notesDir (L249), g_audioSwitcherDir (L250), g_modsDir (L251), g_orcaBatDir (L252), g_suiteHubExe (L260), g_mirrorDirs (L261), g_mirrorCount (L262), g_activeBranch (L265), g_branchMenuNames (L266), g_branchMenuN (L267), g_branchPromptOut (L268), g_autoBranchLastCheck (L271), g_remHubVer (L272), g_remWaveVer (L273), g_remInfillVer (L274), g_remHudName (L275), g_remHudPath (L276), g_remHudSize (L277), g_statusMsg (L278), g_progressVal (L279), g_hubUpdAvail (L280), g_taskQueue (L283), g_qHead (L284), g_qTail (L285), g_qSem (L286), g_running (L287)
 
 ## project-hub/src/parts/branch_picker_entry.c
 
@@ -169,11 +169,11 @@
 
 - L1  f WorkerInstallBluetoothGuard
 - L71  f WorkerInstallNotes
-- L116  f WorkerInstallDnsPilot
-- L188  f WorkerInstallKeyboardLighting
-- L288  f WorkerInstallSpatialHud
-- L350  f WorkerInstallOrcaPlugins
-- L451  f WorkerSelfUpdateHub
+- L119  f WorkerInstallDnsPilot
+- L191  f WorkerInstallKeyboardLighting
+- L291  f WorkerInstallSpatialHud
+- L353  f WorkerInstallOrcaPlugins
+- L454  f WorkerSelfUpdateHub
 
 ## project-hub/src/parts/workers_remote.c
 
@@ -492,27 +492,29 @@
 
 ## agent-notes/src/agent_notes.c
 
-- L39  f AppsUseLightTheme
-- L48  f InitPalette
-- L108  f S
-- L115  f ApplyModernWindowFrame
-- L134  f GetWinDpi
-- globals: g_hInst (L88), g_hwnd (L89), g_fontUI (L90), g_bgBrush (L91), g_dpi (L92), g_fit (L93), g_hoverBtn (L94), g_showEvent (L95), g_link (L97), g_cfgDir (L98), g_cfgPath (L99), g_histPath (L100), g_outboxDir (L101), g_status (L102), g_lastOk (L103), g_sending (L104), g_noteHint (L105), g_lastSent (L106)
+- L41  f AppsUseLightTheme
+- L50  f InitPalette
+- L122  f S
+- L129  f ApplyModernWindowFrame
+- L148  f GetWinDpi
+- globals: g_hInst (L96), g_hwnd (L97), g_fontUI (L98), g_bgBrush (L99), g_dpi (L100), g_fit (L101), g_hoverBtn (L102), g_showEvent (L103), g_nid (L104), g_link (L106), g_cfgDir (L107), g_cfgPath (L108), g_histPath (L109), g_outboxDir (L110), g_status (L111), g_lastOk (L112), g_sending (L113), g_noteHint (L114), g_quitting (L115), g_waitSound (L116), g_seenWait (L117), g_activeWait (L118), g_statusPollActive (L119), g_lastSent (L120)
 
 ## agent-notes/src/parts/config_outbox.c
 
-- L1  S config + outbox + history
-- L3  f InitPaths  — ---------------- config + outbox + history ----------------
+- L1  S config + outbox + receipt history
+- L3  f InitPaths  — ---------------- config + outbox + receipt history ----------------
 - L14  f LoadConfig
-- L18  f SaveConfig
-- L22  f OutboxCount
-- L35  f FileExistsW
-- L51  f HistSave
-- L73  f HistLoad
-- L109  f HistAdd
-- L120  f HistSnip
-- L130  f OutboxAdd
-- globals: g_hist (L48), g_histN (L49)
+- L20  f SaveConfig
+- L26  f OutboxCount
+- L39  f FileExistsW
+- L58  f HistSave
+- L84  f HistLoad
+- L135  f HistAdd
+- L151  f HistMarkSaved
+- L164  f HistMarkReceiptRead
+- L175  f HistSnip
+- L185  f OutboxAdd
+- globals: g_hist (L55), g_histN (L56)
 
 ## agent-notes/src/parts/emblem.c
 
@@ -527,12 +529,14 @@
 ## agent-notes/src/parts/http_agent.c
 
 - L1  S HTTP to the agent session
-- L3  f HttpPostNote  — ---------------- HTTP to the agent session ----------------
-- L43  f FlushOutbox
-- L115  f HttpGetText
-- L155  f HealthOk
-- L163  f LinkDiscoveryTick
-- L193  f StartFlush
+- L6  f JsonStringField
+- L26  f JsonFieldEquals
+- L31  f HttpPostNote
+- L86  f FlushOutbox
+- L174  f HttpGetText
+- L214  f HealthOk
+- L222  f LinkDiscoveryTick
+- L252  f StartFlush
 
 ## agent-notes/src/parts/ui.c
 
@@ -545,9 +549,20 @@
 - L54  f HitBtn
 - L64  f DrawDot
 - L76  f DeliverySummary
-- L83  f PaintAll
-- L228  f NoteSetHint
-- L235  f NowStamp
+- L84  f PaintAll
+- L244  f NoteSetHint
+- L251  f NowStamp
+
+## agent-notes/src/parts/wait_alerts.c
+
+- L18  f UpdateAgentNotesTrayTip
+- L29  f AgentNotesTrayInit
+- L45  f AgentNotesTrayRemove
+- L50  f ShowAgentWaitingAlert
+- L68  f ShowAgentNotesTrayMenu
+- L84  f JsonBoolTrue
+- L141  f StartStatusPoll
+- L148  f HandleStatusPoll
 
 ## audio-switcher/src/audio_switcher.c
 
@@ -797,6 +812,10 @@
 - L118  f build
 - L143  f main
 
+## tools/agent_notes_state.py
+
+- L26  f main
+
 ## tools/build_windows.py
 
 - L50  f zig_version
@@ -860,10 +879,26 @@
 
 ## tools/notes_server.py
 
-- L124  f sanitize_note
-- L142  f rate_limit_allow
-- L159  f Handler
-- L278  f main
+- L138  f utc_now
+- L143  f empty_state
+- L153  f normalise_state
+- L209  f state_lock
+- L237  f load_state
+- L244  f save_state
+- L267  f set_waiting
+- L277  f clear_waiting
+- L284  f begin_inbox_checkpoint
+- L302  f mark_checkpoint_read
+- L322  f public_status
+- L332  f receipt_status
+- L348  f sanitize_note
+- L361  f rate_limit_allow
+- L376  f receipt_in_inbox
+- L390  f append_inbox
+- L398  f persist_note
+- L438  f Handler
+- L555  f initialise_inbox
+- L570  f main
 
 ## tools/sync_changelog.py
 
@@ -979,10 +1014,10 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2615  f SuiteFolderInstallTests
-- L3378  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3454  f AudioSwitcherReachabilityTests
-- L3638  f AudioSwitcherSessionSweepTests
-- L3779  f AppOpenFocusTests
+- L3468  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3544  f AudioSwitcherReachabilityTests
+- L3728  f AudioSwitcherSessionSweepTests
+- L3869  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 
