@@ -77,6 +77,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     UpdateWindow(hwnd);
 
     WorkerStart();
+    g_radarSpinAngle = SuiteEmblemAngleNow(GetTickCount64(), 30000ULL);
     SetTimer(hwnd, TIMER_EMBLEM, 50, NULL);
     SetTimer(hwnd, TIMER_REFRESH, 10 * 60 * 1000, NULL);
     if (g_placeSel >= 0 && g_placeSel < g_placeN) {

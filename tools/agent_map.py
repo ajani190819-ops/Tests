@@ -26,6 +26,9 @@ C_FILES = [
     "dns-pilot/src/dns_pilot.c",
     "agent-notes/src/agent_notes.c",
     "audio-switcher/src/audio_switcher.c",
+    "weather-radar/src/weather_radar.c",
+    # Shared source outside an app src/ tree; every native header adapter includes it.
+    "shared/win32/suite_emblem.c",
 ]
 
 PY_GLOBS = ["tools/*.py", "tests/*.py"]

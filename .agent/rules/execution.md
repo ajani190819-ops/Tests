@@ -59,9 +59,9 @@ Credits burn per token in and out, so these are standing habits, not advice:
 - Read in ranges. `sed -n 'A,Bp'` or grep first; never cat a file over ~300
   lines whole. Aura-Background.ps1 (5k lines) and the test suite (3k) are
   range-read only, always.
-- STATE.md is read by section, not whole; the narrative archive lives in
-  .agent/HISTORY.md and is opened only when an old settled decision is truly
-  in question. CODEMAP is regenerated, not read, unless an index question asks.
+- STATE.md stays compact and current. Human-facing history and operating
+  narrative live in the Drive Project Guide; use Git history for exact old code
+  decisions. CODEMAP is regenerated, not read, unless an index question asks.
 - Batch independent tool calls in one block; a turn of ten sequential
   round-trips costs more than one batched call.
 - Warm everything: incremental builds (skip cache), `tools/mutate.py --check`

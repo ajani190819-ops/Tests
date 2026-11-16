@@ -104,8 +104,8 @@ static void PaintAll(HWND hwnd) {
         bi.bmiHeader.biCompression = BI_RGB;
         HBITMAP dib = CreateDIBSection(dc, &bi, DIB_RGB_COLORS, (void **)&bits, NULL, 0);
         if (dib && bits) {
-            for (int i = 0; i < sz * sz; i++) bits[i] = COL_BG;
-            EmbSpinDraw(bits, sz, sz, 0, 0, sz, g_spinAngle);
+            for (int i = 0; i < sz * sz; i++) bits[i] = SuiteEmblemDibPixel(COL_BG);
+            DrawAgentNotesEmblem(bits, sz, sz, 0, 0, sz, g_spinAngle);
             HDC mdc = CreateCompatibleDC(dc);
             HGDIOBJ old = SelectObject(mdc, dib);
             BitBlt(dc, er.left, er.top, sz, sz, mdc, 0, 0, SRCCOPY);
@@ -214,7 +214,7 @@ static void PaintAll(HWND hwnd) {
 
     if (bits) {
         GdiFlush();
-        EmbSpinDraw(bits, W, H, er.left, er.top, er.right - er.left, g_spinAngle);
+        DrawAgentNotesEmblem(bits, W, H, er.left, er.top, er.right - er.left, g_spinAngle);
     }
     BitBlt(dc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
     if (dib) {
@@ -326,6 +326,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_DESTROY:
         KillTimer(hwnd, TIMER_FLUSH);
         KillTimer(hwnd, TIMER_SPIN);
+        ReleaseAgentNotesEmblem();
         PostQuitMessage(0);
         return 0;
     }

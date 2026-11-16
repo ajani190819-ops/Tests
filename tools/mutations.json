@@ -205,8 +205,8 @@
  {
   "id": "ntui-11",
   "file": "agent-notes/src/parts/emblem.c",
-  "old": "(double)GetRValue(COL_ACCENT)",
-  "new": "246.0",
+  "old": "SuiteEmblemResolvePalette(COL_BG, COL_ACCENT, COL_TXT, &nearColor, &farColor);",
+  "new": "nearColor = RGB(246, 249, 254); farColor = RGB(196, 212, 234);",
   "label": "K Agent Notes emblem falls back to a pale fixed light-theme colour"
  },
  {
@@ -432,5 +432,40 @@
   "old": "    if (!NoProcessRunsImage(target)) return FALSE;\n",
   "new": "",
   "label": "J staged Hub handoff swaps the old image without proving it has closed"
+ },
+ {
+  "id": "emblem-00",
+  "file": "shared/win32/suite_emblem.c",
+  "old": "static uint32_t SuiteEmblemDibPixel(COLORREF color) {",
+  "new": "static uint32_t LegacyDibPixel(COLORREF color) {",
+  "label": "V shared engine loses the only approved COLORREF-to-DIB conversion"
+ },
+ {
+  "id": "emblem-01",
+  "file": "agent-notes/src/agent_notes.c",
+  "old": "#include \"../../shared/win32/suite_emblem.c\"",
+  "new": "/* canonical emblem engine omitted */",
+  "label": "W Agent Notes can bypass the canonical emblem engine"
+ },
+ {
+  "id": "emblem-02",
+  "file": "agent-notes/src/parts/ui.c",
+  "old": "bits[i] = SuiteEmblemDibPixel(COL_BG);",
+  "new": "bits[i] = COL_BG;",
+  "label": "X Agent Notes writes raw COLORREF pixels into its narrow emblem DIB"
+ },
+ {
+  "id": "emblem-03",
+  "file": "audio-switcher/src/parts/control_theming.c",
+  "old": "SuiteEmblemDraw(&g_audioSwitcherEmblem, pixels, width, height, x, y, size,\n                    SuiteEmblemAngleNow(GetTickCount64(), 30000ULL),\n                    nearColor, farColor);",
+  "new": "/* a local copied renderer would go here */",
+  "label": "Y Audio Switcher stops using the canonical transparent draw path"
+ },
+ {
+  "id": "emblem-04",
+  "file": "shared/win32/suite_emblem.c",
+  "old": "    if (luma >= 160) {",
+  "new": "    if (0) {",
+  "label": "Z light themes lose their readable emblem palette branch"
  }
 ]

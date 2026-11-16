@@ -607,6 +607,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         g_quitting = TRUE;
         KillTimer(hwnd, 1);
         KillTimer(hwnd, 2);
+        ReleaseAudioSwitcherEmblem();
         Shell_NotifyIconW(NIM_DELETE, &g_nid);
         sessions_cleanup();
         endpoints_cleanup();

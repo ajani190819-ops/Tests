@@ -22,7 +22,7 @@
 - L162  f SetActiveBranch
 - L184  f ShowBranchMenu
 - L220  f HandleActionCommand
-- L700  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
+- L701  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
 
 ## project-hub/src/parts/builtin_card_text.c
 
@@ -67,14 +67,12 @@
 
 ## project-hub/src/parts/emblem.c
 
-- L8  f EmbRasterize
-- L85  f EmbCacheEnsure
-- L100  f EmbSpinDraw
-- L157  f DrawWayfinderEmblem  — Exposed symbol reference kept in sync with suite style tests
-- L162  f FileExistsW
-- L167  f LocalSizeOf
-- L177  f FileHealthyW
-- globals: g_embCache (L83)
+- L7  f DrawWayfinderEmblem
+- L16  f ReleaseWayfinderEmblem
+- L20  f FileExistsW
+- L25  f LocalSizeOf
+- L35  f FileHealthyW
+- globals: g_hubEmblem (L5)
 
 ## project-hub/src/parts/enqueue_restart_prompts.c
 
@@ -141,9 +139,9 @@
 - L111  f ComputeLayout
 - L164  f HitTestButtons
 - L183  f PaintEmblemBlit
-- L210  f PaintHubWindow
-- L473  f ShowUtilityMenu
-- globals: g_frameCache (L207), g_fcW (L208)
+- L208  f PaintHubWindow
+- L471  f ShowUtilityMenu
+- globals: g_frameCache (L205), g_fcW (L206)
 
 ## project-hub/src/parts/version_probe_cache.c
 
@@ -518,10 +516,9 @@
 
 ## agent-notes/src/parts/emblem.c
 
-- L9  f EmbRasterize
-- L82  f EmbCacheEnsure
-- L97  f EmbSpinDraw
-- globals: g_embCache (L79), g_spinAngle (L80)
+- L8  f DrawAgentNotesEmblem
+- L16  f ReleaseAgentNotesEmblem
+- globals: g_agentNotesEmblem (L5), g_spinAngle (L6)
 
 ## agent-notes/src/parts/entry.c
 
@@ -570,14 +567,12 @@
 - L20  f ui_brush
 - L34  f ui_fonts_create
 - L49  f ui_fonts_destroy
-- L98  f EmbRasterize  — Tri-Spoke Core Emblem - analytic sub-pixel SDF renderer, ported 1:1 from Project Hub
-- L169  f EmbCacheEnsure
-- L184  f EmbSpinDraw
-- L237  f DrawWayfinderEmblem
-- L243  f PaintEmblemBlit  — Blit the spinning emblem square straight to a DC (spin fast-path).
-- L264  f GetWinDpi
-- L271  f update_volume_text
-- globals: g_font_ui (L11), g_font_head (L12), g_font_small (L13), g_hover_btn (L14), g_embCache (L167)
+- L101  f DrawAudioSwitcherEmblem
+- L110  f ReleaseAudioSwitcherEmblem
+- L115  f PaintEmblemBlit  — Blit the spinning emblem square straight to a DC (spin fast-path).
+- L135  f GetWinDpi
+- L142  f update_volume_text
+- globals: g_font_ui (L11), g_font_head (L12), g_font_small (L13), g_hover_btn (L14), g_audioSwitcherEmblem (L99)
 
 ## audio-switcher/src/parts/diag.c
 
@@ -632,22 +627,168 @@
 - L50  f S
 - globals: g_hInst (L5), g_hwnd (L6), g_app_icon (L7), g_nid (L8), g_quitting (L9), g_silent (L10), g_showEvent (L18), g_showThread (L19), g_showThreadRun (L20), g_btn_refresh (L26), g_endpoint_ctrls (L37), g_session_ctrls (L47), g_dpi (L49), g_dpi (L50), g_rcEmblem (L53)
 
+## weather-radar/src/weather_radar.c
+
+- L174  f S
+- globals: g_hInst (L121), g_hwnd (L122), g_fontUI (L123), g_bgBrush (L124), g_dpi (L125), g_fit (L126), g_hoverBtn (L127), g_lock (L128), g_cfgDir (L134), g_cfgPath (L135), g_cacheDir (L136), g_status (L137), g_statusKind (L138), g_places (L140), g_placeN (L141), g_placeSel (L142), g_search (L143), g_searchStage (L144), g_searchN (L145), g_searchStageN (L146), g_searchSel (L147), g_searchTicket (L148), g_searchStageTicket (L149), g_query (L150), g_searchHint (L151), g_fc (L153), g_ens (L154), g_fcStage (L155), g_ensStage (L156), g_frames (L158), g_frameN (L159), g_frameSel (L160), g_playing (L161), g_zoom (L162), g_radarHost (L163), g_radarNote (L164), g_view (L167), g_viewStage (L168), g_base (L169), g_baseKey (L170), g_viewReady (L171)
+
+## weather-radar/src/parts/emblem.c
+
+- L8  f DrawWeatherRadarEmblem
+- L16  f ReleaseWeatherRadarEmblem
+- globals: g_weatherRadarEmblem (L5), g_radarSpinAngle (L6)
+
+## weather-radar/src/parts/entry.c
+
+- L1  S entry: wWinMain
+- globals: g_className (L3)
+
+## weather-radar/src/parts/forecast.c
+
+- L20  f BuildForecastUrl
+- L34  f BuildEnsembleUrl
+- L45  f HourLabelFromIso
+- L55  f FetchForecast
+- L129  f FetchEnsemble
+- L179  f EnsWindowProb
+- L200  f PoPWindowMax
+
+## weather-radar/src/parts/json.c
+
+- L36  f JNew
+- L44  f JSkipWs
+- L50  f JDecodeString
+- L118  f JParseValue
+- L191  f JsonParse
+- L200  f JGet
+- L207  f JLen
+- L214  f JAt
+- L225  f JNum
+- globals: g_jpool (L33), g_jused (L34)
+
+## weather-radar/src/parts/net.c
+
+- L1  S net: WinHTTP GET + tile cache
+- L8  f HttpBufFree
+- L17  f HttpGetBuf
+- L84  f CacheNameFor
+- L96  f CacheAgeSecOk
+
+## weather-radar/src/parts/places.c
+
+- L7  f InitPaths
+- L26  f LoadPlaces
+- L48  f SavePlaces
+- L71  f RememberPlace
+- L92  f DropSelectedPlace
+- L104  f SearchTicketIsCurrent
+- L115  f GeocodeSearch
+
+## weather-radar/src/parts/radar.c
+
+- L17  f WicEnsure
+- L30  f WicDecodePng256
+- L72  S slippy-map tile maths
+- L74  f Lon2Tile  — ---------------- slippy-map tile maths ----------------
+- L82  f Lat2Tile
+- L96  f GridFor
+- L110  f PlacePixelInGrid
+- L120  S frame catalog
+- L122  f RadarCatalogFetch  — ---------------- frame catalog ----------------
+- L180  S tile fetching into a 768x768 grid
+- L185  f FetchTileGrid
+- L229  f BaseGridEnsure
+- L245  f RadarViewBuild
+- globals: g_wicFactory (L15)
+
+## weather-radar/src/parts/ui.c
+
+- L18  f RadarEmblemRect
+- L22  f BtnRect
+- L36  f RadarImageRect
+- L45  f SearchRowRect
+- L53  f SavedHeadingY
+- L57  f SavedRowRect
+- L67  f LayoutSearchEdit
+- L86  f HitBtn
+- L96  f DrawBtn
+- L108  f FrameTimeText  — unix seconds -> "14:20" (plus the day when it is not today), local time
+- L128  f PaintNowCard
+- L172  f PaintHonestCard
+- L222  f PaintHourlyCard
+- L291  f PaintRadarPane
+- L414  f PaintLeftColumn
+- L463  f PaintAll
+- L572  f StatusSet
+- L579  f CurrentPlace
+- L583  f OnPickSearchRow
+- L595  f OnPickSavedRow
+- L608  f StepFrame
+- L620  f SearchTextIsBlank
+- L625  f SubmitSearch
+
+## weather-radar/src/parts/util.c
+
+- L1  S util: palette, dpi, files, text
+- L3  f AppsUseLightTheme  — ---------------- util: palette, dpi, files, text ----------------
+- L15  f InitPalette
+- L49  f ApplyModernWindowFrame
+- L68  f GetWinDpi
+- L74  f MakeFonts
+- L94  S files
+- L96  f DirExistsW  — ---------------- files ----------------
+- L101  f EnsureDirW
+- L111  f ReadWholeFileW
+- L128  f WriteWholeFileW
+- L139  f PruneCacheDir
+- L168  S text
+- L170  f Utf8ToWide  — ---------------- text ----------------
+- L177  f WideToUtf8
+- L186  f UrlEncodeUtf8
+- L203  f NowLocalStamp
+- L211  f WxCodeText  — WMO weather codes, the words people actually use.
+- L239  f WxCodeIsWet  — Is this code any kind of wet weather?
+- L244  f MixCol
+- L251  f DrawRoundedBox
+- L263  f DrawTextAt
+
+## weather-radar/src/parts/workers.c
+
+- L17  f StartJob
+- L30  f PopJob
+- L76  f WorkerStart
+- L83  f RequestPlaceData
+- L96  f RequestTiles
+- L100  f RequestSearch
+- globals: g_workerThread (L8), g_jobEvent (L9), g_jobs (L10), g_jobHead (L11), g_reqPlace (L12), g_reqHas (L13), g_reqQuery (L14), g_reqSearchTicket (L15)
+
+## shared/win32/suite_emblem.c
+
+- L28  f SuiteEmblemDibRgb
+- L34  f SuiteEmblemDibPixel
+- L39  f SuiteEmblemAngleNow  — One shared timebase for the calm suite default: one turn every 30 seconds.
+- L47  f SuiteEmblemResolvePalette
+- L61  f SuiteEmblemRasterize
+- L145  f SuiteEmblemRelease
+- L155  f SuiteEmblemEnsure
+- L176  f SuiteEmblemDraw  — Alpha-composite the rotated transparent mark into an AARRGGBB DIB canvas.
+
 ## tools/agent_map.py
 
-- L43  f comment_purpose
-- L67  f scan_c
-- L92  f scan_py
-- L103  f c_file_list
-- L115  f build
-- L140  f main
+- L46  f comment_purpose
+- L70  f scan_c
+- L95  f scan_py
+- L106  f c_file_list
+- L118  f build
+- L143  f main
 
 ## tools/build_windows.py
 
-- L40  f zig_version
-- L45  f target_key
-- L62  f ensure_zig_python
-- L78  f build_target
-- L114  f main
+- L50  f zig_version
+- L55  f target_key
+- L76  f ensure_zig_python
+- L92  f build_target
+- L128  f main
 
 ## tools/bump_version.py
 
@@ -817,11 +958,11 @@
 - L43  f strip_cs_comments_and_strings
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
-- L2489  f SuiteFolderInstallTests
-- L3243  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3319  f AudioSwitcherReachabilityTests
-- L3503  f AudioSwitcherSessionSweepTests
-- L3644  f AppOpenFocusTests
+- L2552  f SuiteFolderInstallTests
+- L3315  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3391  f AudioSwitcherReachabilityTests
+- L3575  f AudioSwitcherSessionSweepTests
+- L3716  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

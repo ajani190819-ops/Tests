@@ -688,6 +688,7 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_DESTROY:
+        ReleaseWayfinderEmblem();
         PostQuitMessage(0);
         return 0;
     }

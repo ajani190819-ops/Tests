@@ -36,17 +36,27 @@ CACHE_DIR = pathlib.Path("/home/user/.cache/winbuild")
 CC_FLAGS = ["-target", "x86_64-windows-gnu", "-Os", "-s", "-Wall", "-Wextra",
             "-Werror", "-Wl,--subsystem,windows", "-municode"]
 
+# These native unity builds include the one canonical Tri-Spoke engine from
+# outside their src/ directory.  It must participate in their individual cache
+# keys or a shared rendering fix could leave a stale consumer EXE on disk.
+TARGET_SHARED_SOURCES = {
+    "audioswitcher": (ROOT / "shared" / "win32" / "suite_emblem.c",),
+    "hub": (ROOT / "shared" / "win32" / "suite_emblem.c",),
+    "agentnotes": (ROOT / "shared" / "win32" / "suite_emblem.c",),
+    "weatherradar": (ROOT / "shared" / "win32" / "suite_emblem.c",),
+}
+
 
 def zig_version(zig_py: str) -> str:
     r = subprocess.run([zig_py, "-m", "ziglang", "version"], capture_output=True)
     return r.stdout.decode().strip() or "unknown"
 
 
-def target_key(src_dir: pathlib.Path, libs: list[str], zig_ver: str) -> str:
+def target_key(name: str, src_dir: pathlib.Path, libs: list[str], zig_ver: str) -> str:
     """Hash everything that can change the output: every file under the
-    target's src dir (sources, inlined parts, .rc, manifest, icons), the link
-    libraries, the flags and the compiler version. Whole-dir on purpose -
-    parsing the #include chain would miss a resource or an icon swap."""
+    target's src dir (sources, inlined parts, .rc, manifest, icons), declared
+    shared sources, the link libraries, flags and compiler version. Whole-dir
+    is intentional - parsing include chains would miss a resource or icon."""
     h = hashlib.sha256()
     h.update(zig_ver.encode())
     h.update("\0".join(sorted(libs)).encode())
@@ -56,6 +66,10 @@ def target_key(src_dir: pathlib.Path, libs: list[str], zig_ver: str) -> str:
             h.update(str(p.relative_to(src_dir)).encode())
             h.update(b"\0")
             h.update(hashlib.sha256(p.read_bytes()).digest())
+    for p in TARGET_SHARED_SOURCES.get(name, ()):
+        h.update(str(p.relative_to(ROOT)).encode())
+        h.update(b"\0")
+        h.update(hashlib.sha256(p.read_bytes()).digest())
     return h.hexdigest()
 
 
@@ -78,7 +92,7 @@ def ensure_zig_python() -> str:
 def build_target(zig_py: str, env: dict, name: str, rc_dir: pathlib.Path,
                  rc_file: str, c_file: pathlib.Path, out_exe: pathlib.Path,
                  libs: list[str], zig_ver: str = "", force: bool = False) -> str:
-    key = target_key(rc_dir, libs, zig_ver)
+    key = target_key(name, rc_dir, libs, zig_ver)
     cache = CACHE_DIR / f"{name}.sha"
     if not force and out_exe.exists() and cache.exists() \
             and cache.read_text().strip() == key:

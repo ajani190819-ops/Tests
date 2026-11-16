@@ -1553,22 +1553,85 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("cx - S(14)", pane,
                       "the location marker is too small to find over precipitation")
         emblem = (ROOT / "weather-radar" / "src" / "parts" / "emblem.c").read_text(encoding="utf-8")
+        engine = (ROOT / "shared" / "win32" / "suite_emblem.c").read_text(encoding="utf-8")
         entry = (ROOT / "weather-radar" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
         main = (ROOT / "weather-radar" / "src" / "weather_radar.c").read_text(encoding="utf-8")
-        self.assertIn('#include "parts/emblem.c"', main,
-                      "Weather Radar has no suite-emblem renderer at all")
+        self.assertIn('#include "../../shared/win32/suite_emblem.c"', main,
+                      "Weather Radar bypasses the canonical suite-emblem engine")
         self.assertIn("SetTimer(hwnd, TIMER_EMBLEM, 50, NULL);", entry,
                       "the Weather Radar emblem never receives animation ticks")
-        self.assertIn("RadarEmbSpinDraw", ui,
+        self.assertIn("DrawWeatherRadarEmblem", ui,
                       "the Weather Radar header paints a static or missing mark")
         self.assertIn("g_radarSpinAngle += 6.283185307179586 / 600.0;", ui,
                       "the Weather Radar header mark no longer turns")
-        self.assertIn("GetRValue(COL_ACCENT)", emblem,
-                      "the Weather Radar emblem ignores the active light/dark palette")
+        self.assertIn("SuiteEmblemResolvePalette(COL_BG, COL_ACCENT, COL_TXT", emblem,
+                      "the Weather Radar adapter ignores the active light/dark palette")
+        self.assertIn("SuiteEmblemDibPixel(COL_BG)", ui,
+                      "the narrow Weather Radar repaint writes a raw COLORREF into its DIB")
+        self.assertIn("SuiteEmblemDraw", engine,
+                      "the shared engine lost the transparent Tri-Spoke draw path")
         self.assertIn("uint32_t tile[TILE_PX * TILE_PX];", radar)
         self.assertIn("for (int row = 0; row < TILE_PX; row++)", radar)
         self.assertIn("memcpy(dstRow, tile + (size_t)row * TILE_PX", radar,
                       "a 256px tile is copied contiguously into the 768px map and wraps into stripes")
+
+    def test_suite_header_emblem_has_one_dib_safe_engine(self):
+        """All native spinning headers must share one renderer.  Four copied SDF
+        loops had already drifted into an opaque brown/gold box in three apps;
+        this contract leaves adapters only and makes raw COLORREF DIB fills a
+        detectable regression rather than a screenshot surprise."""
+        engine_path = ROOT / "shared" / "win32" / "suite_emblem.c"
+        self.assertTrue(engine_path.exists(), "the reusable native emblem engine is missing")
+        engine = engine_path.read_text(encoding="utf-8")
+        for needle in (
+            "typedef struct SuiteEmblemEngine",
+            "SuiteEmblemDibPixel",
+            "SuiteEmblemResolvePalette",
+            "SuiteEmblemAngleNow",
+            "SuiteEmblemRelease",
+            "SuiteEmblemDraw",
+            "straight-alpha AARRGGBB DIB pixels",
+        ):
+            self.assertIn(needle, engine, "shared emblem engine lost `%s`" % needle)
+
+        consumers = (
+            ("project-hub/src/project_hub.c", "project-hub/src/parts/emblem.c", "DrawWayfinderEmblem"),
+            ("agent-notes/src/agent_notes.c", "agent-notes/src/parts/emblem.c", "DrawAgentNotesEmblem"),
+            ("audio-switcher/src/audio_switcher.c", "audio-switcher/src/parts/control_theming.c", "DrawAudioSwitcherEmblem"),
+            ("weather-radar/src/weather_radar.c", "weather-radar/src/parts/emblem.c", "DrawWeatherRadarEmblem"),
+        )
+        for main_rel, adapter_rel, draw_name in consumers:
+            main = (ROOT / main_rel).read_text(encoding="utf-8")
+            adapter = (ROOT / adapter_rel).read_text(encoding="utf-8")
+            self.assertIn('#include "../../shared/win32/suite_emblem.c"', main,
+                          "%s stopped including the canonical engine" % main_rel)
+            self.assertIn("SuiteEmblemDraw", adapter,
+                          "%s reimplemented or bypassed the canonical draw path" % adapter_rel)
+            self.assertIn(draw_name, adapter,
+                          "%s has no app-local placement adapter" % adapter_rel)
+            for retired in ("EmbRasterize", "RadarEmbRasterize", "EmbCache", "RadarEmbCache",
+                            "EMB_SDF_SCALE", "EMB_SDF_BOOST"):
+                self.assertNotIn(retired, adapter,
+                                 "%s restored a divergent `%s` renderer" % (adapter_rel, retired))
+
+        for paint_rel in (
+            "project-hub/src/parts/ui_renderer.c",
+            "agent-notes/src/parts/ui.c",
+            "audio-switcher/src/parts/control_theming.c",
+            "weather-radar/src/parts/ui.c",
+        ):
+            paint = (ROOT / paint_rel).read_text(encoding="utf-8")
+            self.assertIn("SuiteEmblemDibPixel(COL_BG)", paint,
+                          "%s can write a raw COLORREF background into an emblem DIB" % paint_rel)
+        self.assertNotIn("bits[i] = COL_BG", (ROOT / "agent-notes/src/parts/ui.c").read_text(encoding="utf-8"))
+        self.assertNotIn("spinBits[i] = COL_BG", (ROOT / "weather-radar/src/parts/ui.c").read_text(encoding="utf-8"))
+
+        builder = (ROOT / "tools" / "build_windows.py").read_text(encoding="utf-8")
+        self.assertIn("TARGET_SHARED_SOURCES", builder,
+                      "shared emblem edits can reuse stale native EXEs")
+        for target in ("audioswitcher", "hub", "agentnotes", "weatherradar"):
+            self.assertIn('"%s"' % target, builder,
+                          "the %s cache key omits the shared engine" % target)
 
     def test_dynamic_catalog_cards_hide_update_when_their_build_is_current(self):
         """Weather Radar is the first non-built-in hub card. It kept its Update
@@ -2772,10 +2835,15 @@ class SuiteFolderInstallTests(unittest.TestCase):
                          "the paint code hardcodes the dark backdrop again instead of "
                          "using the theme palette")
         emblem = (ROOT / "agent-notes" / "src" / "parts" / "emblem.c").read_text(encoding="utf-8")
-        self.assertIn("GetRValue(COL_ACCENT)", emblem,
+        engine = (ROOT / "shared" / "win32" / "suite_emblem.c").read_text(encoding="utf-8")
+        self.assertIn("SuiteEmblemResolvePalette(COL_BG, COL_ACCENT, COL_TXT", emblem,
                       "the spinning emblem uses a fixed pale colour and vanishes in light mode")
-        self.assertIn("GetRValue(COL_TXT)", emblem,
-                      "the spinning emblem has no readable theme-aware contrast")
+        self.assertIn("if (luma >= 160)", engine,
+                      "the shared emblem has no light-surface contrast branch")
+        self.assertIn("*nearColor = accent;", engine,
+                      "the shared emblem ignores the app's readable accent on a light surface")
+        self.assertIn("*farColor = text;", engine,
+                      "the shared emblem ignores readable primary text on a light surface")
 
         # --- RichEdit must explicitly receive both existing and future colour ---
         self.assertIn("EM_SETCHARFORMAT", ui_c)
@@ -2893,6 +2961,10 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("rglob", bw,
                       "the cache key no longer covers the whole src dir, so a "
                       "resource or icon change would reuse a stale EXE")
+        self.assertIn("TARGET_SHARED_SOURCES", bw,
+                      "a shared native source can change without invalidating its consumer EXE")
+        self.assertIn("target_key(name, rc_dir, libs, zig_ver)", bw,
+                      "the build key does not identify which shared sources a target consumes")
         self.assertIn("out_exe.exists()", bw,
                       "the cache would claim success for an EXE that is not there")
 

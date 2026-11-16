@@ -486,8 +486,8 @@ static void PaintAll(HWND hwnd) {
         HBITMAP spinDib = CreateDIBSection(dc, &spinBi, DIB_RGB_COLORS,
                                             (void **)&spinBits, NULL, 0);
         if (spinDib && spinBits) {
-            for (int i = 0; i < side * side; i++) spinBits[i] = COL_BG;
-            RadarEmbSpinDraw(spinBits, side, side, 0, 0, side, g_radarSpinAngle);
+            for (int i = 0; i < side * side; i++) spinBits[i] = SuiteEmblemDibPixel(COL_BG);
+            DrawWeatherRadarEmblem(spinBits, side, side, 0, 0, side, g_radarSpinAngle);
             HDC spinDc = CreateCompatibleDC(dc);
             HGDIOBJ spinOld = SelectObject(spinDc, spinDib);
             BitBlt(dc, emblem.left, emblem.top, side, side, spinDc, 0, 0, SRCCOPY);
@@ -560,8 +560,8 @@ static void PaintAll(HWND hwnd) {
 
     if (bits) {
         GdiFlush();
-        RadarEmbSpinDraw(bits, W, H, headerEmblem.left, headerEmblem.top,
-                         headerEmblem.right - headerEmblem.left, g_radarSpinAngle);
+        DrawWeatherRadarEmblem(bits, W, H, headerEmblem.left, headerEmblem.top,
+                               headerEmblem.right - headerEmblem.left, g_radarSpinAngle);
     }
     BitBlt(dc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
     if (dib) { SelectObject(mem, old); DeleteObject(dib); }
@@ -864,8 +864,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         KillTimer(hwnd, TIMER_EMBLEM);
         if (g_inputBrush) { DeleteObject(g_inputBrush); g_inputBrush = NULL; }
         if (g_bgBrush) { DeleteObject(g_bgBrush); g_bgBrush = NULL; }
-        free(g_radarEmbCache.src);
-        g_radarEmbCache.src = NULL;
+        ReleaseWeatherRadarEmblem();
         PostQuitMessage(0);
         return 0;
     }

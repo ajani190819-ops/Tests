@@ -144,6 +144,7 @@ static UINT GetWinDpi(HWND h) {
       this one file. ---- */
 #include "parts/config_outbox.c"
 #include "parts/http_agent.c"
+#include "../../shared/win32/suite_emblem.c"
 #include "parts/emblem.c"
 #include "parts/ui.c"
 #include "parts/entry.c"

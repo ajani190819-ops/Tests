@@ -8,9 +8,10 @@
 - **Git is canonical.** Source code, tests, exact procedures, release records,
   and branch-specific state live in this repository. A Drive outage or a stale
   document must never block a build, test, release, or recovery.
-- **Drive is the readable project guide.** It gives the owner and agents a
-  short, high-level map of the apps, their roles, important user flows, and the
-  repository paths where detailed information lives.
+- **Drive is the extensive readable operating guide.** It gives the owner and
+  agents the product map, app roles, important user flows, release background,
+  historical context, and links into the repository. It is where narrative that
+  is useful to people but not needed to build safely belongs.
 - **Agent Notes remains separate.** `Agent Notes - Tests repo` is the live
   quick-capture inbox, not the architecture guide.
 
@@ -25,5 +26,7 @@ safety constraint, update workflow, release policy, or repository navigation:
 4. Record any changed Drive file ID or sync policy here.
 
 Do not mirror full source files, credentials, temporary task notes, or detailed
-step-by-step test output into Drive. If Drive and Git disagree, correct Drive to
-match Git.
+step-by-step test output into Drive. Keep only the compact operational facts
+required for offline implementation in `.agent/`; move long historical and
+human-facing narrative into the Drive guide. If Drive and Git disagree, correct
+Drive to match Git.

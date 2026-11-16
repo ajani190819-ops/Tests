@@ -184,9 +184,7 @@ static void PaintEmblemBlit(HDC dc, int x, int y, int sz) {
     if (sz < 8 || sz > 512) return;
     uint32_t *px = (uint32_t *)malloc((size_t)sz * sz * sizeof(uint32_t));
     if (!px) return;
-    uint32_t bgP = ((uint32_t)GetRValue(COL_BG) << 16) |
-                   ((uint32_t)GetGValue(COL_BG) << 8) |
-                   (uint32_t)GetBValue(COL_BG);
+    uint32_t bgP = SuiteEmblemDibPixel(COL_BG);
     for (int i = 0; i < sz * sz; i++) px[i] = bgP;
     DrawWayfinderEmblem(px, sz, sz, 0, 0, sz);
     BITMAPINFO bmi;

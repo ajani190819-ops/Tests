@@ -108,6 +108,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
         wcsncpy(g_status, L"Ready - type a note and press Send to Agent.", 255);
 
     SetTimer(g_hwnd, TIMER_FLUSH, 60000, NULL);
+    g_spinAngle = SuiteEmblemAngleNow(GetTickCount64(), 30000ULL);
     SetTimer(g_hwnd, TIMER_SPIN, 50, NULL);
     if (LinkDiscoveryTick()) {
         wcsncpy(g_status, L"Agent session found - notes will deliver automatically.", 255);

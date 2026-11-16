@@ -22,8 +22,8 @@
 #include <string.h>
 #include <wchar.h>
 
-#define HUB_VERSION       "2.8.49"
-#define HUB_VERSION_W     L"2.8.49"
+#define HUB_VERSION       "2.8.50"
+#define HUB_VERSION_W     L"2.8.50"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -363,6 +363,7 @@ static void RebuildFontsAndIcons(HWND hwnd) {
       parts/ and is textually included here IN ORIGINAL ORDER, so project_hub.c
       is still ONE translation unit. Edit the part files; the build compiles
       this one file. ---- */
+#include "../../shared/win32/suite_emblem.c"
 #include "parts/emblem.c"
 #include "parts/content_identity.c"
 #include "parts/http_layer.c"

@@ -26,6 +26,6 @@ Read only the files needed for the current task, and always read them in **one p
 
 ## Maintenance rules
 
-- Keep `.agent/STATE.md` current and scannable (no hard length cap — the old 120-line budget is retired).
+- Keep `.agent/STATE.md` short, current, and limited to active work plus offline safety facts.
 - Put stable technical invariants in `.agent/facts/` so no future session ever wastes time re-discovering them.
-- Never duplicate authoritative prose across Git docs — link to the single source of truth. The owner-approved Drive Project Guide is the concise, human-readable mirror; keep its details high-level and correct it from Git when needed.
+- Never duplicate authoritative prose across Git docs — link to the single source of truth. The owner-approved Drive Project Guide is the extensive human-readable operating guide; synchronize it from verified Git without moving code-level safety rules out of the repository.
