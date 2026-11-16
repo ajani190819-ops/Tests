@@ -504,6 +504,20 @@
   "label": "Agent Notes never emits a native alert for a newly published wait"
  },
  {
+  "id": "notes-discovery-00",
+  "file": "agent-notes/src/parts/wait_alerts.c",
+  "old": "    if (LinkDiscoveryTick()) result->linkFound = 1;",
+  "new": "    if (!g_link[0] && LinkDiscoveryTick()) result->linkFound = 1;",
+  "label": "Agent Notes stops refreshing a stale saved session link"
+ },
+ {
+  "id": "hub-notes-open-00",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "        if (ShowRunningAgentNotes()) {",
+  "new": "        if (0 && ShowRunningAgentNotes()) {",
+  "label": "Hub Open no longer reveals a tray-hidden Agent Notes window"
+ },
+ {
   "id": "brand-00",
   "file": "tools/generate_suite_icons.py",
   "old": "    for stale in REDUNDANT_BRAND_EXPORTS:",

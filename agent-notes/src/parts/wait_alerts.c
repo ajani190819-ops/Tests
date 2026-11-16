@@ -93,7 +93,10 @@ static DWORD WINAPI StatusPollThread(LPVOID unused) {
     StatusPollResult *result = (StatusPollResult *)calloc(1, sizeof(*result));
     if (!result) { InterlockedExchange(&g_statusPollActive, 0); return 0; }
 
-    if (!g_link[0] && LinkDiscoveryTick()) result->linkFound = 1;
+    /* A persisted link proves only that a previous session existed. Poll the
+       committed branch address too, so a fresh Arena sandbox can replace a
+       dead saved endpoint without asking the owner to copy anything. */
+    if (LinkDiscoveryTick()) result->linkFound = 1;
     wchar_t link[256];
     wcsncpy(link, g_link, 255);
     link[255] = L'\0';

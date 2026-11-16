@@ -6,9 +6,11 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 
 ## Released work
 
-- **Project Hub 2.8.51:** `Update Hub` appears only for a verified newer remote
+- **Project Hub 2.8.52:** `Update Hub` appears only for a verified newer remote
   build; `Update All` remains. Default-on newest-test-branch following ranks
-  qualifying branch-tip commit dates. A manual Branch choice pauses it.
+  qualifying branch-tip commit dates, persists that selected branch for Agent
+  Notes session discovery, and a manual Branch choice pauses it. Hub Open
+  directly reveals a tray-hidden Agent Notes window before attempting a launch.
 - **Agent Notes waiting receipts:** implementation `ad9232009b9f38c287727123ddd404b204ce26e1`,
   released by marker `5343e54`. The direct local outbox records **Saved** only
   after the live receiver flushes `.agent/INBOX.md`, then **Read** only after an

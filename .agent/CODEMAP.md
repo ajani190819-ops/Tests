@@ -21,8 +21,9 @@
 - L157  f PromptBranchName
 - L162  f SetActiveBranch
 - L184  f ShowBranchMenu
-- L220  f HandleActionCommand
-- L701  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
+- L225  f ShowRunningAgentNotes
+- L239  f HandleActionCommand
+- L729  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
 
 ## project-hub/src/parts/builtin_card_text.c
 
@@ -161,8 +162,8 @@
 - L264  f IsArenaTestBranch
 - L278  f FindLatestArenaTestBranch
 - L335  f RefreshAutomaticBranch
-- L371  f VerNewer
-- L384  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
+- L376  f VerNewer
+- L389  f ResolveShortcutTargetDir  — Resolve directory from an existing .lnk shortcut if the user previously installed elsewhere
 - globals: g_hcache (L13), g_hudDisabled (L162), g_orcaDisabled (L163)
 
 ## project-hub/src/parts/workers_install.c
@@ -535,8 +536,9 @@
 - L86  f FlushOutbox
 - L174  f HttpGetText
 - L214  f HealthOk
-- L222  f LinkDiscoveryTick
-- L252  f StartFlush
+- L230  f LinkDiscoveryTick
+- L267  f StartFlush
+- globals: g_lastLinkDiscoveryAt (L228)
 
 ## agent-notes/src/parts/ui.c
 
@@ -561,8 +563,8 @@
 - L50  f ShowAgentWaitingAlert
 - L68  f ShowAgentNotesTrayMenu
 - L84  f JsonBoolTrue
-- L141  f StartStatusPoll
-- L148  f HandleStatusPoll
+- L144  f StartStatusPoll
+- L151  f HandleStatusPoll
 
 ## audio-switcher/src/audio_switcher.c
 
@@ -1015,10 +1017,10 @@
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
 - L2627  f SuiteFolderInstallTests
-- L3480  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3556  f AudioSwitcherReachabilityTests
-- L3740  f AudioSwitcherSessionSweepTests
-- L3881  f AppOpenFocusTests
+- L3520  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3596  f AudioSwitcherReachabilityTests
+- L3780  f AudioSwitcherSessionSweepTests
+- L3921  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

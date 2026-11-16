@@ -219,12 +219,27 @@ static int HealthOk(const wchar_t *link) {
     return HttpGetText(url, buf, 64) > 0;
 }
 
+/* The saved link is only a last-known session. Arena preview addresses are
+   deliberately short-lived, so keep asking the Hub-selected branch for its
+   current committed address even while an old link is present. The one-minute
+   gate matches the cache-buster below: it avoids four identical GitHub reads
+   per watcher minute without delaying a newly written Hub branch setting. */
+#define LINK_DISCOVERY_INTERVAL_MS 60000ULL
+static ULONGLONG g_lastLinkDiscoveryAt = 0;
+
 int LinkDiscoveryTick(void) {
     wchar_t cfg[MAX_PATH], branch[64] = L"";
     GetEnvironmentVariableW(L"LOCALAPPDATA", cfg, MAX_PATH);
     wcsncat(cfg, L"\\ProjectHub\\config.ini", MAX_PATH - wcslen(cfg) - 1);
     GetPrivateProfileStringW(L"Update", L"Branch", L"", branch, 63, cfg);
+    /* No branch may simply mean that Project Hub has not written its first
+       automatic selection yet. Do not start the throttle until a branch
+       exists, so the next 15-second watcher pass adopts it promptly. */
     if (!branch[0]) return 0;
+    ULONGLONG now = GetTickCount64();
+    if (g_lastLinkDiscoveryAt && now - g_lastLinkDiscoveryAt < LINK_DISCOVERY_INTERVAL_MS)
+        return 0;
+    g_lastLinkDiscoveryAt = now;
     wchar_t url[384];
     _snwprintf(url, 383,
                L"https://raw.githubusercontent.com/ajani190819-ops/Tests/%s/"

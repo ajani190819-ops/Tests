@@ -357,6 +357,11 @@ static void RefreshAutomaticBranch(void) {
     }
     LeaveCriticalSection(&g_cs);
     if (changed) {
+        /* Agent Notes reads this same selected branch to discover the live
+           session endpoint. Persist automatic changes too: keeping the old
+           manual value made it poll a dead session forever while the Hub had
+           already moved on to the newest active test branch. */
+        SaveBranchCfg(newest);
         wchar_t msg[192];
         _snwprintf(msg, 191, L"Following newest active test branch: %s", newest);
         msg[191] = L'\0';

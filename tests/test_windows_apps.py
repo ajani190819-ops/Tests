@@ -2841,8 +2841,10 @@ class SuiteFolderInstallTests(unittest.TestCase):
         link" - queued-is-not-broken is the whole point.
         """
         ha = (ROOT / "agent-notes" / "src" / "parts" / "http_agent.c").read_text(encoding="utf-8")
+        watch = (ROOT / "agent-notes" / "src" / "parts" / "wait_alerts.c").read_text(encoding="utf-8")
         ui = (ROOT / "agent-notes" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
         en = (ROOT / "agent-notes" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
+        branch_cache = (ROOT / "project-hub" / "src" / "parts" / "version_probe_cache.c").read_text(encoding="utf-8")
 
         self.assertIn(".agent/AGENT_LINK.txt", ha,
                       "the app no longer polls the committed session link, so the "
@@ -2852,6 +2854,19 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("if (!HealthOk(cand)) return 0;", ha,
                       "a discovered link is adopted without proving it is live, so a "
                       "dead session would replace a working link")
+        self.assertIn("LINK_DISCOVERY_INTERVAL_MS", ha,
+                      "the live-link refresh has no bounded polling interval")
+        self.assertIn("if (LinkDiscoveryTick()) result->linkFound = 1;", watch,
+                      "the watcher stopped refreshing a saved link, so a prior Arena "
+                      "sandbox can strand every queued note")
+        self.assertNotIn("if (!g_link[0] && LinkDiscoveryTick())", watch,
+                         "the watcher only discovers when its saved link is blank; "
+                         "a stale but non-empty previous-session link can never recover")
+        auto_refresh = branch_cache[branch_cache.index("static void RefreshAutomaticBranch(void)"):]
+        auto_refresh = auto_refresh[:auto_refresh.index("\n}\n")]
+        self.assertIn("SaveBranchCfg(newest);", auto_refresh,
+                      "automatic Hub branch following is not persisted for Agent Notes, "
+                      "so it can keep polling a previously selected dead branch")
         self.assertIn("StartStatusPoll()", ui,
                       "the background wait/receipt poll no longer rediscovers a new session, so "
                       "the owner would have to restart the app")
@@ -2879,6 +2894,31 @@ class SuiteFolderInstallTests(unittest.TestCase):
             self.assertIn(needle, ex,
                           "the turn-start protocol no longer mentions %s, so the "
                           "channel's last mile rots again" % needle)
+
+    def test_hub_open_reveals_a_running_agent_notes_window(self):
+        """Agent Notes normally hides to its tray. A Hub Open click must reveal
+        that instance itself instead of silently starting a second process and
+        hoping Windows grants the already-running process foreground access."""
+        entry = (ROOT / "project-hub" / "src" / "parts" / "branch_picker_entry.c").read_text(encoding="utf-8")
+        show = entry[entry.index("static int ShowRunningAgentNotes(void)"):]
+        show = show[:show.index("\n}\n")]
+        action = entry[entry.index("case ID_NOTES_OPEN:"):]
+        action = action[:action.index("    case ID_NOTES_UPDATE:")]
+
+        self.assertIn('FindWindowW(L"AgentNotesWnd", NULL)', show,
+                      "Hub Open cannot find the tray-hidden Agent Notes window")
+        self.assertIn("ShowWindow(notes, SW_SHOW);", show,
+                      "Hub Open no longer makes the hidden Agent Notes window visible")
+        self.assertIn("SetWindowPos(notes, HWND_TOP", show,
+                      "the revealed window can remain behind Project Hub and look unopened")
+        self.assertIn("SetForegroundWindow(notes);", show,
+                      "the revealed Agent Notes window is not brought forward")
+        self.assertIn("if (ShowRunningAgentNotes())", action,
+                      "Hub Open launches blindly instead of revealing the already-running app")
+        self.assertIn("HINSTANCE launched = ShellExecuteW", action,
+                      "Hub no longer launches Agent Notes when no existing window is present")
+        self.assertIn("(INT_PTR)launched <= 32", action,
+                      "a failed Agent Notes launch still reports success to the owner")
 
     def test_agent_notes_is_readable_in_either_windows_theme(self):
         """Agent Notes used to expose the internal session URL despite automatic

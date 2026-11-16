@@ -217,6 +217,25 @@ static void ShowBranchMenu(HWND hwnd) {
     DestroyMenu(hMenu);
 }
 
+/* "Open" is a show-or-launch action. Agent Notes normally hides to its tray,
+   so relying on a second EXE launch makes the hub look unresponsive whenever
+   the existing instance cannot take foreground through Windows' focus rules.
+   The Hub owns the user click, so it can make the known live window visible
+   directly; a new process is needed only when no window exists. */
+static int ShowRunningAgentNotes(void) {
+    HWND notes = FindWindowW(L"AgentNotesWnd", NULL);
+    if (!notes) return 0;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(notes, &pid);
+    if (pid) AllowSetForegroundWindow(pid);
+    if (IsIconic(notes)) ShowWindow(notes, SW_RESTORE);
+    else ShowWindow(notes, SW_SHOW);
+    SetWindowPos(notes, HWND_TOP, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+    SetForegroundWindow(notes);
+    return 1;
+}
+
 static void HandleActionCommand(HWND hwnd, int id) {
     wchar_t p[MAX_PATH];
     /* dynamic branch-menu entries carry an index into the fetched list */
@@ -343,11 +362,20 @@ static void HandleActionCommand(HWND hwnd, int id) {
         break;
 
     case ID_NOTES_OPEN:
-        _snwprintf(p, MAX_PATH, L"%s\\AgentNotes.exe", g_notesDir);
-        if (FileExistsW(p)) ShellExecuteW(hwnd, L"open", p, NULL, g_notesDir, SW_SHOWNORMAL);
-        else {
-            SetFooterStatus(L"Agent Notes: fetching latest AgentNotes.exe from GitHub...", 25);
-            EnqueueTask(TASK_OPEN_OR_INSTALL_NOTES);
+        if (ShowRunningAgentNotes()) {
+            SetFooterStatus(L"Agent Notes opened.", 0);
+        } else {
+            _snwprintf(p, MAX_PATH, L"%s\\AgentNotes.exe", g_notesDir);
+            if (FileExistsW(p)) {
+                HINSTANCE launched = ShellExecuteW(hwnd, L"open", p, NULL, g_notesDir, SW_SHOWNORMAL);
+                if ((INT_PTR)launched <= 32)
+                    SetFooterStatus(L"Could not open Agent Notes. Use Folder to verify its installed file.", 0);
+                else
+                    SetFooterStatus(L"Opening Agent Notes...", 0);
+            } else {
+                SetFooterStatus(L"Agent Notes: fetching latest AgentNotes.exe from GitHub...", 25);
+                EnqueueTask(TASK_OPEN_OR_INSTALL_NOTES);
+            }
         }
         break;
     case ID_NOTES_UPDATE:
