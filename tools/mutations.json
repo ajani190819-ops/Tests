@@ -261,9 +261,9 @@
  {
   "id": "wx-08",
   "file": "weather-radar/src/parts/radar.c",
-  "old": "        if (any || z <= 7) break;\n        z = 7;   /* free-tier placeholder fallback */",
+  "old": "        if (any || z <= RADAR_TILE_ZOOM_MIN) break;\n        z = RADAR_TILE_ZOOM_MIN;   /* host placeholder fallback */",
   "new": "        break;",
-  "label": "H zoom-cap fallback removed"
+  "label": "H available-source fallback removed"
  },
  {
   "id": "wx-09",
@@ -334,6 +334,13 @@
   "old": "            g_radarSpinAngle += 6.283185307179586 / 600.0;",
   "new": "            g_radarSpinAngle += 0.0;",
   "label": "U Weather Radar emblem timer no longer advances the mark"
+ },
+ {
+  "id": "wx-22",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "                g_zoom = (g_zoom >= RADAR_DISPLAY_ZOOM_MAX) ? RADAR_TILE_ZOOM_MIN : g_zoom + 1;",
+  "new": "                g_zoom = 8;",
+  "label": "V Weather Radar zoom button no longer increments into local detail levels"
  },
  {
   "id": "hub-18",

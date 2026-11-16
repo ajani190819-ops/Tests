@@ -9,11 +9,12 @@
 #define WIN_LW 1120
 #define WIN_LH 960
 #define LEFT_W 252
-/* The radar host's free imagery is most useful at zoom 8.  Draw the centred
-   two-tile focus from our three-tile fetch rather than shrinking the entire
-   768px region into the pane: it keeps nearby rain readable without asking
-   the host for a closer, unavailable zoom. */
+/* The radar host's imagery ends at level 8. Draw a centred local focus from
+   our three-tile fetch rather than shrinking the entire 768px region. Higher
+   owner-selected display levels crop this available source progressively;
+   no unsupported closer tile request is made or misrepresented as radar data. */
 #define RADAR_FOCUS_PX 512
+#define RADAR_FOCUS_MIN_PX 96
 
 static void RadarEmblemRect(RECT *r) {
     SetRect(r, S(14), S(10), S(56), S(52));
@@ -297,6 +298,10 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
     uint32_t *view = g_view;
     int ready = g_viewReady;
     int note = g_radarNote;
+    int displayZoom = g_zoom;
+    int sourceZoom = g_baseKey[0];
+    int sourceTx = g_baseKey[1];
+    int sourceTy = g_baseKey[2];
     int frames = g_frameN;
     int fsel = g_frameSel;
     long long ftime = (frames > 0 && fsel < frames) ? g_frames[fsel].time : 0;
@@ -323,25 +328,34 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
         bi.bmiHeader.biBitCount = 32;
         bi.bmiHeader.biCompression = BI_RGB;
         /* A centred local focus makes weather around the selected place large
-           enough to read.  The worker still fetches three tiles, so this is a
-           display crop rather than a costly or unsupported closer tile zoom. */
-        int srcLeft = (GRID_PX - RADAR_FOCUS_PX) / 2;
-        int srcTop = (GRID_PX - RADAR_FOCUS_PX) / 2;
+           enough to read. Every increment beyond the actual available host
+           level halves this crop, so zoom 9/10 visibly go further while still
+           being an honest enlargement of the level-8/7 source. */
+        int focusPx = RADAR_FOCUS_PX;
+        int localSteps = displayZoom - sourceZoom;
+        while (localSteps > 0 && focusPx > RADAR_FOCUS_MIN_PX) {
+            focusPx /= 2;
+            localSteps--;
+        }
+        if (focusPx < RADAR_FOCUS_MIN_PX) focusPx = RADAR_FOCUS_MIN_PX;
+        int srcLeft = (GRID_PX - focusPx) / 2;
+        int srcTop = (GRID_PX - focusPx) / 2;
         EnterCriticalSection(&g_lock);
         StretchDIBits(mem, d.left, d.top, side, side, srcLeft, srcTop,
-                      RADAR_FOCUS_PX, RADAR_FOCUS_PX, g_view, &bi,
+                      focusPx, focusPx, g_view, &bi,
                       DIB_RGB_COLORS, SRCCOPY);
         LeaveCriticalSection(&g_lock);
         /* Crosshair on the exact place pixel, translated through the same
            focused crop used for the map so it cannot drift away from home. */
         if (hasPlace) {
             int tx = 0, ty = 0;
-            GridFor(g_baseKey[0] > 0 ? g_baseKey[0] : g_zoom, pl.lat, pl.lon, &tx, &ty);
+            int crosshairZoom = sourceZoom > 0 ? sourceZoom : RadarTileZoomForDisplay(displayZoom);
+            GridFor(crosshairZoom, pl.lat, pl.lon, &tx, &ty);
+            if (sourceZoom > 0) { tx = sourceTx; ty = sourceTy; }
             double px = 0, py = 0;
-            PlacePixelInGrid(g_baseKey[0] > 0 ? g_baseKey[0] : g_zoom, pl.lat, pl.lon,
-                             tx, ty, &px, &py);
-            int cx = d.left + (int)((px - srcLeft) / (double)RADAR_FOCUS_PX * (double)side);
-            int cy = d.top + (int)((py - srcTop) / (double)RADAR_FOCUS_PX * (double)side);
+            PlacePixelInGrid(crosshairZoom, pl.lat, pl.lon, tx, ty, &px, &py);
+            int cx = d.left + (int)((px - srcLeft) / (double)focusPx * (double)side);
+            int cy = d.top + (int)((py - srcTop) / (double)focusPx * (double)side);
             if (cx >= d.left && cx < d.right && cy >= d.top && cy < d.bottom) {
                 /* Two contrasting rings remain visible over both pale roads
                    and the strongest red/yellow precipitation echoes. */
@@ -402,8 +416,11 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
                    DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
     if (note) {
-        RECT zr = { img.right - S(250), img.top + S(6), img.right - S(8), img.top + S(28) };
-        DrawTextAt(mem, L"zoom capped by the tile host", &zr, g_fontSmall, COL_WARN,
+        RECT zr = { img.right - S(360), img.top + S(6), img.right - S(8), img.top + S(28) };
+        const wchar_t *zoomNote = note == 1
+            ? L"radar source limited — using available imagery"
+            : L"detail zoom — sourced from host level 8";
+        DrawTextAt(mem, zoomNote, &zr, g_fontSmall, COL_WARN,
                    DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
     RECT at = { img.left, card->bottom - S(22), card->right - S(14), card->bottom - S(8) };
@@ -751,13 +768,22 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 break;
             case BTN_PREV:  StepFrame(-1); break;
             case BTN_NEXT:  StepFrame(1); break;
-            case BTN_ZOOM:
+            case BTN_ZOOM: {
+                int oldTileZoom, newTileZoom;
                 EnterCriticalSection(&g_lock);
-                g_zoom = (g_zoom == 8) ? 7 : 8;
+                oldTileZoom = RadarTileZoomForDisplay(g_zoom);
+                g_zoom = (g_zoom >= RADAR_DISPLAY_ZOOM_MAX) ? RADAR_TILE_ZOOM_MIN : g_zoom + 1;
+                newTileZoom = RadarTileZoomForDisplay(g_zoom);
+                /* Levels 9 and 10 intentionally reuse level-8 imagery as a
+                   local detail crop. They update instantly instead of issuing
+                   an unsupported host request. */
+                if (newTileZoom == oldTileZoom && g_baseKey[0] == newTileZoom)
+                    g_radarNote = g_zoom > newTileZoom ? 2 : 0;
                 LeaveCriticalSection(&g_lock);
-                RequestTiles();
+                if (oldTileZoom != newTileZoom) RequestTiles();
                 InvalidateRect(hwnd, NULL, FALSE);
                 break;
+            }
             case BTN_KEEP: {
                 const Place *p = CurrentPlace();
                 if (p) {

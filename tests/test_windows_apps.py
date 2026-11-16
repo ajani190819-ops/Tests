@@ -1457,9 +1457,21 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("if (dst[i] & 0xFF000000u)", rdc,
                       "an empty tile is no longer detected by its alpha, so the zoom "
                       "fallback can never see a placeholder")
-        self.assertIn("z = 7;", rdc,
-                      "the free-tier zoom cap has no fallback: beyond it the host "
-                      "answers 200 with an empty PNG and the pane shows nothing")
+        self.assertIn("z = RADAR_TILE_ZOOM_MIN;", rdc,
+                      "the source-level fallback is gone: a placeholder response would leave "
+                      "the pane without available imagery")
+
+        # The owner can now request closer detail without sending RainViewer
+        # unsupported level-9/10 calls. Levels 9 and 10 are visibly tighter
+        # local crops of the available level-8 source; level 7/8 transitions
+        # still fetch the distinct available source grids.
+        self.assertIn("#define RADAR_DISPLAY_ZOOM_MAX  10", main)
+        self.assertIn("RadarTileZoomForDisplay(displayZoom)", rdc)
+        self.assertIn("g_zoom = (g_zoom >= RADAR_DISPLAY_ZOOM_MAX) ? RADAR_TILE_ZOOM_MIN : g_zoom + 1;", ui)
+        self.assertIn("if (oldTileZoom != newTileZoom) RequestTiles();", ui)
+        self.assertIn("int localSteps = displayZoom - sourceZoom;", ui)
+        self.assertIn("focusPx /= 2;", ui)
+        self.assertIn("detail zoom — sourced from host level 8", ui)
         self.assertIn("openstreetmap contributors", ui.lower(),
                       "OSM tiles ship without the credit their licence requires")
         self.assertIn("rainviewer", ui.lower(),

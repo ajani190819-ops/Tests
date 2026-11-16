@@ -85,6 +85,13 @@ enum { ID_TRAY_OPEN = 201, ID_TRAY_EXIT = 202 };
 #define GRID_TILES     3               /* 3x3 tiles per radar view */
 #define TILE_PX        256
 #define GRID_PX        (GRID_TILES * TILE_PX)
+/* RainViewer imagery is available only through host level 8 in this app's
+   route. Higher owner-selected levels are honest local detail crops from that
+   latest available imagery, not unsupported network requests masquerading as
+   more precise radar data. */
+#define RADAR_TILE_ZOOM_MIN     7
+#define RADAR_TILE_ZOOM_MAX     8
+#define RADAR_DISPLAY_ZOOM_MAX  10
 
 /* Worker jobs. One thread, one queued job at a time: the UI never blocks and
    a job always writes to staging, never to what is on screen. */
@@ -180,9 +187,10 @@ static RadarFrame g_frames[MAX_FRAMES];
 static int        g_frameN = 0;
 static int        g_frameSel = 0;
 static int        g_playing = 0;
-static int        g_zoom = 8;           /* 8 first; falls back to 7 if empty */
+static int        g_zoom = 8;           /* selected display detail: 7 through 10 */
 static wchar_t    g_radarHost[160] = L"";
-static int        g_radarNote = 0;      /* 1 = fell back to zoom 7 */
+/* 1 = host fell back to its available level; 2 = local detail beyond host 8 */
+static int        g_radarNote = 0;
 
 /* decoded imagery: 768x768 each, owned by whoever the UI currently points at */
 static uint32_t *g_view = NULL;         /* composited radar over basemap */
@@ -194,6 +202,15 @@ static int       g_viewReady = 0;
 
 static int S(int px) {
     return MulDiv(MulDiv(px, (int)g_dpi, 96), g_fit, 100);
+}
+
+/* Keep network requests inside the known available imagery range. Display
+   levels 9 and 10 are deliberately local crops of level 8, preserving the
+   selected-place focus without claiming a non-existent finer radar source. */
+static int RadarTileZoomForDisplay(int displayZoom) {
+    if (displayZoom > RADAR_TILE_ZOOM_MAX) return RADAR_TILE_ZOOM_MAX;
+    if (displayZoom < RADAR_TILE_ZOOM_MIN) return RADAR_TILE_ZOOM_MIN;
+    return displayZoom;
 }
 
 /* ---- modularized (unity build): each section lives in its own file under
