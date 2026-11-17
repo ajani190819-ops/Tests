@@ -1,7 +1,7 @@
 # Windows Suite Architecture & Invariants
 
 - Status: confirmed
-- Last verified: 2026-10-22
+- Last verified: 2026-11-16
 - Read when: touching `project-hub/`, `bluetooth-guard/`, `keyboard-lighting/`, `dns-pilot/`, or `docs/brand/`
 
 ## Fast One-Shot Commands
