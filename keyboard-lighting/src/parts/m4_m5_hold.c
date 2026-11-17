@@ -10,18 +10,22 @@
         and some models send a RELEASE frame (byte1 == 0, like the ROG
         Ally) or press|0x80. A press+release pair gives TRUE hold with
         no repeats needed at all.
-   All three feed one state machine: press starts a paced token stream
-   (the engine turns each token into one 5% step), release stops it.
-   Learned bindings persist in presets.ini [Keys] M4Scan=/M5Scan=/M4Hid=/
-   M5Hid=. Without any hold signal, behavior stays a clean tap per press. */
-typedef struct KeyRec { ULONGLONG tick; DWORD scan; BYTE down; BYTE injected; } KeyRec;
+   All three feed one state machine: the first token takes an immediate 5%
+   step, then the engine glides 1% every 30 ms while fresh tokens confirm the
+   hold; release stops it.
+   Learned bindings persist in presets.ini [Keys] M4Scan=/M5Scan=/M4Vk=/
+   M5Vk=/M4Hid=/M5Hid=/M4HidRelease=/M5HidRelease=. Without any hold signal,
+   behavior stays a clean tap per press. */
+typedef struct KeyRec { ULONGLONG tick; DWORD scan; WORD vk; BYTE down; BYTE injected; } KeyRec;
 static KeyRec    g_keyRing[256];
 static int       g_keyRingHead = 0;
 typedef struct HidRec { ULONGLONG tick; DWORD code; BYTE rel; } HidRec;
 static HidRec    g_hidRing[256];
 static int       g_hidRingHead = 0;
 static int       g_scanBound[2] = { 0, 0 };
+static DWORD     g_scanVk[2] = { 0, 0 };
 static DWORD     g_hidCode[2] = { 0, 0 };
+static DWORD     g_hidLastCode = 0;
 static BYTE      g_scanArmed[2] = { 1, 1 };
 static BYTE      g_hidDown[2] = { 0, 0 };
 static BYTE      g_holdOn[2] = { 0, 0 };
@@ -33,9 +37,55 @@ static int       g_learnN[2] = { 0, 0 };
 static DWORD     g_learnHid[2] = { 0, 0 };
 static int       g_learnHidN[2] = { 0, 0 };
 static char      g_seenTok[2][32];
+static ULONGLONG g_pendingLearnAt[2] = { 0, 0 };
+static ULONGLONG g_pendingLearnUntil[2] = { 0, 0 };
+
+static void ReleaseSignal(int dir, ULONGLONG now);
+static void PressSignal(int dir, int repeat, ULONGLONG now);
+static void PersistKeyValue(const wchar_t *key, DWORD value);
+static void MarkHidReleaseSeen(int dir);
 
 static int HasReleaseSrc(int dir) {
-    return g_scanBound[dir] != 0 || g_hidRelSeen[dir] >= 2;
+    /* One observed HID press/release pair is a real release source. Requiring
+       two pairs left a new M4 binding in single-step mode for two extra presses. */
+    return g_scanBound[dir] != 0 ||
+           (g_hidCode[dir] != 0 && g_hidRelSeen[dir] >= 1);
+}
+
+static ULONGLONG TickDistance(ULONGLONG a, ULONGLONG b) {
+    return a >= b ? a - b : b - a;
+}
+
+static int ScanCurrentlyDown(DWORD scan, DWORD vk) {
+    if (vk > 0 && vk < 0xFF)
+        return (GetAsyncKeyState((int)vk) & 0x8000) != 0;
+    for (int i = 0; i < 256; i++) {
+        int idx = (g_keyRingHead + 255 - i) & 255;
+        KeyRec *r = &g_keyRing[idx];
+        if (r->tick == 0) break;
+        if (r->scan == scan) return r->down != 0;
+    }
+    return 0;
+}
+
+static int HidCurrentlyDown(DWORD code) {
+    for (int i = 0; i < 256; i++) {
+        int idx = (g_hidRingHead + 255 - i) & 255;
+        HidRec *r = &g_hidRing[idx];
+        if (r->tick == 0) break;
+        if (r->code == code) return !r->rel;
+    }
+    return 0;
+}
+
+static int HidReleaseSeen(DWORD code) {
+    for (int i = 0; i < 256; i++) {
+        int idx = (g_hidRingHead + 255 - i) & 255;
+        HidRec *r = &g_hidRing[idx];
+        if (r->tick == 0) break;
+        if (r->code == code && r->rel) return 1;
+    }
+    return 0;
 }
 
 static void HoldTokenWrite(int dir) {
@@ -50,7 +100,15 @@ static void HoldPump(void) {
     ULONGLONG now = GetTickCount64();
     for (int i = 0; i < 2; i++) {
         if (!g_holdOn[i]) continue;
-        if (!HasReleaseSrc(i) && now - g_sigAt[i] > 300ULL) {
+        /* Raw key-up can be lost while the UI thread is busy. For ordinary
+           virtual keys, poll the physical state too; vendor VKey 255 stays on
+           the raw-input/HID release path. */
+        if (g_scanBound[i] && g_scanVk[i] > 0 && g_scanVk[i] < 0xFF &&
+            (GetAsyncKeyState((int)g_scanVk[i]) & 0x8000) == 0) {
+            ReleaseSignal(i, now);
+            continue;
+        }
+        if (!HasReleaseSrc(i) && !g_hidDown[i] && now - g_sigAt[i] > 300ULL) {
             g_holdOn[i] = 0;
             continue;
         }
@@ -69,10 +127,15 @@ static void HoldPump(void) {
         if (now - g_sigAt[i] > 10000ULL) {
             g_holdOn[i] = 0;
             g_scanArmed[i] = 1;
+            g_hidDown[i] = 0;
             continue;
         }
         if (now >= g_scanNext[i]) {
-            g_scanNext[i] = now + 60;
+            /* WM_TIMER runs every 45 ms. Pump once per timer tick so the
+               engine's 120 ms hold window survives one delayed UI tick; a
+               60 ms target was quantized to ~90 ms and occasionally looked
+               like separate taps when the window thread stalled. */
+            g_scanNext[i] = now + 30;
             HoldTokenWrite(i);
         }
     }
@@ -86,7 +149,7 @@ static void PressSignal(int dir, int repeat, ULONGLONG now) {
         /* Release is observable: stream for the whole hold. The press
            itself already stepped once via G-Helper's Custom token. */
         g_holdOn[dir] = 1;
-        g_scanNext[dir] = now + 60;
+        g_scanNext[dir] = now + 30;
     }
 }
 
@@ -96,7 +159,7 @@ static void ReleaseSignal(int dir, ULONGLONG now) {
     g_scanArmed[dir] = 1;
     if (g_hidDown[dir]) {
         g_hidDown[dir] = 0;
-        if (g_hidRelSeen[dir] < 255) g_hidRelSeen[dir]++;
+        MarkHidReleaseSeen(dir);
     }
 }
 
@@ -119,21 +182,74 @@ static void OnScanEvent(DWORD scan, int down, int injected, ULONGLONG now) {
     }
 }
 
+static void PersistKeyValue(const wchar_t *key, DWORD value) {
+    wchar_t num[16], path[MAX_PATH];
+    _snwprintf(num, 15, L"%lu", (unsigned long)value);
+    num[15] = L'\0';
+    _snwprintf(path, MAX_PATH - 1, L"%s\\presets.ini", g_cfgDir);
+    path[MAX_PATH - 1] = L'\0';
+    WritePrivateProfileStringW(L"Keys", key, num, path);
+}
+
+static void MarkHidReleaseSeen(int dir) {
+    if (g_hidRelSeen[dir] == 0) {
+        g_hidRelSeen[dir] = 1;
+        PersistKeyValue(dir == 0 ? L"M4HidRelease" : L"M5HidRelease", 1);
+    }
+}
+
+static void BindScan(int dir, DWORD scan, DWORD vk) {
+    if (!scan) return;
+    g_scanBound[dir] = (int)scan;
+    g_scanVk[dir] = vk;
+    g_scanArmed[dir] = 1;
+    PersistKeyValue(dir == 0 ? L"M4Scan" : L"M5Scan", scan);
+    PersistKeyValue(dir == 0 ? L"M4Vk" : L"M5Vk", vk);
+}
+
+static void BindHid(int dir, DWORD code) {
+    if (!code) return;
+    g_hidCode[dir] = code;
+    PersistKeyValue(dir == 0 ? L"M4Hid" : L"M5Hid", code);
+}
+
 static void OnRawHid(const BYTE *b, int len, ULONGLONG now) {
     if (len < 2 || b[0] != 0x5A) return;
-    DWORD code = b[1];
+    DWORD rawCode = b[1];
+    DWORD code = rawCode;
     int rel = 0, mapped = -1;
-    if (code == 0) {
+    if (rawCode == 0) {
         rel = 1;
-        for (int i = 0; i < 2; i++) if (g_hidDown[i]) mapped = i;
+        for (int i = 0; i < 2; i++) {
+            if (g_hidDown[i]) {
+                mapped = i;
+                code = g_hidCode[i];
+            }
+        }
+        if (mapped < 0) code = g_hidLastCode;
+    } else if ((rawCode & 0x80) != 0) {
+        /* Some ASUS reports encode release as press|0x80. Until a learned
+           binding identifies it, retain the base code in the learning ring. */
+        rel = 1;
+        code = rawCode & 0x7F;
     }
     for (int i = 0; i < 2; i++) {
-        if (g_hidCode[i] != 0 && code == g_hidCode[i]) mapped = i;
-        if (g_hidCode[i] != 0 && code == (g_hidCode[i] | 0x80)) { mapped = i; rel = 1; }
+        if (g_hidCode[i] != 0 && rawCode == g_hidCode[i]) {
+            mapped = i;
+            code = g_hidCode[i];
+            rel = 0;
+        }
+        if (g_hidCode[i] != 0 && rawCode == (g_hidCode[i] | 0x80)) {
+            mapped = i;
+            code = g_hidCode[i];
+            rel = 1;
+        }
     }
+    if (!rel && rawCode != 0) g_hidLastCode = code;
     HidRec *r = &g_hidRing[g_hidRingHead];
     r->tick = now; r->code = code; r->rel = (BYTE)rel;
     g_hidRingHead = (g_hidRingHead + 1) & 255;
+    if (rel && code != 0 && code == g_hidLastCode) g_hidLastCode = 0;
     if (mapped >= 0) {
         if (rel) {
             ReleaseSignal(mapped, now);
@@ -145,76 +261,194 @@ static void OnRawHid(const BYTE *b, int len, ULONGLONG now) {
     }
 }
 
-static void LearnFromRing(int dir) {
+static int ParseBrightTokenTick(const char *token, ULONGLONG now, ULONGLONG *tick) {
+    char *end = NULL;
+    unsigned long long value;
+    if (!token || !token[0] || !tick) return 0;
+    value = strtoull(token, &end, 10);
+    if (end == token || *end != '\0' || (ULONGLONG)value > now) return 0;
+    *tick = (ULONGLONG)value;
+    return 1;
+}
+
+static void LearnFromRing(int dir, ULONGLONG tokenAt, int newToken) {
     ULONGLONG now = GetTickCount64();
-    int cand = 0;
-    for (int i = 0; i < 256; i++) {
-        int idx = (g_keyRingHead + 255 - i) & 255;
-        KeyRec *r = &g_keyRing[idx];
-        if (r->tick == 0) break;
-        if (now - r->tick > 1500ULL) break;
-        if (!r->down || r->injected) continue;
-        if (r->scan == 0x1D || r->scan == 0x2A || r->scan == 0x36 || r->scan == 0x38) continue;
-        cand = (int)r->scan;
-        break;
-    }
-    if (cand) {
-        if (g_learnCand[dir] == cand) {
-            g_learnN[dir]++;
-            if (g_learnN[dir] >= 2 && g_scanBound[dir] != cand) {
-                wchar_t num[16], path[MAX_PATH];
-                g_scanBound[dir] = cand;
-                g_scanArmed[dir] = 1;
-                _snwprintf(num, 15, L"%d", cand);
-                num[15] = L'\0';
-                _snwprintf(path, MAX_PATH, L"%s\\presets.ini", g_cfgDir);
-                WritePrivateProfileStringW(L"Keys", dir == 0 ? L"M4Scan" : L"M5Scan", num, path);
+    if (!tokenAt) tokenAt = now;
+
+    /* Learn each input family only until it has a binding. The token file also
+       receives our own repeat tokens; those must not rebind M4 to a nearby key
+       pressed while the brightness key is held. */
+    if (g_scanBound[dir] == 0) {
+        /* G-Helper writes its command token just after the physical key event.
+           Correlate timestamps so the first held gesture can bind and repeat. */
+        KeyRec *bestKey = NULL;
+        ULONGLONG bestKeyDelta = (ULONGLONG)-1;
+        for (int i = 0; i < 256; i++) {
+            int idx = (g_keyRingHead + 255 - i) & 255;
+            KeyRec *r = &g_keyRing[idx];
+            if (r->tick == 0) break;
+            if (!r->down || r->injected || r->scan == 0) continue;
+            if (r->scan == 0x1D || r->scan == 0x2A || r->scan == 0x36 || r->scan == 0x38) continue;
+            ULONGLONG delta = TickDistance(r->tick, tokenAt);
+            if (delta <= 750ULL && delta < bestKeyDelta) {
+                bestKey = r;
+                bestKeyDelta = delta;
             }
-        } else {
-            g_learnCand[dir] = cand;
-            g_learnN[dir] = 1;
+        }
+        if (bestKey) {
+            BindScan(dir, bestKey->scan, bestKey->vk);
+            g_learnCand[dir] = (int)bestKey->scan;
+            g_learnN[dir] = 2;
+            if (ScanCurrentlyDown(bestKey->scan, bestKey->vk)) {
+                g_scanArmed[dir] = 0;
+                PressSignal(dir, 0, now);
+            }
+        } else if (newToken) {
+            /* If a delayed token still finds the key down, bind it now; for a
+               released tap, retain the two-distinct-token learning fallback. */
+            int cand = 0;
+            DWORD candVk = 0;
+            for (int i = 0; i < 256; i++) {
+                int idx = (g_keyRingHead + 255 - i) & 255;
+                KeyRec *r = &g_keyRing[idx];
+                if (r->tick == 0) break;
+                if (now < r->tick || now - r->tick > 1500ULL) break;
+                if (!r->down || r->injected) continue;
+                if (r->scan == 0x1D || r->scan == 0x2A || r->scan == 0x36 || r->scan == 0x38) continue;
+                cand = (int)r->scan;
+                candVk = r->vk;
+                break;
+            }
+            if (cand && ScanCurrentlyDown((DWORD)cand, candVk)) {
+                /* The poll can lag the launch token while the UI thread is
+                   busy. If the candidate is still physically down, this live
+                   gesture is stronger evidence than a second-token heuristic. */
+                BindScan(dir, (DWORD)cand, candVk);
+                g_learnCand[dir] = cand;
+                g_learnN[dir] = 2;
+                g_scanArmed[dir] = 0;
+                PressSignal(dir, 0, now);
+            } else if (cand) {
+                if (g_learnCand[dir] == cand) {
+                    g_learnN[dir]++;
+                    if (g_learnN[dir] >= 2)
+                        BindScan(dir, (DWORD)cand, candVk);
+                } else {
+                    g_learnCand[dir] = cand;
+                    g_learnN[dir] = 1;
+                }
+            }
         }
     }
-    {
-        DWORD hc = 0;
+
+    if (g_hidCode[dir] == 0) {
+        HidRec *bestHid = NULL;
+        ULONGLONG bestHidDelta = (ULONGLONG)-1;
         for (int i = 0; i < 256; i++) {
             int idx = (g_hidRingHead + 255 - i) & 255;
             HidRec *r = &g_hidRing[idx];
             if (r->tick == 0) break;
-            if (now - r->tick > 1500ULL) break;
             if (r->rel || r->code == 0) continue;
-            hc = r->code;
-            break;
+            ULONGLONG delta = TickDistance(r->tick, tokenAt);
+            if (delta <= 750ULL && delta < bestHidDelta) {
+                bestHid = r;
+                bestHidDelta = delta;
+            }
         }
-        if (hc) {
-            if (g_learnHid[dir] == hc) {
-                g_learnHidN[dir]++;
-                if (g_learnHidN[dir] >= 2 && g_hidCode[dir] != hc) {
-                    wchar_t num[16], path[MAX_PATH];
-                    g_hidCode[dir] = hc;
-                    _snwprintf(num, 15, L"%lu", (unsigned long)hc);
-                    num[15] = L'\0';
-                    _snwprintf(path, MAX_PATH, L"%s\\presets.ini", g_cfgDir);
-                    WritePrivateProfileStringW(L"Keys", dir == 0 ? L"M4Hid" : L"M5Hid", num, path);
+        if (bestHid) {
+            DWORD hc = bestHid->code;
+            BindHid(dir, hc);
+            g_learnHid[dir] = hc;
+            g_learnHidN[dir] = 2;
+            if (HidReleaseSeen(hc)) MarkHidReleaseSeen(dir);
+            if (HidCurrentlyDown(hc)) {
+                g_hidDown[dir] = 1;
+                if (!g_holdOn[dir]) {
+                    /* Adopt the first press before its report code was known;
+                       the matching release can now stop this same gesture. */
+                    g_scanArmed[dir] = 0;
+                    g_scanNext[dir] = now + 30;
+                    PressSignal(dir, 1, now);
                 }
-            } else {
-                g_learnHid[dir] = hc;
-                g_learnHidN[dir] = 1;
+            }
+        } else if (newToken) {
+            DWORD hc = 0;
+            for (int i = 0; i < 256; i++) {
+                int idx = (g_hidRingHead + 255 - i) & 255;
+                HidRec *r = &g_hidRing[idx];
+                if (r->tick == 0) break;
+                if (now < r->tick || now - r->tick > 1500ULL) break;
+                if (r->rel || r->code == 0) continue;
+                hc = r->code;
+                break;
+            }
+            if (hc) {
+                if (g_learnHid[dir] == hc) {
+                    g_learnHidN[dir]++;
+                    if (g_learnHidN[dir] >= 2)
+                        BindHid(dir, hc);
+                } else {
+                    g_learnHid[dir] = hc;
+                    g_learnHidN[dir] = 1;
+                }
             }
         }
     }
 }
 
-static void WatchBrightTokens(void) {
+static void SeedBrightTokenWatch(void) {
+    ULONGLONG now = GetTickCount64();
     for (int dir = 0; dir < 2; dir++) {
         char cur[32] = { 0 };
         DWORD len = 0;
         char *txt = ReadFileUtf8(dir == 0 ? g_brightDownPath : g_brightUpPath, &len);
         if (txt) { strncpy(cur, txt, 31); free(txt); }
-        if (cur[0] && strcmp(cur, g_seenTok[dir]) != 0) {
-            int fresh = g_seenTok[dir][0] != '\0';
+        cur[31] = '\0';
+        cur[strcspn(cur, "\r\n")] = '\0';
+        if (cur[0]) {
+            ULONGLONG tokenAt = 0;
             strncpy(g_seenTok[dir], cur, 31);
-            if (fresh) LearnFromRing(dir);
+            if (ParseBrightTokenTick(cur, now, &tokenAt) && now - tokenAt <= 1500ULL) {
+                /* The app may start just after G-Helper's first launch token.
+                   Keep that fresh token pending until raw input is dispatched. */
+                g_pendingLearnAt[dir] = tokenAt;
+                g_pendingLearnUntil[dir] = now + 1500ULL;
+            }
+        } else {
+            strncpy(g_seenTok[dir], "seeded", 31);
+        }
+        g_seenTok[dir][31] = '\0';
+    }
+}
+
+static void WatchBrightTokens(void) {
+    ULONGLONG now = GetTickCount64();
+    for (int dir = 0; dir < 2; dir++) {
+        char cur[32] = { 0 };
+        DWORD len = 0;
+        char *txt = ReadFileUtf8(dir == 0 ? g_brightDownPath : g_brightUpPath, &len);
+        if (txt) { strncpy(cur, txt, 31); free(txt); }
+        cur[31] = '\0';
+        cur[strcspn(cur, "\r\n")] = '\0';
+        if (cur[0] && strcmp(cur, g_seenTok[dir]) != 0) {
+            ULONGLONG tokenAt = now;
+            ParseBrightTokenTick(cur, now, &tokenAt);
+            strncpy(g_seenTok[dir], cur, 31);
+            g_seenTok[dir][31] = '\0';
+            if (!g_holdOn[dir]) {
+                g_pendingLearnAt[dir] = tokenAt;
+                g_pendingLearnUntil[dir] = now + 1500ULL;
+                LearnFromRing(dir, tokenAt, 1);
+            } else {
+                g_pendingLearnAt[dir] = 0;
+            }
+        }
+        if (!g_holdOn[dir] && g_pendingLearnAt[dir] &&
+            now <= g_pendingLearnUntil[dir] &&
+            (g_scanBound[dir] == 0 || g_hidCode[dir] == 0)) {
+            LearnFromRing(dir, g_pendingLearnAt[dir], 0);
+        } else if (now > g_pendingLearnUntil[dir]) {
+            g_pendingLearnAt[dir] = 0;
         }
     }
 }
@@ -265,6 +499,7 @@ static void OnRawInputMsg(HWND hwnd, LPARAM lp) {
         int down = (ri->data.keyboard.Flags & RI_KEY_BREAK) == 0;
         KeyRec *r = &g_keyRing[g_keyRingHead];
         r->tick = now; r->scan = ri->data.keyboard.MakeCode;
+        r->vk = ri->data.keyboard.VKey;
         r->down = (BYTE)down; r->injected = 0;
         g_keyRingHead = (g_keyRingHead + 1) & 255;
         OnScanEvent(ri->data.keyboard.MakeCode, down, 0, now);

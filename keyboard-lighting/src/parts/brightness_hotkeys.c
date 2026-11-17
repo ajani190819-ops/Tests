@@ -235,38 +235,57 @@ static void WriteLiveBrightness(void) {
     WriteAtomicUtf8(g_livePath, buf);
 }
 
-/* Mirror external master-brightness changes (Fn F2 / F3 pressed while this
- * window is open or in tray) back into the panel. The engine owns the keys
- * and writes live.txt; anything we did not just write ourselves is adopted
- * here, so the slider, panel.json and the on-screen toast all follow along
- * exactly like screen-brightness keys drive the system OSD. */
+/* The engine can move the master many times per second during a held-key
+ * glide. Persist the settled value, not every visual frame. */
+static ULONGLONG g_brightnessCfgSaveAt = 0;
+
+static void FlushPendingBrightnessCfg(void) {
+    if (!g_brightnessCfgSaveAt) return;
+    g_brightnessCfgSaveAt = 0;
+    SavePanelCfg();
+}
+
+/* Mirror external master-brightness changes (Fn F2 / F3 and M4/M5 glides)
+ * into the panel. The engine owns live.txt while it is running: echoing every
+ * rounded sample back through ScheduleLiveApply rewrites live.txt/theme.json
+ * mid-ramp, quantizes the ramp and makes the slider jump. Read at the panel's
+ * 45 ms paint cadence, update the UI directly, and save the final value after
+ * the stream settles without writing back to the engine. */
 static void ScheduleLiveApply(void);
 
 static void OsdShow(int pct);
 
 static void PollFnBrightness(void) {
     ULONGLONG now = GetTickCount64();
-    if (now - g_lastFnPoll < 150ULL) return;
+    if (g_brightnessCfgSaveAt && now >= g_brightnessCfgSaveAt)
+        FlushPendingBrightnessCfg();
+    if (now - g_lastFnPoll < 35ULL) return;
     g_lastFnPoll = now;
     DWORD len = 0;
     char *txt = ReadFileUtf8(g_livePath, &len);
     if (!txt) return;
-    int val = atoi(txt);
+    char *end = NULL;
+    long parsed = strtol(txt, &end, 10);
+    int parseOk = end != txt;
+    while (end && (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n')) end++;
+    if (!parseOk || !end || *end != '\0') {
+        free(txt);
+        return; /* Ignore the brief truncate window while the engine writes live.txt. */
+    }
     free(txt);
+    int val = (int)parsed;
     if (val < 0) val = 0;
     if (val > 1000) val = 1000;
     int pct = (val + 5) / 10;
     if (pct == g_cfg.masterBrightness) return;
-    /* Value moved without the slider: a Fn key (or another panel) changed it. */
     g_cfg.masterBrightness = pct;
+    g_brightnessCfgSaveAt = now + 300ULL;
     if (pct <= 0)
         _snwprintf(g_toastText, 95, L"Keyboard Lights  \x00B7  Off");
     else
         _snwprintf(g_toastText, 95, L"Keyboard Lights  \x00B7  %d%%", pct);
     g_toastAt = now + 1400ULL;
     OsdShow(pct);
-    SavePanelCfg();
-    ScheduleLiveApply();
     InvalidateRect(g_hwnd, NULL, FALSE);
 }
 

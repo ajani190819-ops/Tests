@@ -52,19 +52,20 @@
 
 - L10  f Sha1BlobHexW  — ---- content identity ----------------------------------------------------
 - L57  f TreeShaFor  — The blob hash of one path inside a recursive trees response.
-- L78  f RemoteDiffers  — Exact when the remote blob hash is known; the old size comparison remains
-- L91  f DirExistsW
-- L96  f EnsureDirTree
-- L122  f SetCheckPhase
-- L127  f SetFooterStatus
-- L152  f ImageFileNameW
-- L158  f FindProcessesUsingImage  — Returns -1 when the process list cannot prove the image is clear.
-- L198  f NoProcessRunsImage
-- L231  f CloseRunningImageForUpdate  — Ask every matching instance to leave, then prove every one is gone.
-- L251  f IsExeImagePath
-- L256  f ReadTextFileUtf8
-- L272  f WriteBinaryFileAtomic
-- globals: g_checkActive (L111), g_remBtgSize (L112), g_remBtgSha (L115), g_rcFooterDot (L117)
+- L79  f RemoteIdentityKnown  — A size is still useful when the Git tree lookup is unavailable or a local
+- L83  f RemoteDiffers
+- L98  f DirExistsW
+- L103  f EnsureDirTree
+- L129  f SetCheckPhase
+- L134  f SetFooterStatus
+- L159  f ImageFileNameW
+- L165  f FindProcessesUsingImage  — Returns -1 when the process list cannot prove the image is clear.
+- L205  f NoProcessRunsImage
+- L238  f CloseRunningImageForUpdate  — Ask every matching instance to leave, then prove every one is gone.
+- L258  f IsExeImagePath
+- L263  f ReadTextFileUtf8
+- L279  f WriteBinaryFileAtomic
+- globals: g_checkActive (L118), g_remBtgSize (L119), g_remBtgSha (L122), g_rcFooterDot (L124)
 
 ## project-hub/src/parts/emblem.c
 
@@ -207,8 +208,14 @@
 ## project-hub/src/parts/workers_remote.c
 
 - L4  f ExtractLineAfter
-- L14  f WorkerCheckRemote
-- L240  f StopProcessFromLock
+- L28  f CopyTreeText
+- L36  f TreeResponseComplete
+- L51  f FetchRemoteTree
+- L109  f ClearRemoteBuildHashes
+- L120  f ClearRemoteProbeResults
+- L136  f WorkerCheckRemote
+- L414  f StopProcessFromLock
+- globals: g_treeJsonCache (L22), g_treeCacheRef (L23), g_treeCacheImmutable (L24), g_treeCacheAt (L25), g_treeRetryAt (L26)
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
@@ -320,12 +327,14 @@
 - L164  f FormatGroupPanelJson
 - L198  f SavePanelCfg
 - L229  f WriteLiveBrightness
-- L247  f PollFnBrightness
-- L276  f HelpForHit  — One-line plain-English explanation for every control, shown in the footer
-- L313  f FormatThemeBlock
-- L347  f WriteThemeJson
-- L364  f SyncLinkedZone
-- L371  f WriteHeartbeat
+- L242  f FlushPendingBrightnessCfg
+- L258  f PollFnBrightness
+- L295  f HelpForHit  — One-line plain-English explanation for every control, shown in the footer
+- L332  f FormatThemeBlock
+- L366  f WriteThemeJson
+- L383  f SyncLinkedZone
+- L390  f WriteHeartbeat
+- globals: g_brightnessCfgSaveAt (L240)
 
 ## keyboard-lighting/src/parts/brightness_osd.c
 
@@ -374,21 +383,31 @@
 
 ## keyboard-lighting/src/parts/m4_m5_hold.c
 
-- L37  f HasReleaseSrc
-- L41  f HoldTokenWrite
-- L49  f HoldPump  — One paced token per interval while the gesture is live.
-- L81  f PressSignal
-- L93  f ReleaseSignal
-- L103  f OnScanEvent
-- L122  f OnRawHid
-- L148  f LearnFromRing
-- L208  f WatchBrightTokens
-- L222  f InitRawInput
-- L255  f OnRawInputMsg
-- L295  f HoldModeRead
-- L307  f HoldModeWrite
-- L317  f HoldReadyLabel
-- globals: g_keyRing (L18), g_keyRingHead (L19), g_hidRing (L21), g_hidRingHead (L22), g_scanBound (L23), g_hidCode (L24), g_scanArmed (L25), g_hidDown (L26), g_holdOn (L27), g_hidRelSeen (L28), g_sigAt (L29), g_scanNext (L30), g_learnCand (L31), g_learnN (L32), g_learnHid (L33), g_learnHidN (L34), g_seenTok (L35)
+- L48  f HasReleaseSrc
+- L55  f TickDistance
+- L59  f ScanCurrentlyDown
+- L71  f HidCurrentlyDown
+- L81  f HidReleaseSeen
+- L91  f HoldTokenWrite
+- L99  f HoldPump  — One paced token per interval while the gesture is live.
+- L144  f PressSignal
+- L156  f ReleaseSignal
+- L166  f OnScanEvent
+- L185  f PersistKeyValue
+- L194  f MarkHidReleaseSeen
+- L201  f BindScan
+- L210  f BindHid
+- L216  f OnRawHid
+- L264  f ParseBrightTokenTick
+- L274  f LearnFromRing
+- L399  f SeedBrightTokenWatch
+- L424  f WatchBrightTokens
+- L456  f InitRawInput
+- L489  f OnRawInputMsg
+- L530  f HoldModeRead
+- L542  f HoldModeWrite
+- L552  f HoldReadyLabel
+- globals: g_keyRing (L20), g_keyRingHead (L21), g_hidRing (L23), g_hidRingHead (L24), g_scanBound (L25), g_scanVk (L26), g_hidCode (L27), g_hidLastCode (L28), g_scanArmed (L29), g_hidDown (L30), g_holdOn (L31), g_hidRelSeen (L32), g_sigAt (L33), g_scanNext (L34), g_learnCand (L35), g_learnN (L36), g_learnHid (L37), g_learnHidN (L38), g_seenTok (L39), g_pendingLearnAt (L40), g_pendingLearnUntil (L41)
 
 ## keyboard-lighting/src/parts/mouse_drag_menus.c
 
@@ -418,7 +437,7 @@
 - L242  f ApplyHubLightingToggle
 - L248  f ApplyHubExit
 - L255  f ShowTrayContextMenu
-- L548  f InitKblPaths
+- L549  f InitKblPaths
 - globals: g_pickOrig (L6), g_pickLast (L7), g_pickIdx (L8), g_pickLive (L9)
 
 ## keyboard-lighting/src/parts/ui_renderer.c
@@ -1065,15 +1084,15 @@
 
 ## tests/test_windows_apps.py
 
-- L27  f read_c_inlined
-- L43  f strip_cs_comments_and_strings
-- L165  f lex_powershell
-- L300  f WindowsDesktopAppsTests
-- L2748  f SuiteFolderInstallTests
-- L3829  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3977  f AudioSwitcherReachabilityTests
-- L4161  f AudioSwitcherSessionSweepTests
-- L4302  f AppOpenFocusTests
+- L28  f read_c_inlined
+- L44  f strip_cs_comments_and_strings
+- L166  f lex_powershell
+- L301  f WindowsDesktopAppsTests
+- L2835  f SuiteFolderInstallTests
+- L3931  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L4114  f AudioSwitcherReachabilityTests
+- L4298  f AudioSwitcherSessionSweepTests
+- L4439  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

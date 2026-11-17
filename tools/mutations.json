@@ -9,14 +9,14 @@
  {
   "id": "marker-01",
   "file": "project-hub/src/parts/workers_remote.c",
-  "old": "REPO_NAME_W, g_probeRef);\n        tp[511]",
-  "new": "REPO_NAME_W, branch);\n        tp[511]",
+  "old": "REPO_NAME_W, probeRef);\n    path[511]",
+  "new": "REPO_NAME_W, branch);\n    path[511]",
   "label": "B trees probe back on branch tip"
  },
  {
   "id": "marker-02",
   "file": "project-hub/src/parts/workers_remote.c",
-  "old": "    if (!g_probeRef[0]) _snwprintf(g_probeRef, 63, L\"%s\", branch);\n",
+  "old": "    if (!probeRef[0]) _snwprintf(probeRef, 63, L\"%s\", branch);\n",
   "new": "",
   "label": "C no-marker fallback removed"
  },
@@ -803,5 +803,33 @@
   "old": "RainEtaText(&g_fc, &g_ens, eta, 192);",
   "new": "wcscpy(eta, L\"Rain ETA: unavailable\");",
   "label": "Weather Radar computes a rain ETA but never shows it in the rain card"
+ },
+ {
+  "id": "kbl-hold-00",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "g_scanNext[i] = now + 30;",
+  "new": "g_scanNext[i] = now + 60;",
+  "label": "A 60 ms target skips 45 ms UI timer ticks and leaves a held ramp irregular"
+ },
+ {
+  "id": "kbl-live-00",
+  "file": "keyboard-lighting/src/parts/brightness_hotkeys.c",
+  "old": "if (now - g_lastFnPoll < 35ULL) return;",
+  "new": "if (now - g_lastFnPoll < 150ULL) return;",
+  "label": "Brightness readback falls back to coarse 150 ms slider updates"
+ },
+ {
+  "id": "kbl-live-01",
+  "file": "keyboard-lighting/src/parts/brightness_hotkeys.c",
+  "old": "    g_brightnessCfgSaveAt = now + 300ULL;\n",
+  "new": "    g_brightnessCfgSaveAt = now + 300ULL;\n    ScheduleLiveApply();\n",
+  "label": "The panel echoes its rounded brightness sample back into the active engine ramp"
+ },
+ {
+  "id": "kbl-live-02",
+  "file": "keyboard-lighting/src/parts/brightness_hotkeys.c",
+  "old": "if (!parseOk || !end || *end != '\\0') {",
+  "new": "if (FALSE) {",
+  "label": "A truncated live.txt sample is accepted as a bogus brightness value"
  }
 ]

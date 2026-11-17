@@ -74,12 +74,15 @@ static void RefreshProjectStatuses(void) {
     DWORD locBtgSz = LocalSizeOf(btgExeP);
     const wchar_t *btgLocal = btgExeP;
     if (!locBtgSz && g_btgExtraExe[0]) { locBtgSz = LocalSizeOf(g_btgExtraExe); btgLocal = g_btgExtraExe; }
-    BOOL btgKnown = (remBtgSz > 0 && locBtgSz > 0);
+    BOOL btgKnown = (locBtgSz > 0 && RemoteIdentityKnown(g_remBtgSha, remBtgSz));
     BOOL btgUpd = btgKnown && RemoteDiffers(g_remBtgSha, btgLocal, remBtgSz);
     DWORD locKblSz = LocalSizeOf(kblExeP2);
-    BOOL kblKnown = (remKblSz > 0 && locKblSz > 0);
-    BOOL kblUpd = kblKnown && RemoteDiffers(g_remKblSha, kblExeP2, remKblSz);
-    if (!kblUpd) kblUpd = RemoteDiffers(g_remKblPs1Sha, kblPs1P, remPs1Sz);
+    DWORD locKblPs1Sz = LocalSizeOf(kblPs1P);
+    BOOL kblExeKnown = (locKblSz > 0 && RemoteIdentityKnown(g_remKblSha, remKblSz));
+    BOOL kblPs1Known = (locKblPs1Sz > 0 && RemoteIdentityKnown(g_remKblPs1Sha, remPs1Sz));
+    BOOL kblKnown = kblExeKnown || kblPs1Known;
+    BOOL kblUpd = (kblExeKnown && RemoteDiffers(g_remKblSha, kblExeP2, remKblSz)) ||
+                  (kblPs1Known && RemoteDiffers(g_remKblPs1Sha, kblPs1P, remPs1Sz));
 
     /* The Hub action is not a permanent navigation button. It becomes
        visible only after a completed remote check proves that a newer Hub
@@ -316,7 +319,7 @@ static void RefreshProjectStatuses(void) {
     _snwprintf(dnsExe, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
     BOOL hasDns = FileHealthyW(dnsExe);
     DWORD locDnsSz = LocalSizeOf(dnsExe);
-    BOOL dnsKnown = (remDnsSz > 0 && locDnsSz > 0);
+    BOOL dnsKnown = (locDnsSz > 0 && RemoteIdentityKnown(g_remDnsSha, remDnsSz));
     BOOL dnsUpd = hasDns && dnsKnown && RemoteDiffers(g_remDnsSha, dnsExe, remDnsSz);
     BOOL dnsRunning = (FindWindowW(L"KBLSuiteDnsPilotWindow", NULL) != NULL);
     if (!hasDns) {
@@ -366,7 +369,7 @@ static void RefreshProjectStatuses(void) {
         _snwprintf(notesExe, MAX_PATH, L"%s\\AgentNotes.exe", g_notesDir);
         BOOL hasNotes = FileHealthyW(notesExe);
         DWORD locNotesSz = LocalSizeOf(notesExe);
-        BOOL notesKnown = (remNotesSz > 0 && locNotesSz > 0);
+        BOOL notesKnown = (locNotesSz > 0 && RemoteIdentityKnown(g_remNotesSha, remNotesSz));
         BOOL notesUpd = hasNotes && notesKnown && RemoteDiffers(g_remNotesSha, notesExe, remNotesSz);
         if (!hasNotes) {
             wcsncpy(g_cards[5].badge, L"Setup Ready", 47);
@@ -417,7 +420,7 @@ static void RefreshProjectStatuses(void) {
         }
         BOOL hasAs = FileHealthyW(asExe);
         DWORD locAsSz = LocalSizeOf(asExe);
-        BOOL asKnown = (remAsSz > 0 && locAsSz > 0);
+        BOOL asKnown = (locAsSz > 0 && RemoteIdentityKnown(g_remAudioSwitcherSha, remAsSz));
         BOOL asUpd = hasAs && asKnown && RemoteDiffers(g_remAudioSwitcherSha, asExe, remAsSz);
         BOOL asRunning = (FindWindowW(L"TestsAudioSwitcherWnd", NULL) != NULL);
         if (!hasAs) {
@@ -477,7 +480,7 @@ static void RefreshProjectStatuses(void) {
             wcsncpy(exePath, altPath, MAX_PATH - 1);
         BOOL has = FileHealthyW(exePath);
         DWORD locSz = LocalSizeOf(exePath);
-        BOOL known = (c->remSize > 0 && locSz > 0);
+        BOOL known = (locSz > 0 && RemoteIdentityKnown(c->remSha, c->remSize));
         BOOL upd = has && known && RemoteDiffers(c->remSha, exePath, c->remSize);
         int action = -1, open = -1;
         for (int b = 0; b < c->btnCount; b++) {

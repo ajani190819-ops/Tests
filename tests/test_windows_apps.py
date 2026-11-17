@@ -19,6 +19,7 @@ Enforces:
 from pathlib import Path
 import json
 import re
+import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -2538,6 +2539,49 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "the flyout still prints a percentage, which the Windows "
                          "flyout does not")
 
+    def test_keyboard_lighting_hold_ramp_is_not_quantized_by_the_panel(self):
+        """The panel must follow the engine's live ramp, not write it back.
+
+        Polling every 150 ms made the slider jump several percent at a time.
+        Worse, the old poller echoed each rounded sample through the normal
+        live-apply path, racing the engine and resetting its ramp. Hold tokens
+        also need to arrive on the 45 ms UI timer rather than every other tick.
+        """
+        hotkeys = (ROOT / "keyboard-lighting" / "src" / "parts" /
+                   "brightness_hotkeys.c").read_text(encoding="ascii", errors="strict")
+        poll = hotkeys[hotkeys.index("static void PollFnBrightness(void) {"):]
+        poll = poll[:poll.index("\n}\n")]
+        self.assertIn("now - g_lastFnPoll < 35ULL", poll,
+                      "the brightness slider samples only every 150 ms, so a 1%/30 ms "
+                      "ramp appears as irregular multi-percent jumps")
+        self.assertNotRegex(poll, r"\bScheduleLiveApply\s*\(",
+                            "the readback echoes the engine-owned level into live.txt, "
+                            "quantizing and fighting the ongoing glide")
+        self.assertNotRegex(poll, r"\bWriteLiveBrightness\s*\(",
+                            "the readback directly overwrites the engine's in-flight "
+                            "brightness level")
+        self.assertIn("strtol(txt, &end, 10)", poll,
+                      "an in-progress live.txt write is parsed as zero and makes the "
+                      "slider flash to a random level")
+        self.assertIn("!parseOk || !end || *end != '\\0'", poll,
+                      "a partial or malformed live.txt sample is not ignored")
+        self.assertIn("g_brightnessCfgSaveAt = now + 300ULL;", poll,
+                      "every visual ramp frame is synchronously persisted instead of "
+                      "saving once after the gesture settles")
+        self.assertIn("FlushPendingBrightnessCfg();", poll,
+                      "the settled brightness is never persisted")
+
+        src = read_c_inlined("keyboard-lighting/src/keyboard_lighting.c")
+        hold = src[src.index("static void HoldPump(void) {"):]
+        hold = hold[:hold.index("\nstatic void PressSignal")]
+        self.assertIn("g_scanNext[i] = now + 30;", hold,
+                      "a 60 ms target falls between 45 ms UI ticks and can create a "
+                      "false tap-sized pause during a hold")
+        destroy = src[src.index("case WM_DESTROY:"):]
+        destroy = destroy[:destroy.index("\n    }\n")]
+        self.assertIn("FlushPendingBrightnessCfg();", destroy,
+                      "quitting during the debounce can discard the final held brightness")
+
     def test_keyboard_lighting_hold_modes_are_reachable_and_bounded(self):
         """All three M4/M5 hold behaviours must be reachable, and the sweep cap
         must be longer than a sweep.
@@ -2636,10 +2680,12 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         # sleep can never fire faster than the loop wakes up.
         cadence = max(rms, loop)
         sweep_ms = (1000 // rstep) * cadence         # LiveLevel runs 0..1000
-        # Two timeouts share that shape. The 300 ms one is conditional on there
-        # being no release source; the ceiling is the one that applies anyway.
+        # Two timeouts share that shape. The short silence timeout only applies
+        # with neither a release source nor an active HID press; the ceiling is
+        # the one that applies anyway.
         timeouts = re.findall(
-            r"((?:!HasReleaseSrc\(i\) && )?)now - g_sigAt\[i\] > (\d+)ULL", src)
+            r"((?:!HasReleaseSrc\(i\) && )?(?:!g_hidDown\[i\] && )?)"
+            r"now - g_sigAt\[i\] > (\d+)ULL", src)
         ceilings = [int(v) for guard, v in timeouts if not guard]
         self.assertEqual(len(ceilings), 1,
                          "expected exactly one hold-stream ceiling that applies even "
@@ -2654,6 +2700,47 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("g_scanArmed[i] = 1;", cap,
                       "the ceiling stops the stream without re-arming the key, so the "
                       "next press is read as a typematic repeat instead of a fresh one")
+
+    def test_m4_brightness_hold_learns_on_the_first_token_and_remembers_release(self):
+        """The first G-Helper tap is also the learning event. A delayed 600 ms
+        poll or a two-release threshold left M4 brightness-down at one 5% step
+        until the owner retried the key several times."""
+        src = read_c_inlined("keyboard-lighting/src/keyboard_lighting.c")
+        hold = src[src.index("static int ParseBrightTokenTick"):]
+        picker = (ROOT / "keyboard-lighting/src/parts/picker_window_entry.c").read_text(
+            encoding="ascii", errors="strict")
+
+        self.assertIn("TickDistance(r->tick, tokenAt)", hold,
+                      "the action token is not correlated with the raw key event, so "
+                      "the first M4 hold cannot teach its own scan/HID binding")
+        self.assertIn("if (cand && ScanCurrentlyDown((DWORD)cand, candVk))", hold,
+                      "a launch-delayed first token still waits for a second keypress "
+                      "even when the captured M4 key is physically held")
+        self.assertIn("BindScan(dir, bestKey->scan, bestKey->vk)", hold,
+                      "the correlated key does not persist both scan and virtual key")
+        self.assertIn("r->vk = ri->data.keyboard.VKey;", hold,
+                      "raw keyboard input never records the VKey used for release polling")
+        self.assertIn("g_scanVk[0] = (DWORD)GetPrivateProfileIntW(L\"Keys\", L\"M4Vk\"", picker)
+        self.assertIn("SeedBrightTokenWatch();", picker,
+                      "a stale flag is not seeded at startup, so a prior tap can be "
+                      "mistaken for the current learning gesture")
+        timer_start = picker.rindex("case WM_TIMER:")
+        timer_block = picker[timer_start:]
+        timer1 = timer_block[:timer_block.index("} else if (wp == 2)")]
+        self.assertIn("WatchBrightTokens();", timer1,
+                      "token learning waits on the 600 ms heartbeat instead of the "
+                      "45 ms hold-pump timer")
+        self.assertIn("g_hidRelSeen[dir] >= 1", src,
+                      "one observed HID release pair still does not enable immediate repeat")
+        self.assertIn('PersistKeyValue(dir == 0 ? L"M4HidRelease" : L"M5HidRelease", 1);', src,
+                      "a known HID release source is not persisted for the next launch")
+        self.assertIn('g_hidRelSeen[0] = (BYTE)GetPrivateProfileIntW(L"Keys", L"M4HidRelease"', picker,
+                      "a known HID release source is not restored after launch")
+        self.assertIn("GetAsyncKeyState((int)g_scanVk[i])", src,
+                      "lost raw key-up messages can leave the repeat stream running")
+        self.assertIn("g_scanNext[dir] = now + 30;", hold,
+                      "the first continuation can miss the engine's 120 ms hold window "
+                      "and be misread as a second tap")
 
     def test_keyboard_lighting_watches_keys_via_raw_input_not_a_global_hook(self):
         """A WH_KEYBOARD_LL hook runs on the app's UI thread, and that thread
@@ -3543,13 +3630,16 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "probes the branch tip for everything")
         self.assertIn("commit=", wr, "the marker's commit line is not parsed")
         self.assertIn("hub=", wr, "the marker's hub version line is not parsed")
-        self.assertIn("if (!g_probeRef[0])", wr,
+        self.assertIn("if (!probeRef[0])", wr,
                       "with no marker the hub has no fallback ref and would probe "
                       "an empty path")
         self.assertIn("if (!hubFromMarker)", wr,
                       "the branch-tip version probe still runs when the marker "
                       "answered, which is exactly the mid-task nudge")
-        self.assertLess(wr.index(".agent/RELEASED"), wr.index("git/trees"),
+        worker_start = wr.index("static void WorkerCheckRemote(void)")
+        worker_body = wr[worker_start:]
+        self.assertLess(worker_body.index(".agent/RELEASED"),
+                        worker_body.index("FetchRemoteTree(probeRef"),
                         "the trees probe runs before the marker is read, so it "
                         "cannot honour it")
         self.assertEqual(wr.count("REPO_NAME_W, branch"), 2,
@@ -3562,8 +3652,8 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertLess(wr.index("if (!hubFromMarker)"), second,
                         "the branch-tip version probe is not inside the marker "
                         "fallback")
-        self.assertEqual(wr.count("REPO_NAME_W, g_probeRef"), 10,
-                         "some probes still bypass the released ref")
+        self.assertEqual(wr.count("REPO_NAME_W, probeRef"), 10,
+                         "some probes still bypass the captured released ref")
 
         h = fold[fold.index("static void EnsureProbeRef("):]
         h = h[:h.index("\n}\n")]
@@ -3602,10 +3692,22 @@ class SuiteFolderInstallTests(unittest.TestCase):
         import re as _re
         self.assertRegex(mk, r"(?m)^commit=[0-9a-f]{7,40}$",
                          "the released marker has no usable commit line")
-        hubver = _re.search(r'#define HUB_VERSION\s+"([0-9.]+)"', main).group(1)
+        marker_sha = _re.search(r"(?m)^commit=([0-9a-f]{7,40})$", mk).group(1)
+        released_source = main
+        show = subprocess.run(
+            ["git", "show", "%s:project-hub/src/project_hub.c" % marker_sha],
+            cwd=ROOT, capture_output=True, text=True)
+        if show.returncode == 0:
+            # A working tree can contain a fully tested, not-yet-released Hub
+            # version. Compare the marker to the version it actually blesses,
+            # not to that pending source. In a shallow release CI checkout the
+            # target may not be present; there the marker-only commit's source
+            # is the same as its target, so the checked-out source is correct.
+            released_source = show.stdout
+        hubver = _re.search(r'#define HUB_VERSION\s+"([0-9.]+)"', released_source).group(1)
         self.assertIn("hub=%s" % hubver, mk,
-                      "the marker's hub version does not match the hub that ships "
-                      "with it, so the hub would announce an update to itself")
+                      "the marker's hub version does not match the source it blesses, "
+                      "so the hub would announce an update to itself")
 
     def test_hub_settings_page_writes_the_apps_own_files(self):
         """The hub's Settings page must edit, not duplicate, each app's config.
@@ -3868,6 +3970,41 @@ class ProjectHubUpdateVisibilityAndBranchFollowingTests(unittest.TestCase):
         self.assertIn("if (g_hubUpdAvail)\n        AppendMenuW(hMenu, MF_STRING, ID_BTN_SELF_UPDATE", utility,
                       "the utility menu still exposes self-update while the Hub is current")
 
+    def test_remote_identity_fallback_is_known_and_uses_one_probe_ref(self):
+        identity = (ROOT / "project-hub/src/parts/content_identity.c").read_text(encoding="utf-8")
+        statuses = (ROOT / "project-hub/src/parts/refresh_statuses.c").read_text(encoding="utf-8")
+        worker = (ROOT / "project-hub/src/parts/workers_remote.c").read_text(encoding="utf-8")
+
+        known = identity[identity.index("static BOOL RemoteIdentityKnown"):identity.index("static BOOL DirExistsW")]
+        self.assertIn("(remSha && remSha[0]) || remSize > 0", known,
+                      "a known remote size is discarded when the tree API has no blob SHA")
+        self.assertIn("return (remSize > 0 && loc > 0 && loc != remSize);", known,
+                      "a local hash failure still suppresses a differing known size")
+        self.assertIn("RemoteIdentityKnown(g_remBtgSha, remBtgSz)", statuses)
+        self.assertIn("RemoteIdentityKnown(g_remDnsSha, remDnsSz)", statuses)
+        self.assertIn("RemoteIdentityKnown(g_remNotesSha, remNotesSz)", statuses)
+        self.assertIn("RemoteIdentityKnown(g_remAudioSwitcherSha, remAsSz)", statuses)
+        self.assertIn("BOOL kblKnown = kblExeKnown || kblPs1Known;", statuses,
+                      "Keyboard Lighting is hidden as unknown even when either build file resolves")
+        self.assertIn("RemoteIdentityKnown(c->remSha, c->remSize)", statuses)
+
+        sizes_start = worker.index("/* Remote build sizes:")
+        sizes_end = worker.index("/* generic catalog extras", sizes_start)
+        sizes = worker[sizes_start:sizes_end]
+        self.assertNotIn("g_probeRef", sizes,
+                         "one request still uses the mutable global ref, mixing branch "
+                         "and released-commit identities in a single check")
+        self.assertIn("FetchRemoteTree(probeRef, releasedRef", worker)
+        self.assertIn("probeStillCurrent = (_wcsicmp(g_activeBranch, branch) == 0 &&", worker,
+                      "a branch change during a remote request can publish stale card identities")
+        self.assertIn("if (!probeStillCurrent) ClearRemoteProbeResults();", worker)
+        self.assertIn("TreeResponseComplete(data)", worker,
+                      "a truncated trees response can be accepted as a complete identity set")
+        self.assertIn("if (!treeJson) {\n        EnterCriticalSection(&g_cs);\n        ClearRemoteBuildHashes();", worker,
+                      "failed tree requests leave stale SHAs in place and mask the size fallback")
+        self.assertIn("App update check incomplete", worker,
+                      "a probe with missing identities still reports an apparently complete check")
+
     def test_latest_test_branch_setting_is_defaulted_and_manual_choice_pauses_it(self):
         cache = (ROOT / "project-hub/src/parts/version_probe_cache.c").read_text(encoding="utf-8")
         entry = (ROOT / "project-hub/src/parts/branch_picker_entry.c").read_text(encoding="utf-8")
@@ -3899,7 +4036,7 @@ class ProjectHubUpdateVisibilityAndBranchFollowingTests(unittest.TestCase):
         self.assertIn("SaveBranchCfg(branch);\n    SaveFollowLatestTestBranch(FALSE);", entry,
                       "choosing a branch manually must pause automatic following")
         worker_start = remote.index("static void WorkerCheckRemote(void)")
-        worker = remote[worker_start:remote.index("/* The released marker", worker_start)]
+        worker = remote[worker_start:remote.index("/* Resolve this check to one snapshot", worker_start)]
         self.assertLess(worker.index("RefreshAutomaticBranch();"), worker.index("EnsureActiveBranch(branch, 64);"),
                         "the remote probe resolves a branch before automatic following runs")
 
