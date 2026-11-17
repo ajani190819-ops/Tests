@@ -3,6 +3,17 @@
 > Split from `AGENTS.md`. Read this before committing and when bumping an
 > Orca plugin version.
 
+## Active Arena branch delivery
+
+- Do implementation and release-marker work only on the current `arena/*-tests`
+  branch. Push explicitly to that branch; never switch branches, force-push, or
+  merge/publish the work to `main` unless the owner explicitly asks. The owner
+  selects the active branch in Project Hub for branch-specific updates, so
+  delivery does not require merging to `main`.
+- After a verified release, update the relevant release context in the Google
+  Drive Project Guide as required by `.agent/DRIVE_GUIDE.md`. Git's release
+  markers remain authoritative for the exact SHA and version.
+
 ## Verification & Release Playbook
 
 Run before every commit:

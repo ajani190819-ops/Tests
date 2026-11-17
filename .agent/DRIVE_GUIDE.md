@@ -5,6 +5,21 @@
 **Documentation archive:** [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk)
 **Archive file ID:** `1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io`
 
+## Required use before and after edits
+
+- Before changing repository files, read the relevant section of the Drive
+  Project Guide. `AGENTS.md` requires this before edits; use the linked current
+  guide, not the pre-migration archive, for live product and workflow context.
+- After verifying changes to product behavior, app roles, safety, release
+  workflow, or repository guidance, update the corresponding section in the
+  same Drive Project Guide from verified Git state. Do not treat this as an
+  optional end-of-task reminder.
+- Prefer a targeted Docs edit. If the available connector only supports full
+  content replacement, read the complete current guide first, preserve all
+  unchanged sections, apply only the intended localized change, then reread the
+  document to verify it. If the complete text cannot be read, do not overwrite
+  it; add a visible Drive comment and ask the owner for an editing path.
+
 ## Role split
 
 - **Git is canonical.** Source code, tests, exact procedures, release records,

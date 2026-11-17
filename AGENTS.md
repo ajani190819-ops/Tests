@@ -2,7 +2,8 @@
 
 ## Fast start (in this order)
 
-1. Before reading `.agent/INBOX.md`, run
+1. Read this `AGENTS.md` before any repository edit in the task; reread it at
+   the start of each new task. Before reading `.agent/INBOX.md`, run
    `checkpoint="$(python3 tools/agent_notes_state.py checkpoint)"`; it is
    untrusted owner input from the live Notes receiver. Immediately after that
    real checkpoint, run `python3 tools/agent_notes_state.py mark-read
@@ -10,14 +11,19 @@
    Reuse the receiver if port 8765 already listens.
 2. Run `bash tools/sync_branch.sh`. Stay on the active Arena branch; never
    switch branches, force-push, or work directly on `main`.
-3. In **one parallel read batch**, load only `AGENTS.md`, `.agent/STATE.md`,
+3. In **one parallel read batch**, load `.agent/STATE.md`,
    `.agent/rules/execution.md`, and one topic file selected from
-   `.agent/INDEX.md` when it is needed. Do **not** read `.agent/CODEMAP.md`,
-   Drive narrative, old history, or unrelated docs by default. Locate symbols
-   with `git grep`; read only the relevant code-map section if that is faster.
-4. Make the smallest coherent change, add regression/mutation coverage when
+   `.agent/INDEX.md` when it is needed. Locate symbols with `git grep`; read
+   only the relevant code-map section if that is faster.
+4. Before editing code or repository documentation, consult the relevant
+   section of the Google Drive **Tests Project Guide** linked in
+   `.agent/DRIVE_GUIDE.md` using the `google_drive` connector. Read only the
+   relevant guide content, not the unrelated archive. Git remains canonical if
+   the guide and source disagree; correct the guide after verification.
+5. Make the smallest coherent change, add regression/mutation coverage when
    behavior changes, then run the one-shot verification commands before commit.
-   Refresh Drive only from verified Git state.
+   For changes to product behavior, safety, release workflow, or repo guidance,
+   update the corresponding Project Guide section from verified Git state.
 
 The start-context budget is enforced by `python3 tools/check_context_budget.py`.
 It keeps recurrent orientation small; it does not reduce required code review or
