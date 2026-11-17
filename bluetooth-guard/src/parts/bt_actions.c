@@ -96,8 +96,19 @@ static void DoDisconnectOnly(ULONGLONG address, const wchar_t *kind, const wchar
     }
 }
 
-/* Actively connect device right now! */
+/* Actively connect only a device with durable trusted membership. This second
+   check closes stale tray-command/queue races with Forget. */
 static void DoConnectNow(ULONGLONG address, const wchar_t *kind, const wchar_t *name) {
+    BOOL trusted = FALSE;
+    EnterCriticalSection(&g_lock);
+    for (int i = 0; i < g_devCount; i++) {
+        if (g_devices[i].address == address && g_devices[i].visible && !g_devices[i].forgotten) {
+            trusted = TRUE;
+            break;
+        }
+    }
+    LeaveCriticalSection(&g_lock);
+    if (!trusted) return;
     EnsureProfilesEnabled(address, kind);
     TriggerBtAudioKsProperty(address, name, KSPROPERTY_ONESHOT_RECONNECT);
 }
@@ -126,9 +137,11 @@ static void InitPaths(void) {
 }
 
 static void WriteHeartbeat(void) {
-    int blocked = 0;
+    int blocked = 0, trusted = 0;
     EnterCriticalSection(&g_lock);
     for (int i = 0; i < g_devCount; i++) {
+        if (!g_devices[i].visible || g_devices[i].forgotten) continue;
+        trusted++;
         if (!g_devices[i].allowAuto) blocked++;
     }
     LeaveCriticalSection(&g_lock);
@@ -136,7 +149,7 @@ static void WriteHeartbeat(void) {
     char buf[128];
     int len = snprintf(buf, sizeof(buf), "%lu|%d|%d|%d\r\n",
                        (unsigned long)GetCurrentProcessId(),
-                       g_guardOn ? 1 : 0, blocked, g_devCount);
+                       g_guardOn ? 1 : 0, blocked, trusted);
     HANDLE hf = CreateFileW(g_lockPath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
                             NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hf != INVALID_HANDLE_VALUE) {

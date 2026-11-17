@@ -135,10 +135,14 @@ static void RadarCatalogFetch(void) {
     g_frameN = 0;
     g_radarHost[0] = L'\0';
     if (host && host->str) Utf8ToWide(host->str, g_radarHost, 160);
+    int nowcastTotal = nowcast ? JLen(nowcast) : 0;
+    int forecastKeep = nowcastTotal < MAX_FRAMES ? nowcastTotal : MAX_FRAMES;
+    int pastKeep = MAX_FRAMES - forecastKeep;
+    if (pastKeep > MAX_PAST_FRAMES) pastKeep = MAX_PAST_FRAMES;
     if (past) {
         int total = JLen(past);
-        int start = total > 12 ? total - 12 : 0;
-        for (int i = start; i < total && g_frameN < MAX_FRAMES; i++) {
+        int start = total > pastKeep ? total - pastKeep : 0;
+        for (int i = start; i < total && g_frameN < pastKeep; i++) {
             JNode *f = JAt(past, i);
             JNode *t = f ? JGet(f, "time") : NULL;
             JNode *p = f ? JGet(f, "path") : NULL;
@@ -151,7 +155,7 @@ static void RadarCatalogFetch(void) {
         }
     }
     if (nowcast) {
-        int total = JLen(nowcast);
+        int total = nowcastTotal;
         for (int i = 0; i < total && g_frameN < MAX_FRAMES; i++) {
             JNode *f = JAt(nowcast, i);
             JNode *t = f ? JGet(f, "time") : NULL;
@@ -164,10 +168,35 @@ static void RadarCatalogFetch(void) {
             g_frameN++;
         }
     }
-    /* land on the newest OBSERVED frame: that is "now", not a model guess */
-    g_frameSel = 0;
-    for (int i = 0; i < g_frameN; i++)
-        if (g_frames[i].kind == 0) g_frameSel = i;
+    /* Keep playback chronological even if a provider response changes array
+       order; the forecast badge and buttons use this same timeline. */
+    for (int i = 1; i < g_frameN; i++) {
+        RadarFrame current = g_frames[i];
+        int j = i - 1;
+        while (j >= 0 && g_frames[j].time > current.time) {
+            g_frames[j + 1] = g_frames[j];
+            j--;
+        }
+        g_frames[j + 1] = current;
+    }
+    /* Start at the nearest frame genuinely later than the newest observation,
+       so the map opens with a visible forecast when RainViewer publishes one. */
+    int latestObserved = -1;
+    for (int i = 0; i < g_frameN; i++) {
+        if (g_frames[i].kind == 0 &&
+            (latestObserved < 0 || g_frames[i].time > g_frames[latestObserved].time))
+            latestObserved = i;
+    }
+    int firstForecast = -1;
+    for (int i = 0; i < g_frameN; i++) {
+        if (g_frames[i].kind != 1 ||
+            (latestObserved >= 0 && g_frames[i].time <= g_frames[latestObserved].time))
+            continue;
+        if (firstForecast < 0 || g_frames[i].time < g_frames[firstForecast].time)
+            firstForecast = i;
+    }
+    g_frameSel = firstForecast >= 0 ? firstForecast
+                : (latestObserved >= 0 ? latestObserved : 0);
     LeaveCriticalSection(&g_lock);
     HttpBufFree(&b);
     if (g_frameN > 0)

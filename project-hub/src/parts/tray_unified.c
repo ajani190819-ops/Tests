@@ -36,8 +36,8 @@ static void HubTrayToggleAgentWaitSound(void) {
         : L"Agent Notes waiting-alert sound is off. Visual alerts remain on.", 0);
 }
 
-static void HubTrayShowAgentWaitingAlert(void) {
-    if (!g_hubTrayVisible) return;
+static BOOL HubTrayShowAgentWaitingAlert(void) {
+    if (!g_hubTrayVisible) return FALSE;
     g_hubNid.uFlags = NIF_INFO;
     g_hubNid.dwInfoFlags = NIIF_INFO | (HubTrayAgentWaitSound() ? 0 : NIIF_NOSOUND);
     wcsncpy(g_hubNid.szInfoTitle, L"Agent is waiting for input", 63);
@@ -46,8 +46,9 @@ static void HubTrayShowAgentWaitingAlert(void) {
              255);
     g_hubNid.szInfoTitle[63] = L'\0';
     g_hubNid.szInfo[255] = L'\0';
-    Shell_NotifyIconW(NIM_MODIFY, &g_hubNid);
+    BOOL notified = Shell_NotifyIconW(NIM_MODIFY, &g_hubNid);
     g_hubNid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    return notified;
 }
 
 static void HubTrayPollAgentWait(void) {
@@ -58,7 +59,9 @@ static void HubTrayPollAgentWait(void) {
     waitId[79] = L'\0';
     if (!waitId[0] || wcscmp(waitId, g_hubSeenAgentWait) == 0) return;
 
-    HubTrayShowAgentWaitingAlert();
+    /* Do not consume the token unless Explorer accepted the notification.
+       The two-second poll will retry after transient shell/tray failures. */
+    if (!HubTrayShowAgentWaitingAlert()) return;
     wcsncpy(g_hubSeenAgentWait, waitId, 79);
     g_hubSeenAgentWait[79] = L'\0';
     wchar_t hubCfg[MAX_PATH];
@@ -84,8 +87,9 @@ static void HubTrayPollWeatherAlert(void) {
     wcsncpy(g_hubNid.szInfo, body, 255);
     g_hubNid.szInfoTitle[63] = L'\0';
     g_hubNid.szInfo[255] = L'\0';
-    Shell_NotifyIconW(NIM_MODIFY, &g_hubNid);
+    BOOL notified = Shell_NotifyIconW(NIM_MODIFY, &g_hubNid);
     g_hubNid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    if (!notified) return;  /* leave the token pending for the next Hub poll */
     wcsncpy(g_hubSeenRainAlert, token, 79);
     g_hubSeenRainAlert[79] = L'\0';
     wchar_t hubCfg[MAX_PATH];

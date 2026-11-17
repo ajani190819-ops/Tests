@@ -1,16 +1,17 @@
 # Repository Current State
 
 **Active branch:** read with `git rev-parse --abbrev-ref HEAD`; never hardcode it.
-**Last updated:** 2026-11-15. Git is authoritative for implementation, tests,
+**Last updated:** 2026-11-16. Git is authoritative for implementation, tests,
 release records, and compact offline safety facts. Drive holds extended narrative.
 
 ## Released work
 
-- **Project Hub 2.8.52:** `Update Hub` appears only for a verified newer remote
-  build; `Update All` remains. Default-on newest-test-branch following ranks
-  qualifying branch-tip commit dates, persists that selected branch for Agent
-  Notes session discovery, and a manual Branch choice pauses it. Hub Open
-  directly reveals a tray-hidden Agent Notes window before attempting a launch.
+- **Project Hub 2.8.56:** the Tri-Spoke tray, alerts, and default-on branch
+  discovery (5–60 minute retries; six-hour cache) remain. Remote probes pin a
+  release snapshot; Update appears only for changed local content. `Update Hub`
+  needs a verified newer build; tray-hidden Agent Notes can be revealed.
+- **Keyboard Lighting M4/M5:** the panel follows the 1%/30 ms glide without
+  echoing rounded samples to the engine and saves the settled level.
 - **Agent Notes waiting receipts:** implementation `ad9232009b9f38c287727123ddd404b204ce26e1`,
   released by marker `5343e54`. The direct local outbox records **Saved** only
   after the live receiver flushes `.agent/INBOX.md`, then **Read** only after an
@@ -26,11 +27,10 @@ release records, and compact offline safety facts. Drive holds extended narrativ
   area on close and sends a native Windows shell alert only at **66%+ exact-point
   ensemble odds in 3 hours**. The three-hour cooldown and persisted episode latch
   suppress duplicates while rain is under way. Regional coverage odds never alert.
-- **Documentation archive:** full pre-migration text for 29 human-facing files
-  is in [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
-  Commit `39f71df` replaced them with compact Git stubs while preserving current
-  plugin changelog windows, version-sync anchors, installers, tests, config, and
-  runtime assets.
+- **Documentation archive:** full text for 29 human-facing files remains in
+  [Drive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk);
+  `39f71df` left compact Git stubs plus current changelogs, version anchors,
+  installers, tests, config, and runtime assets.
 
 ## Efficiency system and completed audit
 

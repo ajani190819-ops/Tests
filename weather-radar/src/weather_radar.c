@@ -71,6 +71,7 @@ enum { ID_TRAY_OPEN = 201, ID_TRAY_EXIT = 202 };
 #define RAIN_ALERT_HOURS         3
 #define RAIN_ALERT_COOLDOWN_SEC  (3ULL * 60ULL * 60ULL)
 #define RAIN_ALERT_TRACE_IN      0.004
+#define RAIN_ETA_LIKELY_PROB     0.50
 
 /* What "rain" means for the honest probability. 0.1 mm/h is the WMO trace
    threshold: below it a gauge reports nothing, so a member under it did not
@@ -79,7 +80,8 @@ enum { ID_TRAY_OPEN = 201, ID_TRAY_EXIT = 202 };
 
 #define MAX_PLACES     8
 #define MAX_SEARCH     8
-#define MAX_FRAMES     32
+#define MAX_FRAMES     64
+#define MAX_PAST_FRAMES 24
 #define FC_HOURS       48
 #define HOURLY_SHOWN   12
 #define MAX_MEMBERS    64

@@ -52,7 +52,7 @@ repeated context and redundant work. The enforced policy is:
 - This protocol proves local inbox persistence and a later checkpoint read.
   It cannot promise a displayed notification or live delivery through a
   sleeping device, disconnected client, network, server, or Arena outage.
-  `notes_server.py` remains the direct channel; Drive is guide/archive only.
+  the API-only `notes_server.py` remains the direct channel; Drive is guide/archive only.
 
 ## Owner preferences
 

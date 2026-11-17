@@ -19,6 +19,7 @@ Enforces:
 from pathlib import Path
 import json
 import re
+import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -1094,6 +1095,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("KSPROPERTY_ONESHOT_RECONNECT", native_c)
         self.assertIn("KSPROPERTY_ONESHOT_DISCONNECT", native_c)
         self.assertIn("CheckForegroundManualIntent", native_c)
+        self.assertIn("GetLastInputInfo", native_c)
         self.assertIn("HIGH_PRIORITY_CLASS", native_c)
         self.assertIn("RegisterDeviceNotificationW", native_c)
         self.assertIn("Tests_BluetoothGuard_FastBoot", native_c)
@@ -1108,35 +1110,99 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertTrue((ROOT / "bluetooth-guard" / "Setup.bat").exists())
 
     def test_bluetooth_guard_forget_unpairs_and_filters_phantom_devices(self):
-        """The Forget button must do a TRUE unpair (BluetoothRemoveDevice), not a
-        profile disable, and the device list must stop showing paired-but-never-
-        connected phantoms: HasConnectedBefore now requires a real service-GUID
-        subkey rather than merely any subkey."""
+        """Forget must unpair and leave a durable tombstone that defeats stale scans."""
         btg = read_c_inlined("bluetooth-guard/src/bluetooth_guard.c")
 
-        # the real unpair API is loaded and wrapped
         self.assertIn('GetProcAddress(m, "BluetoothRemoveDevice")', btg)
         self.assertIn("static void DoForgetDevice(", btg)
         self.assertIn("pBluetoothRemoveDevice(&addr)", btg)
-        # ... and it is NOT a profile disable (suite policy: never disable profiles)
-        forget = btg[btg.index("static void DoForgetDevice("):]
-        forget = forget[:forget.index("\n}\n")]
-        self.assertNotIn("BluetoothSetServiceState", forget)
-        self.assertNotIn("BLUETOOTH_SERVICE_DISABLE", forget)
+        forget_api = btg[btg.index("static void DoForgetDevice("):]
+        forget_api = forget_api[:forget_api.index("\n}\n")]
+        self.assertNotIn("BluetoothSetServiceState", forget_api)
+        self.assertNotIn("BLUETOOTH_SERVICE_DISABLE", forget_api)
 
-        # the Forget button is drawn, hit-tested, and routed to a true unpair
-        self.assertIn("HIT_DEV_FORGET_BTN", btg)
-        self.assertRegex(btg, r'DrawActionBtn\([^;]*forgetR,\s*L"Forget"')
-        self.assertIn("AddHit(forgetR, HIT_DEV_FORGET_BTN, i)", btg)
-        self.assertIn("EnqueueWork(3, addr, dmac, dkind, dname)", btg)
+        # Forget is an explicit persisted F tombstone, not a temporary hide.
+        handler = btg[btg.index("} else if (kind == HIT_DEV_FORGET_BTN)"):]
+        handler = handler[:handler.index("\n}\n")]
+        self.assertIn("d->visible = FALSE", handler)
+        self.assertIn("d->forgotten = TRUE", handler)
+        self.assertIn("SaveRules();", handler)
+        self.assertIn("EnqueueWork(3, addr, dmac, dkind, dname)", handler)
         self.assertIn("else if (item.op == 3) DoForgetDevice(", btg)
 
-        # phantom filter: require a service-GUID subkey, not just any subkey
-        self.assertIn("static BOOL IsServiceGuidSubkey(", btg)
-        self.assertIn("RegEnumKeyExW", btg)
-        self.assertNotIn("return subKeys > 0;", btg,
-                         "HasConnectedBefore still counts ANY subkey, so paired-but-"
-                         "never-connected phantoms leak into the device list")
+        # Every native action surface is gated by the same durable membership.
+        tray = btg[btg.index("static void ShowTrayMenu("):]
+        tray = tray[:tray.index("static LRESULT CALLBACK WndProc")]
+        self.assertIn("if (!g_devices[i].visible || g_devices[i].forgotten) continue;", tray)
+        command = btg[btg.index("case WM_COMMAND:"):]
+        command = command[:command.index("case WM_WORKER_DONE:")]
+        self.assertIn("g_devices[di].visible && !g_devices[di].forgotten", command)
+        self.assertIn("if (!d->visible) continue;", btg)
+        self.assertIn("g_devices[i].visible && !g_devices[i].forgotten", btg[btg.index("static void DoConnectNow("):])
+
+    def test_bluetooth_guard_persists_only_intentional_device_membership(self):
+        btg = read_c_inlined("bluetooth-guard/src/bluetooth_guard.c")
+        rules = btg[btg.index("static void SaveRules("):]
+        save = rules[:rules.index("static void LoadRules(")]
+        load = rules[rules.index("static void LoadRules("):rules.index("static void EnqueueWork(")]
+        poll = btg[btg.index("static void PollPairedDevices("):]
+        poll = poll[:poll.index("/* Disconnect all guarded")]
+
+        self.assertIn('L"format=2\\n"', save)
+        self.assertIn('L"device=%s|%d|%llu|%s|%s|%s\\n"', save)
+        self.assertIn('d->visible ? L"K" : L"F"', save)
+        self.assertIn("if (!d->visible && !d->forgotten) continue;", save)
+        self.assertIn('if (wcsncmp(line, L"device=", 7) != 0) continue;', load)
+        self.assertIn("d->visible = known;", load)
+        self.assertIn("d->forgotten = forgotten;", load)
+
+        # A disconnected candidate from enumeration is ignored; only a rising
+        # connection during the Windows UI intent window can enroll it.
+        no_scan_enroll = "if (!info.fConnected) goto next_bluetooth_device;"
+        self.assertIn(no_scan_enroll, poll)
+        self.assertLess(poll.index(no_scan_enroll), poll.index("idx = g_devCount++;"))
+        self.assertIn("if (newlyConnected && !manualWindow && g_hwnd)", poll)
+        self.assertIn("CheckForegroundManualIntent();", poll)
+        self.assertIn("BOOL manualIntent = newlyConnected && manualWindow;", poll)
+        self.assertIn("g_devices[idx].allowAuto = FALSE;", poll)
+        self.assertIn("if (manualIntent && !d->allowAuto)", poll)
+        self.assertIn("DoDisconnectOnly(rejected[i].address", poll)
+        self.assertIn("if (trustChanged) SaveRules();", poll)
+        self.assertNotIn("HasConnectedBefore", poll)
+
+        connect = btg[btg.index("static void DoConnectNow("):]
+        connect = connect[:connect.index("\n}")]
+        self.assertIn("g_devices[i].visible && !g_devices[i].forgotten", connect)
+
+    def test_bluetooth_guard_powershell_uses_the_same_trusted_inventory(self):
+        ps = (ROOT / "bluetooth-guard" / "BluetoothGuard.ps1").read_text(encoding="utf-8")
+        core = (ROOT / "bluetooth-guard" / "BluetoothCore.cs").read_text(encoding="utf-8")
+
+        self.assertIn("sp.fReturnRemembered = false", core)
+        self.assertIn("IsWindowsBluetoothUiForeground()", core)
+        self.assertIn("GetLastInputInfo", core)
+        self.assertIn("DropUntrustedConnection", core)
+        self.assertIn("BluetoothRemoveDevice(ref address)", core)
+        self.assertIn("DeviceTrustFormat  = 2", ps)
+        self.assertIn("$o.DeviceTrustFormat -eq 2 -and $o.Devices", ps)
+        self.assertIn("function Update-WindowsUiIntent", ps)
+        self.assertIn("$script:WindowsUiIntentUntil = [DateTime]::UtcNow.AddSeconds(5)", ps)
+        self.assertIn("$manualUi = Update-WindowsUiIntent", ps)
+        self.assertIn("function Update-TrustFromSnapshots", ps)
+        self.assertIn("$script:SnapshotBaseline -and $newLink -and $manualUi", ps)
+        self.assertIn("function Get-TrustedDeviceSnapshots", ps)
+        trusted_builder = ps[ps.index("function Get-TrustedDeviceSnapshots"):ps.index("function Update-WindowsUiIntent")]
+        self.assertIn("Address = [uint64]$entry.Address", trusted_builder)
+        self.assertIn("Connected = $false", trusted_builder)
+        self.assertIn("Render-Devices $trustedSnaps", ps)
+        self.assertGreaterEqual(ps.count("Queue-BtWork 'drop'"), 2)
+        self.assertIn("AllowAutoConnect = $false", ps)
+        self.assertIn("$currentEntry.Forgotten = $true", ps)
+        self.assertIn("Queue-BtWork 'forget'", ps)
+
+        tray = ps[ps.index("function Rebuild-TrayMenu"):ps.index("Rebuild-TrayMenu @()")]
+        self.assertIn("Get-DeviceEntry", tray)
+        self.assertIn("$entry.Forgotten", tray)
 
     def test_project_hub_command_ids_do_not_collide(self):
         """Guard the 'swallowed button' bug class: the branch-download menu
@@ -1442,6 +1508,35 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         # --- radar: catalog, tile URL, cache clocks, zoom fallback ---
         self.assertIn("https://api.rainviewer.com/public/weather-maps.json", rdc,
                       "the frame catalog endpoint moved")
+        self.assertIn("#define MAX_FRAMES     64", mc,
+                      "the radar timeline still caps its available observed/forecast frames "
+                      "at 32, truncating longer nowcast timelines")
+        self.assertIn("#define MAX_PAST_FRAMES 24", mc,
+                      "the timeline still discards all but twelve recent observed frames")
+        self.assertIn("int nowcastTotal = nowcast ? JLen(nowcast) : 0;", rdc)
+        self.assertIn("int forecastKeep = nowcastTotal < MAX_FRAMES ? nowcastTotal : MAX_FRAMES;", rdc)
+        self.assertIn("int pastKeep = MAX_FRAMES - forecastKeep;", rdc)
+        self.assertIn("if (pastKeep > MAX_PAST_FRAMES) pastKeep = MAX_PAST_FRAMES;", rdc)
+        self.assertIn("int start = total > pastKeep ? total - pastKeep : 0;", rdc)
+        self.assertIn("g_frameN < pastKeep", rdc)
+        self.assertIn("for (int i = 0; i < total && g_frameN < MAX_FRAMES; i++)", rdc,
+                      "nowcast frames are not retained ahead of older observations")
+        self.assertIn("while (j >= 0 && g_frames[j].time > current.time)", rdc,
+                      "provider timestamps are not sorted into chronological playback order")
+        self.assertIn("g_frameSel = firstForecast >= 0 ? firstForecast", rdc,
+                      "the preview still opens on past observations when a future nowcast exists")
+        self.assertIn("g_frames[i].time <= g_frames[latestObserved].time", rdc,
+                      "a nowcast timestamp at or before the newest observation is presented as future")
+        self.assertIn("g_frames[i].time < g_frames[firstForecast].time", rdc,
+                      "the initial preview skips the nearest expected time")
+        self.assertIn('L"Forecast %d/%d"', uic,
+                      "the map does not identify the selected future step in its timeline")
+        self.assertIn('L"Forecast · %d steps"', uic,
+                      "the map hides how many forecast steps are available while an observation is selected")
+        self.assertIn('L"No forecast frames"', uic,
+                      "the map silently implies future data when the provider publishes none")
+        self.assertIn("img.left + S(520)", uic,
+                      "the zoom note overlaps the new forecast-step badge")
         self.assertIn('L"%s%hs/256/%d/%d/%d/2/1_1.png"', rdc,
                       "the RainViewer tile URL is not host+path+256+z/x/y+scheme2+"
                       "smooth1_snow1, so every tile 404s")
@@ -1516,6 +1611,33 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         ip = ip[:ip.index("\n}\n")]
         self.assertIn("if (AppsUseLightTheme())", ip,
                       "the window ignores the owner's Windows theme again")
+
+    def test_weather_radar_shows_selected_place_rain_eta(self):
+        """The rain card should turn its hourly, exact-point forecast into a
+        location-local onset estimate, while keeping weak or fallback signals
+        clearly distinguished from a majority ensemble forecast."""
+        main = (ROOT / "weather-radar" / "src" / "weather_radar.c").read_text(encoding="utf-8")
+        ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        readme = (ROOT / "weather-radar" / "README.md").read_text(encoding="utf-8")
+        eta = ui[ui.index("static void RainEtaText("):ui.index("static void PaintHonestCard(")]
+        card = ui[ui.index("static void PaintHonestCard("):ui.index("static void PaintHourlyCard(")]
+
+        self.assertRegex(main, r"#define RAIN_ETA_LIKELY_PROB\s+0\.50")
+        self.assertIn("ForecastIsRainingNow(f)", eta)
+        self.assertIn("int h = start + k;", eta)
+        self.assertIn("e->reported[h] <= 0 || isnan(prob)", eta,
+                      "members that stopped reporting are being treated as dry for ETA")
+        self.assertIn("if (prob >= RAIN_ETA_LIKELY_PROB && likelyK < 0)", eta,
+                      "the ETA no longer uses the first majority-likelihood hour")
+        self.assertIn("f->hLabel[k]", eta,
+                      "the ETA is not displayed in the selected location's local time")
+        self.assertIn("f->hP[i] >= RAIN_ALERT_TRACE_IN", eta,
+                      "the single-model hourly fallback no longer uses the measurable-rain threshold")
+        self.assertIn("possible peak around %s local", eta)
+        self.assertIn("no measurable rain signal in the next %d forecast hours", eta)
+        self.assertIn("RainEtaText(&g_fc, &g_ens, eta, 192);", card)
+        self.assertIn("Point rain odds + ETA from the ensemble", ui)
+        self.assertIn("Times are local to the selected place and are hourly, not minute-precise.", readme)
 
     def test_weather_radar_alert_uses_exact_ensemble_and_latches_one_rain_episode(self):
         """Rain alerts are only useful when they answer the point question and
@@ -2417,6 +2539,49 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "the flyout still prints a percentage, which the Windows "
                          "flyout does not")
 
+    def test_keyboard_lighting_hold_ramp_is_not_quantized_by_the_panel(self):
+        """The panel must follow the engine's live ramp, not write it back.
+
+        Polling every 150 ms made the slider jump several percent at a time.
+        Worse, the old poller echoed each rounded sample through the normal
+        live-apply path, racing the engine and resetting its ramp. Hold tokens
+        also need to arrive on the 45 ms UI timer rather than every other tick.
+        """
+        hotkeys = (ROOT / "keyboard-lighting" / "src" / "parts" /
+                   "brightness_hotkeys.c").read_text(encoding="ascii", errors="strict")
+        poll = hotkeys[hotkeys.index("static void PollFnBrightness(void) {"):]
+        poll = poll[:poll.index("\n}\n")]
+        self.assertIn("now - g_lastFnPoll < 35ULL", poll,
+                      "the brightness slider samples only every 150 ms, so a 1%/30 ms "
+                      "ramp appears as irregular multi-percent jumps")
+        self.assertNotRegex(poll, r"\bScheduleLiveApply\s*\(",
+                            "the readback echoes the engine-owned level into live.txt, "
+                            "quantizing and fighting the ongoing glide")
+        self.assertNotRegex(poll, r"\bWriteLiveBrightness\s*\(",
+                            "the readback directly overwrites the engine's in-flight "
+                            "brightness level")
+        self.assertIn("strtol(txt, &end, 10)", poll,
+                      "an in-progress live.txt write is parsed as zero and makes the "
+                      "slider flash to a random level")
+        self.assertIn("!parseOk || !end || *end != '\\0'", poll,
+                      "a partial or malformed live.txt sample is not ignored")
+        self.assertIn("g_brightnessCfgSaveAt = now + 300ULL;", poll,
+                      "every visual ramp frame is synchronously persisted instead of "
+                      "saving once after the gesture settles")
+        self.assertIn("FlushPendingBrightnessCfg();", poll,
+                      "the settled brightness is never persisted")
+
+        src = read_c_inlined("keyboard-lighting/src/keyboard_lighting.c")
+        hold = src[src.index("static void HoldPump(void) {"):]
+        hold = hold[:hold.index("\nstatic void PressSignal")]
+        self.assertIn("g_scanNext[i] = now + 30;", hold,
+                      "a 60 ms target falls between 45 ms UI ticks and can create a "
+                      "false tap-sized pause during a hold")
+        destroy = src[src.index("case WM_DESTROY:"):]
+        destroy = destroy[:destroy.index("\n    }\n")]
+        self.assertIn("FlushPendingBrightnessCfg();", destroy,
+                      "quitting during the debounce can discard the final held brightness")
+
     def test_keyboard_lighting_hold_modes_are_reachable_and_bounded(self):
         """All three M4/M5 hold behaviours must be reachable, and the sweep cap
         must be longer than a sweep.
@@ -2515,10 +2680,12 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         # sleep can never fire faster than the loop wakes up.
         cadence = max(rms, loop)
         sweep_ms = (1000 // rstep) * cadence         # LiveLevel runs 0..1000
-        # Two timeouts share that shape. The 300 ms one is conditional on there
-        # being no release source; the ceiling is the one that applies anyway.
+        # Two timeouts share that shape. The short silence timeout only applies
+        # with neither a release source nor an active HID press; the ceiling is
+        # the one that applies anyway.
         timeouts = re.findall(
-            r"((?:!HasReleaseSrc\(i\) && )?)now - g_sigAt\[i\] > (\d+)ULL", src)
+            r"((?:!HasReleaseSrc\(i\) && )?(?:!g_hidDown\[i\] && )?)"
+            r"now - g_sigAt\[i\] > (\d+)ULL", src)
         ceilings = [int(v) for guard, v in timeouts if not guard]
         self.assertEqual(len(ceilings), 1,
                          "expected exactly one hold-stream ceiling that applies even "
@@ -2533,6 +2700,47 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("g_scanArmed[i] = 1;", cap,
                       "the ceiling stops the stream without re-arming the key, so the "
                       "next press is read as a typematic repeat instead of a fresh one")
+
+    def test_m4_brightness_hold_learns_on_the_first_token_and_remembers_release(self):
+        """The first G-Helper tap is also the learning event. A delayed 600 ms
+        poll or a two-release threshold left M4 brightness-down at one 5% step
+        until the owner retried the key several times."""
+        src = read_c_inlined("keyboard-lighting/src/keyboard_lighting.c")
+        hold = src[src.index("static int ParseBrightTokenTick"):]
+        picker = (ROOT / "keyboard-lighting/src/parts/picker_window_entry.c").read_text(
+            encoding="ascii", errors="strict")
+
+        self.assertIn("TickDistance(r->tick, tokenAt)", hold,
+                      "the action token is not correlated with the raw key event, so "
+                      "the first M4 hold cannot teach its own scan/HID binding")
+        self.assertIn("if (cand && ScanCurrentlyDown((DWORD)cand, candVk))", hold,
+                      "a launch-delayed first token still waits for a second keypress "
+                      "even when the captured M4 key is physically held")
+        self.assertIn("BindScan(dir, bestKey->scan, bestKey->vk)", hold,
+                      "the correlated key does not persist both scan and virtual key")
+        self.assertIn("r->vk = ri->data.keyboard.VKey;", hold,
+                      "raw keyboard input never records the VKey used for release polling")
+        self.assertIn("g_scanVk[0] = (DWORD)GetPrivateProfileIntW(L\"Keys\", L\"M4Vk\"", picker)
+        self.assertIn("SeedBrightTokenWatch();", picker,
+                      "a stale flag is not seeded at startup, so a prior tap can be "
+                      "mistaken for the current learning gesture")
+        timer_start = picker.rindex("case WM_TIMER:")
+        timer_block = picker[timer_start:]
+        timer1 = timer_block[:timer_block.index("} else if (wp == 2)")]
+        self.assertIn("WatchBrightTokens();", timer1,
+                      "token learning waits on the 600 ms heartbeat instead of the "
+                      "45 ms hold-pump timer")
+        self.assertIn("g_hidRelSeen[dir] >= 1", src,
+                      "one observed HID release pair still does not enable immediate repeat")
+        self.assertIn('PersistKeyValue(dir == 0 ? L"M4HidRelease" : L"M5HidRelease", 1);', src,
+                      "a known HID release source is not persisted for the next launch")
+        self.assertIn('g_hidRelSeen[0] = (BYTE)GetPrivateProfileIntW(L"Keys", L"M4HidRelease"', picker,
+                      "a known HID release source is not restored after launch")
+        self.assertIn("GetAsyncKeyState((int)g_scanVk[i])", src,
+                      "lost raw key-up messages can leave the repeat stream running")
+        self.assertIn("g_scanNext[dir] = now + 30;", hold,
+                      "the first continuation can miss the engine's 120 ms hold window "
+                      "and be misread as a second tap")
 
     def test_keyboard_lighting_watches_keys_via_raw_input_not_a_global_hook(self):
         """A WH_KEYBOARD_LL hook runs on the app's UI thread, and that thread
@@ -2959,6 +3167,15 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("OpenEventW(SYNCHRONIZE", host,
                       "apps no longer probe whether the Hub owns the suite tray")
         self.assertIn("HubTrayInit();", hub_ui)
+        nc_create_start = hub_ui.index("case WM_NCCREATE:")
+        nc_create_end = hub_ui.index("case WM_CREATE:", nc_create_start)
+        nc_create = hub_ui[nc_create_start:nc_create_end]
+        self.assertIn("g_hwnd = hwnd;", nc_create,
+                      "WM_CREATE runs before CreateWindowEx returns, so the tray NID otherwise gets a NULL HWND")
+        self.assertIn("return DefWindowProcW(hwnd, msg, wp, lp);", nc_create,
+                      "the Hub no longer preserves default WM_NCCREATE handling")
+        self.assertLess(nc_create_end, hub_ui.index("HubTrayInit();", nc_create_end),
+                        "the notification icon must be registered only after the global HWND is bound")
         self.assertIn("HubTrayRestore();", hub_ui,
                       "Explorer/taskbar restart leaves the Hub icon missing")
         self.assertIn("HubTrayEnsureLive();", hub_ui,
@@ -2978,6 +3195,10 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("HubTrayRemove();", hub_ui)
         self.assertIn("SuiteTaskbarCreatedMessage", host)
         self.assertIn("WM_HUB_TRAYICON", hub)
+        hub_resource = (ROOT / "project-hub/src/hub.rc").read_text(encoding="utf-8")
+        self.assertRegex(hub_resource, r'(?m)^1 ICON "\.\./hub\.ico"$')
+        self.assertIn("g_hubNid.hIcon = g_appIcon;", tray,
+                      "the Hub tray is not using its blue/silver Tri-Spoke application icon")
         self.assertIn("Shell_NotifyIconW(NIM_ADD, &g_hubNid)", tray)
         self.assertIn("CreateEventW(NULL, TRUE, TRUE, HUB_TRAY_HOST_EVENT)", tray,
                       "Hub does not publish its successfully-created tray host")
@@ -3055,6 +3276,26 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("HubTrayPollAgentWait", tray)
         self.assertIn("Agent is waiting for input", tray)
         self.assertIn("NIIF_INFO | (HubTrayAgentWaitSound() ? 0 : NIIF_NOSOUND)", tray)
+        wait_alert_start = tray.index("static BOOL HubTrayShowAgentWaitingAlert(void)")
+        wait_alert = tray[wait_alert_start:tray.index("\n}\n", wait_alert_start)]
+        self.assertIn("BOOL notified = Shell_NotifyIconW(NIM_MODIFY, &g_hubNid);", wait_alert)
+        self.assertIn("return notified;", wait_alert,
+                      "the Hub cannot tell whether Windows accepted an agent-wait alert")
+        wait_poll_start = tray.index("static void HubTrayPollAgentWait(void)")
+        wait_poll = tray[wait_poll_start:tray.index("\n}\n", wait_poll_start)]
+        self.assertIn("if (!HubTrayShowAgentWaitingAlert()) return;", wait_poll,
+                      "a failed wait alert is marked seen instead of retried")
+        self.assertLess(wait_poll.index("if (!HubTrayShowAgentWaitingAlert()) return;"),
+                        wait_poll.index("wcsncpy(g_hubSeenAgentWait"),
+                        "the Hub persists the wait token before Windows accepts its alert")
+        weather_poll_start = tray.index("static void HubTrayPollWeatherAlert(void)")
+        weather_poll = tray[weather_poll_start:tray.index("\n}\n", weather_poll_start)]
+        self.assertIn("BOOL notified = Shell_NotifyIconW(NIM_MODIFY, &g_hubNid);", weather_poll)
+        self.assertIn("if (!notified) return;", weather_poll,
+                      "a failed rain alert is marked seen instead of retried")
+        self.assertLess(weather_poll.index("if (!notified) return;"),
+                        weather_poll.index("wcsncpy(g_hubSeenRainAlert"),
+                        "the Hub persists the rain token before Windows accepts its alert")
         show_rain = weather_alerts[weather_alerts.index("static void ShowRainAlert("):]
         show_rain = show_rain[:show_rain.index("\n}\n")]
         self.assertIn("PublishHubRainAlert(p, odds);", show_rain)
@@ -3161,6 +3402,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
         ui = (ROOT / "agent-notes" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
         entry = (ROOT / "agent-notes" / "src" / "parts" / "entry.c").read_text(encoding="utf-8")
         server = (ROOT / "tools" / "notes_server.py").read_text(encoding="utf-8")
+        protocol = (ROOT / "tools" / "agent_notes_protocol.py").read_text(encoding="utf-8")
         state = (ROOT / "tools" / "agent_notes_state.py").read_text(encoding="utf-8")
         hub = (ROOT / "project-hub" / "src" / "project_hub.c").read_text(encoding="utf-8")
         workers = (ROOT / "project-hub" / "src" / "parts" / "workers_install.c").read_text(encoding="utf-8")
@@ -3174,18 +3416,29 @@ class SuiteFolderInstallTests(unittest.TestCase):
         # Receiver-side acceptance means an fsync'ed inbox append plus an
         # opaque receipt. Retry uses a stable client key, so a crash between
         # the two local files recovers instead of duplicating the note.
-        for needle in ("/status", "/receipt/", "X-Agent-Note-Key", "os.fsync(f.fileno())",
-                       "receipt_in_inbox", "persist_note", "state_lock"):
+        for needle in ("/status", "/receipt/", "X-Agent-Note-Key", "Origin"):
             self.assertIn(needle, server,
-                          f"receiver lost {needle}, weakening the durable receipt protocol")
-        self.assertIn("<!-- AgentNotes key={note_key} receipt={receipt_id} -->", server)
+                          f"API bridge lost {needle}, weakening delivery or its browser boundary")
+        for needle in ("receipt_in_inbox", "persist_note", "state_lock"):
+            self.assertIn(needle, protocol,
+                          f"durable protocol lost {needle}, weakening its receipt guarantees")
+        save_state_impl = protocol[protocol.index("def save_state("):]
+        save_state_impl = save_state_impl[:save_state_impl.index("\ndef set_waiting(")]
+        append_impl = protocol[protocol.index("def append_inbox("):]
+        append_impl = append_impl[:append_impl.index("\ndef persist_note(")]
+        for durable_write in (save_state_impl, append_impl):
+            self.assertIn("f.flush()\n        os.fsync(f.fileno())", durable_write,
+                        "a receipt or its inbox note can be acknowledged before disk flush")
+        self.assertIn("<!-- AgentNotes key={note_key} receipt={receipt_id} -->", protocol)
         self.assertIn('"state": "saved"', server)
-        self.assertIn('"state": "read"', server)
+        self.assertIn('"state": "read"', protocol)
+        self.assertNotIn("PAGE =", server,
+                         "the API bridge grew a second browser-based notes UI")
         self.assertIn("begin_inbox_checkpoint", state)
         self.assertIn("mark_checkpoint_read", state)
         self.assertIn('choices=("waiting", "checkpoint", "mark-read", "clear-wait", "status")', state)
-        self.assertIn("notes_server.begin_inbox_checkpoint()", state)
-        self.assertIn("notes_server.mark_checkpoint_read(args.checkpoint)", state)
+        self.assertIn("protocol.begin_inbox_checkpoint()", state)
+        self.assertIn("protocol.mark_checkpoint_read(args.checkpoint)", state)
 
         # Do not delete a local outbox item merely because a response was 200.
         # Its durable receipt must first be recorded locally; only then may the
@@ -3377,13 +3630,16 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "probes the branch tip for everything")
         self.assertIn("commit=", wr, "the marker's commit line is not parsed")
         self.assertIn("hub=", wr, "the marker's hub version line is not parsed")
-        self.assertIn("if (!g_probeRef[0])", wr,
+        self.assertIn("if (!probeRef[0])", wr,
                       "with no marker the hub has no fallback ref and would probe "
                       "an empty path")
         self.assertIn("if (!hubFromMarker)", wr,
                       "the branch-tip version probe still runs when the marker "
                       "answered, which is exactly the mid-task nudge")
-        self.assertLess(wr.index(".agent/RELEASED"), wr.index("git/trees"),
+        worker_start = wr.index("static void WorkerCheckRemote(void)")
+        worker_body = wr[worker_start:]
+        self.assertLess(worker_body.index(".agent/RELEASED"),
+                        worker_body.index("FetchRemoteTree(probeRef"),
                         "the trees probe runs before the marker is read, so it "
                         "cannot honour it")
         self.assertEqual(wr.count("REPO_NAME_W, branch"), 2,
@@ -3396,8 +3652,8 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertLess(wr.index("if (!hubFromMarker)"), second,
                         "the branch-tip version probe is not inside the marker "
                         "fallback")
-        self.assertEqual(wr.count("REPO_NAME_W, g_probeRef"), 10,
-                         "some probes still bypass the released ref")
+        self.assertEqual(wr.count("REPO_NAME_W, probeRef"), 10,
+                         "some probes still bypass the captured released ref")
 
         h = fold[fold.index("static void EnsureProbeRef("):]
         h = h[:h.index("\n}\n")]
@@ -3436,10 +3692,22 @@ class SuiteFolderInstallTests(unittest.TestCase):
         import re as _re
         self.assertRegex(mk, r"(?m)^commit=[0-9a-f]{7,40}$",
                          "the released marker has no usable commit line")
-        hubver = _re.search(r'#define HUB_VERSION\s+"([0-9.]+)"', main).group(1)
+        marker_sha = _re.search(r"(?m)^commit=([0-9a-f]{7,40})$", mk).group(1)
+        released_source = main
+        show = subprocess.run(
+            ["git", "show", "%s:project-hub/src/project_hub.c" % marker_sha],
+            cwd=ROOT, capture_output=True, text=True)
+        if show.returncode == 0:
+            # A working tree can contain a fully tested, not-yet-released Hub
+            # version. Compare the marker to the version it actually blesses,
+            # not to that pending source. In a shallow release CI checkout the
+            # target may not be present; there the marker-only commit's source
+            # is the same as its target, so the checked-out source is correct.
+            released_source = show.stdout
+        hubver = _re.search(r'#define HUB_VERSION\s+"([0-9.]+)"', released_source).group(1)
         self.assertIn("hub=%s" % hubver, mk,
-                      "the marker's hub version does not match the hub that ships "
-                      "with it, so the hub would announce an update to itself")
+                      "the marker's hub version does not match the source it blesses, "
+                      "so the hub would announce an update to itself")
 
     def test_hub_settings_page_writes_the_apps_own_files(self):
         """The hub's Settings page must edit, not duplicate, each app's config.
@@ -3702,6 +3970,41 @@ class ProjectHubUpdateVisibilityAndBranchFollowingTests(unittest.TestCase):
         self.assertIn("if (g_hubUpdAvail)\n        AppendMenuW(hMenu, MF_STRING, ID_BTN_SELF_UPDATE", utility,
                       "the utility menu still exposes self-update while the Hub is current")
 
+    def test_remote_identity_fallback_is_known_and_uses_one_probe_ref(self):
+        identity = (ROOT / "project-hub/src/parts/content_identity.c").read_text(encoding="utf-8")
+        statuses = (ROOT / "project-hub/src/parts/refresh_statuses.c").read_text(encoding="utf-8")
+        worker = (ROOT / "project-hub/src/parts/workers_remote.c").read_text(encoding="utf-8")
+
+        known = identity[identity.index("static BOOL RemoteIdentityKnown"):identity.index("static BOOL DirExistsW")]
+        self.assertIn("(remSha && remSha[0]) || remSize > 0", known,
+                      "a known remote size is discarded when the tree API has no blob SHA")
+        self.assertIn("return (remSize > 0 && loc > 0 && loc != remSize);", known,
+                      "a local hash failure still suppresses a differing known size")
+        self.assertIn("RemoteIdentityKnown(g_remBtgSha, remBtgSz)", statuses)
+        self.assertIn("RemoteIdentityKnown(g_remDnsSha, remDnsSz)", statuses)
+        self.assertIn("RemoteIdentityKnown(g_remNotesSha, remNotesSz)", statuses)
+        self.assertIn("RemoteIdentityKnown(g_remAudioSwitcherSha, remAsSz)", statuses)
+        self.assertIn("BOOL kblKnown = kblExeKnown || kblPs1Known;", statuses,
+                      "Keyboard Lighting is hidden as unknown even when either build file resolves")
+        self.assertIn("RemoteIdentityKnown(c->remSha, c->remSize)", statuses)
+
+        sizes_start = worker.index("/* Remote build sizes:")
+        sizes_end = worker.index("/* generic catalog extras", sizes_start)
+        sizes = worker[sizes_start:sizes_end]
+        self.assertNotIn("g_probeRef", sizes,
+                         "one request still uses the mutable global ref, mixing branch "
+                         "and released-commit identities in a single check")
+        self.assertIn("FetchRemoteTree(probeRef, releasedRef", worker)
+        self.assertIn("probeStillCurrent = (_wcsicmp(g_activeBranch, branch) == 0 &&", worker,
+                      "a branch change during a remote request can publish stale card identities")
+        self.assertIn("if (!probeStillCurrent) ClearRemoteProbeResults();", worker)
+        self.assertIn("TreeResponseComplete(data)", worker,
+                      "a truncated trees response can be accepted as a complete identity set")
+        self.assertIn("if (!treeJson) {\n        EnterCriticalSection(&g_cs);\n        ClearRemoteBuildHashes();", worker,
+                      "failed tree requests leave stale SHAs in place and mask the size fallback")
+        self.assertIn("App update check incomplete", worker,
+                      "a probe with missing identities still reports an apparently complete check")
+
     def test_latest_test_branch_setting_is_defaulted_and_manual_choice_pauses_it(self):
         cache = (ROOT / "project-hub/src/parts/version_probe_cache.c").read_text(encoding="utf-8")
         entry = (ROOT / "project-hub/src/parts/branch_picker_entry.c").read_text(encoding="utf-8")
@@ -3716,15 +4019,24 @@ class ProjectHubUpdateVisibilityAndBranchFollowingTests(unittest.TestCase):
                       "automatic following does not inspect available branches")
         self.assertIn('L"/repos/%s/%s/commits/%S"', cache,
                       "the selected branch is not ranked by its newest commit")
-        self.assertIn("6ULL * 60ULL * 60ULL * 1000ULL", cache,
-                      "automatic branch discovery should be cached rather than run on every refresh")
+        branch_json = (ROOT / "project-hub/src/parts/branch_json.h").read_text(encoding="utf-8")
+        self.assertIn("HubBranchJsonExtractArenaTips", cache,
+                      "automatic following still depends on exact compact-JSON token spelling")
+        self.assertIn("HubBranchCheckInterval(g_autoBranchRetryDelay)", cache,
+                      "failed discovery still uses the six-hour success cache interval")
+        self.assertIn("g_autoBranchRetryDelay = HubBranchRetryAfterFailure(g_autoBranchRetryDelay);", cache,
+                      "failed API scans do not schedule a bounded retry")
+        self.assertIn("g_autoBranchRetryDelay = 0; /* successful result returns to the six-hour cache */", cache,
+                      "a successful scan does not clear the failure backoff")
+        self.assertIn("while (*p == ' ' || *p == '\\t' || *p == '\\r' || *p == '\\n') p++;", branch_json,
+                      "the branch-list parser does not accept ordinary JSON whitespace")
         self.assertIn("g_probeRef[0] = L'\\0';", cache,
                       "switching automatic branches can reuse the previous branch's released commit")
 
         self.assertIn("SaveBranchCfg(branch);\n    SaveFollowLatestTestBranch(FALSE);", entry,
                       "choosing a branch manually must pause automatic following")
         worker_start = remote.index("static void WorkerCheckRemote(void)")
-        worker = remote[worker_start:remote.index("/* The released marker", worker_start)]
+        worker = remote[worker_start:remote.index("/* Resolve this check to one snapshot", worker_start)]
         self.assertLess(worker.index("RefreshAutomaticBranch();"), worker.index("EnsureActiveBranch(branch, 64);"),
                         "the remote probe resolves a branch before automatic following runs")
 
@@ -3734,6 +4046,69 @@ class ProjectHubUpdateVisibilityAndBranchFollowingTests(unittest.TestCase):
                       "the Settings checkbox does not apply the branch-follow preference")
         self.assertIn("EnqueueTask(TASK_CHECK_REMOTE);", settings,
                       "enabling automatic following does not check immediately")
+
+    def test_branch_json_reader_and_retry_policy_with_realistic_api_payload(self):
+        """Exercise the exact portable C parser used by the Hub, not a Python
+        reimplementation: GitHub JSON may contain whitespace and nested values,
+        and an unsuccessful scan must back off then retry before six hours."""
+        import shutil
+        import subprocess
+        import tempfile
+
+        header = ROOT / "project-hub/src/parts/branch_json.h"
+        self.assertTrue(header.exists(), "the tested portable branch parser is missing")
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            self.skipTest("a native C compiler is required for the portable parser test")
+
+        payload = [
+            {"name": "main", "commit": {"sha": "a" * 40}},
+            {"name": "arena/old-tests", "commit": {
+                "sha": "b" * 40,
+                "message": {"name": "nested-name-is-not-a-branch", "sha": "c" * 40},
+            }},
+            {"name": "arena/not-a-test", "commit": {"sha": "d" * 40}},
+            {"name": "arena/new-tests", "commit": {
+                "sha": "e" * 40,
+                "message": "quoted fake key: \\\"name\\\": \\\"arena/wrong-tests\\\"",
+            }},
+        ]
+        payload_literal = json.dumps(json.dumps(payload, indent=2))
+        harness = f'''#include <string.h>
+#include "project-hub/src/parts/branch_json.h"
+int main(void) {{
+    const char payload[] = {payload_literal};
+    HubBranchTip tips[8];
+    int count = HubBranchJsonExtractArenaTips(payload, tips, 8);
+    if (count != 2) return 1;
+    if (strcmp(tips[0].name, "arena/old-tests") != 0 || tips[0].sha[0] != 'b') return 2;
+    if (strcmp(tips[1].name, "arena/new-tests") != 0 || tips[1].sha[0] != 'e') return 3;
+    if (HubBranchJsonExtractArenaTips("[ {{ bad }} ]", tips, 8) != -1) return 4;
+    if (HubBranchCheckInterval(0) != 21600000ULL) return 5;
+    if (HubBranchCheckInterval(300000ULL) != 300000ULL) return 6;
+    if (HubBranchRetryAfterFailure(0) != 300000ULL) return 7;
+    if (HubBranchRetryAfterFailure(300000ULL) != 600000ULL) return 8;
+    if (HubBranchRetryAfterFailure(600000ULL) != 1200000ULL) return 9;
+    if (HubBranchRetryAfterFailure(1200000ULL) != 2400000ULL) return 10;
+    if (HubBranchRetryAfterFailure(2400000ULL) != 3600000ULL) return 11;
+    if (HubBranchRetryAfterFailure(3600000ULL) != 3600000ULL) return 12;
+    return 0;
+}}
+'''
+        with tempfile.TemporaryDirectory(prefix="hub-branch-json-") as td:
+            source = Path(td) / "branch_json_test.c"
+            exe = Path(td) / "branch_json_test"
+            source.write_text(harness, encoding="utf-8")
+            compiled = subprocess.run(
+                [compiler, "-std=c99", "-Wall", "-Wextra", "-Werror",
+                 "-I", str(ROOT), str(source), "-o", str(exe)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(compiled.returncode, 0,
+                             "portable branch parser did not compile:\\n" + compiled.stderr)
+            ran = subprocess.run([str(exe)], capture_output=True, text=True)
+            self.assertEqual(ran.returncode, 0,
+                             "branch JSON/backoff behavior failed with code " + str(ran.returncode))
 
 
 class AudioSwitcherReachabilityTests(unittest.TestCase):

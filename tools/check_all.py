@@ -22,7 +22,7 @@ NODEPS = pathlib.Path("/tmp/nodeps")
 EXTERNAL_VENV_PY = pathlib.Path("/home/user/.venv/bin/python")
 CACHE_PATH = pathlib.Path("/home/user/.cache/tests_check_merkle.json")
 
-TESTS = ["test_installer.py", "test_plugin_audit.py",
+TESTS = ["test_installer.py", "test_plugin_audit.py", "test_agent_notes.py",
          "test_post_script.py", "test_unlayered_waves.py",
          "test_wave_gcode.py", "test_windows_apps.py",
          "test_spatial_hud.py"]

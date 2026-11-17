@@ -22,7 +22,7 @@ Line numbers drift — search for the symbol names.
 | `keyboard-lighting/Aura-Background.ps1` | `Set-Live` (smooth master 0..1000), main loop ~60fps: stop.flag, M4/M5 paced taps (150ms), repair scheduler, `PinGate(3)` every tick, WMI `AuraAtk` handler (Fn events 0xC4/0xC5/0xC7 + fnstamp.txt 200ms dedupe), `PublishLayout` (layout.txt ground truth) |
 | `project-hub/src/project_hub.c` | `HUB_VERSION`/`HUB_VERSION_W` (bump both when shipping), `BranchCfgPath`/`LoadBranchCfg`/`SaveBranchCfg`/`EnsureActiveBranch` (branch-picker updater, `config.ini`), `ShowBranchMenu`/`PromptBranchName`/`SetActiveBranch`, `HandleActionCommand` (all button IDs), `g_topBtns[4]` (Refresh / Update Hub / Update All / Branch) |
 | `shared/win32/suite_emblem.c` | Canonical native Tri-Spoke geometry, transparent 32-bit DIB alpha compositing, cache lifecycle, 30-second angle helper, and dark/light palette selection. Project Hub, Agent Notes, Audio Switcher, and Weather Radar include it once from their unity roots; adapters may position/color it but never copy its renderer. `SuiteEmblemDibPixel` is mandatory for a raw emblem DIB background, and every consuming target must be listed in `tools/build_windows.py` `TARGET_SHARED_SOURCES`. |
-| `bluetooth-guard/src/bluetooth_guard.c` | `DeviceEntry`, `HasConnectedBefore` (BTHPORT service-record evidence), `LoadRules`/`SaveRules` (`rules.txt` policy only), OS scan (`BluetoothFindFirstDevice`, authenticated/connected only), paint snapshot `visCount` filter (hidden rows keep raw hit indices) |
+| `bluetooth-guard/src/bluetooth_guard.c` | `DeviceEntry` trusted/forgotten membership, `LoadRules`/`SaveRules` (`rules.txt` K/F records), scan-only candidate enumeration with explicit-connection enrollment and unknown-link rejection, paint/tray/action visibility gates |
 | `tools/generate_suite_icons.py` | `trispoke_sdf_alpha` (the emblem math), `build_icon_*` (per-size analytic ICO frames), `export_spin_loops` (1024² spin: `.webp` full alpha + `.gif` narrow-band dither + `spin.html`) |
 
 ## Critical Technical Facts (Never Break These)
@@ -30,7 +30,7 @@ Line numbers drift — search for the symbol names.
 1. **`BluetoothGuard.exe`:**
    - **Never call `BluetoothSetServiceState(..., BLUETOOTH_SERVICE_DISABLE)`** — always `EnsureProfilesEnabled()` + CoreAudio `KSPROPERTY_ONESHOT_RECONNECT/DISCONNECT` + `IOCTL_BTH_DISCONNECT_DEVICE` (`0x0041000C`).
    - Zero-delay boot: `HIGH_PRIORITY_CLASS`, EcoQoS off, sync device sweep before window creation, `WM_DEVICECHANGE` listening, `Tests_BluetoothGuard_FastBoot` ONLOGON task (`PT0S`, `Priority=4`).
-   - Device list shows ONLY devices connected before (scan filter + `HasConnectedBefore` + rules-ghost hiding) — user requirement.
+   - Device list is a durable trust inventory: only a Guard-initiated connection or a new connection observed from Windows Bluetooth UI enrolls a device; scans never enroll; unknown/forgotten links are disconnected; only **Forget** removes membership.
 2. **`ProjectHub.exe`:**
    - Keep the **`Update Hub`** self-update; bump `HUB_VERSION` **and** `HUB_VERSION_W` with every shipped binary.
    - Updater follows the user-selected branch (`Branch` button); `tests/test_windows_apps.py` asserts project names, `SmoothRoundRect`, `RES_ICON_EMBLEM`, multi-size `.ico` headers.

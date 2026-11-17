@@ -168,6 +168,121 @@ static void PaintNowCard(HDC mem, const RECT *card) {
     DrawTextAt(mem, line, &dr, g_fontSmall, COL_TXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 }
 
+/* Give the selected place a useful onset estimate without implying minute-level
+   precision. Prefer the first hour when a majority of reporting ensemble
+   members forecast measurable rain; if there is no majority, show the peak
+   hourly ensemble signal as possible. The single-run hourly forecast is only
+   a clearly labelled fallback when the ensemble has no rain signal. */
+static void RainEtaText(const Forecast *f, const Ensemble *e, wchar_t *out, int cap) {
+    if (!out || cap < 2) return;
+    out[0] = L'\0';
+    if (!f || !f->have) {
+        _snwprintf(out, cap - 1, L"Rain ETA: waiting for the location forecast");
+        out[cap - 1] = L'\0';
+        return;
+    }
+    if (ForecastIsRainingNow(f)) {
+        _snwprintf(out, cap - 1, L"Rain ETA: rainfall is already underway");
+        out[cap - 1] = L'\0';
+        return;
+    }
+    if (f->hN <= 0) {
+        _snwprintf(out, cap - 1, L"Rain ETA: hourly forecast unavailable");
+        out[cap - 1] = L'\0';
+        return;
+    }
+
+    int start = f->nowIdx;
+    if (start < 0) start = 0;
+    int ensembleHorizon = 0;
+    if (e && e->have) {
+        ensembleHorizon = e->hours - start;
+        if (ensembleHorizon < 0) ensembleHorizon = 0;
+        if (ensembleHorizon > f->hN) ensembleHorizon = f->hN;
+    }
+
+    int likelyK = -1, peakK = -1;
+    double peakProb = 0.0;
+    for (int k = 0; k < ensembleHorizon; k++) {
+        int h = start + k;
+        double prob = e->prob[h];
+        if (e->reported[h] <= 0 || isnan(prob)) continue;
+        if (peakK < 0 || prob > peakProb) {
+            peakK = k;
+            peakProb = prob;
+        }
+        if (prob >= RAIN_ETA_LIKELY_PROB && likelyK < 0) likelyK = k;
+    }
+
+    int k = likelyK;
+    int mode = likelyK >= 0 ? 1 : 0; /* 1 likely, 2 possible peak, 3 single-run fallback */
+    double odds = NAN;
+    if (k >= 0) {
+        odds = e->prob[start + k];
+    } else if (peakK >= 0 && peakProb > 0.0) {
+        k = peakK;
+        odds = peakProb;
+        mode = 2;
+    } else {
+        for (int i = 0; i < f->hN; i++) {
+            if (!isnan(f->hP[i]) && f->hP[i] >= RAIN_ALERT_TRACE_IN) {
+                k = i;
+                mode = 3;
+                int h = start + k;
+                if (e && e->have && h >= 0 && h < e->hours &&
+                    e->reported[h] > 0 && !isnan(e->prob[h])) {
+                    odds = e->prob[h];
+                }
+                break;
+            }
+        }
+    }
+
+    if (k >= 0) {
+        wchar_t time[16], offset[24];
+        if (f->hLabel[k][0]) {
+            wcsncpy(time, f->hLabel[k], 15);
+            time[15] = L'\0';
+        } else {
+            wcscpy(time, L"forecast time");
+        }
+        if (k == 0) wcscpy(offset, L"within ~1h");
+        else _snwprintf(offset, 23, L"in ~%dh", k);
+        offset[23] = L'\0';
+
+        int pct = isnan(odds) ? -1 : (int)llround(odds * 100.0);
+        if (mode == 1) {
+            _snwprintf(out, cap - 1,
+                       L"Rain ETA: likely around %s local (%s) · %d%% ensemble",
+                       time, offset, pct);
+        } else if (mode == 2) {
+            _snwprintf(out, cap - 1,
+                       L"Rain ETA: possible peak around %s local (%s) · %d%% ensemble",
+                       time, offset, pct);
+        } else if (pct >= 0) {
+            _snwprintf(out, cap - 1,
+                       L"Rain ETA: hourly-model signal around %s local (%s) · %d%% ensemble",
+                       time, offset, pct);
+        } else {
+            _snwprintf(out, cap - 1,
+                       L"Rain ETA: hourly-model signal around %s local (%s) · ensemble unavailable",
+                       time, offset);
+        }
+        out[cap - 1] = L'\0';
+        return;
+    }
+
+    if (e && e->have && ensembleHorizon > 0)
+        _snwprintf(out, cap - 1,
+                   L"Rain ETA: no measurable rain signal in the next %d forecast hours",
+                   ensembleHorizon);
+    else
+        _snwprintf(out, cap - 1,
+                   L"Rain ETA: no measurable rain modeled in the next %d forecast hours",
+                   f->hN);
+    out[cap - 1] = L'\0';
+}
+
 /* The headline: the ensemble fraction, in words and as a bar, next to the
    coverage-blended figure so the two can be compared at a glance. */
 static void PaintHonestCard(HDC mem, const RECT *card) {
@@ -215,7 +330,12 @@ static void PaintHonestCard(HDC mem, const RECT *card) {
         wcscpy(detail, L"Ensemble unavailable — no borrowed probability is shown as yours.");
     }
     detail[191] = L'\0';
-    RECT dr = { card->left + S(150), card->top + S(58), card->right - S(18), card->bottom - S(6) };
+    wchar_t eta[192];
+    RainEtaText(&g_fc, &g_ens, eta, 192);
+    RECT er = { card->left + S(150), card->top + S(57), card->right - S(18), card->top + S(75) };
+    DrawTextAt(mem, eta, &er, g_fontSmall, COL_TXT,
+               DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    RECT dr = { card->left + S(150), card->top + S(75), card->right - S(18), card->bottom - S(4) };
     DrawTextAt(mem, detail, &dr, g_fontSmall, COL_MUTED,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 }
@@ -306,6 +426,13 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
     int fsel = g_frameSel;
     long long ftime = (frames > 0 && fsel < frames) ? g_frames[fsel].time : 0;
     int fkind = (frames > 0 && fsel < frames) ? g_frames[fsel].kind : 0;
+    int forecastN = 0, forecastPos = 0;
+    for (int i = 0; i < frames; i++) {
+        if (g_frames[i].kind == 1) {
+            forecastN++;
+            if (i == fsel) forecastPos = forecastN;
+        }
+    }
     Place pl = g_reqPlace;
     int hasPlace = g_reqHas;
     LeaveCriticalSection(&g_lock);
@@ -391,6 +518,18 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
         RECT tr = { img.left + S(8), img.top + S(6), img.left + S(330), img.top + S(28) };
         DrawRoundedBox(mem, &tr, S(8), COL_CARD, COL_CARD_BD);
         DrawTextAt(mem, ft, &tr, g_fontSmall, COL_TXT, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        wchar_t step[32];
+        if (forecastN > 0 && fkind && forecastPos > 0)
+            _snwprintf(step, 31, L"Forecast %d/%d", forecastPos, forecastN);
+        else if (forecastN > 0)
+            _snwprintf(step, 31, L"Forecast · %d steps", forecastN);
+        else
+            wcscpy(step, L"No forecast frames");
+        step[31] = L'\0';
+        RECT fr = { img.left + S(340), img.top + S(6), img.left + S(510), img.top + S(28) };
+        DrawRoundedBox(mem, &fr, S(8), COL_CARD, COL_CARD_BD);
+        DrawTextAt(mem, step, &fr, g_fontSmall, forecastN > 0 ? COL_ACCENT : COL_MUTED,
+                   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
     if (ready == 1 && view) {
         RECT nr = { img.left + S(8), img.top + S(32), img.left + S(330), img.top + S(54) };
@@ -416,7 +555,7 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
                    DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
     if (note) {
-        RECT zr = { img.right - S(360), img.top + S(6), img.right - S(8), img.top + S(28) };
+        RECT zr = { img.left + S(520), img.top + S(6), img.right - S(8), img.top + S(28) };
         const wchar_t *zoomNote = note == 1
             ? L"radar source limited — using available imagery"
             : L"detail zoom — sourced from host level 8";
@@ -539,7 +678,7 @@ static void PaintAll(HWND hwnd) {
     RECT tt = { S(68), S(12), S(560), S(38) };
     DrawTextAt(mem, APP_TITLE_W, &tt, g_fontTitle, COL_TXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     RECT stt = { S(68), S(36), S(560), S(56) };
-    DrawTextAt(mem, L"Honest rain odds from the ensemble, plus live radar", &stt,
+    DrawTextAt(mem, L"Point rain odds + ETA from the ensemble, plus live radar", &stt,
                g_fontSmall, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     DrawBtn(mem, BTN_REFRESH, L"Refresh", 0);
     if (g_placeSel >= 0 && g_placeSel < g_placeN) {

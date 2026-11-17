@@ -483,6 +483,7 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (wp == 1) {
             if (g_applyPending && GetTickCount64() >= g_applyAtTick) FlushLiveApply();
             PollFnBrightness();
+            WatchBrightTokens();
             HoldPump();
             if (IsWindowVisible(hwnd)) {
                 PollLivePreviewFrame();
@@ -493,7 +494,6 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             ApplyHubLightingToggle();
             if (ApplyHubExit()) return 0;
             WriteHeartbeat();
-            WatchBrightTokens();
             PollFnBrightness();
             if (FileExistsW(g_showPath)) {
                 DeleteFileW(g_showPath);
@@ -535,6 +535,7 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_DESTROY:
+        FlushPendingBrightnessCfg();
         if (g_trayVisible) Shell_NotifyIconW(NIM_DELETE, &g_nid);
         g_trayVisible = FALSE;
         StopEngine(TRUE);
@@ -576,8 +577,12 @@ static void InitKblPaths(void) {
         _snwprintf(p, MAX_PATH, L"%s\\presets.ini", g_cfgDir);
         g_scanBound[0] = (int)GetPrivateProfileIntW(L"Keys", L"M4Scan", 0, p);
         g_scanBound[1] = (int)GetPrivateProfileIntW(L"Keys", L"M5Scan", 0, p);
+        g_scanVk[0] = (DWORD)GetPrivateProfileIntW(L"Keys", L"M4Vk", 0, p);
+        g_scanVk[1] = (DWORD)GetPrivateProfileIntW(L"Keys", L"M5Vk", 0, p);
         g_hidCode[0] = (DWORD)GetPrivateProfileIntW(L"Keys", L"M4Hid", 0, p);
         g_hidCode[1] = (DWORD)GetPrivateProfileIntW(L"Keys", L"M5Hid", 0, p);
+        g_hidRelSeen[0] = (BYTE)GetPrivateProfileIntW(L"Keys", L"M4HidRelease", 0, p);
+        g_hidRelSeen[1] = (BYTE)GetPrivateProfileIntW(L"Keys", L"M5HidRelease", 0, p);
     }
     _snwprintf(g_engineScript, MAX_PATH, L"%s\\Aura-Background.ps1", g_exeDir);
     _snwprintf(g_zonesBat,   MAX_PATH, L"%s\\Zones.bat", g_exeDir);
@@ -646,6 +651,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
         WriteAtomicUtf8(g_brightDownPath, tok);
         return 0;
     }
+
+    /* Ignore a stale token left from the previous run, but retain a fresh
+       launch token until the queued raw-input messages arrive for learning. */
+    SeedBrightTokenWatch();
 
     HANDLE hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {

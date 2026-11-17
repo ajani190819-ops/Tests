@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
@@ -86,6 +87,24 @@ public static class BtNative {
   [DllImport("BluetoothAPIs.dll", SetLastError = true)]
   static extern bool BluetoothFindDeviceClose(IntPtr hFind);
 
+  [DllImport("BluetoothAPIs.dll", SetLastError = true)]
+  static extern uint BluetoothRemoveDevice(ref ulong pAddress);
+
+  [DllImport("user32.dll")]
+  static extern IntPtr GetForegroundWindow();
+
+  [DllImport("user32.dll")]
+  static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+  [StructLayout(LayoutKind.Sequential)]
+  struct LASTINPUTINFO {
+    public uint cbSize;
+    public uint dwTime;
+  }
+
+  [DllImport("user32.dll")]
+  static extern bool GetLastInputInfo(ref LASTINPUTINFO inputInfo);
+
   [DllImport("BluetoothAPIs.dll", SetLastError = true, CharSet = CharSet.Unicode)]
   static extern uint BluetoothEnumerateInstalledServices(IntPtr hRadio, ref BLUETOOTH_DEVICE_INFO pbtdi, ref uint pcServiceInout, [Out] Guid[] pGuidServices);
 
@@ -102,6 +121,28 @@ public static class BtNative {
     return string.Format("{0:X2}:{1:X2}:{2:X2}:{3:X2}:{4:X2}:{5:X2}",
       (addr >> 40) & 0xFF, (addr >> 32) & 0xFF, (addr >> 24) & 0xFF,
       (addr >> 16) & 0xFF, (addr >> 8) & 0xFF, addr & 0xFF);
+  }
+
+  public static bool IsWindowsBluetoothUiForeground() {
+    IntPtr hwnd = GetForegroundWindow();
+    if (hwnd == IntPtr.Zero) return false;
+    LASTINPUTINFO inputInfo = new LASTINPUTINFO();
+    inputInfo.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
+    if (!GetLastInputInfo(ref inputInfo)) return false;
+    uint now = unchecked((uint)Environment.TickCount);
+    if (unchecked(now - inputInfo.dwTime) > 5000U) return false;
+    uint pid = 0;
+    GetWindowThreadProcessId(hwnd, out pid);
+    if (pid == 0) return false;
+    try {
+      string processName = Process.GetProcessById((int)pid).ProcessName;
+      return string.Equals(processName, "SystemSettings", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(processName, "ShellExperienceHost", StringComparison.OrdinalIgnoreCase);
+    } catch { return false; }
+  }
+
+  public static uint ForgetDevice(ulong address) {
+    return BluetoothRemoveDevice(ref address);
   }
 
   public static string ClassifyDevice(uint cod, string name) {
@@ -168,7 +209,7 @@ public static class BtNative {
     BLUETOOTH_DEVICE_SEARCH_PARAMS sp = new BLUETOOTH_DEVICE_SEARCH_PARAMS();
     sp.dwSize = (uint)Marshal.SizeOf(typeof(BLUETOOTH_DEVICE_SEARCH_PARAMS));
     sp.fReturnAuthenticated = true;
-    sp.fReturnRemembered = true;
+    sp.fReturnRemembered = false;  // remembered scan history is not trusted membership
     sp.fReturnConnected = true;
     sp.fReturnUnknown = false;
     sp.fIssueInquiry = false;
@@ -226,7 +267,23 @@ public static class BtNative {
     return list.ToArray();
   }
 
-  // Drops any active ACL link immediately WITHOUT disabling profiles so manual Connect always works.
+  // Drop an untrusted link without touching service state; enabling profiles
+  // here could immediately reconnect the very device we are rejecting.
+  public static string DropUntrustedConnection(ulong address) {
+    List<IntPtr> radios = OpenAllRadios();
+    try {
+      foreach (IntPtr h in radios) {
+        ulong addr = address;
+        uint bytes;
+        try { DeviceIoControl(h, IOCTL_BTH_DISCONNECT_DEVICE, ref addr, 8, IntPtr.Zero, 0, out bytes, IntPtr.Zero); } catch { }
+      }
+    } finally {
+      CloseAllRadios(radios);
+    }
+    return "ok";
+  }
+
+  // Drops an active ACL link for a trusted device while preserving its profiles.
   public static string BlockAndDisconnect(ulong address, string kind) {
     BLUETOOTH_DEVICE_INFO info = new BLUETOOTH_DEVICE_INFO();
     info.dwSize = (uint)Marshal.SizeOf(typeof(BLUETOOTH_DEVICE_INFO));

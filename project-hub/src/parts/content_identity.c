@@ -73,14 +73,21 @@ static int TreeShaFor(const char *tree, const char *path, char out[41]) {
     return 1;
 }
 
-/* Exact when the remote blob hash is known; the old size comparison remains
- * as the fallback for when the trees API is unreachable. */
+/* A size is still useful when the Git tree lookup is unavailable or a local
+ * file cannot be opened for hashing. A failed local hash is not proof that the
+ * installed app is up to date; fall back to the best identity that did arrive. */
+static BOOL RemoteIdentityKnown(const char *remSha, DWORD remSize) {
+    return (remSha && remSha[0]) || remSize > 0;
+}
+
 static BOOL RemoteDiffers(const char *remSha, const wchar_t *localPath, DWORD remSize) {
     if (remSha && remSha[0]) {
         char localSha[41];
         if (Sha1BlobHexW(localPath, localSha))
             return strcmp(localSha, remSha) != 0;
-        return FALSE;   /* nothing installed at this path: install, not update */
+        /* If the file is missing LocalSizeOf returns zero, so this remains
+           false (Install, not Update). If hashing failed for another reason,
+           a known size difference can still expose the update. */
     }
     {
         DWORD loc = LocalSizeOf(localPath);

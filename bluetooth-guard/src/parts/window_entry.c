@@ -94,11 +94,11 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
 
     wchar_t subHdr[96];
     if (!g_guardOn)
-        wcsncpy(subHdr, L"Audio shield paused", 95);
+        wcsncpy(subHdr, L"Trusted-device rules paused; unknown links still blocked", 95);
     else if (!radioOn)
         wcsncpy(subHdr, L"Bluetooth radio is off", 95);
     else
-        _snwprintf(subHdr, 95, L"Audio protection  \x00B7  %d protected (%d paired)", blockedCount, visCount);
+        _snwprintf(subHdr, 95, L"Audio protection  \x00B7  %d protected (%d trusted)", blockedCount, visCount);
 
     SelectObject(mem, fSub);
     SetTextColor(mem, COL_TELEMETRY);
@@ -131,7 +131,7 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
         SelectObject(mem, fBody);
         SetTextColor(mem, COL_MUTED);
         RECT er = { emptyR.left + S(24, dpi), emptyR.top, emptyR.right - S(18, dpi), emptyR.bottom };
-        DrawTextW(mem, L"No paired Bluetooth devices found yet. Pair headphones in Windows Settings, then click Refresh.",
+        DrawTextW(mem, L"No trusted devices yet. Connect a paired device in Windows Bluetooth Settings; it appears only after that connection.",
                   -1, &er, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     } else {
         int y = listTop - g_scrollY;
@@ -275,7 +275,7 @@ static void HandleHitClick(int hitIdx) {
         wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
         BOOL nowAllow = TRUE, wasConn = FALSE;
         EnterCriticalSection(&g_lock);
-        if (di >= 0 && di < g_devCount) {
+        if (di >= 0 && di < g_devCount && g_devices[di].visible && !g_devices[di].forgotten) {
             DeviceEntry *d = &g_devices[di];
             d->allowAuto = !d->allowAuto;
             d->sessionAllowed = FALSE;
@@ -296,10 +296,11 @@ static void HandleHitClick(int hitIdx) {
     } else if (kind == HIT_DEV_CONNECT_BTN) {
         ULONGLONG addr = 0;
         wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
-        BOOL wasConn = FALSE;
+        BOOL wasConn = FALSE, valid = FALSE;
         EnterCriticalSection(&g_lock);
-        if (di >= 0 && di < g_devCount) {
+        if (di >= 0 && di < g_devCount && g_devices[di].visible && !g_devices[di].forgotten) {
             DeviceEntry *d = &g_devices[di];
+            valid = TRUE;
             wasConn = d->connected;
             addr = d->address;
             wcsncpy(dkind, d->kind, 15);
@@ -316,25 +317,35 @@ static void HandleHitClick(int hitIdx) {
             }
         }
         LeaveCriticalSection(&g_lock);
-        EnqueueWork(wasConn ? 1 : 2, addr, dmac, dkind, dname);
+        if (valid) EnqueueWork(wasConn ? 1 : 2, addr, dmac, dkind, dname);
         InvalidateRect(g_hwnd, NULL, FALSE);
     } else if (kind == HIT_DEV_FORGET_BTN) {
         ULONGLONG addr = 0;
         wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
+        BOOL valid = FALSE;
         EnterCriticalSection(&g_lock);
-        if (di >= 0 && di < g_devCount) {
+        if (di >= 0 && di < g_devCount && g_devices[di].visible && !g_devices[di].forgotten) {
             DeviceEntry *d = &g_devices[di];
+            valid = TRUE;
             addr = d->address;
             wcsncpy(dkind, d->kind, 15);
             wcsncpy(dname, d->name, 127);
             wcsncpy(dmac, d->mac, 23);
-            d->visible = FALSE;   /* drop it from the list at once */
+            d->visible = FALSE;   /* drop it from every surface at once */
+            d->forgotten = TRUE;  /* persisted tombstone blocks stale OS history */
+            d->transient = FALSE;
             d->connected = FALSE;
             d->allowAuto = FALSE;
+            d->sessionAllowed = FALSE;
+            d->seenConnected = FALSE;
+            d->blockPending = FALSE;
         }
         LeaveCriticalSection(&g_lock);
-        SaveRules();
-        EnqueueWork(3, addr, dmac, dkind, dname);   /* true unpair on the worker */
+        if (valid) {
+            InterlockedExchange64(&g_manualGraceUntil, 0);
+            SaveRules();
+            EnqueueWork(3, addr, dmac, dkind, dname);   /* true unpair on the worker */
+        }
         InvalidateRect(g_hwnd, NULL, FALSE);
     }
 }
@@ -381,6 +392,7 @@ static void ShowTrayMenu(void) {
 
     EnterCriticalSection(&g_lock);
     for (int i = 0; i < g_devCount && i < 20; i++) {
+        if (!g_devices[i].visible || g_devices[i].forgotten) continue;
         wchar_t label[300];
         _snwprintf(label, 299, L"%s  %s",
                    g_devices[i].connected ? L"Disconnect" : L"Connect",
@@ -476,10 +488,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             int di = id - IDM_TRAY_DEV0;
             ULONGLONG addr = 0;
             wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
-            BOOL wasConn = FALSE;
+            BOOL wasConn = FALSE, valid = FALSE;
             EnterCriticalSection(&g_lock);
-            if (di < g_devCount) {
+            if (di < g_devCount && g_devices[di].visible && !g_devices[di].forgotten) {
                 DeviceEntry *d = &g_devices[di];
+                valid = TRUE;
                 wasConn = d->connected;
                 addr = d->address;
                 wcsncpy(dkind, d->kind, 15);
@@ -495,7 +508,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 }
             }
             LeaveCriticalSection(&g_lock);
-            EnqueueWork(wasConn ? 1 : 2, addr, dmac, dkind, dname);
+            if (valid) EnqueueWork(wasConn ? 1 : 2, addr, dmac, dkind, dname);
             InvalidateRect(hwnd, NULL, FALSE);
         }
         return 0;
@@ -527,7 +540,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_QUERYENDSESSION:
     case WM_ENDSESSION:
         /* Clear active sessions & disconnect guarded earbuds before Restart / Fast Startup hibernate */
-        g_manualGraceUntil = 0;
+        InterlockedExchange64(&g_manualGraceUntil, 0);
         EnterCriticalSection(&g_lock);
         for (int i = 0; i < g_devCount; i++) {
             g_devices[i].sessionAllowed = FALSE;
@@ -539,7 +552,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_POWERBROADCAST:
         if (wp == PBT_APMSUSPEND) {
-            g_manualGraceUntil = 0;
+            InterlockedExchange64(&g_manualGraceUntil, 0);
             EnterCriticalSection(&g_lock);
             for (int i = 0; i < g_devCount; i++) {
                 g_devices[i].sessionAllowed = FALSE;
@@ -548,7 +561,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             LeaveCriticalSection(&g_lock);
             DisconnectGuardedDevicesNow();
         } else if (wp == PBT_APMRESUMEAUTOMATIC || wp == PBT_APMRESUMESUSPEND) {
-            g_manualGraceUntil = 0;
+            InterlockedExchange64(&g_manualGraceUntil, 0);
             ArmFastBurstWindow(30000ULL);
             ReleaseSemaphore(g_qSem, 1, NULL);
         }

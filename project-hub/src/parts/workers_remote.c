@@ -11,17 +11,139 @@ static int ExtractLineAfter(const char *src, const char *key, char *out, int cap
     return i > 0;
 }
 
+#define TREE_RETRY_MS          300000ULL
+#define TREE_MUTABLE_CACHE_MS  300000ULL
+
+/* A released ref is an immutable commit. Keep its tree response in memory:
+   polling the Git Trees API every minute burns the unauthenticated API quota,
+   after which the old code kept comparing against a stale SHA and ignored its
+   size fallback. Mutable refs (branches without a release marker) are refreshed
+   conditionally every five minutes. */
+static char *g_treeJsonCache = NULL;
+static wchar_t g_treeCacheRef[64];
+static BOOL g_treeCacheImmutable = FALSE;
+static ULONGLONG g_treeCacheAt = 0;
+static ULONGLONG g_treeRetryAt = 0;
+
+static char *CopyTreeText(const char *src, DWORD len) {
+    char *copy = (char *)malloc((size_t)len + 1);
+    if (!copy) return NULL;
+    memcpy(copy, src, len);
+    copy[len] = '\0';
+    return copy;
+}
+
+static BOOL TreeResponseComplete(const char *json) {
+    const char *p = NULL, *scan = json;
+    if (!json) return FALSE;
+    /* The root flag follows the tree array, so it is the last matching token;
+       this avoids treating a file literally named "truncated" as the flag. */
+    while ((scan = strstr(scan, "\"truncated\"")) != NULL) {
+        p = scan;
+        scan += 11;
+    }
+    if (!p || !(p = strchr(p, ':'))) return FALSE;
+    p++;
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+    return strncmp(p, "false", 5) == 0;
+}
+
+static char *FetchRemoteTree(const wchar_t *probeRef, BOOL immutable,
+                             DWORD *outSize, int *outStatus) {
+    ULONGLONG now = GetTickCount64();
+    if (outSize) *outSize = 0;
+    if (outStatus) *outStatus = 0;
+
+    if (_wcsicmp(g_treeCacheRef, probeRef) != 0 || g_treeCacheImmutable != immutable) {
+        free(g_treeJsonCache);
+        g_treeJsonCache = NULL;
+        wcsncpy(g_treeCacheRef, probeRef, 63);
+        g_treeCacheRef[63] = L'\0';
+        g_treeCacheImmutable = immutable;
+        g_treeCacheAt = 0;
+        g_treeRetryAt = 0;
+    }
+    if (g_treeJsonCache && immutable) {
+        DWORD n = (DWORD)strlen(g_treeJsonCache);
+        if (outSize) *outSize = n;
+        if (outStatus) *outStatus = 200;
+        return CopyTreeText(g_treeJsonCache, n);
+    }
+    if (g_treeJsonCache && !immutable && now - g_treeCacheAt < TREE_MUTABLE_CACHE_MS) {
+        DWORD n = (DWORD)strlen(g_treeJsonCache);
+        if (outSize) *outSize = n;
+        if (outStatus) *outStatus = 200;
+        return CopyTreeText(g_treeJsonCache, n);
+    }
+    if (g_treeRetryAt && now < g_treeRetryAt) return NULL;
+
+    wchar_t path[512];
+    _snwprintf(path, 511, L"/repos/%s/%s/git/trees/%s?recursive=1",
+               REPO_OWNER_W, REPO_NAME_W, probeRef);
+    path[511] = L'\0';
+    DWORD size = 0;
+    int status = 0;
+    char *data = (char *)(immutable
+        ? HttpGetBuffer(L"api.github.com", path, &size, &status)
+        : HttpGetCached(L"api.github.com", path, &size, &status));
+    if (data && status == 200 && TreeResponseComplete(data)) {
+        char *cache = CopyTreeText(data, size);
+        if (cache) {
+            free(g_treeJsonCache);
+            g_treeJsonCache = cache;
+            g_treeCacheAt = now;
+            g_treeRetryAt = 0;
+        } else {
+            g_treeRetryAt = now + TREE_RETRY_MS;
+        }
+        if (outSize) *outSize = size;
+        if (outStatus) *outStatus = status;
+        return data;
+    }
+    free(data);
+    g_treeRetryAt = now + TREE_RETRY_MS;
+    if (outStatus) *outStatus = status;
+    return NULL;
+}
+
+static void ClearRemoteBuildHashes(void) {
+    g_remBtgSha[0] = '\0';
+    g_remKblSha[0] = '\0';
+    g_remKblPs1Sha[0] = '\0';
+    g_remDnsSha[0] = '\0';
+    g_remNotesSha[0] = '\0';
+    g_remAudioSwitcherSha[0] = '\0';
+}
+
+/* Caller holds g_cs. Never leave identities from one selected ref active while
+   the next ref is being probed or after a selection changes mid-request. */
+static void ClearRemoteProbeResults(void) {
+    ClearRemoteBuildHashes();
+    g_remBtgSize = g_remKblSize = g_remKblPs1Size = 0;
+    g_remDnsSize = g_remNotesSize = g_remAudioSwitcherSize = 0;
+    g_remHubVer[0] = '\0';
+    g_remWaveVer[0] = '\0';
+    g_remInfillVer[0] = '\0';
+    g_remHudName[0] = L'\0';
+    g_remHudPath[0] = L'\0';
+    g_remHudSize = 0;
+    for (int i = 6; i < g_cardCount; i++) {
+        g_cards[i].remSize = 0;
+        g_cards[i].remSha[0] = '\0';
+    }
+}
+
 static void WorkerCheckRemote(void) {
-    wchar_t branch[64];
+    wchar_t branch[64], probeRef[64] = L"";
+    BOOL releasedRef = FALSE;
+    char markerHubVer[32] = "";
     SetCheckPhase(TRUE);
     RefreshAutomaticBranch();
     EnsureActiveBranch(branch, 64);
 
-    /* The released marker is the ONLY read taken from the branch tip. Every
-       other probe below uses the commit the marker blesses, so half-finished
-       work is invisible and the owner hears about an update once, when a
-       task is done. No marker (other people's branches, offline) falls back
-       to today's behaviour. */
+    /* Resolve this check to one snapshot. A release marker names an immutable
+       commit; when it is unavailable, deliberately fall back to the selected
+       branch tip rather than retaining a previous check's commit SHA. */
     DWORD msz = 0; int mst = 0;
     wchar_t murl[256];
     _snwprintf(murl, 255, L"/%s/%s/%s/.agent/RELEASED?t=%llu", REPO_OWNER_W, REPO_NAME_W, branch,
@@ -31,25 +153,39 @@ static void WorkerCheckRemote(void) {
     if (marker && mst == 200) {
         char sha[48] = "";
         if (ExtractLineAfter(marker, "commit=", sha, sizeof(sha))) {
-            int oksha = strlen(sha) >= 7;
+            int oksha = strlen(sha) == 40;
             for (int i = 0; sha[i]; i++) {
                 char c = sha[i];
                 if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) oksha = 0;
             }
-            if (oksha) _snwprintf(g_probeRef, 63, L"%S", sha);
+            if (oksha) {
+                _snwprintf(probeRef, 63, L"%S", sha);
+                releasedRef = TRUE;
+            }
         }
-        char hv[32] = "";
-        if (ExtractLineAfter(marker, "hub=", hv, sizeof(hv))) {
-            EnterCriticalSection(&g_cs);
-            strncpy(g_remHubVer, hv, 31);
-            LeaveCriticalSection(&g_cs);
+        if (ExtractLineAfter(marker, "hub=", markerHubVer, sizeof(markerHubVer)))
             hubFromMarker = 1;
-        }
     }
     free(marker);
-    if (!g_probeRef[0]) _snwprintf(g_probeRef, 63, L"%s", branch);
+    if (!probeRef[0]) _snwprintf(probeRef, 63, L"%s", branch);
 
-    wchar_t p[256];
+    /* Branch-menu changes can happen while this worker is downloading. Use
+       the captured ref for every request in this pass, and don't overwrite a
+       newer selection when the pass finishes. */
+    EnterCriticalSection(&g_cs);
+    BOOL refChanged = _wcsicmp(g_probeRef, probeRef) != 0;
+    if (refChanged) ClearRemoteProbeResults();
+    if (_wcsicmp(g_activeBranch, branch) == 0) {
+        wcsncpy(g_probeRef, probeRef, 63);
+        g_probeRef[63] = L'\0';
+    }
+    if (markerHubVer[0]) {
+        strncpy(g_remHubVer, markerHubVer, 31);
+        g_remHubVer[31] = '\0';
+    }
+    LeaveCriticalSection(&g_cs);
+
+    wchar_t p[512];
     DWORD sz = 0; int st = 0;
 
     if (!hubFromMarker) {
@@ -69,7 +205,7 @@ static void WorkerCheckRemote(void) {
         free(hubSrc);
     }
 
-    _snwprintf(p, 255, L"/%s/%s/%s/plugins.json", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
+    _snwprintf(p, 255, L"/%s/%s/%s/plugins.json", REPO_OWNER_W, REPO_NAME_W, probeRef);
     char *manifest = (char *)HttpGetCached(L"raw.githubusercontent.com", p, &sz, &st);
     if (manifest && st == 200) {
         char wv[32] = "", iv[32] = "";
@@ -89,7 +225,7 @@ static void WorkerCheckRemote(void) {
        update needed. Built-in card ids are skipped here. The minute-
        granularity cache buster keeps the raw.githubusercontent CDN from
        serving stale copies of the catalog. */
-    _snwprintf(p, 255, L"/%s/%s/%s/suite-apps.json?t=%llu", REPO_OWNER_W, REPO_NAME_W, g_probeRef,
+    _snwprintf(p, 255, L"/%s/%s/%s/suite-apps.json?t=%llu", REPO_OWNER_W, REPO_NAME_W, probeRef,
                (unsigned long long)(GetTickCount64() / 60000ULL));
     char *catalog = (char *)HttpGetCached(L"raw.githubusercontent.com", p, &sz, &st);
     if (catalog && st == 200) {
@@ -102,34 +238,31 @@ static void WorkerCheckRemote(void) {
     }
     free(catalog);
 
-    /* Remote content identity, fetched once for every path below. */
-    char *treeJson = NULL;
-    {
-        wchar_t tp[512];
-        DWORD tsz = 0;
-        int tst = 0;
-        _snwprintf(tp, 511, L"/repos/%s/%s/git/trees/%s?recursive=1",
-                   REPO_OWNER_W, REPO_NAME_W, g_probeRef);
-        tp[511] = L'\0';
-        treeJson = (char *)HttpGetBuffer(L"api.github.com", tp, &tsz, &tst);
-        if (!(treeJson && tst == 200)) { free(treeJson); treeJson = NULL; }
+    /* Remote content identity is immutable for a released commit. Fetch once
+       per probe ref and reuse it; a failed tree request clears the old hashes
+       so the raw-file sizes below are a real fallback, not masked by stale SHA. */
+    char *treeJson = FetchRemoteTree(probeRef, releasedRef, NULL, NULL);
+    if (!treeJson) {
+        EnterCriticalSection(&g_cs);
+        ClearRemoteBuildHashes();
+        LeaveCriticalSection(&g_cs);
     }
 
     /* Remote build sizes: kept as the fallback identity when the trees API is
        unreachable (rate limit, offline). */
     {
         DWORD szBtg = 0, szKbl = 0, szPs1 = 0, szDns = 0, szNotes = 0, szAs = 0;
-        _snwprintf(p, 255, L"/%s/%s/%s/bluetooth-guard/BluetoothGuard.exe", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
+        _snwprintf(p, 255, L"/%s/%s/%s/bluetooth-guard/BluetoothGuard.exe", REPO_OWNER_W, REPO_NAME_W, probeRef);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szBtg);
-        _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/KeyboardLighting.exe", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
+        _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/KeyboardLighting.exe", REPO_OWNER_W, REPO_NAME_W, probeRef);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szKbl);
-        _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/Aura-Background.ps1", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
+        _snwprintf(p, 255, L"/%s/%s/%s/keyboard-lighting/Aura-Background.ps1", REPO_OWNER_W, REPO_NAME_W, probeRef);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szPs1);
-        _snwprintf(p, 255, L"/%s/%s/%s/dns-pilot/DnsPilot.exe", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
+        _snwprintf(p, 255, L"/%s/%s/%s/dns-pilot/DnsPilot.exe", REPO_OWNER_W, REPO_NAME_W, probeRef);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szDns);
-        _snwprintf(p, 255, L"/%s/%s/%s/agent-notes/AgentNotes.exe", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
+        _snwprintf(p, 255, L"/%s/%s/%s/agent-notes/AgentNotes.exe", REPO_OWNER_W, REPO_NAME_W, probeRef);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szNotes);
-        _snwprintf(p, 255, L"/%s/%s/%s/audio-switcher/AudioSwitcher.exe", REPO_OWNER_W, REPO_NAME_W, g_probeRef);
+        _snwprintf(p, 255, L"/%s/%s/%s/audio-switcher/AudioSwitcher.exe", REPO_OWNER_W, REPO_NAME_W, probeRef);
         HttpHeadSize(L"raw.githubusercontent.com", p, &szAs);
         /* Always record the result: a failed HEAD means "unknown" (0), never
            "keep the old number". Stale cached sizes are what left Update Ready
@@ -155,7 +288,7 @@ static void WorkerCheckRemote(void) {
     for (int i = 6; i < g_cardCount; i++) {
         DWORD szX = 0;
         if (g_cards[i].exeRepo) {
-            _snwprintf(p, 255, L"/%s/%s/%s/%s", REPO_OWNER_W, REPO_NAME_W, g_probeRef, g_cards[i].exeRepo);
+            _snwprintf(p, 255, L"/%s/%s/%s/%s", REPO_OWNER_W, REPO_NAME_W, probeRef, g_cards[i].exeRepo);
             HttpHeadSize(L"raw.githubusercontent.com", p, &szX);
         }
         g_cards[i].remSize = szX;
@@ -219,20 +352,61 @@ static void WorkerCheckRemote(void) {
     }
     free(rel);
 
+    BOOL probeStillCurrent;
+    EnterCriticalSection(&g_cs);
+    probeStillCurrent = (_wcsicmp(g_activeBranch, branch) == 0 &&
+                         _wcsicmp(g_probeRef, probeRef) == 0);
+    if (!probeStillCurrent) ClearRemoteProbeResults();
+    LeaveCriticalSection(&g_cs);
+    if (!probeStillCurrent) {
+        SetCheckPhase(FALSE);
+        if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
+        return;
+    }
+
     char remHubLocal[32] = "";
     EnterCriticalSection(&g_cs);
     strncpy(remHubLocal, g_remHubVer, 31);
+    remHubLocal[31] = '\0';
     LeaveCriticalSection(&g_cs);
 
+    BOOL allBuildIdsKnown =
+        RemoteIdentityKnown(g_remBtgSha, g_remBtgSize) &&
+        RemoteIdentityKnown(g_remKblSha, g_remKblSize) &&
+        RemoteIdentityKnown(g_remKblPs1Sha, g_remKblPs1Size) &&
+        RemoteIdentityKnown(g_remDnsSha, g_remDnsSize) &&
+        RemoteIdentityKnown(g_remNotesSha, g_remNotesSize) &&
+        RemoteIdentityKnown(g_remAudioSwitcherSha, g_remAudioSwitcherSize);
+    for (int i = 7; i < g_cardCount; i++) {
+        if (g_cards[i].exeRepo &&
+            !RemoteIdentityKnown(g_cards[i].remSha, g_cards[i].remSize))
+            allBuildIdsKnown = FALSE;
+    }
+
+    wchar_t refLabel[12] = L"branch tip";
+    if (releasedRef) {
+        wcsncpy(refLabel, probeRef, 7);
+        refLabel[7] = L'\0';
+    }
     SetCheckPhase(FALSE);
     if (remHubLocal[0] && VerNewer(remHubLocal, HUB_VERSION)) {
         wchar_t updMsg[256];
         _snwprintf(updMsg, 255,
-                   L"Project Hub v%S is available on GitHub  ·  Click 'Update Hub' above",
-                   remHubLocal);
+                   L"Project Hub v%S is available  ·  checked %s @ %s",
+                   remHubLocal, branch, refLabel);
         SetFooterStatus(updMsg, 0);
+    } else if (!allBuildIdsKnown) {
+        wchar_t checkMsg[256];
+        _snwprintf(checkMsg, 255,
+                   L"App update check incomplete  ·  %s @ %s  ·  retrying",
+                   branch, refLabel);
+        SetFooterStatus(checkMsg, 0);
     } else {
-        SetFooterStatus(L"All suite apps verified  ·  GitHub connected", 0);
+        wchar_t checkMsg[256];
+        _snwprintf(checkMsg, 255,
+                   L"App identities checked  ·  %s @ %s",
+                   branch, refLabel);
+        SetFooterStatus(checkMsg, 0);
     }
     if (g_hwnd) PostMessageW(g_hwnd, WM_HUB_REFRESH, 0, 0);
 }

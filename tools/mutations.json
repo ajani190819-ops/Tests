@@ -9,14 +9,14 @@
  {
   "id": "marker-01",
   "file": "project-hub/src/parts/workers_remote.c",
-  "old": "REPO_NAME_W, g_probeRef);\n        tp[511]",
-  "new": "REPO_NAME_W, branch);\n        tp[511]",
+  "old": "REPO_NAME_W, probeRef);\n    path[511]",
+  "new": "REPO_NAME_W, branch);\n    path[511]",
   "label": "B trees probe back on branch tip"
  },
  {
   "id": "marker-02",
   "file": "project-hub/src/parts/workers_remote.c",
-  "old": "    if (!g_probeRef[0]) _snwprintf(g_probeRef, 63, L\"%s\", branch);\n",
+  "old": "    if (!probeRef[0]) _snwprintf(probeRef, 63, L\"%s\", branch);\n",
   "new": "",
   "label": "C no-marker fallback removed"
  },
@@ -574,10 +574,262 @@
   "label": "Project Hub never retries a transient initial tray registration failure"
  },
  {
+  "id": "trayhub-07",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    if (!HubTrayShowAgentWaitingAlert()) return;",
+  "new": "    HubTrayShowAgentWaitingAlert();",
+  "label": "Hub marks an Agent Notes wait seen when Windows rejected its notification"
+ },
+ {
+  "id": "trayhub-08",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    return notified;\n}\n\nstatic void HubTrayPollAgentWait(void) {",
+  "new": "    return TRUE;\n}\n\nstatic void HubTrayPollAgentWait(void) {",
+  "label": "Hub treats a failed Agent Notes notification as successfully shown"
+ },
+ {
+  "id": "trayhub-09",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    if (!notified) return;  /* leave the token pending for the next Hub poll */\n    wcsncpy(g_hubSeenRainAlert, token, 79);",
+  "new": "    wcsncpy(g_hubSeenRainAlert, token, 79);",
+  "label": "Hub drops a rain alert token when Windows rejects its notification"
+ },
+ {
+  "id": "trayhub-10",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "        g_hwnd = hwnd;\n        return DefWindowProcW(hwnd, msg, wp, lp);",
+  "new": "        return DefWindowProcW(hwnd, msg, wp, lp);",
+  "label": "Hub tray registers before CreateWindowEx publishes its HWND"
+ },
+ {
+  "id": "branch-follow-00",
+  "file": "project-hub/src/parts/branch_json.h",
+  "old": "    while (*p == ' ' || *p == '\\t' || *p == '\\r' || *p == '\\n') p++;",
+  "new": "    while (0) p++;",
+  "label": "Whitespace in GitHub branch JSON makes automatic discovery fail"
+ },
+ {
+  "id": "branch-follow-01",
+  "file": "project-hub/src/parts/version_probe_cache.c",
+  "old": "        g_autoBranchRetryDelay = HubBranchRetryAfterFailure(g_autoBranchRetryDelay);",
+  "new": "        g_autoBranchRetryDelay = 0;",
+  "label": "A failed GitHub scan suppresses automatic-branch retries for six hours"
+ },
+ {
   "id": "brand-00",
   "file": "tools/generate_suite_icons.py",
   "old": "    for stale in REDUNDANT_BRAND_EXPORTS:",
   "new": "    for stale in ():",
   "label": "Icon regeneration no longer removes duplicate aliases"
+ },
+ {
+  "id": "notes-api-00",
+  "file": "tools/agent_notes_protocol.py",
+  "old": "        receipt_id = receipt_in_inbox(note_key)\n        if receipt_id:\n",
+  "new": "        receipt_id = receipt_in_inbox(note_key)\n        if False:\n",
+  "label": "Agent Notes retry duplicates an inbox append after receipt-state failure"
+ },
+ {
+  "id": "notes-api-01",
+  "file": "tools/notes_server.py",
+  "old": "        if self.headers.get(\"Origin\"):\n",
+  "new": "        if False:\n",
+  "label": "Agent Notes API accepts cross-origin browser writes"
+ },
+ {
+  "id": "notes-api-02",
+  "file": "tools/agent_notes_protocol.py",
+  "old": "        f.flush()\n        os.fsync(f.fileno())\n    os.replace(tmp, STATE)",
+  "new": "        f.flush()\n    os.replace(tmp, STATE)",
+  "label": "Agent Notes reports a receipt before flushing inbox data to disk"
+ },
+ {
+  "id": "wx-23",
+  "file": "weather-radar/src/parts/radar.c",
+  "old": "    g_frameSel = firstForecast >= 0 ? firstForecast\n                : (latestObserved >= 0 ? latestObserved : 0);",
+  "new": "    g_frameSel = latestObserved >= 0 ? latestObserved : 0;",
+  "label": "Weather Radar opens on observed frames instead of the nearest future nowcast"
+ },
+ {
+  "id": "wx-24",
+  "file": "weather-radar/src/weather_radar.c",
+  "old": "#define MAX_PAST_FRAMES 24",
+  "new": "#define MAX_PAST_FRAMES 12",
+  "label": "Weather Radar truncates the expanded observed timeline back to twelve frames"
+ },
+ {
+  "id": "wx-25",
+  "file": "weather-radar/src/weather_radar.c",
+  "old": "#define MAX_FRAMES     64",
+  "new": "#define MAX_FRAMES     32",
+  "label": "Weather Radar caps the timeline before its expanded forecast frame capacity"
+ },
+ {
+  "id": "notes-api-03",
+  "file": "tools/agent_notes_protocol.py",
+  "old": "    with INBOX.open(\"a\", encoding=\"utf-8\") as f:\n        f.write(entry)\n        f.flush()\n        os.fsync(f.fileno())\n",
+  "new": "    with INBOX.open(\"a\", encoding=\"utf-8\") as f:\n        f.write(entry)\n        f.flush()\n",
+  "label": "Agent Notes returns a saved receipt before the inbox append is durable"
+ },
+ {
+  "id": "wx-26",
+  "file": "weather-radar/src/parts/radar.c",
+  "old": "        while (j >= 0 && g_frames[j].time > current.time) {\n",
+  "new": "        while (0) {\n",
+  "label": "Weather Radar plays forecast frames in provider order instead of chronological order"
+ },
+ {
+  "id": "btg-00",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "d->visible ? L\"K\" : L\"F\"",
+  "new": "L\"F\"",
+  "label": "Trusted Bluetooth membership is serialized as forgotten"
+ },
+ {
+  "id": "btg-01",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "if (!info.fConnected) goto next_bluetooth_device;",
+  "new": "if (FALSE) goto next_bluetooth_device;",
+  "label": "Disconnected Bluetooth scan results are enrolled as devices"
+ },
+ {
+  "id": "btg-02",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "BOOL manualIntent = newlyConnected && manualWindow;",
+  "new": "BOOL manualIntent = newlyConnected;",
+  "label": "A connection without Windows UI intent is trusted"
+ },
+ {
+  "id": "btg-03",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "d->forgotten = TRUE;",
+  "new": "d->forgotten = FALSE;",
+  "label": "Forget fails to persist its native tombstone"
+ },
+ {
+  "id": "btg-04",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "if (!g_devices[i].visible || g_devices[i].forgotten) continue;",
+  "new": "if (FALSE) continue;",
+  "label": "Hidden Bluetooth devices leak into the native tray menu"
+ },
+ {
+  "id": "btg-05",
+  "file": "bluetooth-guard/src/parts/bt_actions.c",
+  "old": "g_devices[i].visible && !g_devices[i].forgotten",
+  "new": "g_devices[i].visible",
+  "label": "A stale native queue can reconnect a device after Forget"
+ },
+ {
+  "id": "btg-06",
+  "file": "bluetooth-guard/BluetoothGuard.ps1",
+  "old": "if ($o.DeviceTrustFormat -eq 2 -and $o.Devices) {",
+  "new": "if ($o.Devices) {",
+  "label": "Legacy PowerShell scan history is loaded as trusted membership"
+ },
+ {
+  "id": "btg-07",
+  "file": "bluetooth-guard/BluetoothGuard.ps1",
+  "old": "$script:SnapshotBaseline -and $newLink -and $manualUi",
+  "new": "$newLink",
+  "label": "PowerShell trusts a new connection without Windows UI intent"
+ },
+ {
+  "id": "btg-08",
+  "file": "bluetooth-guard/BluetoothGuard.ps1",
+  "old": "$currentEntry.Forgotten = $true",
+  "new": "$currentEntry.Forgotten = $false",
+  "label": "PowerShell Forget leaves the device trusted"
+ },
+ {
+  "id": "btg-09",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "g_devices[idx].allowAuto = FALSE;",
+  "new": "g_devices[idx].allowAuto = TRUE;",
+  "label": "Newly trusted Bluetooth devices default to auto-connect"
+ },
+ {
+  "id": "btg-10",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "DoDisconnectOnly(rejected[i].address, rejected[i].kind, rejected[i].name);",
+  "new": "(void)rejected[i];",
+  "label": "Untrusted Bluetooth connections are not actively dropped"
+ },
+ {
+  "id": "btg-11",
+  "file": "bluetooth-guard/BluetoothGuard.ps1",
+  "old": "Queue-BtWork 'drop' ([uint64]$snap.Address) ([string]$snap.Kind) ([string]$snap.Name)\n                    Log (\"dropping connection to untrusted device",
+  "new": "Log (\"dropping connection to untrusted device",
+  "label": "PowerShell leaves a newly connected untrusted device active"
+ },
+ {
+  "id": "btg-12",
+  "file": "bluetooth-guard/src/parts/device_classify.c",
+  "old": "if (!GetLastInputInfo(&inputInfo) || GetTickCount() - inputInfo.dwTime > 5000U) return;",
+  "new": "if (FALSE) return;",
+  "label": "Opening Windows Bluetooth UI without recent user input creates connection intent"
+ },
+ {
+  "id": "btg-13",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "                    CheckForegroundManualIntent();\n",
+  "new": "                    (void)g_hwnd;\n",
+  "label": "A fast Windows UI connection race bypasses manual-intent detection"
+ },
+ {
+  "id": "btg-14",
+  "file": "bluetooth-guard/BluetoothGuard.ps1",
+  "old": "$manualUi = Update-WindowsUiIntent",
+  "new": "$manualUi = $false",
+  "label": "PowerShell loses short-lived Windows Bluetooth UI intent after the flyout closes"
+ },
+ {
+  "id": "btg-15",
+  "file": "bluetooth-guard/BluetoothGuard.ps1",
+  "old": "Connected = $false",
+  "new": "Connected = $true",
+  "label": "A disconnected trusted device is no longer kept in the PowerShell list"
+ },
+ {
+  "id": "wx-27",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "if (prob >= RAIN_ETA_LIKELY_PROB && likelyK < 0) likelyK = k;",
+  "new": "if (prob >= 0.0 && likelyK < 0) likelyK = k;",
+  "label": "Rain ETA treats the first dry hour as a majority-likelihood arrival"
+ },
+ {
+  "id": "wx-28",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "RainEtaText(&g_fc, &g_ens, eta, 192);",
+  "new": "wcscpy(eta, L\"Rain ETA: unavailable\");",
+  "label": "Weather Radar computes a rain ETA but never shows it in the rain card"
+ },
+ {
+  "id": "kbl-hold-00",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "g_scanNext[i] = now + 30;",
+  "new": "g_scanNext[i] = now + 60;",
+  "label": "A 60 ms target skips 45 ms UI timer ticks and leaves a held ramp irregular"
+ },
+ {
+  "id": "kbl-live-00",
+  "file": "keyboard-lighting/src/parts/brightness_hotkeys.c",
+  "old": "if (now - g_lastFnPoll < 35ULL) return;",
+  "new": "if (now - g_lastFnPoll < 150ULL) return;",
+  "label": "Brightness readback falls back to coarse 150 ms slider updates"
+ },
+ {
+  "id": "kbl-live-01",
+  "file": "keyboard-lighting/src/parts/brightness_hotkeys.c",
+  "old": "    g_brightnessCfgSaveAt = now + 300ULL;\n",
+  "new": "    g_brightnessCfgSaveAt = now + 300ULL;\n    ScheduleLiveApply();\n",
+  "label": "The panel echoes its rounded brightness sample back into the active engine ramp"
+ },
+ {
+  "id": "kbl-live-02",
+  "file": "keyboard-lighting/src/parts/brightness_hotkeys.c",
+  "old": "if (!parseOk || !end || *end != '\\0') {",
+  "new": "if (FALSE) {",
+  "label": "A truncated live.txt sample is accepted as a bogus brightness value"
  }
 ]

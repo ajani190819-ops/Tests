@@ -1,3 +1,5 @@
+#include "branch_json.h"
+
 /* ---- version-probe cache: conditional GET (ETag / If-Modified-Since) ----
    An unchanged file answers 304 with no body at all, so steady-state checks
    transfer almost nothing instead of re-downloading ~200 KB of hub source
@@ -154,6 +156,7 @@ static void SetFollowLatestTestBranch(BOOL on) {
     g_activeBranch[0] = L'\0';
     g_probeRef[0] = L'\0';
     g_autoBranchLastCheck = 0;
+    g_autoBranchRetryDelay = 0;
     LeaveCriticalSection(&g_cs);
 }
 
@@ -261,21 +264,12 @@ static BOOL ExtractQuotedAfter(const char *hay, const char *key, char *out, size
 }
 
 
-static BOOL IsArenaTestBranch(const char *name, int len) {
-    static const char prefix[] = "arena/";
-    static const char suffix[] = "-tests";
-    int prefixLen = (int)sizeof(prefix) - 1;
-    int suffixLen = (int)sizeof(suffix) - 1;
-    return len > prefixLen + suffixLen &&
-           memcmp(name, prefix, (size_t)prefixLen) == 0 &&
-           memcmp(name + len - suffixLen, suffix, (size_t)suffixLen) == 0;
-}
-
 /* The branches API provides each tip SHA but not its commit date. Resolve the
-   small set of Arena test-branch tips once at startup, then cache the choice
-   for six hours. This is deliberate: branch discovery is a convenience, not
-   something that should spend GitHub requests every ordinary status refresh. */
+   small set of Arena test-branch tips once at startup, then cache a successful
+   choice for six hours. Failed requests use a bounded retry backoff instead
+   of suppressing discovery for six hours. */
 static void FindLatestArenaTestBranch(wchar_t *out, size_t cap) {
+    if (!out || cap == 0) return;
     out[0] = L'\0';
     DWORD listSz = 0;
     int listSt = 0;
@@ -284,50 +278,46 @@ static void FindLatestArenaTestBranch(wchar_t *out, size_t cap) {
                                &listSz, &listSt);
     if (!list || listSt != 200) { free(list); return; }
 
+    HubBranchTip tips[100];
+    int tipCount = HubBranchJsonExtractArenaTips((const char *)list, tips,
+                                                  sizeof(tips) / sizeof(tips[0]));
+    if (tipCount < 0) { free(list); return; }
+
     char bestDate[32] = "";
-    char *scan = (char *)list;
-    while (scan && *scan) {
-        char *namePos = strstr(scan, "\"name\":\"");
-        if (!namePos) break;
-        namePos += 8;
-        char *nameEnd = strchr(namePos, '\"');
-        if (!nameEnd) break;
-        char *nextName = strstr(nameEnd + 1, "\"name\":\"");
-        int nameLen = (int)(nameEnd - namePos);
-        if (nameLen > 0 && nameLen < 64 && IsArenaTestBranch(namePos, nameLen)) {
-            char *shaPos = strstr(nameEnd, "\"sha\":\"");
-            if (shaPos && (!nextName || shaPos < nextName)) {
-                shaPos += 7;
-                char *shaEnd = strchr(shaPos, '\"');
-                int shaLen = shaEnd ? (int)(shaEnd - shaPos) : 0;
-                if (shaLen >= 7 && shaLen < 48) {
-                    char sha[48];
-                    memcpy(sha, shaPos, (size_t)shaLen);
-                    sha[shaLen] = '\0';
-                    wchar_t commitPath[256];
-                    _snwprintf(commitPath, 255, L"/repos/%s/%s/commits/%S",
-                               REPO_OWNER_W, REPO_NAME_W, sha);
-                    commitPath[255] = L'\0';
-                    DWORD commitSz = 0;
-                    int commitSt = 0;
-                    char *commit = (char *)HttpGetBuffer(L"api.github.com", commitPath,
-                                                          &commitSz, &commitSt);
-                    if (commit && commitSt == 200) {
-                        char date[32] = "";
-                        char *committer = strstr(commit, "\"committer\":");
-                        if (committer && ExtractQuotedAfter(committer, "\"date\"", date, sizeof(date)) &&
-                            (!bestDate[0] || strcmp(date, bestDate) > 0)) {
-                            memcpy(bestDate, date, sizeof(bestDate));
-                            int n = nameLen < (int)cap - 1 ? nameLen : (int)cap - 1;
-                            for (int i = 0; i < n; i++) out[i] = (wchar_t)(unsigned char)namePos[i];
-                            out[n] = L'\0';
-                        }
-                    }
-                    free(commit);
-                }
-            }
+    for (int i = 0; i < tipCount; i++) {
+        size_t shaLen = strlen(tips[i].sha);
+        if (shaLen < 7 || shaLen >= sizeof(tips[i].sha)) continue;
+        wchar_t commitPath[256];
+        _snwprintf(commitPath, 255, L"/repos/%s/%s/commits/%S",
+                   REPO_OWNER_W, REPO_NAME_W, tips[i].sha);
+        commitPath[255] = L'\0';
+        DWORD commitSz = 0;
+        int commitSt = 0;
+        char *commit = (char *)HttpGetBuffer(L"api.github.com", commitPath,
+                                              &commitSz, &commitSt);
+        if (!commit || commitSt != 200) {
+            free(commit);
+            free(list);
+            out[0] = L'\0';  /* a partial ranking must never be cached as newest */
+            return;
         }
-        scan = nameEnd + 1;
+        char date[32] = "";
+        char *committer = strstr(commit, "\"committer\":");
+        if (!committer || !ExtractQuotedAfter(committer, "\"date\"", date, sizeof(date)) ||
+            strlen(date) != 20) {
+            free(commit);
+            free(list);
+            out[0] = L'\0';
+            return;
+        }
+        if (!bestDate[0] || strcmp(date, bestDate) > 0) {
+            memcpy(bestDate, date, sizeof(bestDate));
+            int n = (int)strlen(tips[i].name);
+            if (n >= (int)cap) n = (int)cap - 1;
+            for (int j = 0; j < n; j++) out[j] = (wchar_t)(unsigned char)tips[i].name[j];
+            out[n] = L'\0';
+        }
+        free(commit);
     }
     free(list);
 }
@@ -336,7 +326,8 @@ static void RefreshAutomaticBranch(void) {
     if (!FollowLatestTestBranch()) return;
     ULONGLONG now = GetTickCount64();
     EnterCriticalSection(&g_cs);
-    if (g_autoBranchLastCheck && now - g_autoBranchLastCheck < 6ULL * 60ULL * 60ULL * 1000ULL) {
+    ULONGLONG interval = HubBranchCheckInterval(g_autoBranchRetryDelay);
+    if (g_autoBranchLastCheck && now - g_autoBranchLastCheck < interval) {
         LeaveCriticalSection(&g_cs);
         return;
     }
@@ -345,10 +336,19 @@ static void RefreshAutomaticBranch(void) {
 
     wchar_t newest[64];
     FindLatestArenaTestBranch(newest, 64);
-    if (!newest[0]) return;
+    if (!newest[0]) {
+        /* Do not let a transient offline response, API rate limit, or malformed
+           response strand the Hub on main/an old branch for six hours. Retry
+           at 5, 10, 20, 40, then 60 minute intervals until discovery succeeds. */
+        EnterCriticalSection(&g_cs);
+        g_autoBranchRetryDelay = HubBranchRetryAfterFailure(g_autoBranchRetryDelay);
+        LeaveCriticalSection(&g_cs);
+        return;
+    }
 
     BOOL changed = FALSE;
     EnterCriticalSection(&g_cs);
+    g_autoBranchRetryDelay = 0; /* successful result returns to the six-hour cache */
     if (_wcsicmp(g_activeBranch, newest) != 0) {
         wcsncpy(g_activeBranch, newest, 63);
         g_activeBranch[63] = L'\0';
