@@ -6,12 +6,12 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 
 ## Released work
 
-- **Project Hub 2.8.55:** the blue/silver Tri-Spoke Hub icon now registers with
-  its HWND bound before `WM_CREATE`, so suite icons can defer to it. Open/Hide/
-  Quit, safe toggles, Agent Notes/Weather alerts, and alert retries remain.
-  Default-on branch discovery accepts JSON whitespace, retries failures with
-  5–60 minute backoff, and caches success for six hours. `Update Hub` requires
-  a verified newer build; tray-hidden Agent Notes can be revealed.
+- **Project Hub 2.8.56:** the Tri-Spoke tray, alerts, and default-on branch
+  discovery (5–60 minute retries; six-hour cache) remain. Remote probes pin a
+  release snapshot; Update appears only for changed local content. `Update Hub`
+  needs a verified newer build; tray-hidden Agent Notes can be revealed.
+- **Keyboard Lighting M4/M5:** the panel follows the 1%/30 ms glide without
+  echoing rounded samples to the engine and saves the settled level.
 - **Agent Notes waiting receipts:** implementation `ad9232009b9f38c287727123ddd404b204ce26e1`,
   released by marker `5343e54`. The direct local outbox records **Saved** only
   after the live receiver flushes `.agent/INBOX.md`, then **Read** only after an
