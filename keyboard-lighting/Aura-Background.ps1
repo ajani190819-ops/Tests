@@ -730,26 +730,7 @@ public class LampEngine {
       gr.plB[i] = ToLin(gr.PalB[i]);
       gr.palGain[i] = 1.0;
     }
-    if (gr.Equalise) {
-      double logSum = 0; int n = 0;
-      for (int i = 0; i < pc; i++) {
-        double L = Luma(gr.plR[i], gr.plG[i], gr.plB[i]);
-        if (L > 0.0005) { logSum += Math.Log(L); n++; }
-      }
-      if (n > 0) {
-        double target = Math.Exp(logSum / n);
-        for (int i = 0; i < pc; i++) {
-          double L = Luma(gr.plR[i], gr.plG[i], gr.plB[i]);
-          if (L <= 0.0005) continue;
-          double gain = Math.Pow(target / L, 0.5);
-          double peak = Math.Max(gr.plR[i], Math.Max(gr.plG[i], gr.plB[i]));
-          if (peak > 0 && gain * peak > 1.0) gain = 1.0 / peak;
-          if (gain < 0.25) gain = 0.25;
-          if (gain > 4.00) gain = 4.00;
-          gr.palGain[i] = gain;
-        }
-      }
-    }
+    if (gr.Equalise) BalancePalette(gr.plR, gr.plG, gr.plB);
 
   }
 
@@ -771,22 +752,65 @@ public class LampEngine {
     b = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
   }
 
-  // Straight-line blend between two colours in OKLab, pulled back into the
-  // displayable range if it strays outside.
-  //
-  // A mix of two in-gamut colours can land on a colour the LEDs cannot
-  // make. Clamping each channel would bend the hue - a red that cannot go
-  // bright enough turns pink rather than just dimmer. Instead keep the
-  // lightness and the hue direction and ease the saturation back until it
-  // fits, which is the smallest change that stays honest to the colour.
-  // Palette CHANGEOVER blend in OKLCh: lightness and chroma blended
-  // straight, hue taken along the short arc. A line blend in OKLab between
-  // opposite hues (red->green, orange->blue) passes through a washed-out
-  // near-grey midpoint at constant lightness - which on bright palettes is
-  // a visible pale/white flash every time a colour is changed. LCh keeps
-  // the saturation of the pair, so the changeover travels through the
-  // saturated colour between them (red->green goes through rich yellow)
-  // and reads as "the colours changed", never as a white blink.
+  // Display-gamut test in LINEAR sRGB. Both palette stops and brightness
+  // balancing are in the 0..1 display range, so out-of-gamut mixes must not
+  // rely on clipping individual channels at the device boundary.
+  static bool InOklabGamut(double r, double g, double b) {
+    return r >= -1e-9 && g >= -1e-9 && b >= -1e-9 &&
+           r <= 1.0 + 1e-9 && g <= 1.0 + 1e-9 && b <= 1.0 + 1e-9;
+  }
+
+  // Keep OKLab lightness and hue, reducing chroma only as much as needed
+  // to fit the complete sRGB gamut. This avoids the blue/white cast caused
+  // by clipping one channel of a bright transition.
+  static void FitOklabGamut(double L, double A, double B2,
+                            out double r, out double g, out double b) {
+    FromOklab(L, A, B2, out r, out g, out b);
+    if (!InOklabGamut(r, g, b)) {
+      double lo = 0.0, hi = 1.0;
+      for (int it = 0; it < 18; it++) {
+        double mid = (lo + hi) * 0.5;
+        FromOklab(L, A * mid, B2 * mid, out r, out g, out b);
+        if (InOklabGamut(r, g, b)) lo = mid;
+        else hi = mid;
+      }
+      FromOklab(L, A * lo, B2 * lo, out r, out g, out b);
+    }
+    if (r < 0) r = 0; else if (r > 1) r = 1;
+    if (g < 0) g = 0; else if (g > 1) g = 1;
+    if (b < 0) b = 0; else if (b > 1) b = 1;
+  }
+
+  // Balance each palette stop in OKLab lightness. The geometric mean keeps
+  // one very bright or dark stop from steering the whole palette. Moving
+  // each stop 55% toward it is deliberately visible but keeps the swatches
+  // distinct; A/B stay fixed so hue is preserved, and chroma is reduced only
+  // when the adjusted colour would leave the display gamut. Black stays off
+  // and neutral white stays neutral.
+  static void BalancePalette(double[] plR, double[] plG, double[] plB) {
+    const double BalanceStrength = 0.55;
+    int n = 0;
+    double logSum = 0.0;
+    for (int i = 0; i < plR.Length; i++) {
+      double L, A, B2;
+      ToOklab(plR[i], plG[i], plB[i], out L, out A, out B2);
+      if (L > 0.0005) { logSum += Math.Log(L); n++; }
+    }
+    if (n == 0) return;
+    double target = Math.Exp(logSum / n);
+    for (int i = 0; i < plR.Length; i++) {
+      double L, A, B2, r, g, b;
+      ToOklab(plR[i], plG[i], plB[i], out L, out A, out B2);
+      if (L <= 0.0005) { plR[i] = 0; plG[i] = 0; plB[i] = 0; continue; }
+      double balancedL = L + (target - L) * BalanceStrength;
+      FitOklabGamut(balancedL, A, B2, out r, out g, out b);
+      plR[i] = r; plG[i] = g; plB[i] = b;
+    }
+  }
+
+  // Palette blends travel along the short OKLCh hue arc. Unlike a straight
+  // OKLab line, this keeps the transition saturated: purple-to-orange passes
+  // through a vivid warm pink/red rather than a washed-out greyish smear.
   static void MixOklch(double L1, double A1, double B1,
                        double L2, double A2, double B2, double w,
                        out double r, out double g, out double b) {
@@ -800,50 +824,7 @@ public class LampEngine {
     double Cm = c1 + (c2 - c1) * w;
     double hm = h1 + dh * w;
     double am = Cm * Math.Cos(hm), bm = Cm * Math.Sin(hm);
-    FromOklab(Lm, am, bm, out r, out g, out b);
-    // Only pull the chroma back when a channel goes NEGATIVE. Values over
-    // 1 are real in this pipeline (the palette gain runs past unity and
-    // the lamp path clips at 255), and treating them as out of gamut
-    // collapsed every bright mix toward zero chroma - the other half of
-    // what read as white.
-    if (r < -1e-9 || g < -1e-9 || b < -1e-9) {
-      double lo = 0.0, hi = 1.0;
-      for (int it = 0; it < 12; it++) {
-        double mid = (lo + hi) * 0.5;
-        FromOklab(Lm, am * mid, bm * mid, out r, out g, out b);
-        if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9) lo = mid;
-        else hi = mid;
-      }
-      FromOklab(Lm, am * lo, bm * lo, out r, out g, out b);
-    }
-    // No top clamp: over-1 is the gain path's legitimate output and must
-    // survive to the lamp clip, or bright mixes flatten to white.
-    if (r < 0) r = 0;
-    if (g < 0) g = 0;
-    if (b < 0) b = 0;
-  }
-
-  static void MixOklab(double L1, double A1, double B1,
-                       double L2, double A2, double B2, double w,
-                       out double r, out double g, out double b) {
-    double L = L1 + (L2 - L1) * w;
-    double A = A1 + (A2 - A1) * w;
-    double B = B1 + (B2 - B1) * w;
-    FromOklab(L, A, B, out r, out g, out b);
-    // Same gamut rule as MixOklch: negatives pull the chroma back, over-1
-    // is legal (gain space) and is clipped later at the lamp.
-    if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9) return;
-    double lo = 0.0, hi = 1.0;
-    for (int it = 0; it < 18; it++) {
-      double mid = (lo + hi) * 0.5;
-      FromOklab(L, A * mid, B * mid, out r, out g, out b);
-      if (r >= -1e-9 && g >= -1e-9 && b >= -1e-9) lo = mid;
-      else hi = mid;
-    }
-    FromOklab(L, A * lo, B * lo, out r, out g, out b);
-    if (r < 0) r = 0;
-    if (g < 0) g = 0;
-    if (b < 0) b = 0;
+    FitOklabGamut(Lm, am, bm, out r, out g, out b);
   }
 
   static void ToOklab(double r, double g, double b,
@@ -895,16 +876,11 @@ public class LampEngine {
     if (u < 0.0) u = 0.0; else if (u > 1.0) u = 1.0;
     u = u * u * (3.0 - 2.0 * u);     // ease in and out, no hard start/stop
 
-    // Cross in OKLab for the same reason the palette itself blends there:
-    // a straight line in sRGB dips in brightness through the middle, which
-    // would read as a dim pulse - precisely the artefact being removed.
-    double La, Aa, Ba, Lb, Ab, Bb, mr, mg, mb;
+    // Cross in OKLCh too, so a palette replacement stays saturated and a
+    // neutral white remains neutral rather than being bent by channel clips.
     // SamplePal answers in lamp bytes (0-255, gamma-encoded); OKLab works
-    // in linear 0-1. Feeding the bytes straight in drove every midpoint's
-    // lightness far past 1.0, and the clip in MixOklch then flattened the
-    // whole crossfade to white - the white flash between colour changes,
-    // and a board parked white while a slider drag kept restarting the
-    // fade every 40ms. Convert at the boundary both ways.
+    // in linear 0-1. Convert at this boundary in both directions.
+    double La, Aa, Ba, Lb, Ab, Bb, mr, mg, mb;
     ToOklab(ToLin(o_r), ToLin(o_g), ToLin(o_b), out La, out Aa, out Ba);
     ToOklab(ToLin(n_r), ToLin(n_g), ToLin(n_b), out Lb, out Ab, out Bb);
     MixOklch(La, Aa, Ba, Lb, Ab, Bb, u, out mr, out mg, out mb);
@@ -947,19 +923,15 @@ public class LampEngine {
     // and anything between is interpolated. Both zones keep the same
     // palette and the same blend, so the colours are unchanged.
     //
-    // The sparse zone used to get 75%. That was set when the blend still
-    // went round the HSV hue circle and spent most of its length in a
-    // washed-out smear, so a wide window was needed to keep the four
-    // keyboard lamps from all sitting on an endpoint and flipping in
-    // unison. Blending in OKLab removed the smear, which means the window
-    // can come back in and give the palette colours themselves more of the
-    // strip - measured on purple/orange, the second colour goes from 27.9%
-    // of the cycle to 35.3% and the muddy middle drops from 31.8% to 21.2%.
+    // A wider transition window makes a few-lamp keyboard animate instead
+    // of snapping between endpoints. OKLCh keeps the transition vivid, while
+    // the flat holds still give each requested palette colour real time on
+    // screen instead of washing it into a long middle band.
     //
     // 0.50 is the floor, not a preference. At 0.40 the four keyboard lamps
     // are pinned on an endpoint 60% of the time and start snapping between
-    // colours together, which was rejected before; 0.50 holds that at 50.8%
-    // with a worst per-frame step of 7.7/255, still smooth.
+    // colours together. The 0.50 floor gives them enough travel to read as
+    // motion without making the gradient feel like a slow crossfade.
     double nlamp = (double)gr.N;
     double trans;
     if (gr.SoftBlend) {
@@ -1020,26 +992,15 @@ public class LampEngine {
     double ar = plR[a] * ga, ag2 = plG[a] * ga, ab = plB[a] * ga;
     double br = plR[n2] * gb, bg = plG[n2] * gb, bb = plB[n2] * gb;
 
-    // Blend in OKLab - a straight line between the two colours in a space
-    // built so that equal steps look equal.
-    //
-    // This used to rotate around the HSV hue circle, which is what made
-    // one band look thinner than its neighbour. Every HSV hue from violet
-    // round to red holds green at zero, so purple to orange kept green at
-    // zero for 90% of the sweep and only found orange's green=120 right at
-    // the end: the strip showed purple, then a long magenta-pink smear,
-    // then a moment of orange. Measured over the whole blend that is 70%
-    // pink and 7% orange, and the halfway point - where the colour stops
-    // being nearer purple and starts being nearer orange - sat at 0.69
-    // instead of 0.50.
-    //
-    // OKLab puts that halfway point at 0.500 for this palette and within
-    // 0.01 of it for every pair tested, and cuts the pink from 70% to 35%.
+    // Blend in OKLCh: lightness and chroma move smoothly, and hue follows
+    // the short arc. A straight OKLab line loses chroma between saturated
+    // purple and orange, making the orange transition look washed out.
+    // The gamut fitter preserves hue and reduces chroma only when needed.
     double lr, lg, lb;
     double La, Aa, Ba, Lb, Ab, Bb;
     ToOklab(ar, ag2, ab, out La, out Aa, out Ba);
     ToOklab(br, bg, bb, out Lb, out Ab, out Bb);
-    MixOklab(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);
+    MixOklch(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);
     r = ToSrgb(lr); g = ToSrgb(lg); b = ToSrgb(lb);
   }
 
@@ -1415,9 +1376,25 @@ public class LampEngine {
         frPrev[i] = fr[i]; fgPrev[i] = fg[i]; fbPrev[i] = fb[i];
         bool moving = df0 > 0.05 || df0 < -0.05 || df1 > 0.05 || df1 < -0.05 || df2 > 0.05 || df2 < -0.05;
         bool lampDith = (peak <= 0.0005) ? false : (moving && (dith || peak < 14.0));
-        int qr = Dither(fr[i], MaxR, ref er[i], lampDith);
-        int qg = Dither(fg[i], MaxG, ref eg[i], lampDith);
-        int qb = Dither(fb[i], MaxB, ref eb[i], lampDith);
+        // Keep neutral colours neutral during low-level temporal dithering.
+        // Independent RGB error phases can make a requested white/grey emit
+        // one channel a code higher than the others. When the device-space
+        // targets match, share one error accumulator and one quantised code.
+        double codeR = fr[i] * MaxR / 255.0;
+        double codeG = fg[i] * MaxG / 255.0;
+        double codeB = fb[i] * MaxB / 255.0;
+        int qr, qg, qb;
+        if (Math.Abs(codeR - codeG) < 0.05 && Math.Abs(codeG - codeB) < 0.05) {
+          double sharedErr = (er[i] + eg[i] + eb[i]) / 3.0;
+          double neutralCode = (codeR + codeG + codeB) / 3.0;
+          int q = Dither(neutralCode, 255.0, ref sharedErr, lampDith);
+          er[i] = sharedErr; eg[i] = sharedErr; eb[i] = sharedErr;
+          qr = q; qg = q; qb = q;
+        } else {
+          qr = Dither(fr[i], MaxR, ref er[i], lampDith);
+          qg = Dither(fg[i], MaxG, ref eg[i], lampDith);
+          qb = Dither(fb[i], MaxB, ref eb[i], lampDith);
+        }
         if (qr != pr[i] || qg != pg[i] || qb != pb[i]) changed = true;
         nr[i] = qr; ng[i] = qg; nb2[i] = qb;
         b[OffR + st] = (byte)qr;
@@ -1660,11 +1637,6 @@ public class LampEngine {
     return _toSrgb[i] + (_toSrgb[i + 1] - _toSrgb[i]) * f;
   }
 
-  // Rec.709 luminance of a linear colour - how bright the eye judges it.
-  static double Luma(double lr, double lg, double lb) {
-    return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
-  }
-
   // Set to true to even out the palette so no single colour dominates.
   public bool Equalise = true;
 
@@ -1704,35 +1676,11 @@ public class LampEngine {
       palGain[i] = 1.0;
     }
     if (!Equalise || pc == 0) return;
-
-    // Pull every stop towards a common apparent brightness. Full
-    // equalisation would crush saturated blues to nothing, so aim at the
-    // geometric mean and only go part of the way (exponent 0.5).
-    double logSum = 0; int n = 0;
-    for (int i = 0; i < pc; i++) {
-      double L = Luma(plR[i], plG[i], plB[i]);
-      if (L > 0.0005) { logSum += Math.Log(L); n++; }
-    }
-    if (n == 0) return;
-    double target = Math.Exp(logSum / n);
-
-    for (int i = 0; i < pc; i++) {
-      double L = Luma(plR[i], plG[i], plB[i]);
-      if (L <= 0.0005) continue;
-      double gain = Math.Pow(target / L, 0.5);
-      // Never amplify past the point where the brightest channel clips,
-      // and never dim a colour into the mud.
-      double peak = Math.Max(plR[i], Math.Max(plG[i], plB[i]));
-      if (peak > 0 && gain * peak > 1.0) gain = 1.0 / peak;
-      if (gain < 0.25) gain = 0.25;
-      if (gain > 4.00) gain = 4.00;
-      palGain[i] = gain;
-    }
+    BalancePalette(plR, plG, plB);
   }
 
   // Cyclic palette sample. f is 0..1 around the whole loop.
-  // Interpolates in LINEAR light so blends keep their brightness and the
-  // colours stay distinct instead of passing through a dark muddy band.
+  // Interpolates in OKLCh so hue and saturation stay vivid between stops.
   void Pal(double f, out double r, out double g, out double b) {
     int pc = plR.Length;
     f = f % 1.0; if (f < 0) f += 1.0;
@@ -1747,10 +1695,10 @@ public class LampEngine {
     double w = u * u * (3.0 - 2.0 * u);
 
     double ga = palGain[a], gb = palGain[n2];
-    double lr = (plR[a] * ga) + ((plR[n2] * gb) - (plR[a] * ga)) * w;
-    double lg = (plG[a] * ga) + ((plG[n2] * gb) - (plG[a] * ga)) * w;
-    double lb = (plB[a] * ga) + ((plB[n2] * gb) - (plB[a] * ga)) * w;
-
+    double La, Aa, Ba, Lb, Ab, Bb, lr, lg, lb;
+    ToOklab(plR[a] * ga, plG[a] * ga, plB[a] * ga, out La, out Aa, out Ba);
+    ToOklab(plR[n2] * gb, plG[n2] * gb, plB[n2] * gb, out Lb, out Ab, out Bb);
+    MixOklch(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);
     r = ToSrgb(lr); g = ToSrgb(lg); b = ToSrgb(lb);
   }
 
@@ -4309,6 +4257,17 @@ function Set-Live([int]$level) {
     }
 }
 
+function Get-BrightRampStep([int]$direction) {
+    if ($direction -gt 0) { return $rampUpStep }
+    return $rampStep
+}
+
+function Step-BrightRamp([int]$direction) {
+    $amount = Get-BrightRampStep $direction
+    Set-Live ($script:LiveLevel + $direction * $amount)
+    if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+}
+
 # --- wake from sleep -------------------------------------------------
 # On resume the USB port has been power-cycled: the handle is dead and the
 # firmware is back in autonomous mode. The render loop notices failed
@@ -4343,20 +4302,17 @@ $script:TimingAt = [DateTime]::UtcNow.AddSeconds(5)
 $script:TimingDone = $false
 
 # A TAP is deliberately coarse: 50/1000 = 5% per press, so a single keypress
-# reads as an instant response. The GLIDE is a different control and gets its
-# own numbers below - a held key that steps 5% every 150ms reads as a
-# staircase next to the screen-brightness slider, which is exactly what the
-# owner complained about.
+# reads as an instant response. A held key then uses smaller timed steps.
 $step = 50
-# The glide: 1% every 30ms. Same overall speed as the old 5%-per-150ms
-# staircase (about three seconds for 0..100%) but a hundred treads instead of
-# twenty, which is what makes it read as a sweep. rampMs must stay above the
-# main loop's sleep or the extra resolution is silently thrown away.
+# M4 lowers at 1% per 30ms; M5 raises at 1.5% per 30ms so the upward glide
+# is noticeably faster without making the slider jump. rampMs must stay at
+# least as long as the main loop sleep or that extra resolution is lost.
 $rampStep = 10
+$rampUpStep = 15
 $rampMs = 30
-# How long after the last tap token the glide keeps running. Tokens arrive
-# every 60ms while a key is held, so this only has to bridge that gap; keeping
-# it small is what limits the overshoot after the key is let go.
+# Fresh hold tokens arrive on the 15ms pump timer, with a 30ms repeat target.
+# The engine keeps moving for this short grace period after the last token;
+# it bridges one delayed UI tick without a long glide after release.
 $loopMs = 30
 # The app asks us to stop by creating this file. Being killed outright
 # skips the cleanup below, which is what used to leave the last frame
@@ -4364,11 +4320,10 @@ $loopMs = 30
 $stopFile = Join-Path $stateDir 'stop.flag'
 if (Test-Path $stopFile) { Remove-Item $stopFile -Force -ErrorAction SilentlyContinue }
 # One-shot brightness taps written by KeyboardLighting.exe -BrightUp / -BrightDown
-# (the G-Helper M4/M5 'Custom' actions). Each token is one tap; a held key
-# repeats those taps and they are paced into a smooth sweep (one step every
-# 150ms) exactly like holding the screen-brightness keys, instead of every
-# repeat collapsing into one engine tick. Never touches G-Helper's 4-step
-# gate - the software master is the only brightness that moves.
+# (the G-Helper M4/M5 'Custom' actions). The first token is an immediate 5%
+# step; continued tokens keep a 30ms fine ramp alive without restarting its
+# clock. M4 moves down 1% per step and M5 moves up 1.5%. Never touches
+# G-Helper's 4-step gate - the software master is the only brightness that moves.
 $brightUpFile = Join-Path $stateDir 'bright_up.flag'
 $brightDownFile = Join-Path $stateDir 'bright_down.flag'
 $brightHoldMs = 120
@@ -4467,13 +4422,8 @@ try {
         }
         if ($tapDir -ne 0) {
             # Hold modes (hold_mode.txt, written by KeyboardLighting.exe
-            # -HoldMode):
-            #   tap   = DEFAULT: one 5% step per tap token. The Keyboard
-            #           Lighting app streams extra tokens while the key is
-            #           held (learned keyboard scancode), so a real hold
-            #           glides and releasing stops it.
-            #   latch = press once to glide, press again to stop
-            #   burst = every press glides 4 steps (20%) at the same cadence
+            # -HoldMode): tap sweeps only while fresh hold tokens arrive;
+            # latch toggles a continuous glide; burst runs a fixed 20% glide.
             $mode = 'tap'
             try {
                 $m = (Get-Content $holdModeFile -Raw -ErrorAction Stop).Trim()
@@ -4499,34 +4449,44 @@ try {
                 if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
                 $script:brightRampDir = $tapDir
                 $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
-                # 5% now plus 15% of fine steps = the same 20% glide as before,
-                # expressed in ramp steps so it is smooth rather than four jumps.
-                $script:brightBurst = [int](150 / $rampStep)
+                # The initial 5% plus 15% of fine steps makes one smooth 20% glide.
+                $burstStep = Get-BrightRampStep $tapDir
+                $script:brightBurst = [int][Math]::Ceiling(150.0 / $burstStep)
                 $script:brightLatch = $false
                 $script:brightPending = $false
                 $script:brightRampLast = $nowU
             } else {
-                # The FIRST token of a gesture is a real tap and takes the full
-                # 5%, so a single press reads instantly. Continuation tokens do
-                # not step at all - they only prove the key is still down. The
-                # fine ramp below does the moving; stepping here as well would
-                # pile 5% on top of every 1% the ramp already made.
+                # The first token of a gesture is the immediate 5% tap. Later
+                # tokens only refresh the held deadline; they must NOT restart
+                # the ramp clock, or a token arriving on every engine tick
+                # continually postpones the next step and the level barely moves.
                 $gapMs = ($nowU - $script:brightRampLast).TotalMilliseconds
-                if ($tapDir -ne $script:brightRampDir -or $gapMs -gt $brightHoldMs) {
+                $continuing = ($tapDir -eq $script:brightRampDir -and
+                               $script:brightPending -and $gapMs -le $brightHoldMs)
+                if (-not $continuing) {
                     Set-Live ($script:LiveLevel + $tapDir * $step)
                     if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                    $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
+                    $script:brightPending = $true
+                    $script:brightRampDir = $tapDir
+                } elseif ($nowU -ge $script:brightRampNext) {
+                    if (($tapDir -gt 0 -and $script:LiveLevel -lt 1000) -or
+                        ($tapDir -lt 0 -and $script:LiveLevel -gt 0)) {
+                        Step-BrightRamp $tapDir
+                        $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
+                    } else {
+                        $script:brightPending = $false
+                        $script:brightRampDir = 0
+                    }
                 }
-                $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
-                $script:brightPending = $true
                 $script:brightLatch = $false
-                $script:brightRampDir = $tapDir
+                $script:brightBurst = 0
                 $script:brightRampLast = $nowU
             }
         } elseif ($script:brightRampDir -ne 0) {
             if ($script:brightBurst -gt 0) {
                 if ($nowU -ge $script:brightRampNext) {
-                    Set-Live ($script:LiveLevel + $script:brightRampDir * $rampStep)
-                    if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                    Step-BrightRamp $script:brightRampDir
                     $script:brightBurst--
                     $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
                 }
@@ -4534,8 +4494,7 @@ try {
                 if ($nowU -ge $script:brightRampNext) {
                     if (($script:brightRampDir -gt 0 -and $script:LiveLevel -lt 1000) -or
                         ($script:brightRampDir -lt 0 -and $script:LiveLevel -gt 0)) {
-                        Set-Live ($script:LiveLevel + $script:brightRampDir * $rampStep)
-                        if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                        Step-BrightRamp $script:brightRampDir
                         $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
                     } else {
                         $script:brightRampDir = 0
@@ -4551,8 +4510,7 @@ try {
                         $script:brightPending = $false
                         $script:brightRampDir = 0
                     } else {
-                        Set-Live ($script:LiveLevel + $script:brightRampDir * $rampStep)
-                        if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+                        Step-BrightRamp $script:brightRampDir
                         $script:brightRampNext = $nowU.AddMilliseconds($rampMs)
                     }
                 }

@@ -120,19 +120,32 @@
 
 ## project-hub/src/parts/settings_page.c
 
-- L46  f SetKblPath
-- L51  f SetDnsCfgPath
-- L56  f SetStatusText
-- L61  f HoldModeCurrent  — 0 = tap, 1 = latch, 2 = burst; missing or unreadable means the default.
-- L75  f ApplyHoldMode
-- L84  f SmoothCurrent
-- L105  f ApplySmooth
-- L135  f ModNamesW
-- L143  f KeyNameW
-- L153  f ApplyDns
-- L166  f SetCtl
-- L218  f OpenSettingsWindow
-- globals: g_setHwnd (L31), g_setHold (L32), g_setSmooth (L33), g_setDnsAuto (L34), g_setDnsInt (L35), g_setAutoBranch (L36), g_setStatus (L37)
+- L52  f SetScale
+- L56  f SetKblPath
+- L61  f SetDnsCfgPath
+- L66  f SetStatusWithTone
+- L74  f SetStatusText
+- L78  f SetStatusOk
+- L82  f SetStatusError
+- L87  f HoldModeCurrent  — 0 = tap, 1 = latch, 2 = burst; missing or unreadable means the default.
+- L101  f ApplyHoldMode
+- L111  f SmoothCurrent
+- L128  f ApplySmooth
+- L158  f ModNamesW
+- L166  f KeyNameW
+- L176  f UpdateHotkeysSummary
+- L197  f HoldKeyReady
+- L204  f HoldSweepReady
+- L211  f UpdateHoldStateLabel
+- L231  f ApplyDns
+- L254  f SetCtl
+- L264  f SetSettingsFont
+- L268  f EnsureSettingsBrushes
+- L274  f ReleaseSettingsBrushes
+- L283  f DrawSettingsCard
+- L304  f PaintSettings
+- L432  f OpenSettingsWindow
+- globals: g_setHwnd (L33), g_setHold (L34), g_setHoldState (L35), g_setSmooth (L36), g_setHotkeys (L37), g_setDnsAuto (L38), g_setDnsInt (L39), g_setAutoBranch (L40), g_setStatus (L41), g_setBgBrush (L42), g_setCardBrush (L43), g_setAccentBrush (L44), g_setStatusTone (L45)
 
 ## project-hub/src/parts/tray_unified.c
 
@@ -390,23 +403,23 @@
 - L81  f HidReleaseSeen
 - L91  f HoldTokenWrite
 - L99  f HoldPump  — One paced token per interval while the gesture is live.
-- L144  f PressSignal
-- L156  f ReleaseSignal
-- L166  f OnScanEvent
-- L185  f PersistKeyValue
-- L194  f MarkHidReleaseSeen
-- L201  f BindScan
-- L210  f BindHid
-- L216  f OnRawHid
-- L264  f ParseBrightTokenTick
-- L274  f LearnFromRing
-- L399  f SeedBrightTokenWatch
-- L424  f WatchBrightTokens
-- L456  f InitRawInput
-- L489  f OnRawInputMsg
-- L530  f HoldModeRead
-- L542  f HoldModeWrite
-- L552  f HoldReadyLabel
+- L143  f PressSignal
+- L155  f ReleaseSignal
+- L165  f OnScanEvent
+- L184  f PersistKeyValue
+- L193  f MarkHidReleaseSeen
+- L200  f BindScan
+- L209  f BindHid
+- L215  f OnRawHid
+- L263  f ParseBrightTokenTick
+- L273  f LearnFromRing
+- L398  f SeedBrightTokenWatch
+- L423  f WatchBrightTokens
+- L455  f InitRawInput
+- L488  f OnRawInputMsg
+- L529  f HoldModeRead
+- L541  f HoldModeWrite
+- L551  f HoldReadyLabel
 - globals: g_keyRing (L20), g_keyRingHead (L21), g_hidRing (L23), g_hidRingHead (L24), g_scanBound (L25), g_scanVk (L26), g_hidCode (L27), g_hidLastCode (L28), g_scanArmed (L29), g_hidDown (L30), g_holdOn (L31), g_hidRelSeen (L32), g_sigAt (L33), g_scanNext (L34), g_learnCand (L35), g_learnN (L36), g_learnHid (L37), g_learnHidN (L38), g_seenTok (L39), g_pendingLearnAt (L40), g_pendingLearnUntil (L41)
 
 ## keyboard-lighting/src/parts/mouse_drag_menus.c
@@ -437,7 +450,7 @@
 - L242  f ApplyHubLightingToggle
 - L248  f ApplyHubExit
 - L255  f ShowTrayContextMenu
-- L549  f InitKblPaths
+- L554  f InitKblPaths
 - globals: g_pickOrig (L6), g_pickLast (L7), g_pickIdx (L8), g_pickLive (L9)
 
 ## keyboard-lighting/src/parts/ui_renderer.c
@@ -1084,15 +1097,15 @@
 
 ## tests/test_windows_apps.py
 
-- L28  f read_c_inlined
-- L44  f strip_cs_comments_and_strings
-- L166  f lex_powershell
-- L301  f WindowsDesktopAppsTests
-- L2835  f SuiteFolderInstallTests
-- L3931  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L4114  f AudioSwitcherReachabilityTests
-- L4298  f AudioSwitcherSessionSweepTests
-- L4439  f AppOpenFocusTests
+- L29  f read_c_inlined
+- L45  f strip_cs_comments_and_strings
+- L167  f lex_powershell
+- L302  f WindowsDesktopAppsTests
+- L2999  f SuiteFolderInstallTests
+- L4136  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L4319  f AudioSwitcherReachabilityTests
+- L4503  f AudioSwitcherSessionSweepTests
+- L4644  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

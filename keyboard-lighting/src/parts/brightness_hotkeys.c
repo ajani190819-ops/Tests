@@ -310,7 +310,7 @@ static const wchar_t *HelpForHit(int hitIdx) {
     case HIT_SLIDER_SPEED:  return L"How fast the pattern moves: 0.1x (slow drift) to 5.0x (fast).";
     case HIT_SLIDER_BRIGHT: return L"Brightness of just this zone, 0-100%. 0% = this zone dark. Multiplies with Master.";
     case HIT_TOG_LOOP:      return L"Loop Travel: pattern circles the Light Bar ring. Off: it bounces back and forth.";
-    case HIT_TOG_EQ:        return L"Balance Colours: evens out palette brightness so no single colour dominates.";
+    case HIT_TOG_EQ:        return L"Balance Colours: gently moves palette stops toward similar visual lightness while preserving hue.";
     case HIT_TOG_MIRROR:    return L"Mirror: the pattern runs out from the centre to both ends.";
     case HIT_TOG_REVERSE:   return L"Reverse: the pattern travels in the opposite direction.";
     case HIT_TOG_SMOOTH:    return L"Steady Colours: on = no shimmer at any level. Off = fine dithering for ultra-smooth dimming.";

@@ -36,7 +36,15 @@ owner request.
 - **Public delivery:** Keep the repository public. GitHub-hosted delivery paths
   must continue to work.
 - **Branch discipline:** Commit and push only to the active `arena/*-tests`
-  branch. Small, verified logical commits; no force-push.
+  branch. Small, verified logical commits; no force-push. Do not merge these
+  releases to `main` unless the owner explicitly asks.
+- **Branch-based app delivery:** The active Arena branch is the normal publish
+  target. After the owner selects that same branch in Project Hub, the Hub reads
+  that branch's `.agent/RELEASED` marker and offers its released app updates.
+  Pushing unfinished branch-tip changes alone is not enough: first verify and
+  commit the implementation, then make the separate release-marker commit
+  pointing to that implementation SHA, and push both commits together. There is
+  no need to return to or merge `main` for the Hub to deliver a branch release.
 - **Batch files:** Every `.bat` stays pure CRLF and `Orca-Plugins.bat` remains
   the sole root `.bat`; use byte I/O for edits.
 - **Bluetooth Guard:** Never disable Bluetooth service profiles. Preserve

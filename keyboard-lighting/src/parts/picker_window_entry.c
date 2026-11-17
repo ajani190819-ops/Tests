@@ -306,6 +306,7 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         ApplyModernWindowFrame(hwnd);
         SetTimer(hwnd, 1, 45, NULL);  /* 22 FPS live preview & slider debounce */
         SetTimer(hwnd, 2, 600, NULL); /* Heartbeat, show.flag & engine watchdog */
+        SetTimer(hwnd, 3, 15, NULL);  /* fine M4/M5 token pump and key learning */
         return 0;
 
     case WM_ERASEBKGND:
@@ -483,8 +484,6 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (wp == 1) {
             if (g_applyPending && GetTickCount64() >= g_applyAtTick) FlushLiveApply();
             PollFnBrightness();
-            WatchBrightTokens();
-            HoldPump();
             if (IsWindowVisible(hwnd)) {
                 PollLivePreviewFrame();
                 InvalidateRect(hwnd, NULL, FALSE);
@@ -507,6 +506,9 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (!g_wantOff && !IsEngineAlive() && InterlockedCompareExchange(&g_downloading, 0, 0) == 0) {
                 StartEngine();
             }
+        } else if (wp == 3) {
+            WatchBrightTokens();
+            HoldPump();
         }
         return 0;
 
@@ -535,6 +537,9 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_DESTROY:
+        KillTimer(hwnd, 1);
+        KillTimer(hwnd, 2);
+        KillTimer(hwnd, 3);
         FlushPendingBrightnessCfg();
         if (g_trayVisible) Shell_NotifyIconW(NIM_DELETE, &g_nid);
         g_trayVisible = FALSE;

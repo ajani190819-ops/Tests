@@ -11,8 +11,8 @@
         Ally) or press|0x80. A press+release pair gives TRUE hold with
         no repeats needed at all.
    All three feed one state machine: the first token takes an immediate 5%
-   step, then the engine glides 1% every 30 ms while fresh tokens confirm the
-   hold; release stops it.
+   step, then the engine glides down 1% or up 1.5% every 30 ms while fresh
+   tokens confirm the hold; release stops it.
    Learned bindings persist in presets.ini [Keys] M4Scan=/M5Scan=/M4Vk=/
    M5Vk=/M4Hid=/M5Hid=/M4HidRelease=/M5HidRelease=. Without any hold signal,
    behavior stays a clean tap per press. */
@@ -120,10 +120,9 @@ static void HoldPump(void) {
            was starved, or a device that only reports release sometimes) would
            keep the token stream running forever, with the brightness pinned at
            the rail and nothing anywhere to explain it.
-           Ten seconds is deliberately far longer than the sweep it guards: the
-           engine steps 5% every 150ms, so 0 to 100% takes about 3s. A real
-           hold always reaches the rail first, so this can only ever stop a
-           stream that has nothing left to do. */
+           Ten seconds is deliberately far longer than either fine sweep: M4
+           takes about 3s and M5 about 2s from 0 to 100%. A real hold reaches
+           the rail first, so this only stops a stream that has nothing left to do. */
         if (now - g_sigAt[i] > 10000ULL) {
             g_holdOn[i] = 0;
             g_scanArmed[i] = 1;
@@ -131,10 +130,10 @@ static void HoldPump(void) {
             continue;
         }
         if (now >= g_scanNext[i]) {
-            /* WM_TIMER runs every 45 ms. Pump once per timer tick so the
-               engine's 120 ms hold window survives one delayed UI tick; a
-               60 ms target was quantized to ~90 ms and occasionally looked
-               like separate taps when the window thread stalled. */
+            /* The dedicated WM_TIMER runs every 15 ms. Pump once per tick
+               so the 30 ms repeat target is reached without being quantized
+               by the slower 45 ms preview timer. This keeps fresh tokens well
+               inside the engine's 120 ms hold window if one UI tick is late. */
             g_scanNext[i] = now + 30;
             HoldTokenWrite(i);
         }
@@ -174,7 +173,7 @@ static void OnScanEvent(DWORD scan, int down, int injected, ULONGLONG now) {
                token already. Gate briefly so a duplicate raw-input copy of
                this same down cannot double-step. */
             g_scanArmed[i] = 0;
-            g_scanNext[i] = now + 120;
+            g_scanNext[i] = now + 30;
             PressSignal(i, 0, now);
         } else {
             PressSignal(i, 1, now);

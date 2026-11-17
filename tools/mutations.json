@@ -77,13 +77,6 @@
   "label": "C page offers a mode engine rejects"
  },
  {
-  "id": "set-03",
-  "file": "project-hub/src/parts/settings_page.c",
-  "old": "    BOOL ok = WriteBinaryFileAtomic(p, (const BYTE *)out, (DWORD)newLen);\n    free(out);\n    free(txt);\n    return ok;",
-  "new": "    free(out);\n    free(txt);\n    return TRUE;",
-  "label": "D Smooth write discarded"
- },
- {
   "id": "set-04",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "    for (int i = 0; i < 5; i++) {\n        if (g_topBtns[i].hidden) continue;\n        if (PtInRect(&g_topBtns[i].rc, pt))",
@@ -831,5 +824,75 @@
   "old": "if (!parseOk || !end || *end != '\\0') {",
   "new": "if (FALSE) {",
   "label": "A truncated live.txt sample is accepted as a bogus brightness value"
+ },
+ {
+  "id": "set-09",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "if (selIdx < 0) {",
+  "new": "if (FALSE) {",
+  "label": "An invalid DNS interval is no longer normalized"
+ },
+ {
+  "id": "kbl-hold-01",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "$script:brightPending -and $gapMs -le $brightHoldMs",
+  "new": "$script:brightPending -or $gapMs -le $brightHoldMs",
+  "label": "A released brightness gesture is mistaken for a live hold"
+ },
+ {
+  "id": "kbl-hold-02",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "} elseif ($nowU -ge $script:brightRampNext) {",
+  "new": "} elseif ($continuing) {",
+  "label": "A held continuation bypasses the brightness ramp cadence"
+ },
+ {
+  "id": "kbl-color-00",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "MixOklch(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);",
+  "new": "MixOklab(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);",
+  "label": "Purple-orange palette transitions fall back to washed-out OKLab blends"
+ },
+ {
+  "id": "kbl-color-01",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "r <= 1.0 + 1e-9",
+  "new": "r <= 255.0 + 1e-9",
+  "label": "The color gamut fitter clips bright red transitions"
+ },
+ {
+  "id": "kbl-color-02",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "const double BalanceStrength = 0.55;",
+  "new": "const double BalanceStrength = 0.0;",
+  "label": "Balance Colors has no visible lightness correction"
+ },
+ {
+  "id": "set-03",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "    BOOL ok = WriteBinaryFileAtomic(p, (const BYTE *)out, (DWORD)newLen);\n    free(out);\n    free(txt);\n    return ok;",
+  "new": "    free(out);\n    free(txt);\n    return TRUE;",
+  "label": "D Smooth theme.json write discarded"
+ },
+ {
+  "id": "set-10",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "static const int kSetIntervals[6] = { 0, 15, 30, 60, 120, 300 };",
+  "new": "static const int kSetIntervals[5] = { 15, 30, 60, 120, 300 };",
+  "label": "DNS live-watch interval is missing from Suite Settings"
+ },
+ {
+  "id": "set-11",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "SetWindowTextW(g_setHotkeys, line);",
+  "new": "SetWindowTextW(g_setHotkeys, L\"Brightness hotkeys unavailable\");",
+  "label": "Settings stops showing the configured brightness hotkeys"
+ },
+ {
+  "id": "set-12",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "                int savedMode = HoldModeCurrent();\n                for (int i = 0; i < 3; i++)\n                    SendMessageW(g_setHold[i], BM_SETCHECK,\n                                 i == savedMode ? BST_CHECKED : BST_UNCHECKED, 0);\n                SetStatusError(L\"Could not save the Keyboard Lighting hold choice. Try again.\");",
+  "new": "                SetStatusError(L\"Could not save the Keyboard Lighting hold choice. Try again.\");",
+  "label": "A failed hold-mode write leaves the radio selection unsaved"
  }
 ]

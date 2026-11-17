@@ -18,6 +18,7 @@ Enforces:
 """
 from pathlib import Path
 import json
+import math
 import re
 import subprocess
 import unittest
@@ -2437,17 +2438,17 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         The complaint was that sweep-while-held looked like a staircase next
         to the screen-brightness slider, and it did: one 5% step every 150ms is
         twenty visible treads over a three-second sweep. The glide now runs on
-        its own numbers - 1% every 30ms, a hundred treads over the same three
-        seconds - while a single press still takes the coarse 5% so a tap
-        reads instantly. Those are two different controls and the test keeps
+        its own numbers - 1% down or 1.5% up every 30ms - while a single press
+        still takes the coarse 5% so a tap reads instantly. Those are two
+        different controls and the test keeps
         them apart.
 
         Two invariants are easy to break by accident and impossible to notice
         in code review. If rampMs drops below the main loop's sleep, the extra
         resolution is silently thrown away because the ramp can only fire when
         the loop wakes. And if the tap branch keeps stepping per continuation
-        token, every held key piles 5% on top of every 1% the ramp already
-        made, which reads as a jump at the start of each hold.
+        token, every held key piles 5% on top of every fine ramp step, which
+        reads as a jump at the start of each hold.
         """
         engine = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
             encoding="ascii", errors="strict")
@@ -2458,24 +2459,27 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             return int(m.group(1))
 
         step = num(r"^\$step = (\d+)$", "the tap step")
-        rstep = num(r"^\$rampStep = (\d+)$", "the glide step")
+        rstep = num(r"^\$rampStep = (\d+)$", "the downward glide step")
+        upstep = num(r"^\$rampUpStep = (\d+)$", "the upward glide step")
         rms = num(r"^\$rampMs = (\d+)$", "the glide cadence")
         loop = num(r"^\$loopMs = (\d+)$", "the main loop sleep")
         hold = num(r"^\$brightHoldMs = (\d+)$", "the post-release hold window")
 
         self.assertLess(rstep, step,
-                        "the glide step is not finer than the tap step, so a held key "
-                        "is still a staircase")
+                        "the downward glide step is not finer than the tap step")
+        self.assertGreater(upstep, rstep,
+                           "brightness-up is no longer faster than brightness-down")
+        self.assertLess(upstep, step,
+                        "the upward glide step is as coarse as the immediate tap")
         self.assertGreaterEqual(rms, loop,
                                 "the glide cadence (%d ms) is finer than the main loop "
                                 "wakes (%d ms), so the extra steps are silently dropped "
                                 "and the sweep runs slower than configured" % (rms, loop))
 
-        # Every engine-driven glide uses the fine ramp; nothing glides on the
-        # tap step any more.
-        self.assertEqual(engine.count("$script:brightRampDir * $rampStep"), 3,
-                         "expected exactly three glides (burst, latch, hold-tap "
-                         "continuation) on the fine ramp")
+        # Every engine-driven glide uses the directional helper, not the
+        # coarse tap step. There are three consumers: burst, latch, and hold-tap.
+        self.assertEqual(engine.count("Step-BrightRamp $script:brightRampDir"), 3,
+                         "expected burst, latch, and hold-tap to use the fine ramp helper")
         self.assertEqual(engine.count("$script:brightRampDir * $step"), 0,
                          "a glide still uses the coarse tap step")
         # Three immediate tap responses: latch press, burst press, first token
@@ -2491,7 +2495,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "fresh gesture, so a held key double-steps")
 
         # Overshoot after the key is let go is bounded by the hold window.
-        overshoot_pct = (hold // max(rms, loop)) * rstep / 10.0
+        overshoot_pct = (hold // max(rms, loop)) * max(rstep, upstep) / 10.0
         self.assertLessEqual(overshoot_pct, 15.0,
                              "the glide keeps running %.0f%% after release, which reads "
                              "as the brightness moving on its own" % overshoot_pct)
@@ -2540,20 +2544,19 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                          "flyout does not")
 
     def test_keyboard_lighting_hold_ramp_is_not_quantized_by_the_panel(self):
-        """The panel must follow the engine's live ramp, not write it back.
+        """A continuation token refreshes hold state, not the ramp clock.
 
-        Polling every 150 ms made the slider jump several percent at a time.
-        Worse, the old poller echoed each rounded sample through the normal
-        live-apply path, racing the engine and resetting its ramp. Hold tokens
-        also need to arrive on the 45 ms UI timer rather than every other tick.
+        The old loop restarted its 30 ms deadline on every token. When tokens
+        arrived in step with the engine loop, the deadline was perpetually in
+        the future and a held key barely moved. Keep the ramp clock independent,
+        pump key tokens on a finer timer, and preserve the 35 ms slider readback.
         """
         hotkeys = (ROOT / "keyboard-lighting" / "src" / "parts" /
                    "brightness_hotkeys.c").read_text(encoding="ascii", errors="strict")
         poll = hotkeys[hotkeys.index("static void PollFnBrightness(void) {"):]
         poll = poll[:poll.index("\n}\n")]
         self.assertIn("now - g_lastFnPoll < 35ULL", poll,
-                      "the brightness slider samples only every 150 ms, so a 1%/30 ms "
-                      "ramp appears as irregular multi-percent jumps")
+                      "the brightness slider samples too slowly for the fine ramp")
         self.assertNotRegex(poll, r"\bScheduleLiveApply\s*\(",
                             "the readback echoes the engine-owned level into live.txt, "
                             "quantizing and fighting the ongoing glide")
@@ -2571,16 +2574,177 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("FlushPendingBrightnessCfg();", poll,
                       "the settled brightness is never persisted")
 
+        engine = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="ascii", errors="strict")
+
+        def num(pattern, label):
+            match = re.search(pattern, engine, re.M)
+            self.assertIsNotNone(match, "could not find %s" % label)
+            return int(match.group(1))
+
+        down = num(r"^\$rampStep = (\d+)$", "the downward ramp step")
+        up = num(r"^\$rampUpStep = (\d+)$", "the upward ramp step")
+        cadence = num(r"^\$rampMs = (\d+)$", "the ramp cadence")
+        loop = num(r"^\$loopMs = (\d+)$", "the engine loop cadence")
+        hold_ms = num(r"^\$brightHoldMs = (\d+)$", "the release grace window")
+        self.assertGreater(up, down,
+                           "brightness-up is not faster than brightness-down")
+        self.assertGreaterEqual(cadence, loop,
+                                "the ramp cadence is finer than the engine loop can run")
+
+        ramp_step = engine[engine.index("function Get-BrightRampStep"):]
+        ramp_step = ramp_step[:ramp_step.index("\n}\n")]
+        self.assertIn("if ($direction -gt 0) { return $rampUpStep }", ramp_step)
+        self.assertIn("return $rampStep", ramp_step)
+
+        tap = engine[engine.index("$gapMs = ($nowU - $script:brightRampLast)"):]
+        tap = tap[:tap.index("} elseif ($script:brightRampDir -ne 0)")]
+        self.assertIn("$continuing = ($tapDir -eq $script:brightRampDir -and", tap,
+                      "continuation tokens are not distinguished from fresh gestures")
+        self.assertIn("$script:brightPending -and $gapMs -le $brightHoldMs", tap,
+                      "a held continuation does not refresh the live hold window")
+        self.assertIn("} elseif ($nowU -ge $script:brightRampNext) {", tap,
+                      "a due fine step is postponed whenever a continuation token arrives")
+        self.assertEqual(tap.count("$script:brightRampNext = $nowU.AddMilliseconds($rampMs)"), 2,
+                         "the continuation path resets the ramp deadline instead of "
+                         "advancing it only after a due brightness step")
+        self.assertIn("Step-BrightRamp $tapDir", tap,
+                      "a due continuation does not move the brightness")
+
+        picker = (ROOT / "keyboard-lighting/src/parts/picker_window_entry.c").read_text(
+            encoding="ascii", errors="strict")
+        self.assertIn("SetTimer(hwnd, 3, 15, NULL)", picker,
+                      "hold polling is still quantized by the 45 ms preview timer")
+        timer_start = picker.rindex("case WM_TIMER:")
+        timer = picker[timer_start:picker.index("case WM_TRAYICON:", timer_start)]
+        timer3 = timer[timer.index("} else if (wp == 3)"):]
+        self.assertIn("WatchBrightTokens();", timer3)
+        self.assertIn("HoldPump();", timer3)
+        timer1 = timer[:timer.index("} else if (wp == 2)")]
+        self.assertNotIn("HoldPump();", timer1,
+                         "the fine token pump still waits on the preview timer")
+
         src = read_c_inlined("keyboard-lighting/src/keyboard_lighting.c")
         hold = src[src.index("static void HoldPump(void) {"):]
         hold = hold[:hold.index("\nstatic void PressSignal")]
         self.assertIn("g_scanNext[i] = now + 30;", hold,
-                      "a 60 ms target falls between 45 ms UI ticks and can create a "
-                      "false tap-sized pause during a hold")
+                      "the token target is no longer aligned with the 30 ms fine ramp")
         destroy = src[src.index("case WM_DESTROY:"):]
         destroy = destroy[:destroy.index("\n    }\n")]
         self.assertIn("FlushPendingBrightnessCfg();", destroy,
                       "quitting during the debounce can discard the final held brightness")
+
+    def test_keyboard_lighting_palette_balance_keeps_orange_and_neutral_white(self):
+        """Balance is perceptual, visible, and cannot turn neutrals blue.
+
+        A linear-RGB gain could only dim the brighter orange stop when purple
+        needed a boost, washing orange out. The replacement moves OKLab lightness
+        toward a shared target, preserves hue, and uses one dither phase for
+        equal device-space RGB values.
+        """
+        engine = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
+            encoding="ascii", errors="strict")
+        prep = engine[engine.index("void PrepPaletteG(Zone gr, bool xfade)"):]
+        prep = prep[:prep.index("// OKLab, from LINEAR sRGB")]
+        self.assertIn("if (gr.Equalise) BalancePalette(gr.plR, gr.plG, gr.plB);", prep,
+                      "group palettes no longer use Balance Colors")
+        plain = engine[engine.index("void PrepPalette() {"):]
+        plain = plain[:plain.index("// Cyclic palette sample")]
+        self.assertIn("BalancePalette(plR, plG, plB);", plain,
+                      "the non-group palette path no longer uses Balance Colors")
+
+        balance_start = engine.index("static void BalancePalette(")
+        balance_end = engine.index("// Palette blends travel", balance_start)
+        balance = engine[balance_start:balance_end]
+        self.assertIn("const double BalanceStrength = 0.55;", balance,
+                      "Balance Colors has no meaningful, documented strength")
+        self.assertIn("balancedL = L + (target - L) * BalanceStrength", balance,
+                      "Balance Colors does not actually move palette-stop lightness")
+        self.assertIn("FitOklabGamut", balance,
+                      "lightness correction can leave RGB channels clipped")
+
+        gamut_start = engine.index("static bool InOklabGamut(")
+        gamut_end = engine.index("// Balance each palette stop", gamut_start)
+        gamut = engine[gamut_start:gamut_end]
+        for channel in ("r", "g", "b"):
+            self.assertIn(channel + " <= 1.0 + 1e-9", gamut,
+                          "the gamut check can clip a bright %s channel and bend hue" % channel)
+        sample_start = engine.index("void SamplePal(")
+        sample_end = engine.index("// Pull every group's live inbox", sample_start)
+        sample = engine[sample_start:sample_end]
+        self.assertIn("MixOklch(La, Aa, Ba, Lb, Ab, Bb, w", sample,
+                      "palette transitions still lose chroma through straight OKLab mixing")
+        self.assertNotIn("MixOklab(La, Aa, Ba, Lb, Ab, Bb, w", sample)
+
+        push_start = engine.index("void Push(bool force) {")
+        push_end = engine.index("public bool PinGate", push_start)
+        push = engine[push_start:push_end]
+        self.assertIn("double sharedErr = (er[i] + eg[i] + eb[i]) / 3.0;", push,
+                      "neutral colours still use unrelated red/green/blue dither phases")
+        self.assertIn("qr = q; qg = q; qb = q;", push,
+                      "equal device-space channels are not quantized to the same code")
+
+        # Numeric probe of the shipped lightness/gamut rule for the reported
+        # saturated purple/orange pair and for requested neutral white.
+        def to_linear(v):
+            c = v / 255.0
+            return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+        def to_oklab(rgb):
+            r, g, b = rgb
+            l = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1.0 / 3.0)
+            m = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b) ** (1.0 / 3.0)
+            s = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b) ** (1.0 / 3.0)
+            return (0.2104542553*l + 0.7936177850*m - 0.0040720468*s,
+                    1.9779984951*l - 2.4285922050*m + 0.4505937099*s,
+                    0.0259040371*l + 0.7827717662*m - 0.8086757660*s)
+
+        def from_oklab(L, A, B):
+            lp = L + 0.3963377774*A + 0.2158037573*B
+            mp = L - 0.1055613458*A - 0.0638541728*B
+            sp = L - 0.0894841775*A - 1.2914855480*B
+            l, m, s = lp**3, mp**3, sp**3
+            return (4.0767416621*l - 3.3077115913*m + 0.2309699292*s,
+                    -1.2684380046*l + 2.6097574011*m - 0.3413193965*s,
+                    -0.0041960863*l - 0.7034186147*m + 1.7076147010*s)
+
+        def fit(L, A, B):
+            rgb = from_oklab(L, A, B)
+            def in_gamut(c):
+                return min(c) >= -1e-9 and max(c) <= 1.0 + 1e-9
+            if not in_gamut(rgb):
+                lo, hi = 0.0, 1.0
+                for _ in range(18):
+                    mid = (lo + hi) * 0.5
+                    if in_gamut(from_oklab(L, A * mid, B * mid)):
+                        lo = mid
+                    else:
+                        hi = mid
+                rgb = from_oklab(L, A * lo, B * lo)
+            return tuple(min(1.0, max(0.0, c)) for c in rgb)
+
+        def balance(colors):
+            lab = [to_oklab(c) for c in colors]
+            visible = [c[0] for c in lab if c[0] > 0.0005]
+            target = math.exp(sum(math.log(L) for L in visible) / len(visible))
+            out = []
+            for L, A, B in lab:
+                out.append((0.0, 0.0, 0.0) if L <= 0.0005
+                           else fit(L + (target - L) * 0.55, A, B))
+            return out
+
+        purple = tuple(to_linear(v) for v in (128, 0, 255))
+        orange = tuple(to_linear(v) for v in (255, 128, 0))
+        white = (1.0, 1.0, 1.0)
+        adjusted = balance([purple, orange, white])
+        orange_out = adjusted[1]
+        self.assertGreater(orange_out[0], 0.65,
+                           "Balance Colors made the orange stop too dim to read")
+        self.assertGreater(orange_out[1], 0.10,
+                           "the orange stop lost its warm green component")
+        white_out = adjusted[2]
+        self.assertLess(max(white_out) - min(white_out), 1e-6,
+                        "balancing a white stop introduced a channel tint")
 
     def test_keyboard_lighting_hold_modes_are_reachable_and_bounded(self):
         """All three M4/M5 hold behaviours must be reachable, and the sweep cap
@@ -2590,11 +2754,10 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         re-reads it every tick, but the only way to set it was the -HoldMode
         command line. That left latch and burst - the two that do NOT depend on
         this panel recognising the M-keys - effectively unreachable, while the
-        default "tap" degrades silently: its hold-to-sweep needs a typematic
-        repeat or a release frame to exist, and on a machine where the M-keys
-        produce neither, holding does nothing and every press is one 5% step
-        with no explanation anywhere. Hence the tray submenu, and hence the
-        read-only indicator that reports HasReleaseSrc rather than mere
+        default "tap" needs a typematic repeat or a release frame from the
+        M-keys. If neither exists, the tray and Suite Settings must make that
+        limitation visible and keep the press-to-glide fallback available. The
+        read-only tray indicator reports HasReleaseSrc rather than mere
         learning, because a release source is the actual gate on the stream.
 
         The ceiling added to HoldPump is checked against the engine's own
@@ -2726,10 +2889,11 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "mistaken for the current learning gesture")
         timer_start = picker.rindex("case WM_TIMER:")
         timer_block = picker[timer_start:]
-        timer1 = timer_block[:timer_block.index("} else if (wp == 2)")]
-        self.assertIn("WatchBrightTokens();", timer1,
-                      "token learning waits on the 600 ms heartbeat instead of the "
-                      "45 ms hold-pump timer")
+        timer3 = timer_block[timer_block.index("} else if (wp == 3)"):]
+        self.assertIn("WatchBrightTokens();", timer3,
+                      "token learning is not on the dedicated fine timer")
+        self.assertIn("HoldPump();", timer3,
+                      "hold repeats are not on the dedicated fine timer")
         self.assertIn("g_hidRelSeen[dir] >= 1", src,
                       "one observed HID release pair still does not enable immediate repeat")
         self.assertIn('PersistKeyValue(dir == 0 ? L"M4HidRelease" : L"M5HidRelease", 1);', src,
@@ -3693,21 +3857,28 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertRegex(mk, r"(?m)^commit=[0-9a-f]{7,40}$",
                          "the released marker has no usable commit line")
         marker_sha = _re.search(r"(?m)^commit=([0-9a-f]{7,40})$", mk).group(1)
-        released_source = main
+        marker_hub = _re.search(r"(?m)^hub=(\d+\.\d+\.\d+)$", mk)
+        self.assertIsNotNone(marker_hub, "the released marker has no hub version")
+        marker_hubver = marker_hub.group(1)
         show = subprocess.run(
             ["git", "show", "%s:project-hub/src/project_hub.c" % marker_sha],
             cwd=ROOT, capture_output=True, text=True)
         if show.returncode == 0:
-            # A working tree can contain a fully tested, not-yet-released Hub
-            # version. Compare the marker to the version it actually blesses,
-            # not to that pending source. In a shallow release CI checkout the
-            # target may not be present; there the marker-only commit's source
-            # is the same as its target, so the checked-out source is correct.
+            # The release marker names an immutable implementation commit;
+            # compare its version, not a newer branch-tip candidate.
             released_source = show.stdout
-        hubver = _re.search(r'#define HUB_VERSION\s+"([0-9.]+)"', released_source).group(1)
-        self.assertIn("hub=%s" % hubver, mk,
-                      "the marker's hub version does not match the source it blesses, "
-                      "so the hub would announce an update to itself")
+            hubver = _re.search(r'#define HUB_VERSION\s+"([0-9.]+)"', released_source).group(1)
+            self.assertEqual(marker_hubver, hubver,
+                             "the marker's hub version does not match the source it blesses")
+        else:
+            # During the first (implementation) commit, the old marker is
+            # intentionally retained until the separate release-marker commit.
+            # A shallow checkout may omit the old marker target, so allow the
+            # marker version to trail the checked-out candidate, but never lead it.
+            candidate = _re.search(r'#define HUB_VERSION\s+"([0-9.]+)"', main).group(1)
+            self.assertLessEqual(tuple(map(int, marker_hubver.split("."))),
+                                 tuple(map(int, candidate.split("."))),
+                                 "an unavailable release marker is newer than the branch source")
 
     def test_hub_settings_page_writes_the_apps_own_files(self):
         """The hub's Settings page must edit, not duplicate, each app's config.
@@ -3716,8 +3887,8 @@ class SuiteFolderInstallTests(unittest.TestCase):
         The risk with a central page is a second schema: the hub keeping its
         own copy of what each setting means, drifting from the app that owns
         it. So every control writes the exact file the app itself uses -
-        hold_mode.txt and theme.json for Keyboard Lighting, config.ini for
-        DNS Pilot - and the three mode strings are asserted to be the same
+        hold_mode.txt and theme.json for Keyboard Lighting, config.ini for DNS
+        Pilot - and the three mode strings are asserted to be the same
         set the lighting engine validates against, so the page can never
         offer a mode that would silently do nothing.
 
@@ -3763,12 +3934,46 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("WriteBinaryFileAtomic", hold,
                       "the hold mode is written non-atomically, so the engine can "
                       "read a half-written mode")
+        self.assertIn("int savedMode = HoldModeCurrent();", page,
+                      "a failed hold-mode save leaves the radio group lying about its value")
+        self.assertIn("i == savedMode ? BST_CHECKED : BST_UNCHECKED", page)
         smooth = page[page.index("static BOOL ApplySmooth("):]
         smooth = smooth[:smooth.index("\n}\n")]
         self.assertIn('\\\"Smooth\\\"', smooth,
                       "the Smooth toggle no longer edits theme.json's Smooth key")
         self.assertIn("WriteBinaryFileAtomic", smooth,
                       "theme.json is rewritten in place instead of atomically")
+        self.assertIn('L"Smooth colour (steady steps instead of fine dithering)"', page,
+                      "the shared Settings page no longer exposes the existing Smooth control")
+        self.assertIn("Brightness hotkeys:", page,
+                      "the existing read-only global brightness-hotkey summary was lost")
+        self.assertIn("UpdateHotkeysSummary();", page,
+                      "the displayed global hotkeys are not refreshed from presets.ini")
+        self.assertIn("SetWindowTextW(g_setHotkeys, line);", page,
+                      "the summary no longer displays the resolved hotkey names")
+        for key in ('L"UpMod"', 'L"UpKey"', 'L"DownMod"', 'L"DownKey"'):
+            self.assertIn(key, page,
+                          "the hotkey summary reads a different presets.ini key than the panel")
+        self.assertIn("HoldSweepReady()", page,
+                      "the selected hold mode has no usable M4/M5 readiness check")
+        self.assertIn("M4/M5 hold signals are still learning", page,
+                      "the page does not explain why sweep-while-held may not be ready")
+        self.assertIn("Press-to-glide works without key recognition", page,
+                      "the page hides the fallback that does not depend on key learning")
+        self.assertIn("SetTimer(g_setHwnd, 1, 1000, NULL)", page,
+                      "key-recognition status is not refreshed while Settings is open")
+        self.assertIn("static const int kSetIntervals[6] = { 0, 15, 30, 60, 120, 300 }", page,
+                      "the page's DNS choices do not match DNS Pilot's interval cycle")
+        self.assertIn("Auto (live watch)", page,
+                      "DNS Pilot's 0-minute live-watch mode is mislabeled or unavailable")
+        self.assertIn("if (selIdx < 0)", page,
+                      "an unsupported DNS interval can still appear as an unsupported choice")
+        self.assertIn('WritePrivateProfileStringW(L"Pilot", L"IntervalMin", valid, cfg)', page,
+                      "an unsupported DNS interval is not normalized before it is displayed")
+        self.assertIn("DrawSettingsCard", page,
+                      "the Settings page no longer uses the Suite's card layout")
+        self.assertIn("COL_CARD_BG", page)
+        self.assertIn("COL_TEXT_PRIMARY", page)
         self.assertIn("WritePrivateProfileStringW", page,
                       "DNS Pilot's config is not written through the same INI API "
                       "the app reads with")
