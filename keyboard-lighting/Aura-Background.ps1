@@ -701,7 +701,7 @@ public class LampEngine {
                   out La, out Aa, out Ba);
           ToOklab(gr.plR[i]*ng, gr.plG[i]*ng, gr.plB[i]*ng,
                   out Lb, out Ab, out Bb);
-          MixOklch(La, Aa, Ba, Lb, Ab, Bb, u0, out mr, out mg, out mb);
+          MixOklab(La, Aa, Ba, Lb, Ab, Bb, u0, out mr, out mg, out mb);
           fr2[i] = mr; fg2[i] = mg; fb2[i] = mb; fgain[i] = 1.0;
         }
         gr.oldR = fr2; gr.oldG = fg2; gr.oldB = fb2; gr.oldGain = fgain;
@@ -808,23 +808,18 @@ public class LampEngine {
     }
   }
 
-  // Palette blends travel along the short OKLCh hue arc. Unlike a straight
-  // OKLab line, this keeps the transition saturated: purple-to-orange passes
-  // through a vivid warm pink/red rather than a washed-out greyish smear.
-  static void MixOklch(double L1, double A1, double B1,
+  // Palette blends use a straight OKLab path, rather than rotating along a
+  // hue arc. A short OKLCh arc made saturated purple-to-orange transitions
+  // flash through a vivid pink/red band; the perceptual chord keeps the motion
+  // smooth and makes that intermediate colour much less dominant. Fit the
+  // result to display gamut without channel clipping that would bend the hue.
+  static void MixOklab(double L1, double A1, double B1,
                        double L2, double A2, double B2, double w,
                        out double r, out double g, out double b) {
-    double c1 = Math.Sqrt(A1 * A1 + B1 * B1);
-    double c2 = Math.Sqrt(A2 * A2 + B2 * B2);
-    double h1 = Math.Atan2(B1, A1), h2 = Math.Atan2(B2, A2);
-    double dh = h2 - h1;
-    while (dh >  Math.PI) dh -= 2.0 * Math.PI;
-    while (dh < -Math.PI) dh += 2.0 * Math.PI;
     double Lm = L1 + (L2 - L1) * w;
-    double Cm = c1 + (c2 - c1) * w;
-    double hm = h1 + dh * w;
-    double am = Cm * Math.Cos(hm), bm = Cm * Math.Sin(hm);
-    FitOklabGamut(Lm, am, bm, out r, out g, out b);
+    double Am = A1 + (A2 - A1) * w;
+    double Bm = B1 + (B2 - B1) * w;
+    FitOklabGamut(Lm, Am, Bm, out r, out g, out b);
   }
 
   static void ToOklab(double r, double g, double b,
@@ -876,14 +871,15 @@ public class LampEngine {
     if (u < 0.0) u = 0.0; else if (u > 1.0) u = 1.0;
     u = u * u * (3.0 - 2.0 * u);     // ease in and out, no hard start/stop
 
-    // Cross in OKLCh too, so a palette replacement stays saturated and a
-    // neutral white remains neutral rather than being bent by channel clips.
-    // SamplePal answers in lamp bytes (0-255, gamma-encoded); OKLab works
-    // in linear 0-1. Convert at this boundary in both directions.
+    // Use the same straight OKLab path for a palette replacement as for its
+    // moving stops. Unlike the short OKLCh hue arc, the chord does not drive
+    // purple through a vivid magenta band; its lower midpoint chroma keeps the
+    // fade continuous without a conspicuous pink flash. SamplePal answers in
+    // lamp bytes (0-255, gamma-encoded); OKLab works in linear 0-1.
     double La, Aa, Ba, Lb, Ab, Bb, mr, mg, mb;
     ToOklab(ToLin(o_r), ToLin(o_g), ToLin(o_b), out La, out Aa, out Ba);
     ToOklab(ToLin(n_r), ToLin(n_g), ToLin(n_b), out Lb, out Ab, out Bb);
-    MixOklch(La, Aa, Ba, Lb, Ab, Bb, u, out mr, out mg, out mb);
+    MixOklab(La, Aa, Ba, Lb, Ab, Bb, u, out mr, out mg, out mb);
     r = ToSrgb(mr); g = ToSrgb(mg); b = ToSrgb(mb);
   }
 
@@ -924,9 +920,9 @@ public class LampEngine {
     // palette and the same blend, so the colours are unchanged.
     //
     // A wider transition window makes a few-lamp keyboard animate instead
-    // of snapping between endpoints. OKLCh keeps the transition vivid, while
-    // the flat holds still give each requested palette colour real time on
-    // screen instead of washing it into a long middle band.
+    // of snapping between endpoints. Perceptual OKLab mixing keeps the path
+    // continuous while avoiding a saturated pink band between purple and orange;
+    // the flat holds still give each requested palette colour real time.
     //
     // 0.50 is the floor, not a preference. At 0.40 the four keyboard lamps
     // are pinned on an endpoint 60% of the time and start snapping between
@@ -992,15 +988,15 @@ public class LampEngine {
     double ar = plR[a] * ga, ag2 = plG[a] * ga, ab = plB[a] * ga;
     double br = plR[n2] * gb, bg = plG[n2] * gb, bb = plB[n2] * gb;
 
-    // Blend in OKLCh: lightness and chroma move smoothly, and hue follows
-    // the short arc. A straight OKLab line loses chroma between saturated
-    // purple and orange, making the orange transition look washed out.
-    // The gamut fitter preserves hue and reduces chroma only when needed.
+    // Blend along a straight OKLab path. The short OKLCh hue arc sends
+    // saturated purple-to-orange transitions through a vivid magenta band;
+    // the perceptual chord lets chroma fall naturally around the midpoint
+    // instead of making that intermediate hue flash. Endpoints stay exact.
     double lr, lg, lb;
     double La, Aa, Ba, Lb, Ab, Bb;
     ToOklab(ar, ag2, ab, out La, out Aa, out Ba);
     ToOklab(br, bg, bb, out Lb, out Ab, out Bb);
-    MixOklch(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);
+    MixOklab(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);
     r = ToSrgb(lr); g = ToSrgb(lg); b = ToSrgb(lb);
   }
 
@@ -1680,7 +1676,8 @@ public class LampEngine {
   }
 
   // Cyclic palette sample. f is 0..1 around the whole loop.
-  // Interpolates in OKLCh so hue and saturation stay vivid between stops.
+  // Interpolates in OKLab so purple-to-orange midpoints do not take the
+  // saturated magenta detour of a short OKLCh hue arc.
   void Pal(double f, out double r, out double g, out double b) {
     int pc = plR.Length;
     f = f % 1.0; if (f < 0) f += 1.0;
@@ -1698,7 +1695,7 @@ public class LampEngine {
     double La, Aa, Ba, Lb, Ab, Bb, lr, lg, lb;
     ToOklab(plR[a] * ga, plG[a] * ga, plB[a] * ga, out La, out Aa, out Ba);
     ToOklab(plR[n2] * gb, plG[n2] * gb, plB[n2] * gb, out Lb, out Ab, out Bb);
-    MixOklch(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);
+    MixOklab(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);
     r = ToSrgb(lr); g = ToSrgb(lg); b = ToSrgb(lb);
   }
 

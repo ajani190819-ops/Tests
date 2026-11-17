@@ -2654,7 +2654,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "the non-group palette path no longer uses Balance Colors")
 
         balance_start = engine.index("static void BalancePalette(")
-        balance_end = engine.index("// Palette blends travel", balance_start)
+        balance_end = engine.index("// Palette blends use a straight OKLab path", balance_start)
         balance = engine[balance_start:balance_end]
         self.assertIn("const double BalanceStrength = 0.55;", balance,
                       "Balance Colors has no meaningful, documented strength")
@@ -2662,6 +2662,14 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "Balance Colors does not actually move palette-stop lightness")
         self.assertIn("FitOklabGamut", balance,
                       "lightness correction can leave RGB channels clipped")
+
+        mix_start = engine.index("static void MixOklab(")
+        mix_end = engine.index("static void ToOklab(", mix_start)
+        mix = engine[mix_start:mix_end]
+        self.assertIn("double Am = A1 + (A2 - A1) * w;", mix,
+                      "palette stops no longer follow a straight perceptual chord")
+        self.assertIn("double Bm = B1 + (B2 - B1) * w;", mix,
+                      "palette stops no longer follow a straight perceptual chord")
 
         gamut_start = engine.index("static bool InOklabGamut(")
         gamut_end = engine.index("// Balance each palette stop", gamut_start)
@@ -2672,9 +2680,12 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         sample_start = engine.index("void SamplePal(")
         sample_end = engine.index("// Pull every group's live inbox", sample_start)
         sample = engine[sample_start:sample_end]
-        self.assertIn("MixOklch(La, Aa, Ba, Lb, Ab, Bb, w", sample,
-                      "palette transitions still lose chroma through straight OKLab mixing")
-        self.assertNotIn("MixOklab(La, Aa, Ba, Lb, Ab, Bb, w", sample)
+        self.assertIn("MixOklab(La, Aa, Ba, Lb, Ab, Bb, w", sample,
+                      "palette transitions still rotate through the vivid OKLCh magenta band")
+        self.assertNotIn("MixOklch(", engine,
+                         "a palette or palette-change path still takes the saturated hue arc")
+        self.assertIn("MixOklab(La, Aa, Ba, Lb, Ab, Bb, u", engine,
+                      "palette replacements do not use the same pink-suppressing path")
 
         push_start = engine.index("void Push(bool force) {")
         push_end = engine.index("public bool PinGate", push_start)
@@ -2733,6 +2744,10 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                            else fit(L + (target - L) * 0.55, A, B))
             return out
 
+        def mix_oklab(a, b, weight):
+            la, lb = to_oklab(a), to_oklab(b)
+            return fit(*(x + (y - x) * weight for x, y in zip(la, lb)))
+
         purple = tuple(to_linear(v) for v in (128, 0, 255))
         orange = tuple(to_linear(v) for v in (255, 128, 0))
         white = (1.0, 1.0, 1.0)
@@ -2745,6 +2760,16 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         white_out = adjusted[2]
         self.assertLess(max(white_out) - min(white_out), 1e-6,
                         "balancing a white stop introduced a channel tint")
+
+        # The old short OKLCh hue arc preserved nearly all chroma at the
+        # purple/orange midpoint, which is the vivid pink/red band reported by
+        # the owner. A straight OKLab chord keeps the endpoints untouched and
+        # naturally reduces that midpoint's chroma instead of flashing it.
+        p_lab, o_lab = to_oklab(adjusted[0]), to_oklab(adjusted[1])
+        endpoint_floor = min(math.hypot(*p_lab[1:]), math.hypot(*o_lab[1:]))
+        mid_lab = to_oklab(mix_oklab(adjusted[0], adjusted[1], 0.5))
+        self.assertLess(math.hypot(*mid_lab[1:]), endpoint_floor * 0.65,
+                        "the purple/orange midpoint is still vivid enough to flash pink")
 
     def test_keyboard_lighting_hold_modes_are_reachable_and_bounded(self):
         """All three M4/M5 hold behaviours must be reachable, and the sweep cap
@@ -3886,11 +3911,11 @@ class SuiteFolderInstallTests(unittest.TestCase):
         The owner chose one settings page in the hub over per-app dialogs.
         The risk with a central page is a second schema: the hub keeping its
         own copy of what each setting means, drifting from the app that owns
-        it. So every control writes the exact file the app itself uses -
-        hold_mode.txt and theme.json for Keyboard Lighting, config.ini for DNS
-        Pilot - and the three mode strings are asserted to be the same
-        set the lighting engine validates against, so the page can never
-        offer a mode that would silently do nothing.
+        it. Keyboard Lighting keeps preferences in panel.json and applies its
+        live engine inbox through theme.json; the Hub must update both. Hold
+        mode still belongs in hold_mode.txt, DNS Pilot in config.ini, and the
+        three hold strings must match the engine so no choice silently does
+        nothing.
 
         The page is also asserted to stay out of the Desktop entirely: it is
         a settings editor, and shortcut creation has exactly one door left
@@ -3904,6 +3929,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
         pick = (hub / "parts" / "branch_picker_entry.c").read_text(encoding="utf-8")
         engine = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
             encoding="ascii", errors="strict")
+        tray = (ROOT / "keyboard-lighting" / "Tray.ps1").read_text(encoding="utf-8")
 
         self.assertIn('#include "parts/settings_page.c"', main,
                       "the settings page is not part of the hub build")
@@ -3939,12 +3965,47 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("i == savedMode ? BST_CHECKED : BST_UNCHECKED", page)
         smooth = page[page.index("static BOOL ApplySmooth("):]
         smooth = smooth[:smooth.index("\n}\n")]
-        self.assertIn('\\\"Smooth\\\"', smooth,
-                      "the Smooth toggle no longer edits theme.json's Smooth key")
-        self.assertIn("WriteBinaryFileAtomic", smooth,
-                      "theme.json is rewritten in place instead of atomically")
-        self.assertIn('L"Smooth colour (steady steps instead of fine dithering)"', page,
-                      "the shared Settings page no longer exposes the existing Smooth control")
+        self.assertIn('ApplyKeyboardSetting(NULL, "Smooth", on)', smooth,
+                      "the Steady Colours toggle no longer updates Keyboard Lighting")
+        balance_setting = page[page.index("static BOOL ApplyBalance("):]
+        balance_setting = balance_setting[:balance_setting.index("\n}\n")]
+        self.assertIn('ApplyKeyboardSetting("Kbd", "Equalise", on)', balance_setting,
+                      "Balance Colours no longer targets the keyboard's own group")
+        kbl_write = page[page.index("static BOOL ApplyKeyboardSetting("):]
+        kbl_write = kbl_write[:kbl_write.index("\nstatic void ModNamesW", 1)]
+        self.assertIn('L"panel.json"', kbl_write,
+                      "Keyboard Lighting preferences are not persisted to panel.json")
+        self.assertIn('L"theme.json"', kbl_write,
+                      "Keyboard Lighting changes no longer reach the live engine")
+        self.assertIn("WriteBinaryFileAtomic(panelPath", kbl_write,
+                      "panel.json is not written atomically")
+        self.assertIn("WriteBinaryFileAtomic(themePath", kbl_write,
+                      "theme.json is not written atomically")
+        self.assertIn("restore the saved file", kbl_write,
+                      "a failed live update can leave Keyboard Lighting's two settings sources apart")
+        self.assertIn("function Sync-ExternalPanelCfg {", tray,
+                      "the tray can overwrite a Hub change from its stale in-memory panel settings")
+        sync = tray[tray.index("function Sync-ExternalPanelCfg {"):]
+        sync = sync[:sync.index("\n}\n")]
+        for required in ("Load-Cfg", "Load-UiFromCfg", "Write-Theme"):
+            self.assertIn(required, sync,
+                          "external panel changes do not refresh the tray UI and live theme")
+        watch = tray[tray.index("$watch.Add_Tick({"):]
+        watch = watch[:watch.index("$watch.Start()")]
+        self.assertIn("$script:tick++\n    Sync-ExternalPanelCfg", watch,
+                      "the tray does not notice Hub settings before its next UI write")
+        self.assertIn("$script:PanelStamp = Get-PanelStamp", tray,
+                      "the tray does not advance the panel timestamp after its own save")
+        self.assertIn('L"Balance Colours for the keyboard"', page,
+                      "the current keyboard balance preference is missing from Hub Settings")
+        self.assertIn('L"Steady Colours (off uses fine dithering)"', page,
+                      "the current steady/dither setting is mislabeled in Hub Settings")
+        self.assertIn("wc.hbrBackground = NULL;", page,
+                      "the Settings window can erase to the system's white window brush")
+        self.assertIn("ApplyModernWindowFrame(g_setHwnd);", page,
+                      "Settings does not use the Hub's dark native window frame")
+        self.assertIn("DrawSettingsCard(dc, dpi, client.right", page,
+                      "Settings cards are not inset to the live window width")
         self.assertIn("Brightness hotkeys:", page,
                       "the existing read-only global brightness-hotkey summary was lost")
         self.assertIn("UpdateHotkeysSummary();", page,
@@ -4007,6 +4068,78 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "stay until they are deleted by hand")
         self.assertLess(pick.index("InitAllPaths();"), pick.index("RemoveLegacyDesktopShortcuts();"),
                         "the cleanup runs before the folders it needs are resolved")
+
+    def test_hub_keyboard_settings_json_updates_are_scoped_and_preserve_other_groups(self):
+        """Run the Hub's actual JSON patcher against current and legacy files."""
+        import shutil
+        import tempfile
+
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            self.skipTest("a native C compiler is required for the portable JSON helper test")
+        page = (ROOT / "project-hub" / "src" / "parts" / "settings_page.c").read_text(
+            encoding="utf-8")
+        first = page[page.index("static BOOL JsonSpace("):]
+        first = first[:first.index("\nstatic int KeyboardSettingCurrent", 1)]
+        second = page[page.index("static BOOL AddJsonEntry("):]
+        second = second[:second.index("\nstatic int SmoothCurrent", 1)]
+        harness = r'''#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#define BOOL int
+#define DWORD uint32_t
+#define TRUE 1
+#define FALSE 0
+#define _snprintf snprintf
+''' + first + second + r'''
+#define CHECK(c) do { if (!(c)) { fprintf(stderr, "failed at C line %d\n", __LINE__); return __LINE__; } } while (0)
+int main(void) {
+    const char *live = "{\"Brightness\":1,\"Smooth\":false,\"Kbd\":{\"Equalise\":true,\"Colors\":\"#2814FF\"},\"Bar\":{\"Equalise\":false}}";
+    char *out = NULL, *open = NULL, *close = NULL;
+    DWORD n = 0; int value = -1;
+    CHECK(BuildJsonBoolUpdate(live, (DWORD)strlen(live), NULL, "Smooth", 1, &out, &n));
+    CHECK(JsonReadSetting(out, n, NULL, "Smooth", &value) && value == 1);
+    free(out); out = NULL;
+    CHECK(BuildJsonBoolUpdate(live, (DWORD)strlen(live), "Kbd", "Equalise", 0, &out, &n));
+    CHECK(JsonReadSetting(out, n, "Kbd", "Equalise", &value) && value == 0);
+    CHECK(JsonObjectSpan(out, out + n, "Bar", &open, &close));
+    CHECK(JsonReadBool(open, close, "Equalise", &value) && value == 0);
+    free(out); out = NULL;
+    const char *legacy = "{\"Effect\":\"gradient\",\"Equalise\":false}";
+    CHECK(BuildJsonBoolUpdate(legacy, (DWORD)strlen(legacy), "Kbd", "Equalise", 1, &out, &n));
+    CHECK(JsonReadSetting(out, n, "Kbd", "Equalise", &value) && value == 1);
+    CHECK(!JsonObjectSpan(out, out + n, "Kbd", &open, &close));
+    free(out); out = NULL;
+    const char *barOnly = "{\"Bar\":{\"Equalise\":false}}";
+    CHECK(BuildJsonBoolUpdate(barOnly, (DWORD)strlen(barOnly), "Kbd", "Equalise", 1, &out, &n));
+    CHECK(JsonObjectSpan(out, out + n, "Kbd", &open, &close));
+    CHECK(JsonReadBool(open, close, "Equalise", &value) && value == 1);
+    CHECK(JsonObjectSpan(out, out + n, "Bar", &open, &close));
+    CHECK(JsonReadBool(open, close, "Equalise", &value) && value == 0);
+    free(out); out = NULL;
+    CHECK(BuildJsonBoolUpdate(NULL, 0, "Kbd", "Equalise", 0, &out, &n));
+    CHECK(JsonReadSetting(out, n, "Kbd", "Equalise", &value) && value == 0);
+    free(out); out = NULL;
+    const char bom[] = "\xEF\xBB\xBF{\"Smooth\":true}";
+    CHECK(BuildJsonBoolUpdate(bom, (DWORD)(sizeof(bom) - 1), NULL, "Smooth", 0, &out, &n));
+    CHECK(JsonReadSetting(out, n, NULL, "Smooth", &value) && value == 0);
+    free(out);
+    return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as td:
+            src = Path(td) / "settings_json_test.c"
+            exe = Path(td) / "settings_json_test"
+            src.write_text(harness, encoding="utf-8")
+            built = subprocess.run(
+                [compiler, "-std=c99", "-Wall", "-Wextra", "-Werror", str(src), "-o", str(exe)],
+                capture_output=True, text=True)
+            self.assertEqual(built.returncode, 0,
+                             "the portable settings JSON helper did not compile: " + built.stderr)
+            ran = subprocess.run([str(exe)], capture_output=True, text=True)
+            self.assertEqual(ran.returncode, 0,
+                             "Keyboard Lighting settings JSON patch failed at C line " + ran.stderr)
 
     def test_hub_repoints_desktop_shortcuts_but_never_creates_them(self):
         """Every install and update used to drop a Desktop shortcut per app.

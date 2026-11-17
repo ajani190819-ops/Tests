@@ -13,3 +13,12 @@ choose **Exit Project Hub** to stop the host. If Hub exits, crashes, or Explorer
 rebuilds its notification area, each already-running app restores its own tray
 fallback automatically. See the Drive guide for the owner-facing workflow and
 troubleshooting narrative.
+
+## Suite Settings
+
+The Soft Slate Settings window centralizes Keyboard Lighting hold behavior,
+keyboard Balance/Steady Colours, DNS Pilot scheduling, and Hub branch following.
+Keyboard Lighting preferences update both `panel.json` (saved state) and
+`theme.json` (the live engine input); its tray reloads an external panel change
+before it can write stale in-memory values back. DNS Pilot still applies its
+saved INI changes after restart.

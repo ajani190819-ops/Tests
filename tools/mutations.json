@@ -849,9 +849,9 @@
  {
   "id": "kbl-color-00",
   "file": "keyboard-lighting/Aura-Background.ps1",
-  "old": "MixOklch(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);",
-  "new": "MixOklab(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);",
-  "label": "Purple-orange palette transitions fall back to washed-out OKLab blends"
+  "old": "MixOklab(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);",
+  "new": "MixOklch(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);",
+  "label": "Purple-orange palette transitions revive a vivid pink hue arc"
  },
  {
   "id": "kbl-color-01",
@@ -870,8 +870,8 @@
  {
   "id": "set-03",
   "file": "project-hub/src/parts/settings_page.c",
-  "old": "    BOOL ok = WriteBinaryFileAtomic(p, (const BYTE *)out, (DWORD)newLen);\n    free(out);\n    free(txt);\n    return ok;",
-  "new": "    free(out);\n    free(txt);\n    return TRUE;",
+  "old": "if (!WriteBinaryFileAtomic(themePath, (const BYTE *)themeOut, themeOutLen)) {",
+  "new": "if (FALSE) {",
   "label": "D Smooth theme.json write discarded"
  },
  {
@@ -894,5 +894,40 @@
   "old": "                int savedMode = HoldModeCurrent();\n                for (int i = 0; i < 3; i++)\n                    SendMessageW(g_setHold[i], BM_SETCHECK,\n                                 i == savedMode ? BST_CHECKED : BST_UNCHECKED, 0);\n                SetStatusError(L\"Could not save the Keyboard Lighting hold choice. Try again.\");",
   "new": "                SetStatusError(L\"Could not save the Keyboard Lighting hold choice. Try again.\");",
   "label": "A failed hold-mode write leaves the radio selection unsaved"
+ },
+ {
+  "id": "set-13",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "if (!WriteBinaryFileAtomic(panelPath, (const BYTE *)panelOut, panelOutLen))",
+  "new": "if (FALSE)",
+  "label": "Hub lighting changes are not saved to Keyboard Lighting panel.json"
+ },
+ {
+  "id": "set-14",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "return ApplyKeyboardSetting(\"Kbd\", \"Equalise\", on);",
+  "new": "return ApplyKeyboardSetting(NULL, \"Equalise\", on);",
+  "label": "Balance Colours is no longer scoped to the keyboard group"
+ },
+ {
+  "id": "set-15",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "wc.hbrBackground = NULL;",
+  "new": "wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);",
+  "label": "The Settings window falls back to the system white client background"
+ },
+ {
+  "id": "set-16",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "ApplyModernWindowFrame(g_setHwnd);",
+  "new": "/* Dark Settings frame omitted. */",
+  "label": "Settings loses the Hub's dark native title bar and frame"
+ },
+ {
+  "id": "kbl-config-00",
+  "file": "keyboard-lighting/Tray.ps1",
+  "old": "    Sync-ExternalPanelCfg\n",
+  "new": "    # external config sync removed\n",
+  "label": "The tray can overwrite a Hub preference from stale in-memory settings"
  }
 ]

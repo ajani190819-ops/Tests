@@ -120,32 +120,46 @@
 
 ## project-hub/src/parts/settings_page.c
 
-- L52  f SetScale
-- L56  f SetKblPath
-- L61  f SetDnsCfgPath
-- L66  f SetStatusWithTone
-- L74  f SetStatusText
-- L78  f SetStatusOk
-- L82  f SetStatusError
-- L87  f HoldModeCurrent  — 0 = tap, 1 = latch, 2 = burst; missing or unreadable means the default.
-- L101  f ApplyHoldMode
-- L111  f SmoothCurrent
-- L128  f ApplySmooth
-- L158  f ModNamesW
-- L166  f KeyNameW
-- L176  f UpdateHotkeysSummary
-- L197  f HoldKeyReady
-- L204  f HoldSweepReady
-- L211  f UpdateHoldStateLabel
-- L231  f ApplyDns
-- L254  f SetCtl
-- L264  f SetSettingsFont
-- L268  f EnsureSettingsBrushes
-- L274  f ReleaseSettingsBrushes
-- L283  f DrawSettingsCard
-- L304  f PaintSettings
-- L432  f OpenSettingsWindow
-- globals: g_setHwnd (L33), g_setHold (L34), g_setHoldState (L35), g_setSmooth (L36), g_setHotkeys (L37), g_setDnsAuto (L38), g_setDnsInt (L39), g_setAutoBranch (L40), g_setStatus (L41), g_setBgBrush (L42), g_setCardBrush (L43), g_setAccentBrush (L44), g_setStatusTone (L45)
+- L54  f SetScale
+- L58  f SetKblPath
+- L63  f SetDnsCfgPath
+- L68  f SetStatusWithTone
+- L76  f SetStatusText
+- L80  f SetStatusOk
+- L84  f SetStatusError
+- L89  f HoldModeCurrent  — 0 = tap, 1 = latch, 2 = burst; missing or unreadable means the default.
+- L103  f ApplyHoldMode
+- L115  f JsonSpace
+- L119  f SkipJsonString
+- L130  f SkipJsonValue
+- L159  f FindJsonValue
+- L186  f JsonRootSpan
+- L215  f JsonObjectSpan
+- L242  f JsonReadBool
+- L260  f JsonReadSetting
+- L271  f KeyboardSettingCurrent
+- L289  f AddJsonEntry
+- L313  f BuildJsonBoolUpdate
+- L383  f SmoothCurrent
+- L387  f BalanceCurrent
+- L391  f ApplyKeyboardSetting
+- L429  f ApplySmooth
+- L433  f ApplyBalance
+- L437  f ModNamesW
+- L445  f KeyNameW
+- L455  f UpdateHotkeysSummary
+- L476  f HoldKeyReady
+- L483  f HoldSweepReady
+- L490  f UpdateHoldStateLabel
+- L510  f ApplyDns
+- L533  f SetCtl
+- L543  f SetSettingsFont
+- L547  f EnsureSettingsBrushes
+- L553  f ReleaseSettingsBrushes
+- L562  f DrawSettingsCard
+- L584  f PaintSettings
+- L725  f OpenSettingsWindow
+- globals: g_setHwnd (L34), g_setHold (L35), g_setHoldState (L36), g_setSmooth (L37), g_setBalance (L38), g_setHotkeys (L39), g_setDnsAuto (L40), g_setDnsInt (L41), g_setAutoBranch (L42), g_setStatus (L43), g_setBgBrush (L44), g_setCardBrush (L45), g_setAccentBrush (L46), g_setStatusTone (L47)
 
 ## project-hub/src/parts/tray_unified.c
 
@@ -1101,11 +1115,11 @@
 - L45  f strip_cs_comments_and_strings
 - L167  f lex_powershell
 - L302  f WindowsDesktopAppsTests
-- L2999  f SuiteFolderInstallTests
-- L4136  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L4319  f AudioSwitcherReachabilityTests
-- L4503  f AudioSwitcherSessionSweepTests
-- L4644  f AppOpenFocusTests
+- L3024  f SuiteFolderInstallTests
+- L4269  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L4452  f AudioSwitcherReachabilityTests
+- L4636  f AudioSwitcherSessionSweepTests
+- L4777  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

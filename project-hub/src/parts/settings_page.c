@@ -25,6 +25,7 @@
 #define IDS_STATUS         2016
 #define IDS_SMOOTH         2017
 #define IDS_HOTKEYS        2018
+#define IDS_BALANCE        2019
 
 #define SET_STATUS_INFO   0
 #define SET_STATUS_OK     1
@@ -34,6 +35,7 @@ static HWND g_setHwnd       = NULL;
 static HWND g_setHold[3];
 static HWND g_setHoldState  = NULL;
 static HWND g_setSmooth    = NULL;
+static HWND g_setBalance   = NULL;
 static HWND g_setHotkeys   = NULL;
 static HWND g_setDnsAuto    = NULL;
 static HWND g_setDnsInt     = NULL;
@@ -106,53 +108,330 @@ static BOOL ApplyHoldMode(int mode) {
                                  (DWORD)strlen(kSetModes[mode]));
 }
 
-/* Smooth colour is owned by Keyboard Lighting's theme.json. Keep the same
-   default as the panel and let the engine read the setting from that file. */
-static int SmoothCurrent(void) {
-    wchar_t p[MAX_PATH];
-    SetKblPath(p, MAX_PATH, L"theme.json");
-    char *txt = ReadTextFileUtf8(p, NULL);
-    int val = 1;
-    if (txt) {
-        char *k = strstr(txt, "\"Smooth\"");
-        char *c = k ? strchr(k, ':') : NULL;
-        if (c) {
-            while (*c == ':' || *c == ' ' || *c == '\t') c++;
-            if (*c == 't' || *c == 'f') val = (*c == 't');
-        }
-        free(txt);
+/* Keyboard Lighting treats panel.json as the saved preference and
+   theme.json as the live engine inbox. Update both so a Hub change applies now
+   and survives the tray's next restart. The app writes flat JSON objects for
+   the root and the Kbd group; these small helpers preserve every other byte. */
+static BOOL JsonSpace(char c) {
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+}
+
+static char *SkipJsonString(char *p, char *end) {
+    if (p >= end || *p != '"') return NULL;
+    BOOL escaped = FALSE;
+    for (p++; p < end; p++) {
+        if (escaped) escaped = FALSE;
+        else if (*p == '\\') escaped = TRUE;
+        else if (*p == '"') return p + 1;
     }
-    return val;
+    return NULL;
+}
+
+static char *SkipJsonValue(char *p, char *end) {
+    if (p >= end) return NULL;
+    if (*p == '"') return SkipJsonString(p, end);
+    if (*p == '{' || *p == '[') {
+        int objects = 0, arrays = 0;
+        BOOL inString = FALSE, escaped = FALSE;
+        for (; p < end; p++) {
+            char c = *p;
+            if (inString) {
+                if (escaped) escaped = FALSE;
+                else if (c == '\\') escaped = TRUE;
+                else if (c == '"') inString = FALSE;
+                continue;
+            }
+            if (c == '"') inString = TRUE;
+            else if (c == '{') objects++;
+            else if (c == '[') arrays++;
+            else if (c == '}' && --objects == 0 && arrays == 0) return p + 1;
+            else if (c == ']' && --arrays == 0 && objects == 0) return p + 1;
+        }
+        return NULL;
+    }
+    while (p < end && *p != ',' && *p != '}' && *p != ']') p++;
+    return p;
+}
+
+/* Find one direct property in a JSON object whose braces are supplied by the
+   caller. Values are skipped with string/array/object awareness, so a nested
+   Bar.Equalise can never be mistaken for the keyboard's Kbd.Equalise. */
+static char *FindJsonValue(char *objectOpen, char *objectClose, const char *name) {
+    if (!objectOpen || !objectClose || objectClose <= objectOpen || *objectOpen != '{')
+        return NULL;
+    size_t nameLen = strlen(name);
+    char *p = objectOpen + 1;
+    while (p < objectClose) {
+        while (p < objectClose && (JsonSpace(*p) || *p == ',')) p++;
+        if (p >= objectClose) return NULL;
+        char *keyStart = p;
+        char *keyAfter = SkipJsonString(p, objectClose);
+        if (!keyAfter) return NULL;
+        char *keyEnd = keyAfter - 1;
+        BOOL match = (size_t)(keyEnd - (keyStart + 1)) == nameLen &&
+                     memcmp(keyStart + 1, name, nameLen) == 0;
+        p = keyAfter;
+        while (p < objectClose && JsonSpace(*p)) p++;
+        if (p >= objectClose || *p != ':') return NULL;
+        p++;
+        while (p < objectClose && JsonSpace(*p)) p++;
+        if (p >= objectClose) return NULL;
+        if (match) return p;
+        p = SkipJsonValue(p, objectClose);
+        if (!p) return NULL;
+    }
+    return NULL;
+}
+
+static BOOL JsonRootSpan(char *json, char *end, char **open, char **close) {
+    char *p = json;
+    if (end - p >= 3 && (unsigned char)p[0] == 0xEF &&
+        (unsigned char)p[1] == 0xBB && (unsigned char)p[2] == 0xBF)
+        p += 3; /* Windows PowerShell 5.1 may write a UTF-8 BOM. */
+    while (p < end && JsonSpace(*p)) p++;
+    if (p >= end || *p != '{') return FALSE;
+
+    int depth = 0;
+    BOOL inString = FALSE, escaped = FALSE;
+    *open = p;
+    for (; p < end; p++) {
+        char c = *p;
+        if (inString) {
+            if (escaped) escaped = FALSE;
+            else if (c == '\\') escaped = TRUE;
+            else if (c == '"') inString = FALSE;
+            continue;
+        }
+        if (c == '"') inString = TRUE;
+        else if (c == '{') depth++;
+        else if (c == '}' && --depth == 0) {
+            *close = p;
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+static BOOL JsonObjectSpan(char *json, char *end, const char *name,
+                           char **open, char **close) {
+    char *rootOpen, *rootClose;
+    if (!JsonRootSpan(json, end, &rootOpen, &rootClose)) return FALSE;
+    char *value = FindJsonValue(rootOpen, rootClose, name);
+    if (!value || *value != '{') return FALSE;
+    int depth = 0;
+    BOOL inString = FALSE, escaped = FALSE;
+    *open = value;
+    for (char *p = value; p < end; p++) {
+        char c = *p;
+        if (inString) {
+            if (escaped) escaped = FALSE;
+            else if (c == '\\') escaped = TRUE;
+            else if (c == '"') inString = FALSE;
+            continue;
+        }
+        if (c == '"') inString = TRUE;
+        else if (c == '{') depth++;
+        else if (c == '}' && --depth == 0) {
+            *close = p;
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+static BOOL JsonReadBool(char *objectOpen, char *objectClose, const char *name, int *out) {
+    char *value = FindJsonValue(objectOpen, objectClose, name);
+    if (!value) return FALSE;
+    size_t remain = (size_t)(objectClose - value);
+    size_t tokenLen;
+    int parsed;
+    if (remain >= 4 && memcmp(value, "true", 4) == 0) {
+        parsed = 1; tokenLen = 4;
+    } else if (remain >= 5 && memcmp(value, "false", 5) == 0) {
+        parsed = 0; tokenLen = 5;
+    } else return FALSE;
+    char *after = value + tokenLen;
+    while (after < objectClose && JsonSpace(*after)) after++;
+    if (after < objectClose && *after != ',' && *after != '}' && *after != ']') return FALSE;
+    if (out) *out = parsed;
+    return TRUE;
+}
+
+static BOOL JsonReadSetting(char *json, DWORD len, const char *objectName,
+                            const char *memberName, int *out) {
+    char *end = json + len, *rootOpen, *rootClose, *open, *close;
+    if (!JsonRootSpan(json, end, &rootOpen, &rootClose)) return FALSE;
+    if (objectName && JsonObjectSpan(json, end, objectName, &open, &close) &&
+        JsonReadBool(open, close, memberName, out))
+        return TRUE;
+    /* Older single-zone Keyboard Lighting files stored Equalise at the root. */
+    return JsonReadBool(rootOpen, rootClose, memberName, out);
+}
+
+static int KeyboardSettingCurrent(const char *objectName, const char *memberName,
+                                  int fallback) {
+    const wchar_t *files[2] = { L"panel.json", L"theme.json" };
+    for (int i = 0; i < 2; i++) {
+        wchar_t path[MAX_PATH];
+        DWORD len = 0;
+        int value;
+        char *txt;
+        SetKblPath(path, MAX_PATH, files[i]);
+        txt = ReadTextFileUtf8(path, &len);
+        if (!txt) continue;
+        BOOL found = JsonReadSetting(txt, len, objectName, memberName, &value);
+        free(txt);
+        if (found) return value;
+    }
+    return fallback;
+}
+
+static BOOL AddJsonEntry(char *json, DWORD len, char *objectOpen, char *objectClose,
+                         const char *entry, char **out, DWORD *outLen) {
+    char *insert = objectClose;
+    while (insert > objectOpen + 1 && JsonSpace(insert[-1])) insert--;
+    size_t head = (size_t)(insert - json);
+    size_t entryLen = strlen(entry);
+    BOOL hasEntries = (insert > objectOpen + 1);
+    size_t newLen = (size_t)len + (hasEntries ? 1u : 0u) + entryLen;
+    if (newLen > 0xFFFFFFFFUL) return FALSE;
+    char *updated = (char *)malloc(newLen + 1);
+    if (!updated) return FALSE;
+    size_t at = head;
+    memcpy(updated, json, head);
+    if (hasEntries) updated[at++] = ',';
+    memcpy(updated + at, entry, entryLen);
+    at += entryLen;
+    memcpy(updated + at, json + head, (size_t)len - head);
+    at += (size_t)len - head;
+    updated[at] = '\0';
+    *out = updated;
+    *outLen = (DWORD)at;
+    return TRUE;
+}
+
+static BOOL BuildJsonBoolUpdate(const char *source, DWORD sourceLen,
+                                const char *objectName, const char *memberName,
+                                int on, char **out, DWORD *outLen) {
+    *out = NULL;
+    *outLen = 0;
+    DWORD len = source ? sourceLen : 2;
+    char *json = (char *)malloc((size_t)len + 1);
+    if (!json) return FALSE;
+    if (source) memcpy(json, source, len);
+    else { json[0] = '{'; json[1] = '}'; }
+    json[len] = '\0';
+
+    char *end = json + len, *rootOpen, *rootClose;
+    if (!JsonRootSpan(json, end, &rootOpen, &rootClose)) { free(json); return FALSE; }
+    char *scopeOpen = rootOpen, *scopeClose = rootClose;
+    if (objectName && objectName[0]) {
+        char *objectOpen, *objectClose;
+        if (JsonObjectSpan(json, end, objectName, &objectOpen, &objectClose)) {
+            scopeOpen = objectOpen;
+            scopeClose = objectClose;
+        } else if (!FindJsonValue(rootOpen, rootClose, memberName) &&
+                   !FindJsonValue(rootOpen, rootClose, "Effect")) {
+            /* No group means a newer/empty config; create just that group
+               rather than writing a Kbd-only setting into the shared root. */
+            char entry[128];
+            _snprintf(entry, sizeof(entry) - 1, "\"%s\": {\"%s\": %s}",
+                      objectName, memberName, on ? "true" : "false");
+            entry[sizeof(entry) - 1] = '\0';
+            BOOL ok = AddJsonEntry(json, len, rootOpen, rootClose,
+                                   entry, out, outLen);
+            free(json);
+            return ok;
+        }
+        /* Otherwise this is a legacy root-level Equalise value. */
+    }
+
+    char *value = FindJsonValue(scopeOpen, scopeClose, memberName);
+    if (value) {
+        size_t remain = (size_t)(scopeClose - value);
+        size_t oldLen;
+        if (remain >= 4 && memcmp(value, "true", 4) == 0) oldLen = 4;
+        else if (remain >= 5 && memcmp(value, "false", 5) == 0) oldLen = 5;
+        else { free(json); return FALSE; }
+        const char *replacement = on ? "true" : "false";
+        size_t replacementLen = strlen(replacement);
+        size_t prefix = (size_t)(value - json);
+        size_t newLen = (size_t)len - oldLen + replacementLen;
+        if (newLen > 0xFFFFFFFFUL) { free(json); return FALSE; }
+        char *updated = (char *)malloc(newLen + 1);
+        if (!updated) { free(json); return FALSE; }
+        memcpy(updated, json, prefix);
+        memcpy(updated + prefix, replacement, replacementLen);
+        memcpy(updated + prefix + replacementLen, value + oldLen,
+               (size_t)len - prefix - oldLen);
+        updated[newLen] = '\0';
+        *out = updated;
+        *outLen = (DWORD)newLen;
+        free(json);
+        return TRUE;
+    }
+
+    char entry[96];
+    _snprintf(entry, sizeof(entry) - 1, "\"%s\": %s",
+              memberName, on ? "true" : "false");
+    entry[sizeof(entry) - 1] = '\0';
+    BOOL ok = AddJsonEntry(json, len, scopeOpen, scopeClose, entry, out, outLen);
+    free(json);
+    return ok;
+}
+
+static int SmoothCurrent(void) {
+    return KeyboardSettingCurrent(NULL, "Smooth", 1);
+}
+
+static int BalanceCurrent(void) {
+    return KeyboardSettingCurrent("Kbd", "Equalise", 1);
+}
+
+static BOOL ApplyKeyboardSetting(const char *objectName, const char *memberName,
+                                 int on) {
+    wchar_t panelPath[MAX_PATH], themePath[MAX_PATH];
+    DWORD panelLen = 0, themeLen = 0, panelOutLen = 0, themeOutLen = 0;
+    char *panelTxt, *themeTxt, *panelOut = NULL, *themeOut = NULL;
+    BOOL panelExists, themeExists, ok = FALSE;
+    SetKblPath(panelPath, MAX_PATH, L"panel.json");
+    SetKblPath(themePath, MAX_PATH, L"theme.json");
+    panelExists = FileExistsW(panelPath);
+    themeExists = FileExistsW(themePath);
+    panelTxt = ReadTextFileUtf8(panelPath, &panelLen);
+    themeTxt = ReadTextFileUtf8(themePath, &themeLen);
+    if ((panelExists && !panelTxt) || (themeExists && !themeTxt)) goto done;
+    if (!BuildJsonBoolUpdate(panelTxt, panelLen, objectName, memberName, on,
+                             &panelOut, &panelOutLen) ||
+        !BuildJsonBoolUpdate(themeTxt, themeLen, objectName, memberName, on,
+                             &themeOut, &themeOutLen))
+        goto done;
+
+    /* Persist the panel preference first. If the live theme cannot be replaced,
+       restore the saved file so the two settings sources do not disagree. */
+    if (!WriteBinaryFileAtomic(panelPath, (const BYTE *)panelOut, panelOutLen))
+        goto done;
+    if (!WriteBinaryFileAtomic(themePath, (const BYTE *)themeOut, themeOutLen)) {
+        if (panelTxt) WriteBinaryFileAtomic(panelPath, (const BYTE *)panelTxt, panelLen);
+        else DeleteFileW(panelPath);
+        goto done;
+    }
+    ok = TRUE;
+
+done:
+    free(panelTxt);
+    free(themeTxt);
+    free(panelOut);
+    free(themeOut);
+    return ok;
 }
 
 static BOOL ApplySmooth(int on) {
-    wchar_t p[MAX_PATH];
-    DWORD len = 0;
-    SetKblPath(p, MAX_PATH, L"theme.json");
-    char *txt = ReadTextFileUtf8(p, &len);
-    if (!txt) return FALSE;
-    char *k = strstr(txt, "\"Smooth\"");
-    char *c = k ? strchr(k, ':') : NULL;
-    if (c) {
-        while (*c == ':' || *c == ' ' || *c == '\t') c++;
-        if (*c != 't' && *c != 'f') c = NULL;
-    }
-    if (!c) { free(txt); return FALSE; }
-    size_t head = (size_t)(c - txt);
-    size_t oldLen = (*c == 't') ? 4 : 5;
-    const char *rep = on ? "true" : "false";
-    size_t repLen = strlen(rep);
-    size_t newLen = len - oldLen + repLen;
-    char *out = (char *)malloc(newLen + 1);
-    if (!out) { free(txt); return FALSE; }
-    memcpy(out, txt, head);
-    memcpy(out + head, rep, repLen);
-    memcpy(out + head + repLen, c + oldLen, len - head - oldLen);
-    out[newLen] = '\0';
-    BOOL ok = WriteBinaryFileAtomic(p, (const BYTE *)out, (DWORD)newLen);
-    free(out);
-    free(txt);
-    return ok;
+    return ApplyKeyboardSetting(NULL, "Smooth", on);
+}
+
+static BOOL ApplyBalance(int on) {
+    return ApplyKeyboardSetting("Kbd", "Equalise", on);
 }
 
 static void ModNamesW(int bits, wchar_t *out, int cap) {
@@ -280,13 +559,14 @@ static void ReleaseSettingsBrushes(void) {
     g_setAccentBrush = NULL;
 }
 
-static void DrawSettingsCard(HDC dc, int dpi, int top, int bottom, BOOL statusCard) {
+static void DrawSettingsCard(HDC dc, int dpi, int clientRight,
+                             int top, int bottom, BOOL statusCard) {
     RECT rc;
     HPEN pen = CreatePen(PS_SOLID, SetScale(1, dpi),
                          statusCard ? COL_DIVIDER : COL_CARD_BORDER);
     HGDIOBJ oldPen, oldBrush;
     SetRect(&rc, SetScale(16, dpi), SetScale(top, dpi),
-            SetScale(544, dpi), SetScale(bottom, dpi));
+            clientRight - SetScale(16, dpi), SetScale(bottom, dpi));
     oldPen = SelectObject(dc, pen);
     oldBrush = SelectObject(dc, g_setCardBrush);
     RoundRect(dc, rc.left, rc.top, rc.right, rc.bottom,
@@ -309,10 +589,10 @@ static void PaintSettings(HWND hwnd) {
     GetClientRect(hwnd, &client);
     FillRect(dc, &client, g_setBgBrush ? g_setBgBrush : GetSysColorBrush(COLOR_BTNFACE));
     SetBkMode(dc, TRANSPARENT);
-    DrawSettingsCard(dc, dpi, 78, 316, FALSE);
-    DrawSettingsCard(dc, dpi, 328, 479, FALSE);
-    DrawSettingsCard(dc, dpi, 491, 620, FALSE);
-    DrawSettingsCard(dc, dpi, 634, 692, TRUE);
+    DrawSettingsCard(dc, dpi, client.right, 84, 352, FALSE);
+    DrawSettingsCard(dc, dpi, client.right, 364, 526, FALSE);
+    DrawSettingsCard(dc, dpi, client.right, 538, 660, FALSE);
+    DrawSettingsCard(dc, dpi, client.right, 672, 756, TRUE);
     EndPaint(hwnd, &ps);
 }
 
@@ -342,15 +622,27 @@ static LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM l
             }
             return 0;
         }
+        if (id == IDS_BALANCE && code == BN_CLICKED) {
+            int on = (SendMessageW(g_setBalance, BM_GETCHECK, 0, 0) & BST_CHECKED) ? 1 : 0;
+            if (ApplyBalance(on))
+                SetStatusOk(on ? L"Balance Colours is on for the keyboard. The light bar keeps its own setting."
+                               : L"Balance Colours is off for the keyboard. The light bar keeps its own setting.");
+            else {
+                SendMessageW(g_setBalance, BM_SETCHECK,
+                             BalanceCurrent() ? BST_CHECKED : BST_UNCHECKED, 0);
+                SetStatusError(L"Could not save Keyboard Lighting's balance setting. Try again.");
+            }
+            return 0;
+        }
         if (id == IDS_SMOOTH && code == BN_CLICKED) {
             int on = (SendMessageW(g_setSmooth, BM_GETCHECK, 0, 0) & BST_CHECKED) ? 1 : 0;
             if (ApplySmooth(on))
-                SetStatusOk(on ? L"Smooth colour is on. The lighting engine applies it immediately."
-                               : L"Smooth colour is off. Fine dithering applies immediately.");
+                SetStatusOk(on ? L"Steady Colours is on. Fine dithering is off."
+                               : L"Steady Colours is off. Fine dithering is on.");
             else {
                 SendMessageW(g_setSmooth, BM_SETCHECK,
-                             on ? BST_UNCHECKED : BST_CHECKED, 0);
-                SetStatusError(L"Could not update Smooth in theme.json. Toggle it once in Keyboard Lighting, then try again.");
+                             SmoothCurrent() ? BST_CHECKED : BST_UNCHECKED, 0);
+                SetStatusError(L"Could not save Keyboard Lighting's colour setting. Open the app once, then try again.");
             }
             return 0;
         }
@@ -421,6 +713,7 @@ static LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM l
         g_setHwnd = NULL;
         g_setHoldState = NULL;
         g_setSmooth = NULL;
+        g_setBalance = NULL;
         g_setHotkeys = NULL;
         g_setStatus = NULL;
         ReleaseSettingsBrushes();
@@ -437,79 +730,90 @@ static void OpenSettingsWindow(HWND owner) {
     wc.cbSize        = sizeof(wc);
     wc.lpfnWndProc   = SettingsWndProc;
     wc.hInstance     = g_hInst;
-    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+    /* WM_ERASEBKGND and WM_PAINT own every client pixel; leaving the class
+       brush null prevents a system-white flash before the Soft Slate paint. */
+    wc.hbrBackground = NULL;
     wc.lpszClassName = L"HubSuiteSettingsWnd";
-    RegisterClassExW(&wc);
+    if (!RegisterClassExW(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
+        ReleaseSettingsBrushes();
+        return;
+    }
 
     int dpi = GetWinDpi(owner);
-    int W = SetScale(560, dpi), H = SetScale(760, dpi);
+    int W = SetScale(640, dpi), H = SetScale(820, dpi);
     RECT rr;
     GetWindowRect(owner, &rr);
     int x = rr.left + ((rr.right - rr.left) - W) / 2;
     int y = rr.top + ((rr.bottom - rr.top) - H) / 2;
-    g_setHwnd = CreateWindowExW(0, wc.lpszClassName, L"Suite Settings",
+    g_setHwnd = CreateWindowExW(0, wc.lpszClassName, L"Project Hub Settings",
                                 WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN,
                                 x, y, W, H, owner, NULL, g_hInst, NULL);
     if (!g_setHwnd) { ReleaseSettingsBrushes(); return; }
+    ApplyModernWindowFrame(g_setHwnd);
 
-    int CW = 520, xL = 20;
-    HWND title = SetCtl(0, L"STATIC", L"Suite Settings", xL, 15, CW, 28,
+    int CW = 600, xL = 20;
+    HWND title = SetCtl(0, L"STATIC", L"Settings", xL, 17, CW, 30,
                         IDS_SET_TITLE, g_setHwnd, dpi);
     SetSettingsFont(title, g_fontTitle);
-    SetCtl(0, L"STATIC", L"A few clear controls for lighting, DNS, and Hub updates.",
-           xL, 45, CW, 20, IDS_SET_SUBTITLE, g_setHwnd, dpi);
+    SetCtl(0, L"STATIC", L"Keyboard Lighting, DNS Pilot, and update preferences in one place.",
+           xL, 49, CW, 22, IDS_SET_SUBTITLE, g_setHwnd, dpi);
 
-    HWND kblHead = SetCtl(0, L"STATIC", L"Keyboard Lighting", xL + 12, 91, CW - 24, 22,
+    HWND kblHead = SetCtl(0, L"STATIC", L"Keyboard Lighting", xL + 12, 98, CW - 24, 22,
                           IDS_KBL_GROUP, g_setHwnd, dpi);
     SetSettingsFont(kblHead, g_fontTitle);
     g_setHold[0] = SetCtl(BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP, L"BUTTON",
                           L"Sweep while held (uses M4/M5 key signals)",
-                          xL + 16, 120, CW - 32, 22, IDS_HOLD_TAP, g_setHwnd, dpi);
+                          xL + 16, 127, CW - 32, 22, IDS_HOLD_TAP, g_setHwnd, dpi);
     g_setHold[1] = SetCtl(BS_AUTORADIOBUTTON | WS_TABSTOP, L"BUTTON",
                           L"Press to start a glide; press the same key to stop",
-                          xL + 16, 148, CW - 32, 22, IDS_HOLD_LATCH, g_setHwnd, dpi);
+                          xL + 16, 155, CW - 32, 22, IDS_HOLD_LATCH, g_setHwnd, dpi);
     g_setHold[2] = SetCtl(BS_AUTORADIOBUTTON | WS_TABSTOP, L"BUTTON",
                           L"Short glide: about 20% brightness per press",
-                          xL + 16, 176, CW - 32, 22, IDS_HOLD_BURST, g_setHwnd, dpi);
+                          xL + 16, 183, CW - 32, 22, IDS_HOLD_BURST, g_setHwnd, dpi);
+    g_setBalance = SetCtl(BS_AUTOCHECKBOX | WS_TABSTOP, L"BUTTON",
+                          L"Balance Colours for the keyboard",
+                          xL + 16, 211, CW - 32, 22, IDS_BALANCE, g_setHwnd, dpi);
     g_setSmooth = SetCtl(BS_AUTOCHECKBOX | WS_TABSTOP, L"BUTTON",
-                          L"Smooth colour (steady steps instead of fine dithering)",
-                          xL + 16, 204, CW - 32, 22, IDS_SMOOTH, g_setHwnd, dpi);
-    g_setHotkeys = SetCtl(0, L"STATIC", L"", xL + 16, 231, CW - 32, 30,
+                          L"Steady Colours (off uses fine dithering)",
+                          xL + 16, 239, CW - 32, 22, IDS_SMOOTH, g_setHwnd, dpi);
+    g_setHotkeys = SetCtl(0, L"STATIC", L"", xL + 16, 268, CW - 32, 32,
                           IDS_HOTKEYS, g_setHwnd, dpi);
     g_setHoldState = SetCtl(0, L"STATIC", L"",
-                            xL + 16, 263, CW - 32, 43, IDS_HOLD_STATE, g_setHwnd, dpi);
+                            xL + 16, 302, CW - 32, 42, IDS_HOLD_STATE, g_setHwnd, dpi);
 
-    HWND dnsHead = SetCtl(0, L"STATIC", L"DNS Pilot", xL + 12, 341, CW - 24, 22,
+    HWND dnsHead = SetCtl(0, L"STATIC", L"DNS Pilot", xL + 12, 378, CW - 24, 22,
                           IDS_DNS_GROUP, g_setHwnd, dpi);
     SetSettingsFont(dnsHead, g_fontTitle);
     g_setDnsAuto = SetCtl(BS_AUTOCHECKBOX | WS_TABSTOP, L"BUTTON",
                           L"Automatically choose the fastest DNS",
-                          xL + 16, 369, CW - 32, 22, IDS_DNS_AUTO, g_setHwnd, dpi);
-    SetCtl(0, L"STATIC", L"Check DNS every", xL + 16, 400, 92, 24,
+                          xL + 16, 407, CW - 32, 22, IDS_DNS_AUTO, g_setHwnd, dpi);
+    SetCtl(0, L"STATIC", L"Check DNS every", xL + 16, 439, 108, 24,
            IDS_DNS_INT_LBL, g_setHwnd, dpi);
     g_setDnsInt = SetCtl(CBS_DROPDOWNLIST | WS_TABSTOP, L"COMBOBOX", L"",
-                         xL + 112, 396, 180, 130, IDS_DNS_INT, g_setHwnd, dpi);
+                         xL + 128, 435, 190, 130, IDS_DNS_INT, g_setHwnd, dpi);
     SetCtl(0, L"STATIC", L"DNS Pilot applies saved changes after it restarts.",
-           xL + 16, 435, CW - 32, 22, IDS_DNS_NOTE, g_setHwnd, dpi);
+           xL + 16, 476, CW - 32, 24, IDS_DNS_NOTE, g_setHwnd, dpi);
 
-    HWND branchHead = SetCtl(0, L"STATIC", L"Project Hub updates", xL + 12, 504,
+    HWND branchHead = SetCtl(0, L"STATIC", L"Project Hub updates", xL + 12, 551,
                              CW - 24, 22, IDS_BRANCH_GROUP, g_setHwnd, dpi);
     SetSettingsFont(branchHead, g_fontTitle);
     g_setAutoBranch = SetCtl(BS_AUTOCHECKBOX | WS_TABSTOP, L"BUTTON",
                              L"Automatically follow the newest active test branch",
-                             xL + 16, 532, CW - 32, 22, IDS_FOLLOW_LATEST, g_setHwnd, dpi);
+                             xL + 16, 580, CW - 32, 22, IDS_FOLLOW_LATEST, g_setHwnd, dpi);
     SetCtl(0, L"STATIC",
            L"Choosing a branch manually pauses this. Turn it back on here to resume.",
-           xL + 16, 561, CW - 32, 42, IDS_BRANCH_NOTE, g_setHwnd, dpi);
+           xL + 16, 609, CW - 32, 38, IDS_BRANCH_NOTE, g_setHwnd, dpi);
 
     g_setStatus = SetCtl(0, L"STATIC",
                          L"Lighting and Hub choices apply now. DNS Pilot needs a restart.",
-                         xL + 12, 645, CW - 24, 36, IDS_STATUS, g_setHwnd, dpi);
+                         xL + 12, 689, CW - 24, 48, IDS_STATUS, g_setHwnd, dpi);
 
     int mode = HoldModeCurrent();
     for (int i = 0; i < 3; i++)
         SendMessageW(g_setHold[i], BM_SETCHECK,
                      i == mode ? BST_CHECKED : BST_UNCHECKED, 0);
+    SendMessageW(g_setBalance, BM_SETCHECK,
+                 BalanceCurrent() ? BST_CHECKED : BST_UNCHECKED, 0);
     SendMessageW(g_setSmooth, BM_SETCHECK,
                  SmoothCurrent() ? BST_CHECKED : BST_UNCHECKED, 0);
 

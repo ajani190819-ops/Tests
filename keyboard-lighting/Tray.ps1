@@ -367,7 +367,13 @@ $script:Cfg = [pscustomobject]@{
 }
 
 $script:Tab = 'Kbd'
+$script:PanelStamp = [long]0
 function Cur { if ($script:Tab -eq 'Bar') { return $script:Cfg.Bar } return $script:Cfg.Kbd }
+
+function Get-PanelStamp {
+    try { return [long](Get-Item -LiteralPath $CfgFile -ErrorAction Stop).LastWriteTimeUtc.Ticks }
+    catch { return [long]0 }
+}
 
 function Load-Cfg {
     if (-not (Test-Path $CfgFile)) { return }
@@ -407,10 +413,12 @@ function Load-Cfg {
 }
 
 Load-Cfg
+$script:PanelStamp = Get-PanelStamp
 
 function Save-Cfg {
     try {
         $script:Cfg | ConvertTo-Json -Depth 6 | Set-Content -Path $CfgFile -Encoding UTF8 -ErrorAction Stop
+        $script:PanelStamp = Get-PanelStamp
     } catch { Log ("settings save failed: {0}" -f $_.Exception.Message) 'WARN' }
 }
 
@@ -1573,6 +1581,25 @@ function Load-UiFromCfg {
     $script:Suppress = $false
 }
 
+# The Hub can change these same saved preferences while the tray is open.
+# Reload on the panel.json timestamp, then refresh the controls and live theme
+# before a later tray action can write its older in-memory values back over
+# the Hub's change.
+function Sync-ExternalPanelCfg {
+    $stamp = Get-PanelStamp
+    if ($stamp -eq 0 -or $stamp -eq $script:PanelStamp) { return }
+    $script:PanelStamp = $stamp
+    Load-Cfg
+    $script:PanelStamp = Get-PanelStamp
+    $script:Suppress = $true
+    $chkSmooth.SetQuiet([bool]$script:Cfg.Smooth)
+    $script:Suppress = $false
+    Load-UiFromCfg
+    Write-Theme
+    Update-Preview
+    Log 'settings refreshed from an external panel.json change'
+}
+
 # Toggle one section from the tray. Writes the theme file exactly as the
 # panel's own controls do, so the change lands live on whichever section
 # was touched while the other keeps running.
@@ -2238,6 +2265,7 @@ $watch.Add_Tick({
     # WakeAt gates this so it cannot fight the resume path, which is
     # already scheduled to act and deserves its settling time.
     $script:tick++
+    Sync-ExternalPanelCfg
     if (($script:tick % 8) -eq 0) {
         if (-not $script:WantOff -and $script:WakeAt -le 0 -and -not (Test-EngineAlive)) {
             $script:DeadRuns++
