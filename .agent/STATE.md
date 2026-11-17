@@ -6,12 +6,14 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 
 ## Released work
 
-- **Project Hub 2.8.56:** the Tri-Spoke tray, alerts, and default-on branch
-  discovery (5–60 minute retries; six-hour cache) remain. Remote probes pin a
-  release snapshot; Update appears only for changed local content. `Update Hub`
-  needs a verified newer build; tray-hidden Agent Notes can be revealed.
-- **Keyboard Lighting M4/M5:** the panel follows the 1%/30 ms glide without
-  echoing rounded samples to the engine and saves the settled level.
+- **Main: Project Hub 2.8.56:** Tri-Spoke tray, alerts, and default-on branch
+  discovery remain. Remote probes pin releases and show updates only when app
+  contents differ; `Update Hub` requires a newer build.
+- **Arena branch: Project Hub 2.8.57** (implementation
+  `e656b907197dd3bdbb3c3aac54ee9a4d2303e6a3`): Settings, M4/M5 ramp (1% down /
+  1.5% up, 30 ms; 15 ms token pump), and palette changes are released here.
+  Select this branch in Hub for updates; main stays 2.8.56. Hardware/color
+  behavior remains unverified on the device.
 - **Agent Notes waiting receipts:** implementation `ad9232009b9f38c287727123ddd404b204ce26e1`,
   released by marker `5343e54`. The direct local outbox records **Saved** only
   after the live receiver flushes `.agent/INBOX.md`, then **Read** only after an
@@ -43,10 +45,9 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 - The final size sweep removed six unreferenced byte-identical brand aliases;
   regeneration now removes them too. The canonical spin/web assets and suite
   icons remain unchanged, saving about 26 MiB per clone/download.
-- Repository audit: all tracked Python files compile; shell syntax, Windows
-  build, check suite, mutation suite, generated artifacts, and Git diff checks
-  pass. The Spatial HUD needs JDK 25; its GitHub workflow provisions it, while
-  this sandbox has no Java runtime, so an in-sandbox Gradle build is impossible.
+- Repository audit passes Python, shell, Windows build, check, mutation, and
+  artifact checks. Spatial HUD's Gradle build needs JDK 25; CI has it, sandbox
+  does not.
 
 ## Next approved work
 
