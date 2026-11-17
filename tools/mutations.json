@@ -677,5 +677,131 @@
   "old": "        while (j >= 0 && g_frames[j].time > current.time) {\n",
   "new": "        while (0) {\n",
   "label": "Weather Radar plays forecast frames in provider order instead of chronological order"
+ },
+ {
+  "id": "btg-00",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "d->visible ? L\"K\" : L\"F\"",
+  "new": "L\"F\"",
+  "label": "Trusted Bluetooth membership is serialized as forgotten"
+ },
+ {
+  "id": "btg-01",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "if (!info.fConnected) goto next_bluetooth_device;",
+  "new": "if (FALSE) goto next_bluetooth_device;",
+  "label": "Disconnected Bluetooth scan results are enrolled as devices"
+ },
+ {
+  "id": "btg-02",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "BOOL manualIntent = newlyConnected && manualWindow;",
+  "new": "BOOL manualIntent = newlyConnected;",
+  "label": "A connection without Windows UI intent is trusted"
+ },
+ {
+  "id": "btg-03",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "d->forgotten = TRUE;",
+  "new": "d->forgotten = FALSE;",
+  "label": "Forget fails to persist its native tombstone"
+ },
+ {
+  "id": "btg-04",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "if (!g_devices[i].visible || g_devices[i].forgotten) continue;",
+  "new": "if (FALSE) continue;",
+  "label": "Hidden Bluetooth devices leak into the native tray menu"
+ },
+ {
+  "id": "btg-05",
+  "file": "bluetooth-guard/src/parts/bt_actions.c",
+  "old": "g_devices[i].visible && !g_devices[i].forgotten",
+  "new": "g_devices[i].visible",
+  "label": "A stale native queue can reconnect a device after Forget"
+ },
+ {
+  "id": "btg-06",
+  "file": "bluetooth-guard/BluetoothGuard.ps1",
+  "old": "if ($o.DeviceTrustFormat -eq 2 -and $o.Devices) {",
+  "new": "if ($o.Devices) {",
+  "label": "Legacy PowerShell scan history is loaded as trusted membership"
+ },
+ {
+  "id": "btg-07",
+  "file": "bluetooth-guard/BluetoothGuard.ps1",
+  "old": "$script:SnapshotBaseline -and $newLink -and $manualUi",
+  "new": "$newLink",
+  "label": "PowerShell trusts a new connection without Windows UI intent"
+ },
+ {
+  "id": "btg-08",
+  "file": "bluetooth-guard/BluetoothGuard.ps1",
+  "old": "$currentEntry.Forgotten = $true",
+  "new": "$currentEntry.Forgotten = $false",
+  "label": "PowerShell Forget leaves the device trusted"
+ },
+ {
+  "id": "btg-09",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "g_devices[idx].allowAuto = FALSE;",
+  "new": "g_devices[idx].allowAuto = TRUE;",
+  "label": "Newly trusted Bluetooth devices default to auto-connect"
+ },
+ {
+  "id": "btg-10",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "DoDisconnectOnly(rejected[i].address, rejected[i].kind, rejected[i].name);",
+  "new": "(void)rejected[i];",
+  "label": "Untrusted Bluetooth connections are not actively dropped"
+ },
+ {
+  "id": "btg-11",
+  "file": "bluetooth-guard/BluetoothGuard.ps1",
+  "old": "Queue-BtWork 'drop' ([uint64]$snap.Address) ([string]$snap.Kind) ([string]$snap.Name)\n                    Log (\"dropping connection to untrusted device",
+  "new": "Log (\"dropping connection to untrusted device",
+  "label": "PowerShell leaves a newly connected untrusted device active"
+ },
+ {
+  "id": "btg-12",
+  "file": "bluetooth-guard/src/parts/device_classify.c",
+  "old": "if (!GetLastInputInfo(&inputInfo) || GetTickCount() - inputInfo.dwTime > 5000U) return;",
+  "new": "if (FALSE) return;",
+  "label": "Opening Windows Bluetooth UI without recent user input creates connection intent"
+ },
+ {
+  "id": "btg-13",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "                    CheckForegroundManualIntent();\n",
+  "new": "                    (void)g_hwnd;\n",
+  "label": "A fast Windows UI connection race bypasses manual-intent detection"
+ },
+ {
+  "id": "btg-14",
+  "file": "bluetooth-guard/BluetoothGuard.ps1",
+  "old": "$manualUi = Update-WindowsUiIntent",
+  "new": "$manualUi = $false",
+  "label": "PowerShell loses short-lived Windows Bluetooth UI intent after the flyout closes"
+ },
+ {
+  "id": "btg-15",
+  "file": "bluetooth-guard/BluetoothGuard.ps1",
+  "old": "Connected = $false",
+  "new": "Connected = $true",
+  "label": "A disconnected trusted device is no longer kept in the PowerShell list"
+ },
+ {
+  "id": "wx-27",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "if (prob >= RAIN_ETA_LIKELY_PROB && likelyK < 0) likelyK = k;",
+  "new": "if (prob >= 0.0 && likelyK < 0) likelyK = k;",
+  "label": "Rain ETA treats the first dry hour as a majority-likelihood arrival"
+ },
+ {
+  "id": "wx-28",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "RainEtaText(&g_fc, &g_ens, eta, 192);",
+  "new": "wcscpy(eta, L\"Rain ETA: unavailable\");",
+  "label": "Weather Radar computes a rain ETA but never shows it in the rain card"
  }
 ]

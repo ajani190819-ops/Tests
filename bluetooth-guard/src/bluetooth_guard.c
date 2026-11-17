@@ -99,7 +99,11 @@ typedef struct {
     BOOL      sessionAllowed;
     BOOL      seenConnected;
     BOOL      profilesRepaired;
-    BOOL      visible;
+    BOOL      visible;       /* durable trusted-device membership */
+    BOOL      forgotten;     /* tombstone: do not restore from stale OS history */
+    BOOL      transient;     /* untrusted live-link observation; never persisted */
+    BOOL      scanSeen;
+    BOOL      blockPending;
     ULONGLONG sessionStartTick;
 } DeviceEntry;
 
@@ -171,7 +175,7 @@ static int              g_scrollY    = 0;
 static int              g_contentH   = 0;
 
 static volatile LONGLONG g_fastBurstUntil = 0;
-static ULONGLONG         g_manualGraceUntil = 0;
+static volatile LONGLONG g_manualGraceUntil = 0;
 
 typedef BOOL (WINAPI *PFN_SetProcessInformation)(HANDLE, int, LPVOID, DWORD);
 

@@ -1,10 +1,15 @@
-/* Detect when the user is actively clicking inside Windows Settings or Windows 11 Quick Settings flyout */
+/* Detect the Windows Bluetooth connection UI; PollPairedDevices combines this
+   with a new connection edge instead of trusting a scan alone. */
 static void CheckForegroundManualIntent(void) {
     HWND fg = GetForegroundWindow();
     if (!fg) return;
     DWORD pid = 0;
     GetWindowThreadProcessId(fg, &pid);
     if (!pid) return;
+    LASTINPUTINFO inputInfo;
+    ZeroMemory(&inputInfo, sizeof(inputInfo));
+    inputInfo.cbSize = sizeof(inputInfo);
+    if (!GetLastInputInfo(&inputInfo) || GetTickCount() - inputInfo.dwTime > 5000U) return;
     HANDLE hp = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
     if (!hp) return;
     wchar_t img[MAX_PATH] = L"";
@@ -12,8 +17,10 @@ static void CheckForegroundManualIntent(void) {
     if (QueryFullProcessImageNameW(hp, 0, img, &sz)) {
         if (ContainsCI(img, L"SystemSettings.exe") ||
             ContainsCI(img, L"ShellExperienceHost.exe")) {
-            /* User opened Windows Settings or Quick Settings panel — allow manual connects! */
-            g_manualGraceUntil = GetTickCount64() + 25000ULL;
+            /* A new link seen while Windows connection UI is foreground is an
+               explicit user action; the polling worker consumes this window. */
+            InterlockedExchange64(&g_manualGraceUntil,
+                                  (LONGLONG)(GetTickCount64() + 5000ULL));
         }
     }
     CloseHandle(hp);

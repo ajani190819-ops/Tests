@@ -212,43 +212,42 @@
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
-- L184  f ArmFastBurstWindow
-- globals: g_hwnd (L148), g_appIcon (L149), g_devNotifyIface (L150), g_devNotifyRadio (L151), g_radioNotifyHandle (L152), g_nid (L153), g_trayVisible (L154), g_quitting (L155), g_guardOn (L156), g_autostart (L157), g_autostartExplicit (L158), g_radioOn (L159), g_trayHinted (L160), g_showEvent (L161), g_lock (L162), g_devices (L164), g_devCount (L165), g_hits (L167), g_hitCount (L168), g_hoverIdx (L169), g_scrollY (L170), g_contentH (L171), g_fastBurstUntil (L173), g_manualGraceUntil (L174)
+- L188  f ArmFastBurstWindow
+- globals: g_hwnd (L152), g_appIcon (L153), g_devNotifyIface (L154), g_devNotifyRadio (L155), g_radioNotifyHandle (L156), g_nid (L157), g_trayVisible (L158), g_quitting (L159), g_guardOn (L160), g_autostart (L161), g_autostartExplicit (L162), g_radioOn (L163), g_trayHinted (L164), g_showEvent (L165), g_lock (L166), g_devices (L168), g_devCount (L169), g_hits (L171), g_hitCount (L172), g_hoverIdx (L173), g_scrollY (L174), g_contentH (L175), g_fastBurstUntil (L177), g_manualGraceUntil (L178)
 
 ## bluetooth-guard/src/parts/autostart_rules.c
 
 - L5  f SetAutostart  — Install both:
 - L89  f SaveRules
 - L108  f LoadRules
-- L147  f EnqueueWork
-- L163  f PollPairedDevices
-- L260  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
+- L153  f EnqueueWork
+- L169  f RecordRejectedLink
+- L181  f PollPairedDevices
+- L387  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
 
 ## bluetooth-guard/src/parts/bt_actions.c
 
 - L2  f TriggerBtAudioKsProperty  — Native Windows KSPROPERTY_ONESHOT_RECONNECT / DISCONNECT — exact API used by Windows 11 Settings!
 - L75  f DoDisconnectOnly  — Disconnect active link cleanly WITHOUT disabling Bluetooth profiles!
-- L100  f DoConnectNow  — Actively connect device right now!
-- L109  f DoForgetDevice
-- L116  f InitPaths
-- L128  f WriteHeartbeat
-- L149  f IsAutostartEnabled
-- L162  f RunHiddenCmd
+- L101  f DoConnectNow
+- L120  f DoForgetDevice
+- L127  f InitPaths
+- L139  f WriteHeartbeat
+- L162  f IsAutostartEnabled
+- L175  f RunHiddenCmd
 
 ## bluetooth-guard/src/parts/device_classify.c
 
-- L2  f CheckForegroundManualIntent  — Detect when the user is actively clicking inside Windows Settings or Windows 11 Quick Settings flyou
-- L22  f ClassifyDevice
-- L45  f EnsureProfilesEnabled  — Keep Windows Bluetooth service profiles ENABLED so manual Connect in Windows Settings ALWAYS works!
-- L65  f EndpointMatchesName  — Match endpoint adapter friendly name (covers HFP / LE Audio when PnP ID lacks classic hex MAC)
+- L3  f CheckForegroundManualIntent
+- L29  f ClassifyDevice
+- L52  f EnsureProfilesEnabled  — Keep Windows Bluetooth service profiles ENABLED so manual Connect in Windows Settings ALWAYS works!
+- L72  f EndpointMatchesName  — Match endpoint adapter friendly name (covers HFP / LE Audio when PnP ID lacks classic hex MAC)
 
 ## bluetooth-guard/src/parts/device_history.c
 
-- L3  f IsServiceGuidSubkey
-- L22  f HasConnectedBefore
-- L52  f FormatMac
-- L60  f FormatCompactHex
-- L65  f ContainsCI
+- L1  f FormatMac
+- L9  f FormatCompactHex
+- L14  f ContainsCI
 
 ## bluetooth-guard/src/parts/emblem.c
 
@@ -285,11 +284,11 @@
 
 - L1  f RenderWindow
 - L254  f HandleHitClick
-- L342  f BluetoothTraySync
-- L355  f TakeHubOneShot
-- L361  f ApplyHubGuardToggle
-- L369  f ApplyHubExit
-- L376  f ShowTrayMenu
+- L353  f BluetoothTraySync
+- L366  f TakeHubOneShot
+- L372  f ApplyHubGuardToggle
+- L380  f ApplyHubExit
+- L387  f ShowTrayMenu
 
 ## keyboard-lighting/src/keyboard_lighting.c
 
@@ -690,9 +689,9 @@
 
 ## weather-radar/src/weather_radar.c
 
-- L206  f S
-- L213  f RadarTileZoomForDisplay
-- globals: g_hInst (L141), g_hwnd (L142), g_fontUI (L143), g_bgBrush (L144), g_dpi (L145), g_fit (L146), g_hoverBtn (L147), g_lock (L148), g_cfgDir (L154), g_cfgPath (L155), g_cacheDir (L156), g_status (L157), g_statusKind (L158), g_nid (L159), g_trayVisible (L160), g_quitting (L161), g_trayHinted (L162), g_rainAlertEpisode (L166), g_rainAlertLastEpoch (L167), g_rainAlertLat (L168), g_places (L170), g_placeN (L171), g_placeSel (L172), g_search (L173), g_searchStage (L174), g_searchN (L175), g_searchStageN (L176), g_searchSel (L177), g_searchTicket (L178), g_searchStageTicket (L179), g_placeTicket (L180), g_query (L181), g_searchHint (L182), g_fc (L184), g_ens (L185), g_fcStage (L186), g_ensStage (L187), g_frames (L189), g_frameN (L190), g_frameSel (L191), g_playing (L192), g_zoom (L193), g_radarHost (L194), g_radarNote (L196), g_view (L199), g_viewStage (L200), g_base (L201), g_baseKey (L202), g_viewReady (L203)
+- L207  f S
+- L214  f RadarTileZoomForDisplay
+- globals: g_hInst (L142), g_hwnd (L143), g_fontUI (L144), g_bgBrush (L145), g_dpi (L146), g_fit (L147), g_hoverBtn (L148), g_lock (L149), g_cfgDir (L155), g_cfgPath (L156), g_cacheDir (L157), g_status (L158), g_statusKind (L159), g_nid (L160), g_trayVisible (L161), g_quitting (L162), g_trayHinted (L163), g_rainAlertEpisode (L167), g_rainAlertLastEpoch (L168), g_rainAlertLat (L169), g_places (L171), g_placeN (L172), g_placeSel (L173), g_search (L174), g_searchStage (L175), g_searchN (L176), g_searchStageN (L177), g_searchSel (L178), g_searchTicket (L179), g_searchStageTicket (L180), g_placeTicket (L181), g_query (L182), g_searchHint (L183), g_fc (L185), g_ens (L186), g_fcStage (L187), g_ensStage (L188), g_frames (L190), g_frameN (L191), g_frameSel (L192), g_playing (L193), g_zoom (L194), g_radarHost (L195), g_radarNote (L197), g_view (L200), g_viewStage (L201), g_base (L202), g_baseKey (L203), g_viewReady (L204)
 
 ## weather-radar/src/parts/alerts.c
 
@@ -793,18 +792,19 @@
 - L97  f DrawBtn
 - L109  f FrameTimeText  — unix seconds -> "14:20" (plus the day when it is not today), local time
 - L129  f PaintNowCard
-- L173  f PaintHonestCard
-- L223  f PaintHourlyCard
-- L292  f PaintRadarPane
-- L450  f PaintLeftColumn
-- L499  f PaintAll
-- L608  f StatusSet
-- L615  f CurrentPlace
-- L619  f OnPickSearchRow
-- L631  f OnPickSavedRow
-- L644  f StepFrame
-- L656  f SearchTextIsBlank
-- L661  f SubmitSearch
+- L176  f RainEtaText
+- L288  f PaintHonestCard
+- L343  f PaintHourlyCard
+- L412  f PaintRadarPane
+- L570  f PaintLeftColumn
+- L619  f PaintAll
+- L728  f StatusSet
+- L735  f CurrentPlace
+- L739  f OnPickSearchRow
+- L751  f OnPickSavedRow
+- L764  f StepFrame
+- L776  f SearchTextIsBlank
+- L781  f SubmitSearch
 
 ## weather-radar/src/parts/util.c
 
@@ -1069,11 +1069,11 @@
 - L43  f strip_cs_comments_and_strings
 - L165  f lex_powershell
 - L300  f WindowsDesktopAppsTests
-- L2656  f SuiteFolderInstallTests
-- L3737  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L3885  f AudioSwitcherReachabilityTests
-- L4069  f AudioSwitcherSessionSweepTests
-- L4210  f AppOpenFocusTests
+- L2748  f SuiteFolderInstallTests
+- L3829  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L3977  f AudioSwitcherReachabilityTests
+- L4161  f AudioSwitcherSessionSweepTests
+- L4302  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

@@ -6,14 +6,13 @@
 #  laptop stops stealing audio from your phone.
 #
 #  How it works:
-#    - Allowed devices behave normally and auto-connect as usual.
-#    - Manual Only devices keep their pairing intact in Windows, have
-#      their auto-connect profiles kept disabled when idle, and drop any
-#      unwanted connection immediately.
+#    - Scanning never adds a device. A new connection observed from Windows
+#      Bluetooth UI is enrolled; trusted rows persist until you click Forget.
+#    - New trusted devices default to Manual Only so unknown devices cannot
+#      auto-connect; trusted devices may be explicitly allowed by the toggle.
 #    - Clicking "Connect Now" (in the window or the system tray menu)
-#      connects a Manual Only device for this session, then automatically
-#      re-locks it as soon as you disconnect, put your earbuds away, or
-#      sleep/shut down your PC.
+#      connects a trusted Manual Only device for this session, then re-locks
+#      it after disconnect, sleep, or shutdown. Untrusted links are dropped.
 # =====================================================================
 
 param(
@@ -99,8 +98,9 @@ if ($StatusJson) {
         try {
             $c = Get-Content $CfgFile -Raw | ConvertFrom-Json
             if ($null -ne $c.GuardEnabled) { $enabledGuard = [bool]$c.GuardEnabled }
-            if ($c.Devices) {
+            if ($c.DeviceTrustFormat -eq 2 -and $c.Devices) {
                 foreach ($p in $c.Devices.PSObject.Properties) {
+                    if ([bool]$p.Value.Forgotten) { continue }
                     $knownCount++
                     if (-not [bool]$p.Value.AllowAutoConnect) { $blockedCount++ }
                 }
@@ -183,13 +183,12 @@ try { [BtGuard.Dpi]::Enable() } catch { }
 try { [BtGuard.Win]::SetAppId('Tests.BluetoothGuard') } catch { }
 
 # ---------------------------------------------------------------- configuration
-# Default behaviour for newly seen devices:
-#   - Audio devices default to AllowAutoConnect = $true UNTIL the user switches
-#     the ones they share with their phone off (so nothing breaks surprisingly),
-#     OR the user can toggle "Block new audio devices automatically".
+# Enrollment is separate from discovery: new entries are created only after
+# an intentional connection, and begin with auto-connect disabled.
 $script:Cfg = [pscustomobject]@{
     GuardEnabled       = $true
     DefaultBlockAudio  = $false
+    DeviceTrustFormat  = 2
     Devices            = [pscustomobject]@{}
 }
 
@@ -199,11 +198,18 @@ function Load-Cfg {
         $o = Get-Content $CfgFile -Raw | ConvertFrom-Json
         if ($null -ne $o.GuardEnabled)      { $script:Cfg.GuardEnabled      = [bool]$o.GuardEnabled }
         if ($null -ne $o.DefaultBlockAudio) { $script:Cfg.DefaultBlockAudio = [bool]$o.DefaultBlockAudio }
-        if ($o.Devices)                     { $script:Cfg.Devices           = $o.Devices }
+        # Older files included every scanned/remembered row. Without an
+        # explicit trust-format marker those rows are policy history, not consent.
+        if ($o.DeviceTrustFormat -eq 2 -and $o.Devices) {
+            $script:Cfg.Devices = $o.Devices
+        } elseif ($o.Devices) {
+            Log 'ignoring legacy scan-only device records; connect intentionally to enroll' 'WARN'
+        }
     } catch { Log ("config load warning: {0}" -f $_.Exception.Message) 'WARN' }
 }
 
 function Save-Cfg {
+    $script:Cfg.DeviceTrustFormat = 2
     try {
         $tmp = $CfgFile + '.tmp'
         ($script:Cfg | ConvertTo-Json -Depth 6) | Set-Content -Path $tmp -Encoding UTF8 -ErrorAction Stop
@@ -215,26 +221,31 @@ function Save-Cfg {
 
 Load-Cfg
 
+function Get-DeviceEntry([string]$mac) {
+    $prop = $script:Cfg.Devices.PSObject.Properties[$mac]
+    if ($prop) { return $prop.Value }
+    return $null
+}
+
 function Ensure-DeviceEntry($snap) {
     $mac = [string]$snap.Mac
-    $prop = $script:Cfg.Devices.PSObject.Properties[$mac]
-    if (-not $prop) {
-        $allow = $true
-        if ($snap.Kind -eq 'Audio' -and $script:Cfg.DefaultBlockAudio) { $allow = $false }
-        $entry = [pscustomobject]@{
+    $e = Get-DeviceEntry $mac
+    if (-not $e) {
+        $e = [pscustomobject]@{
             Name             = [string]$snap.Name
             Kind             = [string]$snap.Kind
             Address          = [uint64]$snap.Address
-            AllowAutoConnect = $allow
+            AllowAutoConnect = $false
+            Forgotten        = $false
         }
-        Add-Member -InputObject $script:Cfg.Devices -MemberType NoteProperty -Name $mac -Value $entry -Force
+        Add-Member -InputObject $script:Cfg.Devices -MemberType NoteProperty -Name $mac -Value $e -Force
         Save-Cfg
-        return $entry
+        return $e
     }
-    $e = $prop.Value
     if ($snap.Name -and $snap.Name -ne $mac) { $e.Name = [string]$snap.Name }
     if ($snap.Kind) { $e.Kind = [string]$snap.Kind }
     $e.Address = [uint64]$snap.Address
+    if ($null -eq $e.Forgotten) { $e | Add-Member -MemberType NoteProperty -Name Forgotten -Value $false }
     return $e
 }
 
@@ -309,9 +320,13 @@ $script:StateSync = [hashtable]::Synchronized(@{
 # Session-approved MACs: user clicked "Connect Now" on a Manual Only device.
 # Once it finishes connecting and later disconnects (or laptop sleeps/exits),
 # we automatically re-lock it so tomorrow's boot still won't steal phone audio!
-$script:SessionAllowed = @{}
-$script:SeenConnected  = @{}
-$script:EnforcedIdle   = @{}
+$script:SessionAllowed     = @{}
+$script:SeenConnected      = @{}
+$script:EnforcedIdle       = @{}
+$script:ObservedConnection = @{}
+$script:BlockedUnknown     = @{}
+$script:SnapshotBaseline   = $false
+$script:WindowsUiIntentUntil = [DateTime]::MinValue
 
 $script:WorkerRunspace = [runspacefactory]::CreateRunspace()
 $script:WorkerRunspace.Open()
@@ -344,6 +359,15 @@ $script:WorkerPs.Runspace = $script:WorkerRunspace
                 elseif ($cmd.Op -eq 'connect') {
                     [void][BtGuard.BtNative]::EnableAndConnect([uint64]$cmd.Address, [string]$cmd.Kind)
                     $Sync.LastNote = ('Enabled connection for {0}' -f $cmd.Name)
+                }
+                elseif ($cmd.Op -eq 'drop') {
+                    [void][BtGuard.BtNative]::DropUntrustedConnection([uint64]$cmd.Address)
+                    $Sync.LastNote = ('Rejected untrusted link from {0}' -f $cmd.Name)
+                }
+                elseif ($cmd.Op -eq 'forget') {
+                    [void][BtGuard.BtNative]::DropUntrustedConnection([uint64]$cmd.Address)
+                    [void][BtGuard.BtNative]::ForgetDevice([uint64]$cmd.Address)
+                    $Sync.LastNote = ('Forgot {0}' -f $cmd.Name)
                 }
                 elseif ($cmd.Op -eq 'refresh') {
                     $Sync.LastNote = 'Refreshed Bluetooth devices'
@@ -541,7 +565,7 @@ function Lock-ManualDevicesOnExit {
     if (-not $script:Cfg.GuardEnabled) { return }
     foreach ($p in $script:Cfg.Devices.PSObject.Properties) {
         $d = $p.Value
-        if (-not [bool]$d.AllowAutoConnect -and $d.Address) {
+        if (-not [bool]$d.Forgotten -and -not [bool]$d.AllowAutoConnect -and $d.Address) {
             try { [void][BtGuard.BtNative]::BlockAndDisconnect([uint64]$d.Address, [string]$d.Kind) } catch { }
         }
     }
@@ -561,6 +585,12 @@ $script:LatestSorted = @()
 $script:MenuPending  = $false
 
 function Rebuild-TrayMenu($devices, [bool]$force = $false) {
+    $trustedMenu = @()
+    foreach ($candidate in @($devices)) {
+        $entry = Get-DeviceEntry ([string]$candidate.Mac)
+        if ($entry -and -not [bool]$entry.Forgotten) { $trustedMenu += $candidate }
+    }
+    $devices = @($trustedMenu)
     $script:LatestSorted = @($devices)
     if ($menu.Visible -and -not $force) {
         $script:MenuPending = $true
@@ -592,6 +622,8 @@ function Rebuild-TrayMenu($devices, [bool]$force = $false) {
             if ($conn) {
                 $mi.Text = ('Disconnect {0}' -f $name)
                 $mi.Add_Click({
+                    $entry = Get-DeviceEntry $mac
+                    if (-not $entry -or [bool]$entry.Forgotten) { return }
                     $script:SessionAllowed.Remove($mac)
                     $script:EnforcedIdle[$mac] = $true
                     Queue-BtWork 'block' $addr $kind $name
@@ -599,6 +631,8 @@ function Rebuild-TrayMenu($devices, [bool]$force = $false) {
             } else {
                 $mi.Text = ('Connect {0}' -f $name)
                 $mi.Add_Click({
+                    $entry = Get-DeviceEntry $mac
+                    if (-not $entry -or [bool]$entry.Forgotten) { return }
                     $script:SessionAllowed[$mac] = [DateTime]::UtcNow
                     $script:EnforcedIdle.Remove($mac)
                     Queue-BtWork 'connect' $addr $kind $name
@@ -622,7 +656,128 @@ function Rebuild-TrayMenu($devices, [bool]$force = $false) {
 
 Rebuild-TrayMenu @()
 
+function Get-TrustedDeviceSnapshots($snapshots) {
+    $available = @{}
+    foreach ($snap in @($snapshots)) { $available[[string]$snap.Mac] = $snap }
+    $trusted = @()
+    foreach ($prop in $script:Cfg.Devices.PSObject.Properties) {
+        $mac = [string]$prop.Name
+        $entry = $prop.Value
+        if ([bool]$entry.Forgotten) { continue }
+        if ($available.ContainsKey($mac)) {
+            $snap = $available[$mac]
+            [void](Ensure-DeviceEntry $snap)
+            $trusted += $snap
+        } else {
+            $savedName = $mac
+            $savedKind = 'Device'
+            if ($entry.Name) { $savedName = [string]$entry.Name }
+            if ($entry.Kind) { $savedKind = [string]$entry.Kind }
+            $trusted += [pscustomobject]@{
+                Mac = $mac
+                Address = [uint64]$entry.Address
+                Name = $savedName
+                Kind = $savedKind
+                Connected = $false
+                InstalledServiceCount = 0
+            }
+        }
+    }
+    return @($trusted)
+}
+
+function Update-WindowsUiIntent {
+    $active = $false
+    try { $active = [BtGuard.BtNative]::IsWindowsBluetoothUiForeground() } catch { }
+    if ($active) { $script:WindowsUiIntentUntil = [DateTime]::UtcNow.AddSeconds(5) }
+    return ([DateTime]::UtcNow -lt $script:WindowsUiIntentUntil)
+}
+
+function Update-TrustFromSnapshots($snapshots) {
+    $manualUi = Update-WindowsUiIntent
+    $present = @{}
+
+    foreach ($snap in @($snapshots)) {
+        $mac = [string]$snap.Mac
+        if (-not $mac) { continue }
+        $present[$mac] = $true
+        $wasConnected = $false
+        if ($script:ObservedConnection.ContainsKey($mac)) {
+            $wasConnected = [bool]$script:ObservedConnection[$mac]
+        }
+        $isConnected = [bool]$snap.Connected
+        $newLink = $isConnected -and -not $wasConnected
+        $manualIntent = $script:SnapshotBaseline -and $newLink -and $manualUi
+        $entry = Get-DeviceEntry $mac
+
+        if ($entry -and [bool]$entry.Forgotten) {
+            if ($manualIntent) {
+                $entry.Forgotten = $false
+                $entry = Ensure-DeviceEntry $snap
+                $entry.AllowAutoConnect = $false
+                Save-Cfg
+                $script:SessionAllowed[$mac] = [DateTime]::UtcNow
+                $script:SeenConnected[$mac] = $true
+                $script:EnforcedIdle.Remove($mac)
+                $script:BlockedUnknown.Remove($mac)
+                Log ("intentionally reconnected forgotten device: {0} ({1})" -f $snap.Name, $mac)
+            } elseif ($isConnected) {
+                if (-not $script:BlockedUnknown.ContainsKey($mac)) {
+                    Queue-BtWork 'drop' ([uint64]$snap.Address) ([string]$snap.Kind) ([string]$snap.Name)
+                    Log ("dropping connection to forgotten device {0} ({1})" -f $snap.Name, $mac) 'WARN'
+                }
+                $script:BlockedUnknown[$mac] = $true
+            } else {
+                $script:BlockedUnknown.Remove($mac)
+            }
+        } elseif (-not $entry) {
+            if ($isConnected -and $manualIntent) {
+                $entry = Ensure-DeviceEntry $snap
+                $entry.AllowAutoConnect = $false
+                $entry.Forgotten = $false
+                Save-Cfg
+                $script:SessionAllowed[$mac] = [DateTime]::UtcNow
+                $script:SeenConnected[$mac] = $true
+                $script:EnforcedIdle.Remove($mac)
+                $script:BlockedUnknown.Remove($mac)
+                Log ("intentionally connected in Windows: {0} ({1})" -f $snap.Name, $mac)
+            } elseif ($isConnected) {
+                if (-not $script:BlockedUnknown.ContainsKey($mac)) {
+                    Queue-BtWork 'drop' ([uint64]$snap.Address) ([string]$snap.Kind) ([string]$snap.Name)
+                    Log ("dropping connection to untrusted device {0} ({1})" -f $snap.Name, $mac) 'WARN'
+                }
+                $script:BlockedUnknown[$mac] = $true
+            } else {
+                $script:BlockedUnknown.Remove($mac)
+            }
+        } else {
+            $script:BlockedUnknown.Remove($mac)
+            $entry = Ensure-DeviceEntry $snap
+            if ($manualIntent -and -not [bool]$entry.AllowAutoConnect) {
+                $script:SessionAllowed[$mac] = [DateTime]::UtcNow
+                $script:SeenConnected[$mac] = $true
+                $script:EnforcedIdle.Remove($mac)
+            }
+        }
+        $script:ObservedConnection[$mac] = $isConnected
+    }
+
+    foreach ($mac in @($script:ObservedConnection.Keys)) {
+        if (-not $present.ContainsKey([string]$mac)) {
+            $script:ObservedConnection[$mac] = $false
+            $script:BlockedUnknown.Remove([string]$mac)
+        }
+    }
+    $script:SnapshotBaseline = $true
+}
+
 function Render-Devices($devices) {
+    $trustedRows = @()
+    foreach ($candidate in @($devices)) {
+        $entry = Get-DeviceEntry ([string]$candidate.Mac)
+        if ($entry -and -not [bool]$entry.Forgotten) { $trustedRows += $candidate }
+    }
+    $devices = @($trustedRows)
     $pnlList.SuspendLayout()
     $pnlList.Controls.Clear()
 
@@ -635,7 +790,7 @@ function Render-Devices($devices) {
         if (-not $script:StateSync.RadioPresent) {
             $lblE.Text = 'Bluetooth is currently turned off or no Bluetooth adapter was detected.'
         } else {
-            $lblE.Text = 'No paired Classic Bluetooth devices found yet. Pair your earbuds/headphones in Windows Settings first, then click Refresh.'
+            $lblE.Text = 'No trusted devices yet. Connect a paired device in Windows Bluetooth Settings; it appears only after that connection.'
         }
         $lblE.Location  = New-Object System.Drawing.Point(16, 16)
         $lblE.Size      = New-Object System.Drawing.Size(($CW - 32), 52)
@@ -707,6 +862,9 @@ function Render-Devices($devices) {
         $tog.Font     = $fontSm
         $tog.SetQuiet($allow)
         $tog.Add_CheckedChanged({
+            $currentEntry = Get-DeviceEntry $mac
+            if (-not $currentEntry -or [bool]$currentEntry.Forgotten) { return }
+            $entry = $currentEntry
             $want = [bool]$tog.Checked
             $entry.AllowAutoConnect = $want
             Save-Cfg
@@ -733,13 +891,15 @@ function Render-Devices($devices) {
         $card.Controls.Add($tog)
 
         $btn = New-Object BtGuard.FlatBtn
-        $btn.Location = New-Object System.Drawing.Point(($CW - 134), 26)
-        $btn.Size     = New-Object System.Drawing.Size(118, 36)
+        $btn.Location = New-Object System.Drawing.Point(($CW - 230), 26)
+        $btn.Size     = New-Object System.Drawing.Size(112, 36)
         $btn.Font     = $fontSm
         if ($snap.Connected) {
             $btn.Text   = 'Disconnect'
             $btn.Danger = $true
             $btn.Add_Click({
+                $currentEntry = Get-DeviceEntry $mac
+                if (-not $currentEntry -or [bool]$currentEntry.Forgotten) { return }
                 $btn.Text           = 'Disconnecting...'
                 $lblState.Text      = 'Disconnecting and locking auto-connect...'
                 $lblState.ForeColor = [BtGuard.Theme]::Warn
@@ -752,6 +912,8 @@ function Render-Devices($devices) {
             $btn.Text    = 'Connect Now'
             $btn.Primary = $true
             $btn.Add_Click({
+                $currentEntry = Get-DeviceEntry $mac
+                if (-not $currentEntry -or [bool]$currentEntry.Forgotten) { return }
                 $btn.Text           = 'Connecting...'
                 $lblState.Text      = 'Connecting for this session...'
                 $lblState.ForeColor = [BtGuard.Theme]::Warn
@@ -762,6 +924,29 @@ function Render-Devices($devices) {
             }.GetNewClosure())
         }
         $card.Controls.Add($btn)
+
+        $btnForget = New-Object BtGuard.FlatBtn
+        $btnForget.Text     = 'Forget'
+        $btnForget.Danger   = $true
+        $btnForget.Location = New-Object System.Drawing.Point(($CW - 108), 26)
+        $btnForget.Size     = New-Object System.Drawing.Size(92, 36)
+        $btnForget.Font     = $fontSm
+        $btnForget.Add_Click({
+            $currentEntry = Get-DeviceEntry $mac
+            if (-not $currentEntry -or [bool]$currentEntry.Forgotten) { return }
+            $currentEntry.Forgotten = $true
+            $currentEntry.AllowAutoConnect = $false
+            $script:WindowsUiIntentUntil = [DateTime]::MinValue
+            Save-Cfg
+            $script:SessionAllowed.Remove($mac)
+            $script:SeenConnected.Remove($mac)
+            $script:EnforcedIdle.Remove($mac)
+            if ($snap.Connected) { $script:BlockedUnknown[$mac] = $true }
+            Queue-BtWork 'forget' $addr $kind $name
+            Log ("forgot device: {0} ({1})" -f $name, $mac)
+            Render-Devices (Get-TrustedDeviceSnapshots $script:StateSync.Snapshots)
+        }.GetNewClosure())
+        $card.Controls.Add($btnForget)
 
         $pnlList.Controls.Add($card)
         $ry += 98
@@ -776,8 +961,10 @@ function Render-Devices($devices) {
 function Enforce-Policies($devices, [bool]$ForceIdleRelock) {
     if (-not $script:Cfg.GuardEnabled) { return }
     foreach ($snap in $devices) {
+        $mac = [string]$snap.Mac
+        $entry = Get-DeviceEntry $mac
+        if (-not $entry -or [bool]$entry.Forgotten) { continue }
         $entry = Ensure-DeviceEntry $snap
-        $mac   = [string]$snap.Mac
         $allow = [bool]$entry.AllowAutoConnect
         if ($allow) { continue }
 
@@ -825,7 +1012,7 @@ $chkGuard.Add_CheckedChanged({
         Enforce-Policies $script:StateSync.Snapshots $true
     } else {
         $dotHero.ForeColor = [BtGuard.Theme]::Warn
-        $lblSummary.Text   = 'Guard paused - auto-connect blocking is temporarily disabled'
+        $lblSummary.Text   = 'Guard paused - trusted-device rules are paused; unknown links remain blocked'
     }
 })
 
@@ -866,6 +1053,7 @@ $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 450
 $timer.Add_Tick({
     Update-Heartbeat
+    [void](Update-WindowsUiIntent)
     if (Test-Path $ShowFile) {
         try { Remove-Item $ShowFile -Force -ErrorAction SilentlyContinue } catch { }
         Show-Window
@@ -878,6 +1066,7 @@ $timer.Add_Tick({
             # later never steals earbuds from your phone!
             $script:SessionAllowed.Clear()
             $script:SeenConnected.Clear()
+            $script:WindowsUiIntentUntil = [DateTime]::MinValue
             $forceRelock = $true
         }
         if ([BtGuard.PowerEvents]::ConsumeResumes() -gt 0) {
@@ -889,33 +1078,35 @@ $timer.Add_Tick({
     $snaps = @($script:StateSync.Snapshots)
     if ($script:StateSync.Dirty -or $forceRelock) {
         $script:StateSync.Dirty = $false
-        Enforce-Policies $snaps $forceRelock
+        Update-TrustFromSnapshots $snaps
+        $trustedSnaps = @(Get-TrustedDeviceSnapshots $snaps)
+        Enforce-Policies $trustedSnaps $forceRelock
 
         $blockedTotal = 0
-        foreach ($s in $snaps) {
+        foreach ($s in $trustedSnaps) {
             $e = Ensure-DeviceEntry $s
             if (-not [bool]$e.AllowAutoConnect) { $blockedTotal++ }
         }
         if (-not $script:Cfg.GuardEnabled) {
             $dotHero.ForeColor = [BtGuard.Theme]::Warn
-            $lblSummary.Text   = 'Guard paused - Windows may auto-connect any device'
+            $lblSummary.Text   = 'Guard paused - trusted-device rules paused; unknown links remain blocked'
         } elseif (-not $script:StateSync.RadioPresent) {
             $dotHero.ForeColor = $Mut
             $lblSummary.Text   = 'Bluetooth radio is off - watching for Bluetooth to turn on'
         } else {
             $dotHero.ForeColor = [BtGuard.Theme]::Good
-            $lblSummary.Text   = ('Guarding {0} paired device(s) - {1} set to Manual Only (phone safe)' -f $snaps.Count, $blockedTotal)
+            $lblSummary.Text   = ('Guarding {0} trusted device(s) - {1} set to Manual Only (phone safe)' -f $trustedSnaps.Count, $blockedTotal)
         }
 
         $sigParts = @()
-        foreach ($s in $snaps) {
+        foreach ($s in $trustedSnaps) {
             $e = Ensure-DeviceEntry $s
             $sigParts += ('{0}:{1}:{2}:{3}' -f $s.Mac, $s.Connected, $e.AllowAutoConnect, $script:SessionAllowed.ContainsKey($s.Mac))
         }
         $sig = ($sigParts -join '|') + '|radio=' + $script:StateSync.RadioPresent
         if ($sig -ne $script:LastSig) {
             $script:LastSig = $sig
-            Render-Devices $snaps
+            Render-Devices $trustedSnaps
         }
     }
 })

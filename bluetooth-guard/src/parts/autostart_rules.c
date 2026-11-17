@@ -90,15 +90,15 @@ static void SaveRules(void) {
     FILE *fp = _wfopen(g_rulesPath, L"w, ccs=UTF-8");
     if (!fp) return;
     EnterCriticalSection(&g_lock);
+    fwprintf(fp, L"format=2\n");
     fwprintf(fp, L"guard=%d\n", g_guardOn ? 1 : 0);
     fwprintf(fp, L"autostart=%d\n", g_autostart ? 1 : 0);
     for (int i = 0; i < g_devCount; i++) {
-        fwprintf(fp, L"%s|%d|%llu|%s|%s\n",
-                 g_devices[i].mac,
-                 g_devices[i].allowAuto ? 1 : 0,
-                 g_devices[i].address,
-                 g_devices[i].kind,
-                 g_devices[i].name);
+        DeviceEntry *d = &g_devices[i];
+        if (!d->visible && !d->forgotten) continue;
+        fwprintf(fp, L"device=%s|%d|%llu|%s|%s|%s\n",
+                 d->mac, d->allowAuto ? 1 : 0, d->address, d->kind,
+                 d->visible ? L"K" : L"F", d->name);
     }
     LeaveCriticalSection(&g_lock);
     fclose(fp);
@@ -122,23 +122,29 @@ static void LoadRules(void) {
             g_autostartExplicit = TRUE;
             continue;
         }
-        wchar_t *p1 = wcschr(line, L'|'); if (!p1) continue; *p1++ = L'\0';
-        wchar_t *p2 = wcschr(p1, L'|');   if (!p2) continue; *p2++ = L'\0';
-        wchar_t *p3 = wcschr(p2, L'|');   if (!p3) continue; *p3++ = L'\0';
-        wchar_t *p4 = wcschr(p3, L'|');   if (!p4) continue; *p4++ = L'\0';
-
-        if (g_devCount < MAX_DEVICES) {
-            DeviceEntry *d = &g_devices[g_devCount++];
-            ZeroMemory(d, sizeof(*d));
-            /* saved rows only carry the allow/block policy; they are not
-               proof the device is one of yours - the OS scan decides */
-            d->visible = FALSE;
-            wcsncpy(d->mac, line, 23);
-            d->allowAuto = (_wtoi(p1) != 0);
-            d->address = _wcstoui64(p2, NULL, 10);
-            wcsncpy(d->kind, p3, 15);
-            wcsncpy(d->name, p4, 247);
-        }
+        if (wcsncmp(line, L"format=", 7) == 0) continue;
+        /* Rows saved by older builds represented scan/policy history only;
+           they are not proof of an intentional connection and are not trusted. */
+        if (wcsncmp(line, L"device=", 7) != 0) continue;
+        wchar_t *record = line + 7;
+        wchar_t *p1 = wcschr(record, L'|'); if (!p1) continue; *p1++ = L'\0';
+        wchar_t *p2 = wcschr(p1, L'|');     if (!p2) continue; *p2++ = L'\0';
+        wchar_t *p3 = wcschr(p2, L'|');     if (!p3) continue; *p3++ = L'\0';
+        wchar_t *p4 = wcschr(p3, L'|');     if (!p4) continue; *p4++ = L'\0';
+        wchar_t *p5 = wcschr(p4, L'|');     if (!p5) continue; *p5++ = L'\0';
+        BOOL known = (wcscmp(p4, L"K") == 0);
+        BOOL forgotten = (wcscmp(p4, L"F") == 0);
+        if ((!known && !forgotten) || !record[0]) continue;
+        if (g_devCount >= MAX_DEVICES) continue;
+        DeviceEntry *d = &g_devices[g_devCount++];
+        ZeroMemory(d, sizeof(*d));
+        wcsncpy(d->mac, record, 23);
+        d->allowAuto = (_wtoi(p1) != 0);
+        d->address = _wcstoui64(p2, NULL, 10);
+        wcsncpy(d->kind, p3, 15);
+        wcsncpy(d->name, p5, 247);
+        d->visible = known;
+        d->forgotten = forgotten;
     }
     LeaveCriticalSection(&g_lock);
     fclose(fp);
@@ -158,6 +164,18 @@ static void EnqueueWork(int op, ULONGLONG address, const wchar_t *mac,
         ReleaseSemaphore(g_qSem, 1, NULL);
     }
     LeaveCriticalSection(&g_lock);
+}
+
+static void RecordRejectedLink(WorkItem *items, int *count, ULONGLONG address,
+                               const wchar_t *mac, const wchar_t *kind, const wchar_t *name) {
+    if (*count >= 256) return;
+    WorkItem *item = &items[(*count)++];
+    ZeroMemory(item, sizeof(*item));
+    item->op = 1;
+    item->address = address;
+    wcsncpy(item->mac, mac ? mac : L"", 23);
+    wcsncpy(item->kind, kind ? kind : L"Device", 15);
+    wcsncpy(item->name, name ? name : L"", 127);
 }
 
 static void PollPairedDevices(void) {
@@ -181,10 +199,10 @@ static void PollPairedDevices(void) {
     BLUETOOTH_DEVICE_SEARCH_PARAMS sp;
     ZeroMemory(&sp, sizeof(sp));
     sp.dwSize = sizeof(sp);
-    /* Only this machine's own devices: paired or currently connected.
-       fReturnRemembered stays off - remembered-but-never-used entries
-       (Swift Pair bait, stale inquiry cache) are strangers and the list
-       has no business showing them. */
+    /* Enumerate paired/connected candidates without inquiry. Enumeration is
+       not enrollment: only a new link observed during Windows connection UI
+       can enroll an unknown device; Guard Connect is accepted only for rows
+       already in the durable trusted inventory. */
     sp.fReturnAuthenticated = TRUE;
     sp.fReturnConnected = TRUE;
 
@@ -192,14 +210,24 @@ static void PollPairedDevices(void) {
     ZeroMemory(&info, sizeof(info));
     info.dwSize = sizeof(info);
 
+    WorkItem rejected[256];
+    int rejectedCount = 0;
+    ULONGLONG repairAddress[MAX_DEVICES];
+    wchar_t repairKind[MAX_DEVICES][16];
+    int repairCount = 0;
+    BOOL trustChanged = FALSE;
+    ULONGLONG now = GetTickCount64();
+    ULONGLONG manualUntil = (ULONGLONG)InterlockedCompareExchange64(&g_manualGraceUntil, 0, 0);
+    BOOL manualWindow = (manualUntil != 0 && now <= manualUntil);
+
     EnterCriticalSection(&g_lock);
     g_radioOn = radioPresent;
+    for (int i = 0; i < g_devCount; i++) g_devices[i].scanSeen = FALSE;
 
     HBLUETOOTH_DEVICE_FIND hFind = pBtFindFirstDevice(&sp, &info);
     if (hFind) {
         do {
-            if (info.Address.ullLong != 0) {
-                if (!info.fAuthenticated && !info.fConnected) continue;
+            if (info.Address.ullLong != 0 && (info.fAuthenticated || info.fConnected)) {
                 wchar_t mac[24], kind[16];
                 FormatMac(info.Address.ullLong, mac, 24);
                 const wchar_t *nm = info.szName[0] ? info.szName : mac;
@@ -209,51 +237,150 @@ static void PollPairedDevices(void) {
                 for (int i = 0; i < g_devCount; i++) {
                     if (_wcsicmp(g_devices[i].mac, mac) == 0) { idx = i; break; }
                 }
-                if (idx < 0 && g_devCount < MAX_DEVICES) {
+                if (idx < 0) {
+                    /* Disconnected scan results are never added. A live but
+                       unrecognized link is a temporary candidate only. */
+                    if (!info.fConnected) goto next_bluetooth_device;
+                    if (g_devCount >= MAX_DEVICES) {
+                        RecordRejectedLink(rejected, &rejectedCount, info.Address.ullLong,
+                                           mac, kind, nm);
+                        goto next_bluetooth_device;
+                    }
                     idx = g_devCount++;
                     ZeroMemory(&g_devices[idx], sizeof(DeviceEntry));
                     wcsncpy(g_devices[idx].mac, mac, 23);
-                    g_devices[idx].allowAuto = TRUE;
+                    g_devices[idx].allowAuto = FALSE;
+                    g_devices[idx].transient = TRUE;
                 }
-                if (idx >= 0) {
-                    DeviceEntry *d = &g_devices[idx];
-                    d->address = info.Address.ullLong;
-                    wcsncpy(d->name, nm, 247);
-                    wcsncpy(d->kind, kind, 15);
-                    d->connected = info.fConnected ? TRUE : FALSE;
-                    /* List only devices this machine has connected to
-                       before (or is connected to right now). */
-                    d->visible = info.fConnected || HasConnectedBefore(info.Address.ullLong);
 
-                    /* Always ensure profiles stay enabled so manual connect always works! */
-                    if (!d->profilesRepaired) {
-                        d->profilesRepaired = TRUE;
-                        ULONGLONG addrCopy = d->address;
-                        wchar_t kindCopy[16];
-                        wcsncpy(kindCopy, d->kind, 15); kindCopy[15] = L'\0';
-                        LeaveCriticalSection(&g_lock);
-                        EnsureProfilesEnabled(addrCopy, kindCopy);
-                        EnterCriticalSection(&g_lock);
-                    }
+                DeviceEntry *d = &g_devices[idx];
+                BOOL wasConnected = d->connected;
+                BOOL isConnected = info.fConnected ? TRUE : FALSE;
+                BOOL newlyConnected = isConnected && !wasConnected;
+                if (newlyConnected && !manualWindow && g_hwnd) {
+                    CheckForegroundManualIntent();
+                    manualUntil = (ULONGLONG)InterlockedCompareExchange64(&g_manualGraceUntil, 0, 0);
+                    manualWindow = (manualUntil != 0 && GetTickCount64() <= manualUntil);
+                }
+                BOOL manualIntent = newlyConnected && manualWindow;
+                d->scanSeen = TRUE;
+                d->address = info.Address.ullLong;
+                wcsncpy(d->name, nm, 247);
+                wcsncpy(d->kind, kind, 15);
+                d->connected = isConnected;
 
-                    if (g_guardOn && !d->allowAuto) {
-                        if (d->connected) {
-                            /* Manual user choice is always allowed.
-                               The guard prevents auto-connection, not manual
-                               connects via taskbar flyout, Settings, etc. */
-                            d->sessionAllowed = TRUE;
-                            d->seenConnected = TRUE;
+                if (d->forgotten) {
+                    if (manualIntent) {
+                        /* A fresh, user-initiated reconnect may re-enroll a
+                           forgotten device; a scan or stale link may not. */
+                        d->forgotten = FALSE;
+                        d->visible = TRUE;
+                        d->transient = FALSE;
+                        d->allowAuto = FALSE;
+                        d->sessionAllowed = TRUE;
+                        d->seenConnected = TRUE;
+                        d->sessionStartTick = now;
+                        d->blockPending = FALSE;
+                        trustChanged = TRUE;
+                    } else {
+                        if (isConnected && !d->blockPending) {
+                            RecordRejectedLink(rejected, &rejectedCount, d->address,
+                                               d->mac, d->kind, d->name);
+                            d->blockPending = TRUE;
+                        } else if (!isConnected) {
+                            d->blockPending = FALSE;
                         }
-                        /* Don't disconnect - user's manual choice stands. */
+                        goto next_bluetooth_device;
                     }
+                } else if (d->transient || !d->visible) {
+                    if (manualIntent) {
+                        d->transient = FALSE;
+                        d->visible = TRUE;
+                        d->allowAuto = FALSE;
+                        d->sessionAllowed = TRUE;
+                        d->seenConnected = TRUE;
+                        d->sessionStartTick = now;
+                        d->blockPending = FALSE;
+                        trustChanged = TRUE;
+                    } else {
+                        if (isConnected && !d->blockPending) {
+                            RecordRejectedLink(rejected, &rejectedCount, d->address,
+                                               d->mac, d->kind, d->name);
+                            d->blockPending = TRUE;
+                        } else if (!isConnected) {
+                            d->blockPending = FALSE;
+                        }
+                        goto next_bluetooth_device;
+                    }
+                }
+
+                if (manualIntent && !d->allowAuto) {
+                    d->sessionAllowed = TRUE;
+                    d->seenConnected = TRUE;
+                    d->sessionStartTick = now;
+                    d->blockPending = FALSE;
+                }
+                if (isConnected && d->sessionAllowed) d->seenConnected = TRUE;
+                if (!isConnected) {
+                    d->blockPending = FALSE;
+                    if (d->sessionAllowed &&
+                        (d->seenConnected || now - d->sessionStartTick > 45000ULL)) {
+                        d->sessionAllowed = FALSE;
+                        d->seenConnected = FALSE;
+                    }
+                }
+                if (isConnected && g_guardOn && !d->allowAuto &&
+                    !d->sessionAllowed && !manualIntent) {
+                    if (!d->blockPending) {
+                        RecordRejectedLink(rejected, &rejectedCount, d->address,
+                                           d->mac, d->kind, d->name);
+                        d->blockPending = TRUE;
+                    }
+                }
+                if (d->visible && !d->profilesRepaired && repairCount < MAX_DEVICES) {
+                    d->profilesRepaired = TRUE;
+                    repairAddress[repairCount] = d->address;
+                    wcsncpy(repairKind[repairCount], d->kind, 15);
+                    repairKind[repairCount][15] = L'\0';
+                    repairCount++;
                 }
             }
+next_bluetooth_device:
             ZeroMemory(&info, sizeof(info));
             info.dwSize = sizeof(info);
         } while (pBtFindNextDevice(hFind, &info));
         pBtFindDeviceClose(hFind);
     }
+
+    /* Missing trusted devices remain listed, just marked disconnected. Remove
+       temporary stranger observations as soon as the active link is gone. */
+    for (int i = 0; i < g_devCount; ) {
+        DeviceEntry *d = &g_devices[i];
+        if (!d->scanSeen) {
+            d->connected = FALSE;
+            d->blockPending = FALSE;
+            if (d->sessionAllowed &&
+                (d->seenConnected || now - d->sessionStartTick > 45000ULL)) {
+                d->sessionAllowed = FALSE;
+                d->seenConnected = FALSE;
+            }
+        }
+        if (d->transient && (!d->scanSeen || !d->connected)) {
+            memmove(&g_devices[i], &g_devices[i + 1],
+                    sizeof(DeviceEntry) * (size_t)(g_devCount - i - 1));
+            g_devCount--;
+            continue;
+        }
+        d->scanSeen = FALSE;
+        i++;
+    }
     LeaveCriticalSection(&g_lock);
+
+    for (int i = 0; i < repairCount; i++)
+        EnsureProfilesEnabled(repairAddress[i], repairKind[i]);
+    for (int i = 0; i < rejectedCount; i++)
+        DoDisconnectOnly(rejected[i].address, rejected[i].kind, rejected[i].name);
+    if (trustChanged) SaveRules();
 }
 
 /* Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep */

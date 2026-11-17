@@ -1094,6 +1094,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("KSPROPERTY_ONESHOT_RECONNECT", native_c)
         self.assertIn("KSPROPERTY_ONESHOT_DISCONNECT", native_c)
         self.assertIn("CheckForegroundManualIntent", native_c)
+        self.assertIn("GetLastInputInfo", native_c)
         self.assertIn("HIGH_PRIORITY_CLASS", native_c)
         self.assertIn("RegisterDeviceNotificationW", native_c)
         self.assertIn("Tests_BluetoothGuard_FastBoot", native_c)
@@ -1108,35 +1109,99 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertTrue((ROOT / "bluetooth-guard" / "Setup.bat").exists())
 
     def test_bluetooth_guard_forget_unpairs_and_filters_phantom_devices(self):
-        """The Forget button must do a TRUE unpair (BluetoothRemoveDevice), not a
-        profile disable, and the device list must stop showing paired-but-never-
-        connected phantoms: HasConnectedBefore now requires a real service-GUID
-        subkey rather than merely any subkey."""
+        """Forget must unpair and leave a durable tombstone that defeats stale scans."""
         btg = read_c_inlined("bluetooth-guard/src/bluetooth_guard.c")
 
-        # the real unpair API is loaded and wrapped
         self.assertIn('GetProcAddress(m, "BluetoothRemoveDevice")', btg)
         self.assertIn("static void DoForgetDevice(", btg)
         self.assertIn("pBluetoothRemoveDevice(&addr)", btg)
-        # ... and it is NOT a profile disable (suite policy: never disable profiles)
-        forget = btg[btg.index("static void DoForgetDevice("):]
-        forget = forget[:forget.index("\n}\n")]
-        self.assertNotIn("BluetoothSetServiceState", forget)
-        self.assertNotIn("BLUETOOTH_SERVICE_DISABLE", forget)
+        forget_api = btg[btg.index("static void DoForgetDevice("):]
+        forget_api = forget_api[:forget_api.index("\n}\n")]
+        self.assertNotIn("BluetoothSetServiceState", forget_api)
+        self.assertNotIn("BLUETOOTH_SERVICE_DISABLE", forget_api)
 
-        # the Forget button is drawn, hit-tested, and routed to a true unpair
-        self.assertIn("HIT_DEV_FORGET_BTN", btg)
-        self.assertRegex(btg, r'DrawActionBtn\([^;]*forgetR,\s*L"Forget"')
-        self.assertIn("AddHit(forgetR, HIT_DEV_FORGET_BTN, i)", btg)
-        self.assertIn("EnqueueWork(3, addr, dmac, dkind, dname)", btg)
+        # Forget is an explicit persisted F tombstone, not a temporary hide.
+        handler = btg[btg.index("} else if (kind == HIT_DEV_FORGET_BTN)"):]
+        handler = handler[:handler.index("\n}\n")]
+        self.assertIn("d->visible = FALSE", handler)
+        self.assertIn("d->forgotten = TRUE", handler)
+        self.assertIn("SaveRules();", handler)
+        self.assertIn("EnqueueWork(3, addr, dmac, dkind, dname)", handler)
         self.assertIn("else if (item.op == 3) DoForgetDevice(", btg)
 
-        # phantom filter: require a service-GUID subkey, not just any subkey
-        self.assertIn("static BOOL IsServiceGuidSubkey(", btg)
-        self.assertIn("RegEnumKeyExW", btg)
-        self.assertNotIn("return subKeys > 0;", btg,
-                         "HasConnectedBefore still counts ANY subkey, so paired-but-"
-                         "never-connected phantoms leak into the device list")
+        # Every native action surface is gated by the same durable membership.
+        tray = btg[btg.index("static void ShowTrayMenu("):]
+        tray = tray[:tray.index("static LRESULT CALLBACK WndProc")]
+        self.assertIn("if (!g_devices[i].visible || g_devices[i].forgotten) continue;", tray)
+        command = btg[btg.index("case WM_COMMAND:"):]
+        command = command[:command.index("case WM_WORKER_DONE:")]
+        self.assertIn("g_devices[di].visible && !g_devices[di].forgotten", command)
+        self.assertIn("if (!d->visible) continue;", btg)
+        self.assertIn("g_devices[i].visible && !g_devices[i].forgotten", btg[btg.index("static void DoConnectNow("):])
+
+    def test_bluetooth_guard_persists_only_intentional_device_membership(self):
+        btg = read_c_inlined("bluetooth-guard/src/bluetooth_guard.c")
+        rules = btg[btg.index("static void SaveRules("):]
+        save = rules[:rules.index("static void LoadRules(")]
+        load = rules[rules.index("static void LoadRules("):rules.index("static void EnqueueWork(")]
+        poll = btg[btg.index("static void PollPairedDevices("):]
+        poll = poll[:poll.index("/* Disconnect all guarded")]
+
+        self.assertIn('L"format=2\\n"', save)
+        self.assertIn('L"device=%s|%d|%llu|%s|%s|%s\\n"', save)
+        self.assertIn('d->visible ? L"K" : L"F"', save)
+        self.assertIn("if (!d->visible && !d->forgotten) continue;", save)
+        self.assertIn('if (wcsncmp(line, L"device=", 7) != 0) continue;', load)
+        self.assertIn("d->visible = known;", load)
+        self.assertIn("d->forgotten = forgotten;", load)
+
+        # A disconnected candidate from enumeration is ignored; only a rising
+        # connection during the Windows UI intent window can enroll it.
+        no_scan_enroll = "if (!info.fConnected) goto next_bluetooth_device;"
+        self.assertIn(no_scan_enroll, poll)
+        self.assertLess(poll.index(no_scan_enroll), poll.index("idx = g_devCount++;"))
+        self.assertIn("if (newlyConnected && !manualWindow && g_hwnd)", poll)
+        self.assertIn("CheckForegroundManualIntent();", poll)
+        self.assertIn("BOOL manualIntent = newlyConnected && manualWindow;", poll)
+        self.assertIn("g_devices[idx].allowAuto = FALSE;", poll)
+        self.assertIn("if (manualIntent && !d->allowAuto)", poll)
+        self.assertIn("DoDisconnectOnly(rejected[i].address", poll)
+        self.assertIn("if (trustChanged) SaveRules();", poll)
+        self.assertNotIn("HasConnectedBefore", poll)
+
+        connect = btg[btg.index("static void DoConnectNow("):]
+        connect = connect[:connect.index("\n}")]
+        self.assertIn("g_devices[i].visible && !g_devices[i].forgotten", connect)
+
+    def test_bluetooth_guard_powershell_uses_the_same_trusted_inventory(self):
+        ps = (ROOT / "bluetooth-guard" / "BluetoothGuard.ps1").read_text(encoding="utf-8")
+        core = (ROOT / "bluetooth-guard" / "BluetoothCore.cs").read_text(encoding="utf-8")
+
+        self.assertIn("sp.fReturnRemembered = false", core)
+        self.assertIn("IsWindowsBluetoothUiForeground()", core)
+        self.assertIn("GetLastInputInfo", core)
+        self.assertIn("DropUntrustedConnection", core)
+        self.assertIn("BluetoothRemoveDevice(ref address)", core)
+        self.assertIn("DeviceTrustFormat  = 2", ps)
+        self.assertIn("$o.DeviceTrustFormat -eq 2 -and $o.Devices", ps)
+        self.assertIn("function Update-WindowsUiIntent", ps)
+        self.assertIn("$script:WindowsUiIntentUntil = [DateTime]::UtcNow.AddSeconds(5)", ps)
+        self.assertIn("$manualUi = Update-WindowsUiIntent", ps)
+        self.assertIn("function Update-TrustFromSnapshots", ps)
+        self.assertIn("$script:SnapshotBaseline -and $newLink -and $manualUi", ps)
+        self.assertIn("function Get-TrustedDeviceSnapshots", ps)
+        trusted_builder = ps[ps.index("function Get-TrustedDeviceSnapshots"):ps.index("function Update-WindowsUiIntent")]
+        self.assertIn("Address = [uint64]$entry.Address", trusted_builder)
+        self.assertIn("Connected = $false", trusted_builder)
+        self.assertIn("Render-Devices $trustedSnaps", ps)
+        self.assertGreaterEqual(ps.count("Queue-BtWork 'drop'"), 2)
+        self.assertIn("AllowAutoConnect = $false", ps)
+        self.assertIn("$currentEntry.Forgotten = $true", ps)
+        self.assertIn("Queue-BtWork 'forget'", ps)
+
+        tray = ps[ps.index("function Rebuild-TrayMenu"):ps.index("Rebuild-TrayMenu @()")]
+        self.assertIn("Get-DeviceEntry", tray)
+        self.assertIn("$entry.Forgotten", tray)
 
     def test_project_hub_command_ids_do_not_collide(self):
         """Guard the 'swallowed button' bug class: the branch-download menu
@@ -1545,6 +1610,33 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         ip = ip[:ip.index("\n}\n")]
         self.assertIn("if (AppsUseLightTheme())", ip,
                       "the window ignores the owner's Windows theme again")
+
+    def test_weather_radar_shows_selected_place_rain_eta(self):
+        """The rain card should turn its hourly, exact-point forecast into a
+        location-local onset estimate, while keeping weak or fallback signals
+        clearly distinguished from a majority ensemble forecast."""
+        main = (ROOT / "weather-radar" / "src" / "weather_radar.c").read_text(encoding="utf-8")
+        ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+        readme = (ROOT / "weather-radar" / "README.md").read_text(encoding="utf-8")
+        eta = ui[ui.index("static void RainEtaText("):ui.index("static void PaintHonestCard(")]
+        card = ui[ui.index("static void PaintHonestCard("):ui.index("static void PaintHourlyCard(")]
+
+        self.assertRegex(main, r"#define RAIN_ETA_LIKELY_PROB\s+0\.50")
+        self.assertIn("ForecastIsRainingNow(f)", eta)
+        self.assertIn("int h = start + k;", eta)
+        self.assertIn("e->reported[h] <= 0 || isnan(prob)", eta,
+                      "members that stopped reporting are being treated as dry for ETA")
+        self.assertIn("if (prob >= RAIN_ETA_LIKELY_PROB && likelyK < 0)", eta,
+                      "the ETA no longer uses the first majority-likelihood hour")
+        self.assertIn("f->hLabel[k]", eta,
+                      "the ETA is not displayed in the selected location's local time")
+        self.assertIn("f->hP[i] >= RAIN_ALERT_TRACE_IN", eta,
+                      "the single-model hourly fallback no longer uses the measurable-rain threshold")
+        self.assertIn("possible peak around %s local", eta)
+        self.assertIn("no measurable rain signal in the next %d forecast hours", eta)
+        self.assertIn("RainEtaText(&g_fc, &g_ens, eta, 192);", card)
+        self.assertIn("Point rain odds + ETA from the ensemble", ui)
+        self.assertIn("Times are local to the selected place and are hourly, not minute-precise.", readme)
 
     def test_weather_radar_alert_uses_exact_ensemble_and_latches_one_rain_episode(self):
         """Rain alerts are only useful when they answer the point question and
