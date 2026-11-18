@@ -9,15 +9,17 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 - **Main: Project Hub 2.8.56:** Tri-Spoke tray, alerts, and default-on branch
   discovery remain. Remote probes pin releases and show updates only when app
   contents differ; `Update Hub` requires a newer build.
-- **Arena Project Hub 2.8.61** (`a5ec05a56b580a6343afe1d9a50fa01e0e9858d7`):
+- **Arena Project Hub 2.8.62** (`81eb2c1a1822fcb7fe76118df5dccaef676c3495`):
   Hub runs asInvoker; child elevation remains app-owned. Agent Notes stays
   user-opened; elevated `--stop` precedes updates and the managed-copy gate
-  remains. Tray and Settings use Soft Slate. Popup tracking now blocks reentry:
-  `TrackPopupMenu` can dispatch another tray callback while global item data and
-  its background brush are live, exposing corrupted/default-white drawing. Row
-  fill and GDI isolation remain. Regression, mutation, build, and repository
-  checks pass; native owner hover confirmation is still needed. The reported
-  missing Weather Radar card remains a separate investigation. Main stays 2.8.56.
+  remains. Tray and Settings use Soft Slate. Tray rows retain full-row repaint
+  and GDI isolation; the popup reentry guard remains. The owner now confirms
+  hover is fine on Windows. Weather Radar had been appended only after a
+  successful remote catalog fetch, so startup/offline/partial-catalog states
+  could omit it. It is now seeded at startup and restored after catalog rebuilds,
+  with an embedded icon and a reserved catalog slot. Owner confirms the card is
+  visible; regression, mutations, build, and repository checks pass. Main stays
+  2.8.56.
 - **Agent Notes waiting receipts:** implementation `ad9232009b9f38c287727123ddd404b204ce26e1`,
   released by marker `5343e54`. The direct local outbox records **Saved** only
   after the live receiver flushes `.agent/INBOX.md`, then **Read** only after an
@@ -48,15 +50,13 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 
 ## Next approved work
 
-1. Get native owner confirmation for the 2.8.61 tray hover; then investigate and
-   restore the reported Weather Radar Hub card. Runtime cause remains unknown.
-2. Weather Radar five-day planner: equal rain, temperature, cloud, and wind
+1. Weather Radar five-day planner: equal rain, temperature, cloud, and wind
    daily categories; selected day/category gives hourly detail, compact trend,
    and plain-English reading. Rain remains primary; exact ensemble odds stay
    distinct from regional coverage; humidity stays supporting.
-3. Keyboard Lighting M4 hold is unresolved: the owner test after `9cb8d8d`
-   still shows M4 learning; `engine-5.log` has no key events. It remains parked
-   until Hub issues are handled; preserve exclusive-lock, pacing, and
+2. Keyboard Lighting M4 hold remains unresolved: the owner test after `9cb8d8d`
+   still shows M4 learning; `engine-5.log` has no key events. Keep it parked
+   until the owner reopens it; preserve exclusive-lock, pacing, and
    single-engine safety.
 
 ## Offline safety facts
