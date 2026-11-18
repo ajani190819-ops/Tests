@@ -1777,6 +1777,59 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("ticket == g_searchTicket", places)
         self.assertIn("g_searchStageTicket == g_searchTicket", ui)
 
+    def test_weather_radar_has_a_five_day_balanced_planner(self):
+        """The approved planner covers five local dates, gives rain,
+        temperature, cloud and wind equal selectable daily cells, and uses the
+        selected cell for hourly values, a trend and a plain-language reading.
+        Exact-point ensemble odds and regional PoP must remain visibly distinct;
+        humidity stays supporting context in the current-conditions card."""
+        main = (ROOT / "weather-radar" / "src" / "weather_radar.c").read_text(encoding="utf-8")
+        forecast = (ROOT / "weather-radar" / "src" / "parts" / "forecast.c").read_text(encoding="utf-8")
+        ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
+
+        self.assertRegex(main, r"#define FC_DAYS\s+5")
+        self.assertRegex(main, r"#define FC_HOURS\s+\(FC_DAYS \* 24 \+ 2\)")
+        self.assertIn("ForecastDay days[FC_DAYS];", main)
+        self.assertIn("double  hCloud[FC_HOURS], hWindMph[FC_HOURS];", main)
+        self.assertIn("int     hCode[FC_HOURS], hDay[FC_HOURS];", main)
+        self.assertEqual(forecast.count("&forecast_days=5&timezone=auto"), 2,
+                         "the daily and exact-point ensemble feeds must cover the same five-day horizon")
+        self.assertIn('L"cloud_cover,wind_speed_10m"', forecast,
+                      "hourly cloud cover and wind are missing from the planner feed")
+        self.assertIn("static void DayLabelFromIso(", forecast)
+        self.assertIn("static int DailyIndexForHour(", forecast)
+        for needle in (
+            'day->maxF = JNum(JAt(JGet(daily, "temperature_2m_max"), d));',
+            'day->regionalPoP = JNum(JAt(JGet(daily, "precipitation_probability_max"), d));',
+            "f->hCloud[k] = JNum(JAt(cloud, i));",
+            "f->hWindMph[k] = JNum(JAt(wind, i));",
+            "f->hDay[k] = (ti && ti->str)",
+            "f->days[d].cloudMean = cloudSum / (double)cloudN;",
+        ):
+            self.assertIn(needle, forecast, "five-day planner feed lost `%s`" % needle)
+
+        self.assertIn("L\"Rain\", L\"Temperature\", L\"Cloud cover\", L\"Wind\"", ui)
+        self.assertIn("static int PlannerCellRect(", ui)
+        self.assertIn("static int HitPlannerCell(", ui)
+        self.assertIn("g_planCategory = planCategory;", ui,
+                      "clicking a daily category no longer updates its selected detail")
+        complete_window = forecast[forecast.index("static double EnsCompleteWindowProb("):forecast.index("static double PoPWindowMax(")]
+        self.assertIn("EnsCompleteWindowProb(e, start, day->hourCount)", ui,
+                      "daily exact-point rain odds do not count members with any measurable rain")
+        self.assertIn("if (isnan(v)) { complete = 0; break; }", complete_window,
+                      "a member that stops reporting mid-day is counted as dry for unreported hours")
+        self.assertIn("if (!complete) continue;", complete_window,
+                      "the daily ensemble denominator includes incomplete member-days")
+        self.assertIn('L"P %d%% · R %d%%"', ui,
+                      "point-ensemble and regional daily rain odds are merged or mislabeled")
+        self.assertIn("P = point ensemble (blue)  ·  R = regional PoP (gold)", ui)
+        self.assertIn("Humidity %d%%", ui,
+                      "humidity was promoted over the four approved daily categories")
+        paint = ui[ui.index("static void PaintAll(HWND hwnd)"):ui.index("static void StatusSet", ui.index("static void PaintAll(HWND hwnd)"))]
+        self.assertLess(paint.index("PaintHonestCard(mem, &honestCard);"),
+                        paint.index("PaintPlannerCard(mem, &plannerCard);"),
+                        "the exact-point rain card is no longer kept ahead of the planner")
+
     def test_weather_radar_layout_keeps_text_controls_and_tiles_separate(self):
         """The owner's screenshot caught three visual defects static data tests
         cannot see: hourly labels sharing the legend strip, opaque radar paint
@@ -1797,15 +1850,28 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("static int SavedHeadingY(void)", ui)
         self.assertIn("if (wp != SIZE_MINIMIZED) LayoutSearchEdit();", ui,
                       "the native search field is not corrected after the window receives its final size")
-        hourly = ui[ui.index("static void PaintHourlyCard("):ui.index("static void PaintRadarPane", ui.index("static void PaintHourlyCard("))]
-        self.assertIn("Next 12 hours · odds, amount, temperature", hourly,
-                      "the hourly decision lanes lost their explicit meaning")
-        self.assertIn("Blue = ensemble odds  ·  Gold = regional coverage", hourly,
-                      "the visual difference between exact-point odds and regional PoP is unlabeled")
-        self.assertIn("g_fc.hP[k]", hourly,
-                      "hourly rain amount vanished from the decision view")
-        self.assertNotIn("RECT leg", hourly,
-                         "the hourly legend overlaps the time labels again")
+        planner = ui[ui.index("static void PaintPlannerCard("):ui.index("static void PaintRadarPane", ui.index("static void PaintPlannerCard("))]
+        detail = ui[ui.index("static void PaintHourlyCard("):ui.index("static void PaintPlannerCard(")]
+        self.assertIn("Five-day planner · select a day/category cell", planner,
+                      "the daily planner lost its selection affordance")
+        self.assertIn("P = point ensemble (blue)  ·  R = regional PoP (gold)", planner,
+                      "the point and regional rain metrics are not independently labelled")
+        self.assertIn("for (int row = 0; row < PLAN_CATEGORY_COUNT; row++)", planner,
+                      "the four daily categories are no longer displayed as equal rows")
+        self.assertIn("PlannerCellText(day, category, value, 64);", planner,
+                      "daily category values are no longer shown for each day")
+        self.assertIn("PaintHourlyCard(mem, &detail, g_planDay, g_planCategory);", planner,
+                      "the selected day/category no longer drives the hourly detail")
+        self.assertIn("PaintPlannerSamples(mem, day, category, &samples);", detail,
+                      "the selected category lost its hourly values")
+        self.assertIn("PaintPlannerSeries(mem, day, PLAN_RAIN, 0", detail,
+                      "the rain trend no longer plots exact-point ensemble odds")
+        self.assertIn("PaintPlannerSeries(mem, day, PLAN_RAIN, 1", detail,
+                      "the rain trend no longer separately plots regional coverage")
+        self.assertIn("PlannerReading(day, category, reading, 224);", detail,
+                      "the selected category lost its plain-English reading")
+        self.assertNotIn("RECT leg", detail,
+                         "the hourly detail introduced overlapping text lanes")
         paint = ui[ui.index("static void PaintAll(HWND hwnd)"):ui.index("static void StatusSet", ui.index("static void PaintAll(HWND hwnd)"))]
         self.assertLess(paint.index("PaintRadarPane(mem, &radarCard);"),
                         paint.index("DrawBtn(mem, BTN_PREV"),

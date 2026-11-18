@@ -22,11 +22,12 @@ static void BuildForecastUrl(const Place *p, wchar_t *url, int cap) {
                L"https://api.open-meteo.com/v1/forecast?latitude=%.5f&longitude=%.5f"
                L"&current=temperature_2m,apparent_temperature,relative_humidity_2m,"
                L"weather_code,wind_speed_10m,wind_gusts_10m,cloud_cover,precipitation"
-               L"&hourly=temperature_2m,precipitation_probability,precipitation,weather_code"
+               L"&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,"
+               L"cloud_cover,wind_speed_10m"
                L"&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,"
                L"precipitation_sum,weather_code"
                L"&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch"
-               L"&forecast_days=2&timezone=auto",
+               L"&forecast_days=5&timezone=auto",
                p->lat, p->lon);
     url[cap - 1] = L'\0';
 }
@@ -34,7 +35,7 @@ static void BuildForecastUrl(const Place *p, wchar_t *url, int cap) {
 static void BuildEnsembleUrl(const Place *p, wchar_t *url, int cap) {
     _snwprintf(url, cap - 1,
                L"https://ensemble-api.open-meteo.com/v1/ensemble?latitude=%.5f&longitude=%.5f"
-               L"&hourly=precipitation&models=gfs_seamless&forecast_days=2&timezone=auto",
+               L"&hourly=precipitation&models=gfs_seamless&forecast_days=5&timezone=auto",
                p->lat, p->lon);
     url[cap - 1] = L'\0';
 }
@@ -52,6 +53,37 @@ static void HourLabelFromIso(const char *iso, wchar_t *out, int cap) {
     wcscpy(out, L"--:--");
 }
 
+static void DayLabelFromIso(const char *iso, wchar_t *out, int cap) {
+    int year, month, monthDay;
+    if (iso && strlen(iso) >= 10 &&
+        sscanf(iso, "%4d-%2d-%2d", &year, &month, &monthDay) == 3 &&
+        month >= 1 && month <= 12 && monthDay >= 1 && monthDay <= 31) {
+        SYSTEMTIME date;
+        ZeroMemory(&date, sizeof(date));
+        date.wYear = (WORD)year;
+        date.wMonth = (WORD)month;
+        date.wDay = (WORD)monthDay;
+        if (GetDateFormatW(LOCALE_USER_DEFAULT, 0, &date, L"ddd M/d", out, cap) > 0)
+            return;
+        _snwprintf(out, cap - 1, L"%02d/%02d", month, monthDay);
+        out[cap - 1] = L'\0';
+        return;
+    }
+    _snwprintf(out, cap - 1, L"Date unavailable");
+    out[cap - 1] = L'\0';
+}
+
+static int DailyIndexForHour(JNode *dailyTimes, int dayN, const char *hourIso) {
+    if (!hourIso || strlen(hourIso) < 10) return -1;
+    for (int d = 0; d < dayN; d++) {
+        JNode *date = JAt(dailyTimes, d);
+        if (date && date->str && strlen(date->str) >= 10 &&
+            strncmp(date->str, hourIso, 10) == 0)
+            return d;
+    }
+    return -1;
+}
+
 static void FetchForecast(const Place *p, DWORD ticket) {
     wchar_t url[1400];
     BuildForecastUrl(p, url, 1400);
@@ -60,6 +92,18 @@ static void FetchForecast(const Place *p, DWORD ticket) {
     JNode *root = JsonParse(b.data);
     Forecast *f = &g_fcStage;
     ZeroMemory(f, sizeof(*f));
+    f->dMaxF = f->dMinF = f->dPoP = f->dSumIn = NAN;
+    for (int d = 0; d < FC_DAYS; d++) {
+        f->days[d].maxF = f->days[d].minF = NAN;
+        f->days[d].regionalPoP = f->days[d].rainSumIn = NAN;
+        f->days[d].cloudMean = f->days[d].windMaxMph = NAN;
+        f->days[d].firstHour = -1;
+    }
+    for (int h = 0; h < FC_HOURS; h++) {
+        f->hT[h] = f->hPoP[h] = f->hP[h] = NAN;
+        f->hCloud[h] = f->hWindMph[h] = NAN;
+        f->hDay[h] = f->hCode[h] = -1;
+    }
     if (!root) { HttpBufFree(&b); return; }
 
     JNode *cur = JGet(root, "current");
@@ -78,11 +122,25 @@ static void FetchForecast(const Place *p, DWORD ticket) {
     if (tz && tz->str) Utf8ToWide(tz->str, f->tz, 48);
 
     JNode *daily = JGet(root, "daily");
+    JNode *dailyTimes = daily ? JGet(daily, "time") : NULL;
     if (daily) {
-        f->dMaxF = JNum(JAt(JGet(daily, "temperature_2m_max"), 0));
-        f->dMinF = JNum(JAt(JGet(daily, "temperature_2m_min"), 0));
-        f->dPoP  = JNum(JAt(JGet(daily, "precipitation_probability_max"), 0));
-        f->dSumIn = JNum(JAt(JGet(daily, "precipitation_sum"), 0));
+        f->dayN = JLen(dailyTimes);
+        if (f->dayN > FC_DAYS) f->dayN = FC_DAYS;
+        for (int d = 0; d < f->dayN; d++) {
+            ForecastDay *day = &f->days[d];
+            JNode *date = JAt(dailyTimes, d);
+            if (date && date->str) DayLabelFromIso(date->str, day->label, 16);
+            day->maxF = JNum(JAt(JGet(daily, "temperature_2m_max"), d));
+            day->minF = JNum(JAt(JGet(daily, "temperature_2m_min"), d));
+            day->regionalPoP = JNum(JAt(JGet(daily, "precipitation_probability_max"), d));
+            day->rainSumIn = JNum(JAt(JGet(daily, "precipitation_sum"), d));
+        }
+        if (f->dayN > 0) {
+            f->dMaxF = f->days[0].maxF;
+            f->dMinF = f->days[0].minF;
+            f->dPoP = f->days[0].regionalPoP;
+            f->dSumIn = f->days[0].rainSumIn;
+        }
     }
 
     JNode *hourly = JGet(root, "hourly");
@@ -92,10 +150,12 @@ static void FetchForecast(const Place *p, DWORD ticket) {
         JNode *pop = JGet(hourly, "precipitation_probability");
         JNode *pr = JGet(hourly, "precipitation");
         JNode *wc = JGet(hourly, "weather_code");
+        JNode *cloud = JGet(hourly, "cloud_cover");
+        JNode *wind = JGet(hourly, "wind_speed_10m");
         int n = JLen(times);
         if (n > FC_HOURS) n = FC_HOURS;
         /* "now" is the first hourly row at or after the current hour, which
-           the API's own `current` block agrees with; the strip starts there. */
+           the API's own `current` block agrees with; the planner starts there. */
         JNode *curTime = cur ? JGet(cur, "time") : NULL;
         int nowIdx = 0;
         if (curTime && curTime->str && times) {
@@ -109,11 +169,37 @@ static void FetchForecast(const Place *p, DWORD ticket) {
         for (int i = nowIdx; i < n && k < FC_HOURS; i++, k++) {
             JNode *ti = JAt(times, i);
             if (ti && ti->str) HourLabelFromIso(ti->str, f->hLabel[k], 8);
-            f->hT[k]   = JNum(JAt(t, i));
+            f->hT[k] = JNum(JAt(t, i));
             f->hPoP[k] = JNum(JAt(pop, i));
-            f->hP[k]   = JNum(JAt(pr, i));
-            f->hCode[k] = (int)JNum(JAt(wc, i));
+            f->hP[k] = JNum(JAt(pr, i));
+            f->hCloud[k] = JNum(JAt(cloud, i));
+            f->hWindMph[k] = JNum(JAt(wind, i));
+            double code = JNum(JAt(wc, i));
+            f->hCode[k] = isnan(code) ? -1 : (int)code;
+            f->hDay[k] = (ti && ti->str)
+                ? DailyIndexForHour(dailyTimes, f->dayN, ti->str) : -1;
+            if (f->hDay[k] >= 0) {
+                ForecastDay *day = &f->days[f->hDay[k]];
+                if (day->hourCount == 0) day->firstHour = k;
+                day->hourCount++;
+            }
             f->hN = k + 1;
+        }
+        for (int d = 0; d < f->dayN; d++) {
+            double cloudSum = 0.0, windMax = NAN;
+            int cloudN = 0;
+            for (int h = 0; h < f->hN; h++) {
+                if (f->hDay[h] != d) continue;
+                if (!isnan(f->hCloud[h])) {
+                    cloudSum += f->hCloud[h];
+                    cloudN++;
+                }
+                if (!isnan(f->hWindMph[h]) &&
+                    (isnan(windMax) || f->hWindMph[h] > windMax))
+                    windMax = f->hWindMph[h];
+            }
+            if (cloudN > 0) f->days[d].cloudMean = cloudSum / (double)cloudN;
+            f->days[d].windMaxMph = windMax;
         }
         if (f->hN > 0) f->have = 2;
     }
@@ -188,6 +274,27 @@ static double EnsWindowProb(const Ensemble *e, int startHour, int hours) {
             if (v >= RAIN_MM) saw = 1;
         }
         if (!any) continue;
+        reporting++;
+        if (saw) wet++;
+    }
+    return reporting > 0 ? (double)wet / (double)reporting : NAN;
+}
+
+/* A daily event probability needs a complete member forecast for the whole
+   day-window. A member that stops reporting partway through a day is absent,
+   not a dry vote for its unreported hours. */
+static double EnsCompleteWindowProb(const Ensemble *e, int startHour, int hours) {
+    if (!e || !e->have || hours <= 0 || startHour < 0 ||
+        startHour + hours > e->hours) return NAN;
+    int wet = 0, reporting = 0;
+    for (int m = 0; m < e->members; m++) {
+        int saw = 0, complete = 1;
+        for (int h = startHour; h < startHour + hours; h++) {
+            double v = e->mm[m][h];
+            if (isnan(v)) { complete = 0; break; }
+            if (v >= RAIN_MM) saw = 1;
+        }
+        if (!complete) continue;
         reporting++;
         if (saw) wet++;
     }

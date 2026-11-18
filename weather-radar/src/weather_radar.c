@@ -82,7 +82,8 @@ enum { ID_TRAY_OPEN = 201, ID_TRAY_EXIT = 202 };
 #define MAX_SEARCH     8
 #define MAX_FRAMES     64
 #define MAX_PAST_FRAMES 24
-#define FC_HOURS       48
+#define FC_DAYS        5
+#define FC_HOURS       (FC_DAYS * 24 + 2) /* leave room for a local DST day */
 #define HOURLY_SHOWN   12
 #define MAX_MEMBERS    64
 #define GRID_TILES     3               /* 3x3 tiles per radar view */
@@ -113,7 +114,14 @@ typedef struct {
     int       kind;           /* 0 = past (observed), 1 = nowcast (modelled) */
 } RadarFrame;
 
-/* One forecast API call: current conditions, today's daily row, hourly rows. */
+typedef struct {
+    wchar_t label[16];        /* local weekday/date, e.g. "Tue 11/17" */
+    double  maxF, minF, regionalPoP, rainSumIn;
+    double  cloudMean, windMaxMph;
+    int     firstHour, hourCount; /* indices into the forecast's now-relative series */
+} ForecastDay;
+
+/* One forecast API call: current conditions, five daily rows, hourly rows. */
 typedef struct {
     int     have;             /* 0 nothing, 1 partial, 2 complete */
     wchar_t fetched[24];      /* local HH:MM of the fetch */
@@ -121,11 +129,14 @@ typedef struct {
     double  tempF, feelsF, rh, windMph, windGustMph, cloudCover, precipIn;
     int     wcode;
     double  dMaxF, dMinF, dPoP, dSumIn;   /* today, straight from the API */
+    ForecastDay days[FC_DAYS];
+    int     dayN;
     double  hT[FC_HOURS], hPoP[FC_HOURS], hP[FC_HOURS];
-    int     hCode[FC_HOURS];
+    double  hCloud[FC_HOURS], hWindMph[FC_HOURS];
+    int     hCode[FC_HOURS], hDay[FC_HOURS];
     wchar_t hLabel[FC_HOURS][8];
     int     hN;
-    int     nowIdx;           /* index into the hourly arrays of "now" */
+    int     nowIdx;           /* source-hour offset of the first displayed hour */
 } Forecast;
 
 /* The ensemble member matrix, and the probabilities derived from it. */

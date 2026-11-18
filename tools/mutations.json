@@ -1027,5 +1027,26 @@
   "old": "RegisterRawInputDevices(rid, 1, sizeof(RAWINPUTDEVICE));",
   "new": "/* keyboard fallback removed */",
   "label": "A vendor usage registration failure can leave keyboard hold input blind"
+ },
+ {
+  "id": "wx-planner-01",
+  "file": "weather-radar/src/parts/forecast.c",
+  "old": "&forecast_days=5&timezone=auto",
+  "new": "&forecast_days=2&timezone=auto",
+  "label": "The five-day planner quietly falls back to two forecast days"
+ },
+ {
+  "id": "wx-planner-02",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "            g_planCategory = planCategory;",
+  "new": "            g_planCategory = PLAN_RAIN;",
+  "label": "Selecting a planner cell always shows rain instead of its category"
+ },
+ {
+  "id": "wx-planner-03",
+  "file": "weather-radar/src/parts/forecast.c",
+  "old": "            if (isnan(v)) { complete = 0; break; }",
+  "new": "            if (isnan(v)) continue;",
+  "label": "A partial ensemble day treats unreported hours as dry"
  }
 ]

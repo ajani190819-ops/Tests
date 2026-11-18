@@ -16,6 +16,10 @@
 #define RADAR_FOCUS_PX 512
 #define RADAR_FOCUS_MIN_PX 96
 
+enum { PLAN_RAIN = 0, PLAN_TEMP, PLAN_CLOUD, PLAN_WIND, PLAN_CATEGORY_COUNT };
+static int g_planDay = 0;
+static int g_planCategory = PLAN_RAIN;
+
 static void RadarEmblemRect(RECT *r) {
     SetRect(r, S(14), S(10), S(56), S(52));
 }
@@ -26,19 +30,22 @@ static void BtnRect(int i, RECT *r) {
     case BTN_KEEP:    SetRect(r, S(126), S(110), S(182), S(140)); break;
     case BTN_DROP:    SetRect(r, S(188), S(110), S(244), S(140)); break;
     case BTN_REFRESH: SetRect(r, S(WIN_LW - 16 - 104), S(16), S(WIN_LW - 16), S(48)); break;
-    case BTN_PREV:    SetRect(r, S(272), S(468), S(308), S(496)); break;
-    case BTN_PLAY:    SetRect(r, S(314), S(468), S(372), S(496)); break;
-    case BTN_NEXT:    SetRect(r, S(378), S(468), S(414), S(496)); break;
-    case BTN_ZOOM:    SetRect(r, S(420), S(468), S(510), S(496)); break;
+    case BTN_PREV:    SetRect(r, S(272), S(520), S(308), S(548)); break;
+    case BTN_PLAY:    SetRect(r, S(314), S(520), S(372), S(548)); break;
+    case BTN_NEXT:    SetRect(r, S(378), S(520), S(414), S(548)); break;
+    case BTN_ZOOM:    SetRect(r, S(420), S(520), S(510), S(548)); break;
     default:          SetRect(r, 0, 0, 0, 0); break;
     }
 }
 
+static void PlannerRect(RECT *r) {
+    SetRect(r, S(260), S(290), S(WIN_LW - 16), S(508));
+}
+
 static void RadarImageRect(RECT *r) {
-    /* Keep a full, nearly square local-radar canvas below its own controls.
-       The former 200px-high strip made every road, echo and timestamp too
-       small to interpret even though the worker had fetched a real 768px map. */
-    SetRect(r, S(272), S(508), S(WIN_LW - 28), S(WIN_LH - 94));
+    /* Keep a square local-radar canvas below its playback controls and the
+       five-day decision planner. */
+    SetRect(r, S(272), S(556), S(WIN_LW - 28), S(WIN_LH - 94));
 }
 
 /* Search-result and saved-place rows are plain painted rows: clickable,
@@ -160,9 +167,13 @@ static void PaintNowCard(HDC mem, const RECT *card) {
     DrawTextAt(mem, line, &wr, g_fontSmall, WxCodeIsWet(g_fc.wcode) ? COL_RAIN : COL_MUTED,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
-    _snwprintf(line, 191, L"Today: %d° / %d°  ·  rain up to %d%%  ·  total %.2f in",
-               (int)llround(g_fc.dMaxF), (int)llround(g_fc.dMinF),
-               (int)llround(g_fc.dPoP), g_fc.dSumIn);
+    if (!isnan(g_fc.dMaxF) && !isnan(g_fc.dMinF) &&
+        !isnan(g_fc.dPoP) && !isnan(g_fc.dSumIn))
+        _snwprintf(line, 191, L"Today: %d° / %d°  ·  rain up to %d%%  ·  total %.2f in",
+                   (int)llround(g_fc.dMaxF), (int)llround(g_fc.dMinF),
+                   (int)llround(g_fc.dPoP), g_fc.dSumIn);
+    else
+        wcscpy(line, L"Today's daily outlook is unavailable.");
     line[191] = L'\0';
     RECT dr = { detailLeft, inner.top + S(58), inner.right, inner.bottom };
     DrawTextAt(mem, line, &dr, g_fontSmall, COL_TXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
@@ -340,73 +351,436 @@ static void PaintHonestCard(HDC mem, const RECT *card) {
                DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 }
 
-static void PaintHourlyCard(HDC mem, const RECT *card) {
-    DrawRoundedBox(mem, card, S(14), COL_CARD, COL_CARD_BD);
-    RECT lbl = { card->left + S(18), card->top + S(8), card->right - S(18), card->top + S(25) };
-    DrawTextAt(mem, L"Next 12 hours · odds, amount, temperature", &lbl, g_fontSmall, COL_MUTED,
-               DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    RECT key = { card->left + S(300), card->top + S(8), card->right - S(18), card->top + S(25) };
-    DrawTextAt(mem, L"Blue = ensemble odds  ·  Gold = regional coverage", &key,
-               g_fontSmall, COL_MUTED, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-    if (!g_fc.have || g_fc.hN <= 0) {
-        RECT w = { card->left + S(18), card->top + S(40), card->right - S(18), card->bottom - S(24) };
-        DrawTextAt(mem, L"Waiting for the hourly forecast...", &w, g_fontUI, COL_MUTED,
-                   DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+static const wchar_t *PlannerCategoryName(int category) {
+    static const wchar_t *names[PLAN_CATEGORY_COUNT] = {
+        L"Rain", L"Temperature", L"Cloud cover", L"Wind"
+    };
+    return (category >= 0 && category < PLAN_CATEGORY_COUNT) ? names[category] : L"Weather";
+}
+
+static int PlannerCellRect(int day, int category, RECT *r) {
+    if (!r || day < 0 || day >= FC_DAYS || category < 0 ||
+        category >= PLAN_CATEGORY_COUNT) return 0;
+    RECT card;
+    PlannerRect(&card);
+    int firstLeft = card.left + S(116);
+    int lastRight = card.right - S(14);
+    int gap = S(4);
+    int colWidth = (lastRight - firstLeft - gap * (FC_DAYS - 1)) / FC_DAYS;
+    if (colWidth <= 0) return 0;
+    int left = firstLeft + day * (colWidth + gap);
+    int top = card.top + S(48 + category * 19);
+    SetRect(r, left, top, left + colWidth, top + S(17));
+    return 1;
+}
+
+static int PlannerDayRect(int day, RECT *r) {
+    if (!r || day < 0 || day >= FC_DAYS) return 0;
+    RECT card;
+    PlannerRect(&card);
+    int firstLeft = card.left + S(116);
+    int lastRight = card.right - S(14);
+    int gap = S(4);
+    int colWidth = (lastRight - firstLeft - gap * (FC_DAYS - 1)) / FC_DAYS;
+    if (colWidth <= 0) return 0;
+    int left = firstLeft + day * (colWidth + gap);
+    int top = card.top + S(27);
+    SetRect(r, left, top, left + colWidth, top + S(18));
+    return 1;
+}
+
+static int HitPlannerCell(int x, int y, int *dayOut, int *categoryOut) {
+    if (!g_fc.have || g_fc.dayN <= 0) return 0;
+    POINT pt = { x, y };
+    int days = g_fc.dayN < FC_DAYS ? g_fc.dayN : FC_DAYS;
+    for (int day = 0; day < days; day++) {
+        for (int category = 0; category < PLAN_CATEGORY_COUNT; category++) {
+            RECT r;
+            if (PlannerCellRect(day, category, &r) && PtInRect(&r, pt)) {
+                if (dayOut) *dayOut = day;
+                if (categoryOut) *categoryOut = category;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+static double PlannerPointRainChance(const Forecast *f, const Ensemble *e,
+                                     const ForecastDay *day) {
+    if (!f || !e || !e->have || !day || day->firstHour < 0 || day->hourCount <= 0)
+        return NAN;
+    int start = f->nowIdx + day->firstHour;
+    if (start < 0 || start >= e->hours) return NAN;
+    return EnsCompleteWindowProb(e, start, day->hourCount);
+}
+
+static void PlannerCellText(int dayIndex, int category, wchar_t *out, int cap) {
+    if (!out || cap < 2) return;
+    out[0] = L'\0';
+    if (dayIndex < 0 || dayIndex >= g_fc.dayN || dayIndex >= FC_DAYS) {
+        wcscpy(out, L"--");
         return;
     }
-    int n = g_fc.hN < HOURLY_SHOWN ? g_fc.hN : HOURLY_SHOWN;
-    /* Each hour has its own text lanes: temperature and exact-point odds above
-       the chart, forecast amount below it, then time.  Nothing shares a row. */
-    RECT plot = { card->left + S(18), card->top + S(60), card->right - S(18), card->bottom - S(43) };
-    int colW = (plot.right - plot.left) / n;
-    int start = g_fc.nowIdx;
-    for (int k = 0; k < n; k++) {
-        int x0 = plot.left + k * colW + S(4);
-        int x1 = plot.left + (k + 1) * colW - S(4);
-        double honest = (start + k < g_ens.hours && g_ens.have) ? g_ens.prob[start + k] : NAN;
-        double blended = g_fc.hPoP[k];
-        int hgt = (plot.bottom - plot.top);
-        if (!isnan(honest)) {
-            int bh = (int)(hgt * honest);
-            if (bh < S(2) && honest > 0.0) bh = S(2);
-            RECT b = { x0, plot.bottom - bh, x1, plot.bottom };
-            COLORREF c = MixCol(COL_INPUT, COL_RAIN, (int)(honest * 100));
-            DrawRoundedBox(mem, &b, S(4), c, c);
-        }
-        if (!isnan(blended)) {
-            int ty = plot.bottom - (int)(hgt * blended / 100.0);
-            HPEN p = CreatePen(PS_SOLID, S(2), COL_WARN);
-            HGDIOBJ op = SelectObject(mem, p);
-            MoveToEx(mem, x0, ty, NULL);
-            LineTo(mem, x1, ty);
-            SelectObject(mem, op);
-            DeleteObject(p);
-        }
-
-        wchar_t tmp[16];
-        if (!isnan(g_fc.hT[k])) {
-            _snwprintf(tmp, 15, L"%d°", (int)llround(g_fc.hT[k]));
-            RECT tr = { x0 - S(6), card->top + S(27), x1 + S(6), card->top + S(43) };
-            DrawTextAt(mem, tmp, &tr, g_fontSmall, COL_TXT,
-                       DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        }
-        if (!isnan(honest)) {
-            _snwprintf(tmp, 15, L"%d%%", (int)llround(honest * 100.0));
-            RECT or = { x0 - S(6), card->top + S(43), x1 + S(6), plot.top - S(2) };
-            DrawTextAt(mem, tmp, &or, g_fontSmall, COL_RAIN,
-                       DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        }
-        if (!isnan(g_fc.hP[k])) {
-            if (g_fc.hP[k] < 0.005) wcscpy(tmp, L"dry");
-            else _snwprintf(tmp, 15, L"%.2f\"", g_fc.hP[k]);
-            RECT ar = { x0 - S(8), plot.bottom + S(2), x1 + S(8), plot.bottom + S(16) };
-            DrawTextAt(mem, tmp, &ar, g_fontSmall, COL_MUTED,
-                       DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        }
-        RECT hr = { x0 - S(6), plot.bottom + S(17), x1 + S(6), card->bottom - S(3) };
-        DrawTextAt(mem, g_fc.hLabel[k], &hr, g_fontSmall, COL_MUTED,
-                   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    const ForecastDay *day = &g_fc.days[dayIndex];
+    if (category == PLAN_RAIN) {
+        double point = PlannerPointRainChance(&g_fc, &g_ens, day);
+        double regional = day->regionalPoP;
+        if (!isnan(point) && !isnan(regional))
+            _snwprintf(out, cap - 1, L"P %d%% · R %d%%",
+                       (int)llround(point * 100.0), (int)llround(regional));
+        else if (!isnan(point))
+            _snwprintf(out, cap - 1, L"P %d%% · R --", (int)llround(point * 100.0));
+        else if (!isnan(regional))
+            _snwprintf(out, cap - 1, L"P -- · R %d%%", (int)llround(regional));
+        else
+            wcscpy(out, L"--");
+    } else if (category == PLAN_TEMP && !isnan(day->maxF) && !isnan(day->minF)) {
+        _snwprintf(out, cap - 1, L"H %d° · L %d°",
+                   (int)llround(day->maxF), (int)llround(day->minF));
+    } else if (category == PLAN_CLOUD && !isnan(day->cloudMean)) {
+        _snwprintf(out, cap - 1, L"Avg %d%%", (int)llround(day->cloudMean));
+    } else if (category == PLAN_WIND && !isnan(day->windMaxMph)) {
+        _snwprintf(out, cap - 1, L"Peak %d mph", (int)llround(day->windMaxMph));
+    } else {
+        wcscpy(out, L"--");
     }
+    out[cap - 1] = L'\0';
+}
+
+static double PlannerHourlyValue(int category, int hour, int regionalRain) {
+    if (hour < 0 || hour >= g_fc.hN) return NAN;
+    switch (category) {
+    case PLAN_RAIN:
+        if (regionalRain) return g_fc.hPoP[hour];
+        if (!g_ens.have) return NAN;
+        {
+            int ensembleHour = g_fc.nowIdx + hour;
+            if (ensembleHour < 0 || ensembleHour >= g_ens.hours) return NAN;
+            return isnan(g_ens.prob[ensembleHour]) ? NAN : g_ens.prob[ensembleHour] * 100.0;
+        }
+    case PLAN_TEMP: return g_fc.hT[hour];
+    case PLAN_CLOUD: return g_fc.hCloud[hour];
+    case PLAN_WIND: return g_fc.hWindMph[hour];
+    default: return NAN;
+    }
+}
+
+static void PlannerTrendRange(const ForecastDay *day, int category,
+                              double *lowOut, double *highOut) {
+    if (category == PLAN_RAIN || category == PLAN_CLOUD) {
+        *lowOut = 0.0;
+        *highOut = 100.0;
+        return;
+    }
+    double low = NAN, high = NAN;
+    for (int i = 0; i < day->hourCount; i++) {
+        int h = day->firstHour + i;
+        double value = PlannerHourlyValue(category, h, 0);
+        if (isnan(value)) continue;
+        if (isnan(low) || value < low) low = value;
+        if (isnan(high) || value > high) high = value;
+    }
+    if (category == PLAN_TEMP) {
+        if (!isnan(day->minF) && (isnan(low) || day->minF < low)) low = day->minF;
+        if (!isnan(day->maxF) && (isnan(high) || day->maxF > high)) high = day->maxF;
+        if (isnan(low) || isnan(high)) { low = 0.0; high = 100.0; }
+        if (high - low < 1.0) { low -= 5.0; high += 5.0; }
+        double pad = (high - low) * 0.08;
+        *lowOut = low - pad;
+        *highOut = high + pad;
+        return;
+    }
+    if (isnan(high) || high < 5.0) high = 5.0;
+    *lowOut = 0.0;
+    *highOut = high * 1.12;
+}
+
+static void PaintPlannerSeries(HDC dc, const ForecastDay *day, int category,
+                               int regionalRain, const RECT *plot,
+                               double low, double high, COLORREF color) {
+    if (!day || day->firstHour < 0 || day->hourCount <= 0 ||
+        plot->right <= plot->left || plot->bottom <= plot->top || high <= low) return;
+    HPEN pen = CreatePen(PS_SOLID, S(2), color);
+    if (!pen) return;
+    HGDIOBJ old = SelectObject(dc, pen);
+    if (!old || old == HGDI_ERROR) { DeleteObject(pen); return; }
+    int prev = 0;
+    int width = plot->right - plot->left;
+    int height = plot->bottom - plot->top;
+    for (int i = 0; i < day->hourCount; i++) {
+        int h = day->firstHour + i;
+        double value = PlannerHourlyValue(category, h, regionalRain);
+        if (isnan(value)) { prev = 0; continue; }
+        double fraction = (value - low) / (high - low);
+        if (fraction < 0.0) fraction = 0.0;
+        if (fraction > 1.0) fraction = 1.0;
+        int x = plot->left + (day->hourCount > 1
+            ? i * (width - 1) / (day->hourCount - 1) : width / 2);
+        int y = plot->bottom - 1 - (int)(fraction * (height - 1));
+        if (!prev) MoveToEx(dc, x, y, NULL);
+        else LineTo(dc, x, y);
+        prev = 1;
+    }
+    SelectObject(dc, old);
+    DeleteObject(pen);
+}
+
+static int PlannerPeakHour(const ForecastDay *day, int category) {
+    if (!day || day->firstHour < 0) return -1;
+    int peak = -1;
+    double max = NAN;
+    for (int i = 0; i < day->hourCount; i++) {
+        int h = day->firstHour + i;
+        double value = PlannerHourlyValue(category, h, 0);
+        if (!isnan(value) && (isnan(max) || value > max)) {
+            max = value;
+            peak = h;
+        }
+    }
+    return peak;
+}
+
+static void PlannerDetailHeading(const ForecastDay *day, int category,
+                                 wchar_t *out, int cap) {
+    if (!day || !out || cap < 2) return;
+    if (category == PLAN_RAIN) {
+        double point = PlannerPointRainChance(&g_fc, &g_ens, day);
+        if (!isnan(point) && !isnan(day->regionalPoP) && !isnan(day->rainSumIn))
+            _snwprintf(out, cap - 1,
+                       L"%s · Rain — point %d%% / regional %d%% · %.2f in total",
+                       day->label, (int)llround(point * 100.0),
+                       (int)llround(day->regionalPoP), day->rainSumIn);
+        else if (!isnan(point) && !isnan(day->regionalPoP))
+            _snwprintf(out, cap - 1, L"%s · Rain — point %d%% / regional %d%%",
+                       day->label, (int)llround(point * 100.0), (int)llround(day->regionalPoP));
+        else if (!isnan(day->regionalPoP))
+            _snwprintf(out, cap - 1, L"%s · Rain — point odds unavailable / regional %d%%",
+                       day->label, (int)llround(day->regionalPoP));
+        else
+            _snwprintf(out, cap - 1, L"%s · Rain — odds unavailable", day->label);
+    } else if (category == PLAN_TEMP && !isnan(day->maxF) && !isnan(day->minF)) {
+        _snwprintf(out, cap - 1, L"%s · Temperature — high %d° / low %d°",
+                   day->label, (int)llround(day->maxF), (int)llround(day->minF));
+    } else if (category == PLAN_CLOUD && !isnan(day->cloudMean)) {
+        _snwprintf(out, cap - 1, L"%s · Cloud cover — average %d%%",
+                   day->label, (int)llround(day->cloudMean));
+    } else if (category == PLAN_WIND && !isnan(day->windMaxMph)) {
+        _snwprintf(out, cap - 1, L"%s · Wind — peak %d mph",
+                   day->label, (int)llround(day->windMaxMph));
+    } else {
+        _snwprintf(out, cap - 1, L"%s · %s — detail unavailable",
+                   day->label, PlannerCategoryName(category));
+    }
+    out[cap - 1] = L'\0';
+}
+
+static void PlannerReading(const ForecastDay *day, int category,
+                           wchar_t *out, int cap) {
+    if (!day || !out || cap < 2) return;
+    if (category == PLAN_RAIN) {
+        double point = PlannerPointRainChance(&g_fc, &g_ens, day);
+        if (!isnan(point) && !isnan(day->regionalPoP)) {
+            if (point >= 0.50)
+                _snwprintf(out, cap - 1,
+                           L"The point ensemble favors measurable rain; regional coverage PoP is separate at %d%%.",
+                           (int)llround(day->regionalPoP));
+            else if (point >= 0.20)
+                _snwprintf(out, cap - 1,
+                           L"Rain is uncertain at this point; regional coverage PoP separately peaks at %d%%.",
+                           (int)llround(day->regionalPoP));
+            else
+                _snwprintf(out, cap - 1,
+                           L"The point-ensemble rain signal is low; the separate regional PoP peaks at %d%%.",
+                           (int)llround(day->regionalPoP));
+        } else if (!isnan(day->regionalPoP)) {
+            _snwprintf(out, cap - 1,
+                       L"Regional coverage PoP peaks at %d%%; exact-point ensemble odds are unavailable.",
+                       (int)llround(day->regionalPoP));
+        } else {
+            wcscpy(out, L"Rain details are unavailable; point and regional odds remain separate.");
+        }
+    } else if (category == PLAN_TEMP && !isnan(day->maxF) && !isnan(day->minF)) {
+        int peak = PlannerPeakHour(day, PLAN_TEMP);
+        if (peak >= 0 && g_fc.hLabel[peak][0])
+            _snwprintf(out, cap - 1,
+                       L"Warmest forecast hour near %s; daily high %d° and low %d°.",
+                       g_fc.hLabel[peak], (int)llround(day->maxF), (int)llround(day->minF));
+        else
+            _snwprintf(out, cap - 1, L"Expect a high of %d° and a low of %d°.",
+                       (int)llround(day->maxF), (int)llround(day->minF));
+    } else if (category == PLAN_CLOUD && !isnan(day->cloudMean)) {
+        if (day->cloudMean >= 70.0)
+            _snwprintf(out, cap - 1, L"Mostly cloudy, averaging %d%% cloud cover.",
+                       (int)llround(day->cloudMean));
+        else if (day->cloudMean >= 40.0)
+            _snwprintf(out, cap - 1, L"A mix of sun and clouds, averaging %d%% cloud cover.",
+                       (int)llround(day->cloudMean));
+        else
+            _snwprintf(out, cap - 1, L"Mostly clear, averaging %d%% cloud cover.",
+                       (int)llround(day->cloudMean));
+    } else if (category == PLAN_WIND && !isnan(day->windMaxMph)) {
+        if (day->windMaxMph < 8.0)
+            _snwprintf(out, cap - 1, L"Light winds, with an hourly peak near %d mph.",
+                       (int)llround(day->windMaxMph));
+        else if (day->windMaxMph < 18.0)
+            _snwprintf(out, cap - 1, L"A gentle breeze, peaking near %d mph.",
+                       (int)llround(day->windMaxMph));
+        else if (day->windMaxMph < 28.0)
+            _snwprintf(out, cap - 1, L"Breezy, with an hourly peak near %d mph.",
+                       (int)llround(day->windMaxMph));
+        else
+            _snwprintf(out, cap - 1, L"Windy, with an hourly peak near %d mph.",
+                       (int)llround(day->windMaxMph));
+    } else {
+        _snwprintf(out, cap - 1, L"Hourly %s details are unavailable for this day.",
+                   PlannerCategoryName(category));
+    }
+    out[cap - 1] = L'\0';
+}
+
+static void PaintPlannerSamples(HDC dc, const ForecastDay *day, int category,
+                                const RECT *row) {
+    if (!day || day->firstHour < 0 || day->hourCount <= 0) return;
+    int count = day->hourCount < 5 ? day->hourCount : 5;
+    int width = row->right - row->left;
+    for (int i = 0; i < count; i++) {
+        int sample = count > 1 ? i * (day->hourCount - 1) / (count - 1) : 0;
+        int h = day->firstHour + sample;
+        const wchar_t *time = g_fc.hLabel[h][0] ? g_fc.hLabel[h] : L"--:--";
+        wchar_t text[80];
+        if (category == PLAN_RAIN) {
+            double point = PlannerHourlyValue(PLAN_RAIN, h, 0);
+            double regional = PlannerHourlyValue(PLAN_RAIN, h, 1);
+            if (!isnan(point) && !isnan(regional))
+                _snwprintf(text, 79, L"%s  P %d%% / R %d%%", time,
+                           (int)llround(point), (int)llround(regional));
+            else if (!isnan(point))
+                _snwprintf(text, 79, L"%s  P %d%% / R --", time, (int)llround(point));
+            else if (!isnan(regional))
+                _snwprintf(text, 79, L"%s  P -- / R %d%%", time, (int)llround(regional));
+            else
+                _snwprintf(text, 79, L"%s  --", time);
+        } else if (category == PLAN_TEMP && !isnan(g_fc.hT[h])) {
+            _snwprintf(text, 79, L"%s  %d°", time, (int)llround(g_fc.hT[h]));
+        } else if (category == PLAN_CLOUD && !isnan(g_fc.hCloud[h])) {
+            _snwprintf(text, 79, L"%s  %d%%", time, (int)llround(g_fc.hCloud[h]));
+        } else if (category == PLAN_WIND && !isnan(g_fc.hWindMph[h])) {
+            _snwprintf(text, 79, L"%s  %d mph", time, (int)llround(g_fc.hWindMph[h]));
+        } else {
+            _snwprintf(text, 79, L"%s  --", time);
+        }
+        text[79] = L'\0';
+        int left = row->left + i * width / count;
+        int right = row->left + (i + 1) * width / count;
+        RECT sampleRect = { left, row->top, right, row->bottom };
+        DrawTextAt(dc, text, &sampleRect, g_fontSmall, COL_MUTED,
+                   DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
+}
+
+static void PaintHourlyCard(HDC mem, const RECT *card, int dayIndex, int category) {
+    DrawRoundedBox(mem, card, S(10), COL_INPUT, COL_DIV);
+    if (dayIndex < 0 || dayIndex >= g_fc.dayN || dayIndex >= FC_DAYS) {
+        RECT waiting = { card->left + S(8), card->top, card->right - S(8), card->bottom };
+        DrawTextAt(mem, L"Waiting for the five-day forecast...", &waiting,
+                   g_fontSmall, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        return;
+    }
+    const ForecastDay *day = &g_fc.days[dayIndex];
+    wchar_t heading[224], reading[224];
+    PlannerDetailHeading(day, category, heading, 224);
+    PlannerReading(day, category, reading, 224);
+    RECT title = { card->left + S(8), card->top + S(2), card->right - S(8), card->top + S(18) };
+    DrawTextAt(mem, heading, &title, g_fontSmall, COL_TXT,
+               DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    if (day->firstHour < 0 || day->hourCount <= 0) {
+        RECT unavailable = { card->left + S(8), card->top + S(20), card->right - S(8), card->top + S(39) };
+        DrawTextAt(mem, L"Hourly detail unavailable for this day.", &unavailable,
+                   g_fontSmall, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        RECT read = { card->left + S(8), card->top + S(54), card->right - S(8), card->bottom - S(3) };
+        DrawTextAt(mem, reading, &read, g_fontSmall, COL_TXT,
+                   DT_LEFT | DT_VCENTER | DT_WORDBREAK | DT_END_ELLIPSIS);
+        return;
+    }
+    RECT samples = { card->left + S(8), card->top + S(18), card->right - S(8), card->top + S(33) };
+    PaintPlannerSamples(mem, day, category, &samples);
+    RECT plot = { card->left + S(9), card->top + S(35), card->right - S(9), card->top + S(55) };
+    HPEN grid = CreatePen(PS_SOLID, 1, COL_DIV);
+    if (grid) {
+        HGDIOBJ old = SelectObject(mem, grid);
+        if (old && old != HGDI_ERROR) {
+            int mid = plot.top + (plot.bottom - plot.top) / 2;
+            MoveToEx(mem, plot.left, mid, NULL);
+            LineTo(mem, plot.right, mid);
+            SelectObject(mem, old);
+        }
+        DeleteObject(grid);
+    }
+    double low, high;
+    PlannerTrendRange(day, category, &low, &high);
+    if (category == PLAN_RAIN) {
+        PaintPlannerSeries(mem, day, PLAN_RAIN, 0, &plot, low, high, COL_RAIN);
+        PaintPlannerSeries(mem, day, PLAN_RAIN, 1, &plot, low, high, COL_WARN);
+    } else {
+        PaintPlannerSeries(mem, day, category, 0, &plot, low, high, COL_ACCENT);
+    }
+    RECT read = { card->left + S(8), card->top + S(56), card->right - S(8), card->bottom - S(3) };
+    DrawTextAt(mem, reading, &read, g_fontSmall, COL_TXT,
+               DT_LEFT | DT_VCENTER | DT_WORDBREAK | DT_END_ELLIPSIS);
+}
+
+static void PaintPlannerCard(HDC mem, const RECT *card) {
+    DrawRoundedBox(mem, card, S(14), COL_CARD, COL_CARD_BD);
+    RECT title = { card->left + S(14), card->top + S(4), card->left + S(404), card->top + S(23) };
+    DrawTextAt(mem, L"Five-day planner · select a day/category cell", &title,
+               g_fontSmall, COL_TXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    RECT legend = { card->left + S(408), card->top + S(4), card->right - S(14), card->top + S(23) };
+    DrawTextAt(mem, L"P = point ensemble (blue)  ·  R = regional PoP (gold)", &legend,
+               g_fontSmall, COL_MUTED, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    if (!g_fc.have || g_fc.dayN <= 0) {
+        RECT waiting = { card->left + S(16), card->top + S(34), card->right - S(16), card->bottom - S(8) };
+        DrawTextAt(mem, L"Waiting for the five-day forecast...", &waiting,
+                   g_fontUI, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        return;
+    }
+
+    static const int categoryOrder[PLAN_CATEGORY_COUNT] = {
+        PLAN_RAIN, PLAN_TEMP, PLAN_CLOUD, PLAN_WIND
+    };
+    for (int day = 0; day < FC_DAYS; day++) {
+        RECT header;
+        if (PlannerDayRect(day, &header)) {
+            const wchar_t *label = day < g_fc.dayN ? g_fc.days[day].label : L"—";
+            DrawTextAt(mem, label, &header, g_fontSmall,
+                       day == g_planDay ? COL_ACCENT : COL_MUTED,
+                       DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        }
+        for (int row = 0; row < PLAN_CATEGORY_COUNT; row++) {
+            int category = categoryOrder[row];
+            RECT cell, rowLabel;
+            if (!PlannerCellRect(day, category, &cell)) continue;
+            rowLabel.left = card->left + S(14);
+            rowLabel.right = card->left + S(110);
+            rowLabel.top = cell.top;
+            rowLabel.bottom = cell.bottom;
+            if (day == 0)
+                DrawTextAt(mem, PlannerCategoryName(category), &rowLabel,
+                           g_fontSmall, COL_MUTED,
+                           DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+            wchar_t value[64];
+            PlannerCellText(day, category, value, 64);
+            int selected = day == g_planDay && category == g_planCategory;
+            DrawRoundedBox(mem, &cell, S(5),
+                           selected ? MixCol(COL_CARD, COL_ACCENT, 24) : COL_CARD,
+                           selected ? COL_ACCENT : COL_CARD_BD);
+            DrawTextAt(mem, value, &cell, g_fontSmall, COL_TXT,
+                       DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        }
+    }
+    RECT detail = { card->left + S(12), card->top + S(130),
+                    card->right - S(12), card->bottom - S(6) };
+    PaintHourlyCard(mem, &detail, g_planDay, g_planCategory);
 }
 
 static void PaintRadarPane(HDC mem, const RECT *card) {
@@ -689,16 +1063,16 @@ static void PaintAll(HWND hwnd) {
 
     PaintLeftColumn(mem);
 
-    /* Wide decision cards avoid forcing current conditions or ensemble context
-       into illegible columns, while the lower half is now reserved for the
-       enlarged, high-contrast local radar instead of a thin map strip. */
+    /* Current conditions and exact-point rain remain at the top. The planner
+       gives all four daily categories equal rows, with selected hourly detail;
+       radar keeps its own lower pane and playback controls. */
     RECT nowCard = { S(260), S(70), S(WIN_LW - 16), S(172) };
     PaintNowCard(mem, &nowCard);
     RECT honestCard = { S(260), S(180), S(WIN_LW - 16), S(282) };
     PaintHonestCard(mem, &honestCard);
-    RECT hourCard = { S(260), S(290), S(WIN_LW - 16), S(452) };
-    PaintHourlyCard(mem, &hourCard);
-    RECT radarCard = { S(260), S(460), S(WIN_LW - 16), S(WIN_LH - 56) };
+    RECT plannerCard = { S(260), S(290), S(WIN_LW - 16), S(508) };
+    PaintPlannerCard(mem, &plannerCard);
+    RECT radarCard = { S(260), S(512), S(WIN_LW - 16), S(WIN_LH - 56) };
     /* Paint the card first: it is opaque, so controls must be drawn over it. */
     PaintRadarPane(mem, &radarCard);
     DrawBtn(mem, BTN_PREV, L"<", 0);
@@ -955,6 +1329,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             InvalidateRect(hwnd, NULL, FALSE);
             return 0;
         }
+        int planDay, planCategory;
+        if (HitPlannerCell(x, y, &planDay, &planCategory)) {
+            g_planDay = planDay;
+            g_planCategory = planCategory;
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 0;
+        }
         for (int i = 0; i < g_searchN; i++) {
             RECT r;
             SearchRowRect(i, &r);
@@ -1003,7 +1384,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         EnterCriticalSection(&g_lock);
         if (kind == JOB_FORECAST) {
             int current = (ticket == g_placeTicket);
-            if (current) g_fc = g_fcStage;
+            if (current) {
+                g_fc = g_fcStage;
+                if (g_fc.dayN > 0 && g_planDay >= g_fc.dayN) g_planDay = 0;
+            }
             wchar_t m[160];
             _snwprintf(m, 159, L"Forecast for %s updated at %s.",
                        (g_placeSel >= 0 && g_placeSel < g_placeN) ? g_places[g_placeSel].name : L"the place",

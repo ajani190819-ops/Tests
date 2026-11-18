@@ -748,9 +748,9 @@
 
 ## weather-radar/src/weather_radar.c
 
-- L207  f S
-- L214  f RadarTileZoomForDisplay
-- globals: g_hInst (L142), g_hwnd (L143), g_fontUI (L144), g_bgBrush (L145), g_dpi (L146), g_fit (L147), g_hoverBtn (L148), g_lock (L149), g_cfgDir (L155), g_cfgPath (L156), g_cacheDir (L157), g_status (L158), g_statusKind (L159), g_nid (L160), g_trayVisible (L161), g_quitting (L162), g_trayHinted (L163), g_rainAlertEpisode (L167), g_rainAlertLastEpoch (L168), g_rainAlertLat (L169), g_places (L171), g_placeN (L172), g_placeSel (L173), g_search (L174), g_searchStage (L175), g_searchN (L176), g_searchStageN (L177), g_searchSel (L178), g_searchTicket (L179), g_searchStageTicket (L180), g_placeTicket (L181), g_query (L182), g_searchHint (L183), g_fc (L185), g_ens (L186), g_fcStage (L187), g_ensStage (L188), g_frames (L190), g_frameN (L191), g_frameSel (L192), g_playing (L193), g_zoom (L194), g_radarHost (L195), g_radarNote (L197), g_view (L200), g_viewStage (L201), g_base (L202), g_baseKey (L203), g_viewReady (L204)
+- L218  f S
+- L225  f RadarTileZoomForDisplay
+- globals: g_hInst (L153), g_hwnd (L154), g_fontUI (L155), g_bgBrush (L156), g_dpi (L157), g_fit (L158), g_hoverBtn (L159), g_lock (L160), g_cfgDir (L166), g_cfgPath (L167), g_cacheDir (L168), g_status (L169), g_statusKind (L170), g_nid (L171), g_trayVisible (L172), g_quitting (L173), g_trayHinted (L174), g_rainAlertEpisode (L178), g_rainAlertLastEpoch (L179), g_rainAlertLat (L180), g_places (L182), g_placeN (L183), g_placeSel (L184), g_search (L185), g_searchStage (L186), g_searchN (L187), g_searchStageN (L188), g_searchSel (L189), g_searchTicket (L190), g_searchStageTicket (L191), g_placeTicket (L192), g_query (L193), g_searchHint (L194), g_fc (L196), g_ens (L197), g_fcStage (L198), g_ensStage (L199), g_frames (L201), g_frameN (L202), g_frameSel (L203), g_playing (L204), g_zoom (L205), g_radarHost (L206), g_radarNote (L208), g_view (L211), g_viewStage (L212), g_base (L213), g_baseKey (L214), g_viewReady (L215)
 
 ## weather-radar/src/parts/alerts.c
 
@@ -783,12 +783,15 @@
 ## weather-radar/src/parts/forecast.c
 
 - L20  f BuildForecastUrl
-- L34  f BuildEnsembleUrl
-- L45  f HourLabelFromIso
-- L55  f FetchForecast
-- L129  f FetchEnsemble
-- L179  f EnsWindowProb
-- L200  f PoPWindowMax
+- L35  f BuildEnsembleUrl
+- L46  f HourLabelFromIso
+- L56  f DayLabelFromIso
+- L76  f DailyIndexForHour
+- L87  f FetchForecast
+- L215  f FetchEnsemble
+- L265  f EnsWindowProb
+- L286  f EnsCompleteWindowProb
+- L307  f PoPWindowMax
 
 ## weather-radar/src/parts/json.c
 
@@ -840,30 +843,46 @@
 
 ## weather-radar/src/parts/ui.c
 
-- L19  f RadarEmblemRect
-- L23  f BtnRect
-- L37  f RadarImageRect
-- L46  f SearchRowRect
-- L54  f SavedHeadingY
-- L58  f SavedRowRect
-- L68  f LayoutSearchEdit
-- L87  f HitBtn
-- L97  f DrawBtn
-- L109  f FrameTimeText  — unix seconds -> "14:20" (plus the day when it is not today), local time
-- L129  f PaintNowCard
-- L176  f RainEtaText
-- L288  f PaintHonestCard
-- L343  f PaintHourlyCard
-- L412  f PaintRadarPane
-- L570  f PaintLeftColumn
-- L619  f PaintAll
-- L728  f StatusSet
-- L735  f CurrentPlace
-- L739  f OnPickSearchRow
-- L751  f OnPickSavedRow
-- L764  f StepFrame
-- L776  f SearchTextIsBlank
-- L781  f SubmitSearch
+- L23  f RadarEmblemRect
+- L27  f BtnRect
+- L41  f PlannerRect
+- L45  f RadarImageRect
+- L53  f SearchRowRect
+- L61  f SavedHeadingY
+- L65  f SavedRowRect
+- L75  f LayoutSearchEdit
+- L94  f HitBtn
+- L104  f DrawBtn
+- L116  f FrameTimeText  — unix seconds -> "14:20" (plus the day when it is not today), local time
+- L136  f PaintNowCard
+- L187  f RainEtaText
+- L299  f PaintHonestCard
+- L354  f PlannerCategoryName
+- L361  f PlannerCellRect
+- L377  f PlannerDayRect
+- L392  f HitPlannerCell
+- L409  f PlannerPointRainChance
+- L418  f PlannerCellText
+- L451  f PlannerHourlyValue
+- L469  f PlannerTrendRange
+- L499  f PaintPlannerSeries
+- L529  f PlannerPeakHour
+- L544  f PlannerDetailHeading
+- L578  f PlannerReading
+- L642  f PaintPlannerSamples
+- L682  f PaintHourlyCard
+- L733  f PaintPlannerCard
+- L786  f PaintRadarPane
+- L944  f PaintLeftColumn
+- L993  f PaintAll
+- L1102  f StatusSet
+- L1109  f CurrentPlace
+- L1113  f OnPickSearchRow
+- L1125  f OnPickSavedRow
+- L1138  f StepFrame
+- L1150  f SearchTextIsBlank
+- L1155  f SubmitSearch
+- globals: g_planDay (L20), g_planCategory (L21)
 
 ## weather-radar/src/parts/util.c
 
@@ -1128,11 +1147,11 @@
 - L46  f strip_cs_comments_and_strings
 - L168  f lex_powershell
 - L303  f WindowsDesktopAppsTests
-- L3120  f SuiteFolderInstallTests
-- L4480  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L4663  f AudioSwitcherReachabilityTests
-- L4847  f AudioSwitcherSessionSweepTests
-- L4988  f AppOpenFocusTests
+- L3186  f SuiteFolderInstallTests
+- L4546  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L4729  f AudioSwitcherReachabilityTests
+- L4913  f AudioSwitcherSessionSweepTests
+- L5054  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 
