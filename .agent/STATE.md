@@ -27,20 +27,18 @@ release records, and compact offline safety facts. Drive holds extended narrativ
   Windows notification area and shows a native visual "agent is waiting" alert;
   sound is persistent opt-in (default off), and no Run key/task/service is added.
 - **Shared Tri-Spoke engine:** `shared/win32/suite_emblem.c` is the sole native
-  renderer for Project Hub, Agent Notes, Audio Switcher, and Weather Radar.
-  Consumers use `SuiteEmblemDibPixel` for raw DIB backgrounds, own placement,
-  and release their shared cache at shutdown.
-- **Weather Radar rain watch:** implementation `1be38f40f8612835ac539b9958528231da1c854b`,
-  released by marker `59794dc`. A running Weather Radar hides to its notification
-  area on close and sends a native Windows shell alert only at **66%+ exact-point
-  ensemble odds in 3 hours**. The three-hour cooldown and persisted episode latch
-  suppress duplicates while rain is under way. Regional coverage odds never alert.
+  renderer. Consumers use `SuiteEmblemDibPixel` for raw DIBs, own placement,
+  and release their cache.
+- **Weather Radar rain watch:** `1be38f40f8612835ac539b9958528231da1c854b`,
+  marker `59794dc`. Tray alerts require **66%+ exact-point ensemble odds in 3h**;
+  persisted episode state and cooldown suppress repeats. Regional odds never alert.
 - **Weather Radar five-day planner:** `7d6ec7614313408a9deead491c1d313f49c371df`,
-  released in marker 2.8.62. Five local days show equal rain/temp/cloud/wind
-  rows; day/category selection shows hourly data, trend, and plain-English
-  reading. Exact-point rain odds require complete member-days and stay separate
-  from regional PoP; humidity remains supporting context. Build, checks, and
-  mutations pass.
+  Hub 2.8.62. Five days balance rain/temp/cloud/wind; selection shows hourly
+  trends/readings. Point odds require complete member-days and stay separate
+  from regional PoP; humidity is supporting. Checks/mutations pass.
+- **Weather Radar tile zoom:** `9f8695750e5b57916d7e72d48747a0f0c32e4630`,
+  Hub 2.8.62. Source requests cap at level 7; display 8-10 are local crops.
+  Build, checks, and mutations pass.
 - **Documentation archive:** 29 human-facing files remain in Drive; Git keeps
   compact stubs, changelogs, tests, configuration, version anchors, and runtime assets.
 
@@ -56,10 +54,9 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 
 ## Next approved work
 
-Weather Radar follow-up: native source zoom is capped at level 7; next is the
-five-day day-first planner and clearer hourly chart. Keyboard Lighting M4 stays
-parked until reopened; the latest owner test still shows M4 learning and no
-key events in `engine-5.log`.
+Weather Radar's approved next phase is the day-first five-day planner and
+clearer hourly chart. Keyboard Lighting M4 stays parked until reopened; the
+latest owner test still shows M4 learning and no key events in `engine-5.log`.
 
 ## Offline safety facts
 
