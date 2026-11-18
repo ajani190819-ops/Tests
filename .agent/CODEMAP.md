@@ -164,40 +164,40 @@
 
 ## project-hub/src/parts/tray_unified.c
 
-- L32  f HubTrayMenuAdd
-- L62  f HubTrayCreateMenu
-- L76  f HubTrayMeasureMenuItem
-- L90  f HubTrayDrawCheckmark
-- L101  f HubTrayDrawMenuText
-- L111  f HubTrayDrawArrow
-- L135  f HubTrayDrawMenuItemContent
-- L229  f HubTrayDrawMenuItem
-- L241  f HubTrayAgentNotesCfg
-- L246  f HubTrayConfig
-- L250  f HubTrayWeatherCfg
-- L255  f HubTrayAgentWaitSound
-- L261  f HubTrayToggleAgentWaitSound
-- L271  f HubTrayShowAgentWaitingAlert
-- L286  f HubTrayPollAgentWait
-- L304  f HubTrayPollWeatherAlert
-- L332  f HubTrayPublishHostMarker
-- L337  f HubTrayRestore
-- L363  f HubTrayEnsureLive  — NIM_ADD can lose a startup race with Explorer without producing a later
-- L372  f HubTrayInit
-- L394  f HubTrayRemove
-- L406  f HubTrayAppWindow
-- L410  f HubTrayShowApp
-- L421  f HubTrayHideApp
-- L426  f HubTrayStopExe
-- L446  f HubTrayFindCardByExe
-- L453  f HubTrayOpenWeather
-- L470  f HubTrayOpenApp
-- L493  f HubTrayRunControl
-- L508  f HubTrayToggleBluetooth
-- L516  f HubTrayAppendApp
-- L542  f HubTrayShowMenu
-- L597  f HubTrayHandleCommand
-- globals: g_hubTrayMenuItems (L28), g_hubTrayMenuItemCount (L29), g_hubTrayMenuBrush (L30)
+- L33  f HubTrayMenuAdd
+- L63  f HubTrayCreateMenu
+- L77  f HubTrayMeasureMenuItem
+- L91  f HubTrayDrawCheckmark
+- L102  f HubTrayDrawMenuText
+- L112  f HubTrayDrawArrow
+- L136  f HubTrayDrawMenuItemContent
+- L230  f HubTrayDrawMenuItem
+- L242  f HubTrayAgentNotesCfg
+- L247  f HubTrayConfig
+- L251  f HubTrayWeatherCfg
+- L256  f HubTrayAgentWaitSound
+- L262  f HubTrayToggleAgentWaitSound
+- L272  f HubTrayShowAgentWaitingAlert
+- L287  f HubTrayPollAgentWait
+- L305  f HubTrayPollWeatherAlert
+- L333  f HubTrayPublishHostMarker
+- L338  f HubTrayRestore
+- L364  f HubTrayEnsureLive  — NIM_ADD can lose a startup race with Explorer without producing a later
+- L373  f HubTrayInit
+- L395  f HubTrayRemove
+- L407  f HubTrayAppWindow
+- L411  f HubTrayShowApp
+- L422  f HubTrayHideApp
+- L427  f HubTrayStopExe
+- L447  f HubTrayFindCardByExe
+- L454  f HubTrayOpenWeather
+- L471  f HubTrayOpenApp
+- L494  f HubTrayRunControl
+- L509  f HubTrayToggleBluetooth
+- L517  f HubTrayAppendApp
+- L543  f HubTrayShowMenu
+- L606  f HubTrayHandleCommand
+- globals: g_hubTrayMenuItems (L28), g_hubTrayMenuItemCount (L29), g_hubTrayMenuBrush (L30), g_hubTrayMenuTracking (L31)
 
 ## project-hub/src/parts/ui_renderer.c
 
@@ -1127,10 +1127,10 @@
 - L167  f lex_powershell
 - L302  f WindowsDesktopAppsTests
 - L3066  f SuiteFolderInstallTests
-- L4397  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L4580  f AudioSwitcherReachabilityTests
-- L4764  f AudioSwitcherSessionSweepTests
-- L4905  f AppOpenFocusTests
+- L4426  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L4609  f AudioSwitcherReachabilityTests
+- L4793  f AudioSwitcherSessionSweepTests
+- L4934  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

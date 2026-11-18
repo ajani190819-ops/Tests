@@ -3611,6 +3611,35 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertLess(draw.index("HubTrayDrawMenuItemContent(draw);"),
                         draw.index("RestoreDC(draw->hDC, savedDc)"))
 
+    def test_unified_tray_menu_tracking_cannot_reenter_shared_paint_state(self):
+        """TrackPopupMenu pumps owner messages, so a second tray callback must
+        not replace the active menu's global item data or background brush."""
+        tray = (ROOT / "project-hub" / "src" / "parts" / "tray_unified.c").read_text(encoding="utf-8")
+        show_start = tray.index("static void HubTrayShowMenu(HWND hwnd)")
+        show_end = tray.index("\nstatic int HubTrayHandleCommand", show_start)
+        show = tray[show_start:show_end]
+
+        guard = show.index("if (g_hubTrayMenuTracking) return;")
+        reset_items = show.index("g_hubTrayMenuItemCount = 0;")
+        create_brush = show.index("g_hubTrayMenuBrush = CreateSolidBrush(COL_CARD_BG);")
+        track = show.index("TrackPopupMenu(menu,")
+        destroy = show.index("DestroyMenu(menu);", track)
+        delete_brush = show.index("DeleteObject(g_hubTrayMenuBrush);", destroy)
+        release_tracking = show.index("g_hubTrayMenuTracking = FALSE;", destroy)
+
+        self.assertIn("static BOOL g_hubTrayMenuTracking = FALSE;", tray)
+        self.assertLess(guard, reset_items,
+                        "a nested tray callback can clear the active menu's item table")
+        self.assertLess(guard, create_brush,
+                        "a nested tray callback can replace the active menu's background brush")
+        self.assertLess(show.index("g_hubTrayMenuTracking = TRUE;"), track,
+                        "the guard is not held throughout TrackPopupMenu's message loop")
+        self.assertLess(track, destroy)
+        self.assertLess(destroy, delete_brush,
+                        "menu handles must stop using the shared brush before it is deleted")
+        self.assertLess(delete_brush, release_tracking,
+                        "reentry must remain blocked until the menu resources are retired")
+
     def test_agent_notes_is_readable_in_either_windows_theme(self):
         """Agent Notes used to expose the internal session URL despite automatic
         discovery, making a no-setup outbox look broken and leaving a second,

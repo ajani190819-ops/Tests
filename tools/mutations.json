@@ -609,6 +609,13 @@
   "label": "Hub tray hover drawing leaks GDI state between menu rows"
  },
  {
+  "id": "trayhub-menu-reentry-00",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    if (g_hubTrayMenuTracking) return;\n    g_hubTrayMenuTracking = TRUE;",
+  "new": "    if (0 && g_hubTrayMenuTracking) return;\n    g_hubTrayMenuTracking = TRUE;",
+  "label": "Hub tray callback can re-enter shared popup paint state"
+ },
+ {
   "id": "branch-follow-00",
   "file": "project-hub/src/parts/branch_json.h",
   "old": "    while (*p == ' ' || *p == '\\t' || *p == '\\r' || *p == '\\n') p++;",

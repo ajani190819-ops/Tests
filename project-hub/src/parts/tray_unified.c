@@ -28,6 +28,7 @@ typedef struct {
 static HubTrayMenuItem g_hubTrayMenuItems[HUB_TRAY_MENU_ITEM_CAP];
 static int g_hubTrayMenuItemCount = 0;
 static HBRUSH g_hubTrayMenuBrush = NULL;
+static BOOL g_hubTrayMenuTracking = FALSE;
 
 static HubTrayMenuItem *HubTrayMenuAdd(HMENU menu, UINT_PTR commandOrSubmenu,
                                        const wchar_t *text, int kind,
@@ -540,12 +541,19 @@ static void HubTrayAppendApp(HMENU root, const wchar_t *title, const wchar_t *cl
 }
 
 static void HubTrayShowMenu(HWND hwnd) {
+    /* TrackPopupMenu pumps the owner window's message queue. A second tray
+       callback can therefore re-enter here while the first menu still uses
+       the shared item array and background brush. Do not reset that live state. */
+    if (g_hubTrayMenuTracking) return;
+    g_hubTrayMenuTracking = TRUE;
     g_hubTrayMenuItemCount = 0;
     g_hubTrayMenuBrush = CreateSolidBrush(COL_CARD_BG);
     HMENU menu = HubTrayCreateMenu();
     if (!menu) {
         if (g_hubTrayMenuBrush) DeleteObject(g_hubTrayMenuBrush);
         g_hubTrayMenuBrush = NULL;
+        g_hubTrayMenuItemCount = 0;
+        g_hubTrayMenuTracking = FALSE;
         return;
     }
     HubTrayMenuAdd(menu, ID_TRAY_HUB_OPEN, L"Open Project Hub",
@@ -591,6 +599,7 @@ static void HubTrayShowMenu(HWND hwnd) {
     if (g_hubTrayMenuBrush) DeleteObject(g_hubTrayMenuBrush);
     g_hubTrayMenuBrush = NULL;
     g_hubTrayMenuItemCount = 0;
+    g_hubTrayMenuTracking = FALSE;
     PostMessageW(hwnd, WM_NULL, 0, 0);
 }
 
