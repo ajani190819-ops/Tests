@@ -253,10 +253,10 @@
  },
  {
   "id": "wx-08",
-  "file": "weather-radar/src/parts/radar.c",
-  "old": "        if (any || z <= RADAR_TILE_ZOOM_MIN) break;\n        z = RADAR_TILE_ZOOM_MIN;   /* host placeholder fallback */",
-  "new": "        break;",
-  "label": "H available-source fallback removed"
+  "file": "weather-radar/src/weather_radar.c",
+  "old": "#define RADAR_TILE_ZOOM_MAX     7",
+  "new": "#define RADAR_TILE_ZOOM_MAX     8",
+  "label": "H Weather Radar requests the unsupported level-8 placeholder"
  },
  {
   "id": "wx-09",

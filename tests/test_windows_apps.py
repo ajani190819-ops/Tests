@@ -1573,7 +1573,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "the card never says what the other number is, so the contrast "
                       "is a claim instead of a label")
 
-        # --- radar: catalog, tile URL, cache clocks, zoom fallback ---
+        # --- radar: catalog, tile URL, cache clocks, source zoom cap ---
         self.assertIn("https://api.rainviewer.com/public/weather-maps.json", rdc,
                       "the frame catalog endpoint moved")
         self.assertIn("#define MAX_FRAMES     64", mc,
@@ -1618,23 +1618,22 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "basemap tiles no longer cache a month, so every launch "
                       "re-downloads the same nine map tiles")
         self.assertIn("if (dst[i] & 0xFF000000u)", rdc,
-                      "an empty tile is no longer detected by its alpha, so the zoom "
-                      "fallback can never see a placeholder")
-        self.assertIn("z = RADAR_TILE_ZOOM_MIN;", rdc,
-                      "the source-level fallback is gone: a placeholder response would leave "
-                      "the pane without available imagery")
+                      "the decoder no longer detects visible tile pixels")
 
-        # The owner can now request closer detail without sending RainViewer
-        # unsupported level-9/10 calls. Levels 9 and 10 are visibly tighter
-        # local crops of the available level-8 source; level 7/8 transitions
-        # still fetch the distinct available source grids.
+        # RainViewer's validated source ceiling is level 7. Apply the cap
+        # before fetching: an opaque unsupported tile cannot be detected by
+        # the transparent-pixel test. Higher display levels are local crops.
+        self.assertIn("#define RADAR_TILE_ZOOM_MIN     7", main)
+        self.assertIn("#define RADAR_TILE_ZOOM_MAX     7", main,
+                      "a request can reach level 8 and paint the provider's unsupported-zoom marker")
+        self.assertIn("if (displayZoom > RADAR_TILE_ZOOM_MAX) return RADAR_TILE_ZOOM_MAX;", main)
         self.assertIn("#define RADAR_DISPLAY_ZOOM_MAX  10", main)
         self.assertIn("RadarTileZoomForDisplay(displayZoom)", rdc)
         self.assertIn("g_zoom = (g_zoom >= RADAR_DISPLAY_ZOOM_MAX) ? RADAR_TILE_ZOOM_MIN : g_zoom + 1;", ui)
         self.assertIn("if (oldTileZoom != newTileZoom) RequestTiles();", ui)
         self.assertIn("int localSteps = displayZoom - sourceZoom;", ui)
         self.assertIn("focusPx /= 2;", ui)
-        self.assertIn("detail zoom — sourced from host level 8", ui)
+        self.assertIn("detail zoom — sourced from host level 7", ui)
         self.assertIn("openstreetmap contributors", ui.lower(),
                       "OSM tiles ship without the credit their licence requires")
         self.assertIn("rainviewer", ui.lower(),

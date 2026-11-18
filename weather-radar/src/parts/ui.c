@@ -9,10 +9,10 @@
 #define WIN_LW 1120
 #define WIN_LH 960
 #define LEFT_W 252
-/* The radar host's imagery ends at level 8. Draw a centred local focus from
-   our three-tile fetch rather than shrinking the entire 768px region. Higher
-   owner-selected display levels crop this available source progressively;
-   no unsupported closer tile request is made or misrepresented as radar data. */
+/* The radar host's validated imagery ends at level 7. Draw a centred local
+   focus from our three-tile fetch rather than shrinking the entire 768px
+   region. Higher display levels crop this available source progressively;
+   no unsupported closer tile is requested or misrepresented as radar data. */
 #define RADAR_FOCUS_PX 512
 #define RADAR_FOCUS_MIN_PX 96
 
@@ -829,9 +829,9 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
         bi.bmiHeader.biBitCount = 32;
         bi.bmiHeader.biCompression = BI_RGB;
         /* A centred local focus makes weather around the selected place large
-           enough to read. Every increment beyond the actual available host
-           level halves this crop, so zoom 9/10 visibly go further while still
-           being an honest enlargement of the level-8/7 source. */
+           enough to read. Every display increment beyond the available host
+           level halves this crop, so zoom 8-10 go progressively closer while
+           remaining an honest enlargement of the level-7 source. */
         int focusPx = RADAR_FOCUS_PX;
         int localSteps = displayZoom - sourceZoom;
         while (localSteps > 0 && focusPx > RADAR_FOCUS_MIN_PX) {
@@ -930,11 +930,8 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
     }
     if (note) {
         RECT zr = { img.left + S(520), img.top + S(6), img.right - S(8), img.top + S(28) };
-        const wchar_t *zoomNote = note == 1
-            ? L"radar source limited — using available imagery"
-            : L"detail zoom — sourced from host level 8";
-        DrawTextAt(mem, zoomNote, &zr, g_fontSmall, COL_WARN,
-                   DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        DrawTextAt(mem, L"detail zoom — sourced from host level 7", &zr,
+                   g_fontSmall, COL_WARN, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
     RECT at = { img.left, card->bottom - S(22), card->right - S(14), card->bottom - S(8) };
     DrawTextAt(mem, L"Radar: RainViewer  ·  Map © OpenStreetMap contributors", &at,
@@ -1292,9 +1289,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 oldTileZoom = RadarTileZoomForDisplay(g_zoom);
                 g_zoom = (g_zoom >= RADAR_DISPLAY_ZOOM_MAX) ? RADAR_TILE_ZOOM_MIN : g_zoom + 1;
                 newTileZoom = RadarTileZoomForDisplay(g_zoom);
-                /* Levels 9 and 10 intentionally reuse level-8 imagery as a
-                   local detail crop. They update instantly instead of issuing
-                   an unsupported host request. */
+                /* Display levels 8-10 intentionally reuse level-7 imagery as
+                   local detail crops. They update instantly instead of issuing
+                   unsupported host requests. */
                 if (newTileZoom == oldTileZoom && g_baseKey[0] == newTileZoom)
                     g_radarNote = g_zoom > newTileZoom ? 2 : 0;
                 LeaveCriticalSection(&g_lock);

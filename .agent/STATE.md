@@ -56,10 +56,10 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 
 ## Next approved work
 
-No additional product behavior is approved yet. Keyboard Lighting M4 remains
-parked: the owner test after `9cb8d8d` still shows M4 learning; `engine-5.log`
-has no key events. Keep it parked until the owner reopens it; preserve
-exclusive-lock, pacing, and single-engine safety.
+Weather Radar follow-up: native source zoom is capped at level 7; next is the
+five-day day-first planner and clearer hourly chart. Keyboard Lighting M4 stays
+parked until reopened; the latest owner test still shows M4 learning and no
+key events in `engine-5.log`.
 
 ## Offline safety facts
 
@@ -70,9 +70,9 @@ exclusive-lock, pacing, and single-engine safety.
   Close and verify an app stopped before replacing its EXE.
 - Behavioral changes need focused tests and a deliberate-break mutation; run
   build/check before commit and refresh CODEMAP after mapped layout changes.
-- Preserve Weather Radar attribution, local cache, async worker/UI handoff, and
-  zoom-8-to-7 tile fallback. Late forecast/ensemble replies are generation-gated
-  and must never overwrite a newly selected place.
+- Preserve Weather Radar attribution, local cache, and worker/UI handoff. Tile
+  requests are capped at source level 7; display levels 8-10 are local crops.
+  Late forecast/ensemble replies remain generation-gated by place.
 
 ## Git / Drive boundary
 

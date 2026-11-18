@@ -24,9 +24,9 @@ static int WicEnsure(void) {
 }
 
 /* Decode a PNG into a 256x256 BGRA tile. Returns 1 when at least one pixel
-   carries alpha - that is how an all-transparent tile is told apart from a
-   rainy one, which is how the zoom fallback knows the tile host served a
-   placeholder instead of data. */
+   carries alpha so an empty frame is not mistaken for visible radar. Zoom is
+   clamped before fetching: a visible provider placeholder can also be opaque,
+   so pixel alpha is not used to infer whether a zoom level is supported. */
 static int WicDecodePng256(const void *data, size_t len, uint32_t *dst) {
     for (int i = 0; i < TILE_PX * TILE_PX; i++) dst[i] = 0;
     if (!WicEnsure()) return 0;
@@ -267,10 +267,10 @@ static int BaseGridEnsure(int z, int tx, int ty) {
 }
 
 /* Composite one radar frame over the basemap into g_viewStage, then hand the
-   buffer to the UI thread. It requests only the host-supported level selected
-   by RadarTileZoomForDisplay (7 or 8). If level 8 returns all-transparent
-   placeholders, retry the whole grid at 7. UI levels 9 and 10 are local detail
-   crops of the available source, not false higher-resolution tile requests. */
+   buffer to the UI thread. RadarTileZoomForDisplay caps every request at the
+   validated host level 7. Display levels 8-10 are local crops of that source;
+   never request level 8, where the provider can return an opaque unsupported-
+   zoom placeholder that the old transparency-only fallback accepted. */
 static void RadarViewBuild(const Place *p, int frameIdx) {
     if (!g_radarHost[0] || frameIdx < 0 || frameIdx >= g_frameN) return;
     if (!g_viewStage) g_viewStage = (uint32_t *)malloc((size_t)GRID_PX * GRID_PX * 4);
@@ -282,17 +282,11 @@ static void RadarViewBuild(const Place *p, int frameIdx) {
     EnterCriticalSection(&g_lock);
     displayZoom = g_zoom;
     LeaveCriticalSection(&g_lock);
-    int requestedTileZoom = RadarTileZoomForDisplay(displayZoom);
-    int z = requestedTileZoom, tx = 0, ty = 0, any = 0;
-    for (int attempt = 0; attempt < 2; attempt++) {
-        GridFor(z, p->lat, p->lon, &tx, &ty);
-        any = FetchTileGrid(L"rv", z, tx, ty, g_frames[frameIdx].path, radar,
+    int z = RadarTileZoomForDisplay(displayZoom), tx = 0, ty = 0;
+    GridFor(z, p->lat, p->lon, &tx, &ty);
+    int any = FetchTileGrid(L"rv", z, tx, ty, g_frames[frameIdx].path, radar,
                             2 * 24 * 3600);
-        if (any || z <= RADAR_TILE_ZOOM_MIN) break;
-        z = RADAR_TILE_ZOOM_MIN;   /* host placeholder fallback */
-    }
-    int radarNote = (z != requestedTileZoom) ? 1
-                  : (displayZoom > z ? 2 : 0);
+    int radarNote = displayZoom > z ? 2 : 0;
     if (any) {
         BaseGridEnsure(z, tx, ty);
     } else {
