@@ -30,10 +30,10 @@ release records, and compact offline safety facts. Drive holds extended narrativ
   area on close and sends a native Windows shell alert only at **66%+ exact-point
   ensemble odds in 3 hours**. The three-hour cooldown and persisted episode latch
   suppress duplicates while rain is under way. Regional coverage odds never alert.
-- **Documentation archive:** full text for 29 human-facing files remains in
-  [Drive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk);
-  `39f71df` left compact Git stubs plus current changelogs, version anchors,
-  installers, tests, config, and runtime assets.
+- **Documentation archive:** 29 human-facing files remain in
+  [Drive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
+  `39f71df` left compact Git stubs, changelogs, installers, tests, config,
+  version anchors, and runtime assets.
 
 ## Efficiency system and completed audit
 
@@ -43,12 +43,10 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 - `tools/check_context_budget.py`, run by `tools/check_all.py`, caps the four
   orientation files at 15,000 total characters and forbids a mandatory CODEMAP
   read. This reduces avoidable context without weakening focused review/tests.
-- The final size sweep removed six unreferenced byte-identical brand aliases;
-  regeneration now removes them too. The canonical spin/web assets and suite
-  icons remain unchanged, saving about 26 MiB per clone/download.
-- Repository audit passes Python, shell, Windows build, check, mutation, and
-  artifact checks. Spatial HUD's Gradle build needs JDK 25; CI has it, sandbox
-  does not.
+- The final size sweep removed six duplicate brand aliases (about 26 MiB saved);
+  regeneration removes them too. Canonical icons and spin assets are unchanged.
+- Audit passes Python, shell, Windows build, checks, mutations, and artifacts.
+  Spatial HUD needs JDK 25; unavailable in sandbox but present in CI.
 
 ## Next approved work
 
@@ -56,8 +54,9 @@ release records, and compact offline safety facts. Drive holds extended narrativ
    daily categories; selected day/category gives hourly detail, compact trend,
    and plain-English reading. Rain remains primary; exact ensemble odds stay
    distinct from regional coverage; humidity stays supporting.
-3. Keyboard Lighting only against a fresh owner `engine.log`; preserve its
-   exclusive-lock, pacing, and single-engine safeguards.
+3. Keyboard Lighting M4 hold: `9cb8d8d` hardens raw-input registration and
+   batched HID reports; owner hardware validation pending. Preserve exclusive-
+   lock, pacing, and single-engine safeguards. Next, fix Hub tray hover staying white.
 
 ## Offline safety facts
 
