@@ -9,12 +9,12 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 - **Main: Project Hub 2.8.56:** Tri-Spoke tray, alerts, and default-on branch
   discovery remain. Remote probes pin releases and show updates only when app
   contents differ; `Update Hub` requires a newer build.
-- **Arena Project Hub 2.8.58** (`cb340f67f4fccd72cb7deb1e06f8a3b67fb5cb34`):
-  Soft Slate Settings adds keyboard Balance/Steady Colours, persists
-  `panel.json` + live `theme.json`, and the tray reloads Hub edits. Existing
-  M4/M5 ramp remains (1%/1.5%, 30 ms; 15 ms token pump). OKLab reduces the
-  purple/orange pink midpoint without moving endpoints. Fresh log lacked color
-  samples; device result is unconfirmed. Select this branch; main stays 2.8.56.
+- **Arena Project Hub 2.8.59** (`eb0b9717964297f0854e3ba874f32de9235071b8`):
+  Hub runs asInvoker; child elevation remains app-owned. Agent Notes stays
+  user-opened; elevated `--stop` precedes updates and the managed-copy gate
+  remains. Tray uses owner-drawn Soft Slate; Settings controls opt out of native
+  themes. Native visual/runtime verification remains pending. Select this
+  branch; main stays 2.8.56.
 - **Agent Notes waiting receipts:** implementation `ad9232009b9f38c287727123ddd404b204ce26e1`,
   released by marker `5343e54`. The direct local outbox records **Saved** only
   after the live receiver flushes `.agent/INBOX.md`, then **Read** only after an
