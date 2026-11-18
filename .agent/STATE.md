@@ -35,6 +35,12 @@ release records, and compact offline safety facts. Drive holds extended narrativ
   area on close and sends a native Windows shell alert only at **66%+ exact-point
   ensemble odds in 3 hours**. The three-hour cooldown and persisted episode latch
   suppress duplicates while rain is under way. Regional coverage odds never alert.
+- **Weather Radar five-day planner:** `7d6ec7614313408a9deead491c1d313f49c371df`,
+  released in marker 2.8.62. Five local days show equal rain/temp/cloud/wind
+  rows; day/category selection shows hourly data, trend, and plain-English
+  reading. Exact-point rain odds require complete member-days and stay separate
+  from regional PoP; humidity remains supporting context. Build, checks, and
+  mutations pass.
 - **Documentation archive:** 29 human-facing files remain in Drive; Git keeps
   compact stubs, changelogs, tests, configuration, version anchors, and runtime assets.
 
@@ -50,14 +56,10 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 
 ## Next approved work
 
-1. Weather Radar five-day planner: equal rain, temperature, cloud, and wind
-   daily categories; selected day/category gives hourly detail, compact trend,
-   and plain-English reading. Rain remains primary; exact ensemble odds stay
-   distinct from regional coverage; humidity stays supporting.
-2. Keyboard Lighting M4 hold remains unresolved: the owner test after `9cb8d8d`
-   still shows M4 learning; `engine-5.log` has no key events. Keep it parked
-   until the owner reopens it; preserve exclusive-lock, pacing, and
-   single-engine safety.
+No additional product behavior is approved yet. Keyboard Lighting M4 remains
+parked: the owner test after `9cb8d8d` still shows M4 learning; `engine-5.log`
+has no key events. Keep it parked until the owner reopens it; preserve
+exclusive-lock, pacing, and single-engine safety.
 
 ## Offline safety facts
 
