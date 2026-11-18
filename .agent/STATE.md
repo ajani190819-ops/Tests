@@ -9,12 +9,12 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 - **Main: Project Hub 2.8.56:** Tri-Spoke tray, alerts, and default-on branch
   discovery remain. Remote probes pin releases and show updates only when app
   contents differ; `Update Hub` requires a newer build.
-- **Arena Project Hub 2.8.59** (`eb0b9717964297f0854e3ba874f32de9235071b8`):
+- **Arena Project Hub 2.8.60** (`fc89c9d180ae848cc0097841bf67fbb6f1fa470b`):
   Hub runs asInvoker; child elevation remains app-owned. Agent Notes stays
   user-opened; elevated `--stop` precedes updates and the managed-copy gate
-  remains. Tray uses owner-drawn Soft Slate; Settings controls opt out of native
-  themes. Native visual/runtime verification remains pending. Select this
-  branch; main stays 2.8.56.
+  remains. Tray and Settings use Soft Slate. Owner-drawn tray rows now isolate
+  GDI state across redraws; the owner-reported stuck-white hover symptom still
+  needs Windows visual confirmation. Select this branch; main stays 2.8.56.
 - **Agent Notes waiting receipts:** implementation `ad9232009b9f38c287727123ddd404b204ce26e1`,
   released by marker `5343e54`. The direct local outbox records **Saved** only
   after the live receiver flushes `.agent/INBOX.md`, then **Read** only after an
@@ -54,9 +54,9 @@ release records, and compact offline safety facts. Drive holds extended narrativ
    daily categories; selected day/category gives hourly detail, compact trend,
    and plain-English reading. Rain remains primary; exact ensemble odds stay
    distinct from regional coverage; humidity stays supporting.
-3. Keyboard Lighting M4 hold: `9cb8d8d` hardens raw-input registration and
-   batched HID reports; owner hardware validation pending. Preserve exclusive-
-   lock, pacing, and single-engine safeguards. Next, fix Hub tray hover staying white.
+2. Keyboard Lighting M4 hold is unresolved: the owner test after `9cb8d8d`
+   still shows M4 learning; `engine-5.log` has no key events. Revisit after
+   tray-hover testing; preserve exclusive-lock, pacing, and single-engine safety.
 
 ## Offline safety facts
 
