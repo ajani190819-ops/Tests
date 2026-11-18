@@ -132,8 +132,7 @@ static void HubTrayDrawArrow(HDC dc, RECT rc, int dpi, COLORREF color) {
     DeleteObject(pen);
 }
 
-static BOOL HubTrayDrawMenuItem(const DRAWITEMSTRUCT *draw) {
-    if (!draw || draw->CtlType != ODT_MENU || !draw->itemData) return FALSE;
+static void HubTrayDrawMenuItemContent(const DRAWITEMSTRUCT *draw) {
     const HubTrayMenuItem *item = (const HubTrayMenuItem *)draw->itemData;
     HDC dc = draw->hDC;
     RECT rc = draw->rcItem;
@@ -151,7 +150,7 @@ static BOOL HubTrayDrawMenuItem(const DRAWITEMSTRUCT *draw) {
             SelectObject(dc, oldPen);
             DeleteObject(pen);
         }
-        return TRUE;
+        return;
     }
 
     BOOL disabled = item->disabled || (draw->itemState & ODS_DISABLED) != 0;
@@ -179,7 +178,7 @@ static BOOL HubTrayDrawMenuItem(const DRAWITEMSTRUCT *draw) {
         textRc.left += S(16, dpi);
         textRc.right -= S(12, dpi);
         HubTrayDrawMenuText(dc, item->text, &textRc, COL_SKY, g_fontBody);
-        return TRUE;
+        return;
     }
 
     if (item->isApp) {
@@ -225,6 +224,17 @@ static BOOL HubTrayDrawMenuItem(const DRAWITEMSTRUCT *draw) {
                         disabled ? COL_TEXT_MUTED : COL_TEXT_PRIMARY, g_fontBody);
     if (item->hasSubmenu)
         HubTrayDrawArrow(dc, rc, dpi, disabled ? COL_TEXT_MUTED : COL_TEXT_SECONDARY);
+}
+
+static BOOL HubTrayDrawMenuItem(const DRAWITEMSTRUCT *draw) {
+    if (!draw || draw->CtlType != ODT_MENU || !draw->itemData || !draw->hDC)
+        return FALSE;
+    /* Treat each row as a complete paint transaction. Text drawing changes DC
+       colors/mode; restore that state before the menu manager redraws another
+       row during hover transitions. */
+    int savedDc = SaveDC(draw->hDC);
+    HubTrayDrawMenuItemContent(draw);
+    if (savedDc) RestoreDC(draw->hDC, savedDc);
     return TRUE;
 }
 

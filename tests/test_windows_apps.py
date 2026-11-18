@@ -3585,6 +3585,32 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertNotRegex(hub + tray, r"(?i)(RegSetValue.*\\\\Run|schtasks|CreateService)",
                             "the unified Hub tray silently added startup persistence")
 
+    def test_unified_hub_tray_menu_row_paint_is_isolated(self):
+        """Hover redraws must repaint the row surface and leave no GDI state
+        behind for the next owner-drawn menu item."""
+        tray = (ROOT / "project-hub" / "src" / "parts" / "tray_unified.c").read_text(encoding="utf-8")
+        content_start = tray.index("static void HubTrayDrawMenuItemContent(")
+        content_end = tray.index("\nstatic BOOL HubTrayDrawMenuItem(", content_start)
+        content = tray[content_start:content_end]
+        draw_start = content_end + 1
+        draw_end = tray.index("\nstatic void HubTrayAgentNotesCfg", draw_start)
+        draw = tray[draw_start:draw_end]
+
+        self.assertIn("FillRect(dc, &rc, bg);", content,
+                      "a row repaint can leave its old hover fill behind")
+        self.assertLess(content.index("FillRect(dc, &rc, bg);"),
+                        content.index("BOOL selected ="),
+                        "the old selection is not erased before deciding whether this row is hovered")
+        self.assertIn("int savedDc = SaveDC(draw->hDC);", draw,
+                      "a row does not snapshot the menu drawing context")
+        self.assertIn("HubTrayDrawMenuItemContent(draw);", draw)
+        self.assertIn("if (savedDc) RestoreDC(draw->hDC, savedDc);", draw,
+                      "owner-drawn text/background state leaks into subsequent hover repaints")
+        self.assertLess(draw.index("SaveDC(draw->hDC)"),
+                        draw.index("HubTrayDrawMenuItemContent(draw);"))
+        self.assertLess(draw.index("HubTrayDrawMenuItemContent(draw);"),
+                        draw.index("RestoreDC(draw->hDC, savedDc)"))
+
     def test_agent_notes_is_readable_in_either_windows_theme(self):
         """Agent Notes used to expose the internal session URL despite automatic
         discovery, making a no-setup outbox look broken and leaving a second,

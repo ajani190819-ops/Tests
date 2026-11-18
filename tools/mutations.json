@@ -595,6 +595,20 @@
   "label": "Hub tray registers before CreateWindowEx publishes its HWND"
  },
  {
+  "id": "trayhub-hover-reset-00",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    FillRect(dc, &rc, bg);\n\n    if (item->kind == HUB_TRAY_MENU_SEPARATOR)",
+  "new": "    if (item->kind == HUB_TRAY_MENU_SEPARATOR)",
+  "label": "Hub tray hover redraws leave the previous row fill behind"
+ },
+ {
+  "id": "trayhub-hover-state-00",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    if (savedDc) RestoreDC(draw->hDC, savedDc);",
+  "new": "    if (0 && savedDc) RestoreDC(draw->hDC, savedDc);",
+  "label": "Hub tray hover drawing leaks GDI state between menu rows"
+ },
+ {
   "id": "branch-follow-00",
   "file": "project-hub/src/parts/branch_json.h",
   "old": "    while (*p == ' ' || *p == '\\t' || *p == '\\r' || *p == '\\n') p++;",

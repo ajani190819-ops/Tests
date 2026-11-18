@@ -170,32 +170,33 @@
 - L90  f HubTrayDrawCheckmark
 - L101  f HubTrayDrawMenuText
 - L111  f HubTrayDrawArrow
-- L135  f HubTrayDrawMenuItem
-- L231  f HubTrayAgentNotesCfg
-- L236  f HubTrayConfig
-- L240  f HubTrayWeatherCfg
-- L245  f HubTrayAgentWaitSound
-- L251  f HubTrayToggleAgentWaitSound
-- L261  f HubTrayShowAgentWaitingAlert
-- L276  f HubTrayPollAgentWait
-- L294  f HubTrayPollWeatherAlert
-- L322  f HubTrayPublishHostMarker
-- L327  f HubTrayRestore
-- L353  f HubTrayEnsureLive  — NIM_ADD can lose a startup race with Explorer without producing a later
-- L362  f HubTrayInit
-- L384  f HubTrayRemove
-- L396  f HubTrayAppWindow
-- L400  f HubTrayShowApp
-- L411  f HubTrayHideApp
-- L416  f HubTrayStopExe
-- L436  f HubTrayFindCardByExe
-- L443  f HubTrayOpenWeather
-- L460  f HubTrayOpenApp
-- L483  f HubTrayRunControl
-- L498  f HubTrayToggleBluetooth
-- L506  f HubTrayAppendApp
-- L532  f HubTrayShowMenu
-- L587  f HubTrayHandleCommand
+- L135  f HubTrayDrawMenuItemContent
+- L229  f HubTrayDrawMenuItem
+- L241  f HubTrayAgentNotesCfg
+- L246  f HubTrayConfig
+- L250  f HubTrayWeatherCfg
+- L255  f HubTrayAgentWaitSound
+- L261  f HubTrayToggleAgentWaitSound
+- L271  f HubTrayShowAgentWaitingAlert
+- L286  f HubTrayPollAgentWait
+- L304  f HubTrayPollWeatherAlert
+- L332  f HubTrayPublishHostMarker
+- L337  f HubTrayRestore
+- L363  f HubTrayEnsureLive  — NIM_ADD can lose a startup race with Explorer without producing a later
+- L372  f HubTrayInit
+- L394  f HubTrayRemove
+- L406  f HubTrayAppWindow
+- L410  f HubTrayShowApp
+- L421  f HubTrayHideApp
+- L426  f HubTrayStopExe
+- L446  f HubTrayFindCardByExe
+- L453  f HubTrayOpenWeather
+- L470  f HubTrayOpenApp
+- L493  f HubTrayRunControl
+- L508  f HubTrayToggleBluetooth
+- L516  f HubTrayAppendApp
+- L542  f HubTrayShowMenu
+- L597  f HubTrayHandleCommand
 - globals: g_hubTrayMenuItems (L28), g_hubTrayMenuItemCount (L29), g_hubTrayMenuBrush (L30)
 
 ## project-hub/src/parts/ui_renderer.c
@@ -1126,10 +1127,10 @@
 - L167  f lex_powershell
 - L302  f WindowsDesktopAppsTests
 - L3066  f SuiteFolderInstallTests
-- L4371  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L4554  f AudioSwitcherReachabilityTests
-- L4738  f AudioSwitcherSessionSweepTests
-- L4879  f AppOpenFocusTests
+- L4397  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L4580  f AudioSwitcherReachabilityTests
+- L4764  f AudioSwitcherSessionSweepTests
+- L4905  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 
