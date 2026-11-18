@@ -964,5 +964,26 @@
   "old": "stop.lpVerb = L\"runas\";",
   "new": "stop.lpVerb = L\"open\";",
   "label": "Hub Notes update tries a UIPI-blocked stop instead of elevating the helper"
+ },
+ {
+  "id": "kbl-raw-00",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "for (j = 0; j < n; j++)",
+  "new": "for (j = 1; j < n; j++)",
+  "label": "ASUS HID registration can duplicate the generic keyboard usage"
+ },
+ {
+  "id": "kbl-raw-01",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "for (DWORD i = 0; i < hid->dwCount; i++)",
+  "new": "for (DWORD i = 0; i < 1; i++)",
+  "label": "Batched HID reports after the first are dropped from hold detection"
+ },
+ {
+  "id": "kbl-raw-02",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "RegisterRawInputDevices(rid, 1, sizeof(RAWINPUTDEVICE));",
+  "new": "/* keyboard fallback removed */",
+  "label": "A vendor usage registration failure can leave keyboard hold input blind"
  }
 ]

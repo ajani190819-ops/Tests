@@ -2975,6 +2975,35 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                            "InitRawInput runs before the window is created, so it "
                            "registers with a NULL hwnd and no WM_INPUT ever arrives")
 
+    def test_keyboard_lighting_raw_input_keeps_keyboard_and_all_hid_reports(self):
+        """A failed vendor-usage registration must not discard keyboard input,
+        and every HID report batched into one WM_INPUT must reach the hold learner."""
+        src = read_c_inlined("keyboard-lighting/src/keyboard_lighting.c")
+        init_start = src.index("static void InitRawInput(HWND hwnd) {")
+        raw_start = src.index("static void OnRawInputMsg(HWND hwnd, LPARAM lp) {")
+        init = src[init_start:raw_start]
+        raw = src[raw_start:src.index("\n}\n", raw_start)]
+
+        self.assertIn("rid[n].usUsagePage = 0x01; rid[n].usUsage = 0x06;", init,
+                      "generic keyboard input is no longer the first registered usage")
+        self.assertIn("for (j = 0; j < n; j++)", init,
+                      "ASUS HID registration can duplicate the keyboard usage and make "
+                      "the complete registration fail")
+        self.assertIn("if (!RegisterRawInputDevices(rid, n, sizeof(RAWINPUTDEVICE)))", init,
+                      "registration failure is ignored, silently leaving M4 hold detection blind")
+        self.assertIn("RegisterRawInputDevices(rid, 1, sizeof(RAWINPUTDEVICE));", init,
+                      "a rejected vendor collection can still disable generic keyboard input")
+
+        self.assertIn("const RAWHID *hid = &ri->data.hid;", raw)
+        self.assertIn("hid->dwCount == 0", raw,
+                      "the report loop can divide by zero on malformed raw input")
+        self.assertIn("available / (size_t)hid->dwCount", raw,
+                      "the raw HID report count is not bounded by the received packet size")
+        self.assertIn("for (DWORD i = 0; i < hid->dwCount; i++)", raw,
+                      "WM_INPUT HID batches discard every report after the first")
+        self.assertIn("hid->bRawData + (size_t)i * (size_t)hid->dwSizeHid", raw,
+                      "the HID loop does not advance to the next report in the batch")
+
     def test_hub_auto_probe_prefers_main_over_a_compiled_session_branch(self):
         src = read_c_inlined("project-hub/src/project_hub.c")
 

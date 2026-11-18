@@ -470,7 +470,7 @@ static void InitRawInput(HWND hwnd) {
             if (GetRawInputDeviceInfoW(list[i].hDevice, RIDI_DEVICEINFO, &info, &cb) != (UINT)-1 &&
                 info.dwType == RIM_TYPEHID && info.hid.dwVendorId == 0x0B05) {
                 UINT j; int dup = 0;
-                for (j = 1; j < n; j++)
+                for (j = 0; j < n; j++)
                     if (rid[j].usUsagePage == info.hid.usUsagePage && rid[j].usUsage == info.hid.usUsage) dup = 1;
                 if (!dup) {
                     rid[n].usUsagePage = info.hid.usUsagePage;
@@ -482,7 +482,11 @@ static void InitRawInput(HWND hwnd) {
             }
         }
     }
-    RegisterRawInputDevices(rid, n, sizeof(RAWINPUTDEVICE));
+    if (!RegisterRawInputDevices(rid, n, sizeof(RAWINPUTDEVICE))) {
+        /* A rejected ASUS usage must not also disable the generic keyboard
+           registration that can still report the M4/M5 scan codes. */
+        RegisterRawInputDevices(rid, 1, sizeof(RAWINPUTDEVICE));
+    }
 }
 
 static void OnRawInputMsg(HWND hwnd, LPARAM lp) {
@@ -503,7 +507,17 @@ static void OnRawInputMsg(HWND hwnd, LPARAM lp) {
         g_keyRingHead = (g_keyRingHead + 1) & 255;
         OnScanEvent(ri->data.keyboard.MakeCode, down, 0, now);
     } else if (ri->header.dwType == RIM_TYPEHID) {
-        OnRawHid(ri->data.hid.bRawData, (int)ri->data.hid.dwSizeHid, now);
+        const RAWHID *hid = &ri->data.hid;
+        size_t rawOffset = (size_t)(hid->bRawData - buf);
+        size_t available = rawOffset <= dwSize ? (size_t)dwSize - rawOffset : 0;
+        if (hid->dwSizeHid == 0 || hid->dwCount == 0 ||
+            (size_t)hid->dwSizeHid > available / (size_t)hid->dwCount) return;
+        /* One WM_INPUT can contain several reports. Preserve their order so a
+           press and release batched together still form a complete gesture. */
+        for (DWORD i = 0; i < hid->dwCount; i++) {
+            OnRawHid(hid->bRawData + (size_t)i * (size_t)hid->dwSizeHid,
+                     (int)hid->dwSizeHid, now);
+        }
     }
 }
 

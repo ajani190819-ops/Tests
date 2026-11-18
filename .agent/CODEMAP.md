@@ -440,10 +440,10 @@
 - L398  f SeedBrightTokenWatch
 - L423  f WatchBrightTokens
 - L455  f InitRawInput
-- L488  f OnRawInputMsg
-- L529  f HoldModeRead
-- L541  f HoldModeWrite
-- L551  f HoldReadyLabel
+- L492  f OnRawInputMsg
+- L543  f HoldModeRead
+- L555  f HoldModeWrite
+- L565  f HoldReadyLabel
 - globals: g_keyRing (L20), g_keyRingHead (L21), g_hidRing (L23), g_hidRingHead (L24), g_scanBound (L25), g_scanVk (L26), g_hidCode (L27), g_hidLastCode (L28), g_scanArmed (L29), g_hidDown (L30), g_holdOn (L31), g_hidRelSeen (L32), g_sigAt (L33), g_scanNext (L34), g_learnCand (L35), g_learnN (L36), g_learnHid (L37), g_learnHidN (L38), g_seenTok (L39), g_pendingLearnAt (L40), g_pendingLearnUntil (L41)
 
 ## keyboard-lighting/src/parts/mouse_drag_menus.c
@@ -1125,11 +1125,11 @@
 - L45  f strip_cs_comments_and_strings
 - L167  f lex_powershell
 - L302  f WindowsDesktopAppsTests
-- L3037  f SuiteFolderInstallTests
-- L4342  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L4525  f AudioSwitcherReachabilityTests
-- L4709  f AudioSwitcherSessionSweepTests
-- L4850  f AppOpenFocusTests
+- L3066  f SuiteFolderInstallTests
+- L4371  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L4554  f AudioSwitcherReachabilityTests
+- L4738  f AudioSwitcherSessionSweepTests
+- L4879  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 
