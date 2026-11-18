@@ -6,11 +6,11 @@
 
 ## project-hub/src/project_hub.c
 
-- L330  f GetWinDpi
-- L345  f S
-- L347  f ApplyModernWindowFrame
-- L366  f RebuildFontsAndIcons
-- globals: g_hInst (L235), g_hwnd (L236), g_fontHero (L237), g_fontSub (L238), g_fontTitle (L239), g_fontBody (L240), g_fontBtn (L241), g_fontBadge (L242), g_appIcon (L243), g_hdrEmblem (L244), g_cardIcons (L245), g_showEvent (L246), g_hMutex (L247), g_trayHostEvent (L248), g_hubNid (L249), g_hubTrayVisible (L250), g_hubQuitting (L251), g_hubSeenAgentWait (L252), g_hubSeenRainAlert (L253), g_cs (L254), g_topBtns (L256), g_rcEmblem (L263), g_cards (L265), g_cardCount (L266), g_dynIdx (L267), g_hoverId (L268), g_scrollY (L269), g_maxScrollY (L270), g_exePath (L272), g_exeDir (L273), g_localApp (L274), g_probeRef (L278), g_roamApp (L279), g_suiteDir (L280), g_hubCfgDir (L281), g_btgDir (L282), g_btgExtraExe (L283), g_kblDir (L284), g_dnsDir (L285), g_notesDir (L286), g_audioSwitcherDir (L287), g_modsDir (L288), g_orcaBatDir (L289), g_suiteHubExe (L297), g_mirrorDirs (L298), g_mirrorCount (L299), g_activeBranch (L302), g_branchMenuNames (L303), g_branchMenuN (L304), g_branchPromptOut (L305), g_autoBranchLastCheck (L308), g_autoBranchRetryDelay (L309), g_remHubVer (L310), g_remWaveVer (L311), g_remInfillVer (L312), g_remHudName (L313), g_remHudPath (L314), g_remHudSize (L315), g_statusMsg (L316), g_progressVal (L317), g_hubUpdAvail (L318), g_taskQueue (L321), g_qHead (L322), g_qTail (L323), g_qSem (L324), g_running (L325)
+- L331  f GetWinDpi
+- L346  f S
+- L348  f ApplyModernWindowFrame
+- L367  f RebuildFontsAndIcons
+- globals: g_hInst (L236), g_hwnd (L237), g_fontHero (L238), g_fontSub (L239), g_fontTitle (L240), g_fontBody (L241), g_fontBtn (L242), g_fontBadge (L243), g_appIcon (L244), g_hdrEmblem (L245), g_cardIcons (L246), g_showEvent (L247), g_hMutex (L248), g_trayHostEvent (L249), g_hubNid (L250), g_hubTrayVisible (L251), g_hubQuitting (L252), g_hubSeenAgentWait (L253), g_hubSeenRainAlert (L254), g_cs (L255), g_topBtns (L257), g_rcEmblem (L264), g_cards (L266), g_cardCount (L267), g_dynIdx (L268), g_hoverId (L269), g_scrollY (L270), g_maxScrollY (L271), g_exePath (L273), g_exeDir (L274), g_localApp (L275), g_probeRef (L279), g_roamApp (L280), g_suiteDir (L281), g_hubCfgDir (L282), g_btgDir (L283), g_btgExtraExe (L284), g_kblDir (L285), g_dnsDir (L286), g_notesDir (L287), g_audioSwitcherDir (L288), g_modsDir (L289), g_orcaBatDir (L290), g_suiteHubExe (L298), g_mirrorDirs (L299), g_mirrorCount (L300), g_activeBranch (L303), g_branchMenuNames (L304), g_branchMenuN (L305), g_branchPromptOut (L306), g_autoBranchLastCheck (L309), g_autoBranchRetryDelay (L310), g_remHubVer (L311), g_remWaveVer (L312), g_remInfillVer (L313), g_remHudName (L314), g_remHudPath (L315), g_remHudSize (L316), g_statusMsg (L317), g_progressVal (L318), g_hubUpdAvail (L319), g_taskQueue (L322), g_qHead (L323), g_qTail (L324), g_qSem (L325), g_running (L326)
 
 ## project-hub/src/parts/branch_picker_entry.c
 
@@ -46,6 +46,8 @@
 - L210  f BuiltInBtnId
 - L237  f FillBuiltInDef
 - L343  f AddCatalogCard
+- L460  f HasWeatherRadarCatalogCard
+- L466  f EnsureWeatherRadarCatalogCard
 - globals: g_catalogJson (L6), g_strPool (L46), g_strPoolUsed (L47)
 
 ## project-hub/src/parts/content_identity.c
@@ -208,7 +210,7 @@
 - L164  f HitTestButtons
 - L183  f PaintEmblemBlit
 - L208  f PaintHubWindow
-- L471  f ShowUtilityMenu
+- L476  f ShowUtilityMenu
 - globals: g_frameCache (L205), g_fcW (L206)
 
 ## project-hub/src/parts/version_probe_cache.c
@@ -1122,15 +1124,15 @@
 
 ## tests/test_windows_apps.py
 
-- L29  f read_c_inlined
-- L45  f strip_cs_comments_and_strings
-- L167  f lex_powershell
-- L302  f WindowsDesktopAppsTests
-- L3066  f SuiteFolderInstallTests
-- L4426  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L4609  f AudioSwitcherReachabilityTests
-- L4793  f AudioSwitcherSessionSweepTests
-- L4934  f AppOpenFocusTests
+- L30  f read_c_inlined
+- L46  f strip_cs_comments_and_strings
+- L168  f lex_powershell
+- L303  f WindowsDesktopAppsTests
+- L3120  f SuiteFolderInstallTests
+- L4480  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L4663  f AudioSwitcherReachabilityTests
+- L4847  f AudioSwitcherSessionSweepTests
+- L4988  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

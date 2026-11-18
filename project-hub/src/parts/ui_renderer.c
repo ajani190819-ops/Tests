@@ -290,9 +290,14 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
         };
         SmoothRoundRect(px, w, h, &barRc, (float)S(2, dpi), barCol, barCol, headerH + 1, footerTop - 1);
 
-        /* Catalog icon first (download_icons), then embedded, letter tile */
+        /* Catalog icon first, then the card's embedded resource, letter tile.
+           Extra cards cannot use g_cardIcons[c] by position: catalog order can
+           shift Weather Radar away from slot seven, and another extra must not
+           accidentally inherit its icon. */
         {
-            HICON ico = card->hIcon ? card->hIcon : g_cardIcons[c];
+            HICON ico = card->hIcon;
+            if (!ico && c < 7) ico = g_cardIcons[c];
+            if (!ico && card->resIconId == RES_ICON_WEATHER) ico = g_cardIcons[7];
             int ix = card->rcCard.left + S(18, dpi);
             int iy = (card->rcCard.top + card->rcCard.bottom - cardIcoSz) / 2;
             if (ico) {

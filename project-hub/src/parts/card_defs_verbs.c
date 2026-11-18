@@ -91,6 +91,7 @@ static void HandleVerb(int idx, const wchar_t *verb) {
 
 static void InitCardDefinitions(void) {
     ZeroMemory(g_cards, sizeof(g_cards));
+    g_cardCount = 7;
 
     g_cards[0].resIconId = RES_ICON_BTG;
     g_cards[0].title     = L"Bluetooth Guard";
@@ -166,5 +167,7 @@ static void InitCardDefinitions(void) {
         if (builtinExe[i].dir && g_suiteDir[0])
             SuiteAppPath(c->appDir, MAX_PATH, builtinExe[i].dir);
     }
+    /* Keep the core Weather Radar card present before any remote check. */
+    EnsureWeatherRadarCatalogCard(FALSE);
 }
 

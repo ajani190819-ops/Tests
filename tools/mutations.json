@@ -343,6 +343,27 @@
   "label": "R current dynamic card keeps its Update button"
  },
  {
+  "id": "hub-weather-startup-00",
+  "file": "project-hub/src/parts/card_defs_verbs.c",
+  "old": "    EnsureWeatherRadarCatalogCard(FALSE);",
+  "new": "    /* Weather Radar is absent until a remote catalog fetch succeeds. */",
+  "label": "Weather Radar has no Hub card before the first catalog response"
+ },
+ {
+  "id": "hub-weather-refresh-00",
+  "file": "project-hub/src/parts/builtin_card_text.c",
+  "old": "    EnsureWeatherRadarCatalogCard(TRUE);",
+  "new": "    /* Partial catalog rebuild silently drops Weather Radar. */",
+  "label": "A fetched catalog without Weather Radar erases its Hub card"
+ },
+ {
+  "id": "hub-weather-icon-00",
+  "file": "project-hub/src/parts/catalog_icons_json.c",
+  "old": "    c->resIconId = isWeatherRadar ? RES_ICON_WEATHER : 0;",
+  "new": "    c->resIconId = 0;",
+  "label": "Weather Radar loses its embedded icon when the remote icon is unavailable"
+ },
+ {
   "id": "wx-14",
   "file": "weather-radar/src/parts/radar.c",
   "old": "            for (int row = 0; row < TILE_PX; row++) {\n                uint32_t *dstRow = dst + (size_t)(gy * TILE_PX + row) * GRID_PX +\n                                   (size_t)gx * TILE_PX;\n                memcpy(dstRow, tile + (size_t)row * TILE_PX, TILE_PX * sizeof(uint32_t));\n            }",

@@ -17,6 +17,7 @@ Enforces:
      project-hub (no UI-thread deadlocks, no stale HSEQB URLs, no personal path PII).
 """
 from pathlib import Path
+import ast
 import json
 import math
 import re
@@ -1404,6 +1405,59 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                 self.assertTrue(str(app.get("exe", "")).strip(),
                                 f"suite-apps.json '{app_id}' is not a built-in slot and has "
                                 f"no exe, so AddCatalogCard drops it silently")
+
+    def test_weather_radar_hub_card_survives_missing_or_incomplete_catalog(self):
+        """Weather Radar is a core suite app but its card used to exist only as
+        a remote catalog extra. Any successful partial catalog rebuild could
+        reset the Hub to seven built-ins and silently drop that entry."""
+        catalog = json.loads((ROOT / "suite-apps.json").read_text(encoding="utf-8"))
+        weather = next(app for app in catalog["apps"] if app["id"] == "weatherradar")
+        parser = (ROOT / "project-hub/src/parts/catalog_icons_json.c").read_text(encoding="utf-8")
+        fallback_start = parser.index("static const char kWeatherRadarFallbackJson[]")
+        fallback_end = parser.index("static BOOL HasWeatherRadarCatalogCard", fallback_start)
+        fallback = parser[fallback_start:fallback_end]
+        c_strings = re.findall(r'"(?:\\.|[^"\\])*"', fallback)
+        fallback_json = "".join(ast.literal_eval(part) for part in c_strings)
+        fallback_app = json.loads(fallback_json)
+        for field in ("id", "title", "blurb", "exe", "dir", "icon", "shortcut", "buttons"):
+            self.assertEqual(fallback_app[field], weather[field],
+                             f"Weather Radar fallback diverged from suite-apps.json `{field}`")
+
+        ensure_start = parser.index("static void EnsureWeatherRadarCatalogCard(")
+        ensure = parser[ensure_start:parser.index("\n}\n", ensure_start)]
+        self.assertIn("if (!HasWeatherRadarCatalogCard())", ensure)
+        self.assertIn("AddCatalogCard(kWeatherRadarFallbackJson, loadIcon);", ensure)
+        self.assertIn("if (icon[0] && loadIcon)", parser,
+                      "the startup fallback can block WM_CREATE on an icon download")
+        self.assertIn("c->resIconId = isWeatherRadar ? RES_ICON_WEATHER : 0;", parser,
+                      "Weather Radar lost its embedded icon identity outside the catalog")
+        self.assertIn("g_cardCount >= MAX_APPS - 1", parser,
+                      "catalog extras can fill every slot before the required Weather fallback")
+        renderer = (ROOT / "project-hub/src/parts/ui_renderer.c").read_text(encoding="utf-8")
+        self.assertIn("if (!ico && c < 7) ico = g_cardIcons[c];", renderer)
+        self.assertIn("if (!ico && card->resIconId == RES_ICON_WEATHER) ico = g_cardIcons[7];",
+                      renderer,
+                      "dynamic catalog ordering can hide the embedded Weather Radar icon")
+
+        init_src = (ROOT / "project-hub/src/parts/card_defs_verbs.c").read_text(encoding="utf-8")
+        init_start = init_src.index("static void InitCardDefinitions(void)")
+        init = init_src[init_start:init_src.index("\n}\n", init_start)]
+        self.assertIn("EnsureWeatherRadarCatalogCard(FALSE);", init,
+                      "Weather Radar is absent until the first remote check succeeds")
+
+        rebuild_src = (ROOT / "project-hub/src/parts/builtin_card_text.c").read_text(encoding="utf-8")
+        rebuild_start = rebuild_src.index("static void RebuildExtraCards(")
+        rebuild = rebuild_src[rebuild_start:rebuild_src.index("\n}\n", rebuild_start)]
+        self.assertIn("AddCatalogCard(obj, TRUE);", rebuild)
+        fallback_call = rebuild.index("EnsureWeatherRadarCatalogCard(TRUE);")
+        self.assertGreater(fallback_call, rebuild.index("p = q + 1;"),
+                           "the fallback is not restored after parsing the fetched catalog")
+
+        hub = (ROOT / "project-hub/src/project_hub.c").read_text(encoding="utf-8")
+        hub_rc = (ROOT / "project-hub/src/hub.rc").read_text(encoding="utf-8")
+        self.assertIn("RES_ICON_WEATHER", hub)
+        self.assertIn("RES_ICON_WEATHER", hub[hub.index("const int ids[8]"):])
+        self.assertIn('7 ICON "../../weather-radar/weather-radar.ico"', hub_rc)
 
     def _parse_builtin_btnid(self, hub_c):
         """Reimplement BuiltInBtnId in Python straight from the C source.

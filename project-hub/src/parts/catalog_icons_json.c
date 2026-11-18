@@ -340,7 +340,7 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
     }
 }
 
-static void AddCatalogCard(const char *obj) {
+static void AddCatalogCard(const char *obj, BOOL loadIcon) {
     char id[32], title[64], blurb[128], exe[128], dir[64], icon[128];
     char shortcut[64], buttons[256], args[64];
     if (!JsonGet(obj, "id", id, sizeof(id))) return;
@@ -358,10 +358,17 @@ static void AddCatalogCard(const char *obj) {
         return;
     }
     if (!exe[0]) return;
-    if (g_cardCount >= MAX_APPS) return;
+    BOOL weatherPresent = FALSE;
+    for (int i = 7; i < g_cardCount; i++)
+        if (_wcsicmp(g_cards[i].id, L"weatherradar") == 0) weatherPresent = TRUE;
+    BOOL isWeatherRadar = strcmp(id, "weatherradar") == 0;
+    if (g_cardCount >= MAX_APPS ||
+        (!isWeatherRadar && !weatherPresent && g_cardCount >= MAX_APPS - 1))
+        return; /* reserve one slot so a missing catalog entry cannot drop Weather Radar */
 
     ProjectCard *c = &g_cards[g_cardCount];
     ZeroMemory(c, sizeof(*c));
+    c->resIconId = isWeatherRadar ? RES_ICON_WEATHER : 0;
     MultiByteToWideChar(CP_UTF8, 0, id, -1, c->id, 23);
     c->title = PoolAdd(title[0] ? title : id);
     c->blurb = PoolAdd(blurb[0] ? blurb : "Suite app");
@@ -433,9 +440,31 @@ static void AddCatalogCard(const char *obj) {
         c->btnCount++;
     }
 
-    /* icon: cached download of the catalog icon, letter tile until it lands */
-    if (icon[0])
+    /* icon: cached download of the catalog icon, letter tile until it lands.
+       Startup fallback uses the embedded suite icon and must not block WM_CREATE
+       on a network request. */
+    if (icon[0] && loadIcon)
         LoadCardIcon(c, icon);
     g_cardCount++;
+}
+
+static const char kWeatherRadarFallbackJson[] =
+    "{\"id\":\"weatherradar\",\"title\":\"Weather Radar\","
+    "\"blurb\":\"Honest rain odds + live radar\","
+    "\"exe\":\"weather-radar/WeatherRadar.exe\","
+    "\"dir\":\"WeatherRadar\","
+    "\"icon\":\"weather-radar/weather-radar.ico\","
+    "\"shortcut\":\"Weather Radar\","
+    "\"buttons\":\"update:Update:74,open:Open:68,folder:Folder:68\"}";
+
+static BOOL HasWeatherRadarCatalogCard(void) {
+    for (int i = 7; i < g_cardCount; i++)
+        if (_wcsicmp(g_cards[i].id, L"weatherradar") == 0) return TRUE;
+    return FALSE;
+}
+
+static void EnsureWeatherRadarCatalogCard(BOOL loadIcon) {
+    if (!HasWeatherRadarCatalogCard())
+        AddCatalogCard(kWeatherRadarFallbackJson, loadIcon);
 }
 

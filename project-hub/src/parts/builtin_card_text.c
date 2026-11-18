@@ -103,9 +103,12 @@ static void RebuildExtraCards(const char *json) {
             char obj[1024];
             memcpy(obj, b, len);
             obj[len] = '\0';
-            AddCatalogCard(obj);
+            AddCatalogCard(obj, TRUE);
         }
         p = q + 1;
     }
+    /* Weather Radar is a core suite app, not an optional remote-only card. A
+       missing, truncated, or branch-specific catalog must not erase its Hub row. */
+    EnsureWeatherRadarCatalogCard(TRUE);
 }
 
