@@ -9,12 +9,15 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 - **Main: Project Hub 2.8.56:** Tri-Spoke tray, alerts, and default-on branch
   discovery remain. Remote probes pin releases and show updates only when app
   contents differ; `Update Hub` requires a newer build.
-- **Arena Project Hub 2.8.60** (`fc89c9d180ae848cc0097841bf67fbb6f1fa470b`):
+- **Arena Project Hub 2.8.61** (`a5ec05a56b580a6343afe1d9a50fa01e0e9858d7`):
   Hub runs asInvoker; child elevation remains app-owned. Agent Notes stays
   user-opened; elevated `--stop` precedes updates and the managed-copy gate
-  remains. Tray and Settings use Soft Slate. Owner-drawn tray rows now isolate
-  GDI state across redraws; the owner-reported stuck-white hover symptom still
-  needs Windows visual confirmation. Select this branch; main stays 2.8.56.
+  remains. Tray and Settings use Soft Slate. Popup tracking now blocks reentry:
+  `TrackPopupMenu` can dispatch another tray callback while global item data and
+  its background brush are live, exposing corrupted/default-white drawing. Row
+  fill and GDI isolation remain. Regression, mutation, build, and repository
+  checks pass; native owner hover confirmation is still needed. The reported
+  missing Weather Radar card remains a separate investigation. Main stays 2.8.56.
 - **Agent Notes waiting receipts:** implementation `ad9232009b9f38c287727123ddd404b204ce26e1`,
   released by marker `5343e54`. The direct local outbox records **Saved** only
   after the live receiver flushes `.agent/INBOX.md`, then **Read** only after an
@@ -30,33 +33,31 @@ release records, and compact offline safety facts. Drive holds extended narrativ
   area on close and sends a native Windows shell alert only at **66%+ exact-point
   ensemble odds in 3 hours**. The three-hour cooldown and persisted episode latch
   suppress duplicates while rain is under way. Regional coverage odds never alert.
-- **Documentation archive:** 29 human-facing files remain in
-  [Drive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
-  `39f71df` left compact Git stubs, changelogs, installers, tests, config,
-  version anchors, and runtime assets.
+- **Documentation archive:** 29 human-facing files remain in Drive; Git keeps
+  compact stubs, changelogs, tests, configuration, version anchors, and runtime assets.
 
 ## Efficiency system and completed audit
 
 - Default agent orientation is `AGENTS.md`, this state file, and
   `.agent/rules/execution.md`, plus a topic file only when needed. Generated
   CODEMAP, Drive narrative, history, and topic facts are on demand.
-- `tools/check_context_budget.py`, run by `tools/check_all.py`, caps the four
-  orientation files at 15,000 total characters and forbids a mandatory CODEMAP
-  read. This reduces avoidable context without weakening focused review/tests.
-- The final size sweep removed six duplicate brand aliases (about 26 MiB saved);
-  regeneration removes them too. Canonical icons and spin assets are unchanged.
+- `tools/check_context_budget.py`, run by `tools/check_all.py`, caps four
+  orientation files at 15,000 characters and forbids a mandatory CODEMAP read.
 - Audit passes Python, shell, Windows build, checks, mutations, and artifacts.
-  Spatial HUD needs JDK 25; unavailable in sandbox but present in CI.
+  Spatial HUD needs JDK 25, unavailable in sandbox but present in CI.
 
 ## Next approved work
 
-1. Weather Radar five-day planner: equal rain, temperature, cloud, and wind
+1. Get native owner confirmation for the 2.8.61 tray hover; then investigate and
+   restore the reported Weather Radar Hub card. Runtime cause remains unknown.
+2. Weather Radar five-day planner: equal rain, temperature, cloud, and wind
    daily categories; selected day/category gives hourly detail, compact trend,
    and plain-English reading. Rain remains primary; exact ensemble odds stay
    distinct from regional coverage; humidity stays supporting.
-2. Keyboard Lighting M4 hold is unresolved: the owner test after `9cb8d8d`
-   still shows M4 learning; `engine-5.log` has no key events. Revisit after
-   tray-hover testing; preserve exclusive-lock, pacing, and single-engine safety.
+3. Keyboard Lighting M4 hold is unresolved: the owner test after `9cb8d8d`
+   still shows M4 learning; `engine-5.log` has no key events. It remains parked
+   until Hub issues are handled; preserve exclusive-lock, pacing, and
+   single-engine safety.
 
 ## Offline safety facts
 
@@ -65,13 +66,11 @@ release records, and compact offline safety facts. Drive holds extended narrativ
   resolve that commit, not an unfinished tip.
 - Never show a current app's Update action or an unnecessary Update Hub control.
   Close and verify an app stopped before replacing its EXE.
+- Behavioral changes need focused tests and a deliberate-break mutation; run
+  build/check before commit and refresh CODEMAP after mapped layout changes.
 - Preserve Weather Radar attribution, local cache, async worker/UI handoff, and
   zoom-8-to-7 tile fallback. Late forecast/ensemble replies are generation-gated
   and must never overwrite a newly selected place.
-- Every behavioral change needs focused regression coverage and a mutation entry.
-  Before commit run `python3 tools/build_windows.py && python3 tools/check_all.py`;
-  run `python3 tools/mutate.py` for behavioral work and regenerate the code map
-  after mapped C/Python layout changes.
 
 ## Git / Drive boundary
 
