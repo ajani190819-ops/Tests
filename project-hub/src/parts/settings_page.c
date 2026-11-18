@@ -530,6 +530,30 @@ static BOOL ApplyDns(void) {
     return a && b;
 }
 
+typedef HRESULT (WINAPI *PFN_SetWindowTheme)(HWND, LPCWSTR, LPCWSTR);
+static HMODULE g_settingsThemeModule = NULL;
+static PFN_SetWindowTheme g_settingsSetWindowTheme = NULL;
+static BOOL g_settingsThemeChecked = FALSE;
+
+static void SetSettingsNativeControlTheme(HWND ctl) {
+    if (!ctl) return;
+    if (!g_settingsThemeChecked) {
+        g_settingsThemeChecked = TRUE;
+        g_settingsThemeModule = LoadLibraryW(L"uxtheme.dll");
+        if (g_settingsThemeModule) {
+            g_settingsSetWindowTheme =
+                (PFN_SetWindowTheme)(void *)GetProcAddress(g_settingsThemeModule,
+                                                           "SetWindowTheme");
+        }
+    }
+    /* The themed BUTTON/COMBOBOX renderer can ignore WM_CTLCOLOR text colors
+       and choose black system text against this dark card. Disabling only the
+       native theme for these child controls makes their existing Soft Slate
+       WM_CTLCOLOR brushes and readable text colors authoritative. */
+    if (g_settingsSetWindowTheme)
+        g_settingsSetWindowTheme(ctl, L"", L"");
+}
+
 static HWND SetCtl(DWORD style, const wchar_t *cls, const wchar_t *text,
                    int x, int y, int w, int h, int id, HWND parent, int dpi) {
     HWND ctl = CreateWindowExW(0, cls, text, style | WS_CHILD | WS_VISIBLE,
@@ -537,6 +561,8 @@ static HWND SetCtl(DWORD style, const wchar_t *cls, const wchar_t *text,
                                SetScale(w, dpi), SetScale(h, dpi),
                                parent, (HMENU)(INT_PTR)id, g_hInst, NULL);
     if (ctl && g_fontBody) SendMessageW(ctl, WM_SETFONT, (WPARAM)g_fontBody, TRUE);
+    if (ctl && (lstrcmpiW(cls, L"BUTTON") == 0 || lstrcmpiW(cls, L"COMBOBOX") == 0))
+        SetSettingsNativeControlTheme(ctl);
     return ctl;
 }
 
@@ -705,6 +731,7 @@ static LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM l
         HDC dc = (HDC)wp;
         SetTextColor(dc, COL_TEXT_PRIMARY);
         SetBkColor(dc, COL_CARD_BG);
+        SetBkMode(dc, TRANSPARENT);
         return (LRESULT)(g_setCardBrush ? g_setCardBrush : GetSysColorBrush(COLOR_BTNFACE));
     }
     if (msg == WM_CLOSE) { DestroyWindow(hwnd); return 0; }

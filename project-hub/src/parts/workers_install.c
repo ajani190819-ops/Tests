@@ -68,21 +68,64 @@ static BOOL WorkerInstallBluetoothGuard(BOOL launchAfter) {
     return TRUE;
 }
 
+static BOOL HubRequestAgentNotesExit(HWND notes) {
+    DWORD pid = 0;
+    if (!notes || !GetWindowThreadProcessId(notes, &pid) || !pid) return FALSE;
+
+    /* Hub runs asInvoker. Agent Notes still owns its own elevated manifest, so
+       do not send a cross-integrity WM_COMMAND from the unelevated Hub. Launch
+       the running image's documented --stop companion through runas instead;
+       the common close gate below still proves every managed copy is gone. */
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!process) return FALSE;
+    wchar_t exePath[MAX_PATH] = L"";
+    DWORD pathLen = MAX_PATH;
+    BOOL havePath = QueryFullProcessImageNameW(process, 0, exePath, &pathLen);
+    CloseHandle(process);
+    if (!havePath || !exePath[0]) return FALSE;
+
+    wchar_t exeDir[MAX_PATH];
+    wcsncpy(exeDir, exePath, MAX_PATH - 1);
+    exeDir[MAX_PATH - 1] = L'\0';
+    wchar_t *slash = wcsrchr(exeDir, L'\\');
+    if (!slash || slash == exeDir) return FALSE;
+    *slash = L'\0';
+
+    SHELLEXECUTEINFOW stop;
+    ZeroMemory(&stop, sizeof(stop));
+    stop.cbSize = sizeof(stop);
+    stop.fMask = SEE_MASK_NOCLOSEPROCESS;
+    stop.lpVerb = L"runas";
+    stop.lpFile = exePath;
+    stop.lpParameters = L"--stop";
+    stop.lpDirectory = exeDir;
+    stop.nShow = SW_HIDE;
+    BOOL started = ShellExecuteExW(&stop);
+    if (started && stop.hProcess) {
+        WaitForSingleObject(stop.hProcess, 3000);
+        CloseHandle(stop.hProcess);
+    }
+    return started;
+}
+
 static void WorkerInstallNotes(BOOL launchAfter) {
     wchar_t branch[64];
     EnsureProbeRef(branch, 64);
     EnsureDirTree(g_notesDir);
 
     /* Agent Notes now stays resident when its ordinary window is closed so it
-       can watch for a waiting agent. Ask its explicit Exit command instead;
-       the common gate applies that command to every registered mirror and
-       then proves all image paths are gone before any write. */
+       can watch for a waiting agent. Ask the live image's explicit Exit route;
+       the common managed-copy gate then proves every image path is gone before
+       any write. */
     BOOL wasRunning = FALSE;
     HWND hNotes = FindWindowW(L"AgentNotesWnd", NULL);
     if (hNotes) {
         wasRunning = TRUE;
         SetFooterStatus(L"Stopping Agent Notes for a clean update...", 8);
-        PostMessageW(hNotes, WM_COMMAND, MAKEWPARAM(AGENT_NOTES_EXIT_COMMAND, 0), 0);
+        if (!HubRequestAgentNotesExit(hNotes)) {
+            SetFooterStatus(L"Could not request Agent Notes to exit. No update was applied.", 0);
+            return;
+        }
         Sleep(300);
     }
     if (!CloseManagedExeCopies(MIRROR_NOTES, g_notesDir, L"AgentNotes.exe",

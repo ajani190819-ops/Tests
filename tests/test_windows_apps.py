@@ -429,6 +429,23 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                     f"Hardcoded personal user path found in {rel}",
                 )
 
+    def test_project_hub_starts_without_elevation_but_children_keep_their_boundaries(self):
+        hub = (ROOT / "project-hub" / "src" / "manifest.xml").read_text(encoding="utf-8")
+        self.assertIn('level="asInvoker"', hub,
+                      "opening Project Hub still asks for administrator consent")
+        self.assertNotIn("requireAdministrator", hub,
+                         "Project Hub still has a launch-time administrator requirement")
+
+        for rel in ("bluetooth-guard/src/manifest.xml", "dns-pilot/src/manifest.xml",
+                    "agent-notes/src/manifest.xml", "weather-radar/src/manifest.xml"):
+            with self.subTest(app=rel):
+                self.assertIn('level="requireAdministrator"',
+                              (ROOT / rel).read_text(encoding="utf-8"),
+                              f"{rel} lost its app-owned elevation boundary")
+        kbl = (ROOT / "keyboard-lighting" / "src" / "manifest.xml").read_text(encoding="utf-8")
+        self.assertIn('level="asInvoker"', kbl,
+                      "Keyboard Lighting must remain unelevated for M4/M5 token launches")
+
     def test_native_windows_gui_executables_are_valid_x64_gui_pe_binaries(self):
         import struct
 
@@ -451,15 +468,12 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             # same-size rebuild can no longer look "up to date".
             "bcrypt.dll",
         }
-        # Keyboard Lighting is the one deliberate exception to "every suite app
-        # starts elevated". G-Helper's Custom action for M4/M5 launches it PER
-        # KEYPRESS to write a brightness token into %LOCALAPPDATA%, which needs
-        # no privileges at all - but requireAdministrator is enforced by the OS
-        # at process creation, before wWinMain runs, so a non-elevated G-Helper
-        # got a UAC consent prompt on every single keypress. It ships asInvoker
-        # and still gets its administrator token from the /RL HIGHEST logon
-        # task, from an elevated ProjectHub, or from its own runas
-        # self-elevation. Pinned again, in detail, by
+        # Project Hub and Keyboard Lighting run asInvoker. Hub only coordinates
+        # user-profile installs; child apps keep their own elevation manifests,
+        # so a prompt occurs only when an explicitly selected action needs it.
+        # Keyboard Lighting also has to stay asInvoker because G-Helper's M4/M5
+        # Custom action launches it per keypress to write a user-profile token.
+        # The full KBL startup/elevation contract remains pinned by
         # test_keyboard_lighting_brightness_taps_never_cost_a_uac_prompt.
         for rel in (
             "project-hub/ProjectHub.exe",
@@ -482,15 +496,14 @@ class WindowsDesktopAppsTests(unittest.TestCase):
             self.assertEqual(subsystem, 2, f"{rel} must use IMAGE_SUBSYSTEM_WINDOWS_GUI (no console window)")
             self.assertIn(b"PerMonitorV2", data, f"{rel} must embed PerMonitorV2 DPI manifest")
             self.assertIn(b"Microsoft.Windows.Common-Controls", data, f"{rel} must embed ComCtl32 v6 manifest")
-            if rel == "keyboard-lighting/KeyboardLighting.exe":
+            if rel in ("project-hub/ProjectHub.exe", "keyboard-lighting/KeyboardLighting.exe"):
                 self.assertIn(b'level="asInvoker"', data,
-                              f"{rel} must stay asInvoker, or every M4/M5 brightness "
-                              f"keypress that G-Helper routes through it costs a UAC "
-                              f"consent prompt")
+                              f"{rel} must run asInvoker rather than require elevation at launch")
                 self.assertNotIn(b"requireAdministrator", data,
                                  f"{rel} requires administrator again")
             else:
-                self.assertIn(b"requireAdministrator", data, f"{rel} must require administrator - all suite apps start elevated")
+                self.assertIn(b"requireAdministrator", data,
+                              f"{rel} must preserve its own action-level elevation boundary")
 
             imp_rva, _ = struct.unpack_from("<II", data, opt_off + 112 + 8)
             sec_off = opt_off + struct.unpack_from("<H", data, pe_off + 20)[0]
@@ -3312,6 +3325,43 @@ class SuiteFolderInstallTests(unittest.TestCase):
                           "the turn-start protocol no longer mentions %s, so the "
                           "channel's last mile rots again" % needle)
 
+    def test_hub_startup_keeps_agent_notes_explicitly_user_opened(self):
+        """Hub startup checks suite status only. Opening the Agent Notes composer
+        remains an explicit card/tray action, never a launch side effect."""
+        entry = (ROOT / "project-hub" / "src" / "parts" / "branch_picker_entry.c").read_text(encoding="utf-8")
+        start = entry.index("case WM_CREATE:")
+        end = entry.index("case WM_DPICHANGED:", start)
+        startup = entry[start:end]
+        self.assertIn("EnqueueTask(TASK_CHECK_REMOTE);", startup,
+                      "Hub startup no longer performs its background release check")
+        for forbidden in ("TASK_INSTALL_NOTES", "TASK_OPEN_OR_INSTALL_NOTES",
+                          "ID_NOTES_OPEN", "AgentNotes.exe", "WorkerInstallNotes", "ShellExecuteW"):
+            self.assertNotIn(forbidden, startup,
+                             f"Hub startup can open Agent Notes through {forbidden}")
+
+    def test_hub_agent_notes_update_uses_the_app_owned_elevated_exit_route(self):
+        """An asInvoker Hub must not send a UIPI-blocked WM_COMMAND into the
+        elevated Agent Notes window. Its explicit --stop companion requests exit;
+        the existing all-copy process gate remains authoritative before writes."""
+        workers = (ROOT / "project-hub" / "src" / "parts" / "workers_install.c").read_text(encoding="utf-8")
+        helper_start = workers.index("static BOOL HubRequestAgentNotesExit(HWND notes)")
+        helper_end = workers.index("\n}\n", helper_start)
+        helper = workers[helper_start:helper_end]
+        self.assertIn("QueryFullProcessImageNameW", helper)
+        self.assertIn('stop.lpVerb = L"runas";', helper,
+                      "the stop companion no longer reaches the running app's integrity level")
+        self.assertIn('stop.lpParameters = L"--stop";', helper,
+                      "the helper no longer uses Agent Notes' explicit real-exit route")
+
+        worker_start = workers.index("static void WorkerInstallNotes(BOOL launchAfter)")
+        worker_end = workers.index("static void WorkerInstallDnsPilot", worker_start)
+        worker = workers[worker_start:worker_end]
+        self.assertIn("HubRequestAgentNotesExit(hNotes)", worker)
+        self.assertIn("CloseManagedExeCopies(MIRROR_NOTES", worker,
+                      "an elevated stop request replaced the close-and-prove gate")
+        self.assertNotIn("PostMessageW(hNotes", worker,
+                         "the unelevated Hub still sends a cross-integrity WM_COMMAND")
+
     def test_hub_open_reveals_a_running_agent_notes_window(self):
         """Agent Notes normally hides to its tray. A Hub Open click must reveal
         that instance itself instead of silently starting a second process and
@@ -3397,6 +3447,19 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("ShowWindow(hwnd, SW_HIDE);", hub_ui,
                       "normal Hub close no longer hides to the unified tray")
         self.assertIn("ID_TRAY_HUB_EXIT", tray)
+        self.assertIn("MF_OWNERDRAW", tray,
+                      "the Hub tray context menu still uses the stock unstyled popup rows")
+        self.assertIn("SetMenuInfo(menu, &info)", tray,
+                      "the menu and submenus do not use the Soft Slate surface")
+        self.assertIn("HubTrayDrawMenuItem", tray)
+        self.assertIn("RoundRect(dc, hover.left", tray,
+                      "selected menu rows no longer use the rounded hover treatment")
+        self.assertIn("COL_BTN_HOVER", tray)
+        self.assertIn("COL_TEXT_PRIMARY", tray)
+        self.assertIn("WM_MEASUREITEM", hub_ui,
+                      "the Hub window does not measure its owner-drawn menu rows")
+        self.assertIn("WM_DRAWITEM", hub_ui,
+                      "the Hub window does not render its owner-drawn menu rows")
 
         # Every tray-owning native app must suppress only its duplicate icon
         # while the new Hub host is actually present, then keep its fallback.
@@ -3663,11 +3726,13 @@ class SuiteFolderInstallTests(unittest.TestCase):
                             "Agent Notes silently added a sign-in/service startup path")
 
         # The tray watcher must have an explicit updater exit route. Ordinary
-        # WM_CLOSE now hides it, so the generic close route would correctly
-        # fail safe but could never update a resident Agent Notes process.
+        # WM_CLOSE now hides it, so Hub asks the app-owned elevated --stop
+        # companion and still applies the managed-copy verification gate.
         self.assertIn("AGENT_NOTES_EXIT_COMMAND", hub)
-        self.assertIn("MAKEWPARAM(AGENT_NOTES_EXIT_COMMAND, 0)", workers)
-        self.assertIn("L\"Agent Notes\", AGENT_NOTES_EXIT_COMMAND", workers)
+        self.assertIn("HubRequestAgentNotesExit(hNotes)", workers)
+        self.assertIn('stop.lpVerb = L"runas";', workers)
+        self.assertIn('stop.lpParameters = L"--stop";', workers)
+        self.assertIn('L\"Agent Notes\", AGENT_NOTES_EXIT_COMMAND', workers)
         self.assertIn('wcsstr(cmdLine, L"--stop")', entry_c)
 
         rules = (ROOT / ".agent" / "rules" / "execution.md").read_text(encoding="utf-8")
@@ -4035,6 +4100,14 @@ class SuiteFolderInstallTests(unittest.TestCase):
                       "the Settings page no longer uses the Suite's card layout")
         self.assertIn("COL_CARD_BG", page)
         self.assertIn("COL_TEXT_PRIMARY", page)
+        self.assertIn('GetProcAddress(g_settingsThemeModule', page,
+                      "the themed checkbox/combo renderer can still ignore the page's "
+                      "readable Soft Slate colors")
+        self.assertIn('"SetWindowTheme"', page)
+        self.assertIn('g_settingsSetWindowTheme(ctl, L"", L"")', page,
+                      "native controls are not opted out of system black text on dark cards")
+        self.assertIn('lstrcmpiW(cls, L"BUTTON") == 0', page)
+        self.assertIn("SetBkMode(dc, TRANSPARENT);", page)
         self.assertIn("WritePrivateProfileStringW", page,
                       "DNS Pilot's config is not written through the same INI API "
                       "the app reads with")

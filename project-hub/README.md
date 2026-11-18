@@ -22,3 +22,8 @@ Keyboard Lighting preferences update both `panel.json` (saved state) and
 `theme.json` (the live engine input); its tray reloads an external panel change
 before it can write stale in-memory values back. DNS Pilot still applies its
 saved INI changes after restart.
+
+Project Hub itself runs as the current user, so opening the Hub does not need an
+administrator prompt. Apps that declare elevated access continue to request it
+when explicitly opened, and update actions retain their stop-and-verify gates;
+cancelled elevation or inaccessible targets do not bypass those checks.

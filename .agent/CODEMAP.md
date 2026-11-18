@@ -23,7 +23,7 @@
 - L184  f ShowBranchMenu
 - L225  f ShowRunningAgentNotes
 - L239  f HandleActionCommand
-- L771  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
+- L781  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
 
 ## project-hub/src/parts/builtin_card_text.c
 
@@ -152,42 +152,51 @@
 - L483  f HoldSweepReady
 - L490  f UpdateHoldStateLabel
 - L510  f ApplyDns
-- L533  f SetCtl
-- L543  f SetSettingsFont
-- L547  f EnsureSettingsBrushes
-- L553  f ReleaseSettingsBrushes
-- L562  f DrawSettingsCard
-- L584  f PaintSettings
-- L725  f OpenSettingsWindow
-- globals: g_setHwnd (L34), g_setHold (L35), g_setHoldState (L36), g_setSmooth (L37), g_setBalance (L38), g_setHotkeys (L39), g_setDnsAuto (L40), g_setDnsInt (L41), g_setAutoBranch (L42), g_setStatus (L43), g_setBgBrush (L44), g_setCardBrush (L45), g_setAccentBrush (L46), g_setStatusTone (L47)
+- L538  f SetSettingsNativeControlTheme
+- L557  f SetCtl
+- L569  f SetSettingsFont
+- L573  f EnsureSettingsBrushes
+- L579  f ReleaseSettingsBrushes
+- L588  f DrawSettingsCard
+- L610  f PaintSettings
+- L752  f OpenSettingsWindow
+- globals: g_setHwnd (L34), g_setHold (L35), g_setHoldState (L36), g_setSmooth (L37), g_setBalance (L38), g_setHotkeys (L39), g_setDnsAuto (L40), g_setDnsInt (L41), g_setAutoBranch (L42), g_setStatus (L43), g_setBgBrush (L44), g_setCardBrush (L45), g_setAccentBrush (L46), g_setStatusTone (L47), g_settingsThemeModule (L534), g_settingsSetWindowTheme (L535), g_settingsThemeChecked (L536)
 
 ## project-hub/src/parts/tray_unified.c
 
-- L9  f HubTrayAgentNotesCfg
-- L14  f HubTrayConfig
-- L18  f HubTrayWeatherCfg
-- L23  f HubTrayAgentWaitSound
-- L29  f HubTrayToggleAgentWaitSound
-- L39  f HubTrayShowAgentWaitingAlert
-- L54  f HubTrayPollAgentWait
-- L72  f HubTrayPollWeatherAlert
-- L100  f HubTrayPublishHostMarker
-- L105  f HubTrayRestore
-- L131  f HubTrayEnsureLive  — NIM_ADD can lose a startup race with Explorer without producing a later
-- L140  f HubTrayInit
-- L162  f HubTrayRemove
-- L174  f HubTrayAppWindow
-- L178  f HubTrayShowApp
-- L189  f HubTrayHideApp
-- L194  f HubTrayStopExe
-- L214  f HubTrayFindCardByExe
-- L221  f HubTrayOpenWeather
-- L238  f HubTrayOpenApp
-- L261  f HubTrayRunControl
-- L276  f HubTrayToggleBluetooth
-- L284  f HubTrayAppendApp
-- L303  f HubTrayShowMenu
-- L338  f HubTrayHandleCommand
+- L32  f HubTrayMenuAdd
+- L62  f HubTrayCreateMenu
+- L76  f HubTrayMeasureMenuItem
+- L90  f HubTrayDrawCheckmark
+- L101  f HubTrayDrawMenuText
+- L111  f HubTrayDrawArrow
+- L135  f HubTrayDrawMenuItem
+- L231  f HubTrayAgentNotesCfg
+- L236  f HubTrayConfig
+- L240  f HubTrayWeatherCfg
+- L245  f HubTrayAgentWaitSound
+- L251  f HubTrayToggleAgentWaitSound
+- L261  f HubTrayShowAgentWaitingAlert
+- L276  f HubTrayPollAgentWait
+- L294  f HubTrayPollWeatherAlert
+- L322  f HubTrayPublishHostMarker
+- L327  f HubTrayRestore
+- L353  f HubTrayEnsureLive  — NIM_ADD can lose a startup race with Explorer without producing a later
+- L362  f HubTrayInit
+- L384  f HubTrayRemove
+- L396  f HubTrayAppWindow
+- L400  f HubTrayShowApp
+- L411  f HubTrayHideApp
+- L416  f HubTrayStopExe
+- L436  f HubTrayFindCardByExe
+- L443  f HubTrayOpenWeather
+- L460  f HubTrayOpenApp
+- L483  f HubTrayRunControl
+- L498  f HubTrayToggleBluetooth
+- L506  f HubTrayAppendApp
+- L532  f HubTrayShowMenu
+- L587  f HubTrayHandleCommand
+- globals: g_hubTrayMenuItems (L28), g_hubTrayMenuItemCount (L29), g_hubTrayMenuBrush (L30)
 
 ## project-hub/src/parts/ui_renderer.c
 
@@ -225,12 +234,13 @@
 ## project-hub/src/parts/workers_install.c
 
 - L1  f WorkerInstallBluetoothGuard
-- L71  f WorkerInstallNotes
-- L119  f WorkerInstallDnsPilot
-- L191  f WorkerInstallKeyboardLighting
-- L291  f WorkerInstallSpatialHud
-- L353  f WorkerInstallOrcaPlugins
-- L454  f WorkerSelfUpdateHub
+- L71  f HubRequestAgentNotesExit
+- L111  f WorkerInstallNotes
+- L162  f WorkerInstallDnsPilot
+- L234  f WorkerInstallKeyboardLighting
+- L334  f WorkerInstallSpatialHud
+- L396  f WorkerInstallOrcaPlugins
+- L497  f WorkerSelfUpdateHub
 
 ## project-hub/src/parts/workers_remote.c
 
@@ -1115,11 +1125,11 @@
 - L45  f strip_cs_comments_and_strings
 - L167  f lex_powershell
 - L302  f WindowsDesktopAppsTests
-- L3024  f SuiteFolderInstallTests
-- L4269  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L4452  f AudioSwitcherReachabilityTests
-- L4636  f AudioSwitcherSessionSweepTests
-- L4777  f AppOpenFocusTests
+- L3037  f SuiteFolderInstallTests
+- L4342  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L4525  f AudioSwitcherReachabilityTests
+- L4709  f AudioSwitcherSessionSweepTests
+- L4850  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

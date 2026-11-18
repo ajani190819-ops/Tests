@@ -23,8 +23,8 @@
 #include <wchar.h>
 #include "../../shared/win32/hub_tray_host.h"
 
-#define HUB_VERSION       "2.8.58"
-#define HUB_VERSION_W     L"2.8.58"
+#define HUB_VERSION       "2.8.59"
+#define HUB_VERSION_W     L"2.8.59"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -406,6 +406,8 @@ static void HubTrayRestore(void);
 static void HubTrayEnsureLive(void);
 static void HubTrayRemove(void);
 static void HubTrayShowMenu(HWND hwnd);
+static BOOL HubTrayMeasureMenuItem(MEASUREITEMSTRUCT *measure);
+static BOOL HubTrayDrawMenuItem(const DRAWITEMSTRUCT *draw);
 static void HubTrayPollAgentWait(void);
 static void HubTrayPollWeatherAlert(void);
 static int HubTrayHandleCommand(HWND hwnd, int id);

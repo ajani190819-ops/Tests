@@ -929,5 +929,40 @@
   "old": "    Sync-ExternalPanelCfg\n",
   "new": "    # external config sync removed\n",
   "label": "The tray can overwrite a Hub preference from stale in-memory settings"
+ },
+ {
+  "id": "hub-elevation-00",
+  "file": "project-hub/src/manifest.xml",
+  "old": "level=\"asInvoker\"",
+  "new": "level=\"requireAdministrator\"",
+  "label": "Project Hub asks for elevation just to open"
+ },
+ {
+  "id": "hub-notes-startup-00",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "        /* Agent Notes is user-opened only; startup refreshes suite status but\n           must never launch its composer window. */\n        EnqueueTask(TASK_CHECK_REMOTE);",
+  "new": "        /* startup notes launch */\n        EnqueueTask(TASK_INSTALL_NOTES);",
+  "label": "Opening Project Hub automatically opens Agent Notes"
+ },
+ {
+  "id": "trayhub-style-00",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    UINT flags = MF_OWNERDRAW;",
+  "new": "    UINT flags = MF_STRING;",
+  "label": "Hub tray right-click menu falls back to stock unstyled rows"
+ },
+ {
+  "id": "settings-theme-00",
+  "file": "project-hub/src/parts/settings_page.c",
+  "old": "g_settingsSetWindowTheme(ctl, L\"\", L\"\");",
+  "new": "g_settingsSetWindowTheme(ctl, L\"Explorer\", L\"Button\");",
+  "label": "Settings native controls can render black text on dark surfaces again"
+ },
+ {
+  "id": "hub-notes-stop-00",
+  "file": "project-hub/src/parts/workers_install.c",
+  "old": "stop.lpVerb = L\"runas\";",
+  "new": "stop.lpVerb = L\"open\";",
+  "label": "Hub Notes update tries a UIPI-blocked stop instead of elevating the helper"
  }
 ]

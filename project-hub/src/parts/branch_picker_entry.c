@@ -580,6 +580,8 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         RefreshProjectStatuses();
         SetTimer(hwnd, 1, 2000, NULL);
         SetTimer(hwnd, 2, 50, NULL);    /* emblem spin repaint */
+        /* Agent Notes is user-opened only; startup refreshes suite status but
+           must never launch its composer window. */
         EnqueueTask(TASK_CHECK_REMOTE);
         return 0;
 
@@ -671,6 +673,14 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_RBUTTONUP:
         ShowUtilityMenu(hwnd);
         return 0;
+
+    case WM_MEASUREITEM:
+        if (HubTrayMeasureMenuItem((MEASUREITEMSTRUCT *)lp)) return TRUE;
+        break;
+
+    case WM_DRAWITEM:
+        if (HubTrayDrawMenuItem((const DRAWITEMSTRUCT *)lp)) return TRUE;
+        break;
 
     case WM_COMMAND:
         if (!HubTrayHandleCommand(hwnd, LOWORD(wp)))

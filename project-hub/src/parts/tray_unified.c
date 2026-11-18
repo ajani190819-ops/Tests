@@ -6,6 +6,228 @@
    icons; if the host goes away, each app restores its own icon on its regular
    timer. The event is a capability marker, not a command channel. */
 
+#define HUB_TRAY_MENU_ITEM_CAP 64
+
+enum {
+    HUB_TRAY_MENU_TEXT = 0,
+    HUB_TRAY_MENU_SECTION,
+    HUB_TRAY_MENU_SEPARATOR
+};
+
+typedef struct {
+    wchar_t text[96];
+    int kind;
+    BOOL checked;
+    BOOL disabled;
+    BOOL isApp;
+    BOOL running;
+    BOOL isHub;
+    BOOL hasSubmenu;
+} HubTrayMenuItem;
+
+static HubTrayMenuItem g_hubTrayMenuItems[HUB_TRAY_MENU_ITEM_CAP];
+static int g_hubTrayMenuItemCount = 0;
+static HBRUSH g_hubTrayMenuBrush = NULL;
+
+static HubTrayMenuItem *HubTrayMenuAdd(HMENU menu, UINT_PTR commandOrSubmenu,
+                                       const wchar_t *text, int kind,
+                                       BOOL checked, BOOL disabled, BOOL isApp,
+                                       BOOL running, BOOL isHub, BOOL hasSubmenu) {
+    if (!menu || g_hubTrayMenuItemCount >= HUB_TRAY_MENU_ITEM_CAP) return NULL;
+    HubTrayMenuItem *item = &g_hubTrayMenuItems[g_hubTrayMenuItemCount++];
+    ZeroMemory(item, sizeof(*item));
+    if (text) {
+        wcsncpy(item->text, text, 95);
+        item->text[95] = L'\0';
+    }
+    item->kind = kind;
+    item->checked = checked;
+    item->disabled = disabled;
+    item->isApp = isApp;
+    item->running = running;
+    item->isHub = isHub;
+    item->hasSubmenu = hasSubmenu;
+
+    UINT flags = MF_OWNERDRAW;
+    if (checked) flags |= MF_CHECKED;
+    if (disabled) flags |= MF_DISABLED | MF_GRAYED;
+    if (hasSubmenu) flags |= MF_POPUP;
+    if (!AppendMenuW(menu, flags, commandOrSubmenu, (LPCWSTR)(ULONG_PTR)item)) {
+        g_hubTrayMenuItemCount--;
+        return NULL;
+    }
+    return item;
+}
+
+static HMENU HubTrayCreateMenu(void) {
+    HMENU menu = CreatePopupMenu();
+    if (!menu) return NULL;
+    if (g_hubTrayMenuBrush) {
+        MENUINFO info;
+        ZeroMemory(&info, sizeof(info));
+        info.cbSize = sizeof(info);
+        info.fMask = MIM_BACKGROUND;
+        info.hbrBack = g_hubTrayMenuBrush;
+        SetMenuInfo(menu, &info);
+    }
+    return menu;
+}
+
+static BOOL HubTrayMeasureMenuItem(MEASUREITEMSTRUCT *measure) {
+    if (!measure || measure->CtlType != ODT_MENU || !measure->itemData) return FALSE;
+    const HubTrayMenuItem *item = (const HubTrayMenuItem *)measure->itemData;
+    int dpi = GetWinDpi(g_hwnd);
+    measure->itemWidth = (UINT)S(360, dpi);
+    if (item->kind == HUB_TRAY_MENU_SEPARATOR)
+        measure->itemHeight = (UINT)S(9, dpi);
+    else if (item->kind == HUB_TRAY_MENU_SECTION)
+        measure->itemHeight = (UINT)S(27, dpi);
+    else
+        measure->itemHeight = (UINT)S(36, dpi);
+    return TRUE;
+}
+
+static void HubTrayDrawCheckmark(HDC dc, int x, int y, int dpi) {
+    HPEN pen = CreatePen(PS_SOLID, S(2, dpi), COL_SKY);
+    if (!pen) return;
+    HGDIOBJ oldPen = SelectObject(dc, pen);
+    MoveToEx(dc, x, y + S(7, dpi), NULL);
+    LineTo(dc, x + S(4, dpi), y + S(11, dpi));
+    LineTo(dc, x + S(12, dpi), y + S(2, dpi));
+    SelectObject(dc, oldPen);
+    DeleteObject(pen);
+}
+
+static void HubTrayDrawMenuText(HDC dc, const wchar_t *text, RECT *rc,
+                                COLORREF color, HFONT font) {
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, color);
+    HGDIOBJ oldFont = font ? SelectObject(dc, font) : NULL;
+    DrawTextW(dc, text ? text : L"", -1, rc,
+              DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+    if (oldFont) SelectObject(dc, oldFont);
+}
+
+static void HubTrayDrawArrow(HDC dc, RECT rc, int dpi, COLORREF color) {
+    int cx = rc.right - S(15, dpi);
+    int cy = (rc.top + rc.bottom) / 2;
+    POINT points[3] = {
+        { cx - S(2, dpi), cy - S(5, dpi) },
+        { cx + S(3, dpi), cy },
+        { cx - S(2, dpi), cy + S(5, dpi) }
+    };
+    HPEN pen = CreatePen(PS_SOLID, S(1, dpi), color);
+    HBRUSH brush = CreateSolidBrush(color);
+    if (!pen || !brush) {
+        if (pen) DeleteObject(pen);
+        if (brush) DeleteObject(brush);
+        return;
+    }
+    HGDIOBJ oldPen = SelectObject(dc, pen);
+    HGDIOBJ oldBrush = SelectObject(dc, brush);
+    Polygon(dc, points, 3);
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(brush);
+    DeleteObject(pen);
+}
+
+static BOOL HubTrayDrawMenuItem(const DRAWITEMSTRUCT *draw) {
+    if (!draw || draw->CtlType != ODT_MENU || !draw->itemData) return FALSE;
+    const HubTrayMenuItem *item = (const HubTrayMenuItem *)draw->itemData;
+    HDC dc = draw->hDC;
+    RECT rc = draw->rcItem;
+    int dpi = GetWinDpi(g_hwnd);
+    HBRUSH bg = g_hubTrayMenuBrush ? g_hubTrayMenuBrush : GetSysColorBrush(COLOR_MENU);
+    FillRect(dc, &rc, bg);
+
+    if (item->kind == HUB_TRAY_MENU_SEPARATOR) {
+        HPEN pen = CreatePen(PS_SOLID, 1, COL_DIVIDER);
+        if (pen) {
+            HGDIOBJ oldPen = SelectObject(dc, pen);
+            int y = (rc.top + rc.bottom) / 2;
+            MoveToEx(dc, rc.left + S(14, dpi), y, NULL);
+            LineTo(dc, rc.right - S(14, dpi), y);
+            SelectObject(dc, oldPen);
+            DeleteObject(pen);
+        }
+        return TRUE;
+    }
+
+    BOOL disabled = item->disabled || (draw->itemState & ODS_DISABLED) != 0;
+    BOOL selected = !disabled && item->kind == HUB_TRAY_MENU_TEXT &&
+                    (draw->itemState & ODS_SELECTED) != 0;
+    if (selected) {
+        RECT hover = rc;
+        InflateRect(&hover, -S(4, dpi), -S(2, dpi));
+        HPEN pen = CreatePen(PS_SOLID, S(1, dpi), COL_HOVER_BORDER);
+        HBRUSH brush = CreateSolidBrush(COL_BTN_HOVER);
+        if (pen && brush) {
+            HGDIOBJ oldPen = SelectObject(dc, pen);
+            HGDIOBJ oldBrush = SelectObject(dc, brush);
+            RoundRect(dc, hover.left, hover.top, hover.right, hover.bottom,
+                      S(8, dpi), S(8, dpi));
+            SelectObject(dc, oldBrush);
+            SelectObject(dc, oldPen);
+        }
+        if (brush) DeleteObject(brush);
+        if (pen) DeleteObject(pen);
+    }
+
+    RECT textRc = rc;
+    if (item->kind == HUB_TRAY_MENU_SECTION) {
+        textRc.left += S(16, dpi);
+        textRc.right -= S(12, dpi);
+        HubTrayDrawMenuText(dc, item->text, &textRc, COL_SKY, g_fontBody);
+        return TRUE;
+    }
+
+    if (item->isApp) {
+        int size = S(8, dpi);
+        int left = rc.left + S(14, dpi);
+        int top = (rc.top + rc.bottom - size) / 2;
+        COLORREF dotColor = item->running ? COL_MINT : COL_TEXT_MUTED;
+        HBRUSH dot = CreateSolidBrush(dotColor);
+        if (dot) {
+            HGDIOBJ oldBrush = SelectObject(dc, dot);
+            HGDIOBJ oldPen = SelectObject(dc, GetStockObject(NULL_PEN));
+            Ellipse(dc, left, top, left + size, top + size);
+            SelectObject(dc, oldPen);
+            SelectObject(dc, oldBrush);
+            DeleteObject(dot);
+        }
+        textRc.left += S(29, dpi);
+        textRc.right -= S(108, dpi);
+        RECT statusRc = rc;
+        statusRc.left = rc.right - S(102, dpi);
+        statusRc.right = rc.right - S(28, dpi);
+        HubTrayDrawMenuText(dc, item->running ? L"Running" : L"Not running",
+                            &statusRc,
+                            item->running ? COL_MINT : COL_TEXT_SECONDARY, g_fontBody);
+    } else if (item->isHub && g_appIcon) {
+        int size = S(18, dpi);
+        DrawIconEx(dc, rc.left + S(12, dpi),
+                   (rc.top + rc.bottom - size) / 2,
+                   g_appIcon, size, size, 0, NULL, DI_NORMAL);
+        textRc.left += S(38, dpi);
+        textRc.right -= S(14, dpi);
+    } else if (item->checked || (draw->itemState & ODS_CHECKED) != 0) {
+        HubTrayDrawCheckmark(dc, rc.left + S(14, dpi),
+                             (rc.top + rc.bottom - S(14, dpi)) / 2, dpi);
+        textRc.left += S(36, dpi);
+        textRc.right -= S(14, dpi);
+    } else {
+        textRc.left += S(16, dpi);
+        textRc.right -= item->hasSubmenu ? S(30, dpi) : S(14, dpi);
+    }
+
+    HubTrayDrawMenuText(dc, item->text, &textRc,
+                        disabled ? COL_TEXT_MUTED : COL_TEXT_PRIMARY, g_fontBody);
+    if (item->hasSubmenu)
+        HubTrayDrawArrow(dc, rc, dpi, disabled ? COL_TEXT_MUTED : COL_TEXT_SECONDARY);
+    return TRUE;
+}
+
 static void HubTrayAgentNotesCfg(wchar_t *out, size_t cap) {
     _snwprintf(out, cap - 1, L"%s\\AgentNotes\\config.ini", g_localApp);
     out[cap - 1] = L'\0';
@@ -285,27 +507,43 @@ static void HubTrayAppendApp(HMENU root, const wchar_t *title, const wchar_t *cl
                              UINT openId, UINT hideId, UINT quitId, UINT toggleId,
                              const wchar_t *toggleText) {
     HWND app = HubTrayAppWindow(className);
-    wchar_t label[128];
-    _snwprintf(label, 127, L"%s%s", title, app ? L"  -  active" : L"  -  not running");
-    label[127] = L'\0';
-    HMENU sub = CreatePopupMenu();
+    HMENU sub = HubTrayCreateMenu();
     if (!sub) return;
-    AppendMenuW(sub, MF_STRING, openId, app ? L"Show window" : L"Open");
-    if (app) {
-        AppendMenuW(sub, MF_STRING, hideId, L"Hide window");
-        if (toggleId && toggleText) AppendMenuW(sub, MF_STRING, toggleId, toggleText);
-        AppendMenuW(sub, MF_SEPARATOR, 0, NULL);
-        AppendMenuW(sub, MF_STRING, quitId, L"Quit");
+    if (!HubTrayMenuAdd(root, (UINT_PTR)sub, title, HUB_TRAY_MENU_TEXT,
+                        FALSE, FALSE, TRUE, app != NULL, FALSE, TRUE)) {
+        DestroyMenu(sub);
+        return;
     }
-    AppendMenuW(root, MF_POPUP, (UINT_PTR)sub, label);
+    HubTrayMenuAdd(sub, openId, app ? L"Show window" : L"Open",
+                   HUB_TRAY_MENU_TEXT, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE);
+    if (app) {
+        HubTrayMenuAdd(sub, hideId, L"Hide window", HUB_TRAY_MENU_TEXT,
+                       FALSE, FALSE, FALSE, FALSE, FALSE, FALSE);
+        if (toggleId && toggleText)
+            HubTrayMenuAdd(sub, toggleId, toggleText, HUB_TRAY_MENU_TEXT,
+                           FALSE, FALSE, FALSE, FALSE, FALSE, FALSE);
+        HubTrayMenuAdd(sub, 0, NULL, HUB_TRAY_MENU_SEPARATOR,
+                       FALSE, TRUE, FALSE, FALSE, FALSE, FALSE);
+        HubTrayMenuAdd(sub, quitId, L"Quit", HUB_TRAY_MENU_TEXT,
+                       FALSE, FALSE, FALSE, FALSE, FALSE, FALSE);
+    }
 }
 
 static void HubTrayShowMenu(HWND hwnd) {
-    HMENU menu = CreatePopupMenu();
-    if (!menu) return;
-    AppendMenuW(menu, MF_STRING, ID_TRAY_HUB_OPEN, L"Open Project Hub");
-    AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(menu, MF_STRING | MF_DISABLED | MF_GRAYED, 0, L"Suite apps");
+    g_hubTrayMenuItemCount = 0;
+    g_hubTrayMenuBrush = CreateSolidBrush(COL_CARD_BG);
+    HMENU menu = HubTrayCreateMenu();
+    if (!menu) {
+        if (g_hubTrayMenuBrush) DeleteObject(g_hubTrayMenuBrush);
+        g_hubTrayMenuBrush = NULL;
+        return;
+    }
+    HubTrayMenuAdd(menu, ID_TRAY_HUB_OPEN, L"Open Project Hub",
+                   HUB_TRAY_MENU_TEXT, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE);
+    HubTrayMenuAdd(menu, 0, NULL, HUB_TRAY_MENU_SEPARATOR,
+                   FALSE, TRUE, FALSE, FALSE, FALSE, FALSE);
+    HubTrayMenuAdd(menu, 0, L"Suite apps", HUB_TRAY_MENU_SECTION,
+                   FALSE, TRUE, FALSE, FALSE, FALSE, FALSE);
     HubTrayAppendApp(menu, L"Agent Notes", L"AgentNotesWnd",
                       ID_TRAY_NOTES_OPEN, ID_TRAY_NOTES_HIDE, ID_TRAY_NOTES_QUIT, 0, NULL);
     HubTrayAppendApp(menu, L"Bluetooth Guard", L"TestsBluetoothGuardModernWnd",
@@ -321,17 +559,28 @@ static void HubTrayShowMenu(HWND hwnd) {
                       ID_TRAY_AUDIO_OPEN, ID_TRAY_AUDIO_HIDE, ID_TRAY_AUDIO_QUIT, 0, NULL);
     HubTrayAppendApp(menu, L"Weather Radar", L"WeatherRadarMainV1",
                       ID_TRAY_WEATHER_OPEN, ID_TRAY_WEATHER_HIDE, ID_TRAY_WEATHER_QUIT, 0, NULL);
-    AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(menu, MF_STRING | (HubTrayAgentWaitSound() ? MF_CHECKED : MF_UNCHECKED),
-                ID_TRAY_NOTES_SOUND, L"Play a sound for Agent Notes waiting alerts");
-    AppendMenuW(menu, MF_STRING, ID_TRAY_HUB_FOLDER, L"Open Managed Suite Folder");
-    AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(menu, MF_STRING, ID_TRAY_HUB_EXIT, L"Exit Project Hub (restore app tray icons)");
+    HubTrayMenuAdd(menu, 0, NULL, HUB_TRAY_MENU_SEPARATOR,
+                   FALSE, TRUE, FALSE, FALSE, FALSE, FALSE);
+    HubTrayMenuAdd(menu, ID_TRAY_NOTES_SOUND,
+                   L"Play a sound for Agent Notes waiting alerts",
+                   HUB_TRAY_MENU_TEXT, HubTrayAgentWaitSound(), FALSE,
+                   FALSE, FALSE, FALSE, FALSE);
+    HubTrayMenuAdd(menu, ID_TRAY_HUB_FOLDER, L"Open Managed Suite Folder",
+                   HUB_TRAY_MENU_TEXT, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE);
+    HubTrayMenuAdd(menu, 0, NULL, HUB_TRAY_MENU_SEPARATOR,
+                   FALSE, TRUE, FALSE, FALSE, FALSE, FALSE);
+    HubTrayMenuAdd(menu, ID_TRAY_HUB_EXIT,
+                   L"Exit Project Hub (restore app tray icons)",
+                   HUB_TRAY_MENU_TEXT, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE);
+
     POINT pt;
     GetCursorPos(&pt);
     SetForegroundWindow(hwnd);
     TrackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_BOTTOMALIGN, pt.x, pt.y, 0, hwnd, NULL);
     DestroyMenu(menu);
+    if (g_hubTrayMenuBrush) DeleteObject(g_hubTrayMenuBrush);
+    g_hubTrayMenuBrush = NULL;
+    g_hubTrayMenuItemCount = 0;
     PostMessageW(hwnd, WM_NULL, 0, 0);
 }
 
