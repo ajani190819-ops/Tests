@@ -9,10 +9,10 @@
 #define WIN_LW 1120
 #define WIN_LH 960
 #define LEFT_W 252
-/* The radar host's validated imagery ends at level 7. Draw a centred local
-   focus from our three-tile fetch rather than shrinking the entire 768px
-   region. Higher display levels crop this available source progressively;
-   no unsupported closer tile is requested or misrepresented as radar data. */
+/* The radar host's validated imagery ends at level 7. Draw a local focus
+   centered on the selected place within our three-tile fetch rather than
+   shrinking the entire 768px region. Higher display levels crop this source
+   progressively; no unsupported closer tile is requested as radar data. */
 #define RADAR_FOCUS_PX 512
 #define RADAR_FOCUS_MIN_PX 96
 
@@ -890,6 +890,16 @@ static void PaintPlannerCard(HDC mem, const RECT *card) {
     PaintHourlyCard(mem, &detail, g_planDay, g_planCategory);
 }
 
+static int RadarFocusOrigin(double pointPx, int focusPx) {
+    if (focusPx < 1) return 0;
+    if (focusPx > GRID_PX) focusPx = GRID_PX;
+    int maxOrigin = GRID_PX - focusPx;
+    int origin = (int)llround(pointPx - (double)focusPx / 2.0);
+    if (origin < 0) origin = 0;
+    if (origin > maxOrigin) origin = maxOrigin;
+    return origin;
+}
+
 static void PaintRadarPane(HDC mem, const RECT *card) {
     DrawRoundedBox(mem, card, S(14), COL_CARD, COL_CARD_BD);
     RECT img;
@@ -935,10 +945,10 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
         bi.bmiHeader.biPlanes = 1;
         bi.bmiHeader.biBitCount = 32;
         bi.bmiHeader.biCompression = BI_RGB;
-        /* A centred local focus makes weather around the selected place large
-           enough to read. Every display increment beyond the available host
-           level halves this crop, so zoom 8-10 go progressively closer while
-           remaining an honest enlargement of the level-7 source. */
+        /* Shrink the local crop by one half per display zoom, anchored on the
+           selected place rather than the mosaic's midpoint. This keeps zoomed
+           RainViewer detail relevant to the exact forecast location while all
+           pixels still come from the validated level-7 source. */
         int focusPx = RADAR_FOCUS_PX;
         int localSteps = displayZoom - sourceZoom;
         while (localSteps > 0 && focusPx > RADAR_FOCUS_MIN_PX) {
@@ -948,22 +958,30 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
         if (focusPx < RADAR_FOCUS_MIN_PX) focusPx = RADAR_FOCUS_MIN_PX;
         int srcLeft = (GRID_PX - focusPx) / 2;
         int srcTop = (GRID_PX - focusPx) / 2;
+        int focusZoom = sourceZoom > 0 ? sourceZoom : RadarTileZoomForDisplay(displayZoom);
+        int focusTx = sourceTx, focusTy = sourceTy;
+        double placePixelX = 0.0, placePixelY = 0.0;
+        int placePixelValid = 0;
+        if (hasPlace) {
+            if (sourceZoom <= 0)
+                GridFor(focusZoom, pl.lat, pl.lon, &focusTx, &focusTy);
+            PlacePixelInGrid(focusZoom, pl.lat, pl.lon, focusTx, focusTy,
+                             &placePixelX, &placePixelY);
+            srcLeft = RadarFocusOrigin(placePixelX, focusPx);
+            srcTop = RadarFocusOrigin(placePixelY, focusPx);
+            placePixelValid = 1;
+        }
         EnterCriticalSection(&g_lock);
         StretchDIBits(mem, d.left, d.top, side, side, srcLeft, srcTop,
                       focusPx, focusPx, g_view, &bi,
                       DIB_RGB_COLORS, SRCCOPY);
         LeaveCriticalSection(&g_lock);
-        /* Crosshair on the exact place pixel, translated through the same
-           focused crop used for the map so it cannot drift away from home. */
-        if (hasPlace) {
-            int tx = 0, ty = 0;
-            int crosshairZoom = sourceZoom > 0 ? sourceZoom : RadarTileZoomForDisplay(displayZoom);
-            GridFor(crosshairZoom, pl.lat, pl.lon, &tx, &ty);
-            if (sourceZoom > 0) { tx = sourceTx; ty = sourceTy; }
-            double px = 0, py = 0;
-            PlacePixelInGrid(crosshairZoom, pl.lat, pl.lon, tx, ty, &px, &py);
-            int cx = d.left + (int)((px - srcLeft) / (double)focusPx * (double)side);
-            int cy = d.top + (int)((py - srcTop) / (double)focusPx * (double)side);
+        /* Draw the marker using the same map coordinate and crop origin so it
+           stays on the exact selected place, at the visual center when space
+           around it allows. */
+        if (placePixelValid) {
+            int cx = d.left + (int)((placePixelX - srcLeft) / (double)focusPx * (double)side);
+            int cy = d.top + (int)((placePixelY - srcTop) / (double)focusPx * (double)side);
             if (cx >= d.left && cx < d.right && cy >= d.top && cy < d.bottom) {
                 /* Two contrasting rings remain visible over both pale roads
                    and the strongest red/yellow precipitation echoes. */

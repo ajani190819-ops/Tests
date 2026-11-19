@@ -89,10 +89,9 @@ static int Lat2Tile(double lat, int z) {
     return y;
 }
 
-/* The grid is placed so the queried point sits in the CENTRE tile, which is
-   where the crosshair lands. Clamping at the map edges shifts the crosshair
-   off-centre; the paint code derives its position from the same maths, so
-   the marker stays on the place either way. */
+/* The grid normally places the queried point's tile in the CENTRE. At world
+   edges the tile grid is clamped; painting uses the exact place pixel to center
+   its local crop where possible and keeps the marker aligned either way. */
 static void GridFor(int z, double lat, double lon, int *tx, int *ty) {
     int n = 1 << z;
     int x = Lon2Tile(lon, z) - (GRID_TILES / 2);

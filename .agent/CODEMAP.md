@@ -831,14 +831,14 @@
 - L72  S slippy-map tile maths
 - L74  f Lon2Tile  — ---------------- slippy-map tile maths ----------------
 - L82  f Lat2Tile
-- L96  f GridFor
-- L110  f PlacePixelInGrid
-- L120  S frame catalog
-- L122  f RadarCatalogFetch  — ---------------- frame catalog ----------------
-- L209  S tile fetching into a 768x768 grid
-- L214  f FetchTileGrid
-- L258  f BaseGridEnsure
-- L274  f RadarViewBuild
+- L95  f GridFor
+- L109  f PlacePixelInGrid
+- L119  S frame catalog
+- L121  f RadarCatalogFetch  — ---------------- frame catalog ----------------
+- L208  S tile fetching into a 768x768 grid
+- L213  f FetchTileGrid
+- L257  f BaseGridEnsure
+- L273  f RadarViewBuild
 - globals: g_wicFactory (L15)
 
 ## weather-radar/src/parts/ui.c
@@ -879,16 +879,17 @@
 - L735  f PlannerAxisText
 - L747  f PaintHourlyCard
 - L831  f PaintPlannerCard
-- L893  f PaintRadarPane
-- L1048  f PaintLeftColumn
-- L1097  f PaintAll
-- L1206  f StatusSet
-- L1213  f CurrentPlace
-- L1217  f OnPickSearchRow
-- L1229  f OnPickSavedRow
-- L1242  f StepFrame
-- L1254  f SearchTextIsBlank
-- L1259  f SubmitSearch
+- L893  f RadarFocusOrigin
+- L903  f PaintRadarPane
+- L1066  f PaintLeftColumn
+- L1115  f PaintAll
+- L1224  f StatusSet
+- L1231  f CurrentPlace
+- L1235  f OnPickSearchRow
+- L1247  f OnPickSavedRow
+- L1260  f StepFrame
+- L1272  f SearchTextIsBlank
+- L1277  f SubmitSearch
 - globals: g_planDay (L20), g_planCategory (L21)
 
 ## weather-radar/src/parts/util.c
@@ -1154,11 +1155,11 @@
 - L46  f strip_cs_comments_and_strings
 - L168  f lex_powershell
 - L303  f WindowsDesktopAppsTests
-- L3202  f SuiteFolderInstallTests
-- L4562  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L4745  f AudioSwitcherReachabilityTests
-- L4929  f AudioSwitcherSessionSweepTests
-- L5070  f AppOpenFocusTests
+- L3214  f SuiteFolderInstallTests
+- L4574  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L4757  f AudioSwitcherReachabilityTests
+- L4941  f AudioSwitcherSessionSweepTests
+- L5082  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

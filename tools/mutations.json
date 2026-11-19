@@ -1069,5 +1069,12 @@
   "old": "            PaintPlannerCellValue(mem, day, category, &cell, selected);",
   "new": "            DrawRoundedBox(mem, &cell, S(5), COL_CARD, COL_CARD_BD);\n            PaintPlannerCellValue(mem, day, category, &cell, selected);",
   "label": "The dense per-value box matrix returns to the planner"
+ },
+ {
+  "id": "wx-29",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "            srcLeft = RadarFocusOrigin(placePixelX, focusPx);\n            srcTop = RadarFocusOrigin(placePixelY, focusPx);",
+  "new": "            srcLeft = (GRID_PX - focusPx) / 2;\n            srcTop = (GRID_PX - focusPx) / 2;",
+  "label": "Radar zoom recenters the tile grid instead of the selected place"
  }
 ]

@@ -1895,6 +1895,18 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         pane = ui[ui.index("static void PaintRadarPane("):ui.index("static void PaintAll", ui.index("static void PaintRadarPane("))]
         self.assertIn("RADAR_FOCUS_PX", pane,
                       "the enlarged radar pane is no longer drawn from the readable local focus")
+        self.assertIn("static int RadarFocusOrigin(double pointPx, int focusPx)", ui,
+                      "the selected place no longer determines the local crop origin")
+        self.assertIn("int origin = (int)llround(pointPx - (double)focusPx / 2.0);", ui,
+                      "the selected coordinate is not centered in the zoom crop")
+        self.assertIn("int maxOrigin = GRID_PX - focusPx;", ui,
+                      "the local crop can extend beyond the fetched three-tile mosaic")
+        self.assertIn("PlacePixelInGrid(focusZoom, pl.lat, pl.lon, focusTx, focusTy,", pane,
+                      "the crop anchor no longer uses the exact selected place pixel")
+        self.assertIn("srcLeft = RadarFocusOrigin(placePixelX, focusPx);", pane)
+        self.assertIn("srcTop = RadarFocusOrigin(placePixelY, focusPx);", pane)
+        self.assertIn("placePixelX - srcLeft", pane,
+                      "the location marker is no longer aligned to the place-centered crop")
         self.assertIn("light     moderate     heavy     intense", pane,
                       "radar colours no longer have a visible intensity legend")
         self.assertIn("cx - S(14)", pane,
