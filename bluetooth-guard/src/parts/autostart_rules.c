@@ -95,10 +95,10 @@ static void SaveRules(void) {
     fwprintf(fp, L"autostart=%d\n", g_autostart ? 1 : 0);
     for (int i = 0; i < g_devCount; i++) {
         DeviceEntry *d = &g_devices[i];
-        if (!d->visible && !d->forgotten) continue;
+        if (!d->visible && !d->forgotten && !d->denied) continue;
         fwprintf(fp, L"device=%s|%d|%llu|%s|%s|%s\n",
                  d->mac, d->allowAuto ? 1 : 0, d->address, d->kind,
-                 d->visible ? L"K" : L"F", d->name);
+                 d->visible ? L"K" : (d->denied ? L"D" : L"F"), d->name);
     }
     LeaveCriticalSection(&g_lock);
     fclose(fp);
@@ -134,7 +134,8 @@ static void LoadRules(void) {
         wchar_t *p5 = wcschr(p4, L'|');     if (!p5) continue; *p5++ = L'\0';
         BOOL known = (wcscmp(p4, L"K") == 0);
         BOOL forgotten = (wcscmp(p4, L"F") == 0);
-        if ((!known && !forgotten) || !record[0]) continue;
+        BOOL denied = (wcscmp(p4, L"D") == 0);
+        if ((!known && !forgotten && !denied) || !record[0]) continue;
         if (g_devCount >= MAX_DEVICES) continue;
         DeviceEntry *d = &g_devices[g_devCount++];
         ZeroMemory(d, sizeof(*d));
@@ -145,6 +146,7 @@ static void LoadRules(void) {
         wcsncpy(d->name, p5, 247);
         d->visible = known;
         d->forgotten = forgotten;
+        d->denied = denied;
     }
     LeaveCriticalSection(&g_lock);
     fclose(fp);
@@ -199,10 +201,9 @@ static void PollPairedDevices(void) {
     BLUETOOTH_DEVICE_SEARCH_PARAMS sp;
     ZeroMemory(&sp, sizeof(sp));
     sp.dwSize = sizeof(sp);
-    /* Enumerate paired/connected candidates without inquiry. Enumeration is
-       not enrollment: only a new link observed during Windows connection UI
-       can enroll an unknown device; Guard Connect is accepted only for rows
-       already in the durable trusted inventory. */
+    /* Enumerate paired/connected candidates without inquiry. Paired devices
+       must be reviewable even while disconnected. Discovery is not approval:
+       only an explicit Guard choice or a Windows manual connection enrolls. */
     sp.fReturnAuthenticated = TRUE;
     sp.fReturnConnected = TRUE;
 
@@ -238,12 +239,14 @@ static void PollPairedDevices(void) {
                     if (_wcsicmp(g_devices[i].mac, mac) == 0) { idx = i; break; }
                 }
                 if (idx < 0) {
-                    /* Disconnected scan results are never added. A live but
-                       unrecognized link is a temporary candidate only. */
-                    if (!info.fConnected) goto next_bluetooth_device;
+                    /* Keep authenticated, disconnected earbuds in the review
+                       list. Never grant trusted membership just for scanning. */
+                    if (!info.fAuthenticated && !info.fConnected) goto next_bluetooth_device;
                     if (g_devCount >= MAX_DEVICES) {
-                        RecordRejectedLink(rejected, &rejectedCount, info.Address.ullLong,
-                                           mac, kind, nm);
+                        /* A full UI is not an owner denial of a paired device. */
+                        if (!info.fAuthenticated && info.fConnected)
+                            RecordRejectedLink(rejected, &rejectedCount, info.Address.ullLong,
+                                               mac, kind, nm);
                         goto next_bluetooth_device;
                     }
                     idx = g_devCount++;
@@ -265,6 +268,7 @@ static void PollPairedDevices(void) {
                 BOOL manualIntent = newlyConnected && manualWindow;
                 d->scanSeen = TRUE;
                 d->address = info.Address.ullLong;
+                if (info.fAuthenticated) d->paired = TRUE;
                 wcsncpy(d->name, nm, 247);
                 wcsncpy(d->kind, kind, 15);
                 d->connected = isConnected;
@@ -292,18 +296,23 @@ static void PollPairedDevices(void) {
                         }
                         goto next_bluetooth_device;
                     }
+                } else if (d->denied) {
+                    /* Deny is explicit and durable, unlike an undecided scan.
+                       An ambient Windows UI grace period cannot override it. */
+                    if (isConnected && !d->blockPending) {
+                        RecordRejectedLink(rejected, &rejectedCount, d->address,
+                                           d->mac, d->kind, d->name);
+                        d->blockPending = TRUE;
+                    } else if (!isConnected) {
+                        d->blockPending = FALSE;
+                    }
+                    goto next_bluetooth_device;
                 } else if (d->transient || !d->visible) {
                     if (manualIntent) {
-                        d->transient = FALSE;
-                        d->visible = TRUE;
-                        d->allowAuto = FALSE;
-                        d->sessionAllowed = TRUE;
-                        d->seenConnected = TRUE;
-                        d->sessionStartTick = now;
-                        d->blockPending = FALSE;
+                        ApproveDevice(d, FALSE, now);
                         trustChanged = TRUE;
                     } else {
-                        if (isConnected && !d->blockPending) {
+                        if (DeviceShouldBlock(d, g_guardOn) && !d->blockPending) {
                             RecordRejectedLink(rejected, &rejectedCount, d->address,
                                                d->mac, d->kind, d->name);
                             d->blockPending = TRUE;
@@ -329,8 +338,7 @@ static void PollPairedDevices(void) {
                         d->seenConnected = FALSE;
                     }
                 }
-                if (isConnected && g_guardOn && !d->allowAuto &&
-                    !d->sessionAllowed && !manualIntent) {
+                if (DeviceShouldBlock(d, g_guardOn)) {
                     if (!d->blockPending) {
                         RecordRejectedLink(rejected, &rejectedCount, d->address,
                                            d->mac, d->kind, d->name);
@@ -352,8 +360,8 @@ next_bluetooth_device:
         pBtFindDeviceClose(hFind);
     }
 
-    /* Missing trusted devices remain listed, just marked disconnected. Remove
-       temporary stranger observations as soon as the active link is gone. */
+    /* Missing trusted/review devices remain listed, just disconnected.
+       Remove only unpaired stranger observations when their active link ends. */
     for (int i = 0; i < g_devCount; ) {
         DeviceEntry *d = &g_devices[i];
         if (!d->scanSeen) {
@@ -365,7 +373,7 @@ next_bluetooth_device:
                 d->seenConnected = FALSE;
             }
         }
-        if (d->transient && (!d->scanSeen || !d->connected)) {
+        if (d->transient && !d->paired && (!d->scanSeen || !d->connected)) {
             memmove(&g_devices[i], &g_devices[i + 1],
                     sizeof(DeviceEntry) * (size_t)(g_devCount - i - 1));
             g_devCount--;
@@ -379,7 +387,7 @@ next_bluetooth_device:
     for (int i = 0; i < repairCount; i++)
         EnsureProfilesEnabled(repairAddress[i], repairKind[i]);
     for (int i = 0; i < rejectedCount; i++)
-        DoDisconnectOnly(rejected[i].address, rejected[i].kind, rejected[i].name);
+        DisconnectIfStillBlocked(rejected[i].address, rejected[i].kind, rejected[i].name);
     if (trustChanged) SaveRules();
 }
 
@@ -422,6 +430,7 @@ static DWORD WINAPI WorkerThread(LPVOID unused) {
                 if (item.op == 1) DoDisconnectOnly(item.address, item.kind, item.name);
                 else if (item.op == 2) DoConnectNow(item.address, item.kind, item.name);
                 else if (item.op == 3) DoForgetDevice(item.address, item.kind, item.name);
+                else if (item.op == 4) DisconnectIfStillBlocked(item.address, item.kind, item.name);
             }
         }
         PollPairedDevices();

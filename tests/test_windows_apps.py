@@ -1152,7 +1152,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         command = btg[btg.index("case WM_COMMAND:"):]
         command = command[:command.index("case WM_WORKER_DONE:")]
         self.assertIn("g_devices[di].visible && !g_devices[di].forgotten", command)
-        self.assertIn("if (!d->visible) continue;", btg)
+        self.assertIn("if (!DeviceIsListed(d)) continue;", btg)
         self.assertIn("g_devices[i].visible && !g_devices[i].forgotten", btg[btg.index("static void DoConnectNow("):])
 
     def test_bluetooth_guard_persists_only_intentional_device_membership(self):
@@ -1165,29 +1165,291 @@ class WindowsDesktopAppsTests(unittest.TestCase):
 
         self.assertIn('L"format=2\\n"', save)
         self.assertIn('L"device=%s|%d|%llu|%s|%s|%s\\n"', save)
-        self.assertIn('d->visible ? L"K" : L"F"', save)
-        self.assertIn("if (!d->visible && !d->forgotten) continue;", save)
+        self.assertIn('d->visible ? L"K" : (d->denied ? L"D" : L"F")', save)
+        self.assertIn("if (!d->visible && !d->forgotten && !d->denied) continue;", save)
         self.assertIn('if (wcsncmp(line, L"device=", 7) != 0) continue;', load)
         self.assertIn("d->visible = known;", load)
         self.assertIn("d->forgotten = forgotten;", load)
 
-        # A disconnected candidate from enumeration is ignored; only a rising
-        # connection during the Windows UI intent window can enroll it.
-        no_scan_enroll = "if (!info.fConnected) goto next_bluetooth_device;"
-        self.assertIn(no_scan_enroll, poll)
-        self.assertLess(poll.index(no_scan_enroll), poll.index("idx = g_devCount++;"))
+        # Paired, disconnected candidates are reviewable, not automatically
+        # trusted; unpaired disconnected history is still ignored.
+        candidate_gate = "if (!info.fAuthenticated && !info.fConnected) goto next_bluetooth_device;"
+        self.assertIn(candidate_gate, poll)
+        self.assertLess(poll.index(candidate_gate), poll.index("idx = g_devCount++;"))
+        self.assertIn("ApproveDevice(d, FALSE, now);", poll)
+        self.assertIn("if (d->transient && !d->paired &&", poll)
         self.assertIn("if (newlyConnected && !manualWindow && g_hwnd)", poll)
         self.assertIn("CheckForegroundManualIntent();", poll)
         self.assertIn("BOOL manualIntent = newlyConnected && manualWindow;", poll)
         self.assertIn("g_devices[idx].allowAuto = FALSE;", poll)
         self.assertIn("if (manualIntent && !d->allowAuto)", poll)
-        self.assertIn("DoDisconnectOnly(rejected[i].address", poll)
+        self.assertIn("DisconnectIfStillBlocked(rejected[i].address", poll)
         self.assertIn("if (trustChanged) SaveRules();", poll)
         self.assertNotIn("HasConnectedBefore", poll)
 
         connect = btg[btg.index("static void DoConnectNow("):]
         connect = connect[:connect.index("\n}")]
         self.assertIn("g_devices[i].visible && !g_devices[i].forgotten", connect)
+
+    def test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers(self):
+        """Execute real native discovery/approval code with only Win32 I/O mocked."""
+        import shutil
+        import tempfile
+
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            self.skipTest("a C compiler is required for the Bluetooth review regression")
+        root = (ROOT / "bluetooth-guard/src/bluetooth_guard.c").read_text(encoding="utf-8")
+        rules = (ROOT / "bluetooth-guard/src/parts/autostart_rules.c").read_text(encoding="utf-8")
+        actions = (ROOT / "bluetooth-guard/src/parts/bt_actions.c").read_text(encoding="utf-8")
+        ui = (ROOT / "bluetooth-guard/src/parts/window_entry.c").read_text(encoding="utf-8")
+        policy = (ROOT / "bluetooth-guard/src/parts/device_policy.c").read_text(encoding="utf-8")
+
+        def declaration(first, last):
+            start = root.index(first)
+            return root[start:root.index(last, start) + len(last)]
+
+        declarations = "\n".join((
+            declaration("enum HitKind {", "\n};"),
+            declaration("typedef struct {\n    RECT rect;", "} HitBox;"),
+            declaration("typedef struct {\n    ULONGLONG address;", "} DeviceEntry;"),
+            declaration("typedef struct {\n    int       op;", "} WorkItem;"),
+        ))
+        polling = rules[rules.index("static void RecordRejectedLink("):
+                        rules.index("/* Disconnect all guarded")]
+        connect_and_drop = actions[actions.index("static void DoConnectNow("):
+                                   actions.index("/* True unpair:")]
+        click = ui[ui.index("static void HandleHitClick("):ui.index("static void BluetoothTraySync(")]
+        harness = r'''#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <wchar.h>
+typedef int BOOL;
+typedef uint32_t DWORD;
+typedef uint64_t ULONGLONG;
+typedef int64_t LONGLONG;
+typedef void *HANDLE;
+typedef HANDLE HBLUETOOTH_RADIO_FIND;
+typedef HANDLE HBLUETOOTH_DEVICE_FIND;
+typedef struct { int left, top, right, bottom; } RECT;
+#define TRUE 1
+#define FALSE 0
+#define MAX_DEVICES 64
+#define MAX_HITBOXES 200
+#define KSPROPERTY_ONESHOT_RECONNECT 0
+#define ZeroMemory(p, n) memset(p, 0, n)
+#define _wcsicmp wcscmp
+''' + declarations + r'''
+static DeviceEntry g_devices[MAX_DEVICES];
+static int g_devCount, g_lock, g_hitCount, saveCalls, dropCalls, connectCalls, queuedCount;
+static BOOL g_guardOn = TRUE, g_radioOn, g_autostart, g_quitting, fakeIntent;
+static HANDLE g_hwnd, g_qSem;
+static volatile LONGLONG g_manualGraceUntil;
+static HitBox g_hits[MAX_HITBOXES];
+static WorkItem queued[64];
+static ULONGLONG tick = 10000, lastDrop;
+static void EnterCriticalSection(int *lock) { (void)lock; }
+static void LeaveCriticalSection(int *lock) { (void)lock; }
+static ULONGLONG GetTickCount64(void) { return tick; }
+static LONGLONG InterlockedCompareExchange64(volatile LONGLONG *p, LONGLONG n, LONGLONG old) {
+    LONGLONG value = *p; if (value == old) *p = n; return value;
+}
+static LONGLONG InterlockedExchange64(volatile LONGLONG *p, LONGLONG n) {
+    LONGLONG value = *p; *p = n; return value;
+}
+static void CloseHandle(HANDLE h) { (void)h; }
+static void SaveRules(void) { saveCalls++; }
+static void SetAutostart(BOOL on) { g_autostart = on; }
+static void ReleaseSemaphore(HANDLE sem, int n, void *previous) { (void)sem; (void)n; (void)previous; }
+static void InvalidateRect(HANDLE hwnd, void *rect, BOOL erase) { (void)hwnd; (void)rect; (void)erase; }
+static void DestroyWindow(HANDLE hwnd) { (void)hwnd; }
+static void EnqueueWork(int op, ULONGLONG address, const wchar_t *mac,
+                        const wchar_t *kind, const wchar_t *name) {
+    WorkItem *item = &queued[queuedCount++];
+    item->op = op; item->address = address;
+    (void)mac; (void)kind; (void)name;
+}
+static void CheckForegroundManualIntent(void) {
+    if (fakeIntent) g_manualGraceUntil = (LONGLONG)(tick + 5000);
+}
+static void FormatMac(ULONGLONG address, wchar_t *mac, int n) {
+    swprintf(mac, (size_t)n, L"%012llX", (unsigned long long)address);
+}
+static void ClassifyDevice(DWORD cod, const wchar_t *name, wchar_t *kind, int n) {
+    (void)cod; (void)name; wcsncpy(kind, L"Audio", (size_t)n);
+}
+static void EnsureProfilesEnabled(ULONGLONG address, const wchar_t *kind) { (void)address; (void)kind; }
+static void TriggerBtAudioKsProperty(ULONGLONG address, const wchar_t *name, int property) {
+    (void)address; (void)name; (void)property; connectCalls++;
+}
+static void DoDisconnectOnly(ULONGLONG address, const wchar_t *kind, const wchar_t *name) {
+    (void)kind; (void)name; dropCalls++; lastDrop = address;
+}
+typedef struct { DWORD dwSize; } BLUETOOTH_FIND_RADIO_PARAMS;
+typedef struct { DWORD dwSize; BOOL fReturnAuthenticated, fReturnConnected; } BLUETOOTH_DEVICE_SEARCH_PARAMS;
+typedef struct {
+    DWORD dwSize;
+    struct { ULONGLONG ullLong; } Address;
+    DWORD ulClassofDevice;
+    BOOL fAuthenticated, fConnected;
+    wchar_t szName[248];
+} BLUETOOTH_DEVICE_INFO;
+static BLUETOOTH_DEVICE_INFO observed[64];
+static int observedCount, observedIndex;
+static HBLUETOOTH_RADIO_FIND FakeFirstRadio(const BLUETOOTH_FIND_RADIO_PARAMS *p, HANDLE *radio) {
+    (void)p; *radio = (HANDLE)1; return (HANDLE)1;
+}
+static BOOL FakeRadioClose(HBLUETOOTH_RADIO_FIND h) { (void)h; return TRUE; }
+static HBLUETOOTH_DEVICE_FIND FakeFirstDevice(const BLUETOOTH_DEVICE_SEARCH_PARAMS *p,
+                                             BLUETOOTH_DEVICE_INFO *info) {
+    (void)p; observedIndex = 0;
+    if (!observedCount) return NULL;
+    *info = observed[0]; return (HANDLE)1;
+}
+static BOOL FakeNextDevice(HBLUETOOTH_DEVICE_FIND h, BLUETOOTH_DEVICE_INFO *info) {
+    (void)h;
+    if (++observedIndex >= observedCount) return FALSE;
+    *info = observed[observedIndex]; return TRUE;
+}
+static BOOL FakeDeviceClose(HBLUETOOTH_DEVICE_FIND h) { (void)h; return TRUE; }
+static HBLUETOOTH_RADIO_FIND (*pBtFindFirstRadio)(const BLUETOOTH_FIND_RADIO_PARAMS *, HANDLE *) = FakeFirstRadio;
+static BOOL (*pBtFindRadioClose)(HBLUETOOTH_RADIO_FIND) = FakeRadioClose;
+static HBLUETOOTH_DEVICE_FIND (*pBtFindFirstDevice)(const BLUETOOTH_DEVICE_SEARCH_PARAMS *, BLUETOOTH_DEVICE_INFO *) = FakeFirstDevice;
+static BOOL (*pBtFindNextDevice)(HBLUETOOTH_DEVICE_FIND, BLUETOOTH_DEVICE_INFO *) = FakeNextDevice;
+static BOOL (*pBtFindDeviceClose)(HBLUETOOTH_DEVICE_FIND) = FakeDeviceClose;
+''' + policy + connect_and_drop + polling + click + r'''
+#define CHECK(c) do { if (!(c)) { fprintf(stderr, "C line %d: %s\n", __LINE__, #c); return 1; } } while (0)
+static void Reset(void) {
+    memset(g_devices, 0, sizeof(g_devices)); memset(g_hits, 0, sizeof(g_hits));
+    memset(observed, 0, sizeof(observed)); memset(queued, 0, sizeof(queued));
+    g_devCount = saveCalls = dropCalls = connectCalls = queuedCount = observedCount = 0;
+    g_hitCount = 1; g_guardOn = TRUE; g_hwnd = NULL; fakeIntent = FALSE; g_manualGraceUntil = 0;
+}
+static void Observe(int i, ULONGLONG address, BOOL paired, BOOL connected) {
+    memset(&observed[i], 0, sizeof(observed[i]));
+    observed[i].Address.ullLong = address;
+    observed[i].fAuthenticated = paired; observed[i].fConnected = connected;
+    wcscpy(observed[i].szName, L"Earbuds");
+    if (observedCount <= i) observedCount = i + 1;
+}
+static void Click(int kind, ULONGLONG address) {
+    g_hits[0].kind = kind; g_hits[0].address = address; HandleHitClick(0);
+}
+int main(void) {
+    /* Disconnected paired earbuds must appear without becoming trusted. */
+    Reset(); Observe(0, 1, TRUE, FALSE); PollPairedDevices();
+    CHECK(g_devCount == 1 && DeviceIsListed(&g_devices[0]));
+    CHECK(DeviceNeedsReview(&g_devices[0]) && !g_devices[0].visible && !g_devices[0].allowAuto);
+    CHECK(saveCalls == 0 && dropCalls == 0);
+    /* Missing the Windows UI intent window, including the pre-window boot
+       scan, must not drop a pair before the owner has made a decision. */
+    Observe(0, 1, TRUE, TRUE); PollPairedDevices();
+    CHECK(!g_devices[0].visible && g_devices[0].connected && dropCalls == 0);
+    observedCount = 0; PollPairedDevices();
+    CHECK(g_devCount == 1 && DeviceNeedsReview(&g_devices[0]) && !g_devices[0].connected);
+
+    /* A row stays bound to its address even if a scan reorders the array. */
+    Reset(); Observe(0, 1, TRUE, FALSE); Observe(1, 2, TRUE, FALSE); PollPairedDevices();
+    DeviceEntry tmp = g_devices[0]; g_devices[0] = g_devices[1]; g_devices[1] = tmp;
+    Click(HIT_DEV_CONNECT_BTN, 1);
+    int a = FindDeviceIndexByAddress(1), b = FindDeviceIndexByAddress(2);
+    CHECK(g_devices[a].visible && g_devices[a].sessionAllowed && !g_devices[a].allowAuto);
+    CHECK(!g_devices[b].visible && saveCalls == 1);
+    CHECK(queuedCount == 1 && queued[0].op == 2 && queued[0].address == 1);
+    DoConnectNow(1, L"Audio", L"Earbuds"); CHECK(connectCalls == 1);
+    Click(HIT_DEV_AUTO_TOGGLE, 2);
+    CHECK(g_devices[b].visible && g_devices[b].allowAuto && !g_devices[b].sessionAllowed);
+    CHECK(queuedCount == 2 && queued[1].op == 2 && queued[1].address == 2 && saveCalls == 2);
+    Observe(0, 1, TRUE, TRUE); Observe(1, 2, TRUE, TRUE); PollPairedDevices();
+    CHECK(dropCalls == 0);
+    Observe(0, 1, TRUE, FALSE); PollPairedDevices();
+    CHECK(!g_devices[a].sessionAllowed);
+    Observe(0, 1, TRUE, TRUE); PollPairedDevices();
+    CHECK(dropCalls == 1 && lastDrop == 1 && g_devices[b].allowAuto);
+
+    /* Deny does not unpair. A later Accept cancels any stale policy drop and
+       keeps an already-live session rather than toggling it off. */
+    Reset(); Observe(0, 1, TRUE, TRUE); PollPairedDevices();
+    Click(HIT_DEV_DENY_BTN, 1);
+    CHECK(g_devices[0].denied && !g_devices[0].forgotten && !g_devices[0].visible);
+    CHECK(DeviceIsListed(&g_devices[0]) && !DeviceNeedsReview(&g_devices[0]));
+    CHECK(saveCalls == 1 && queuedCount == 1 && queued[0].op == 4);
+    DisconnectIfStillBlocked(1, L"Audio", L"Earbuds"); CHECK(dropCalls == 1);
+    Click(HIT_DEV_CONNECT_BTN, 1);
+    CHECK(g_devices[0].visible && !g_devices[0].denied && g_devices[0].sessionAllowed);
+    CHECK(saveCalls == 2 && queuedCount == 1 && g_devices[0].connected);
+    DisconnectIfStillBlocked(1, L"Audio", L"Earbuds"); CHECK(dropCalls == 1);
+    DenyDevice(&g_devices[0]); g_devices[0].connected = FALSE;
+    g_manualGraceUntil = (LONGLONG)(tick + 5000); PollPairedDevices();
+    CHECK(g_devices[0].denied && !g_devices[0].visible && dropCalls == 2);
+    Click(HIT_DEV_AUTO_TOGGLE, 1);
+    CHECK(!g_devices[0].denied && g_devices[0].visible && g_devices[0].allowAuto);
+    CHECK(!DeviceShouldBlock(&g_devices[0], TRUE));
+    Click(HIT_DEV_FORGET_BTN, 1);
+    CHECK(g_devices[0].forgotten && !DeviceIsListed(&g_devices[0]));
+    CHECK(queued[queuedCount - 1].op == 3);
+    DoConnectNow(1, L"Audio", L"Earbuds"); CHECK(connectCalls == 0);
+    g_manualGraceUntil = 0; PollPairedDevices();
+    CHECK(g_devices[0].forgotten && !g_devices[0].visible && dropCalls == 3);
+
+    /* Unpaired strangers stay hidden and blocked, even with Guard paused. */
+    Reset(); g_guardOn = FALSE; Observe(0, 9, FALSE, TRUE); PollPairedDevices();
+    CHECK(g_devCount == 1 && !DeviceIsListed(&g_devices[0]) && dropCalls == 1);
+    observedCount = 0; PollPairedDevices(); CHECK(g_devCount == 0);
+    /* Preserve an intentional Windows connection without making it Auto On. */
+    Reset(); Observe(0, 1, TRUE, FALSE); PollPairedDevices();
+    g_hwnd = (HANDLE)1; fakeIntent = TRUE;
+    Observe(0, 1, TRUE, TRUE); PollPairedDevices();
+    CHECK(g_devices[0].visible && g_devices[0].sessionAllowed && !g_devices[0].allowAuto);
+    CHECK(saveCalls == 1 && dropCalls == 0);
+    /* Capacity exhaustion must not be interpreted as an owner denial. */
+    Reset(); g_devCount = MAX_DEVICES;
+    for (int i = 0; i < MAX_DEVICES; i++) {
+        g_devices[i].address = (ULONGLONG)(i + 100); g_devices[i].visible = TRUE;
+    }
+    Observe(0, 1, TRUE, TRUE); PollPairedDevices(); CHECK(dropCalls == 0);
+    return 0;
+}
+'''
+        with tempfile.TemporaryDirectory(prefix="bluetooth-review-") as td:
+            src, exe = Path(td) / "review.c", Path(td) / "review"
+            src.write_text(harness, encoding="utf-8")
+            built = subprocess.run(
+                [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", str(src), "-o", str(exe)],
+                capture_output=True, text=True)
+            self.assertEqual(built.returncode, 0, built.stderr)
+            ran = subprocess.run([str(exe)], capture_output=True, text=True)
+            self.assertEqual(ran.returncode, 0, ran.stderr)
+
+    def test_bluetooth_review_controls_and_denials_are_persistent_and_address_bound(self):
+        btg = read_c_inlined("bluetooth-guard/src/bluetooth_guard.c")
+        rules = (ROOT / "bluetooth-guard/src/parts/autostart_rules.c").read_text(encoding="utf-8")
+        ui = (ROOT / "bluetooth-guard/src/parts/window_entry.c").read_text(encoding="utf-8")
+        controls = (ROOT / "bluetooth-guard/src/parts/ui_controls.c").read_text(encoding="utf-8")
+        self.assertIn('L"Needs approval"', ui)
+        self.assertIn('L"Accept"', ui)
+        self.assertIn('L"Deny"', ui)
+        self.assertIn('L"Auto-Connect"', ui)
+        self.assertIn("if (!DeviceIsListed(d)) continue;", ui)
+        self.assertIn("g_hits[hitIdx].address", ui)
+        self.assertNotIn("g_hits[hitIdx].index", ui)
+        self.assertIn("FindDeviceIndexByAddress(target)", ui)
+        self.assertIn("g_trayDeviceAddresses[shown] = g_devices[i].address;", ui)
+        self.assertIn("if (g_trayMenuTracking) return;", ui)
+        self.assertIn("if (r.top < top) r.top = top;", controls)
+        self.assertIn("if (r.bottom > bottom) r.bottom = bottom;", controls)
+        self.assertIn('d->denied ? L"D" : L"F"', rules)
+        self.assertIn('BOOL denied = (wcscmp(p4, L"D") == 0);', rules)
+        self.assertIn("d->denied = denied;", rules)
+        self.assertIn("if (!d->visible && !d->forgotten && !d->denied) continue;", rules)
+        self.assertIn("else if (item.op == 4) DisconnectIfStillBlocked(", rules)
+        deny = ui[ui.index("} else if (kind == HIT_DEV_DENY_BTN)"):
+                  ui.index("} else if (kind == HIT_DEV_FORGET_BTN)")]
+        self.assertIn("DenyDevice(d);", deny)
+        self.assertIn("SaveRules();", deny)
+        self.assertIn("EnqueueWork(4, addr, dmac, dkind, dname);", deny)
+        self.assertNotIn("EnqueueWork(3", deny, "Deny must not silently unpair a device")
+        self.assertNotIn("BLUETOOTH_SERVICE_DISABLE", btg)
 
     def test_bluetooth_guard_powershell_uses_the_same_trusted_inventory(self):
         ps = (ROOT / "bluetooth-guard" / "BluetoothGuard.ps1").read_text(encoding="utf-8")

@@ -56,11 +56,13 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
     radioOn = g_radioOn;
     if (count > 0) memcpy(snap, g_devices, sizeof(DeviceEntry) * (size_t)count);
     LeaveCriticalSection(&g_lock);
-    int visCount = 0;
+    int visCount = 0, trustedCount = 0, reviewCount = 0;
     for (int i = 0; i < count; i++) {
-        if (!snap[i].visible) continue;
+        if (!DeviceIsListed(&snap[i])) continue;
         visCount++;
-        if (!snap[i].allowAuto) blockedCount++;
+        if (DeviceNeedsReview(&snap[i])) reviewCount++;
+        if (snap[i].visible) trustedCount++;
+        if (snap[i].denied || (snap[i].visible && !snap[i].allowAuto)) blockedCount++;
     }
 
     /* Header Suite Tri-Spoke Core Emblem + natural title + calm subtitle */
@@ -94,11 +96,13 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
 
     wchar_t subHdr[96];
     if (!g_guardOn)
-        wcsncpy(subHdr, L"Trusted-device rules paused; unknown links still blocked", 95);
+        wcsncpy(subHdr, L"Guard paused; explicitly denied links stay blocked", 95);
     else if (!radioOn)
         wcsncpy(subHdr, L"Bluetooth radio is off", 95);
+    else if (reviewCount)
+        _snwprintf(subHdr, 95, L"%d paired device(s) need your decision", reviewCount);
     else
-        _snwprintf(subHdr, 95, L"Audio protection  \x00B7  %d protected (%d trusted)", blockedCount, visCount);
+        _snwprintf(subHdr, 95, L"Audio protection  \x00B7  %d protected (%d trusted)", blockedCount, trustedCount);
 
     SelectObject(mem, fSub);
     SetTextColor(mem, COL_TELEMETRY);
@@ -131,22 +135,28 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
         SelectObject(mem, fBody);
         SetTextColor(mem, COL_MUTED);
         RECT er = { emptyR.left + S(24, dpi), emptyR.top, emptyR.right - S(18, dpi), emptyR.bottom };
-        DrawTextW(mem, L"No trusted devices yet. Connect a paired device in Windows Bluetooth Settings; it appears only after that connection.",
+        DrawTextW(mem, L"No paired devices found. Pair your earbuds in Windows Bluetooth Settings, then click Refresh.",
                   -1, &er, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     } else {
         int y = listTop - g_scrollY;
         for (int i = 0; i < count; i++) {
             DeviceEntry *d = &snap[i];
-            /* hidden entries take no row space - the hit index below stays
-               the raw snapshot index so clicks still land correctly */
-            if (!d->visible) continue;
+            /* Review candidates are visible but are not trusted. Bind every
+               action to the painted address, never the mutable array index. */
+            if (!DeviceIsListed(d)) continue;
             RECT cr = { M, y, M + CW, y + cardH };
             if (cr.bottom >= listTop && cr.top <= listBottom) {
                 SmoothRoundRect(px, W, H, &cr, (float)S(10, dpi), COL_CARD, COL_BORDER, listTop, listBottom);
 
                 COLORREF barCol = COL_IDLE_SLATE, tagFg = COL_MUTED, tagBg = COL_PILL_MUTED;
                 const wchar_t *tagTxt = L"Auto On";
-                if (d->connected) {
+                if (DeviceNeedsReview(d)) {
+                    barCol = COL_WARN; tagFg = COL_WARN; tagBg = COL_WARN_BG;
+                    tagTxt = L"Needs approval";
+                } else if (d->denied) {
+                    barCol = COL_DANGER; tagFg = COL_DANGER; tagBg = COL_DANGER_BG;
+                    tagTxt = L"Denied";
+                } else if (d->connected) {
                     barCol = COL_GOOD; tagFg = COL_GOOD; tagBg = COL_GOOD_BG;
                     tagTxt = !d->allowAuto ? L"Manual Session" : L"Connected";
                 } else if (!d->allowAuto) {
@@ -180,7 +190,11 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
                 RECT forgetR   = { autoTogR.left - S(96, dpi), btnTopY, autoTogR.left - S(8, dpi), btnBottomY };
 
                 const wchar_t *subTxt = NULL;
-                if (d->connected && !d->allowAuto)
+                if (DeviceNeedsReview(d))
+                    subTxt = L"Choose Accept, Deny or Auto-Connect";
+                else if (d->denied)
+                    subTxt = L"Connection denied  \x00B7  Pairing kept";
+                else if (d->connected && !d->allowAuto)
                     subTxt = L"Connected manually  \x00B7  Re-locks after disconnect";
                 else if (d->connected)
                     subTxt = L"Connected audio session";
@@ -195,20 +209,21 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
                 DrawTextW(mem, subTxt, -1, &sr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
                 int hitAuto = g_hitCount;
-                AddHit(autoTogR, HIT_DEV_AUTO_TOGGLE, i);
+                AddDeviceHit(autoTogR, HIT_DEV_AUTO_TOGGLE, d->address, listTop, listBottom);
                 DrawPillToggle(mem, px, W, H, fBtn, autoTogR, L"Auto-Connect",
                                d->allowAuto, g_hoverIdx == hitAuto, dpi, listTop, listBottom);
 
                 int hitConn = g_hitCount;
-                AddHit(connBtnR, HIT_DEV_CONNECT_BTN, i);
+                AddDeviceHit(connBtnR, HIT_DEV_CONNECT_BTN, d->address, listTop, listBottom);
                 DrawActionBtn(mem, px, W, H, fBtn, connBtnR,
-                              d->connected ? L"Disconnect" : L"Connect",
-                              d->connected ? 2 : 3,
+                              !d->visible ? L"Accept" : (d->connected ? L"Disconnect" : L"Connect"),
+                              d->visible && d->connected ? 2 : 3,
                               g_hoverIdx == hitConn, dpi, listTop, listBottom);
 
                 int hitForget = g_hitCount;
-                AddHit(forgetR, HIT_DEV_FORGET_BTN, i);
-                DrawActionBtn(mem, px, W, H, fBtn, forgetR, L"Forget", 2,
+                AddDeviceHit(forgetR, DeviceNeedsReview(d) ? HIT_DEV_DENY_BTN : HIT_DEV_FORGET_BTN,
+                             d->address, listTop, listBottom);
+                DrawActionBtn(mem, px, W, H, fBtn, forgetR, DeviceNeedsReview(d) ? L"Deny" : L"Forget", 2,
                               g_hoverIdx == hitForget, dpi, listTop, listBottom);
             }
             y += cardH + gap;
@@ -254,7 +269,7 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
 static void HandleHitClick(int hitIdx) {
     if (hitIdx < 0 || hitIdx >= g_hitCount) return;
     int kind = g_hits[hitIdx].kind;
-    int di   = g_hits[hitIdx].index;
+    ULONGLONG target = g_hits[hitIdx].address;
 
     if (kind == HIT_TOGGLE_GUARD) {
         g_guardOn = !g_guardOn;
@@ -273,14 +288,16 @@ static void HandleHitClick(int hitIdx) {
     } else if (kind == HIT_DEV_AUTO_TOGGLE) {
         ULONGLONG addr = 0;
         wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
-        BOOL nowAllow = TRUE, wasConn = FALSE;
+        BOOL nowAllow = FALSE, wasConn = FALSE, valid = FALSE;
         EnterCriticalSection(&g_lock);
-        if (di >= 0 && di < g_devCount && g_devices[di].visible && !g_devices[di].forgotten) {
+        int di = FindDeviceIndexByAddress(target);
+        if (di >= 0 && DeviceIsListed(&g_devices[di])) {
             DeviceEntry *d = &g_devices[di];
-            d->allowAuto = !d->allowAuto;
-            d->sessionAllowed = FALSE;
-            d->seenConnected = FALSE;
-            nowAllow = d->allowAuto;
+            valid = TRUE;
+            nowAllow = !d->allowAuto;
+            /* Turning Auto-Connect on is an explicit approval, not scan trust. */
+            ApproveDevice(d, nowAllow, GetTickCount64());
+            if (!nowAllow) d->sessionAllowed = FALSE;
             wasConn = d->connected;
             addr = d->address;
             wcsncpy(dkind, d->kind, 15);
@@ -288,43 +305,78 @@ static void HandleHitClick(int hitIdx) {
             wcsncpy(dmac, d->mac, 23);
         }
         LeaveCriticalSection(&g_lock);
-        SaveRules();
-        if (!nowAllow && wasConn && g_guardOn) {
-            EnqueueWork(1, addr, dmac, dkind, dname);
+        if (valid) {
+            SaveRules();
+            if (nowAllow && !wasConn) EnqueueWork(2, addr, dmac, dkind, dname);
+            else if (!nowAllow && wasConn && g_guardOn) EnqueueWork(4, addr, dmac, dkind, dname);
+            ReleaseSemaphore(g_qSem, 1, NULL);
         }
         InvalidateRect(g_hwnd, NULL, FALSE);
     } else if (kind == HIT_DEV_CONNECT_BTN) {
         ULONGLONG addr = 0;
         wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
-        BOOL wasConn = FALSE, valid = FALSE;
+        BOOL changed = FALSE;
+        int op = 0;
         EnterCriticalSection(&g_lock);
-        if (di >= 0 && di < g_devCount && g_devices[di].visible && !g_devices[di].forgotten) {
+        int di = FindDeviceIndexByAddress(target);
+        if (di >= 0 && DeviceIsListed(&g_devices[di])) {
             DeviceEntry *d = &g_devices[di];
-            valid = TRUE;
-            wasConn = d->connected;
             addr = d->address;
             wcsncpy(dkind, d->kind, 15);
             wcsncpy(dname, d->name, 127);
             wcsncpy(dmac, d->mac, 23);
-            if (wasConn) {
+            if (!d->visible || d->denied) {
+                /* Accept keeps a live link, or connects a disconnected pair.
+                   It does not turn on future automatic connections. */
+                ApproveDevice(d, FALSE, GetTickCount64());
+                changed = TRUE;
+                op = d->connected ? 0 : 2;
+            } else if (d->connected) {
                 d->sessionAllowed = FALSE;
                 d->seenConnected = FALSE;
                 d->connected = FALSE;
+                op = 1;
             } else {
                 d->sessionAllowed = TRUE;
                 d->seenConnected = FALSE;
                 d->sessionStartTick = GetTickCount64();
+                d->blockPending = FALSE;
+                op = 2;
             }
         }
         LeaveCriticalSection(&g_lock);
-        if (valid) EnqueueWork(wasConn ? 1 : 2, addr, dmac, dkind, dname);
+        if (changed) SaveRules();
+        if (op) EnqueueWork(op, addr, dmac, dkind, dname);
+        ReleaseSemaphore(g_qSem, 1, NULL);
+        InvalidateRect(g_hwnd, NULL, FALSE);
+    } else if (kind == HIT_DEV_DENY_BTN) {
+        ULONGLONG addr = 0;
+        wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
+        BOOL valid = FALSE;
+        EnterCriticalSection(&g_lock);
+        int di = FindDeviceIndexByAddress(target);
+        if (di >= 0 && DeviceNeedsReview(&g_devices[di])) {
+            DeviceEntry *d = &g_devices[di];
+            addr = d->address;
+            wcsncpy(dkind, d->kind, 15);
+            wcsncpy(dname, d->name, 127);
+            wcsncpy(dmac, d->mac, 23);
+            DenyDevice(d);
+            valid = TRUE;
+        }
+        LeaveCriticalSection(&g_lock);
+        if (valid) {
+            SaveRules();
+            EnqueueWork(4, addr, dmac, dkind, dname);
+        }
         InvalidateRect(g_hwnd, NULL, FALSE);
     } else if (kind == HIT_DEV_FORGET_BTN) {
         ULONGLONG addr = 0;
         wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
         BOOL valid = FALSE;
         EnterCriticalSection(&g_lock);
-        if (di >= 0 && di < g_devCount && g_devices[di].visible && !g_devices[di].forgotten) {
+        int di = FindDeviceIndexByAddress(target);
+        if (di >= 0 && DeviceIsListed(&g_devices[di])) {
             DeviceEntry *d = &g_devices[di];
             valid = TRUE;
             addr = d->address;
@@ -333,6 +385,7 @@ static void HandleHitClick(int hitIdx) {
             wcsncpy(dmac, d->mac, 23);
             d->visible = FALSE;   /* drop it from every surface at once */
             d->forgotten = TRUE;  /* persisted tombstone blocks stale OS history */
+            d->denied = FALSE;
             d->transient = FALSE;
             d->connected = FALSE;
             d->allowAuto = FALSE;
@@ -385,21 +438,31 @@ static BOOL ApplyHubExit(void) {
 }
 
 static void ShowTrayMenu(void) {
+    if (g_trayMenuTracking) return;
+    g_trayMenuTracking = TRUE;
     HMENU hMenu = CreatePopupMenu();
+    if (!hMenu) { g_trayMenuTracking = FALSE; return; }
+    ZeroMemory(g_trayDeviceAddresses, sizeof(g_trayDeviceAddresses));
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_OPEN, L"Open Bluetooth Guard");
     AppendMenuW(hMenu, MF_STRING | (g_guardOn ? MF_CHECKED : 0), IDM_TRAY_PAUSE, L"Guard Enabled");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 
     EnterCriticalSection(&g_lock);
-    for (int i = 0; i < g_devCount && i < 20; i++) {
+    int shown = 0, review = 0;
+    for (int i = 0; i < g_devCount; i++) {
+        if (DeviceNeedsReview(&g_devices[i])) review++;
+        if (shown >= 20) continue;
         if (!g_devices[i].visible || g_devices[i].forgotten) continue;
         wchar_t label[300];
         _snwprintf(label, 299, L"%s  %s",
                    g_devices[i].connected ? L"Disconnect" : L"Connect",
                    g_devices[i].name);
-        AppendMenuW(hMenu, MF_STRING, IDM_TRAY_DEV0 + i, label);
+        g_trayDeviceAddresses[shown] = g_devices[i].address;
+        AppendMenuW(hMenu, MF_STRING, IDM_TRAY_DEV0 + shown, label);
+        shown++;
     }
     LeaveCriticalSection(&g_lock);
+    if (review) AppendMenuW(hMenu, MF_STRING, IDM_TRAY_OPEN, L"Review paired devices awaiting approval");
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_QUIT, L"Quit Bluetooth Guard");
@@ -409,6 +472,7 @@ static void ShowTrayMenu(void) {
     SetForegroundWindow(g_hwnd);
     TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, g_hwnd, NULL);
     DestroyMenu(hMenu);
+    g_trayMenuTracking = FALSE;
 }
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
@@ -485,12 +549,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             g_quitting = TRUE;
             DestroyWindow(hwnd);
         } else if (id >= IDM_TRAY_DEV0 && id < IDM_TRAY_DEV0 + MAX_DEVICES) {
-            int di = id - IDM_TRAY_DEV0;
+            ULONGLONG target = g_trayDeviceAddresses[id - IDM_TRAY_DEV0];
             ULONGLONG addr = 0;
             wchar_t dkind[16] = L"Audio", dname[128] = L"", dmac[24] = L"";
             BOOL wasConn = FALSE, valid = FALSE;
             EnterCriticalSection(&g_lock);
-            if (di < g_devCount && g_devices[di].visible && !g_devices[di].forgotten) {
+            int di = FindDeviceIndexByAddress(target);
+            if (di >= 0 && di < g_devCount && g_devices[di].visible && !g_devices[di].forgotten && !g_devices[di].denied) {
                 DeviceEntry *d = &g_devices[di];
                 valid = TRUE;
                 wasConn = d->connected;

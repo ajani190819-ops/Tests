@@ -36,8 +36,9 @@ what automated checks proved from Windows, hardware, network, or game testing
 that still needs the owner. Treat rushed wording as normal; ask only when a
 product behavior genuinely forks. Do not show an internal translation of an
 owner request. Repeat the agreed to-do list in every reply, mark the next
-actionable item, and retain pending/parked items. Keep that list current in
-`.agent/STATE.md`.
+actionable item, and retain pending/parked items. Maintain the full Drive to-do
+doc linked in `.agent/DRIVE_GUIDE.md`; keep `.agent/STATE.md` as its offline
+snapshot. Flag unrecovered requests rather than claiming the list is complete.
 
 ## Non-negotiable rules
 

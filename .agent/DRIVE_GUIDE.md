@@ -4,6 +4,16 @@
 **Drive file ID:** `1Fp4zZcQrljlHDMMu6h2u5WMRgBju1_M5D3yafTJgslQ`
 **Documentation archive:** [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk)
 **Archive file ID:** `1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io`
+**Full task list:** [Tests — Master To-Do List](https://docs.google.com/document/d/12TFZmyXuCWWt_-M-SjiW3AaHeoTtnq33Qw7jwfIw1cM/edit)
+**To-do file ID:** `12TFZmyXuCWWt_-M-SjiW3AaHeoTtnq33Qw7jwfIw1cM`
+
+The dedicated to-do doc holds the full known plan, including pending/parked
+work and historical items needing confirmation. Update it after each completed
+task; keep the compact offline snapshot in `.agent/STATE.md`. Preserve stable
+task IDs/statuses instead of silently dropping items. The owner reports missing
+requests: keep reconciliation open until reviewed, and never infer completion
+or new approval from an old narrative. Git remains authoritative for code,
+verification, and releases; Drive holds the human-readable planning list.
 
 ## Required use before and after edits
 

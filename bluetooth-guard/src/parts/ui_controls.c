@@ -82,12 +82,20 @@ static void DrawPillToggle(HDC hdc, uint32_t *px, int W, int H, HFONT font, RECT
     DrawTextW(hdc, label, -1, &lbl, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 }
 
-static void AddHit(RECT r, int kind, int index) {
+static void AddHit(RECT r, int kind, ULONGLONG address) {
     if (g_hitCount < MAX_HITBOXES) {
-        g_hits[g_hitCount].rect  = r;
-        g_hits[g_hitCount].kind  = kind;
-        g_hits[g_hitCount].index = index;
+        g_hits[g_hitCount].rect = r;
+        g_hits[g_hitCount].kind = kind;
+        g_hits[g_hitCount].address = address;
         g_hitCount++;
     }
+}
+
+/* Do not leave clickable approval controls over the header/footer when a card
+   is partially scrolled out of view. */
+static void AddDeviceHit(RECT r, int kind, ULONGLONG address, int top, int bottom) {
+    if (r.top < top) r.top = top;
+    if (r.bottom > bottom) r.bottom = bottom;
+    if (r.bottom > r.top) AddHit(r, kind, address);
 }
 

@@ -102,7 +102,7 @@ static void DoConnectNow(ULONGLONG address, const wchar_t *kind, const wchar_t *
     BOOL trusted = FALSE;
     EnterCriticalSection(&g_lock);
     for (int i = 0; i < g_devCount; i++) {
-        if (g_devices[i].address == address && g_devices[i].visible && !g_devices[i].forgotten) {
+        if (g_devices[i].address == address && g_devices[i].visible && !g_devices[i].forgotten && !g_devices[i].denied) {
             trusted = TRUE;
             break;
         }
@@ -111,6 +111,18 @@ static void DoConnectNow(ULONGLONG address, const wchar_t *kind, const wchar_t *
     if (!trusted) return;
     EnsureProfilesEnabled(address, kind);
     TriggerBtAudioKsProperty(address, name, KSPROPERTY_ONESHOT_RECONNECT);
+}
+
+/* A denial/guard drop can be queued before the owner approves a row. Check
+   the current decision again rather than disconnecting a newly accepted link. */
+static void DisconnectIfStillBlocked(ULONGLONG address, const wchar_t *kind,
+                                      const wchar_t *name) {
+    if (!address) return;
+    EnterCriticalSection(&g_lock);
+    int idx = FindDeviceIndexByAddress(address);
+    BOOL blocked = (idx < 0) || DeviceShouldBlock(&g_devices[idx], g_guardOn);
+    LeaveCriticalSection(&g_lock);
+    if (blocked) DoDisconnectOnly(address, kind, name);
 }
 
 /* True unpair: remove the device from Windows entirely (the Forget button).
@@ -140,9 +152,10 @@ static void WriteHeartbeat(void) {
     int blocked = 0, trusted = 0;
     EnterCriticalSection(&g_lock);
     for (int i = 0; i < g_devCount; i++) {
-        if (!g_devices[i].visible || g_devices[i].forgotten) continue;
-        trusted++;
-        if (!g_devices[i].allowAuto) blocked++;
+        DeviceEntry *d = &g_devices[i];
+        if (!DeviceIsListed(d)) continue;
+        if (d->visible) trusted++;
+        if (d->denied || (d->visible && !d->allowAuto)) blocked++;
     }
     LeaveCriticalSection(&g_lock);
 

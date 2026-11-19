@@ -44,7 +44,7 @@
 #define IDM_TRAY_DEV0   300
 
 #define MAX_DEVICES     64
-#define MAX_HITBOXES    192
+#define MAX_HITBOXES    (MAX_DEVICES * 3 + 8)
 
 /* Soft Slate Suite Palette (matches Keyboard Lighting, Project Hub & docs/UI_STYLE_GUIDE.md) */
 #define COL_BG            RGB(24, 27, 36)    /* #181B24 */
@@ -80,13 +80,14 @@ enum HitKind {
     HIT_BTN_QUIT,
     HIT_DEV_AUTO_TOGGLE,
     HIT_DEV_CONNECT_BTN,
+    HIT_DEV_DENY_BTN,
     HIT_DEV_FORGET_BTN
 };
 
 typedef struct {
     RECT rect;
     int  kind;
-    int  index;
+    ULONGLONG address;
 } HitBox;
 
 typedef struct {
@@ -101,14 +102,16 @@ typedef struct {
     BOOL      profilesRepaired;
     BOOL      visible;       /* durable trusted-device membership */
     BOOL      forgotten;     /* tombstone: do not restore from stale OS history */
-    BOOL      transient;     /* untrusted live-link observation; never persisted */
+    BOOL      denied;        /* explicit connection denial; pairing is retained */
+    BOOL      paired;        /* Windows-authenticated candidate; not Guard trust */
+    BOOL      transient;     /* undecided observation; never persisted as trust */
     BOOL      scanSeen;
     BOOL      blockPending;
     ULONGLONG sessionStartTick;
 } DeviceEntry;
 
 typedef struct {
-    int       op; /* 1 = disconnect now, 2 = connect now */
+    int       op; /* 1 = explicit disconnect, 2 = connect, 3 = forget, 4 = policy drop */
     ULONGLONG address;
     wchar_t   mac[24];
     wchar_t   kind[16];
@@ -167,6 +170,8 @@ static CRITICAL_SECTION g_lock;
 
 static DeviceEntry      g_devices[MAX_DEVICES];
 static int              g_devCount   = 0;
+static ULONGLONG        g_trayDeviceAddresses[MAX_DEVICES];
+static BOOL             g_trayMenuTracking = FALSE;
 
 static HitBox           g_hits[MAX_HITBOXES];
 static int              g_hitCount   = 0;
@@ -199,6 +204,7 @@ static void ArmFastBurstWindow(ULONGLONG durationMs) {
 #include "parts/system_init.c"
 #include "parts/device_history.c"
 #include "parts/device_classify.c"
+#include "parts/device_policy.c"
 #include "parts/bt_actions.c"
 #include "parts/autostart_rules.c"
 #include "parts/ui_renderer.c"

@@ -716,16 +716,16 @@
  {
   "id": "btg-00",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
-  "old": "d->visible ? L\"K\" : L\"F\"",
+  "old": "d->visible ? L\"K\" : (d->denied ? L\"D\" : L\"F\")",
   "new": "L\"F\"",
   "label": "Trusted Bluetooth membership is serialized as forgotten"
  },
  {
   "id": "btg-01",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
-  "old": "if (!info.fConnected) goto next_bluetooth_device;",
-  "new": "if (FALSE) goto next_bluetooth_device;",
-  "label": "Disconnected Bluetooth scan results are enrolled as devices"
+  "old": "if (!info.fAuthenticated && !info.fConnected) goto next_bluetooth_device;",
+  "new": "if (!info.fConnected) goto next_bluetooth_device;",
+  "label": "Paired disconnected earbuds are hidden before the owner can review them"
  },
  {
   "id": "btg-02",
@@ -786,9 +786,9 @@
  {
   "id": "btg-10",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
-  "old": "DoDisconnectOnly(rejected[i].address, rejected[i].kind, rejected[i].name);",
+  "old": "DisconnectIfStillBlocked(rejected[i].address, rejected[i].kind, rejected[i].name);",
   "new": "(void)rejected[i];",
-  "label": "Untrusted Bluetooth connections are not actively dropped"
+  "label": "Explicitly denied and unpaired Bluetooth links are not actively dropped"
  },
  {
   "id": "btg-11",
@@ -1090,5 +1090,61 @@
   "old": "        StretchDIBits(mem, d.left, d.top, side, side, srcLeft, srcTop,\n                      focusPx, focusPx, view, &bi,\n                      DIB_RGB_COLORS, SRCCOPY);",
   "new": "        LeaveCriticalSection(&g_lock);\n        StretchDIBits(mem, d.left, d.top, side, side, srcLeft, srcTop,\n                      focusPx, focusPx, view, &bi,\n                      DIB_RGB_COLORS, SRCCOPY);",
   "label": "the worker can recycle the radar view while the UI is drawing it"
+ },
+ {
+  "id": "btg-16",
+  "file": "bluetooth-guard/src/parts/device_policy.c",
+  "old": "if (!d->visible) return !DeviceNeedsReview(d);",
+  "new": "if (!d->visible) return TRUE;",
+  "label": "Undecided paired earbuds are disconnected before the owner can approve them"
+ },
+ {
+  "id": "btg-17",
+  "file": "bluetooth-guard/src/parts/device_policy.c",
+  "old": "d->denied = TRUE;",
+  "new": "d->denied = FALSE;",
+  "label": "The owner Deny decision is not retained in the Bluetooth device state"
+ },
+ {
+  "id": "btg-18",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "if (!DeviceIsListed(d)) continue;",
+  "new": "if (!d->visible) continue;",
+  "label": "Bluetooth approval candidates have no visible card to accept or configure"
+ },
+ {
+  "id": "btg-19",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "if (d->transient && !d->paired && (!d->scanSeen || !d->connected)) {",
+  "new": "if (d->transient && (!d->scanSeen || !d->connected)) {",
+  "label": "A disconnected pending Bluetooth pair vanishes from the review list"
+ },
+ {
+  "id": "btg-20",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "d->denied = denied;",
+  "new": "d->denied = FALSE;",
+  "label": "Persisted Bluetooth denials are lost when rules are loaded"
+ },
+ {
+  "id": "btg-21",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "ULONGLONG target = g_hits[hitIdx].address;",
+  "new": "ULONGLONG target = 0;",
+  "label": "Bluetooth approval clicks lose the stable painted device address"
+ },
+ {
+  "id": "btg-22",
+  "file": "bluetooth-guard/src/parts/bt_actions.c",
+  "old": "BOOL blocked = (idx < 0) || DeviceShouldBlock(&g_devices[idx], g_guardOn);",
+  "new": "BOOL blocked = TRUE; (void)idx;",
+  "label": "A stale Bluetooth policy drop disconnects an app-approved session"
+ },
+ {
+  "id": "btg-23",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "ApproveDevice(d, nowAllow, GetTickCount64());",
+  "new": "ApproveDevice(d, FALSE, GetTickCount64());",
+  "label": "Auto-Connect cannot explicitly approve and enable a pending Bluetooth pair"
  }
 ]

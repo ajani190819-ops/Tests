@@ -259,29 +259,30 @@
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
-- L188  f ArmFastBurstWindow
-- globals: g_hwnd (L152), g_appIcon (L153), g_devNotifyIface (L154), g_devNotifyRadio (L155), g_radioNotifyHandle (L156), g_nid (L157), g_trayVisible (L158), g_quitting (L159), g_guardOn (L160), g_autostart (L161), g_autostartExplicit (L162), g_radioOn (L163), g_trayHinted (L164), g_showEvent (L165), g_lock (L166), g_devices (L168), g_devCount (L169), g_hits (L171), g_hitCount (L172), g_hoverIdx (L173), g_scrollY (L174), g_contentH (L175), g_fastBurstUntil (L177), g_manualGraceUntil (L178)
+- L193  f ArmFastBurstWindow
+- globals: g_hwnd (L155), g_appIcon (L156), g_devNotifyIface (L157), g_devNotifyRadio (L158), g_radioNotifyHandle (L159), g_nid (L160), g_trayVisible (L161), g_quitting (L162), g_guardOn (L163), g_autostart (L164), g_autostartExplicit (L165), g_radioOn (L166), g_trayHinted (L167), g_showEvent (L168), g_lock (L169), g_devices (L171), g_devCount (L172), g_trayDeviceAddresses (L173), g_trayMenuTracking (L174), g_hits (L176), g_hitCount (L177), g_hoverIdx (L178), g_scrollY (L179), g_contentH (L180), g_fastBurstUntil (L182), g_manualGraceUntil (L183)
 
 ## bluetooth-guard/src/parts/autostart_rules.c
 
 - L5  f SetAutostart  — Install both:
 - L89  f SaveRules
 - L108  f LoadRules
-- L153  f EnqueueWork
-- L169  f RecordRejectedLink
-- L181  f PollPairedDevices
-- L387  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
+- L155  f EnqueueWork
+- L171  f RecordRejectedLink
+- L183  f PollPairedDevices
+- L395  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
 
 ## bluetooth-guard/src/parts/bt_actions.c
 
 - L2  f TriggerBtAudioKsProperty  — Native Windows KSPROPERTY_ONESHOT_RECONNECT / DISCONNECT — exact API used by Windows 11 Settings!
 - L75  f DoDisconnectOnly  — Disconnect active link cleanly WITHOUT disabling Bluetooth profiles!
 - L101  f DoConnectNow
-- L120  f DoForgetDevice
-- L127  f InitPaths
-- L139  f WriteHeartbeat
-- L162  f IsAutostartEnabled
-- L175  f RunHiddenCmd
+- L118  f DisconnectIfStillBlocked
+- L132  f DoForgetDevice
+- L139  f InitPaths
+- L151  f WriteHeartbeat
+- L175  f IsAutostartEnabled
+- L188  f RunHiddenCmd
 
 ## bluetooth-guard/src/parts/device_classify.c
 
@@ -295,6 +296,15 @@
 - L1  f FormatMac
 - L9  f FormatCompactHex
 - L14  f ContainsCI
+
+## bluetooth-guard/src/parts/device_policy.c
+
+- L3  f DeviceNeedsReview
+- L7  f DeviceIsListed
+- L11  f DeviceShouldBlock
+- L21  f ApproveDevice
+- L33  f DenyDevice
+- L45  f FindDeviceIndexByAddress
 
 ## bluetooth-guard/src/parts/emblem.c
 
@@ -321,6 +331,7 @@
 - L34  f DrawActionBtn  — style: 0=soft secondary, 1=primary cobalt, 2=coral disconnect, 3=primary connect
 - L57  f DrawPillToggle  — Smooth rounded pill switch control with label + sliding circular knob
 - L85  f AddHit
+- L96  f AddDeviceHit
 
 ## bluetooth-guard/src/parts/ui_renderer.c
 
@@ -330,12 +341,12 @@
 ## bluetooth-guard/src/parts/window_entry.c
 
 - L1  f RenderWindow
-- L254  f HandleHitClick
-- L353  f BluetoothTraySync
-- L366  f TakeHubOneShot
-- L372  f ApplyHubGuardToggle
-- L380  f ApplyHubExit
-- L387  f ShowTrayMenu
+- L269  f HandleHitClick
+- L406  f BluetoothTraySync
+- L419  f TakeHubOneShot
+- L425  f ApplyHubGuardToggle
+- L433  f ApplyHubExit
+- L440  f ShowTrayMenu
 
 ## keyboard-lighting/src/keyboard_lighting.c
 
@@ -1155,11 +1166,11 @@
 - L46  f strip_cs_comments_and_strings
 - L168  f lex_powershell
 - L303  f WindowsDesktopAppsTests
-- L3239  f SuiteFolderInstallTests
-- L4599  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L4782  f AudioSwitcherReachabilityTests
-- L4966  f AudioSwitcherSessionSweepTests
-- L5107  f AppOpenFocusTests
+- L3501  f SuiteFolderInstallTests
+- L4861  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L5044  f AudioSwitcherReachabilityTests
+- L5228  f AudioSwitcherSessionSweepTests
+- L5369  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 
