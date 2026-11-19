@@ -28,11 +28,13 @@ release records, and offline safety facts. Drive holds extended narrative/plans.
 - **Documentation:** 29 human-facing archives are in Drive; Git keeps build,
   test, runtime, release inputs, and compact entry points.
 
-## Current verification
+## Bluetooth approval release
 
-Native Bluetooth paired-device review passes build/checks and all 164 mutations
-(0 surviving/stale). Real poll/policy/click-handler tests mock only Win32 I/O.
-Release marker is pending; no native earbud result is claimed.
+Implementation `83e54d5ed8648856f7dbbfa5786096d36ab8ce8e`, Hub 2.8.62. Native
+paired rows offer Accept/Deny/Auto-Connect; undecided pairs stay reviewable
+without automatic trust. Deny keeps pairing; actions/drops recheck addresses.
+Build/checks and all 164 mutations pass (0 surviving/stale); real-earbud Windows
+verification remains. The legacy PowerShell setup path is unchanged.
 
 ## Agreed to-do list
 
@@ -40,9 +42,8 @@ Full human-readable plan: **Tests — Master To-Do List**, linked with its file 
 in `.agent/DRIVE_GUIDE.md`. Repeat this list in replies; retain pending/parked
 items. The owner reports missing requests: reconciliation is NOT complete.
 
-1. **BT-01 first:** fix invisible earbuds/premature drops; paired devices get
-   Accept/Deny/Auto-Connect choices. Finish verification/release, then Windows
-   earbud testing. Scan discovery alone must not grant trust.
+1. **BT-01 first:** native approval update released; verify actual earbuds on
+   Windows (discovery, choices, reconnect). Scans must not grant trust.
 2. **PLAN-01:** master Drive doc created; recover/confirm any further missing
    requests. Historical follow-ups below are not newly approved coding work.
 3. **APP-01 next coding:** Open restores/shows and foregrounds the existing app
