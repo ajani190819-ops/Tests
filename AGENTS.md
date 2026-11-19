@@ -35,7 +35,9 @@ Lead with the direct result. Keep replies short, plain, and factual. Distinguish
 what automated checks proved from Windows, hardware, network, or game testing
 that still needs the owner. Treat rushed wording as normal; ask only when a
 product behavior genuinely forks. Do not show an internal translation of an
-owner request.
+owner request. Repeat the agreed to-do list in every reply, mark the next
+actionable item, and retain pending/parked items. Keep that list current in
+`.agent/STATE.md`.
 
 ## Non-negotiable rules
 

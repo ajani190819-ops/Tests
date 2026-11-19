@@ -50,15 +50,17 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 - Audit passes Python, shell, Windows build, checks, mutations, and artifacts.
   Spatial HUD needs JDK 25, unavailable in sandbox but present in CI.
 
-## Next approved work
+## Agreed to-do list
 
-Native Windows review of the planner and live radar tiles/alignment remains.
-The reported Hub UAC recurrence is active: source and built PE declare
-`asInvoker`; startup only starts the remote status check. The only explicit Hub
-`runas` path is the Agent Notes `--stop` helper during a Notes update; child
-apps keep their own elevation manifests. The exact action behind the owner's
-prompt is not yet known. Keyboard Lighting M4 stays parked; the latest test
-still shows learning and no key events in `engine-5.log`.
+1. **Next: Open-to-front.** All app Open actions must restore/show and foreground
+   the existing single instance (including minimized/tray), not duplicate it.
+   Approved backlog only; implementation and native checks remain.
+2. **Weather Radar: Windows review pending.** Check planner layout and live
+   tiles/alignment; automated checks cannot confirm appearance.
+3. **UAC: monitor only.** Latest open worked. If it recurs, identify the prompt's
+   program/path and action before changing elevation; Hub stays `asInvoker`.
+4. **Keyboard Lighting M4: parked.** Needs a fresh owner `engine.log`; latest
+   `engine-5.log` showed learning and no key events.
 
 ## Offline safety facts
 
