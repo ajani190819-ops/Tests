@@ -266,11 +266,12 @@ static int BaseGridEnsure(int z, int tx, int ty) {
 }
 
 /* Composite one radar frame over the basemap into g_viewStage, then hand the
-   buffer to the UI thread. RadarTileZoomForDisplay caps every request at the
-   validated host level 7. Display levels 8-10 are local crops of that source;
-   never request level 8, where the provider can return an opaque unsupported-
-   zoom placeholder that the old transparency-only fallback accepted. */
-static void RadarViewBuild(const Place *p, int frameIdx) {
+   buffer to the UI thread only if its selected-place generation is still
+   current. RadarTileZoomForDisplay caps requests at validated host level 7;
+   display levels 8-10 are local crops of that source. Never request level 8,
+   where the provider can return an opaque unsupported-zoom placeholder that
+   the old transparency-only fallback accepted. */
+static void RadarViewBuild(const Place *p, int frameIdx, DWORD placeTicket) {
     if (!g_radarHost[0] || frameIdx < 0 || frameIdx >= g_frameN) return;
     if (!g_viewStage) g_viewStage = (uint32_t *)malloc((size_t)GRID_PX * GRID_PX * 4);
     if (!g_viewStage) return;
@@ -285,7 +286,6 @@ static void RadarViewBuild(const Place *p, int frameIdx) {
     GridFor(z, p->lat, p->lon, &tx, &ty);
     int any = FetchTileGrid(L"rv", z, tx, ty, g_frames[frameIdx].path, radar,
                             2 * 24 * 3600);
-    int radarNote = displayZoom > z ? 2 : 0;
     if (any) {
         BaseGridEnsure(z, tx, ty);
     } else {
@@ -312,14 +312,19 @@ static void RadarViewBuild(const Place *p, int frameIdx) {
     free(radar);
 
     EnterCriticalSection(&g_lock);
+    if (placeTicket != g_placeTicket) {
+        LeaveCriticalSection(&g_lock);
+        return;
+    }
     uint32_t *old = g_view;
     g_view = g_viewStage;
     g_viewStage = old ? old : NULL;
+    g_viewKey[0] = z;
+    g_viewKey[1] = tx;
+    g_viewKey[2] = ty;
+    g_viewTicket = placeTicket;
     g_viewReady = any ? 2 : 1;
-    g_radarNote = radarNote;
-    g_baseKey[0] = z;
-    g_baseKey[1] = tx;
-    g_baseKey[2] = ty;
+    g_radarNote = g_zoom > z ? 2 : 0;
     LeaveCriticalSection(&g_lock);
-    PostMessageW(g_hwnd, WM_APP_DATA, JOB_TILES, 0);
+    PostMessageW(g_hwnd, WM_APP_DATA, JOB_TILES, (LPARAM)(uintptr_t)placeTicket);
 }

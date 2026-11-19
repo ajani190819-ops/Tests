@@ -910,9 +910,11 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
     int ready = g_viewReady;
     int note = g_radarNote;
     int displayZoom = g_zoom;
-    int sourceZoom = g_baseKey[0];
-    int sourceTx = g_baseKey[1];
-    int sourceTy = g_baseKey[2];
+    int sourceZoom = g_viewKey[0];
+    int sourceTx = g_viewKey[1];
+    int sourceTy = g_viewKey[2];
+    DWORD placeTicket = g_placeTicket;
+    DWORD viewTicket = g_viewTicket;
     int frames = g_frameN;
     int fsel = g_frameSel;
     long long ftime = (frames > 0 && fsel < frames) ? g_frames[fsel].time : 0;
@@ -926,9 +928,9 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
     }
     Place pl = g_reqPlace;
     int hasPlace = g_reqHas;
-    LeaveCriticalSection(&g_lock);
 
-    if (view && ready) {
+    int viewPainted = 0;
+    if (view && ready && viewTicket == placeTicket) {
         /* fit the square grid into the pane, letterboxed */
         int side = img.bottom - img.top;
         int wide = img.right - img.left;
@@ -971,14 +973,15 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
             srcTop = RadarFocusOrigin(placePixelY, focusPx);
             placePixelValid = 1;
         }
-        EnterCriticalSection(&g_lock);
+        /* Keep the published buffer and its place metadata locked together
+           through the blit: the worker reuses the previous view as its next
+           staging buffer immediately after publication. */
         StretchDIBits(mem, d.left, d.top, side, side, srcLeft, srcTop,
-                      focusPx, focusPx, g_view, &bi,
+                      focusPx, focusPx, view, &bi,
                       DIB_RGB_COLORS, SRCCOPY);
-        LeaveCriticalSection(&g_lock);
-        /* Draw the marker using the same map coordinate and crop origin so it
-           stays on the exact selected place, at the visual center when space
-           around it allows. */
+        viewPainted = 1;
+        /* Draw the marker from the same map coordinate and crop origin, and
+           only when the rendered image still matches that place generation. */
         if (placePixelValid) {
             int cx = d.left + (int)((placePixelX - srcLeft) / (double)focusPx * (double)side);
             int cy = d.top + (int)((placePixelY - srcTop) / (double)focusPx * (double)side);
@@ -1000,13 +1003,18 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
                 DeleteObject(outer);
             }
         }
-    } else {
+    }
+    LeaveCriticalSection(&g_lock);
+
+    if (!viewPainted) {
         DrawRoundedBox(mem, &img, S(10), COL_INPUT, COL_DIV);
         wchar_t msg[96];
         if (!hasPlace) wcscpy(msg, L"Pick a place and the radar for it appears here.");
         else if (frames == 0) wcscpy(msg, L"No radar frames published right now.");
-        else wcscpy(msg, L"Loading radar tiles...");
-        DrawTextAt(mem, msg, &img, g_fontUI, COL_MUTED,
+        else wcscpy(msg, L"Loading radar for the selected place...");
+        RECT loading = img;
+        InflateRect(&loading, -S(8), -S(8));
+        DrawTextAt(mem, msg, &loading, g_fontUI, COL_MUTED,
                    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
 
@@ -1030,12 +1038,12 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
         DrawTextAt(mem, step, &fr, g_fontSmall, forecastN > 0 ? COL_ACCENT : COL_MUTED,
                    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
-    if (ready == 1 && view) {
+    if (ready == 1 && viewPainted) {
         RECT nr = { img.left + S(8), img.top + S(32), img.left + S(330), img.top + S(54) };
         DrawTextAt(mem, L"No rain echoes in this frame.", &nr, g_fontSmall, COL_MUTED,
                    DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
-    if (ready == 2 && view) {
+    if (ready == 2 && viewPainted) {
         /* RainViewer uses colour to communicate intensity.  Name that scale
            on the map so the coloured cells become an actionable answer rather
            than an unexplained overlay. */
@@ -1053,7 +1061,7 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
         DrawTextAt(mem, L"light     moderate     heavy     intense", &lt, g_fontSmall, COL_TXT,
                    DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
-    if (note) {
+    if (note && viewPainted) {
         RECT zr = { img.left + S(520), img.top + S(6), img.right - S(8), img.top + S(28) };
         DrawTextAt(mem, L"detail zoom — sourced from host level 7", &zr,
                    g_fontSmall, COL_WARN, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
@@ -1417,7 +1425,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 /* Display levels 8-10 intentionally reuse level-7 imagery as
                    local detail crops. They update instantly instead of issuing
                    unsupported host requests. */
-                if (newTileZoom == oldTileZoom && g_baseKey[0] == newTileZoom)
+                if (newTileZoom == oldTileZoom && g_viewKey[0] == newTileZoom)
                     g_radarNote = g_zoom > newTileZoom ? 2 : 0;
                 LeaveCriticalSection(&g_lock);
                 if (oldTileZoom != newTileZoom) RequestTiles();

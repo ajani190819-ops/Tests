@@ -1841,6 +1841,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         suite mark existing as a dead/nonexistent Weather Radar header."""
         ui = (ROOT / "weather-radar" / "src" / "parts" / "ui.c").read_text(encoding="utf-8")
         radar = (ROOT / "weather-radar" / "src" / "parts" / "radar.c").read_text(encoding="utf-8")
+        workers = (ROOT / "weather-radar" / "src" / "parts" / "workers.c").read_text(encoding="utf-8")
         forecast = (ROOT / "weather-radar" / "src" / "parts" / "forecast.c").read_text(encoding="utf-8")
         self.assertIn("wind_gusts_10m,cloud_cover", forecast,
                       "the selected balanced current-conditions view stopped requesting gust and cloud context")
@@ -1907,6 +1908,30 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         self.assertIn("srcTop = RadarFocusOrigin(placePixelY, focusPx);", pane)
         self.assertIn("placePixelX - srcLeft", pane,
                       "the location marker is no longer aligned to the place-centered crop")
+        self.assertIn("RadarViewBuild(&p, fi, ticket);", workers,
+                      "tile work does not carry the selected-place generation into view construction")
+        self.assertIn("if (placeTicket != g_placeTicket)", radar,
+                      "a slow tile response can publish an old place's imagery over the current selection")
+        self.assertIn("g_viewTicket = placeTicket;", radar,
+                      "published radar imagery does not identify the place generation it represents")
+        self.assertIn("viewTicket == placeTicket", pane,
+                      "the UI can paint a prior city's image under the current city's marker")
+        self.assertIn("int sourceZoom = g_viewKey[0];", pane,
+                      "the crop no longer uses the source zoom paired with the published view")
+        self.assertIn("int sourceTx = g_viewKey[1];", pane,
+                      "the crop no longer uses the source tile origin paired with the published view")
+        self.assertIn("if (!viewPainted)", pane,
+                      "stale radar imagery is not replaced with a loading state")
+        paint_lock = pane.index("EnterCriticalSection(&g_lock);")
+        view_snapshot = pane.index("uint32_t *view = g_view;")
+        view_blit = pane.index("StretchDIBits(mem, d.left, d.top, side, side")
+        paint_unlock = pane.index("LeaveCriticalSection(&g_lock);", paint_lock)
+        self.assertLess(paint_lock, view_snapshot)
+        self.assertLess(view_snapshot, view_blit)
+        self.assertLess(view_blit, paint_unlock,
+                        "the worker can recycle the published radar buffer while GDI is reading it")
+        self.assertIn("focusPx, focusPx, view, &bi", pane,
+                      "the blit no longer uses the view pointer whose snapshot remains locked")
         self.assertIn("light     moderate     heavy     intense", pane,
                       "radar colours no longer have a visible intensity legend")
         self.assertIn("cx - S(14)", pane,

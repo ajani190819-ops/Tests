@@ -210,7 +210,9 @@ static int        g_radarNote = 0;
 static uint32_t *g_view = NULL;         /* composited radar over basemap */
 static uint32_t *g_viewStage = NULL;
 static uint32_t *g_base = NULL;         /* cached basemap grid */
-static int       g_baseKey[3] = { -1, -1, -1 };   /* zoom, tx, ty */
+static int       g_baseKey[3] = { -1, -1, -1 };   /* cached base: zoom, tx, ty */
+static int       g_viewKey[3] = { -1, -1, -1 };   /* published view: zoom, tx, ty */
+static DWORD     g_viewTicket = 0;      /* place generation used to build g_view */
 static int       g_viewReady = 0;
 
 

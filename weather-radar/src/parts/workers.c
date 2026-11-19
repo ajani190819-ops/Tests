@@ -1,9 +1,9 @@
 /* ---------------- workers: the one background thread ----------------
 
-   Every byte this app reads arrives on this thread. The UI thread only ever
-   sees results, handed over through WM_APP_DATA after the worker has
-   finished writing them into staging under g_lock - so a slow tile host can
-   never freeze the window, and a paint can never read a half-filled struct. */
+   Every byte this app reads arrives on this thread. The UI thread sees staged
+   results only after publication through WM_APP_DATA. Place-dependent replies
+   carry a generation so slow, obsolete work cannot replace the selected place;
+   radar paint holds the published-view lock while GDI reads its reusable buffer. */
 
 static HANDLE g_workerThread = NULL;
 static HANDLE g_jobEvent = NULL;
@@ -74,11 +74,12 @@ static DWORD WINAPI WorkerMain(LPVOID arg) {
             }
             case JOB_RADAR_CATALOG: RadarCatalogFetch(); break;
             case JOB_TILES: {
-                Place p; int have, fi;
+                Place p; int have, fi; DWORD ticket;
                 EnterCriticalSection(&g_lock);
                 p = g_reqPlace; have = g_reqHas; fi = g_frameSel;
+                ticket = g_placeTicket;
                 LeaveCriticalSection(&g_lock);
-                if (have) RadarViewBuild(&p, fi);
+                if (have) RadarViewBuild(&p, fi, ticket);
                 break;
             }
             default: break;
@@ -100,10 +101,10 @@ static void RequestPlaceData(const Place *p) {
     g_reqHas = 1;
     g_placeTicket++;
     if (g_placeTicket == 0) g_placeTicket = 1;
+    g_viewReady = 0;
     LeaveCriticalSection(&g_lock);
     g_fc.have = 0;
     g_ens.have = 0;
-    g_viewReady = 0;
     StartJob(JOB_FORECAST);
     StartJob(JOB_ENSEMBLE);
     StartJob(JOB_RADAR_CATALOG);

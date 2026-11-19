@@ -1076,5 +1076,19 @@
   "old": "            srcLeft = RadarFocusOrigin(placePixelX, focusPx);\n            srcTop = RadarFocusOrigin(placePixelY, focusPx);",
   "new": "            srcLeft = (GRID_PX - focusPx) / 2;\n            srcTop = (GRID_PX - focusPx) / 2;",
   "label": "Radar zoom recenters the tile grid instead of the selected place"
+ },
+ {
+  "id": "wx-30",
+  "file": "weather-radar/src/parts/radar.c",
+  "old": "    if (placeTicket != g_placeTicket) {\n        LeaveCriticalSection(&g_lock);\n        return;\n    }",
+  "new": "    if (FALSE) {\n        LeaveCriticalSection(&g_lock);\n        return;\n    }",
+  "label": "a late tile response from a prior place overwrites the selected city's view"
+ },
+ {
+  "id": "wx-31",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "        StretchDIBits(mem, d.left, d.top, side, side, srcLeft, srcTop,\n                      focusPx, focusPx, view, &bi,\n                      DIB_RGB_COLORS, SRCCOPY);",
+  "new": "        LeaveCriticalSection(&g_lock);\n        StretchDIBits(mem, d.left, d.top, side, side, srcLeft, srcTop,\n                      focusPx, focusPx, view, &bi,\n                      DIB_RGB_COLORS, SRCCOPY);",
+  "label": "the worker can recycle the radar view while the UI is drawing it"
  }
 ]
