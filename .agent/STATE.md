@@ -7,42 +7,36 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 ## Released work
 
 - **Main: Project Hub 2.8.56:** Tri-Spoke tray, alerts, and default-on branch
-  discovery remain. Remote probes pin releases and show updates only when app
-  contents differ; `Update Hub` requires a newer build.
+  discovery remain. Remote probes pin releases; updates appear only for
+  different/newer content.
 - **Arena Project Hub 2.8.62** (`81eb2c1a1822fcb7fe76118df5dccaef676c3495`):
-  Hub runs asInvoker; child elevation remains app-owned. Agent Notes stays
-  user-opened; elevated `--stop` precedes updates and the managed-copy gate
-  remains. Tray and Settings use Soft Slate. Tray rows retain full-row repaint
-  and GDI isolation; the popup reentry guard remains. The owner now confirms
-  hover is fine on Windows. Weather Radar had been appended only after a
-  successful remote catalog fetch, so startup/offline/partial-catalog states
-  could omit it. It is now seeded at startup and restored after catalog rebuilds,
-  with an embedded icon and a reserved catalog slot. Owner confirms the card is
-  visible; regression, mutations, build, and repository checks pass. Main stays
-  2.8.56.
-- **Agent Notes waiting receipts:** implementation `ad9232009b9f38c287727123ddd404b204ce26e1`,
-  released by marker `5343e54`. The direct local outbox records **Saved** only
-  after the live receiver flushes `.agent/INBOX.md`, then **Read** only after an
-  agent checkpoint captured before that inbox read. A running app hides to the
-  Windows notification area and shows a native visual "agent is waiting" alert;
-  sound is persistent opt-in (default off), and no Run key/task/service is added.
+  Hub runs asInvoker; children keep their own elevation. Agent Notes is
+  user-opened; its elevated `--stop` and the managed-copy gate precede updates.
+  Soft Slate tray/Settings, the popup reentry guard, and the offline Weather
+  Radar card are verified; owner confirmed tray hover and Radar visibility.
+  Main remains 2.8.56.
+- **Agent Notes waiting receipts:** `ad9232009b9f38c287727123ddd404b204ce26e1`
+  (marker `5343e54`). Local outbox distinguishes Saved (receiver flush) from
+  Read (later agent checkpoint). Native visual wait alert and opt-in sound; no
+  sign-in Run key, task, or service.
 - **Shared Tri-Spoke engine:** `shared/win32/suite_emblem.c` is the sole native
   renderer. Consumers use `SuiteEmblemDibPixel` for raw DIBs, own placement,
   and release their cache.
 - **Weather Radar rain watch:** `1be38f40f8612835ac539b9958528231da1c854b`,
   marker `59794dc`. Tray alerts require **66%+ exact-point ensemble odds in 3h**;
   persisted episode state and cooldown suppress repeats. Regional odds never alert.
-- **Weather Radar planner presentation:** implementation
-  `d483a5629db77a4428d57c1c870489a3e9eee5d2`, Hub 2.8.62. Five date-first
-  rows align rain, high/low temperature, clouds, and wind. Selection opens a
-  larger hourly chart with time/value labels and a reading. Point odds still
-  require complete member-days and stay distinct from regional PoP; humidity
-  is supporting. Build/checks and all 153 mutations pass; native Windows visual
-  review remains.
-- **Weather Radar zoom:** implementation
-  `63eae24853648a51a75dc9fe1a66426fc0aee642`, Hub 2.8.62. Source requests cap
-  at level 7; local zoom crops center on the selected place. Build/checks and
-  all 154 mutations pass.
+- **Weather Radar planner:** `d483a5629db77a4428d57c1c870489a3e9eee5d2`, Hub
+  2.8.62. Five date-first aligned rows open a labeled hourly chart on selection.
+  Exact-point ensemble odds stay distinct from regional PoP; build/checks and
+  153 mutations pass. Native Windows review remains.
+- **Weather Radar place alignment:** implementation
+  `36c55bda541b22fc34048e5fb87f7dba7aa27c99`, Hub 2.8.62. Source requests
+  remain capped at level 7 and local zoom crops use the selected place. Tile
+  workers now discard late results from an old place generation, and paint
+  holds the published view lock through the GDI blit; the previous city is not
+  shown under the newly selected marker while matching imagery loads. Build,
+  checks, and all 156 mutations pass; native Windows/live-tile verification
+  remains outstanding.
 - **Documentation archive:** 29 human-facing files remain in Drive; Git keeps
   compact stubs, changelogs, tests, configuration, version anchors, and runtime assets.
 
@@ -58,9 +52,13 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 
 ## Next approved work
 
-Windows review of the planner and place-centered radar zoom/live tiles remains.
-UAC is deferred. Keyboard Lighting M4 stays parked; the latest test still shows
-learning and no key events in `engine-5.log`.
+Native Windows review of the planner and live radar tiles/alignment remains.
+The reported Hub UAC recurrence is active: source and built PE declare
+`asInvoker`; startup only starts the remote status check. The only explicit Hub
+`runas` path is the Agent Notes `--stop` helper during a Notes update; child
+apps keep their own elevation manifests. The exact action behind the owner's
+prompt is not yet known. Keyboard Lighting M4 stays parked; the latest test
+still shows learning and no key events in `engine-5.log`.
 
 ## Offline safety facts
 
@@ -73,7 +71,8 @@ learning and no key events in `engine-5.log`.
   build/check before commit and refresh CODEMAP after mapped layout changes.
 - Preserve Weather Radar attribution, local cache, and worker/UI handoff. Tile
   requests are capped at source level 7; display levels 8-10 are local crops.
-  Late forecast/ensemble replies remain generation-gated by place.
+  Radar tile replies and forecast/ensemble replies are generation-gated by
+  place; keep the published view buffer locked through its UI blit.
 
 ## Git / Drive boundary
 
