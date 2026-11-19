@@ -32,10 +32,13 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 - **Weather Radar rain watch:** `1be38f40f8612835ac539b9958528231da1c854b`,
   marker `59794dc`. Tray alerts require **66%+ exact-point ensemble odds in 3h**;
   persisted episode state and cooldown suppress repeats. Regional odds never alert.
-- **Weather Radar five-day planner:** `7d6ec7614313408a9deead491c1d313f49c371df`,
-  Hub 2.8.62. Five days balance rain/temp/cloud/wind; selection shows hourly
-  trends/readings. Point odds require complete member-days and stay separate
-  from regional PoP; humidity is supporting. Checks/mutations pass.
+- **Weather Radar planner presentation:** implementation
+  `d483a5629db77a4428d57c1c870489a3e9eee5d2`, Hub 2.8.62. Five date-first
+  rows align rain, high/low temperature, clouds, and wind. Selection opens a
+  larger hourly chart with time/value labels and a reading. Point odds still
+  require complete member-days and stay distinct from regional PoP; humidity
+  is supporting. Build/checks and all 153 mutations pass; native Windows visual
+  review remains.
 - **Weather Radar tile zoom:** `9f8695750e5b57916d7e72d48747a0f0c32e4630`,
   Hub 2.8.62. Source requests cap at level 7; display 8-10 are local crops.
   Build, checks, and mutations pass.
@@ -54,9 +57,10 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 
 ## Next approved work
 
-Weather Radar's approved next phase is the day-first five-day planner and
-clearer hourly chart. Keyboard Lighting M4 stays parked until reopened; the
-latest owner test still shows M4 learning and no key events in `engine-5.log`.
+The day-first planner redesign is verified on this branch; await owner review
+of the Windows presentation before further product changes. UAC remains
+explicitly deferred. Keyboard Lighting M4 stays parked; the latest owner test
+still shows learning and no key events in `engine-5.log`.
 
 ## Offline safety facts
 
