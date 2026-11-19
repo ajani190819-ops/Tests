@@ -6,10 +6,12 @@ release records, and offline safety facts. Drive holds extended narrative/plans.
 
 ## Released work
 
-- **Main Hub 2.8.56; Arena Hub 2.8.62** (`81eb2c1a1822fcb7fe76118df5dccaef676c3495`):
-  Hub is `asInvoker`; children keep their elevation. Notes is user-opened;
-  elevated `--stop` and managed-copy gates precede updates. Owner confirmed
-  tray hover/Radar visibility. Remote probes pin released content.
+- **Main Hub 2.8.56; Arena Hub 2.8.63** (`47b00a3a3c29a17c9c6aaca575f190b5bb543206`):
+  Card/tray Open restores/reveals existing native/catalogue windows via async
+  show/focus and a bounded UI retry, with startup/rapid-click duplicate guards.
+  Build/checks and all 179 mutations pass; native focus review pending.
+  `asInvoker`, child elevation, user-opened Notes, stop/update gates, and the
+  owner-confirmed tray styling/Radar visibility remain unchanged.
 - **Agent Notes receipts:** `ad9232009b9f38c287727123ddd404b204ce26e1`, marker
   `5343e54`. Saved means receiver flush; Read means a later agent checkpoint.
   Native visual wait alert, opt-in sound; no logon Run key, task, or service.
@@ -25,8 +27,7 @@ release records, and offline safety facts. Drive holds extended narrative/plans.
   `d97ba63`. Old-place tiles are discarded; paint locks the published buffer
   through its blit. No prior city under a new marker. Build/checks and 156
   mutations passed; native/live-tile review remains.
-- **Documentation:** 29 human-facing archives are in Drive; Git keeps build,
-  test, runtime, release inputs, and compact entry points.
+- **Docs:** 29 archives in Drive; build/test/runtime/release inputs stay in Git.
 
 ## Bluetooth approval release
 
@@ -46,10 +47,9 @@ items. The owner reports missing requests: reconciliation is NOT complete.
    Windows (discovery, choices, reconnect). Scans must not grant trust.
 2. **PLAN-01:** master Drive doc created; recover/confirm any further missing
    requests. Historical follow-ups below are not newly approved coding work.
-3. **APP-01 verified, release pending:** Hub card/tray Open restores existing
-   windows without duplicates. Build/checks, 179 mutations pass; Windows focus
-   review remains. Lighting engine unchanged.
-4. **WX-01/02 pending Windows review:** planner layout and live radar alignment.
+3. **APP-01 released (Hub 2.8.63):** Open-to-front update; Windows review remains
+   for normal/minimized/tray, modal, and rapid-repeat Open. Engine unchanged.
+4. **WX-01/02 next verification:** Windows planner layout/live radar alignment.
 5. **OPS-01 monitor only:** latest open worked. If UAC recurs, identify program/
    path and action before changing elevation; reports covered all three actions.
 6. **KBL-01 parked:** fresh owner `engine.log` required; latest `engine-5.log`
