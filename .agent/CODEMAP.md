@@ -12,6 +12,18 @@
 - L367  f RebuildFontsAndIcons
 - globals: g_hInst (L236), g_hwnd (L237), g_fontHero (L238), g_fontSub (L239), g_fontTitle (L240), g_fontBody (L241), g_fontBtn (L242), g_fontBadge (L243), g_appIcon (L244), g_hdrEmblem (L245), g_cardIcons (L246), g_showEvent (L247), g_hMutex (L248), g_trayHostEvent (L249), g_hubNid (L250), g_hubTrayVisible (L251), g_hubQuitting (L252), g_hubSeenAgentWait (L253), g_hubSeenRainAlert (L254), g_cs (L255), g_topBtns (L257), g_rcEmblem (L264), g_cards (L266), g_cardCount (L267), g_dynIdx (L268), g_hoverId (L269), g_scrollY (L270), g_maxScrollY (L271), g_exePath (L273), g_exeDir (L274), g_localApp (L275), g_probeRef (L279), g_roamApp (L280), g_suiteDir (L281), g_hubCfgDir (L282), g_btgDir (L283), g_btgExtraExe (L284), g_kblDir (L285), g_dnsDir (L286), g_notesDir (L287), g_audioSwitcherDir (L288), g_modsDir (L289), g_orcaBatDir (L290), g_suiteHubExe (L298), g_mirrorDirs (L299), g_mirrorCount (L300), g_activeBranch (L303), g_branchMenuNames (L304), g_branchMenuN (L305), g_branchPromptOut (L306), g_autoBranchLastCheck (L309), g_autoBranchRetryDelay (L310), g_remHubVer (L311), g_remWaveVer (L312), g_remInfillVer (L313), g_remHudName (L314), g_remHudPath (L315), g_remHudSize (L316), g_statusMsg (L317), g_progressVal (L318), g_hubUpdAvail (L319), g_taskQueue (L322), g_qHead (L323), g_qTail (L324), g_qSem (L325), g_running (L326)
 
+## project-hub/src/parts/app_activation.c
+
+- L41  f HubIdentityForImage
+- L49  f HubOpenContainsPid
+- L69  f HubCancelOpen
+- L74  f HubBeginOpen
+- L95  f HubRevealWindow  — Use async show/position calls so a hung foreign UI cannot hang the Hub.
+- L107  f HubOpenMayTakeForeground
+- L118  f HubPollOpen
+- L157  f HubOpenApp  — TRUE means the click was handled, including a launch error or a running app
+- globals: g_openIdentities (L15), g_openRequest (L38), g_openSerial (L39)
+
 ## project-hub/src/parts/branch_picker_entry.c
 
 - L1  S download-branch picker
@@ -21,9 +33,8 @@
 - L157  f PromptBranchName
 - L162  f SetActiveBranch
 - L184  f ShowBranchMenu
-- L225  f ShowRunningAgentNotes
-- L239  f HandleActionCommand
-- L781  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
+- L220  f HandleActionCommand
+- L748  f ApplyStagedHubUpdate  — The staged Hub EXE is a short-lived updater, not the interactive app.
 
 ## project-hub/src/parts/builtin_card_text.c
 
@@ -34,7 +45,7 @@
 
 - L1  f WorkerInstallGeneric
 - L69  f HandleVerb
-- L92  f InitCardDefinitions
+- L95  f InitCardDefinitions
 
 ## project-hub/src/parts/catalog_icons_json.c
 
@@ -188,17 +199,16 @@
 - L373  f HubTrayInit
 - L395  f HubTrayRemove
 - L407  f HubTrayAppWindow
-- L411  f HubTrayShowApp
-- L422  f HubTrayHideApp
-- L427  f HubTrayStopExe
-- L447  f HubTrayFindCardByExe
-- L454  f HubTrayOpenWeather
-- L471  f HubTrayOpenApp
-- L494  f HubTrayRunControl
-- L509  f HubTrayToggleBluetooth
-- L517  f HubTrayAppendApp
-- L543  f HubTrayShowMenu
-- L606  f HubTrayHandleCommand
+- L411  f HubTrayHideApp
+- L416  f HubTrayStopExe
+- L436  f HubTrayFindCardByExe
+- L443  f HubTrayOpenWeather
+- L457  f HubTrayOpenApp
+- L480  f HubTrayRunControl
+- L495  f HubTrayToggleBluetooth
+- L503  f HubTrayAppendApp
+- L529  f HubTrayShowMenu
+- L592  f HubTrayHandleCommand
 - globals: g_hubTrayMenuItems (L28), g_hubTrayMenuItemCount (L29), g_hubTrayMenuBrush (L30), g_hubTrayMenuTracking (L31)
 
 ## project-hub/src/parts/ui_renderer.c
@@ -1167,10 +1177,10 @@
 - L168  f lex_powershell
 - L303  f WindowsDesktopAppsTests
 - L3501  f SuiteFolderInstallTests
-- L4861  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L5044  f AudioSwitcherReachabilityTests
-- L5228  f AudioSwitcherSessionSweepTests
-- L5369  f AppOpenFocusTests
+- L4849  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L5032  f AudioSwitcherReachabilityTests
+- L5216  f AudioSwitcherSessionSweepTests
+- L5357  f AppOpenFocusTests
 
 ## tests/wave_cases.py
 

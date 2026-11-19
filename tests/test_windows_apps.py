@@ -3827,29 +3827,17 @@ class SuiteFolderInstallTests(unittest.TestCase):
                          "the unelevated Hub still sends a cross-integrity WM_COMMAND")
 
     def test_hub_open_reveals_a_running_agent_notes_window(self):
-        """Agent Notes normally hides to its tray. A Hub Open click must reveal
-        that instance itself instead of silently starting a second process and
-        hoping Windows grants the already-running process foreground access."""
-        entry = (ROOT / "project-hub" / "src" / "parts" / "branch_picker_entry.c").read_text(encoding="utf-8")
-        show = entry[entry.index("static int ShowRunningAgentNotes(void)"):]
-        show = show[:show.index("\n}\n")]
-        action = entry[entry.index("case ID_NOTES_OPEN:"):]
-        action = action[:action.index("    case ID_NOTES_UPDATE:")]
-
-        self.assertIn('FindWindowW(L"AgentNotesWnd", NULL)', show,
-                      "Hub Open cannot find the tray-hidden Agent Notes window")
-        self.assertIn("ShowWindow(notes, SW_SHOW);", show,
-                      "Hub Open no longer makes the hidden Agent Notes window visible")
-        self.assertIn("SetWindowPos(notes, HWND_TOP", show,
-                      "the revealed window can remain behind Project Hub and look unopened")
-        self.assertIn("SetForegroundWindow(notes);", show,
-                      "the revealed Agent Notes window is not brought forward")
-        self.assertIn("if (ShowRunningAgentNotes())", action,
-                      "Hub Open launches blindly instead of revealing the already-running app")
-        self.assertIn("HINSTANCE launched = ShellExecuteW", action,
-                      "Hub no longer launches Agent Notes when no existing window is present")
-        self.assertIn("(INT_PTR)launched <= 32", action,
-                      "a failed Agent Notes launch still reports success to the owner")
+        """Notes shares the Hub-owned reveal route instead of spawning a
+        companion and hoping it can transfer focus to the hidden instance."""
+        entry = (ROOT / "project-hub/src/parts/branch_picker_entry.c").read_text(encoding="utf-8")
+        activation = (ROOT / "project-hub/src/parts/app_activation.c").read_text(encoding="utf-8")
+        action = entry[entry.index("case ID_NOTES_OPEN:"):entry.index("    case ID_NOTES_UPDATE:")]
+        self.assertIn('L"AgentNotes.exe", L"AgentNotesWnd"', activation)
+        self.assertIn("if (!HubOpenApp(p, NULL, g_notesDir))", action)
+        self.assertIn("EnqueueTask(TASK_OPEN_OR_INSTALL_NOTES)", action)
+        self.assertNotIn("ShellExecuteW", action, "Notes still bypasses the shared show-or-launch policy")
+        self.assertIn("if (!started)", activation)
+        self.assertIn("Could not open the app.", activation)
 
     def test_unified_hub_tray_consolidates_icons_and_safe_controls(self):
         """The owner selected one Project Hub tray icon, with app windows and
@@ -5367,11 +5355,9 @@ class AudioSwitcherSessionSweepTests(unittest.TestCase):
 
 
 class AppOpenFocusTests(unittest.TestCase):
-    """Every hub card's Open button launches the app's exe with no arguments -
-    an explicit, non-silent launch. Clicking Open must bring that app's window
-    to the foreground, both when it starts fresh and when it is already running
-    hidden in the tray. These pin the show/focus path in each app so a future
-    edit cannot silently drop the window behind the hub or leave it hidden."""
+    """The Hub reveals an existing instance and launches only an absent app.
+    Exercise its actual activation code and routing, and retain app-side show
+    contracts for direct/shortcut launches. Native Windows review is separate."""
 
     @staticmethod
     def _src(rel):
@@ -5404,6 +5390,89 @@ class AppOpenFocusTests(unittest.TestCase):
          r"ShowWindow\(hwnd, SW_SHOWNORMAL\);\s*SetForegroundWindow\(hwnd\);",
          r"case WM_ASW_SHOW:[\s\S]{0,420}?SetForegroundWindow\(hwnd\);"),
     ]
+
+    def test_hub_open_executes_real_activation_policy_with_mocked_win32_io(self):
+        """Exercise hidden/minimized/modal, startup, double-click, generic
+        image lookup, focus cancellation, timeout, failure, and shell reentry.
+        This runs production C; it cannot prove Windows focus-lock behavior."""
+        import shutil
+        import tempfile
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            self.skipTest("portable C compiler is unavailable")
+        with tempfile.TemporaryDirectory(prefix="hub-open-") as td:
+            exe = Path(td) / "hub-open"
+            build = subprocess.run(
+                [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror",
+                 str(ROOT / "tests/native/hub_open_harness.c"), "-o", str(exe)],
+                capture_output=True, text=True)
+            self.assertEqual(build.returncode, 0, build.stderr)
+            run = subprocess.run([str(exe)], capture_output=True, text=True)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            self.assertIn("Hub Open activation scenarios passed", run.stdout)
+
+    def test_every_hub_open_surface_uses_the_same_show_or_launch_route(self):
+        entry = (ROOT / "project-hub/src/parts/branch_picker_entry.c").read_text(encoding="utf-8")
+        cards = (ROOT / "project-hub/src/parts/card_defs_verbs.c").read_text(encoding="utf-8")
+        tray = (ROOT / "project-hub/src/parts/tray_unified.c").read_text(encoding="utf-8")
+        for start, end in (("ID_BTG_OPEN", "ID_BTG_UPDATE"),
+                           ("ID_DNS_OPEN", "ID_DNS_UPDATE"),
+                           ("ID_NOTES_OPEN", "ID_NOTES_UPDATE"),
+                           ("ID_KBL_OPEN", "ID_KBL_RESTART"),
+                           ("ID_AUDIOSWITCHER_OPEN", "ID_AUDIOSWITCHER_UPDATE")):
+            with self.subTest(action=start):
+                action = entry[entry.index("case " + start + ":"):entry.index("case " + end + ":")]
+                self.assertIn("if (!HubOpenApp(", action)
+                self.assertNotIn("ShellExecuteW", action,
+                                 "Open bypasses existing-window and startup duplicate protection")
+        dynamic = cards[cards.index('} else if (wcscmp(verb, L"open") == 0)'):cards.index("static void InitCardDefinitions")]
+        self.assertIn("if (!HubOpenApp(p, c->launchArgs, c->appDir))", dynamic)
+        self.assertNotIn("ShellExecuteW", dynamic)
+        for app in ("NOTES", "BTG", "KBL", "DNS"):
+            self.assertIn("HandleActionCommand(g_hwnd, ID_" + app + "_OPEN);", tray)
+        self.assertIn("HandleActionCommand(g_hwnd, ID_AUDIOSWITCHER_OPEN);", tray)
+        weather = tray[tray.index("static void HubTrayOpenWeather("):tray.index("static void HubTrayOpenApp(")]
+        self.assertIn('HandleVerb(idx, L"open");', weather)
+        self.assertIn("if (!HubOpenApp(weatherExe, NULL, weatherDir))", weather)
+        self.assertNotIn("ShellExecuteW", weather)
+
+    def test_hub_native_window_and_mutex_identities_match_each_current_app(self):
+        activation = (ROOT / "project-hub/src/parts/app_activation.c").read_text(encoding="utf-8")
+        entries = re.findall(r'\{ L"([^"]+\.exe)", L"([^"]+)", L"([^"]+)" \}', activation)
+        apps = {
+            "BluetoothGuard.exe": ("bluetooth-guard/src/bluetooth_guard.c", "SINGLE_MUTEX_NAME"),
+            "KeyboardLighting.exe": ("keyboard-lighting/src/keyboard_lighting.c", "SINGLE_MUTEX_NAME"),
+            "DnsPilot.exe": ("dns-pilot/src/dns_pilot.c", "SINGLE_MUTEX_NAME"),
+            "AgentNotes.exe": ("agent-notes/src/agent_notes.c", "MUTEX_NAME"),
+            "AudioSwitcher.exe": ("audio-switcher/src/audio_switcher.c", "SINGLE_MUTEX_NAME"),
+            "WeatherRadar.exe": ("weather-radar/src/weather_radar.c", "MUTEX_NAME"),
+        }
+        self.assertEqual({exe for exe, _, _ in entries}, set(apps))
+        for exe, klass, mutex in entries:
+            with self.subTest(app=exe):
+                source, macro = apps[exe]
+                native = self._src(source)
+                self.assertIn('L"' + klass + '"', native)
+                actual = re.search(r'^#define ' + macro + r'\s+L"([^"]+)"', native, re.M)
+                self.assertIsNotNone(actual)
+                self.assertEqual(mutex, actual.group(1), "stale mutex can spawn an unnecessary second process at startup")
+
+    def test_hub_activation_retries_only_on_the_ui_timer_and_preserves_boundaries(self):
+        root = (ROOT / "project-hub/src/project_hub.c").read_text(encoding="utf-8")
+        entry = (ROOT / "project-hub/src/parts/branch_picker_entry.c").read_text(encoding="utf-8")
+        activation = (ROOT / "project-hub/src/parts/app_activation.c").read_text(encoding="utf-8")
+        self.assertLess(root.index('#include "parts/app_activation.c"'),
+                        root.index('#include "parts/card_defs_verbs.c"'))
+        self.assertIn("if (wp == HUB_OPEN_TIMER) { HubPollOpen(); return 0; }", entry)
+        destroy = entry[entry.index("case WM_DESTROY:"):entry.index("/* The staged Hub EXE")]
+        self.assertIn("HubCancelOpen();", destroy)
+        self.assertNotIn("Sleep(", activation)
+        self.assertNotIn("WaitForSingleObject(", activation)
+        self.assertNotIn("AttachThreadInput(", activation)
+        self.assertNotIn('L"runas"', activation)
+        self.assertNotIn("ASFW_ANY", activation)
+        self.assertIn('launch.lpVerb = L"open";', activation)
+        self.assertIn("if (launch.hProcess) CloseHandle(launch.hProcess);", activation)
 
     def test_explicit_open_shows_and_foregrounds_the_window(self):
         for rel, first, _second in self.APPS:

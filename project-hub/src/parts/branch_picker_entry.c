@@ -217,25 +217,6 @@ static void ShowBranchMenu(HWND hwnd) {
     DestroyMenu(hMenu);
 }
 
-/* "Open" is a show-or-launch action. Agent Notes normally hides to its tray,
-   so relying on a second EXE launch makes the hub look unresponsive whenever
-   the existing instance cannot take foreground through Windows' focus rules.
-   The Hub owns the user click, so it can make the known live window visible
-   directly; a new process is needed only when no window exists. */
-static int ShowRunningAgentNotes(void) {
-    HWND notes = FindWindowW(L"AgentNotesWnd", NULL);
-    if (!notes) return 0;
-    DWORD pid = 0;
-    GetWindowThreadProcessId(notes, &pid);
-    if (pid) AllowSetForegroundWindow(pid);
-    if (IsIconic(notes)) ShowWindow(notes, SW_RESTORE);
-    else ShowWindow(notes, SW_SHOW);
-    SetWindowPos(notes, HWND_TOP, 0, 0, 0, 0,
-                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-    SetForegroundWindow(notes);
-    return 1;
-}
-
 static void HandleActionCommand(HWND hwnd, int id) {
     wchar_t p[MAX_PATH];
     /* dynamic branch-menu entries carry an index into the fetched list */
@@ -322,13 +303,16 @@ static void HandleActionCommand(HWND hwnd, int id) {
     }
 
 
-    case ID_BTG_OPEN:
+    case ID_BTG_OPEN: {
         _snwprintf(p, MAX_PATH, L"%s\\BluetoothGuard.exe", g_btgDir);
-        if (FileExistsW(p)) ShellExecuteW(hwnd, L"open", p, NULL, g_btgDir, SW_SHOWNORMAL);
-        else if (g_btgExtraExe[0] && FileExistsW(g_btgExtraExe))
-            ShellExecuteW(hwnd, L"open", g_btgExtraExe, NULL, NULL, SW_SHOWNORMAL);
-        else EnqueueTask(TASK_OPEN_OR_INSTALL_BTG);
+        const wchar_t *path = p, *dir = g_btgDir;
+        if (!FileExistsW(p) && g_btgExtraExe[0] && FileExistsW(g_btgExtraExe)) {
+            path = g_btgExtraExe;
+            dir = NULL;
+        }
+        if (!HubOpenApp(path, NULL, dir)) EnqueueTask(TASK_OPEN_OR_INSTALL_BTG);
         break;
+    }
     case ID_BTG_UPDATE:
         EnqueueTask(TASK_INSTALL_BTG);
         break;
@@ -346,8 +330,7 @@ static void HandleActionCommand(HWND hwnd, int id) {
 
     case ID_DNS_OPEN:
         _snwprintf(p, MAX_PATH, L"%s\\DnsPilot.exe", g_dnsDir);
-        if (FileExistsW(p)) ShellExecuteW(hwnd, L"open", p, NULL, g_dnsDir, SW_SHOWNORMAL);
-        else {
+        if (!HubOpenApp(p, NULL, g_dnsDir)) {
             SetFooterStatus(L"DNS Pilot: fetching latest DnsPilot.exe from GitHub...", 25);
             EnqueueTask(TASK_OPEN_OR_INSTALL_DNS);
         }
@@ -362,20 +345,10 @@ static void HandleActionCommand(HWND hwnd, int id) {
         break;
 
     case ID_NOTES_OPEN:
-        if (ShowRunningAgentNotes()) {
-            SetFooterStatus(L"Agent Notes opened.", 0);
-        } else {
-            _snwprintf(p, MAX_PATH, L"%s\\AgentNotes.exe", g_notesDir);
-            if (FileExistsW(p)) {
-                HINSTANCE launched = ShellExecuteW(hwnd, L"open", p, NULL, g_notesDir, SW_SHOWNORMAL);
-                if ((INT_PTR)launched <= 32)
-                    SetFooterStatus(L"Could not open Agent Notes. Use Folder to verify its installed file.", 0);
-                else
-                    SetFooterStatus(L"Opening Agent Notes...", 0);
-            } else {
-                SetFooterStatus(L"Agent Notes: fetching latest AgentNotes.exe from GitHub...", 25);
-                EnqueueTask(TASK_OPEN_OR_INSTALL_NOTES);
-            }
+        _snwprintf(p, MAX_PATH, L"%s\\AgentNotes.exe", g_notesDir);
+        if (!HubOpenApp(p, NULL, g_notesDir)) {
+            SetFooterStatus(L"Agent Notes: fetching latest AgentNotes.exe from GitHub...", 25);
+            EnqueueTask(TASK_OPEN_OR_INSTALL_NOTES);
         }
         break;
     case ID_NOTES_UPDATE:
@@ -387,15 +360,10 @@ static void HandleActionCommand(HWND hwnd, int id) {
         ShellExecuteW(hwnd, L"open", g_notesDir, NULL, NULL, SW_SHOWNORMAL);
         break;
 
-    case ID_KBL_OPEN: {
-        wchar_t showFlag[MAX_PATH];
-        _snwprintf(showFlag, MAX_PATH, L"%s\\KeyboardLighting\\show.flag", g_localApp);
-        WriteBinaryFileAtomic(showFlag, (const BYTE *)"1", 1);
+    case ID_KBL_OPEN:
         _snwprintf(p, MAX_PATH, L"%s\\KeyboardLighting.exe", g_kblDir);
-        if (FileExistsW(p)) ShellExecuteW(hwnd, L"open", p, NULL, g_kblDir, SW_SHOWNORMAL);
-        else EnqueueTask(TASK_INSTALL_KBL);
+        if (!HubOpenApp(p, NULL, g_kblDir)) EnqueueTask(TASK_INSTALL_KBL);
         break;
-    }
     case ID_KBL_RESTART:
         RestartKeyboardLightingCleanly();
         break;
@@ -534,10 +502,7 @@ static void HandleActionCommand(HWND hwnd, int id) {
             asDir = g_audioSwitcherDir;
             _snwprintf(pp, MAX_PATH - 1, L"%s\\%s", asDir, g_cards[6].exeName);
         }
-        if (FileExistsW(pp))
-            ShellExecuteW(hwnd, L"open", pp, NULL, asDir, SW_SHOWNORMAL);
-        else
-            HandleVerb(6, L"install");
+        if (!HubOpenApp(pp, NULL, asDir)) HandleVerb(6, L"install");
         break;
     }
     case ID_AUDIOSWITCHER_UPDATE:
@@ -726,6 +691,7 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
 
     case WM_TIMER:
+        if (wp == HUB_OPEN_TIMER) { HubPollOpen(); return 0; }
         if (wp == 2) {
             /* Emblem spin only - keep this light so the animated mark
                never costs a full status sweep. */
@@ -767,6 +733,7 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_DESTROY:
+        HubCancelOpen();
         HubTrayRemove();
         ReleaseWayfinderEmblem();
         PostQuitMessage(0);

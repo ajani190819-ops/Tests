@@ -14,6 +14,23 @@ rebuilds its notification area, each already-running app restores its own tray
 fallback automatically. See the Drive guide for the owner-facing workflow and
 troubleshooting narrative.
 
+## Open an app
+
+Card and unified-tray **Open** actions share one show-or-launch route. An
+already-running app is revealed/restored and brought forward, including a
+tray-hidden window or its active modal dialog, without starting another copy.
+Maximized placement is preserved. Native startup mutexes and catalogue image
+process checks distinguish a starting app from an absent one; rapid repeated
+clicks reuse the pending request.
+
+The Hub retries a slow window on a short, bounded UI timer, not a blocking
+wait. Switching to another app cancels deferred focus so a late startup does
+not pull you back. Failed/inaccessible launches are reported, not silently
+retried as extra instances. Child elevation contracts, update close-and-prove
+gates, and Keyboard Lighting's engine are unchanged. Native Windows validation
+remains separate from the automated checks; see
+`.agent/runbooks/test-hub-open-to-front.md`.
+
 ## Suite Settings
 
 The Soft Slate Settings window centralizes Keyboard Lighting hold behavior,

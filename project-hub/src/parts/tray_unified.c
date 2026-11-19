@@ -408,17 +408,6 @@ static HWND HubTrayAppWindow(const wchar_t *className) {
     return className ? FindWindowW(className, NULL) : NULL;
 }
 
-static int HubTrayShowApp(const wchar_t *className) {
-    HWND app = HubTrayAppWindow(className);
-    if (!app) return 0;
-    if (IsIconic(app)) ShowWindow(app, SW_RESTORE);
-    else ShowWindow(app, SW_SHOW);
-    SetWindowPos(app, HWND_TOP, 0, 0, 0, 0,
-                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-    SetForegroundWindow(app);
-    return 1;
-}
-
 static void HubTrayHideApp(const wchar_t *className) {
     HWND app = HubTrayAppWindow(className);
     if (app) ShowWindow(app, SW_HIDE);
@@ -452,7 +441,6 @@ static int HubTrayFindCardByExe(const wchar_t *exeName) {
 }
 
 static void HubTrayOpenWeather(void) {
-    if (HubTrayShowApp(L"WeatherRadarMainV1")) return;
     int idx = HubTrayFindCardByExe(L"WeatherRadar.exe");
     if (idx >= 0) {
         HandleVerb(idx, L"open");
@@ -462,28 +450,26 @@ static void HubTrayOpenWeather(void) {
     SuiteAppPath(weatherDir, MAX_PATH, L"WeatherRadar");
     _snwprintf(weatherExe, MAX_PATH - 1, L"%s\\WeatherRadar.exe", weatherDir);
     weatherExe[MAX_PATH - 1] = L'\0';
-    if (FileExistsW(weatherExe))
-        ShellExecuteW(g_hwnd, L"open", weatherExe, NULL, weatherDir, SW_SHOWNORMAL);
-    else
+    if (!HubOpenApp(weatherExe, NULL, weatherDir))
         SetFooterStatus(L"Weather Radar will appear after the next Hub refresh confirms its install.", 0);
 }
 
 static void HubTrayOpenApp(int id) {
     switch (id) {
     case ID_TRAY_NOTES_OPEN:
-        if (!HubTrayShowApp(L"AgentNotesWnd")) HandleActionCommand(g_hwnd, ID_NOTES_OPEN);
+        HandleActionCommand(g_hwnd, ID_NOTES_OPEN);
         break;
     case ID_TRAY_BTG_OPEN:
-        if (!HubTrayShowApp(L"TestsBluetoothGuardModernWnd")) HandleActionCommand(g_hwnd, ID_BTG_OPEN);
+        HandleActionCommand(g_hwnd, ID_BTG_OPEN);
         break;
     case ID_TRAY_KBL_OPEN:
-        if (!HubTrayShowApp(L"TestsKeyboardLightingSuiteWnd")) HandleActionCommand(g_hwnd, ID_KBL_OPEN);
+        HandleActionCommand(g_hwnd, ID_KBL_OPEN);
         break;
     case ID_TRAY_DNS_OPEN:
-        if (!HubTrayShowApp(L"KBLSuiteDnsPilotWindow")) HandleActionCommand(g_hwnd, ID_DNS_OPEN);
+        HandleActionCommand(g_hwnd, ID_DNS_OPEN);
         break;
     case ID_TRAY_AUDIO_OPEN:
-        if (!HubTrayShowApp(L"TestsAudioSwitcherWnd")) HandleActionCommand(g_hwnd, ID_AUDIOSWITCHER_OPEN);
+        HandleActionCommand(g_hwnd, ID_AUDIOSWITCHER_OPEN);
         break;
     case ID_TRAY_WEATHER_OPEN:
         HubTrayOpenWeather();

@@ -77,11 +77,14 @@ static void HandleVerb(int idx, const wchar_t *verb) {
         SetFooterStatus(L"Fetching the latest build from GitHub...", 25);
         EnqueueTask(TASK_INSTALL_DYN);
     } else if (wcscmp(verb, L"open") == 0) {
+        if (!c->exeName || !c->appDir[0]) {
+            SetFooterStatus(L"Open is not configured for this app.", 0);
+            return;
+        }
         wchar_t p[MAX_PATH];
         _snwprintf(p, MAX_PATH - 1, L"%s\\%s", c->appDir, c->exeName);
-        if (FileExistsW(p))
-            ShellExecuteW(g_hwnd, L"open", p, c->launchArgs, c->appDir, SW_SHOWNORMAL);
-        else {
+        p[MAX_PATH - 1] = L'\0';
+        if (!HubOpenApp(p, c->launchArgs, c->appDir)) {
             g_dynIdx = idx;
             SetFooterStatus(L"Fetching the latest build from GitHub...", 25);
             EnqueueTask(TASK_OPEN_OR_INSTALL_DYN);

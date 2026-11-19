@@ -23,8 +23,8 @@
 #include <wchar.h>
 #include "../../shared/win32/hub_tray_host.h"
 
-#define HUB_VERSION       "2.8.62"
-#define HUB_VERSION_W     L"2.8.62"
+#define HUB_VERSION       "2.8.63"
+#define HUB_VERSION_W     L"2.8.63"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -425,6 +425,7 @@ static int HubTrayHandleCommand(HWND hwnd, int id);
 #include "parts/http_layer.c"
 #include "parts/version_probe_cache.c"
 #include "parts/install_folder.c"
+#include "parts/app_activation.c"
 #include "parts/catalog_icons_json.c"
 #include "parts/builtin_card_text.c"
 #include "parts/card_defs_verbs.c"

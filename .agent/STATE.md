@@ -46,8 +46,9 @@ items. The owner reports missing requests: reconciliation is NOT complete.
    Windows (discovery, choices, reconnect). Scans must not grant trust.
 2. **PLAN-01:** master Drive doc created; recover/confirm any further missing
    requests. Historical follow-ups below are not newly approved coding work.
-3. **APP-01 next coding:** Open restores/shows and foregrounds the existing app
-   instance, including minimized/tray windows, without duplicates.
+3. **APP-01 verified, release pending:** Hub card/tray Open restores existing
+   windows without duplicates. Build/checks, 179 mutations pass; Windows focus
+   review remains. Lighting engine unchanged.
 4. **WX-01/02 pending Windows review:** planner layout and live radar alignment.
 5. **OPS-01 monitor only:** latest open worked. If UAC recurs, identify program/
    path and action before changing elevation; reports covered all three actions.

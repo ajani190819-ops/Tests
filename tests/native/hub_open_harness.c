@@ -1,0 +1,344 @@
+/* Execute the production Hub activation code with deterministic Win32 I/O.
+   This tests the real decision/call ordering, not Windows' focus-lock policy. */
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <wchar.h>
+#include <wctype.h>
+
+typedef int BOOL;
+typedef uint32_t DWORD;
+typedef uint32_t ULONG;
+typedef uint64_t ULONGLONG;
+typedef intptr_t LPARAM;
+typedef intptr_t LONG_PTR;
+typedef uintptr_t UINT_PTR;
+typedef void *HANDLE;
+#define TRUE 1
+#define FALSE 0
+#define CALLBACK
+#define MAX_PATH 260
+#define UPDATE_SCAN_MAX_PIDS 64
+#define SYNCHRONIZE 0x100000
+#define ERROR_ACCESS_DENIED 5
+#define GW_OWNER 4
+#define GWL_EXSTYLE (-20)
+#define WS_EX_TOOLWINDOW 0x80
+#define SW_RESTORE 9
+#define SW_SHOW 5
+#define SW_SHOWNORMAL 1
+#define SWP_NOMOVE 2
+#define SWP_NOSIZE 1
+#define SWP_SHOWWINDOW 0x40
+#define SWP_ASYNCWINDOWPOS 0x4000
+#define SEE_MASK_NOCLOSEPROCESS 0x40
+#define SEE_MASK_FLAG_NO_UI 0x400
+#define ZeroMemory(p, n) memset(p, 0, n)
+
+typedef struct FakeWindow *HWND;
+#define HWND_TOP ((HWND)0)
+struct FakeWindow {
+    BOOL exists, visible, iconic, maximized, tool;
+    DWORD pid;
+    const wchar_t *klass, *title;
+    HWND owner, popup;
+};
+typedef struct { DWORD pids[UPDATE_SCAN_MAX_PIDS]; int count; } UpdateImageProcesses;
+typedef struct { DWORD cbSize, dwTime; } LASTINPUTINFO;
+typedef struct {
+    DWORD cbSize, fMask;
+    HWND hwnd;
+    const wchar_t *lpVerb, *lpFile, *lpParameters, *lpDirectory;
+    int nShow;
+    HANDLE hProcess;
+} SHELLEXECUTEINFOW;
+
+static struct FakeWindow windows[16];
+static HWND g_hwnd = &windows[0], foreground, lastFocused, lastPositioned;
+static int launchCalls, showCalls, focusCalls, positionCalls, grantCalls;
+static int processCloses, mutexCloses, timerStarts, timerKills, scanCalls;
+static BOOL fileExists, canFocus, applyShow, denyMutex, shellOk, returnProcess, delayShell;
+static DWORD lastError, inputTick, lastGranted, shellPids[16];
+static int lastShow;
+static ULONGLONG tick;
+static const wchar_t *availableMutex, *reenterImage;
+static const char *scenario;
+static wchar_t footer[256], launchedImage[MAX_PATH], launchedArgs[128], launchedDir[MAX_PATH];
+static struct { const wchar_t *path; DWORD pid; BOOL uncertain; } scans[8];
+
+#define CHECK(c) do { if (!(c)) { fprintf(stderr, "%s, C line %d: %s\n", scenario, __LINE__, #c); exit(1); } } while (0)
+static int WcsIcmp(const wchar_t *a, const wchar_t *b) {
+    while (*a && towlower(*a) == towlower(*b)) { a++; b++; }
+    return (int)towlower(*a) - (int)towlower(*b);
+}
+#define _wcsicmp WcsIcmp
+static const wchar_t *ImageFileNameW(const wchar_t *path) {
+    const wchar_t *slash = path ? wcsrchr(path, L'\\') : NULL;
+    return slash ? slash + 1 : path;
+}
+static DWORD GetCurrentProcessId(void) { return 1; }
+static DWORD GetWindowThreadProcessId(HWND window, DWORD *pid) {
+    *pid = window && window->exists ? window->pid : 0; return *pid ? 10 : 0;
+}
+static HWND GetForegroundWindow(void) { return foreground; }
+static ULONGLONG GetTickCount64(void) { return tick; }
+static BOOL GetLastInputInfo(LASTINPUTINFO *input) { input->dwTime = inputTick; return TRUE; }
+static BOOL IsWindow(HWND window) { return window && window->exists; }
+static BOOL IsWindowVisible(HWND window) { return IsWindow(window) && window->visible; }
+static BOOL IsIconic(HWND window) { return window && window->iconic; }
+static HWND GetLastActivePopup(HWND window) { return window->popup ? window->popup : window; }
+static HWND GetWindow(HWND window, int what) { CHECK(what == GW_OWNER); return window->owner; }
+static LONG_PTR GetWindowLongPtrW(HWND window, int what) {
+    CHECK(what == GWL_EXSTYLE); return window->tool ? WS_EX_TOOLWINDOW : 0;
+}
+static int GetWindowTextLengthW(HWND window) { return window->title ? (int)wcslen(window->title) : 0; }
+static HWND FindWindowW(const wchar_t *klass, const wchar_t *title) {
+    CHECK(title == NULL);
+    for (int i = 0; i < 16; i++)
+        if (windows[i].exists && windows[i].klass && wcscmp(windows[i].klass, klass) == 0) return &windows[i];
+    return NULL;
+}
+static BOOL EnumWindows(BOOL (*callback)(HWND, LPARAM), LPARAM lp) {
+    for (int i = 0; i < 16; i++)
+        if (windows[i].exists && !callback(&windows[i], lp)) return FALSE;
+    return TRUE;
+}
+static int FindProcessesUsingImage(const wchar_t *path, UpdateImageProcesses *out) {
+    scanCalls++; memset(out, 0, sizeof(*out));
+    for (int i = 0; i < 8; i++) {
+        if (!scans[i].path || WcsIcmp(path, scans[i].path) != 0) continue;
+        if (scans[i].pid) out->pids[out->count++] = scans[i].pid;
+        if (scans[i].uncertain) return -1;
+    }
+    return out->count;
+}
+static BOOL AllowSetForegroundWindow(DWORD pid) { grantCalls++; lastGranted = pid; return TRUE; }
+static BOOL ShowWindowAsync(HWND window, int command) {
+    CHECK(IsWindow(window)); showCalls++; lastShow = command;
+    if (applyShow) {
+        window->visible = TRUE; window->iconic = FALSE;
+        if (command == SW_SHOWNORMAL) window->maximized = FALSE;
+    }
+    return TRUE;
+}
+static BOOL SetWindowPos(HWND window, HWND insertAfter, int x, int y, int w, int h, DWORD flags) {
+    CHECK(insertAfter == HWND_TOP && !x && !y && !w && !h);
+    CHECK(flags == (SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_ASYNCWINDOWPOS));
+    positionCalls++; lastPositioned = window; return TRUE;
+}
+static BOOL SetForegroundWindow(HWND window) {
+    CHECK(showCalls > 0 && grantCalls > 0 && positionCalls > 0);
+    focusCalls++; lastFocused = window;
+    if (canFocus) foreground = window;
+    return canFocus;
+}
+static HANDLE OpenMutexW(DWORD access, BOOL inherit, const wchar_t *name) {
+    CHECK(access == SYNCHRONIZE && !inherit);
+    lastError = denyMutex ? ERROR_ACCESS_DENIED : 2;
+    return availableMutex && wcscmp(name, availableMutex) == 0 ? (HANDLE)(uintptr_t)1001 : NULL;
+}
+static DWORD GetLastError(void) { return lastError; }
+static BOOL CloseHandle(HANDLE handle) {
+    if ((uintptr_t)handle == 1001) mutexCloses++;
+    else { CHECK((uintptr_t)handle > 900 && (uintptr_t)handle < 916); processCloses++; }
+    return TRUE;
+}
+static DWORD GetProcessId(HANDLE handle) {
+    CHECK((uintptr_t)handle > 900 && (uintptr_t)handle < 916);
+    return shellPids[(uintptr_t)handle - 900];
+}
+static UINT_PTR SetTimer(HWND window, UINT_PTR id, unsigned interval, void *callback) {
+    CHECK(window == g_hwnd && id == 3 && interval == 100 && !callback);
+    timerStarts++; return id;
+}
+static BOOL KillTimer(HWND window, UINT_PTR id) {
+    CHECK(window == g_hwnd && id == 3); timerKills++; return TRUE;
+}
+static BOOL FileExistsW(const wchar_t *path) { CHECK(path && path[0]); return fileExists; }
+static void SetFooterStatus(const wchar_t *text, int progress) {
+    (void)progress; wcsncpy(footer, text, 255); footer[255] = L'\0';
+}
+static BOOL HubOpenApp(const wchar_t *imagePath, const wchar_t *args, const wchar_t *dir);
+static void HubPollOpen(void);
+static BOOL ShellExecuteExW(SHELLEXECUTEINFOW *launch) {
+    int call = ++launchCalls;
+    CHECK(call < 16);
+    CHECK(launch->hwnd == g_hwnd && wcscmp(launch->lpVerb, L"open") == 0);
+    CHECK(launch->fMask == (SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI));
+    CHECK(launch->nShow == SW_SHOWNORMAL);
+    wcscpy(launchedImage, launch->lpFile);
+    wcscpy(launchedArgs, launch->lpParameters ? launch->lpParameters : L"");
+    wcscpy(launchedDir, launch->lpDirectory ? launch->lpDirectory : L"");
+    if (delayShell) { delayShell = FALSE; tick += 20000; HubPollOpen(); }
+    if (reenterImage) {
+        const wchar_t *newImage = reenterImage; reenterImage = NULL;
+        CHECK(HubOpenApp(newImage, NULL, NULL));
+    }
+    launch->hProcess = returnProcess ? (HANDLE)(uintptr_t)(900 + call) : NULL;
+    return shellOk;
+}
+
+#include "../../project-hub/src/parts/app_activation.c"
+
+static const wchar_t *btg = L"C:\\Suite\\BluetoothGuard.exe";
+static const wchar_t *notes = L"C:\\Suite\\AgentNotes.exe";
+static const wchar_t *other = L"C:\\Apps\\Other.exe";
+static HWND Window(int i, const wchar_t *klass, DWORD pid, BOOL visible, BOOL iconic) {
+    memset(&windows[i], 0, sizeof(windows[i]));
+    windows[i].exists = TRUE; windows[i].klass = klass; windows[i].pid = pid;
+    windows[i].title = L"App"; windows[i].visible = visible; windows[i].iconic = iconic;
+    return &windows[i];
+}
+static void Reset(const char *name) {
+    scenario = name;
+    memset(windows, 0, sizeof(windows)); memset(scans, 0, sizeof(scans));
+    memset(&g_openRequest, 0, sizeof(g_openRequest));
+    memset(shellPids, 0, sizeof(shellPids));
+    launchCalls = showCalls = focusCalls = positionCalls = grantCalls = 0;
+    processCloses = mutexCloses = timerStarts = timerKills = scanCalls = 0;
+    fileExists = canFocus = applyShow = shellOk = returnProcess = TRUE;
+    denyMutex = delayShell = FALSE; availableMutex = reenterImage = NULL;
+    lastShow = 0; lastError = 0;
+    lastFocused = lastPositioned = NULL; footer[0] = L'\0';
+    shellPids[1] = 77; shellPids[2] = 88;
+    inputTick = 10; tick = 1000; lastGranted = 0;
+    foreground = Window(0, L"Hub", 1, TRUE, FALSE);
+}
+int main(void) {
+    /* Every native app uses the same real reveal route, including a stray
+       running copy whose expected installed file has disappeared. */
+    for (size_t i = 0; i < sizeof(g_openIdentities) / sizeof(g_openIdentities[0]); i++) {
+        Reset("each native hidden window"); fileExists = FALSE;
+        HWND app = Window(1, g_openIdentities[i].windowClass, 11, FALSE, FALSE);
+        CHECK(HubOpenApp(g_openIdentities[i].exeName, NULL, NULL));
+        CHECK(launchCalls == 0 && foreground == app && lastShow == SW_SHOW && lastGranted == 11);
+        HubPollOpen(); CHECK(!g_openRequest.active);
+    }
+    Reset("minimized window restores without normalizing its placement");
+    HWND app = Window(1, L"TestsBluetoothGuardModernWnd", 11, TRUE, TRUE);
+    app->maximized = TRUE;
+    CHECK(HubOpenApp(btg, NULL, NULL));
+    CHECK(!app->iconic && app->maximized && lastShow == SW_RESTORE && launchCalls == 0);
+
+    Reset("maximized window stays maximized");
+    app = Window(1, L"AgentNotesWnd", 11, TRUE, FALSE); app->maximized = TRUE;
+    CHECK(HubOpenApp(notes, NULL, NULL));
+    CHECK(app->maximized && lastShow == SW_SHOW && launchCalls == 0);
+
+    Reset("active modal popup receives focus, not its parent");
+    app = Window(1, L"AgentNotesWnd", 11, FALSE, FALSE);
+    HWND popup = Window(2, L"Dialog", 11, TRUE, FALSE); popup->owner = app; app->popup = popup;
+    CHECK(HubOpenApp(notes, NULL, NULL));
+    CHECK(foreground == popup && lastFocused == popup && lastPositioned == popup);
+
+    Reset("running pre-window mutex is not a new launch");
+    availableMutex = L"Local\\Tests_AgentNotes_SingleInstance_v1";
+    CHECK(HubOpenApp(notes, NULL, NULL));
+    CHECK(launchCalls == 0 && mutexCloses == 1 && g_openRequest.active);
+    CHECK(HubOpenApp(notes, NULL, NULL)); CHECK(launchCalls == 0);
+    app = Window(1, L"AgentNotesWnd", 11, FALSE, FALSE);
+    HubPollOpen(); CHECK(foreground == app && launchCalls == 0);
+
+    Reset("catalogue process lookup reveals hidden main window only");
+    fileExists = FALSE; scans[0].path = other; scans[0].pid = 31;
+    Window(1, L"Worker", 31, FALSE, FALSE)->title = L"";
+    Window(2, L"Tool", 31, TRUE, FALSE)->tool = TRUE;
+    Window(3, L"Unrelated", 32, TRUE, FALSE);
+    app = Window(4, L"OtherMain", 31, FALSE, FALSE);
+    CHECK(HubOpenApp(other, L"--custom", L"C:\\Apps"));
+    CHECK(launchCalls == 0 && foreground == app);
+
+    Reset("catalogue process is starting with no HWND yet");
+    scans[0].path = other; scans[0].pid = 31;
+    CHECK(HubOpenApp(other, NULL, NULL)); CHECK(launchCalls == 0 && g_openRequest.active);
+    app = Window(1, L"OtherMain", 31, FALSE, FALSE);
+    HubPollOpen(); CHECK(foreground == app && launchCalls == 0);
+
+    Reset("new launch is tracked and double clicks do not duplicate it");
+    CHECK(HubOpenApp(other, L"--custom", L"C:\\Apps"));
+    CHECK(launchCalls == 1 && processCloses == 1 && lastGranted == 77);
+    CHECK(wcscmp(launchedImage, other) == 0 && wcscmp(launchedArgs, L"--custom") == 0);
+    CHECK(wcscmp(launchedDir, L"C:\\Apps") == 0 && g_openRequest.active);
+    CHECK(HubOpenApp(other, L"--custom", L"C:\\Apps")); CHECK(launchCalls == 1);
+    app = Window(1, L"OtherMain", 77, FALSE, FALSE);
+    HubPollOpen(); CHECK(foreground == app && launchCalls == 1);
+    HubPollOpen(); CHECK(!g_openRequest.active);
+
+    Reset("existing child consent wait does not consume the startup timeout");
+    delayShell = TRUE;
+    CHECK(HubOpenApp(notes, NULL, NULL));
+    CHECK(g_openRequest.active && !g_openRequest.launching && launchCalls == 1);
+    CHECK(g_openRequest.deadline == tick + HUB_OPEN_TIMEOUT_MS && lastGranted == 77);
+    app = Window(1, L"AgentNotesWnd", 77, FALSE, FALSE);
+    HubPollOpen(); CHECK(foreground == app);
+
+    Reset("shell has no process handle; delayed PID discovery still works");
+    returnProcess = FALSE;
+    CHECK(HubOpenApp(other, NULL, NULL)); CHECK(launchCalls == 1 && processCloses == 0);
+    scans[0].path = other; scans[0].pid = 77;
+    app = Window(1, L"OtherMain", 77, FALSE, FALSE);
+    HubPollOpen(); CHECK(foreground == app && launchCalls == 1);
+
+    Reset("blocked async show and foreground retries never relaunch");
+    app = Window(1, L"AgentNotesWnd", 11, FALSE, TRUE);
+    applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(notes, NULL, NULL)); HubPollOpen();
+    CHECK(launchCalls == 0 && g_openRequest.active && showCalls == 2);
+    applyShow = canFocus = TRUE;
+    HubPollOpen(); CHECK(foreground == app && !app->iconic);
+    HubPollOpen(); CHECK(!g_openRequest.active && launchCalls == 0);
+
+    Reset("new user activity in another app cancels deferred focus");
+    CHECK(HubOpenApp(notes, NULL, NULL));
+    foreground = Window(2, L"Unrelated", 99, TRUE, FALSE); inputTick++;
+    app = Window(1, L"AgentNotesWnd", 77, FALSE, FALSE);
+    HubPollOpen(); CHECK(!g_openRequest.active && focusCalls == 0 && launchCalls == 1);
+    HubPollOpen(); CHECK(foreground != app);
+
+    Reset("new input in the same foreign origin also cancels");
+    foreground = Window(2, L"Unrelated", 99, TRUE, FALSE);
+    CHECK(HubOpenApp(notes, NULL, NULL)); inputTick++;
+    app = Window(1, L"AgentNotesWnd", 77, FALSE, FALSE);
+    HubPollOpen(); CHECK(!g_openRequest.active && focusCalls == 0);
+
+    Reset("startup retry is bounded");
+    CHECK(HubOpenApp(notes, NULL, NULL)); tick += HUB_OPEN_TIMEOUT_MS;
+    HubPollOpen(); CHECK(!g_openRequest.active && launchCalls == 1 && focusCalls == 0);
+    CHECK(wcsstr(footer, L"did not expose a window") != NULL);
+
+    Reset("only newest Open may take focus");
+    CHECK(HubOpenApp(btg, NULL, NULL)); CHECK(HubOpenApp(notes, NULL, NULL));
+    Window(1, L"TestsBluetoothGuardModernWnd", 77, FALSE, FALSE);
+    HubPollOpen(); CHECK(focusCalls == 0 && launchCalls == 2);
+    app = Window(2, L"AgentNotesWnd", 88, FALSE, FALSE);
+    HubPollOpen(); CHECK(foreground == app);
+
+    Reset("shell message reentry cannot overwrite a newer request");
+    reenterImage = notes;
+    CHECK(HubOpenApp(btg, NULL, NULL));
+    CHECK(launchCalls == 2 && processCloses == 2);
+    CHECK(g_openRequest.identity == HubIdentityForImage(notes));
+    CHECK(g_openRequest.processes.count == 1 && g_openRequest.processes.pids[0] == 88);
+    CHECK(lastGranted == 88);
+
+    Reset("launch failure is handled, not mistaken for missing installation");
+    shellOk = FALSE;
+    CHECK(HubOpenApp(notes, NULL, NULL));
+    CHECK(!g_openRequest.active && launchCalls == 1 && processCloses == 1);
+    CHECK(wcsstr(footer, L"Could not open") != NULL);
+
+    Reset("inaccessible mutex does not launch a second copy");
+    denyMutex = TRUE;
+    CHECK(HubOpenApp(notes, NULL, NULL)); CHECK(launchCalls == 0 && !g_openRequest.active);
+
+    Reset("uncertain process inventory does not launch a second copy");
+    scans[0].path = other; scans[0].uncertain = TRUE;
+    CHECK(HubOpenApp(other, NULL, NULL)); CHECK(launchCalls == 0 && !g_openRequest.active);
+
+    Reset("missing app can still be installed by caller");
+    fileExists = FALSE;
+    CHECK(!HubOpenApp(notes, NULL, NULL)); CHECK(launchCalls == 0 && !g_openRequest.active);
+    puts("Hub Open activation scenarios passed");
+    return 0;
+}

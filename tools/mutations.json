@@ -534,8 +534,8 @@
  {
   "id": "hub-notes-open-00",
   "file": "project-hub/src/parts/branch_picker_entry.c",
-  "old": "        if (ShowRunningAgentNotes()) {",
-  "new": "        if (0 && ShowRunningAgentNotes()) {",
+  "old": "        if (!HubOpenApp(p, NULL, g_notesDir)) {",
+  "new": "        if (!FileExistsW(p)) {",
   "label": "Hub Open no longer reveals a tray-hidden Agent Notes window"
  },
  {
@@ -1146,5 +1146,110 @@
   "old": "ApproveDevice(d, nowAllow, GetTickCount64());",
   "new": "ApproveDevice(d, FALSE, GetTickCount64());",
   "label": "Auto-Connect cannot explicitly approve and enable a pending Bluetooth pair"
+ },
+ {
+  "id": "hub-open-01",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    ShowWindowAsync(app, IsIconic(app) ? SW_RESTORE : SW_SHOW);",
+  "new": "    if (0) ShowWindowAsync(app, IsIconic(app) ? SW_RESTORE : SW_SHOW);",
+  "label": "A hidden or minimized app loses its restore/show route"
+ },
+ {
+  "id": "hub-open-02",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    ShowWindowAsync(app, IsIconic(app) ? SW_RESTORE : SW_SHOW);",
+  "new": "    ShowWindowAsync(app, SW_SHOWNORMAL);",
+  "label": "Opening an existing maximized app normalizes its window"
+ },
+ {
+  "id": "hub-open-03",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    SetForegroundWindow(target);",
+  "new": "    if (0) SetForegroundWindow(target);",
+  "label": "Hub Open leaves the app behind other windows"
+ },
+ {
+  "id": "hub-open-04",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    if (!target || !IsWindowVisible(target)) target = app;",
+  "new": "    target = app;",
+  "label": "Hub Open gives focus to a disabled parent instead of its modal dialog"
+ },
+ {
+  "id": "hub-open-05",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    if (app) {\n        HubBeginOpen(imagePath, identity, app, NULL);",
+  "new": "    if (0 && app) {\n        HubBeginOpen(imagePath, identity, app, NULL);",
+  "label": "A hidden existing native instance is mistaken for an absent app"
+ },
+ {
+  "id": "hub-open-06",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "        if (mutex) {",
+  "new": "        if (0 && mutex) {",
+  "label": "A native app still creating its window is launched again"
+ },
+ {
+  "id": "hub-open-07",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    if (processes.count > 0) {",
+  "new": "    if (0 && processes.count > 0) {",
+  "label": "An already-running catalogue app is launched again"
+ },
+ {
+  "id": "hub-open-08",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    if (g_openRequest.active &&\n        (_wcsicmp(g_openRequest.imagePath, imagePath) == 0 ||",
+  "new": "    if (FALSE && g_openRequest.active &&\n        (_wcsicmp(g_openRequest.imagePath, imagePath) == 0 ||",
+  "label": "A rapid repeated Open click starts a duplicate process"
+ },
+ {
+  "id": "hub-open-09",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    if (!HubOpenMayTakeForeground()) { HubCancelOpen(); return; }",
+  "new": "    if (0 && !HubOpenMayTakeForeground()) { HubCancelOpen(); return; }",
+  "label": "Delayed Open steals focus after newer user activity"
+ },
+ {
+  "id": "hub-open-10",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    if (GetTickCount64() >= g_openRequest.deadline) {",
+  "new": "    if (FALSE && GetTickCount64() >= g_openRequest.deadline) {",
+  "label": "Open retries never expire for an app that has no window"
+ },
+ {
+  "id": "hub-open-11",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    if (g_openRequest.active && g_openRequest.serial == serial) {",
+  "new": "    if (g_openRequest.active && serial != 0) {",
+  "label": "Shell message reentry overwrites the newest Open request"
+ },
+ {
+  "id": "hub-open-12",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "        if (!started) {",
+  "new": "        if (FALSE && !started) {",
+  "label": "A failed app launch is reported as an in-progress successful Open"
+ },
+ {
+  "id": "hub-open-13",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    if (pid) AllowSetForegroundWindow(pid);",
+  "new": "    if (0 && pid) AllowSetForegroundWindow(pid);",
+  "label": "Hub fails to grant the target process user-requested foreground permission"
+ },
+ {
+  "id": "hub-open-14",
+  "file": "project-hub/src/parts/branch_picker_entry.c",
+  "old": "        if (wp == HUB_OPEN_TIMER) { HubPollOpen(); return 0; }",
+  "new": "        if (FALSE && wp == HUB_OPEN_TIMER) { HubPollOpen(); return 0; }",
+  "label": "Hub never completes an Open whose target window appears after the click"
+ },
+ {
+  "id": "hub-open-15",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    if (!g_openRequest.active || g_openRequest.launching) return;",
+  "new": "    if (!g_openRequest.active) return;",
+  "label": "A child consent wait consumes the Open startup timeout before ShellExecute returns"
  }
 ]
