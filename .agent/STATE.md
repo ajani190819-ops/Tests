@@ -39,9 +39,10 @@ release records, and compact offline safety facts. Drive holds extended narrativ
   require complete member-days and stay distinct from regional PoP; humidity
   is supporting. Build/checks and all 153 mutations pass; native Windows visual
   review remains.
-- **Weather Radar tile zoom:** `9f8695750e5b57916d7e72d48747a0f0c32e4630`,
-  Hub 2.8.62. Source requests cap at level 7; display 8-10 are local crops.
-  Build, checks, and mutations pass.
+- **Weather Radar zoom:** implementation
+  `63eae24853648a51a75dc9fe1a66426fc0aee642`, Hub 2.8.62. Source requests cap
+  at level 7; local zoom crops center on the selected place. Build/checks and
+  all 154 mutations pass.
 - **Documentation archive:** 29 human-facing files remain in Drive; Git keeps
   compact stubs, changelogs, tests, configuration, version anchors, and runtime assets.
 
@@ -57,10 +58,9 @@ release records, and compact offline safety facts. Drive holds extended narrativ
 
 ## Next approved work
 
-The day-first planner redesign is verified on this branch; await owner review
-of the Windows presentation before further product changes. UAC remains
-explicitly deferred. Keyboard Lighting M4 stays parked; the latest owner test
-still shows learning and no key events in `engine-5.log`.
+Windows review of the planner and place-centered radar zoom/live tiles remains.
+UAC is deferred. Keyboard Lighting M4 stays parked; the latest test still shows
+learning and no key events in `engine-5.log`.
 
 ## Offline safety facts
 
