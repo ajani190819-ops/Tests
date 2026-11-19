@@ -358,34 +358,89 @@ static const wchar_t *PlannerCategoryName(int category) {
     return (category >= 0 && category < PLAN_CATEGORY_COUNT) ? names[category] : L"Weather";
 }
 
-static int PlannerCellRect(int day, int category, RECT *r) {
-    if (!r || day < 0 || day >= FC_DAYS || category < 0 ||
-        category >= PLAN_CATEGORY_COUNT) return 0;
-    RECT card;
-    PlannerRect(&card);
-    int firstLeft = card.left + S(116);
-    int lastRight = card.right - S(14);
-    int gap = S(4);
-    int colWidth = (lastRight - firstLeft - gap * (FC_DAYS - 1)) / FC_DAYS;
-    if (colWidth <= 0) return 0;
-    int left = firstLeft + day * (colWidth + gap);
-    int top = card.top + S(48 + category * 19);
-    SetRect(r, left, top, left + colWidth, top + S(17));
+static int PlannerPanelRects(const RECT *card, RECT *table, RECT *detail) {
+    if (!card) return 0;
+    int left = card->left + S(12);
+    int right = card->right - S(12);
+    int gap = S(10);
+    int detailWidth = S(316);
+    int tableRight = right - detailWidth - gap;
+    int top = card->top + S(27);
+    int bottom = card->bottom - S(8);
+    if (tableRight <= left + S(360) || bottom <= top) return 0;
+    if (table) SetRect(table, left, top, tableRight, bottom);
+    if (detail) SetRect(detail, tableRight + gap, top, right, bottom);
     return 1;
 }
 
-static int PlannerDayRect(int day, RECT *r) {
-    if (!r || day < 0 || day >= FC_DAYS) return 0;
+static int PlannerTableRects(RECT *table, RECT *detail) {
     RECT card;
     PlannerRect(&card);
-    int firstLeft = card.left + S(116);
-    int lastRight = card.right - S(14);
+    return PlannerPanelRects(&card, table, detail);
+}
+
+static int PlannerMetricColumns(const RECT *table, int *lefts, int *widths) {
+    if (!table || !lefts || !widths) return 0;
+    const int weights[PLAN_CATEGORY_COUNT] = { 33, 27, 20, 20 };
+    int dateWidth = S(88);
     int gap = S(4);
-    int colWidth = (lastRight - firstLeft - gap * (FC_DAYS - 1)) / FC_DAYS;
-    if (colWidth <= 0) return 0;
-    int left = firstLeft + day * (colWidth + gap);
-    int top = card.top + S(27);
-    SetRect(r, left, top, left + colWidth, top + S(18));
+    int usable = table->right - table->left - dateWidth -
+                 gap * PLAN_CATEGORY_COUNT;
+    if (usable <= 0) return 0;
+    int x = table->left + dateWidth + gap;
+    for (int category = 0; category < PLAN_CATEGORY_COUNT; category++) {
+        lefts[category] = x;
+        widths[category] = (category == PLAN_CATEGORY_COUNT - 1)
+            ? table->right - x : usable * weights[category] / 100;
+        if (widths[category] <= 0) return 0;
+        x += widths[category] + gap;
+    }
+    return 1;
+}
+
+static int PlannerRowRect(int day, RECT *r) {
+    if (!r || day < 0 || day >= FC_DAYS) return 0;
+    RECT table;
+    if (!PlannerTableRects(&table, NULL)) return 0;
+    int top = table.top + S(20 + day * 29);
+    SetRect(r, table.left, top, table.right, top + S(29));
+    return 1;
+}
+
+static int PlannerDateRect(int day, RECT *r) {
+    if (!r || day < 0 || day >= FC_DAYS) return 0;
+    RECT table, row;
+    if (!PlannerTableRects(&table, NULL) || !PlannerRowRect(day, &row)) return 0;
+    SetRect(r, table.left, row.top, table.left + S(88), row.bottom);
+    return 1;
+}
+
+static int PlannerCellRect(int day, int category, RECT *r) {
+    if (!r || day < 0 || day >= FC_DAYS || category < 0 ||
+        category >= PLAN_CATEGORY_COUNT) return 0;
+    RECT table, row;
+    int lefts[PLAN_CATEGORY_COUNT], widths[PLAN_CATEGORY_COUNT];
+    if (!PlannerTableRects(&table, NULL) || !PlannerRowRect(day, &row) ||
+        !PlannerMetricColumns(&table, lefts, widths)) return 0;
+    SetRect(r, lefts[category], row.top, lefts[category] + widths[category], row.bottom);
+    return 1;
+}
+
+static int PlannerHeaderRect(int category, RECT *r) {
+    if (!r || category < 0 || category >= PLAN_CATEGORY_COUNT) return 0;
+    RECT table;
+    int lefts[PLAN_CATEGORY_COUNT], widths[PLAN_CATEGORY_COUNT];
+    if (!PlannerTableRects(&table, NULL) ||
+        !PlannerMetricColumns(&table, lefts, widths)) return 0;
+    SetRect(r, lefts[category], table.top, lefts[category] + widths[category],
+            table.top + S(18));
+    return 1;
+}
+
+static int PlannerDateHeaderRect(RECT *r) {
+    RECT table;
+    if (!r || !PlannerTableRects(&table, NULL)) return 0;
+    SetRect(r, table.left, table.top, table.left + S(88), table.top + S(18));
     return 1;
 }
 
@@ -401,6 +456,12 @@ static int HitPlannerCell(int x, int y, int *dayOut, int *categoryOut) {
                 if (categoryOut) *categoryOut = category;
                 return 1;
             }
+        }
+        RECT date;
+        if (PlannerDateRect(day, &date) && PtInRect(&date, pt)) {
+            if (dayOut) *dayOut = day;
+            if (categoryOut) *categoryOut = g_planCategory;
+            return 1;
         }
     }
     return 0;
@@ -446,6 +507,38 @@ static void PlannerCellText(int dayIndex, int category, wchar_t *out, int cap) {
         wcscpy(out, L"--");
     }
     out[cap - 1] = L'\0';
+}
+
+static void PaintPlannerCellValue(HDC dc, int dayIndex, int category,
+                                  const RECT *cell, int selected) {
+    if (category == PLAN_RAIN && dayIndex >= 0 && dayIndex < g_fc.dayN &&
+        dayIndex < FC_DAYS) {
+        const ForecastDay *day = &g_fc.days[dayIndex];
+        double point = PlannerPointRainChance(&g_fc, &g_ens, day);
+        double regional = day->regionalPoP;
+        wchar_t pointText[24], regionalText[24];
+        if (!isnan(point))
+            _snwprintf(pointText, 23, L"P %d%%", (int)llround(point * 100.0));
+        else
+            wcscpy(pointText, L"P --");
+        if (!isnan(regional))
+            _snwprintf(regionalText, 23, L"R %d%%", (int)llround(regional));
+        else
+            wcscpy(regionalText, L"R --");
+        pointText[23] = regionalText[23] = L'\0';
+        int mid = cell->left + (cell->right - cell->left) / 2;
+        RECT pointRect = { cell->left, cell->top, mid, cell->bottom };
+        RECT regionalRect = { mid, cell->top, cell->right, cell->bottom };
+        DrawTextAt(dc, pointText, &pointRect, g_fontSmall, COL_RAIN,
+                   DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        DrawTextAt(dc, regionalText, &regionalRect, g_fontSmall, COL_WARN,
+                   DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        return;
+    }
+    wchar_t value[64];
+    PlannerCellText(dayIndex, category, value, 64);
+    DrawTextAt(dc, value, cell, g_fontUI, selected ? COL_ACCENT : COL_TXT,
+               DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 }
 
 static double PlannerHourlyValue(int category, int hour, int regionalRain) {
@@ -548,28 +641,28 @@ static void PlannerDetailHeading(const ForecastDay *day, int category,
         double point = PlannerPointRainChance(&g_fc, &g_ens, day);
         if (!isnan(point) && !isnan(day->regionalPoP) && !isnan(day->rainSumIn))
             _snwprintf(out, cap - 1,
-                       L"%s · Rain — point %d%% / regional %d%% · %.2f in total",
+                       L"%s · Rain: P %d%% / R %d%% · %.2f in",
                        day->label, (int)llround(point * 100.0),
                        (int)llround(day->regionalPoP), day->rainSumIn);
         else if (!isnan(point) && !isnan(day->regionalPoP))
-            _snwprintf(out, cap - 1, L"%s · Rain — point %d%% / regional %d%%",
+            _snwprintf(out, cap - 1, L"%s · Rain: P %d%% / R %d%%",
                        day->label, (int)llround(point * 100.0), (int)llround(day->regionalPoP));
         else if (!isnan(day->regionalPoP))
-            _snwprintf(out, cap - 1, L"%s · Rain — point odds unavailable / regional %d%%",
+            _snwprintf(out, cap - 1, L"%s · Rain: point -- / regional %d%%",
                        day->label, (int)llround(day->regionalPoP));
         else
-            _snwprintf(out, cap - 1, L"%s · Rain — odds unavailable", day->label);
+            _snwprintf(out, cap - 1, L"%s · Rain odds unavailable", day->label);
     } else if (category == PLAN_TEMP && !isnan(day->maxF) && !isnan(day->minF)) {
-        _snwprintf(out, cap - 1, L"%s · Temperature — high %d° / low %d°",
+        _snwprintf(out, cap - 1, L"%s · Temperature: high %d° / low %d°",
                    day->label, (int)llround(day->maxF), (int)llround(day->minF));
     } else if (category == PLAN_CLOUD && !isnan(day->cloudMean)) {
-        _snwprintf(out, cap - 1, L"%s · Cloud cover — average %d%%",
+        _snwprintf(out, cap - 1, L"%s · Cloud cover: avg %d%%",
                    day->label, (int)llround(day->cloudMean));
     } else if (category == PLAN_WIND && !isnan(day->windMaxMph)) {
-        _snwprintf(out, cap - 1, L"%s · Wind — peak %d mph",
+        _snwprintf(out, cap - 1, L"%s · Wind: peak %d mph",
                    day->label, (int)llround(day->windMaxMph));
     } else {
-        _snwprintf(out, cap - 1, L"%s · %s — detail unavailable",
+        _snwprintf(out, cap - 1, L"%s · %s detail unavailable",
                    day->label, PlannerCategoryName(category));
     }
     out[cap - 1] = L'\0';
@@ -639,93 +732,98 @@ static void PlannerReading(const ForecastDay *day, int category,
     out[cap - 1] = L'\0';
 }
 
-static void PaintPlannerSamples(HDC dc, const ForecastDay *day, int category,
-                                const RECT *row) {
-    if (!day || day->firstHour < 0 || day->hourCount <= 0) return;
-    int count = day->hourCount < 5 ? day->hourCount : 5;
-    int width = row->right - row->left;
-    for (int i = 0; i < count; i++) {
-        int sample = count > 1 ? i * (day->hourCount - 1) / (count - 1) : 0;
-        int h = day->firstHour + sample;
-        const wchar_t *time = g_fc.hLabel[h][0] ? g_fc.hLabel[h] : L"--:--";
-        wchar_t text[80];
-        if (category == PLAN_RAIN) {
-            double point = PlannerHourlyValue(PLAN_RAIN, h, 0);
-            double regional = PlannerHourlyValue(PLAN_RAIN, h, 1);
-            if (!isnan(point) && !isnan(regional))
-                _snwprintf(text, 79, L"%s  P %d%% / R %d%%", time,
-                           (int)llround(point), (int)llround(regional));
-            else if (!isnan(point))
-                _snwprintf(text, 79, L"%s  P %d%% / R --", time, (int)llround(point));
-            else if (!isnan(regional))
-                _snwprintf(text, 79, L"%s  P -- / R %d%%", time, (int)llround(regional));
-            else
-                _snwprintf(text, 79, L"%s  --", time);
-        } else if (category == PLAN_TEMP && !isnan(g_fc.hT[h])) {
-            _snwprintf(text, 79, L"%s  %d°", time, (int)llround(g_fc.hT[h]));
-        } else if (category == PLAN_CLOUD && !isnan(g_fc.hCloud[h])) {
-            _snwprintf(text, 79, L"%s  %d%%", time, (int)llround(g_fc.hCloud[h]));
-        } else if (category == PLAN_WIND && !isnan(g_fc.hWindMph[h])) {
-            _snwprintf(text, 79, L"%s  %d mph", time, (int)llround(g_fc.hWindMph[h]));
-        } else {
-            _snwprintf(text, 79, L"%s  --", time);
-        }
-        text[79] = L'\0';
-        int left = row->left + i * width / count;
-        int right = row->left + (i + 1) * width / count;
-        RECT sampleRect = { left, row->top, right, row->bottom };
-        DrawTextAt(dc, text, &sampleRect, g_fontSmall, COL_MUTED,
-                   DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-    }
+static void PlannerAxisText(int category, double value, wchar_t *out, int cap) {
+    if (!out || cap < 2) return;
+    int rounded = (int)llround(value);
+    if (category == PLAN_TEMP)
+        _snwprintf(out, cap - 1, L"%d°", rounded);
+    else if (category == PLAN_WIND)
+        _snwprintf(out, cap - 1, L"%d mph", rounded);
+    else
+        _snwprintf(out, cap - 1, L"%d%%", rounded);
+    out[cap - 1] = L'\0';
 }
 
 static void PaintHourlyCard(HDC mem, const RECT *card, int dayIndex, int category) {
     DrawRoundedBox(mem, card, S(10), COL_INPUT, COL_DIV);
     if (dayIndex < 0 || dayIndex >= g_fc.dayN || dayIndex >= FC_DAYS) {
         RECT waiting = { card->left + S(8), card->top, card->right - S(8), card->bottom };
-        DrawTextAt(mem, L"Waiting for the five-day forecast...", &waiting,
-                   g_fontSmall, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        DrawTextAt(mem, L"Select a day and weather measure", &waiting,
+                   g_fontUI, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         return;
     }
     const ForecastDay *day = &g_fc.days[dayIndex];
     wchar_t heading[224], reading[224];
     PlannerDetailHeading(day, category, heading, 224);
     PlannerReading(day, category, reading, 224);
-    RECT title = { card->left + S(8), card->top + S(2), card->right - S(8), card->top + S(18) };
-    DrawTextAt(mem, heading, &title, g_fontSmall, COL_TXT,
+    RECT title = { card->left + S(8), card->top + S(2), card->right - S(8), card->top + S(21) };
+    DrawTextAt(mem, heading, &title, g_fontUI, COL_TXT,
                DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
     if (day->firstHour < 0 || day->hourCount <= 0) {
-        RECT unavailable = { card->left + S(8), card->top + S(20), card->right - S(8), card->top + S(39) };
-        DrawTextAt(mem, L"Hourly detail unavailable for this day.", &unavailable,
-                   g_fontSmall, COL_MUTED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-        RECT read = { card->left + S(8), card->top + S(54), card->right - S(8), card->bottom - S(3) };
+        RECT unavailable = { card->left + S(8), card->top + S(26), card->right - S(8), card->top + S(66) };
+        DrawTextAt(mem, L"Hourly trend unavailable for this day.", &unavailable,
+                   g_fontSmall, COL_MUTED, DT_LEFT | DT_VCENTER | DT_WORDBREAK);
+        RECT read = { card->left + S(8), card->bottom - S(45), card->right - S(8), card->bottom - S(4) };
         DrawTextAt(mem, reading, &read, g_fontSmall, COL_TXT,
                    DT_LEFT | DT_VCENTER | DT_WORDBREAK | DT_END_ELLIPSIS);
         return;
     }
-    RECT samples = { card->left + S(8), card->top + S(18), card->right - S(8), card->top + S(33) };
-    PaintPlannerSamples(mem, day, category, &samples);
-    RECT plot = { card->left + S(9), card->top + S(35), card->right - S(9), card->top + S(55) };
+
+    RECT plot = { card->left + S(46), card->top + S(29),
+                  card->right - S(8), card->bottom - S(66) };
+    if (plot.right <= plot.left || plot.bottom <= plot.top) return;
+    double low, high;
+    PlannerTrendRange(day, category, &low, &high);
+    double ticks[3] = { high, (low + high) / 2.0, low };
     HPEN grid = CreatePen(PS_SOLID, 1, COL_DIV);
     if (grid) {
         HGDIOBJ old = SelectObject(mem, grid);
         if (old && old != HGDI_ERROR) {
-            int mid = plot.top + (plot.bottom - plot.top) / 2;
-            MoveToEx(mem, plot.left, mid, NULL);
-            LineTo(mem, plot.right, mid);
+            int width = plot.right - plot.left;
+            int height = plot.bottom - plot.top;
+            for (int i = 0; i < 3; i++) {
+                int y = plot.top + i * (height - 1) / 2;
+                MoveToEx(mem, plot.left, y, NULL);
+                LineTo(mem, plot.right, y);
+                int x = plot.left + i * (width - 1) / 2;
+                MoveToEx(mem, x, plot.top, NULL);
+                LineTo(mem, x, plot.bottom);
+            }
             SelectObject(mem, old);
         }
         DeleteObject(grid);
     }
-    double low, high;
-    PlannerTrendRange(day, category, &low, &high);
+    for (int i = 0; i < 3; i++) {
+        int y = plot.top + i * (plot.bottom - plot.top - 1) / 2;
+        wchar_t axis[24];
+        PlannerAxisText(category, ticks[i], axis, 24);
+        RECT label = { card->left + S(2), y - S(7), plot.left - S(4), y + S(7) };
+        DrawTextAt(mem, axis, &label, g_fontSmall, COL_MUTED,
+                   DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
     if (category == PLAN_RAIN) {
         PaintPlannerSeries(mem, day, PLAN_RAIN, 0, &plot, low, high, COL_RAIN);
         PaintPlannerSeries(mem, day, PLAN_RAIN, 1, &plot, low, high, COL_WARN);
     } else {
         PaintPlannerSeries(mem, day, category, 0, &plot, low, high, COL_ACCENT);
     }
-    RECT read = { card->left + S(8), card->top + S(56), card->right - S(8), card->bottom - S(3) };
+    int labelWidth = S(44);
+    for (int i = 0; i < 3; i++) {
+        int sample = (day->hourCount - 1) * i / 2;
+        int hour = day->firstHour + sample;
+        const wchar_t *time = hour >= 0 && hour < g_fc.hN && g_fc.hLabel[hour][0]
+            ? g_fc.hLabel[hour] : L"--:--";
+        int center = plot.left + i * (plot.right - plot.left - 1) / 2;
+        int left = center - labelWidth / 2;
+        if (left < card->left + S(2)) left = card->left + S(2);
+        if (left + labelWidth > card->right - S(2)) left = card->right - S(2) - labelWidth;
+        RECT timeLabel = { left, plot.bottom + S(1), left + labelWidth, plot.bottom + S(17) };
+        DrawTextAt(mem, time, &timeLabel, g_fontSmall, COL_MUTED,
+                   DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
+    RECT read = { card->left + S(8), plot.bottom + S(20),
+                  card->right - S(8), card->bottom - S(3) };
     DrawTextAt(mem, reading, &read, g_fontSmall, COL_TXT,
                DT_LEFT | DT_VCENTER | DT_WORDBREAK | DT_END_ELLIPSIS);
 }
@@ -733,8 +831,8 @@ static void PaintHourlyCard(HDC mem, const RECT *card, int dayIndex, int categor
 static void PaintPlannerCard(HDC mem, const RECT *card) {
     DrawRoundedBox(mem, card, S(14), COL_CARD, COL_CARD_BD);
     RECT title = { card->left + S(14), card->top + S(4), card->left + S(404), card->top + S(23) };
-    DrawTextAt(mem, L"Five-day planner · select a day/category cell", &title,
-               g_fontSmall, COL_TXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    DrawTextAt(mem, L"Five-day outlook · select a value to explore its hourly trend", &title,
+               g_fontSmall, COL_TXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     RECT legend = { card->left + S(408), card->top + S(4), card->right - S(14), card->top + S(23) };
     DrawTextAt(mem, L"P = point ensemble (blue)  ·  R = regional PoP (gold)", &legend,
                g_fontSmall, COL_MUTED, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
@@ -745,41 +843,50 @@ static void PaintPlannerCard(HDC mem, const RECT *card) {
         return;
     }
 
-    static const int categoryOrder[PLAN_CATEGORY_COUNT] = {
-        PLAN_RAIN, PLAN_TEMP, PLAN_CLOUD, PLAN_WIND
-    };
-    for (int day = 0; day < FC_DAYS; day++) {
+    RECT table, detail, dateHeader;
+    int columnLeft[PLAN_CATEGORY_COUNT], columnWidth[PLAN_CATEGORY_COUNT];
+    if (!PlannerPanelRects(card, &table, &detail) ||
+        !PlannerMetricColumns(&table, columnLeft, columnWidth)) return;
+    if (PlannerDateHeaderRect(&dateHeader))
+        DrawTextAt(mem, L"Date", &dateHeader, g_fontSmall, COL_MUTED,
+                   DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    for (int category = 0; category < PLAN_CATEGORY_COUNT; category++) {
         RECT header;
-        if (PlannerDayRect(day, &header)) {
-            const wchar_t *label = day < g_fc.dayN ? g_fc.days[day].label : L"—";
-            DrawTextAt(mem, label, &header, g_fontSmall,
-                       day == g_planDay ? COL_ACCENT : COL_MUTED,
-                       DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-        }
-        for (int row = 0; row < PLAN_CATEGORY_COUNT; row++) {
-            int category = categoryOrder[row];
-            RECT cell, rowLabel;
+        if (PlannerHeaderRect(category, &header))
+            DrawTextAt(mem, PlannerCategoryName(category), &header, g_fontSmall,
+                       COL_MUTED, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
+
+    HBRUSH selectedBrush = CreateSolidBrush(MixCol(COL_CARD, COL_ACCENT, 10));
+    HBRUSH dividerBrush = CreateSolidBrush(COL_DIV);
+    HBRUSH markerBrush = CreateSolidBrush(COL_ACCENT);
+    for (int day = 0; day < FC_DAYS; day++) {
+        RECT row, date;
+        if (!PlannerRowRect(day, &row) || !PlannerDateRect(day, &date)) continue;
+        if (day == g_planDay && selectedBrush) FillRect(mem, &row, selectedBrush);
+        const wchar_t *label = day < g_fc.dayN ? g_fc.days[day].label : L"—";
+        DrawTextAt(mem, label, &date, g_fontUI,
+                   day == g_planDay ? COL_ACCENT : COL_TXT,
+                   DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        for (int category = 0; category < PLAN_CATEGORY_COUNT; category++) {
+            RECT cell;
             if (!PlannerCellRect(day, category, &cell)) continue;
-            rowLabel.left = card->left + S(14);
-            rowLabel.right = card->left + S(110);
-            rowLabel.top = cell.top;
-            rowLabel.bottom = cell.bottom;
-            if (day == 0)
-                DrawTextAt(mem, PlannerCategoryName(category), &rowLabel,
-                           g_fontSmall, COL_MUTED,
-                           DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-            wchar_t value[64];
-            PlannerCellText(day, category, value, 64);
             int selected = day == g_planDay && category == g_planCategory;
-            DrawRoundedBox(mem, &cell, S(5),
-                           selected ? MixCol(COL_CARD, COL_ACCENT, 24) : COL_CARD,
-                           selected ? COL_ACCENT : COL_CARD_BD);
-            DrawTextAt(mem, value, &cell, g_fontSmall, COL_TXT,
-                       DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+            PaintPlannerCellValue(mem, day, category, &cell, selected);
+            if (selected && markerBrush) {
+                RECT marker = { cell.left + S(5), cell.bottom - S(2),
+                                cell.right - S(5), cell.bottom - S(1) };
+                FillRect(mem, &marker, markerBrush);
+            }
+        }
+        if (dividerBrush) {
+            RECT divider = { table.left, row.bottom - S(1), table.right, row.bottom };
+            FillRect(mem, &divider, dividerBrush);
         }
     }
-    RECT detail = { card->left + S(12), card->top + S(130),
-                    card->right - S(12), card->bottom - S(6) };
+    if (selectedBrush) DeleteObject(selectedBrush);
+    if (dividerBrush) DeleteObject(dividerBrush);
+    if (markerBrush) DeleteObject(markerBrush);
     PaintHourlyCard(mem, &detail, g_planDay, g_planCategory);
 }
 
@@ -1061,8 +1168,8 @@ static void PaintAll(HWND hwnd) {
     PaintLeftColumn(mem);
 
     /* Current conditions and exact-point rain remain at the top. The planner
-       gives all four daily categories equal rows, with selected hourly detail;
-       radar keeps its own lower pane and playback controls. */
+       groups all four daily measures into five date rows, with a larger chart
+       for the selected value; radar keeps its own lower pane and controls. */
     RECT nowCard = { S(260), S(70), S(WIN_LW - 16), S(172) };
     PaintNowCard(mem, &nowCard);
     RECT honestCard = { S(260), S(180), S(WIN_LW - 16), S(282) };

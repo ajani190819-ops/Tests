@@ -1819,8 +1819,12 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "a member that stops reporting mid-day is counted as dry for unreported hours")
         self.assertIn("if (!complete) continue;", complete_window,
                       "the daily ensemble denominator includes incomplete member-days")
-        self.assertIn('L"P %d%% · R %d%%"', ui,
-                      "point-ensemble and regional daily rain odds are merged or mislabeled")
+        self.assertIn('_snwprintf(pointText, 23, L"P %d%%"', ui,
+                      "the daily point-ensemble rain odds lost their explicit label")
+        self.assertIn('_snwprintf(regionalText, 23, L"R %d%%"', ui,
+                      "the daily regional PoP lost its separate label")
+        self.assertIn("DrawTextAt(dc, pointText, &pointRect, g_fontSmall, COL_RAIN", ui)
+        self.assertIn("DrawTextAt(dc, regionalText, &regionalRect, g_fontSmall, COL_WARN", ui)
         self.assertIn("P = point ensemble (blue)  ·  R = regional PoP (gold)", ui)
         self.assertIn("Humidity %d%%", ui,
                       "humidity was promoted over the four approved daily categories")
@@ -1851,18 +1855,31 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                       "the native search field is not corrected after the window receives its final size")
         planner = ui[ui.index("static void PaintPlannerCard("):ui.index("static void PaintRadarPane", ui.index("static void PaintPlannerCard("))]
         detail = ui[ui.index("static void PaintHourlyCard("):ui.index("static void PaintPlannerCard(")]
-        self.assertIn("Five-day planner · select a day/category cell", planner,
-                      "the daily planner lost its selection affordance")
+        self.assertIn("Five-day outlook · select a value to explore its hourly trend", planner,
+                      "the day-first planner lost its selection affordance")
         self.assertIn("P = point ensemble (blue)  ·  R = regional PoP (gold)", planner,
                       "the point and regional rain metrics are not independently labelled")
-        self.assertIn("for (int row = 0; row < PLAN_CATEGORY_COUNT; row++)", planner,
-                      "the four daily categories are no longer displayed as equal rows")
-        self.assertIn("PlannerCellText(day, category, value, 64);", planner,
-                      "daily category values are no longer shown for each day")
+        self.assertIn("for (int day = 0; day < FC_DAYS; day++)", planner,
+                      "the planner no longer presents one row for each local date")
+        self.assertIn("static int PlannerRowRect(int day, RECT *r)", ui)
+        self.assertIn("int top = table.top + S(20 + day * 29);", ui,
+                      "planner rows are not organized by date")
+        self.assertIn("PlannerCellValue(mem, day, category, &cell, selected);", planner,
+                      "daily category values are no longer shown in the day rows")
+        self.assertNotIn("DrawRoundedBox(mem, &cell", planner,
+                         "the dense per-value box matrix has returned")
         self.assertIn("PaintHourlyCard(mem, &detail, g_planDay, g_planCategory);", planner,
                       "the selected day/category no longer drives the hourly detail")
-        self.assertIn("PaintPlannerSamples(mem, day, category, &samples);", detail,
-                      "the selected category lost its hourly values")
+        self.assertNotIn("PaintPlannerSamples", ui,
+                         "the old cramped five-sample strip has returned")
+        self.assertIn("RECT plot = { card->left + S(46), card->top + S(29),", detail,
+                      "the selected hourly plot is too short to read")
+        self.assertIn("card->bottom - S(66)", detail,
+                      "the hourly chart no longer reserves room for axes and a reading")
+        self.assertIn("PlannerAxisText(category, ticks[i], axis, 24);", detail,
+                      "the chart has no readable value scale")
+        self.assertIn("g_fc.hLabel[hour]", detail,
+                      "the chart has no local-time labels")
         self.assertIn("PaintPlannerSeries(mem, day, PLAN_RAIN, 0", detail,
                       "the rain trend no longer plots exact-point ensemble odds")
         self.assertIn("PaintPlannerSeries(mem, day, PLAN_RAIN, 1", detail,

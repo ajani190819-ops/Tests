@@ -1048,5 +1048,26 @@
   "old": "            if (isnan(v)) { complete = 0; break; }",
   "new": "            if (isnan(v)) continue;",
   "label": "A partial ensemble day treats unreported hours as dry"
+ },
+ {
+  "id": "wx-planner-04",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "    int top = table.top + S(20 + day * 29);",
+  "new": "    int top = table.top + S(20 + g_planCategory * 29);",
+  "label": "The planner stacks measures rather than grouping values by day"
+ },
+ {
+  "id": "wx-planner-05",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "    RECT plot = { card->left + S(46), card->top + S(29),\n                  card->right - S(8), card->bottom - S(66) };",
+  "new": "    RECT plot = { card->left + S(9), card->top + S(35), card->right - S(9), card->top + S(55) };",
+  "label": "The selected hourly chart collapses to its old unreadable height"
+ },
+ {
+  "id": "wx-planner-06",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "            PaintPlannerCellValue(mem, day, category, &cell, selected);",
+  "new": "            DrawRoundedBox(mem, &cell, S(5), COL_CARD, COL_CARD_BD);\n            PaintPlannerCellValue(mem, day, category, &cell, selected);",
+  "label": "The dense per-value box matrix returns to the planner"
  }
 ]

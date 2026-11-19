@@ -4,7 +4,7 @@ Choose and save a place. The app headlines the exact-location ensemble chance of
 
 The rain card also gives an approximate ETA for the selected place: the first hour when at least half of reporting ensemble members forecast measurable rain. If the ensemble odds stay lower, it shows the hour with the strongest nonzero signal as possible; a single-model hourly estimate is labelled separately when the ensemble has no rain signal. Times are local to the selected place and are hourly, not minute-precise.
 
-The five-day planner gives rain, high/low temperature, cloud cover, and wind equal-sized daily rows. Select any day/category cell to see that day's hourly values, a compact trend, and a plain-English reading. Rain cells show the exact-point ensemble chance of measurable rain at least once in the day's forecast hours (only members reporting the full window count) separately from the regional coverage-blended PoP; the six-hour point-rain card remains the headline. Humidity stays supporting current-conditions context.
+The five-day planner groups the forecast into one row per local date, with aligned rain, high/low temperature, cloud-cover, and wind values instead of a separate box for every measure. Select a value to see a larger hourly chart with time/value axes and a plain-English reading. Rain values keep exact-point ensemble odds (only members reporting the full day count) separate from regional coverage-blended PoP; the six-hour point-rain card remains the headline. Humidity stays supporting current-conditions context.
 
 ## Rain watch
 
