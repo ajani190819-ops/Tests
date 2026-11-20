@@ -769,9 +769,9 @@
 
 ## weather-radar/src/weather_radar.c
 
-- L219  f S
-- L226  f RadarTileZoomForDisplay
-- globals: g_hInst (L152), g_hwnd (L153), g_fontUI (L154), g_bgBrush (L155), g_dpi (L156), g_fit (L157), g_hoverBtn (L158), g_lock (L159), g_cfgDir (L165), g_cfgPath (L166), g_cacheDir (L167), g_status (L168), g_statusKind (L169), g_nid (L170), g_trayVisible (L171), g_quitting (L172), g_trayHinted (L173), g_rainAlertEpisode (L177), g_rainAlertLastEpoch (L178), g_rainAlertLat (L179), g_places (L181), g_placeN (L182), g_placeSel (L183), g_search (L184), g_searchStage (L185), g_searchN (L186), g_searchStageN (L187), g_searchSel (L188), g_searchTicket (L189), g_searchStageTicket (L190), g_placeTicket (L191), g_query (L192), g_searchHint (L193), g_fc (L195), g_ens (L196), g_fcStage (L197), g_ensStage (L198), g_frames (L200), g_frameN (L201), g_frameSel (L202), g_playing (L203), g_zoom (L204), g_radarHost (L205), g_radarNote (L207), g_view (L210), g_viewStage (L211), g_base (L212), g_baseKey (L213), g_viewKey (L214), g_viewTicket (L215), g_viewReady (L216)
+- L223  f S
+- L230  f RadarTileZoomForDisplay
+- globals: g_hInst (L156), g_hwnd (L157), g_fontUI (L158), g_bgBrush (L159), g_dpi (L160), g_fit (L161), g_hoverBtn (L162), g_lock (L163), g_cfgDir (L169), g_cfgPath (L170), g_cacheDir (L171), g_status (L172), g_statusKind (L173), g_nid (L174), g_trayVisible (L175), g_quitting (L176), g_trayHinted (L177), g_rainAlertEpisode (L181), g_rainAlertLastEpoch (L182), g_rainAlertLat (L183), g_places (L185), g_placeN (L186), g_placeSel (L187), g_search (L188), g_searchStage (L189), g_searchN (L190), g_searchStageN (L191), g_searchSel (L192), g_searchTicket (L193), g_searchStageTicket (L194), g_placeTicket (L195), g_query (L196), g_searchHint (L197), g_fc (L199), g_ens (L200), g_fcStage (L201), g_ensStage (L202), g_frames (L204), g_frameN (L205), g_frameSel (L206), g_playing (L207), g_zoom (L208), g_radarHost (L209), g_radarNote (L211), g_view (L214), g_viewStage (L215), g_base (L216), g_baseKey (L217), g_viewKey (L218), g_viewTicket (L219), g_viewReady (L220)
 
 ## weather-radar/src/parts/alerts.c
 
@@ -827,6 +827,38 @@
 - L225  f JNum
 - globals: g_jpool (L33), g_jused (L34)
 
+## weather-radar/src/parts/location.c
+
+- L15  f LocationNotice
+- L21  f WindowsLocationCurrent
+- L25  f LocationFailureText
+- L33  f LocationProblemText
+- L41  f CancelWindowsLocation
+- L52  f PublishWindowsLocation
+- L66  f TakeWindowsLocation
+- L83  f FinishWindowsLocation
+- L104  f RequestWindowsLocation
+- L123  f PollWindowsLocation
+- globals: g_locationTicket (L8), g_locationPending (L9), g_locationDeadline (L10), g_locationStage (L11), g_locationNotice (L12), g_locationNoticeKind (L13)
+
+## weather-radar/src/parts/location_policy.c
+
+- L15  f LocationFixProblem
+- L27  f LocationTicketCurrent
+
+## weather-radar/src/parts/location_winrt.c
+
+- L21  f LocationProviderError
+- L25  f LocationProviderClose
+- L37  f LocationProviderShutdown
+- L44  f LocationProviderInit
+- L62  f LocationClassName
+- L67  f LocationProviderBeginAccess
+- L81  f LocationProviderBeginFix
+- L101  f LocationProviderRead
+- L128  f LocationProviderPoll
+- globals: g_locationDll (L8), g_locationRoInitialized (L9), g_locationAccess (L16), g_locationPosition (L17), g_locationInfo (L18), g_locationLocator (L19)
+
 ## weather-radar/src/parts/net.c
 
 - L1  S net: WinHTTP GET + tile cache
@@ -839,11 +871,11 @@
 
 - L7  f InitPaths
 - L26  f LoadPlaces
-- L48  f SavePlaces
-- L71  f RememberPlace
-- L92  f DropSelectedPlace
-- L104  f SearchTicketIsCurrent
-- L115  f GeocodeSearch
+- L56  f SavePlaces
+- L88  f RememberPlace
+- L111  f DropSelectedPlace
+- L123  f SearchTicketIsCurrent
+- L134  f GeocodeSearch
 
 ## weather-radar/src/parts/radar.c
 
@@ -864,54 +896,55 @@
 
 ## weather-radar/src/parts/ui.c
 
-- L23  f RadarEmblemRect
-- L27  f BtnRect
-- L41  f PlannerRect
-- L45  f RadarImageRect
-- L53  f SearchRowRect
-- L61  f SavedHeadingY
-- L65  f SavedRowRect
-- L75  f LayoutSearchEdit
-- L94  f HitBtn
-- L104  f DrawBtn
-- L116  f FrameTimeText  — unix seconds -> "14:20" (plus the day when it is not today), local time
-- L136  f PaintNowCard
-- L187  f RainEtaText
-- L299  f PaintHonestCard
-- L354  f PlannerCategoryName
-- L361  f PlannerPanelRects
-- L376  f PlannerTableRects
-- L382  f PlannerMetricColumns
-- L401  f PlannerRowRect
-- L410  f PlannerDateRect
-- L418  f PlannerCellRect
-- L429  f PlannerHeaderRect
-- L440  f PlannerDateHeaderRect
-- L447  f HitPlannerCell
-- L470  f PlannerPointRainChance
-- L479  f PlannerCellText
-- L512  f PaintPlannerCellValue
-- L544  f PlannerHourlyValue
-- L562  f PlannerTrendRange
-- L592  f PaintPlannerSeries
-- L622  f PlannerPeakHour
-- L637  f PlannerDetailHeading
-- L671  f PlannerReading
-- L735  f PlannerAxisText
-- L747  f PaintHourlyCard
-- L831  f PaintPlannerCard
-- L893  f RadarFocusOrigin
-- L903  f PaintRadarPane
-- L1074  f PaintLeftColumn
-- L1123  f PaintAll
-- L1232  f StatusSet
-- L1239  f CurrentPlace
-- L1243  f OnPickSearchRow
-- L1255  f OnPickSavedRow
-- L1268  f StepFrame
-- L1280  f SearchTextIsBlank
-- L1285  f SubmitSearch
-- globals: g_planDay (L20), g_planCategory (L21)
+- L24  f RadarEmblemRect
+- L28  f BtnRect
+- L44  f PlannerRect
+- L48  f RadarImageRect
+- L56  f SearchRowRect
+- L65  f SavedHeadingY
+- L69  f SavedRowRect
+- L79  f LayoutSearchEdit
+- L98  f HitBtn
+- L108  f DrawBtn
+- L120  f FrameTimeText  — unix seconds -> "14:20" (plus the day when it is not today), local time
+- L140  f PaintNowCard
+- L191  f RainEtaText
+- L303  f PaintHonestCard
+- L358  f PlannerCategoryName
+- L365  f PlannerPanelRects
+- L380  f PlannerTableRects
+- L386  f PlannerMetricColumns
+- L405  f PlannerRowRect
+- L414  f PlannerDateRect
+- L422  f PlannerCellRect
+- L433  f PlannerHeaderRect
+- L444  f PlannerDateHeaderRect
+- L451  f HitPlannerCell
+- L474  f PlannerPointRainChance
+- L483  f PlannerCellText
+- L516  f PaintPlannerCellValue
+- L548  f PlannerHourlyValue
+- L566  f PlannerTrendRange
+- L596  f PaintPlannerSeries
+- L626  f PlannerPeakHour
+- L641  f PlannerDetailHeading
+- L675  f PlannerReading
+- L739  f PlannerAxisText
+- L751  f PaintHourlyCard
+- L835  f PaintPlannerCard
+- L897  f RadarFocusOrigin
+- L907  f PaintRadarPane
+- L1080  f PaintLocationDetail
+- L1119  f PaintLeftColumn
+- L1171  f PaintAll
+- L1280  f StatusSet
+- L1287  f CurrentPlace
+- L1291  f OnPickSearchRow
+- L1304  f OnPickSavedRow
+- L1321  f StepFrame
+- L1333  f SearchTextIsBlank
+- L1338  f SubmitSearch
+- globals: g_planDay (L21), g_planCategory (L22)
 
 ## weather-radar/src/parts/util.c
 
@@ -940,13 +973,14 @@
 
 ## weather-radar/src/parts/workers.c
 
-- L17  f StartJob
-- L30  f PopJob
-- L91  f WorkerStart
-- L98  f RequestPlaceData
-- L113  f RequestTiles
-- L117  f RequestSearch
-- globals: g_workerThread (L8), g_jobEvent (L9), g_jobs (L10), g_jobHead (L11), g_reqPlace (L12), g_reqHas (L13), g_reqQuery (L14), g_reqSearchTicket (L15)
+- L18  f StartJob
+- L31  f PopJob
+- L92  f WorkerStart
+- L99  f RequestPlaceData
+- L115  f ForgetPlaceData  — Removing the final saved point also invalidates in-flight weather/tiles.
+- L125  f RequestTiles
+- L129  f RequestSearch
+- globals: g_workerThread (L9), g_jobEvent (L10), g_jobs (L11), g_jobHead (L12), g_reqPlace (L13), g_reqHas (L14), g_reqQuery (L15), g_reqSearchTicket (L16)
 
 ## shared/win32/suite_emblem.c
 
@@ -1181,6 +1215,7 @@
 - L5032  f AudioSwitcherReachabilityTests
 - L5216  f AudioSwitcherSessionSweepTests
 - L5357  f AppOpenFocusTests
+- L5494  f RadarWindowsLocationTests
 
 ## tests/wave_cases.py
 

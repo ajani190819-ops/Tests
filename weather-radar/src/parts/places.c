@@ -40,6 +40,14 @@ static void LoadPlaces(void) {
         _snwprintf(key, 23, L"Lon%d", i + 1);
         GetPrivateProfileStringW(L"Places", key, L"nan", num, 47, g_cfgPath);
         g_places[i].lon = wcstod(num, NULL);
+        _snwprintf(key, 23, L"Source%d", i + 1);
+        g_places[i].fromWindows = GetPrivateProfileIntW(L"Places", key, 0, g_cfgPath) == 1;
+        _snwprintf(key, 23, L"AccuracyM%d", i + 1);
+        GetPrivateProfileStringW(L"Places", key, L"nan", num, 47, g_cfgPath);
+        g_places[i].accuracyM = wcstod(num, NULL);
+        _snwprintf(key, 23, L"FixEpoch%d", i + 1);
+        GetPrivateProfileStringW(L"Places", key, L"0", num, 47, g_cfgPath);
+        g_places[i].fixEpoch = wcstoull(num, NULL, 10);
     }
     g_placeSel = GetPrivateProfileIntW(L"Places", L"Selected", -1, g_cfgPath);
     if (g_placeSel < 0 || g_placeSel >= g_placeN) g_placeSel = g_placeN ? 0 : -1;
@@ -61,18 +69,29 @@ static void SavePlaces(void) {
         _snwprintf(key, 23, L"Lon%d", i + 1);
         if (i < g_placeN) _snwprintf(num, 63, L"%.5f", g_places[i].lon); else num[0] = L'\0';
         WritePrivateProfileStringW(L"Places", key, i < g_placeN ? num : NULL, g_cfgPath);
+        _snwprintf(key, 23, L"Source%d", i + 1);
+        WritePrivateProfileStringW(L"Places", key, i < g_placeN ? (g_places[i].fromWindows ? L"1" : L"0") : NULL, g_cfgPath);
+        _snwprintf(key, 23, L"AccuracyM%d", i + 1);
+        if (i < g_placeN && g_places[i].fromWindows) _snwprintf(num, 63, L"%.9g", g_places[i].accuracyM); else num[0] = L'\0';
+        WritePrivateProfileStringW(L"Places", key, num[0] ? num : NULL, g_cfgPath);
+        _snwprintf(key, 23, L"FixEpoch%d", i + 1);
+        if (i < g_placeN && g_places[i].fromWindows) _snwprintf(num, 63, L"%llu", (unsigned long long)g_places[i].fixEpoch); else num[0] = L'\0';
+        WritePrivateProfileStringW(L"Places", key, num[0] ? num : NULL, g_cfgPath);
     }
     _snwprintf(num, 63, L"%d", g_placeSel);
     WritePrivateProfileStringW(L"Places", L"Selected", num, g_cfgPath);
 }
 
-/* Remembering a place is the only persistent write: name + coordinates, so a
-   re-open shows the last place's weather before anything is typed. */
+/* Save one Windows snapshot, refreshing its coordinates/accuracy/time in
+   place rather than filling all eight slots after the owner moves. Search
+   points remain separate and never inherit a device fix's precision claim. */
 static void RememberPlace(const Place *p) {
     for (int i = 0; i < g_placeN; i++) {
-        if (fabs(g_places[i].lat - p->lat) < 1e-6 && fabs(g_places[i].lon - p->lon) < 1e-6) {
-            wcsncpy(g_places[i].name, p->name, 95);
-            wcsncpy(g_places[i].region, p->region, 95);
+        int sameWindows = p->fromWindows && g_places[i].fromWindows;
+        int sameSearch = !p->fromWindows && !g_places[i].fromWindows &&
+            fabs(g_places[i].lat - p->lat) < 1e-6 && fabs(g_places[i].lon - p->lon) < 1e-6;
+        if (sameWindows || sameSearch) {
+            g_places[i] = *p;
             g_placeSel = i;
             SavePlaces();
             return;

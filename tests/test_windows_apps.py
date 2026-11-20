@@ -5491,5 +5491,164 @@ class AppOpenFocusTests(unittest.TestCase):
                     rel + ": when the app is already running in the tray, a second "
                            "Open does not bring the existing window forward")
 
+class RadarWindowsLocationTests(unittest.TestCase):
+    """Actual C lifecycle/storage/selection logic with Windows provider I/O mocked.
+    Windows consent, native rendering and actual-position accuracy stay unverified."""
+
+    @staticmethod
+    def _source(name):
+        return (ROOT / "weather-radar/src/parts" / name).read_text(encoding="utf-8")
+
+    @staticmethod
+    def _function(source, signature):
+        start = source.index(signature)
+        return source[start:source.index("\n}\n", start) + 3]
+
+    def test_one_shot_location_executes_production_lifecycle_and_storage(self):
+        import shutil
+        import tempfile
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            self.skipTest("portable C compiler is unavailable")
+        main = (ROOT / "weather-radar/src/weather_radar.c").read_text(encoding="utf-8")
+        model = re.search(r"typedef struct \{.*?\n\} Place;", main, re.S).group(0)
+        places = self._source("places.c")
+        storage = places[places.index("static void LoadPlaces("):places.index("/* Geocoding:")]
+        ui = self._source("ui.c")
+        funcs = "\n".join(self._function(ui, sig) for sig in (
+            "static void OnPickSearchRow(", "static void OnPickSavedRow("))
+        apply_start = ui.index("        if (kind == JOB_LOCATION) {")
+        apply_end = ui.index("        EnterCriticalSection(&g_lock);", apply_start)
+        apply = "static int DeliverLocationMessage(DWORD ticket) { int kind = JOB_LOCATION;\n" + ui[apply_start:apply_end] + "return 0; }\n"
+        buttons = main[main.index("enum { BTN_SEARCH"):main.index("};", main.index("enum { BTN_SEARCH")) + 2]
+        layout = buttons + "\nstatic int g_dpi = 96, g_fit = 100;\n" + self._function(main, "static int S(int px)")
+        layout += "\n".join(re.search(r"^#define " + name + r" .*$", ui, re.M).group(0)
+                            for name in ("WIN_LW", "WIN_LH", "PLACE_LIST_TOP")) + "\n"
+        layout += "\n".join(self._function(ui, signature) for signature in (
+            "static void BtnRect(", "static int SearchRowRect(", "static int SavedHeadingY(",
+            "static int SavedRowRect(", "static int HitBtn("))
+        header = model + "\n#define MAX_PLACES 8\n#define MAX_SEARCH 8\n" + """
+static Place g_places[MAX_PLACES], g_search[MAX_SEARCH];
+static int g_placeN, g_placeSel;
+""" + layout + "\n" + storage + '\n#include "' + (ROOT / "weather-radar/src/parts/location.c").as_posix() + '"\n' + """
+static void RequestPlaceData(const Place *p) {
+    assert(p == &g_places[g_placeSel]); weatherRequests++; g_placeTicket++;
+}
+static void StatusSet(const wchar_t *text, int kind) { (void)kind; wcsncpy(statusText, text, 319); }
+""" + funcs + "\n" + apply
+        with tempfile.TemporaryDirectory(prefix="radar-location-") as td:
+            (Path(td) / "radar_location_under_test.h").write_text(header, encoding="utf-8")
+            exe = Path(td) / "radar-location"
+            build = subprocess.run([compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", td,
+                                    str(ROOT / "tests/native/radar_location_harness.c"), "-lm", "-o", str(exe)],
+                                   capture_output=True, text=True, timeout=30)
+            self.assertEqual(build.returncode, 0, build.stderr)
+            run = subprocess.run([str(exe)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            self.assertIn("Radar one-shot location scenarios passed (mocked Windows provider)", run.stdout)
+
+    def test_location_permission_is_explicit_foreground_and_nonblocking(self):
+        ui, entry = self._source("ui.c"), self._source("entry.c")
+        core, provider = self._source("location.c"), self._source("location_winrt.c")
+        self.assertEqual(ui.count("RequestWindowsLocation();"), 1)
+        self.assertIn("case BTN_LOCATION:\n                RequestWindowsLocation();", ui)
+        self.assertNotIn("RequestWindowsLocation(", entry)
+        self.assertNotIn("LocationProvider", entry)
+        self.assertIn("if (wp == TIMER_LOCATION) { PollWindowsLocation(); return 0; }", ui)
+        request = self._function(core, "static void RequestWindowsLocation(")
+        self.assertLess(request.index("GetForegroundWindow() != g_hwnd"), request.index("LocationProviderBeginAccess();"))
+        self.assertIn("if (g_locationPending) { CancelWindowsLocation(); return; }", request)
+        self.assertIn("state != LOCATION_PROVIDER_READY", core)
+        self.assertIn("LocationProviderBeginFix();", core)
+        self.assertIn('L"Windows.Devices.Geolocation.Geolocator"', provider)
+        self.assertIn("factory->lpVtbl->RequestAccessAsync(factory, &g_locationAccess)", provider)
+        self.assertIn("return allowed == 1 ? LOCATION_PROVIDER_READY", provider)
+        self.assertIn("GetGeopositionAsyncWithAgeAndTimeout(", provider)
+        self.assertIn("maxAge = {60LL * 10000000LL}, timeout = {30LL * 10000000LL}", provider)
+        self.assertIn("if (status == Started) return LOCATION_PROVIDER_PENDING;", provider)
+        self.assertIn("if (status != Completed)", provider)
+        for forbidden in ("Sleep(", "WaitForSingleObject(", "HttpGetBuf(", "add_PositionChanged(",
+                          "add_StatusChanged(", "AllowFallbackToConsentlessPositions(", "ILocation_", "CreateProcess"):
+            self.assertNotIn(forbidden, core + provider)
+        self.assertIn('LoadLibraryExW(L"combase.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32)', provider)
+        self.assertIn("coordinate->lpVtbl->get_Accuracy(coordinate, &sample->accuracyM)", provider)
+        self.assertIn("coordinate->lpVtbl->get_Timestamp(coordinate, &stamp)", provider)
+        self.assertIn("point->lpVtbl->get_Position(point, &basic)", provider)
+        self.assertNotIn("->get_Latitude(", provider)  # use modern Point.Position, not deprecated getters
+        self.assertIn("if (cancel) (void)IAsyncInfo_Cancel(g_locationInfo);", provider)
+        self.assertIn("(void)IAsyncInfo_Close(g_locationInfo);", provider)
+        self.assertIn("LocationRoUninitialize();", provider)
+
+    def test_location_selection_cancellation_and_single_coordinate_route(self):
+        ui, workers = self._source("ui.c"), self._source("workers.c")
+        for signature in ("static void OnPickSearchRow(", "static void OnPickSavedRow("):
+            self.assertIn("CancelWindowsLocation();", self._function(ui, signature))
+        close = ui[ui.index("case WM_SHOWWINDOW:"):ui.index("case WM_PAINT:")]
+        self.assertGreaterEqual(close.count("CancelWindowsLocation();"), 3)  # hide, close, minimize
+        destroy = ui[ui.index("case WM_DESTROY:"):]
+        self.assertIn("CancelWindowsLocation();", destroy)
+        self.assertIn("LocationProviderShutdown();", destroy)
+        drop = ui[ui.index("case BTN_DROP:", ui.index("case WM_LBUTTONUP:")):ui.index("default: break;", ui.index("case BTN_DROP:", ui.index("case WM_LBUTTONUP:")))]
+        self.assertLess(drop.index("CancelWindowsLocation();"), drop.index("DropSelectedPlace();"))
+        self.assertIn("else ForgetPlaceData();", drop)
+        clear = self._function(workers, "static void ForgetPlaceData(")
+        for statement in ("g_reqHas = 0;", "if (++g_placeTicket == 0) g_placeTicket = 1;", "g_viewReady = 0;"):
+            self.assertIn(statement, clear)
+        apply_start = ui.index("if (kind == JOB_LOCATION)")
+        apply = ui[apply_start:ui.index("EnterCriticalSection(&g_lock);", apply_start)]
+        self.assertLess(apply.index("TakeWindowsLocation(ticket, &result)"), apply.index("RememberPlace(&result.place);"))
+        self.assertIn("if (result.have)", apply)
+        self.assertIn("RequestPlaceData(&g_places[g_placeSel]);", apply)
+        self.assertIn("g_reqPlace = *p;", workers)
+        self.assertIn("p->lat, p->lon", self._source("forecast.c"))
+        self.assertIn("pl.lat, pl.lon", ui)  # marker and crop use the same selected point
+
+    def test_location_source_accuracy_timestamp_and_settings_remain_visible(self):
+        ui, core = self._source("ui.c"), self._source("location.c")
+        paint = self._function(ui, "static void PaintLocationDetail(")
+        for text in ("Source: Windows saved point", "Source: city/postcode search", "%.5f, %.5f",
+                     "Approx. +/-", "Reported +/-", "Fix:", "g_locationNotice"):
+            self.assertIn(text, paint)
+        self.assertIn("PaintLocationDetail(mem);", ui)
+        self.assertIn('L"Use my location"', ui)
+        self.assertIn('L"Cancel location"', ui)
+        self.assertIn('L"ms-settings:privacy-location"', ui)
+        self.assertIn("sample->accuracyM >= 1000.0", core)
+        self.assertIn("Approximate Windows fix", core)
+        self.assertIn("LocationFixProblem(result->place.lat", core)
+        self.assertIn("g_locationStageTicket != ticket", core)
+        self.assertIn("if (!WindowsLocationCurrent(ticket)) return;", core)
+        # All eight matches plus eight saved rows fit below the new controls.
+        top = int(re.search(r"#define PLACE_LIST_TOP (\d+)", ui).group(1))
+        self.assertGreater(top, 326 + 24)
+        self.assertLess(top + 8 * 30 + 12 + 22 + 7 * 30 + 28, 960 - 56)
+
+    def test_geolocation_abi_prefixes_match_documented_sdk_slots(self):
+        header = self._source("location_abi.h")
+        expected = {
+            "LocStatics": ["RequestAccessAsync"],
+            "LocGeolocator": ["get_DesiredAccuracy", "put_DesiredAccuracy", "get_MovementThreshold",
+                              "put_MovementThreshold", "get_ReportInterval", "put_ReportInterval",
+                              "get_LocationStatus", "GetGeopositionAsync", "GetGeopositionAsyncWithAgeAndTimeout"],
+            "LocAccessOp": ["put_Completed", "get_Completed", "GetResults"],
+            "LocPositionOp": ["put_Completed", "get_Completed", "GetResults"],
+            "LocPosition": ["get_Coordinate"],
+            "LocCoordinate": ["get_Latitude", "get_Longitude", "get_Altitude", "get_Accuracy",
+                              "get_AltitudeAccuracy", "get_Heading", "get_Speed", "get_Timestamp"],
+            "LocCoordinatePoint": ["get_Point"], "LocPoint": ["get_Position"],
+        }
+        for interface, methods in expected.items():
+            declaration = header.split("struct " + interface + "Vtbl {", 1)[1].split("\n};", 1)[0]
+            self.assertIn("LOC_INSPECTABLE(" + interface + ");", declaration)
+            self.assertEqual(re.findall(r"\*([a-zA-Z_]+)\)", declaration), methods)
+        self.assertIn("0x9a8e7571,0x2df5,0x4591,{0x9f,0x87,0xeb,0x5f,0xd8,0x94,0xe9,0xb7}", header)
+        self.assertIn("0xa9c3bf62,0x4524,0x4989,{0x8a,0xa9,0xde,0x01,0x9d,0x2e,0x55,0x1f}", header)
+        self.assertIn("0xfeea0525,0xd22c,0x4d46,{0xb5,0x27,0x0b,0x96,0x06,0x6f,0xc7,0xdb}", header)
+        self.assertIn("0x00000036,0,0,{0xc0,0,0,0,0,0,0,0x46}", header)
+        self.assertIn("typedef struct { INT64 Duration; } LocTimeSpan;", header)
+        self.assertIn("typedef struct { INT64 UniversalTime; } LocDateTime;", header)
+        self.assertIn("typedef struct { double Latitude, Longitude, Altitude; } LocBasicPosition;", header)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -51,14 +51,14 @@
 #define SHOW_EVENT    L"Local\\Tests_WeatherRadar_Show_v1"
 #define HTTP_UA       L"TestsSuite-WeatherRadar/1.0 (personal desktop app; contact: owner)"
 
-#define WM_APP_DATA   (WM_APP + 7)     /* worker -> UI: staging result is ready */
+#define WM_APP_DATA   (WM_APP + 7)     /* UI inbox: a staged result is ready */
 #define WM_APP_STATUS (WM_APP + 8)     /* worker -> UI: status line text */
 #define WM_APP_SEARCH (WM_APP + 9)     /* edit Return -> UI search submit */
 #define WM_TRAYICON    (WM_APP + 10)    /* notification-area interaction */
 
 enum { BTN_SEARCH = 0, BTN_REFRESH, BTN_PLAY, BTN_PREV, BTN_NEXT,
-       BTN_KEEP, BTN_DROP, BTN_ZOOM, BTN_COUNT };
-enum { TIMER_EMBLEM = 1, TIMER_ANIM = 2, TIMER_REFRESH = 3, TIMER_TRAY_SYNC = 4 };
+       BTN_KEEP, BTN_DROP, BTN_ZOOM, BTN_LOCATION, BTN_LOCATION_SETTINGS, BTN_COUNT };
+enum { TIMER_EMBLEM = 1, TIMER_ANIM = 2, TIMER_REFRESH = 3, TIMER_TRAY_SYNC = 4, TIMER_LOCATION = 5 };
 enum { ID_TRAY_OPEN = 201, ID_TRAY_EXIT = 202 };
 #define ID_EDIT_SEARCH 101
 #define HINT_SEARCH    L"city or postcode - press Search"
@@ -96,15 +96,19 @@ enum { ID_TRAY_OPEN = 201, ID_TRAY_EXIT = 202 };
 #define RADAR_TILE_ZOOM_MAX     7
 #define RADAR_DISPLAY_ZOOM_MAX  10
 
-/* Worker jobs. One thread, one queued job at a time: the UI never blocks and
-   a job always writes to staging, never to what is on screen. */
+/* Weather/map jobs run on one worker and publish staged results. JOB_LOCATION
+   is an inbox kind only: Windows geolocation uses foreground-UI async APIs,
+   never a worker permission prompt or a blocking provider wait. */
 enum { JOB_NONE = 0, JOB_GEOCODE, JOB_FORECAST, JOB_ENSEMBLE,
-       JOB_RADAR_CATALOG, JOB_TILES };
+       JOB_RADAR_CATALOG, JOB_TILES, JOB_LOCATION };
 
 typedef struct {
     wchar_t name[96];
     wchar_t region[96];       /* "Florida, United States" */
     double  lat, lon;
+    int     fromWindows;      /* explicit one-shot fix, never background tracking */
+    double  accuracyM;        /* provider-reported radius, not a GPS guarantee */
+    uint64_t fixEpoch;        /* UTC timestamp of that fix; persisted as a snapshot */
 } Place;
 
 typedef struct {
@@ -239,6 +243,9 @@ static int RadarTileZoomForDisplay(int displayZoom) {
 #include "parts/radar.c"
 #include "parts/forecast.c"
 #include "parts/alerts.c"
+#include "parts/location_policy.c"
+#include "parts/location_winrt.c"
+#include "parts/location.c"
 #include "parts/workers.c"
 #include "../../shared/win32/suite_emblem.c"
 #include "parts/emblem.c"

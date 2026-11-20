@@ -9,6 +9,7 @@
 #define WIN_LW 1120
 #define WIN_LH 960
 #define LEFT_W 252
+#define PLACE_LIST_TOP 358 /* room for explicit location controls/source/accuracy */
 /* The radar host's validated imagery ends at level 7. Draw a local focus
    centered on the selected place within our three-tile fetch rather than
    shrinking the entire 768px region. Higher display levels crop this source
@@ -29,6 +30,8 @@ static void BtnRect(int i, RECT *r) {
     case BTN_SEARCH:  SetRect(r, S(16), S(110), S(120), S(140)); break;
     case BTN_KEEP:    SetRect(r, S(126), S(110), S(182), S(140)); break;
     case BTN_DROP:    SetRect(r, S(188), S(110), S(244), S(140)); break;
+    case BTN_LOCATION: SetRect(r, S(16), S(148), S(244), S(180)); break;
+    case BTN_LOCATION_SETTINGS: SetRect(r, S(16), S(304), S(244), S(326)); break;
     case BTN_REFRESH: SetRect(r, S(WIN_LW - 16 - 104), S(16), S(WIN_LW - 16), S(48)); break;
     case BTN_PREV:    SetRect(r, S(272), S(520), S(308), S(548)); break;
     case BTN_PLAY:    SetRect(r, S(314), S(520), S(372), S(548)); break;
@@ -52,20 +55,21 @@ static void RadarImageRect(RECT *r) {
    hoverable, no list-view theming to fight. */
 static int SearchRowRect(int i, RECT *r) {
     if (i < 0 || i >= g_searchN) return 0;
-    SetRect(r, S(16), S(172) + i * S(30), S(244), S(172) + i * S(30) + S(28));
+    int top = PLACE_LIST_TOP + i * 30;
+    SetRect(r, S(16), S(top), S(244), S(top + 28));
     return 1;
 }
 
 /* Search results vary from a city to a very broad postcode. Saved places
    begin immediately below them, so neither list can paint over the other. */
 static int SavedHeadingY(void) {
-    return S(172 + g_searchN * 30 + 12);
+    return S(PLACE_LIST_TOP + g_searchN * 30 + 12);
 }
 
 static int SavedRowRect(int i, RECT *r) {
     if (i < 0 || i >= g_placeN) return 0;
-    int top = SavedHeadingY() + S(22) + i * S(30);
-    SetRect(r, S(16), top, S(244), top + S(28));
+    int top = PLACE_LIST_TOP + g_searchN * 30 + 12 + 22 + i * 30;
+    SetRect(r, S(16), S(top), S(244), S(top + 28));
     return 1;
 }
 
@@ -1071,6 +1075,47 @@ static void PaintRadarPane(HDC mem, const RECT *card) {
                g_fontSmall, COL_MUTED, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
 }
 
+/* Persistent source/accuracy is separate from the transient weather status.
+   Reopening a saved fix never calls Windows; its dated snapshot stays visible. */
+static void PaintLocationDetail(HDC mem) {
+    const Place *p = (g_placeSel >= 0 && g_placeSel < g_placeN) ? &g_places[g_placeSel] : NULL;
+    wchar_t lines[4][96];
+    wcscpy(lines[0], !p ? L"Source: no place selected" : p->fromWindows ?
+           L"Source: Windows saved point" : L"Source: city/postcode search");
+    if (p) _snwprintf(lines[1], 95, L"%.5f, %.5f", p->lat, p->lon);
+    else wcscpy(lines[1], L"Coordinates: --");
+    wcscpy(lines[2], L"Search accuracy is not reported.");
+    wcscpy(lines[3], L"Not your device's current position.");
+    if (p && p->fromWindows) {
+        wcscpy(lines[2], L"Reported accuracy: unavailable");
+        if (isfinite(p->accuracyM) && p->accuracyM > 0.0) {
+            if (p->accuracyM >= 1000000.0)
+                _snwprintf(lines[2], 95, L"Approx. +/- %.2g km", p->accuracyM / 1000.0);
+            else if (p->accuracyM >= 1000.0)
+                _snwprintf(lines[2], 95, L"Approx. +/- %.1f km", p->accuracyM / 1000.0);
+            else _snwprintf(lines[2], 95, L"Reported +/- %.0f m (estimate)", ceil(p->accuracyM));
+        }
+        wcscpy(lines[3], L"Fix time unavailable; saved point.");
+        if (p->fixEpoch && p->fixEpoch <= 253402300799ULL) { /* guard corrupt persisted timestamps */
+            ULARGE_INTEGER u; u.QuadPart = p->fixEpoch * 10000000ULL + 116444736000000000ULL;
+            FILETIME utc = {u.LowPart, u.HighPart}, local;
+            SYSTEMTIME st;
+            if (FileTimeToLocalFileTime(&utc, &local) && FileTimeToSystemTime(&local, &st))
+                _snwprintf(lines[3], 95, L"Fix: %04u-%02u-%02u %02u:%02u local", st.wYear,
+                           st.wMonth, st.wDay, st.wHour, st.wMinute);
+        }
+    }
+    for (int i = 0; i < 4; i++) {
+        lines[i][95] = L'\0';
+        RECT r = {S(16), S(184 + i * 20), S(244), S(204 + i * 20)};
+        COLORREF color = i == 2 && p && p->fromWindows && p->accuracyM >= 1000.0 ? COL_WARN : COL_MUTED;
+        DrawTextAt(mem, lines[i], &r, g_fontSmall, color, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
+    RECT notice = {S(16), S(264), S(244), S(301)};
+    DrawTextAt(mem, g_locationNotice, &notice, g_fontSmall,
+               g_locationNoticeKind == 2 ? COL_WARN : COL_MUTED, DT_LEFT | DT_TOP | DT_WORDBREAK);
+}
+
 static void PaintLeftColumn(HDC mem) {
     RECT sr = { S(16), S(70), S(244), S(102) };
     DrawRoundedBox(mem, &sr, S(9), COL_INPUT, COL_DIV);
@@ -1078,9 +1123,12 @@ static void PaintLeftColumn(HDC mem) {
     DrawBtn(mem, BTN_SEARCH, L"Search", 1);
     DrawBtn(mem, BTN_KEEP, L"Keep", 0);
     DrawBtn(mem, BTN_DROP, L"Drop", 0);
+    DrawBtn(mem, BTN_LOCATION, g_locationPending ? L"Cancel location" : L"Use my location", 1);
+    DrawBtn(mem, BTN_LOCATION_SETTINGS, L"Windows Location settings", 0);
+    PaintLocationDetail(mem);
 
     if (g_searchN > 0) {
-        RECT lbl = { S(16), S(148), S(244), S(168) };
+        RECT lbl = { S(16), S(PLACE_LIST_TOP - 24), S(244), S(PLACE_LIST_TOP - 4) };
         DrawTextAt(mem, L"Matches — choose one", &lbl, g_fontSmall, COL_MUTED,
                    DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         for (int i = 0; i < g_searchN; i++) {
@@ -1242,6 +1290,7 @@ static const Place *CurrentPlace(void) {
 
 static void OnPickSearchRow(int i) {
     if (i < 0 || i >= g_searchN) return;
+    CancelWindowsLocation();
     g_searchSel = i;
     RememberPlace(&g_search[i]);
     wchar_t msg[160];
@@ -1254,7 +1303,11 @@ static void OnPickSearchRow(int i) {
 
 static void OnPickSavedRow(int i) {
     if (i < 0 || i >= g_placeN) return;
-    if (i == g_placeSel) return;
+    int canceled = CancelWindowsLocation();
+    if (i == g_placeSel) {
+        if (canceled) StatusSet(g_locationNotice, 0);
+        return;
+    }
     g_placeSel = i;
     SavePlaces();
     wchar_t msg[160];
@@ -1364,7 +1417,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         return 0;
     }
+    case WM_SHOWWINDOW:
+        if (!wp) CancelWindowsLocation();
+        return 0;
     case WM_CLOSE:
+        CancelWindowsLocation();
         if (!g_quitting) {
             ShowWindow(hwnd, SW_HIDE);
             WeatherTrayHintOnce();
@@ -1376,6 +1433,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         /* A child EDIT is not repainted by the parent's DIB. Re-apply its
            final scaled rectangle once Windows has sized the top-level window. */
         if (wp != SIZE_MINIMIZED) LayoutSearchEdit();
+        else CancelWindowsLocation();
         return 0;
     case WM_PAINT:
         PaintAll(hwnd);
@@ -1397,6 +1455,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             switch (b) {
             case BTN_SEARCH:
                 SubmitSearch();
+                break;
+            case BTN_LOCATION:
+                RequestWindowsLocation();
+                StatusSet(g_locationNotice, g_locationNoticeKind);
+                break;
+            case BTN_LOCATION_SETTINGS:
+                if ((INT_PTR)ShellExecuteW(hwnd, L"open", L"ms-settings:privacy-location", NULL, NULL, SW_SHOWNORMAL) <= 32) {
+                    LocationNotice(L"Could not open Windows Settings. Open Settings > Privacy & security > Location.", 2);
+                    StatusSet(g_locationNotice, 2);
+                }
                 break;
             case BTN_REFRESH: {
                 const Place *p = CurrentPlace();
@@ -1442,16 +1510,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 break;
             }
             case BTN_DROP:
+                CancelWindowsLocation();
                 if (g_placeSel >= 0) {
                     wchar_t m[160];
                     _snwprintf(m, 159, L"Removed %s.", g_places[g_placeSel].name);
                     DropSelectedPlace();
                     StatusSet(m, 1);
-                    g_fc.have = 0;
-                    g_ens.have = 0;
-                    g_viewReady = 0;
+                    /* Both routes invalidate pending data/view under g_lock. */
                     const Place *np = CurrentPlace();
                     if (np) RequestPlaceData(np);
+                    else ForgetPlaceData();
                 }
                 break;
             default: break;
@@ -1481,6 +1549,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
     case WM_TIMER:
+        if (wp == TIMER_LOCATION) { PollWindowsLocation(); return 0; }
         if (wp == TIMER_EMBLEM) {
             /* Calm idle motion: one complete turn every thirty seconds. */
             g_radarSpinAngle += 6.283185307179586 / 600.0;
@@ -1511,6 +1580,17 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_APP_DATA: {
         int kind = (int)wp;
         DWORD ticket = (DWORD)(uintptr_t)lp;
+        if (kind == JOB_LOCATION) {
+            WindowsLocationResult result;
+            if (!TakeWindowsLocation(ticket, &result)) return 0;
+            if (result.have) {
+                RememberPlace(&result.place);
+                g_searchSel = -1;
+                RequestPlaceData(&g_places[g_placeSel]);
+            }
+            StatusSet(g_locationNotice, g_locationNoticeKind);
+            return 0;
+        }
         EnterCriticalSection(&g_lock);
         if (kind == JOB_FORECAST) {
             int current = (ticket == g_placeTicket);
@@ -1582,6 +1662,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
     case WM_DESTROY:
+        CancelWindowsLocation();
+        LocationProviderShutdown();
         KillTimer(hwnd, TIMER_ANIM);
         KillTimer(hwnd, TIMER_REFRESH);
         KillTimer(hwnd, TIMER_EMBLEM);

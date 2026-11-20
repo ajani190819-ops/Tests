@@ -1251,5 +1251,145 @@
   "old": "    if (!g_openRequest.active || g_openRequest.launching) return;",
   "new": "    if (!g_openRequest.active) return;",
   "label": "A child consent wait consumes the Open startup timeout before ShellExecute returns"
+ },
+ {
+  "id": "wx-location-00",
+  "file": "weather-radar/src/parts/location.c",
+  "old": "if (GetForegroundWindow() != g_hwnd)",
+  "new": "if (0 && GetForegroundWindow() != g_hwnd)",
+  "label": "Location requests permission while Radar is not the foreground window"
+ },
+ {
+  "id": "wx-location-01",
+  "file": "weather-radar/src/parts/location_policy.c",
+  "old": "return pending && ticket != 0 && ticket == current;",
+  "new": "return pending && ticket != 0 && current != 0;",
+  "label": "An obsolete location generation replaces a newer explicit request"
+ },
+ {
+  "id": "wx-location-02",
+  "file": "weather-radar/src/parts/location_policy.c",
+  "old": "lat < -LOCATION_MAP_LAT || lat > LOCATION_MAP_LAT ||",
+  "new": "0 ||",
+  "label": "Windows coordinates outside the supported Mercator map are accepted"
+ },
+ {
+  "id": "wx-location-03",
+  "file": "weather-radar/src/parts/location_policy.c",
+  "old": "if (!isfinite(accuracyM) || accuracyM <= 0.0)",
+  "new": "if (accuracyM < 0.0)",
+  "label": "A missing, zero or non-finite accuracy is advertised as a usable fix"
+ },
+ {
+  "id": "wx-location-04",
+  "file": "weather-radar/src/parts/location_policy.c",
+  "old": "(now >= fixEpoch && now - fixEpoch > LOCATION_MAX_AGE_SEC)",
+  "new": "(now >= fixEpoch && now - fixEpoch > 999999999ULL)",
+  "label": "A stale provider location replaces the selected point"
+ },
+ {
+  "id": "wx-location-05",
+  "file": "weather-radar/src/parts/location_policy.c",
+  "old": "(fixEpoch > now && fixEpoch - now > LOCATION_FUTURE_SEC)",
+  "new": "0",
+  "label": "An implausibly future-dated Windows fix is accepted"
+ },
+ {
+  "id": "wx-location-06",
+  "file": "weather-radar/src/parts/location_winrt.c",
+  "old": "return allowed == 1 ? LOCATION_PROVIDER_READY",
+  "new": "return allowed != 2 ? LOCATION_PROVIDER_READY",
+  "label": "Unspecified Windows permission is silently treated as Allowed"
+ },
+ {
+  "id": "wx-location-07",
+  "file": "weather-radar/src/parts/places.c",
+  "old": "int sameWindows = p->fromWindows && g_places[i].fromWindows;",
+  "new": "int sameWindows = 0;",
+  "label": "Repeated one-shot fixes fill saved-place slots instead of refreshing one snapshot"
+ },
+ {
+  "id": "wx-location-08",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "            if (result.have) {\n                RememberPlace(&result.place);",
+  "new": "            if (1) {\n                RememberPlace(&result.place);",
+  "label": "A denied or unavailable location result overwrites the prior selected place"
+ },
+ {
+  "id": "wx-location-09",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "    int canceled = CancelWindowsLocation();\n    if (i == g_placeSel)",
+  "new": "    int canceled = 0;\n    if (i == g_placeSel)",
+  "label": "Clicking the selected saved row fails to cancel an outstanding location request"
+ },
+ {
+  "id": "wx-location-10",
+  "file": "weather-radar/src/parts/location.c",
+  "old": "if (state != LOCATION_PROVIDER_READY)",
+  "new": "if (state == LOCATION_PROVIDER_CANCELED)",
+  "label": "Denied or unavailable permission still starts a physical-location lookup"
+ },
+ {
+  "id": "wx-location-11",
+  "file": "weather-radar/src/parts/location.c",
+  "old": "g_locationPending = 0; g_locationPhase = 0;\n    if (++g_locationTicket",
+  "new": "g_locationPhase = 0;\n    if (++g_locationTicket",
+  "label": "Cancel leaves the physical-location request pending"
+ },
+ {
+  "id": "wx-location-12",
+  "file": "weather-radar/src/parts/location_winrt.c",
+  "old": "if (cancel) (void)IAsyncInfo_Cancel(g_locationInfo);",
+  "new": "(void)cancel;",
+  "label": "A canceled lookup keeps its Windows asynchronous operation running"
+ },
+ {
+  "id": "wx-location-13",
+  "file": "weather-radar/src/parts/workers.c",
+  "old": "    g_reqHas = 0;\n    if (++g_placeTicket",
+  "new": "    g_reqHas = 1;\n    if (++g_placeTicket",
+  "label": "Removing the final saved point leaves old-place data requests active"
+ },
+ {
+  "id": "wx-location-14",
+  "file": "weather-radar/src/parts/places.c",
+  "old": "GetPrivateProfileIntW(L\"Places\", key, 0, g_cfgPath) == 1",
+  "new": "GetPrivateProfileIntW(L\"Places\", key, 1, g_cfgPath) == 1",
+  "label": "Old search configurations acquire an invented Windows-location source"
+ },
+ {
+  "id": "wx-location-15",
+  "file": "weather-radar/src/parts/location.c",
+  "old": "if (problem != LOCATION_FIX_OK) {",
+  "new": "if (0 && problem != LOCATION_FIX_OK) {",
+  "label": "A result that aged in the UI message queue is accepted as a fresh fix"
+ },
+ {
+  "id": "wx-location-16",
+  "file": "weather-radar/src/parts/location_abi.h",
+  "old": "0xfeea0525,0xd22c,0x4d46",
+  "new": "0xfeea0526,0xd22c,0x4d46",
+  "label": "The modern coordinate Point interface is requested with the wrong IID"
+ },
+ {
+  "id": "wx-location-17",
+  "file": "weather-radar/src/parts/places.c",
+  "old": "            g_places[i] = *p;\n            g_placeSel = i;",
+  "new": "            g_places[i].lat = p->lat;\n            g_places[i].lon = p->lon;\n            g_placeSel = i;",
+  "label": "Refreshing My location leaves its old accuracy and fix timestamp attached to new coordinates"
+ },
+ {
+  "id": "wx-location-18",
+  "file": "weather-radar/src/parts/ui.c",
+  "old": "    int top = PLACE_LIST_TOP + i * 30;\n    SetRect(r, S(16), S(top), S(244), S(top + 28));",
+  "new": "    SetRect(r, S(16), S(PLACE_LIST_TOP) + i * S(30), S(244), S(PLACE_LIST_TOP) + i * S(30) + S(28));",
+  "label": "Accumulated DPI/fit rounding consumes the gap between search results and saved-place heading"
+ },
+ {
+  "id": "wx-location-19",
+  "file": "weather-radar/src/parts/places.c",
+  "old": "L\"%.9g\", g_places[i].accuracyM",
+  "new": "L\"%.3f\", g_places[i].accuracyM",
+  "label": "Persistence rounds a small positive reported accuracy to zero and truncates very broad values"
  }
 ]

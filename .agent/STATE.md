@@ -27,7 +27,6 @@ release records, and offline safety facts. Drive holds extended narrative/plans.
   `d97ba63`. Old-place tiles are discarded; paint locks the published buffer
   through its blit. No prior city under a new marker. Build/checks and 156
   mutations passed; native/live-tile review remains.
-- **Docs:** 29 archives in Drive; build/test/runtime/release inputs stay in Git.
 
 ## Bluetooth approval release
 
@@ -43,22 +42,24 @@ Full human-readable plan: **Tests — Master To-Do List**, linked with its file 
 in `.agent/DRIVE_GUIDE.md`. Repeat this list in replies; retain pending/parked
 items. The owner reports missing requests: reconciliation is NOT complete.
 
-1. **BT-01 first:** native approval update released; verify actual earbuds on
-   Windows (discovery, choices, reconnect). Scans must not grant trust.
-2. **PLAN-01:** master Drive doc created; recover/confirm any further missing
-   requests. Historical follow-ups below are not newly approved coding work.
-3. **APP-01 released (Hub 2.8.63):** Open-to-front update; Windows review remains
-   for normal/minimized/tray, modal, and rapid-repeat Open. Engine unchanged.
-4. **WX-01/02 next verification:** Windows planner layout/live radar alignment.
-5. **OPS-01 monitor only:** latest open worked. If UAC recurs, identify program/
-   path and action before changing elevation; reports covered all three actions.
-6. **KBL-01 parked:** fresh owner `engine.log` required; latest `engine-5.log`
-   showed learning and no key events. Do not touch lighting without fresh logs.
-7. **HUD-01 pending:** saved three-method F5W runtime/compatibility validation.
-8. **ORCA-01/02/03 recovered, confirm:** curved-wall reproduction with actual
-   config, fresh export/physical print evidence, and real-host dual-plugin flow.
-9. **ORCA-04/05 historical research, parked:** wake blending without coverage/
-   fragment regressions and a smoother curved-wall perimeter-following rung.
+- **Weather Radar:** WX-03 implemented: explicit Windows fix, permission and
+  accuracy/error handling; no tracking. Build/checks/199 mutations pass;
+  Windows actual-position acceptance pending. WX-01/02 native planner/live-map
+  review unrun; workflow push blocked.
+- **Hub / Windows:** APP-02 next: tray "expires" over time. APP-01 released
+  (Hub 2.8.63), native focus matrix pending; engine unchanged. OPS-01 monitor:
+  latest open fine; identify UAC program/path/action if repeated. Reports cover
+  Hub open, app open and app update.
+- **Bluetooth Guard:** BT-01 released; first owner hardware check is earbuds
+  discovery, choices, persistence/reconnect. Scans never grant trust.
+- **Keyboard Lighting:** KBL-01 parked for fresh owner `engine.log`;
+  `engine-5.log` showed learning/no key events. No changes without fresh logs.
+- **Spatial HUD:** HUD-01 three-method F5W runtime/compatibility checks pending.
+- **Orca plugins:** ORCA-01/02/03 historical follow-ups, confirm: actual-config
+  curved-wall reproduction, fresh export/physical print, real-host dual-plugin
+  flow. ORCA-04/05 parked research: wake/seam blending without coverage/fragment
+  regressions and smoother curved-wall perimeter-following rung; not new approval.
+- **Planning:** PLAN-01 master categorized; missing-request recovery open.
 
 ## Offline safety / efficiency
 

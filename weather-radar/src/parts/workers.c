@@ -1,7 +1,8 @@
 /* ---------------- workers: the one background thread ----------------
 
-   Every byte this app reads arrives on this thread. The UI thread sees staged
-   results only after publication through WM_APP_DATA. Place-dependent replies
+   Weather/map network I/O runs here. Windows location uses a separate UI-thread
+   asynchronous API, not this queue. The UI takes staged network results through
+   WM_APP_DATA. Place-dependent replies
    carry a generation so slow, obsolete work cannot replace the selected place;
    radar paint holds the published-view lock while GDI reads its reusable buffer. */
 
@@ -108,6 +109,17 @@ static void RequestPlaceData(const Place *p) {
     StartJob(JOB_FORECAST);
     StartJob(JOB_ENSEMBLE);
     StartJob(JOB_RADAR_CATALOG);
+}
+
+/* Removing the final saved point also invalidates in-flight weather/tiles. */
+static void ForgetPlaceData(void) {
+    EnterCriticalSection(&g_lock);
+    g_reqHas = 0;
+    if (++g_placeTicket == 0) g_placeTicket = 1;
+    g_viewReady = 0;
+    LeaveCriticalSection(&g_lock);
+    g_fc.have = 0;
+    g_ens.have = 0;
 }
 
 static void RequestTiles(void) {
