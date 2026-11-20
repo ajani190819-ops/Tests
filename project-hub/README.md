@@ -14,6 +14,18 @@ rebuilds its notification area, each already-running app restores its own tray
 fallback automatically. See the Drive guide for the owner-facing workflow and
 troubleshooting narrative.
 
+The two-second local housekeeping poll verifies that Explorer still accepts the
+Hub icon, rather than trusting a stale registration flag. It restores a silently
+lost icon, retries temporary shell failures while Hub runs, and releases shared
+ownership when registration cannot be confirmed. It never starts another Hub,
+adds sign-in persistence, or revives the icon after Quit.
+
+Catalogue refreshes release replaced file-loaded icons under the same short
+lock used to draw them. Failed loads keep the last good icon. This prevents
+unbounded USER-handle growth during long sessions. These are reproduced source
+fixes, not proof that the owner's original "expires" report is resolved; Windows
+soak/restart/resume checks remain in `.agent/runbooks/test-hub-longevity.md`.
+
 ## Open an app
 
 Card and unified-tray **Open** actions share one show-or-launch route. An

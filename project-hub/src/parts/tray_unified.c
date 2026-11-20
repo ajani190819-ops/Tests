@@ -335,34 +335,46 @@ static void HubTrayPublishHostMarker(void) {
         g_trayHostEvent = CreateEventW(NULL, TRUE, TRUE, HUB_TRAY_HOST_EVENT);
 }
 
+static void HubTrayReleaseOwnership(void) {
+    g_hubTrayVisible = FALSE;
+    if (g_trayHostEvent) {
+        CloseHandle(g_trayHostEvent);
+        g_trayHostEvent = NULL;
+    }
+}
+
 static void HubTrayRestore(void) {
-    if (!g_hubNid.cbSize) return;
-    if (!Shell_NotifyIconW(NIM_ADD, &g_hubNid)) {
+    if (!g_hubNid.cbSize || g_hubQuitting) return;
+    /* A delayed/duplicate TaskbarCreated or a transient modify failure can
+       leave the same HWND/uID registered. Modify that icon rather than treating
+       a duplicate NIM_ADD failure as proof that the tray is unavailable. */
+    if (!Shell_NotifyIconW(NIM_ADD, &g_hubNid) &&
+        !Shell_NotifyIconW(NIM_MODIFY, &g_hubNid)) {
         /* Do not claim the shared tray while Windows has no Hub icon. The
            independent apps will re-add their owner-accessible fallbacks. */
-        g_hubTrayVisible = FALSE;
-        if (g_trayHostEvent) {
-            CloseHandle(g_trayHostEvent);
-            g_trayHostEvent = NULL;
-        }
+        HubTrayReleaseOwnership();
         return;
     }
     g_hubTrayVisible = TRUE;
     g_hubNid.uVersion = NOTIFYICON_VERSION_4;
     Shell_NotifyIconW(NIM_SETVERSION, &g_hubNid);
-    /* Do this only after NIM_ADD succeeds. Apps must retain their individual
-       fallback icons if Windows declines the Hub notification-area icon. */
+    /* Publish only after the shell accepted this icon, never on a timer alone. */
     HubTrayPublishHostMarker();
 }
 
-/* NIM_ADD can lose a startup race with Explorer without producing a later
- * TaskbarCreated broadcast for this window.  Do not advertise ownership until
- * the icon exists, but retry a failed registration on the Hub's lightweight
- * timer so the suite does not remain in fallback mode for an entire session.
- * The same retry also recovers a rare CreateEvent failure after a successful
- * icon registration. */
+/* The two-second housekeeping timer must verify the shell, not just a stale
+ * in-process BOOL. Explorer can lose an icon without a usable TaskbarCreated
+ * broadcast (including resume/startup races). A lightweight callback-only
+ * modify proves the existing identity is live without replaying a balloon.
+ * Failed add/modify releases suite ownership; later polls retry indefinitely
+ * while the Hub is running, but never after an explicit Quit/removal. */
 static void HubTrayEnsureLive(void) {
-    if (!g_hubNid.cbSize) return;
+    if (!g_hubNid.cbSize || g_hubQuitting) return;
+    if (g_hubTrayVisible) {
+        NOTIFYICONDATAW probe = g_hubNid;
+        probe.uFlags = NIF_MESSAGE;
+        if (!Shell_NotifyIconW(NIM_MODIFY, &probe)) HubTrayReleaseOwnership();
+    }
     if (!g_hubTrayVisible) {
         HubTrayRestore();
         return;
@@ -394,13 +406,10 @@ static void HubTrayInit(void) {
 
 static void HubTrayRemove(void) {
     /* Close the capability marker first: apps can return their own tray icons
-       immediately if the Hub is explicitly exited or replaced by an update. */
-    if (g_trayHostEvent) {
-        CloseHandle(g_trayHostEvent);
-        g_trayHostEvent = NULL;
-    }
-    if (g_hubTrayVisible) Shell_NotifyIconW(NIM_DELETE, &g_hubNid);
-    g_hubTrayVisible = FALSE;
+       immediately if the Hub is explicitly exited or replaced by an update.
+       Also try deleting an initialized icon whose last probe was inconclusive. */
+    HubTrayReleaseOwnership();
+    if (g_hubNid.cbSize) Shell_NotifyIconW(NIM_DELETE, &g_hubNid);
     ZeroMemory(&g_hubNid, sizeof(g_hubNid));
 }
 

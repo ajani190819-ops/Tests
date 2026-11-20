@@ -37,6 +37,7 @@ Line numbers drift — search for the symbol names.
 2. **`ProjectHub.exe`:**
    - Keep the **`Update Hub`** self-update; bump `HUB_VERSION` **and** `HUB_VERSION_W` with every shipped binary.
    - Updater follows the user-selected branch (`Branch` button); `tests/test_windows_apps.py` asserts project names, `SmoothRoundRect`, `RES_ICON_EMBLEM`, multi-size `.ico` headers.
+   - Longevity: owned catalogue icons swap/discard through `ReplaceCardIcon` under the draw lock; failed loads retain the last good handle. The two-second tray poll probes the shell, restores missing icons, and releases the host marker on unconfirmed registration. Quit/removal cannot re-register. Mocked lifetime tests are not a native soak or proof of the owner's original expiry symptom; see `.agent/runbooks/test-hub-longevity.md`.
    - Settings is a separate Soft Slate window with a dark DWM frame; Keyboard Lighting controls save to both `panel.json` and the live `theme.json`, while DNS and branch-follow settings keep their owning app files.
    - Load `dwmapi.dll` dynamically so static PE imports stay clean. PE whitelist: no hid.dll/setupapi.dll/WIC imports.
 3. **Keyboard Lighting:**

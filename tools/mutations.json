@@ -1391,5 +1391,103 @@
   "old": "L\"%.9g\", g_places[i].accuracyM",
   "new": "L\"%.3f\", g_places[i].accuracyM",
   "label": "Persistence rounds a small positive reported accuracy to zero and truncates very broad values"
+ },
+ {
+  "id": "hub-lifetime-00",
+  "file": "project-hub/src/parts/catalog_icons_json.c",
+  "old": "        if (loaded) ReplaceCardIcon(c, loaded);",
+  "new": "        if (loaded) c->hIcon = loaded;",
+  "label": "catalogue refresh leaks every replaced built-in icon"
+ },
+ {
+  "id": "hub-lifetime-01",
+  "file": "project-hub/src/parts/catalog_icons_json.c",
+  "old": "    if (previous && previous != replacement) DestroyIcon(previous);",
+  "new": "    (void)previous;",
+  "label": "owned previous icon is never released"
+ },
+ {
+  "id": "hub-lifetime-02",
+  "file": "project-hub/src/parts/catalog_icons_json.c",
+  "old": "        if (loaded) ReplaceCardIcon(c, loaded);",
+  "new": "        ReplaceCardIcon(c, loaded);",
+  "label": "failed icon load discards the last good icon"
+ },
+ {
+  "id": "hub-lifetime-03",
+  "file": "project-hub/src/parts/catalog_icons_json.c",
+  "old": "static void ReplaceCardIcon(ProjectCard *c, HICON replacement) {\n    EnterCriticalSection(&g_cs);",
+  "new": "static void ReplaceCardIcon(ProjectCard *c, HICON replacement) {",
+  "label": "icon replacement destroys handles without the draw lock"
+ },
+ {
+  "id": "hub-lifetime-04",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "            EnterCriticalSection(&g_cs);\n            HICON ico = card->hIcon;",
+  "new": "            HICON ico = card->hIcon;",
+  "label": "paint reads and draws a worker-replaceable icon without its lock"
+ },
+ {
+  "id": "hub-lifetime-05",
+  "file": "project-hub/src/parts/builtin_card_text.c",
+  "old": "        ReplaceCardIcon(&g_cards[i], NULL);",
+  "new": "        /* Extra icon discarded without releasing ownership. */",
+  "label": "rebuild forgets owned extra-card icons"
+ },
+ {
+  "id": "hub-lifetime-06",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "        if (!Shell_NotifyIconW(NIM_MODIFY, &probe)) HubTrayReleaseOwnership();",
+  "new": "        (void)probe;",
+  "label": "tray poll trusts stale state instead of probing Explorer"
+ },
+ {
+  "id": "hub-lifetime-07",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    g_hubTrayVisible = FALSE;\n    if (g_trayHostEvent) {",
+  "new": "    g_hubTrayVisible = TRUE;\n    if (g_trayHostEvent) {",
+  "label": "failed shell probe leaves live flag true and suppresses recovery"
+ },
+ {
+  "id": "hub-lifetime-08",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    if (!Shell_NotifyIconW(NIM_ADD, &g_hubNid) &&\n        !Shell_NotifyIconW(NIM_MODIFY, &g_hubNid)) {",
+  "new": "    if (!Shell_NotifyIconW(NIM_ADD, &g_hubNid)) {",
+  "label": "duplicate Explorer registration strands an existing tray icon"
+ },
+ {
+  "id": "hub-lifetime-09",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "        CloseHandle(g_trayHostEvent);\n        g_trayHostEvent = NULL;",
+  "new": "        g_trayHostEvent = NULL;",
+  "label": "unavailable Hub icon retains the suite-host capability"
+ },
+ {
+  "id": "hub-lifetime-10",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "static void HubTrayEnsureLive(void) {\n    if (!g_hubNid.cbSize || g_hubQuitting) return;",
+  "new": "static void HubTrayEnsureLive(void) {\n    if (!g_hubNid.cbSize) return;",
+  "label": "tray housekeeping still runs after explicit Quit"
+ },
+ {
+  "id": "hub-lifetime-11",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "static void HubTrayRestore(void) {\n    if (!g_hubNid.cbSize || g_hubQuitting) return;",
+  "new": "static void HubTrayRestore(void) {\n    if (!g_hubNid.cbSize) return;",
+  "label": "Explorer broadcast can recreate a quitting Hub tray"
+ },
+ {
+  "id": "hub-lifetime-12",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    ZeroMemory(&g_hubNid, sizeof(g_hubNid));\n}\n\nstatic HWND HubTrayAppWindow",
+  "new": "}\n\nstatic HWND HubTrayAppWindow",
+  "label": "removed tray lifetime can resurrect on a later poll"
+ },
+ {
+  "id": "hub-lifetime-13",
+  "file": "project-hub/src/parts/tray_unified.c",
+  "old": "    if (g_hubNid.cbSize) Shell_NotifyIconW(NIM_DELETE, &g_hubNid);",
+  "new": "    if (g_hubTrayVisible) Shell_NotifyIconW(NIM_DELETE, &g_hubNid);",
+  "label": "explicit exit leaves an icon whose last probe was uncertain"
  }
 ]

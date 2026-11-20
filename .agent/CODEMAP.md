@@ -50,16 +50,17 @@
 ## project-hub/src/parts/catalog_icons_json.c
 
 - L13  f LoadIconFilePx
-- L26  f LoadCardIcon
-- L49  f PoolAdd
-- L75  f JsonGet
-- L204  f BuiltInSlot
-- L210  f BuiltInBtnId
-- L237  f FillBuiltInDef
-- L343  f AddCatalogCard
-- L460  f HasWeatherRadarCatalogCard
-- L466  f EnsureWeatherRadarCatalogCard
-- globals: g_catalogJson (L6), g_strPool (L46), g_strPoolUsed (L47)
+- L26  f ReplaceCardIcon
+- L39  f LoadCardIcon
+- L66  f PoolAdd
+- L92  f JsonGet
+- L221  f BuiltInSlot
+- L227  f BuiltInBtnId
+- L254  f FillBuiltInDef
+- L360  f AddCatalogCard
+- L477  f HasWeatherRadarCatalogCard
+- L483  f EnsureWeatherRadarCatalogCard
+- globals: g_catalogJson (L6), g_strPool (L63), g_strPoolUsed (L64)
 
 ## project-hub/src/parts/content_identity.c
 
@@ -194,21 +195,22 @@
 - L287  f HubTrayPollAgentWait
 - L305  f HubTrayPollWeatherAlert
 - L333  f HubTrayPublishHostMarker
-- L338  f HubTrayRestore
-- L364  f HubTrayEnsureLive  — NIM_ADD can lose a startup race with Explorer without producing a later
-- L373  f HubTrayInit
-- L395  f HubTrayRemove
-- L407  f HubTrayAppWindow
-- L411  f HubTrayHideApp
-- L416  f HubTrayStopExe
-- L436  f HubTrayFindCardByExe
-- L443  f HubTrayOpenWeather
-- L457  f HubTrayOpenApp
-- L480  f HubTrayRunControl
-- L495  f HubTrayToggleBluetooth
-- L503  f HubTrayAppendApp
-- L529  f HubTrayShowMenu
-- L592  f HubTrayHandleCommand
+- L338  f HubTrayReleaseOwnership
+- L346  f HubTrayRestore
+- L371  f HubTrayEnsureLive  — The two-second housekeeping timer must verify the shell, not just a stale
+- L385  f HubTrayInit
+- L407  f HubTrayRemove
+- L416  f HubTrayAppWindow
+- L420  f HubTrayHideApp
+- L425  f HubTrayStopExe
+- L445  f HubTrayFindCardByExe
+- L452  f HubTrayOpenWeather
+- L466  f HubTrayOpenApp
+- L489  f HubTrayRunControl
+- L504  f HubTrayToggleBluetooth
+- L512  f HubTrayAppendApp
+- L538  f HubTrayShowMenu
+- L601  f HubTrayHandleCommand
 - globals: g_hubTrayMenuItems (L28), g_hubTrayMenuItemCount (L29), g_hubTrayMenuBrush (L30), g_hubTrayMenuTracking (L31)
 
 ## project-hub/src/parts/ui_renderer.c
@@ -220,7 +222,7 @@
 - L164  f HitTestButtons
 - L183  f PaintEmblemBlit
 - L208  f PaintHubWindow
-- L476  f ShowUtilityMenu
+- L478  f ShowUtilityMenu
 - globals: g_frameCache (L205), g_fcW (L206)
 
 ## project-hub/src/parts/version_probe_cache.c
@@ -1215,7 +1217,8 @@
 - L5032  f AudioSwitcherReachabilityTests
 - L5216  f AudioSwitcherSessionSweepTests
 - L5357  f AppOpenFocusTests
-- L5494  f RadarWindowsLocationTests
+- L5494  f HubLongevityTests
+- L5558  f RadarWindowsLocationTests
 
 ## tests/wave_cases.py
 

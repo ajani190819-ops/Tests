@@ -5491,6 +5491,70 @@ class AppOpenFocusTests(unittest.TestCase):
                     rel + ": when the app is already running in the tray, a second "
                            "Open does not bring the existing window forward")
 
+class HubLongevityTests(unittest.TestCase):
+    """Production icon/tray ownership with a finite mocked Windows handle budget.
+    Native Explorer recovery and a real prolonged-use soak remain separate."""
+
+    @classmethod
+    def setUpClass(cls):
+        import shutil
+        import tempfile
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            raise unittest.SkipTest("portable C compiler is unavailable")
+        cls.temp = tempfile.TemporaryDirectory(prefix="hub-longevity-")
+        cls.addClassCleanup(cls.temp.cleanup)
+        folder = Path(cls.temp.name)
+        icons = (ROOT / "project-hub/src/parts/catalog_icons_json.c").read_text(encoding="utf-8")
+        tray = (ROOT / "project-hub/src/parts/tray_unified.c").read_text(encoding="utf-8")
+        icon_code = icons[icons.index("static HICON LoadIconFilePx("):icons.index("static wchar_t g_strPool[")]
+        tray_start = tray.index("static void HubTrayPublishHostMarker(void)")
+        tray_end = tray.index("\n}\n", tray.index("static void HubTrayRemove(void)")) + 3
+        (folder / "hub_longevity_production.h").write_text(icon_code + tray[tray_start:tray_end], encoding="utf-8")
+        cls.exe = folder / "hub-longevity"
+        built = subprocess.run(
+            [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", str(folder),
+             str(ROOT / "tests/native/hub_longevity_harness.c"), "-o", str(cls.exe)],
+            capture_output=True, text=True, timeout=30)
+        if built.returncode:
+            raise AssertionError(built.stderr)
+
+    def _run(self, scenario, expected):
+        run = subprocess.run([str(self.exe), scenario], capture_output=True, text=True, timeout=15)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn(expected, run.stdout)
+
+    def test_catalog_icon_refresh_stays_bounded_and_preserves_last_good_icon(self):
+        self._run("icons", "Hub catalog icon lifetime scenarios passed")
+
+    def test_tray_recovers_silent_shell_loss_and_never_revives_after_quit(self):
+        self._run("tray", "Hub tray lifetime scenarios passed")
+
+    def test_catalog_icon_swaps_and_drawing_share_the_ownership_lock(self):
+        icons = (ROOT / "project-hub/src/parts/catalog_icons_json.c").read_text(encoding="utf-8")
+        start = icons.index("static void ReplaceCardIcon(")
+        replace = icons[start:icons.index("\n}\n", start)]
+        self.assertLess(replace.index("EnterCriticalSection(&g_cs);"), replace.index("c->hIcon = replacement;"))
+        self.assertLess(replace.index("c->hIcon = replacement;"), replace.index("DestroyIcon(previous)"))
+        self.assertLess(replace.index("DestroyIcon(previous)"), replace.index("LeaveCriticalSection(&g_cs);"))
+        renderer = (ROOT / "project-hub/src/parts/ui_renderer.c").read_text(encoding="utf-8")
+        icon = renderer.index("HICON ico = card->hIcon;")
+        enter = renderer.rfind("EnterCriticalSection(&g_cs);", 0, icon)
+        leave = renderer.index("LeaveCriticalSection(&g_cs);", icon)
+        self.assertGreater(enter, renderer.index("/* Catalog icon first"))
+        self.assertLess(icon, renderer.index("DrawIconEx(hdc, ix, iy, ico"))
+        self.assertLess(renderer.index("DrawIconEx(hdc, ix, iy, ico"), leave)
+
+    def test_catalog_rebuild_releases_extra_icons_through_the_same_owned_route(self):
+        source = (ROOT / "project-hub/src/parts/builtin_card_text.c").read_text(encoding="utf-8")
+        rebuild = source[source.index("static void RebuildExtraCards("):]
+        self.assertIn("ReplaceCardIcon(&g_cards[i], NULL);", rebuild)
+        self.assertLess(rebuild.index("ReplaceCardIcon(&g_cards[i], NULL);"),
+                        rebuild.index("ZeroMemory(&g_cards[i], sizeof(g_cards[i]));"))
+        self.assertNotIn("DestroyIcon(", rebuild,
+                         "catalog cleanup bypasses the paint/ownership lock")
+
+
 class RadarWindowsLocationTests(unittest.TestCase):
     """Actual C lifecycle/storage/selection logic with Windows provider I/O mocked.
     Windows consent, native rendering and actual-position accuracy stay unverified."""

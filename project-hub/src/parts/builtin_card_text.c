@@ -79,7 +79,7 @@ static void RebuildExtraCards(const char *json) {
     /* Shrink first so a repaint mid-rebuild never reads half-built cards. */
     g_cardCount = 7;
     for (int i = 7; i < MAX_APPS; i++) {
-        if (g_cards[i].hIcon) { DestroyIcon(g_cards[i].hIcon); g_cards[i].hIcon = NULL; }
+        ReplaceCardIcon(&g_cards[i], NULL);
         ZeroMemory(&g_cards[i], sizeof(g_cards[i]));
     }
     /* Revert the built-ins to their literals BEFORE wiping the pool, so no

@@ -18,6 +18,19 @@ static HICON LoadIconFilePx(const wchar_t *path) {
 
 static const wchar_t *PoolAdd(const char *utf8);
 
+/* File-loaded icons are owned, unlike the shared application icon. The quiet
+   catalog check runs repeatedly for the lifetime of the Hub: overwriting a
+   built-in card's handle without releasing it consumed seven USER handles per
+   successful refresh. Serialize replacement/discard with DrawIconEx so the
+   worker never destroys a handle while the UI is using it. */
+static void ReplaceCardIcon(ProjectCard *c, HICON replacement) {
+    EnterCriticalSection(&g_cs);
+    HICON previous = c->hIcon;
+    c->hIcon = replacement;
+    if (previous && previous != replacement) DestroyIcon(previous);
+    LeaveCriticalSection(&g_cs);
+}
+
 /* Cached download of a catalog icon. The cache file name carries a short
    hash of the catalog's icon path, so when an app's icon changes in the
    catalog the hub fetches the new art exactly once instead of showing the
@@ -39,8 +52,12 @@ static void LoadCardIcon(ProjectCard *c, const char *icon) {
         if (!DownloadRawRepoFile(branch, PoolAdd(icon), c->iconFile))
             c->iconFile[0] = L'\0';
     }
-    if (c->iconFile[0])
-        c->hIcon = LoadIconFilePx(c->iconFile);
+    if (c->iconFile[0]) {
+        HICON loaded = LoadIconFilePx(c->iconFile);
+        /* Keep the last good icon on a corrupt/missing cache file or temporary
+           USER-resource failure; the next normal refresh will retry. */
+        if (loaded) ReplaceCardIcon(c, loaded);
+    }
 }
 
 static wchar_t g_strPool[12288];

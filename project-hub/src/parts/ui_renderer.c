@@ -295,14 +295,16 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
            shift Weather Radar away from slot seven, and another extra must not
            accidentally inherit its icon. */
         {
+            int ix = card->rcCard.left + S(18, dpi);
+            int iy = (card->rcCard.top + card->rcCard.bottom - cardIcoSz) / 2;
+            EnterCriticalSection(&g_cs);
             HICON ico = card->hIcon;
             if (!ico && c < 7) ico = g_cardIcons[c];
             if (!ico && card->resIconId == RES_ICON_WEATHER) ico = g_cardIcons[7];
-            int ix = card->rcCard.left + S(18, dpi);
-            int iy = (card->rcCard.top + card->rcCard.bottom - cardIcoSz) / 2;
-            if (ico) {
+            if (ico)
                 DrawIconEx(hdc, ix, iy, ico, cardIcoSz, cardIcoSz, 0, NULL, DI_NORMAL);
-            } else if (card->title && card->title[0]) {
+            LeaveCriticalSection(&g_cs);
+            if (!ico && card->title && card->title[0]) {
                 RECT tile = { ix, iy, ix + cardIcoSz, iy + cardIcoSz };
                 SmoothRoundRect(px, w, h, &tile, (float)S(10, dpi),
                                 COL_SKY_BG, COL_SKY, headerH + 1, footerTop - 1);
