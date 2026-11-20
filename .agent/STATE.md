@@ -6,7 +6,7 @@ Drive holds extended plans/history.
 
 ## Released work
 
-- **Hub:** main 2.8.56; Arena candidate 2.8.64 (release pending). APP-02 fixes
+- **Hub:** main 2.8.56; Arena 2.8.64 (implementation in RELEASED). APP-02 fixes
   catalogue icon-handle growth with draw-locked replacement and rechecks/restores
   lost shell icons; failed registration releases tray ownership. Build/checks/
   213 mutations pass; native soak/original expiry unconfirmed. APP-01 (2.8.63,
@@ -45,10 +45,10 @@ Repeat pending/parked items in replies; owner-reported omissions remain OPEN.
   accuracy/errors, no tracking. Build/checks/199 mutations pass; actual-position
   Windows acceptance pending. WX-01/02 native planner/live-map review unrun;
   workflow-write permission blocks the parked review draft.
-- **Hub / Windows:** APP-02 two reproduced lifetime defects fixed in candidate
-  2.8.64; Windows soak/original expiry still open. APP-01 native focus pending.
+- **Hub / Windows:** APP-02 two reproduced lifetime defects fixed in 2.8.64;
+  Windows soak/original expiry still open. APP-01 native focus pending.
   OPS-01 monitor: latest open fine; identify UAC program/path/action if repeated
-  (reports: Hub open, app open, app update). APP-03 approved/queued: General apps /
+  (reports: Hub open, app open, app update). APP-03 next queued build: General apps /
   Orca plugins / Minecraft mods, with separate Undahang and Unlayered Infill entries.
 - **Bluetooth Guard:** BT-01 released; first owner hardware check: earbuds
   discovery, choices, persistence/reconnect. Scans never grant trust.
