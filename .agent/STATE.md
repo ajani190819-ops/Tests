@@ -5,7 +5,7 @@
 
 ## Released work
 
-- **Hub:** main 2.8.56; Arena 2.8.68. APP-02 (2.8.64) repairs draw-locked
+- **Hub:** main 2.8.56; Arena 2.8.69. APP-02 (2.8.64) repairs draw-locked
   icon ownership and shell recovery; original expiry/native soak unconfirmed.
   APP-01: Guard Start fails without UAC; actual cause unknown. Retain modal/max
   placement/duplicate prevention. asInvoker, child elevation,
@@ -40,7 +40,7 @@ Repeat pending/parked items; omissions remain OPEN.
   Windows acceptance pending. WX-01/02 native planner/live-map review unrun;
   workflow-write permission blocks the parked review draft.
 - **Hub / Windows:** APP-02 two reproduced lifetime defects fixed in 2.8.64;
-  Windows soak/original expiry open. APP-01 active: 2.8.69 candidate reports
+  Windows soak/original expiry open. APP-01 active: 2.8.69 reports
   app/Windows launch code/path; no retry/elevation change. Cause unknown.
   137 tests/335 mutations/ASan/checks pass; exact owner error is next.
   OPS-01 monitor: latest open fine; identify UAC program/path/action if repeated
