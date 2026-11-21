@@ -1423,8 +1423,8 @@
  {
   "id": "hub-lifetime-04",
   "file": "project-hub/src/parts/ui_renderer.c",
-  "old": "            EnterCriticalSection(&g_cs);\n            HICON ico = card->hIcon;",
-  "new": "            HICON ico = card->hIcon;",
+  "old": "            EnterCriticalSection(&g_cs);\n            HICON ico = HubCardIcon(card, c);",
+  "new": "            HICON ico = HubCardIcon(card, c);",
   "label": "paint reads and draws a worker-replaceable icon without its lock"
  },
  {
@@ -1692,5 +1692,89 @@
   "old": "                if (i == 1 && FileExistsW(files[0])) continue;",
   "new": "                /* discard host state even while its script remains locked */",
   "label": "Partial removal deletes the still-installed plugin enable state"
+ },
+ {
+  "id": "hub-wave-icon-00",
+  "file": "project-hub/src/parts/orca_plugins.c",
+  "old": "    c->resIconId = plugin == 0 ? RES_ICON_UNDAHANG : RES_ICON_ORCA;",
+  "new": "    c->resIconId = RES_ICON_ORCA;",
+  "label": "Both plugin cards reuse the Infill resource identity"
+ },
+ {
+  "id": "hub-wave-icon-01",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "if (card->resIconId == RES_ICON_UNDAHANG) return g_cardIcons[8];",
+  "new": "if (card->resIconId == RES_ICON_UNDAHANG) return g_cardIcons[3];",
+  "label": "Offline Undahang falls back to the sibling icon"
+ },
+ {
+  "id": "hub-wave-icon-02",
+  "file": "project-hub/src/parts/catalog_icons_json.c",
+  "old": "slot == 3 ? \"docs/brand/undahang-wave-v1.ico\"",
+  "new": "slot == 3 ? \"docs/brand/orca-plugins.ico\"",
+  "label": "An old catalogue restores the shared Orca artwork"
+ },
+ {
+  "id": "hub-wave-icon-03",
+  "file": "project-hub/src/project_hub.c",
+  "old": "    for (int i = 0; i < 9; i++) {",
+  "new": "    for (int i = 0; i < 8; i++) {",
+  "label": "The new embedded icon never loads or releases during DPI rebuilds"
+ },
+ {
+  "id": "hub-wave-icon-04",
+  "file": "suite-apps.json",
+  "old": "\"icon\": \"docs/brand/undahang-wave-v1.ico\"",
+  "new": "\"icon\": \"docs/brand/orca-plugins.ico\"",
+  "label": "Catalogue advertises the same icon for both independent plugins"
+ },
+ {
+  "id": "hub-wave-icon-05",
+  "file": "project-hub/src/hub.rc",
+  "old": "11 ICON \"../../docs/brand/undahang-wave-v1.ico\"",
+  "new": "11 ICON \"../../docs/brand/orca-plugins.ico\"",
+  "label": "New resource embeds the old sibling artwork"
+ },
+ {
+  "id": "hub-wave-icon-06",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "    if (card->hIcon) return card->hIcon;",
+  "new": "    if (card->hIcon) return NULL;",
+  "label": "A valid catalogue icon is ignored by the draw route"
+ },
+ {
+  "id": "hub-wave-icon-07",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "if (card->resIconId == RES_ICON_ORCA) return g_cardIcons[3];",
+  "new": "if (card->resIconId == RES_ICON_ORCA) return g_cardIcons[8];",
+  "label": "Unlayered Infill inherits the new Undahang fallback"
+ },
+ {
+  "id": "hub-wave-icon-08",
+  "file": "tools/build_windows.py",
+  "old": "ROOT / \"docs\" / \"brand\" / \"undahang-wave-v1.ico\"",
+  "new": "ROOT / \"shared\" / \"win32\" / \"suite_emblem.c\"",
+  "label": "New external icon edits reuse a stale cached Hub binary"
+ },
+ {
+  "id": "hub-wave-icon-09",
+  "file": "tools/generate_suite_icons.py",
+  "old": "Image.open(BRAND_DIR / \"icon-undahang-wave-v1.png\")",
+  "new": "Image.open(BRAND_DIR / \"icon-orca-plugins.png\")",
+  "label": "Regeneration reads the sibling art instead of the approved source"
+ },
+ {
+  "id": "hub-wave-icon-10",
+  "file": "tools/generate_suite_icons.py",
+  "old": "BRAND_DIR / \"undahang-wave-v1.ico\",                None",
+  "new": "BRAND_DIR / \"undahang-wave-v1.ico\",                BRAND_DIR / \"icon-undahang-wave-v1.png\"",
+  "label": "Regeneration overwrites the approved master with an enlarged derivative"
+ },
+ {
+  "id": "hub-wave-icon-11",
+  "file": "project-hub/src/project_hub.c",
+  "old": "#define RES_ICON_UNDAHANG     11",
+  "new": "#define RES_ICON_UNDAHANG     6",
+  "label": "Distinct resource name silently aliases the old Orca resource"
  }
 ]

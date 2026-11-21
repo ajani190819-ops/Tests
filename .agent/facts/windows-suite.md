@@ -39,13 +39,13 @@ Line numbers drift — search for the symbol names.
    - Keep the **`Update Hub`** self-update; bump `HUB_VERSION` **and** `HUB_VERSION_W` with every shipped binary.
    - Updater follows the user-selected branch (`Branch` button); `tests/test_windows_apps.py` asserts project names, `SmoothRoundRect`, `RES_ICON_EMBLEM`, multi-size `.ico` headers.
    - Longevity: owned catalogue icons swap/discard through `ReplaceCardIcon` under the draw lock; failed loads retain the last good handle. The two-second tray poll probes the shell, restores missing icons, and releases the host marker on unconfirmed registration. Quit/removal cannot re-register. Mocked lifetime tests are not a native soak or proof of the owner's original expiry symptom; see `.agent/runbooks/test-hub-longevity.md`.
-   - Grouped cards keep stable slots: 0 BTG, 1 KBL, 2 HUD, 3 Undahang (`orca`), 4 DNS, 5 Notes, 6 Audio, 7 Infill; extras start at `BUILTIN_CARD_COUNT`. `orca_plugins.c` owns independent plugin routes and legacy opt-out migration. Native checklist: `.agent/runbooks/test-hub-grouped-entries.md`.
+   - Grouped cards keep stable slots: 0 BTG, 1 KBL, 2 HUD, 3 Undahang (`orca`), 4 DNS, 5 Notes, 6 Audio, 7 Infill; extras start at `BUILTIN_CARD_COUNT`. `orca_plugins.c` owns independent routes/opt-out migration. Icon cache slots differ: 3 Infill, 7 Weather, 8 Undahang; `HubCardIcon` selects resource identity before positional fallback. Native checklist: `.agent/runbooks/test-hub-grouped-entries.md`.
    - Load `dwmapi.dll` dynamically so static PE imports stay clean. PE whitelist: no hid.dll/setupapi.dll/WIC imports.
 3. **Keyboard Lighting:**
    - **Strict 7-bit ASCII** in all `keyboard-lighting/` text files (enforced by tests). The app is C11 (`src/keyboard_lighting.c`) + PowerShell engine (`Aura-Background.ps1`); `project-hub/` + `bluetooth-guard/` I/O is latin-1 safe.
    - M4/M5 brightness: G-Helper `Custom` rows run `KeyboardLighting.exe -BrightDown/-BrightUp`; engine paces taps (1 step/150ms, hold = smooth sweep). G-Helper's native 4-step gate must stay pinned (`PinGate(3)`).
    - Crash-isolation discipline: one app-C change per commit; `0edce0a` is the pure baseline.
-4. **UI & Branding (`docs/UI_STYLE_GUIDE.md`):** Soft Slate palette (`#181B24` canvas), Tri-Spoke Core Emblem everywhere (never the old 8-point compass), icons float on full transparency (the old opaque squircle plate read as a "muddy warm-brown blob" — never bring it back).
+4. **UI & Branding (`docs/UI_STYLE_GUIDE.md`):** Soft Slate (`#181B24`), Tri-Spoke Core (never the old compass). Native header emblems float on transparency. Per-app icons retain approved slate-medallion family art with transparent outer margins. Undahang's approved `icon-undahang-wave-v1.png` master is read-only during regeneration; Infill art stays unchanged.
 
 ## Git / Sandbox Gotchas
 

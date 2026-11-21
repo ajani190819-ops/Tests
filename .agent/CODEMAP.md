@@ -6,11 +6,11 @@
 
 ## project-hub/src/project_hub.c
 
-- L342  f GetWinDpi
-- L357  f S
-- L359  f ApplyModernWindowFrame
-- L378  f RebuildFontsAndIcons
-- globals: g_hInst (L247), g_hwnd (L248), g_fontHero (L249), g_fontSub (L250), g_fontTitle (L251), g_fontBody (L252), g_fontBtn (L253), g_fontBadge (L254), g_appIcon (L255), g_hdrEmblem (L256), g_cardIcons (L257), g_showEvent (L258), g_hMutex (L259), g_trayHostEvent (L260), g_hubNid (L261), g_hubTrayVisible (L262), g_hubQuitting (L263), g_hubSeenAgentWait (L264), g_hubSeenRainAlert (L265), g_cs (L266), g_topBtns (L268), g_rcEmblem (L275), g_cards (L277), g_cardCount (L278), g_dynIdx (L279), g_hoverId (L280), g_scrollY (L281), g_maxScrollY (L282), g_exePath (L284), g_exeDir (L285), g_localApp (L286), g_probeRef (L290), g_roamApp (L291), g_suiteDir (L292), g_hubCfgDir (L293), g_btgDir (L294), g_btgExtraExe (L295), g_kblDir (L296), g_dnsDir (L297), g_notesDir (L298), g_audioSwitcherDir (L299), g_modsDir (L300), g_orcaBatDir (L301), g_suiteHubExe (L309), g_mirrorDirs (L310), g_mirrorCount (L311), g_activeBranch (L314), g_branchMenuNames (L315), g_branchMenuN (L316), g_branchPromptOut (L317), g_autoBranchLastCheck (L320), g_autoBranchRetryDelay (L321), g_remHubVer (L322), g_remWaveVer (L323), g_remInfillVer (L324), g_remHudName (L325), g_remHudPath (L326), g_remHudSize (L327), g_statusMsg (L328), g_progressVal (L329), g_hubUpdAvail (L330), g_taskQueue (L333), g_qHead (L334), g_qTail (L335), g_qSem (L336), g_running (L337)
+- L343  f GetWinDpi
+- L358  f S
+- L360  f ApplyModernWindowFrame
+- L379  f RebuildFontsAndIcons
+- globals: g_hInst (L248), g_hwnd (L249), g_fontHero (L250), g_fontSub (L251), g_fontTitle (L252), g_fontBody (L253), g_fontBtn (L254), g_fontBadge (L255), g_appIcon (L256), g_hdrEmblem (L257), g_cardIcons (L258), g_showEvent (L259), g_hMutex (L260), g_trayHostEvent (L261), g_hubNid (L262), g_hubTrayVisible (L263), g_hubQuitting (L264), g_hubSeenAgentWait (L265), g_hubSeenRainAlert (L266), g_cs (L267), g_topBtns (L269), g_rcEmblem (L276), g_cards (L278), g_cardCount (L279), g_dynIdx (L280), g_hoverId (L281), g_scrollY (L282), g_maxScrollY (L283), g_exePath (L285), g_exeDir (L286), g_localApp (L287), g_probeRef (L291), g_roamApp (L292), g_suiteDir (L293), g_hubCfgDir (L294), g_btgDir (L295), g_btgExtraExe (L296), g_kblDir (L297), g_dnsDir (L298), g_notesDir (L299), g_audioSwitcherDir (L300), g_modsDir (L301), g_orcaBatDir (L302), g_suiteHubExe (L310), g_mirrorDirs (L311), g_mirrorCount (L312), g_activeBranch (L315), g_branchMenuNames (L316), g_branchMenuN (L317), g_branchPromptOut (L318), g_autoBranchLastCheck (L321), g_autoBranchRetryDelay (L322), g_remHubVer (L323), g_remWaveVer (L324), g_remInfillVer (L325), g_remHudName (L326), g_remHudPath (L327), g_remHudSize (L328), g_statusMsg (L329), g_progressVal (L330), g_hubUpdAvail (L331), g_taskQueue (L334), g_qHead (L335), g_qTail (L336), g_qSem (L337), g_running (L338)
 
 ## project-hub/src/parts/app_activation.c
 
@@ -57,9 +57,9 @@
 - L223  f BuiltInSlot
 - L229  f BuiltInBtnId
 - L258  f FillBuiltInDef
-- L371  f AddCatalogCard
-- L497  f HasWeatherRadarCatalogCard
-- L503  f EnsureWeatherRadarCatalogCard
+- L374  f AddCatalogCard
+- L500  f HasWeatherRadarCatalogCard
+- L506  f EnsureWeatherRadarCatalogCard
 - globals: g_catalogJson (L6), g_strPool (L63), g_strPoolUsed (L64)
 
 ## project-hub/src/parts/content_identity.c
@@ -235,13 +235,14 @@
 - L18  f FillCanvasRect
 - L31  f SmoothRoundRect
 - L89  f DrawActionBtn
-- L118  f HubHeaderHeight
-- L124  f ComputeLayout
-- L197  f HitTestButtons
-- L217  f PaintEmblemBlit
-- L242  f PaintHubWindow
-- L522  f ShowUtilityMenu
-- globals: g_groupRects (L113), g_groupTitles (L114), g_frameCache (L239), g_fcW (L240)
+- L121  f HubCardIcon
+- L129  f HubHeaderHeight
+- L135  f ComputeLayout
+- L208  f HitTestButtons
+- L228  f PaintEmblemBlit
+- L253  f PaintHubWindow
+- L530  f ShowUtilityMenu
+- globals: g_groupRects (L113), g_groupTitles (L114), g_frameCache (L250), g_fcW (L251)
 
 ## project-hub/src/parts/version_probe_cache.c
 
@@ -1047,11 +1048,11 @@
 
 ## tools/build_windows.py
 
-- L50  f zig_version
-- L55  f target_key
-- L76  f ensure_zig_python
-- L92  f build_target
-- L128  f main
+- L53  f zig_version
+- L58  f target_key
+- L79  f ensure_zig_python
+- L95  f build_target
+- L131  f main
 
 ## tools/bump_version.py
 
@@ -1092,14 +1093,17 @@
 - L284  f build_icon_keyboard_lighting
 - L328  f build_icon_spatial_hud
 - L360  f build_icon_orca_plugins
-- L388  f build_icon_dns_pilot
-- L410  f build_icon_agent_notes
-- L451  f build_icon_audio_switcher
-- L479  f build_icon_weather_radar
-- L525  f save_multi_ico
-- L564  f RemoveRedundantBrandExports
-- L575  f main
-- L672  f export_spin_loops
+- L388  f build_icon_undahang
+- L396  f build_icon_dns_pilot
+- L418  f build_icon_agent_notes
+- L459  f build_icon_audio_switcher
+- L487  f build_icon_weather_radar
+- L533  f save_multi_ico
+- L572  f RemoveRedundantBrandExports
+- L583  f suite_icon_definitions
+- L599  f export_suite_icons_preview
+- L658  f main
+- L691  f export_spin_loops
 
 ## tools/mutate.py
 
@@ -1229,14 +1233,14 @@
 - L46  f strip_cs_comments_and_strings
 - L168  f lex_powershell
 - L303  f WindowsDesktopAppsTests
-- L3498  f SuiteFolderInstallTests
-- L4847  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L5030  f AudioSwitcherReachabilityTests
-- L5214  f AudioSwitcherSessionSweepTests
-- L5355  f AppOpenFocusTests
-- L5492  f HubLongevityTests
-- L5556  f HubGroupedEntriesTests
-- L5662  f RadarWindowsLocationTests
+- L3580  f SuiteFolderInstallTests
+- L4929  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L5112  f AudioSwitcherReachabilityTests
+- L5296  f AudioSwitcherSessionSweepTests
+- L5437  f AppOpenFocusTests
+- L5574  f HubLongevityTests
+- L5638  f HubGroupedEntriesTests
+- L5750  f RadarWindowsLocationTests
 
 ## tests/wave_cases.py
 

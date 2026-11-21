@@ -6,7 +6,8 @@ Every desktop application in this repository shares one calm, approachable, unif
 - **Bluetooth Guard** (`bluetooth-guard/BluetoothGuard.exe`, icon: `bluetooth-guard/btguard.ico`)
 - **Keyboard Lighting** (`keyboard-lighting/Tray.ps1` + `keyboard-lighting/ui_controls.cs.txt`, icon: `keyboard-lighting/app.ico`)
 - **Spatial HUD** (`docs/brand/spatial-hud.ico`)
-- **OrcaSlicer Plugins** (`docs/brand/orca-plugins.ico`)
+- **Undahang** (`docs/brand/undahang-wave-v1.ico`)
+- **Unlayered Infill** (`docs/brand/orca-plugins.ico`, unchanged legacy asset path)
 - **Arena Link Windows** (`arena-link-windows/`, icon: `arena-link-windows/assets/icon.ico`)
 
  Suite icon family preview: [`docs/brand/suite-icons-preview.png`](brand/suite-icons-preview.png) · Master suite emblem: [`docs/brand/suite-emblem.png`](brand/suite-emblem.png)
@@ -34,7 +35,8 @@ Every desktop application in this repository shares one calm, approachable, unif
      - **Bluetooth Guard:** Soft Cobalt-Sky (`#60A5FA` -> `#2563EB`) — rounded Bluetooth shield badge
      - **Keyboard Lighting:** Soft Violet-Sky Aura (`#A78BFA` -> `#38BDF8` + warm amber underglow) — rounded keycap & lightbar glyph
      - **Spatial HUD:** Warm Amber-Gold (`#FDE68A` -> `#D97706`) — soft isometric 3D cube
-     - **OrcaSlicer Plugins:** Soft Mint-Emerald (`#6EE7B7` -> `#10B981`) — non-planar wave ribbons
+     - **Undahang:** Mint–Ice Cyan — abstract rising wave-overhang stroke with a shorter underside echo; owner-approved artwork, not a literal print sample
+     - **Unlayered Infill:** Soft Mint-Emerald (`#6EE7B7` -> `#10B981`) — existing three non-planar wave ribbons, unchanged
      - **Arena Link:** Soft Teal-Mint (`#5EEAD4` -> `#14B8A6`) — rounded interlocking link glyph
 5. **Calm, Natural Typography:**
    - Use natural **Title Case** (`Project Hub`, `Bluetooth Guard`, `Keyboard Lighting`) and plain human sentences rather than shouty wide-spaced all-caps strings or raw `C:\Users\...` file paths.
@@ -70,3 +72,11 @@ python3 tools/generate_suite_icons.py
 ```
 
 This regenerates all multi-resolution `.ico` files (`256, 64, 48, 32, 24, 16` in 32-bit RGBA), PNG previews, `docs/brand/emblem.ico`, and `docs/brand/suite-icons-preview.png`. Recompile `ProjectHub.exe` and `BluetoothGuard.exe` afterward so their embedded `.rc` icon resources update inside the standalone `.exe` binaries too.
+
+Undahang's approved lossless source is `docs/brand/icon-undahang-wave-v1.png`.
+`build_icon_undahang` samples this RGBA master for each ICO frame; the generator
+never overwrites the approved source with an enlarged derivative. Other icons
+retain their existing analytic builders. Keep Undahang's two-stroke silhouette
+distinct from Unlayered Infill's three ribbons, preserve the transparent outer
+margin, and keep the shared native header emblem engine unchanged. The family
+preview grows with the icon list so new entries are not clipped off the sheet.

@@ -39,6 +39,9 @@ typedef struct { DWORD dwFileAttributes; wchar_t cFileName[260]; } WIN32_FIND_DA
 static const char *scenario;
 #define CHECK(c) do { if (!(c)) { fprintf(stderr, "%s C line %d: %s\n", scenario, __LINE__, #c); exit(1); } } while (0)
 static ProjectCard g_cards[MAX_APPS];
+static HICON g_cardIcons[MAX_APPS];
+static char loadedIcons[MAX_APPS][128];
+static int failIconLoad;
 static int g_cardCount, g_scrollY, g_maxScrollY;
 static RECT g_rcEmblem;
 static ActionBtn g_topBtns[5];
@@ -115,7 +118,11 @@ static void EnsureDirTree(const wchar_t *path) { CHECK(path && path[0]); }
 static void SuiteAppPath(wchar_t *out, size_t cap, const wchar_t *sub) { _snwprintf(out,cap,L"%s\\%s",g_suiteDir,sub); }
 static void AddMirrorDir(int slot, const wchar_t *path) { CHECK(slot==MIRROR_GENERIC && path[0]); }
 static void ReplaceCardIcon(ProjectCard *c, HICON icon) { c->hIcon=icon; }
-static void LoadCardIcon(ProjectCard *c, const char *icon) { CHECK(icon[0]); iconLoads++; c->hIcon=(HICON)(uintptr_t)1; }
+static void LoadCardIcon(ProjectCard *c, const char *icon) {
+    CHECK(icon[0]); iconLoads++;
+    snprintf(loadedIcons[c-g_cards],sizeof(loadedIcons[0]),"%s",icon);
+    if (!failIconLoad) c->hIcon=(HICON)(uintptr_t)(strstr(icon,"undahang-wave-v1.ico") ? 201:202);
+}
 static void SetFooterStatus(const wchar_t *text, int progress) { CHECK(progress>=0); wcscpy(footer,text); }
 static void EnsureProbeRef(wchar_t *out, size_t cap) { CHECK(cap==64); wcscpy(out,L"released-ref"); }
 static BOOL DownloadRawRepoFile(const wchar_t *ref, const wchar_t *repo, const wchar_t *target) {
@@ -182,6 +189,35 @@ static void init(void) {
     CHECK(wcscmp(g_cards[3].title,L"Undahang")==0 && wcscmp(g_cards[7].title,L"Unlayered Infill")==0);
     CHECK(!g_cards[3].exeRepo && !g_cards[7].exeRepo);
     CHECK(wcscmp(g_groupTitles[0],L"General apps")==0 && wcscmp(g_groupTitles[1],L"Orca plugins")==0 && wcscmp(g_groupTitles[2],L"Minecraft mods")==0);
+}
+static void iconsScenario(void) {
+    for (size_t i=0;i<sizeof(testCardIconIds)/sizeof(testCardIconIds[0]);i++)
+        g_cardIcons[i]=(HICON)(uintptr_t)(1000+testCardIconIds[i]);
+    CHECK(g_cards[3].resIconId==RES_ICON_UNDAHANG && g_cards[7].resIconId==RES_ICON_ORCA);
+    CHECK(g_cards[3].resIconId!=g_cards[7].resIconId);
+    CHECK(HubCardIcon(&g_cards[3],3)==(HICON)(uintptr_t)(1000+RES_ICON_UNDAHANG));
+    CHECK(HubCardIcon(&g_cards[7],7)==(HICON)(uintptr_t)(1000+RES_ICON_ORCA));
+    CHECK(HubCardIcon(&g_cards[8],8)==(HICON)(uintptr_t)(1000+RES_ICON_WEATHER));
+    ProjectCard extra={0}; CHECK(!HubCardIcon(&extra,9));
+    const char *old="{\"apps\":[{\"id\":\"orca\",\"icon\":\"docs/brand/orca-plugins.ico\"},"
+        "{\"id\":\"unlayered-infill\",\"icon\":\"docs/brand/undahang-wave-v1.ico\"}]}";
+    RebuildExtraCards(old);
+    CHECK(strcmp(loadedIcons[3],"docs/brand/undahang-wave-v1.ico")==0);
+    CHECK(strcmp(loadedIcons[7],"docs/brand/orca-plugins.ico")==0);
+    CHECK(HubCardIcon(&g_cards[3],3)==(HICON)(uintptr_t)201);
+    CHECK(HubCardIcon(&g_cards[7],7)==(HICON)(uintptr_t)202);
+    failIconLoad=1; RebuildExtraCards(old);
+    CHECK(HubCardIcon(&g_cards[3],3)==(HICON)(uintptr_t)201);
+    g_cards[3].hIcon=NULL; g_cards[7].hIcon=NULL;
+    RebuildExtraCards(old);
+    CHECK(HubCardIcon(&g_cards[3],3)==(HICON)(uintptr_t)(1000+RES_ICON_UNDAHANG));
+    CHECK(HubCardIcon(&g_cards[7],7)==(HICON)(uintptr_t)(1000+RES_ICON_ORCA));
+    RebuildExtraCards(NULL);
+    CHECK(HubCardIcon(&g_cards[3],3)!=HubCardIcon(&g_cards[7],7));
+    g_cardIcons[8]=NULL; CHECK(!HubCardIcon(&g_cards[3],3));
+    CHECK(HubCardIcon(&g_cards[7],7)==(HICON)(uintptr_t)(1000+RES_ICON_ORCA));
+    CHECK(HubCardIcon(&g_cards[0],0)==(HICON)(uintptr_t)(1000+RES_ICON_BTG));
+    puts("Hub independent plugin icon and stale catalogue scenarios passed");
 }
 static void configScenario(void) {
     WritePrivateProfileStringW(L"Apps",L"OrcaDisabled",L"1",L"hub.ini"); LoadAppsCfg();
@@ -326,7 +362,8 @@ static void layoutScenario(void) {
 }
 int main(int argc, char **argv) {
     CHECK(argc==2); scenario=argv[1]; init();
-    if (strcmp(scenario,"config")==0) configScenario();
+    if (strcmp(scenario,"icons")==0) iconsScenario();
+    else if (strcmp(scenario,"config")==0) configScenario();
     else if (strcmp(scenario,"files")==0) filesScenario();
     else if (strcmp(scenario,"status")==0) statusScenario();
     else if (strcmp(scenario,"catalog")==0) catalogScenario();

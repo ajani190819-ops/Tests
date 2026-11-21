@@ -35,6 +35,16 @@ extra cards. Activation, EXE close-and-prove gates and icon/tray ownership are
 unchanged. Automated C mocks are not native fitting/interaction acceptance;
 see `.agent/runbooks/test-hub-grouped-entries.md`.
 
+## Independent plugin icons
+
+Hub 2.8.66 gives Undahang its approved abstract wave-overhang icon in the
+existing suite style. Unlayered Infill keeps its original three-ribbon icon.
+`docs/brand/undahang-wave-v1.ico` has six 32-bit RGBA frames, a new cache-safe
+filename and its own embedded resource. Both identities remain pinned after
+old/incomplete catalogue responses, including offline startup. The approved
+PNG master and generator preserve the selected art; no plugin algorithm,
+capability, saved state or broader public-name rollout changes here.
+
 ## Notification-area ownership
 
 When Project Hub is running and its notification-area icon is available, it is

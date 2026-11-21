@@ -45,7 +45,7 @@
    "blurb": "Wave overhang paths",
    "exe": "",
    "dir": "OrcaPlugins",
-   "icon": "docs/brand/orca-plugins.ico",
+   "icon": "docs/brand/undahang-wave-v1.ico",
    "shortcut": "Orca Plugins",
    "buttons": "update:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
    "state": "orca",

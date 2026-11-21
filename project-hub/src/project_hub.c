@@ -23,8 +23,8 @@
 #include <wchar.h>
 #include "../../shared/win32/hub_tray_host.h"
 
-#define HUB_VERSION       "2.8.65"
-#define HUB_VERSION_W     L"2.8.65"
+#define HUB_VERSION       "2.8.66"
+#define HUB_VERSION_W     L"2.8.66"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -78,6 +78,7 @@
 #define RES_ICON_DNS         8
 #define RES_ICON_NOTES       9
 #define RES_ICON_AUDIOSWITCHER 10
+#define RES_ICON_UNDAHANG     11
 
 /* Action IDs */
 #define ID_BTN_REFRESH_ALL   1001
@@ -403,10 +404,10 @@ static void RebuildFontsAndIcons(HWND hwnd) {
                                     IMAGE_ICON, embPx, embPx, LR_DEFAULTCOLOR);
 
     int cardIcoPx = S(44, dpi);
-    const int ids[8] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA,
+    const int ids[9] = { RES_ICON_BTG, RES_ICON_KBL, RES_ICON_HUD, RES_ICON_ORCA,
                          RES_ICON_DNS, RES_ICON_NOTES, RES_ICON_AUDIOSWITCHER,
-                         RES_ICON_WEATHER };
-    for (int i = 0; i < 8; i++) {
+                         RES_ICON_WEATHER, RES_ICON_UNDAHANG };
+    for (int i = 0; i < 9; i++) {
         if (g_cardIcons[i]) { DestroyIcon(g_cardIcons[i]); g_cardIcons[i] = NULL; }
         g_cardIcons[i] = (HICON)LoadImageW(g_hInst, MAKEINTRESOURCEW(ids[i]),
                                            IMAGE_ICON, cardIcoPx, cardIcoPx, LR_DEFAULTCOLOR);

@@ -4,7 +4,7 @@ Status: **procedure only; not run in the Linux build workspace**. Production-C
 filesystem/configuration/geometry mocks and cross-builds are not Windows GDI,
 Explorer, real Orca, DPI-transition or owner acceptance evidence.
 
-Use Hub 2.8.65 from the active Arena branch's verified release marker. Record
+Use Hub 2.8.66 from the active Arena branch's verified release marker. Record
 Windows version, Hub version/build SHA, display resolution/scaling, window size,
 profile paths, actions/results and screenshots. Back up Hub `config.ini` and
 Orca profiles before destructive checks. Use disposable profiles, not the only
@@ -34,6 +34,14 @@ copy of the owner's working presets. Keep unrelated apps/updates closed.
    must remain, with no duplicate plugin/Weather cards or borrowed text/icons.
    An extra already known in this session must retain its slot/definition when
    omitted, including if a later response fills the remaining capacity.
+
+6. Confirm Undahang has the approved rising two-stroke mint/cyan wave icon and
+   Unlayered Infill retains its three horizontal green ribbons. Back up/remove
+   only the disposable Hub icon cache, start offline, then retry with current
+   and old combined-Orca catalogues. Both icons must remain distinct through
+   repeated refreshes and 100–200% DPI transitions. Check the rounded slate
+   family styling, transparent outer margin, sharp small sizes and no handle
+   growth. Native appearance is not proven by ICO decoding or mock handles.
 
 ## Independent plugin state/actions
 

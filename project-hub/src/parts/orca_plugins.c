@@ -27,7 +27,7 @@ static void InitOrcaCard(int plugin) {
     BOOL initialized = c->btnCount == 4 && c->btns[0].id == spec->updateId;
     ActionBtn previous[4];
     memcpy(previous, c->btns, sizeof(previous));
-    c->resIconId = RES_ICON_ORCA;
+    c->resIconId = plugin == 0 ? RES_ICON_UNDAHANG : RES_ICON_ORCA;
     c->category = HUB_GROUP_ORCA;
     c->title = spec->name;
     c->blurb = plugin == 0 ? L"Wave overhang paths" : L"Nonplanar internal infill";

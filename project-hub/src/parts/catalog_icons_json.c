@@ -262,7 +262,10 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
        plugin definitions so an old/missing catalogue cannot recombine them. */
     if (slot == 3 || slot == 7) {
         InitOrcaCard(slot == 3 ? 0 : 1);
-        if (icon[0]) LoadCardIcon(&g_cards[slot], icon);
+        /* Older catalogues used the same icon for both plugins. Keep each
+           approved identity pinned, including after branch/catalogue changes. */
+        LoadCardIcon(&g_cards[slot], slot == 3 ? "docs/brand/undahang-wave-v1.ico"
+                                             : "docs/brand/orca-plugins.ico");
         return;
     }
     ProjectCard *c = &g_cards[slot];

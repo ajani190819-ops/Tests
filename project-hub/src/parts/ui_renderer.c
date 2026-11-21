@@ -115,6 +115,17 @@ static const wchar_t *g_groupTitles[HUB_GROUP_COUNT] = {
     L"General apps", L"Orca plugins", L"Minecraft mods"
 };
 
+/* Called with the draw lock held. Cache slots are resource identities, not
+   card positions: slot 7 remains Weather, while Undahang has its own slot 8.
+   A failed Undahang resource must not fall through to Infill's old slot 3. */
+static HICON HubCardIcon(const ProjectCard *card, int slot) {
+    if (card->hIcon) return card->hIcon;
+    if (card->resIconId == RES_ICON_UNDAHANG) return g_cardIcons[8];
+    if (card->resIconId == RES_ICON_ORCA) return g_cardIcons[3];
+    if (card->resIconId == RES_ICON_WEATHER) return g_cardIcons[7];
+    return slot >= 0 && slot < 7 ? g_cardIcons[slot] : NULL;
+}
+
 static int HubHeaderHeight(int width, int dpi) {
     /* At narrow sizes, controls get their own row rather than covering the
        emblem/title. Keep the same height whether Update Hub is visible or not. */
@@ -341,10 +352,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
             int ix = card->rcCard.left + S(18, dpi);
             int iy = (card->rcCard.top + card->rcCard.bottom - cardIcoSz) / 2;
             EnterCriticalSection(&g_cs);
-            HICON ico = card->hIcon;
-            if (!ico && c < 7) ico = g_cardIcons[c];
-            if (!ico && card->resIconId == RES_ICON_ORCA) ico = g_cardIcons[3];
-            if (!ico && card->resIconId == RES_ICON_WEATHER) ico = g_cardIcons[7];
+            HICON ico = HubCardIcon(card, c);
             if (ico)
                 DrawIconEx(hdc, ix, iy, ico, cardIcoSz, cardIcoSz, 0, NULL, DI_NORMAL);
             LeaveCriticalSection(&g_cs);

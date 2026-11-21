@@ -1556,6 +1556,88 @@ int main(void) {
             count = int.from_bytes(raw[4:6], "little")
             self.assertGreaterEqual(count, 5, f"{rel_ico} should include multi-DPI icon frames")
 
+    def test_undahang_icon_has_distinct_multisize_rgba_assets(self):
+        import hashlib
+        import struct
+        import zlib
+        apps = json.loads((ROOT / "suite-apps.json").read_text(encoding="utf-8"))["apps"]
+        by_id = {app["id"]: app for app in apps}
+        icon_path = "docs/brand/undahang-wave-v1.ico"
+        self.assertEqual(by_id["orca"]["icon"], icon_path)
+        self.assertEqual(by_id["unlayered-infill"]["icon"], "docs/brand/orca-plugins.ico")
+        infill = (ROOT / by_id["unlayered-infill"]["icon"]).read_bytes()
+        self.assertEqual(hashlib.sha256(infill).hexdigest(), "8133bced08430f323f081cf69468e2c06f64c2e4822ea043291f704544c2f1de",
+                         "Unlayered Infill's approved icon must remain unchanged")
+        raw = (ROOT / icon_path).read_bytes()
+        self.assertNotEqual(raw, infill)
+        self.assertEqual(struct.unpack_from("<HHH", raw), (0, 1, 6))
+        expected = (256, 64, 48, 32, 24, 16)
+        for frame, size in enumerate(expected):
+            w, h, colors, reserved, planes, depth, length, offset = struct.unpack_from(
+                "<BBBBHHII", raw, 6 + frame * 16)
+            self.assertEqual((w or 256, h or 256, colors, reserved, planes, depth),
+                             (size, size, 0, 0, 1, 32))
+            self.assertGreaterEqual(offset, 6 + 16 * 6)
+            self.assertLessEqual(offset + length, len(raw))
+            png = raw[offset:offset + length]
+            self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(struct.unpack_from(">IIBBBBB", png, 16), (size, size, 8, 6, 0, 0, 0))
+            compressed = bytearray()
+            pos = 8
+            while pos < len(png):
+                count = struct.unpack_from(">I", png, pos)[0]
+                kind = png[pos + 4:pos + 8]
+                payload = png[pos + 8:pos + 8 + count]
+                crc = struct.unpack_from(">I", png, pos + 8 + count)[0]
+                self.assertEqual(crc, zlib.crc32(kind + payload) & 0xffffffff)
+                if kind == b"IDAT":
+                    compressed.extend(payload)
+                pos += count + 12
+            self.assertEqual(len(zlib.decompress(compressed)), size * (size * 4 + 1))
+        master = (ROOT / "docs/brand/icon-undahang-wave-v1.png").read_bytes()
+        self.assertEqual(master[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(struct.unpack_from(">IIBBBBB", master, 16), (1024, 1024, 8, 6, 0, 0, 0))
+        resources = (ROOT / "project-hub/src/hub.rc").read_text(encoding="utf-8")
+        self.assertIn('11 ICON "../../' + icon_path + '"', resources)
+        self.assertIn('6 ICON "../../docs/brand/orca-plugins.ico"', resources)
+        generator = (ROOT / "tools/generate_suite_icons.py").read_text(encoding="utf-8")
+        self.assertIn("def build_icon_undahang(", generator)
+        self.assertIn('"icon-undahang-wave-v1.png"', generator)
+        self.assertIn('("Undahang",', generator)
+        self.assertIn('("Unlayered Infill",', generator)
+        tree = ast.parse(generator)
+        definitions = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                           and node.name == "suite_icon_definitions")
+        entries = next(node.value.elts for node in definitions.body if isinstance(node, ast.Return))
+        approved = next(entry for entry in entries if ast.literal_eval(entry.elts[0]) == "Undahang")
+        self.assertIsNone(ast.literal_eval(approved.elts[3]), "regeneration must not overwrite the approved master")
+        hub = (ROOT / "project-hub/src/project_hub.c").read_text(encoding="utf-8")
+        self.assertRegex(hub, r"#define RES_ICON_UNDAHANG +11\b")
+        start = hub.index("static void RebuildFontsAndIcons(")
+        rebuild = hub[start:hub.index("\n}\n", start)]
+        self.assertIn("for (int i = 0; i < 9; i++) {", rebuild,
+                      "the ninth resource must load and replace its owned handle on every DPI rebuild")
+
+    def test_hub_build_cache_tracks_the_new_external_icon_resource(self):
+        import importlib.util
+        import tempfile
+        spec = importlib.util.spec_from_file_location("icon_cache_build", ROOT / "tools/build_windows.py")
+        builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(builder)
+        self.assertIn(ROOT / "docs/brand/undahang-wave-v1.ico", builder.TARGET_SHARED_SOURCES["hub"])
+        with tempfile.TemporaryDirectory() as name:
+            folder = Path(name)
+            src = folder / "src"
+            src.mkdir()
+            (src / "hub.rc").write_text('11 ICON "../approved.ico"', encoding="ascii")
+            icon = folder / "approved.ico"
+            icon.write_bytes(b"old icon")
+            builder.ROOT = folder
+            builder.TARGET_SHARED_SOURCES = {"hub": (icon,)}
+            before = builder.target_key("hub", src, [], "test-compiler")
+            icon.write_bytes(b"new icon")
+            self.assertNotEqual(before, builder.target_key("hub", src, [], "test-compiler"))
+
     def test_brand_exports_keep_one_canonical_copy_per_asset(self):
         """The icon generator used to write six legacy aliases that were exact
         copies of the canonical masters. They added roughly twenty-six MiB to every
@@ -1697,8 +1779,8 @@ int main(void) {
         self.assertIn("g_cardCount >= MAX_APPS - 1", parser,
                       "catalog extras can fill every slot before the required Weather fallback")
         renderer = (ROOT / "project-hub/src/parts/ui_renderer.c").read_text(encoding="utf-8")
-        self.assertIn("if (!ico && c < 7) ico = g_cardIcons[c];", renderer)
-        self.assertIn("if (!ico && card->resIconId == RES_ICON_WEATHER) ico = g_cardIcons[7];",
+        self.assertIn("return slot >= 0 && slot < 7 ? g_cardIcons[slot] : NULL;", renderer)
+        self.assertIn("if (card->resIconId == RES_ICON_WEATHER) return g_cardIcons[7];",
                       renderer,
                       "dynamic catalog ordering can hide the embedded Weather Radar icon")
 
@@ -1719,7 +1801,7 @@ int main(void) {
         hub = (ROOT / "project-hub/src/project_hub.c").read_text(encoding="utf-8")
         hub_rc = (ROOT / "project-hub/src/hub.rc").read_text(encoding="utf-8")
         self.assertIn("RES_ICON_WEATHER", hub)
-        self.assertIn("RES_ICON_WEATHER", hub[hub.index("const int ids[8]"):])
+        self.assertIn("RES_ICON_WEATHER", hub[hub.index("const int ids[9]"):])
         self.assertIn('7 ICON "../../weather-radar/weather-radar.ico"', hub_rc)
 
     def _parse_builtin_btnid(self, hub_c):
@@ -5536,7 +5618,7 @@ class HubLongevityTests(unittest.TestCase):
         self.assertLess(replace.index("c->hIcon = replacement;"), replace.index("DestroyIcon(previous)"))
         self.assertLess(replace.index("DestroyIcon(previous)"), replace.index("LeaveCriticalSection(&g_cs);"))
         renderer = (ROOT / "project-hub/src/parts/ui_renderer.c").read_text(encoding="utf-8")
-        icon = renderer.index("HICON ico = card->hIcon;")
+        icon = renderer.index("HICON ico = HubCardIcon(card, c);")
         enter = renderer.rfind("EnterCriticalSection(&g_cs);", 0, icon)
         leave = renderer.index("LeaveCriticalSection(&g_cs);", icon)
         self.assertGreater(enter, renderer.index("/* Catalog icon first"))
@@ -5571,6 +5653,8 @@ class HubGroupedEntriesTests(unittest.TestCase):
         parts = ROOT / "project-hub/src/parts"
         defines = "\n".join(re.findall(
             r"(?m)^#define (?:ID_\w+|RES_ICON_\w+|MAX_APPS|BUILTIN_CARD_COUNT) +\d+.*$", root))
+        embedded_ids = re.search(r"const int ids\[\d+\] = (\{.*?\});", root, re.S).group(1)
+        defines += "\nstatic const int testCardIconIds[] = " + embedded_ids + ";"
         category = re.search(r"enum \{ HUB_GROUP_GENERAL.*?\};", root).group(0)
         types = root[root.index("enum {\n    BADGE_IDLE"):root.index("static HINSTANCE")]
         (folder / "hub_groups_types.h").write_text(defines + "\n" + category + "\n" + types, encoding="utf-8")
@@ -5604,6 +5688,9 @@ class HubGroupedEntriesTests(unittest.TestCase):
         run = subprocess.run([str(self.exe), scenario], capture_output=True, text=True, timeout=15)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertIn(expected, run.stdout)
+
+    def test_undahang_and_infill_keep_distinct_online_and_offline_icons(self):
+        self._run("icons", "Hub independent plugin icon and stale catalogue scenarios passed")
 
     def test_plugin_preferences_migrate_and_actions_are_independent(self):
         self._run("config", "Hub independent configuration and routing passed")
@@ -5646,7 +5733,8 @@ class HubGroupedEntriesTests(unittest.TestCase):
         self.assertIn("RECT title = g_groupRects[group];", renderer)
         self.assertIn("DrawTextW(hdc, g_groupTitles[group]", renderer)
         self.assertIn("IntersectClipRect(hdc, 0, headerH + 1, w, footerTop - 1)", renderer)
-        self.assertIn("if (!ico && card->resIconId == RES_ICON_ORCA) ico = g_cardIcons[3];", renderer)
+        self.assertIn("if (card->resIconId == RES_ICON_ORCA) return g_cardIcons[3];", renderer)
+        self.assertIn("HICON ico = HubCardIcon(card, c);", renderer)
         for event in ("WM_MOUSEMOVE", "WM_LBUTTONUP"):
             at = router.index("case " + event + ":")
             body = router[at:router.index("return 0;", at)]

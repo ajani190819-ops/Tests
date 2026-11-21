@@ -385,6 +385,14 @@ def build_icon_orca_plugins(size: int = 512, small: bool = False) -> Image.Image
     return base
 
 
+def build_icon_undahang(size: int = 512, small: bool = False) -> Image.Image:
+    """Sample the owner's approved abstract wave-overhang artwork, not a new
+    drawing of a print sample. The lossless RGBA master is the source of truth;
+    generation never overwrites it or changes Unlayered Infill's older art."""
+    with Image.open(BRAND_DIR / "icon-undahang-wave-v1.png") as source:
+        return source.convert("RGBA").resize((size, size), Image.Resampling.LANCZOS)
+
+
 def build_icon_dns_pilot(size: int = 512, small: bool = False) -> Image.Image:
     base = make_squircle_base(size, (8, 145, 178))
 
@@ -523,10 +531,10 @@ def build_icon_weather_radar(size: int = 512, small: bool = False) -> Image.Imag
 
 
 def save_multi_ico(build, ico_path: Path, png_path: Path = None):
-    """Write a true multi-size ICO where EVERY size is rendered analytically
-    at its own resolution (with small-size stroke boosts) instead of being
-    downscaled from one master - the old downscale path turned the 16-32px
-    frames into mush and the details vanished."""
+    """Write a multi-size RGBA ICO. Analytic builders render each frame at its
+    own resolution, with small-size stroke boosts; approved raster artwork is
+    sampled from its lossless master. Pass png_path=None to preserve that master
+    rather than replacing it with an enlarged derivative."""
     import io
     import struct
     ico_path.parent.mkdir(parents=True, exist_ok=True)
@@ -572,31 +580,29 @@ def RemoveRedundantBrandExports():
         (BRAND_DIR / stale).unlink(missing_ok=True)
 
 
-def main():
-    BRAND_DIR.mkdir(parents=True, exist_ok=True)
-
-    emblem = build_header_emblem(512)
-    save_multi_ico(lambda w, small=False: build_header_emblem(w),
-                   BRAND_DIR / "emblem.ico", BRAND_DIR / "suite-emblem.png")
-
-    icons = [
+def suite_icon_definitions():
+    """Current icon family; None keeps an approved raster master read-only."""
+    return [
         ("Project Hub",       build_icon_project_hub,       ROOT / "project-hub" / "hub.ico",               BRAND_DIR / "icon-project-hub.png"),
         ("Bluetooth Guard",   build_icon_bluetooth_guard,   ROOT / "bluetooth-guard" / "btguard.ico",       BRAND_DIR / "icon-bluetooth-guard.png"),
         ("Keyboard Lighting", build_icon_keyboard_lighting, ROOT / "keyboard-lighting" / "app.ico",         BRAND_DIR / "icon-keyboard-lighting.png"),
         ("Spatial HUD",       build_icon_spatial_hud,       BRAND_DIR / "spatial-hud.ico",                  BRAND_DIR / "icon-spatial-hud.png"),
-        ("Orca Plugins",      build_icon_orca_plugins,      BRAND_DIR / "orca-plugins.ico",                 BRAND_DIR / "icon-orca-plugins.png"),
+        ("Undahang",          build_icon_undahang,          BRAND_DIR / "undahang-wave-v1.ico",                None),
+        ("Unlayered Infill",  build_icon_orca_plugins,      BRAND_DIR / "orca-plugins.ico",                 BRAND_DIR / "icon-orca-plugins.png"),
         ("DNS Pilot",         build_icon_dns_pilot,         ROOT / "dns-pilot" / "dnspilot.ico",              BRAND_DIR / "icon-dns-pilot.png"),
         ("Agent Notes",       build_icon_agent_notes,       ROOT / "agent-notes" / "agent-notes.ico",         BRAND_DIR / "icon-agent-notes.png"),
         ("Audio Switcher",    build_icon_audio_switcher,    ROOT / "audio-switcher" / "audio-switcher.ico",   BRAND_DIR / "icon-audio-switcher.png"),
         ("Weather Radar",     build_icon_weather_radar,     ROOT / "weather-radar" / "weather-radar.ico",      BRAND_DIR / "icon-weather-radar.png"),
     ]
 
-    for _, build, ico_p, png_p in icons:
-        save_multi_ico(build, ico_p, png_p)
 
+def export_suite_icons_preview(icons, emblem=None):
+    if emblem is None:
+        emblem = build_header_emblem(512)
     # Build a crisp showcase sheet so the user can inspect the entire icon family side by side
     cols = 3
-    sheet_w, sheet_h = 1140, 960
+    sheet_w = 1140
+    sheet_h = 120 + ((len(icons) + cols - 1) // cols) * 280
     sheet = Image.new("RGBA", (sheet_w, sheet_h), (22, 25, 34, 255))
     draw = ImageDraw.Draw(sheet)
 
@@ -645,6 +651,19 @@ def main():
 
     preview_path = BRAND_DIR / "suite-icons-preview.png"
     sheet.convert("RGB").save(preview_path, format="PNG")
+
+    return preview_path
+
+
+def main():
+    BRAND_DIR.mkdir(parents=True, exist_ok=True)
+    emblem = build_header_emblem(512)
+    save_multi_ico(lambda w, small=False: build_header_emblem(w),
+                   BRAND_DIR / "emblem.ico", BRAND_DIR / "suite-emblem.png")
+    icons = suite_icon_definitions()
+    for _, build, ico_p, png_p in icons:
+        save_multi_ico(build, ico_p, png_p)
+    preview_path = export_suite_icons_preview(icons, emblem)
 
     # icon-project-hub.png above is the one 2048px Project Hub/profile export.
     # Earlier names held byte-identical copies, which bloated every clone.

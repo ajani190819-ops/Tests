@@ -9,7 +9,7 @@
   catalogue icon-handle growth with draw-locked replacement and rechecks/restores
   lost shell icons; failed registration releases tray ownership. Build/checks/
   213 mutations pass; native soak/original expiry unconfirmed. APP-01 (2.8.63,
-  `47b00a3a3c29a17c9c6aaca575f190b5bb543206`) reveals/restores windows, preserves
+  `47b00a3`) reveals/restores windows, preserves
   maximized/modal state and prevents duplicate starts; native focus review pending.
   asInvoker, child elevation, user-opened Notes and stop/update gates unchanged.
 - **Agent Notes:** `ad92320`, marker `5343e54`. Saved=receiver flush;
@@ -46,8 +46,9 @@ Repeat pending/parked items; omissions remain OPEN.
   OPS-01 monitor: latest open fine; identify UAC program/path/action if repeated
   (reports: Hub open, app open, app update). APP-03 released 2.8.65 (`b16380c`):
   General apps / Orca plugins / Minecraft mods; independent Undahang / Unlayered
-  Infill, settings/legacy paths preserved. Build/checks, 121 tests/242 mutations
-  pass; native fitting unrun (`test-hub-grouped-entries.md`).
+  Infill, settings/legacy paths preserved. Approved abstract Undahang icon in
+  candidate 2.8.66; Infill art unchanged. Build/checks, 124 tests/254 mutations pass.
+  Native fitting/icons unrun (`test-hub-grouped-entries.md`).
 - **Bluetooth Guard:** BT-01 released; first owner hardware check: earbuds
   discovery, choices, persistence/reconnect. Scans never grant trust.
 - **Keyboard Lighting:** KBL-01 parked for fresh owner `engine.log`;
