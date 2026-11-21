@@ -5,7 +5,7 @@
 
 ## Released work
 
-- **Hub:** main 2.8.56; Arena 2.8.67. APP-02 (2.8.64) repairs draw-locked
+- **Hub:** main 2.8.56; Arena 2.8.68. APP-02 (2.8.64) repairs draw-locked
   icon ownership and shell recovery; original expiry/native soak unconfirmed.
   APP-01 Open reported failing again; Guard follow-up below. Retain modal/max
   placement and duplicate prevention. asInvoker, child elevation,
@@ -47,7 +47,7 @@ Repeat pending/parked items; omissions remain OPEN.
   General apps / Orca plugins / Minecraft mods; independent Undahang / Unlayered
   Infill, settings/legacy paths preserved. Approved abstract Undahang icon in
   2.8.66 (`fd27fa3`); Infill art unchanged.
-  Header 2.8.68 candidate: visible controls align; wrap only if narrow.
+  Header 2.8.68: visible controls align; wrap only if narrow (`9aa94e7`).
   137 tests/326 mutations/checks pass; native header/icons/fitting next
   (`test-hub-grouped-entries.md`).
 - **Bluetooth Guard:** BT-01 pending: panel reveal/status confirmation. Basic
