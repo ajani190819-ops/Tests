@@ -23,7 +23,8 @@
 
 Prior approval release `83e54d5`, Hub 2.8.62; native earbuds acceptance open.
 Owner: Guard OFF / Auto ON earbuds fail connection/status while phone connects.
-Current correction: saved review without trust, retain missing metadata, adapter
+Released correction `9c91afd` (Hub still 2.8.66): saved review without trust,
+retain missing metadata, adapter
 IMMDevice activation of IKsControl, 5..60s audio retries independent of Guard,
 explicit-Disconnect pause, actual audio status separate from ACL. Preserve K/D/F,
 enabled profiles and address-only routing. Windows hardware/LE-only unproven;
