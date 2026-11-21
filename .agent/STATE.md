@@ -5,7 +5,7 @@
 
 ## Released work
 
-- **Hub:** main 2.8.56; Arena 2.8.66. APP-02 (2.8.64) repairs draw-locked
+- **Hub:** main 2.8.56; Arena 2.8.67. APP-02 (2.8.64) repairs draw-locked
   icon ownership and shell recovery; original expiry/native soak unconfirmed.
   APP-01 Open reported failing again; Guard follow-up below. Retain modal/max
   placement and duplicate prevention. asInvoker, child elevation,
@@ -23,7 +23,7 @@
 
 Owner reports basic Bluetooth connection now works after `9c91afd` (marker
 `7740af8`, Hub 2.8.66). Remaining persistence/manual/lifecycle/LE checks stay open.
-Candidate Hub 2.8.67 + Guard: own-UI Hub/tray reveal, one per-window
+Released `1839e1e`, Hub 2.8.67 + Guard: own-UI Hub/tray reveal, one per-window
 show-only UIPI message, fresh scalar ticks, no elevation change;
 legacy async/duplicate/update gates retained. Green=confirmed connected,
 blue=paired/Auto-configured/link-only/request; separate Auto on/off/paused and
