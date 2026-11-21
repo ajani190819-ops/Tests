@@ -39,12 +39,15 @@ CC_FLAGS = ["-target", "x86_64-windows-gnu", "-Os", "-s", "-Wall", "-Wextra",
 # These native unity builds include the one canonical Tri-Spoke engine from
 # outside their src/ directory.  It must participate in their individual cache
 # keys or a shared rendering fix could leave a stale consumer EXE on disk.
-# Hub also embeds the approved external Undahang icon; artwork-only edits must
+# Hub/Guard also share the show-only window-reveal protocol.
+# Hub embeds the approved external Undahang icon; artwork-only edits must
 # invalidate its EXE without rebuilding unrelated child apps.
 TARGET_SHARED_SOURCES = {
     "audioswitcher": (ROOT / "shared" / "win32" / "suite_emblem.c",),
     "hub": (ROOT / "shared" / "win32" / "suite_emblem.c",
+            ROOT / "shared" / "win32" / "window_reveal.h",
             ROOT / "docs" / "brand" / "undahang-wave-v1.ico"),
+    "btguard": (ROOT / "shared" / "win32" / "window_reveal.h",),
     "agentnotes": (ROOT / "shared" / "win32" / "suite_emblem.c",),
     "weatherradar": (ROOT / "shared" / "win32" / "suite_emblem.c",),
 }

@@ -6,11 +6,11 @@
 
 ## project-hub/src/project_hub.c
 
-- L343  f GetWinDpi
-- L358  f S
-- L360  f ApplyModernWindowFrame
-- L379  f RebuildFontsAndIcons
-- globals: g_hInst (L248), g_hwnd (L249), g_fontHero (L250), g_fontSub (L251), g_fontTitle (L252), g_fontBody (L253), g_fontBtn (L254), g_fontBadge (L255), g_appIcon (L256), g_hdrEmblem (L257), g_cardIcons (L258), g_showEvent (L259), g_hMutex (L260), g_trayHostEvent (L261), g_hubNid (L262), g_hubTrayVisible (L263), g_hubQuitting (L264), g_hubSeenAgentWait (L265), g_hubSeenRainAlert (L266), g_cs (L267), g_topBtns (L269), g_rcEmblem (L276), g_cards (L278), g_cardCount (L279), g_dynIdx (L280), g_hoverId (L281), g_scrollY (L282), g_maxScrollY (L283), g_exePath (L285), g_exeDir (L286), g_localApp (L287), g_probeRef (L291), g_roamApp (L292), g_suiteDir (L293), g_hubCfgDir (L294), g_btgDir (L295), g_btgExtraExe (L296), g_kblDir (L297), g_dnsDir (L298), g_notesDir (L299), g_audioSwitcherDir (L300), g_modsDir (L301), g_orcaBatDir (L302), g_suiteHubExe (L310), g_mirrorDirs (L311), g_mirrorCount (L312), g_activeBranch (L315), g_branchMenuNames (L316), g_branchMenuN (L317), g_branchPromptOut (L318), g_autoBranchLastCheck (L321), g_autoBranchRetryDelay (L322), g_remHubVer (L323), g_remWaveVer (L324), g_remInfillVer (L325), g_remHudName (L326), g_remHudPath (L327), g_remHudSize (L328), g_statusMsg (L329), g_progressVal (L330), g_hubUpdAvail (L331), g_taskQueue (L334), g_qHead (L335), g_qTail (L336), g_qSem (L337), g_running (L338)
+- L344  f GetWinDpi
+- L359  f S
+- L361  f ApplyModernWindowFrame
+- L380  f RebuildFontsAndIcons
+- globals: g_hInst (L249), g_hwnd (L250), g_fontHero (L251), g_fontSub (L252), g_fontTitle (L253), g_fontBody (L254), g_fontBtn (L255), g_fontBadge (L256), g_appIcon (L257), g_hdrEmblem (L258), g_cardIcons (L259), g_showEvent (L260), g_hMutex (L261), g_trayHostEvent (L262), g_hubNid (L263), g_hubTrayVisible (L264), g_hubQuitting (L265), g_hubSeenAgentWait (L266), g_hubSeenRainAlert (L267), g_cs (L268), g_topBtns (L270), g_rcEmblem (L277), g_cards (L279), g_cardCount (L280), g_dynIdx (L281), g_hoverId (L282), g_scrollY (L283), g_maxScrollY (L284), g_exePath (L286), g_exeDir (L287), g_localApp (L288), g_probeRef (L292), g_roamApp (L293), g_suiteDir (L294), g_hubCfgDir (L295), g_btgDir (L296), g_btgExtraExe (L297), g_kblDir (L298), g_dnsDir (L299), g_notesDir (L300), g_audioSwitcherDir (L301), g_modsDir (L302), g_orcaBatDir (L303), g_suiteHubExe (L311), g_mirrorDirs (L312), g_mirrorCount (L313), g_activeBranch (L316), g_branchMenuNames (L317), g_branchMenuN (L318), g_branchPromptOut (L319), g_autoBranchLastCheck (L322), g_autoBranchRetryDelay (L323), g_remHubVer (L324), g_remWaveVer (L325), g_remInfillVer (L326), g_remHudName (L327), g_remHudPath (L328), g_remHudSize (L329), g_statusMsg (L330), g_progressVal (L331), g_hubUpdAvail (L332), g_taskQueue (L335), g_qHead (L336), g_qTail (L337), g_qSem (L338), g_running (L339)
 
 ## project-hub/src/parts/app_activation.c
 
@@ -19,9 +19,9 @@
 - L69  f HubCancelOpen
 - L74  f HubBeginOpen
 - L95  f HubRevealWindow  — Use async show/position calls so a hung foreign UI cannot hang the Hub.
-- L107  f HubOpenMayTakeForeground
-- L118  f HubPollOpen
-- L157  f HubOpenApp  — TRUE means the click was handled, including a launch error or a running app
+- L113  f HubOpenMayTakeForeground
+- L124  f HubPollOpen
+- L163  f HubOpenApp  — TRUE means the click was handled, including a launch error or a running app
 - globals: g_openIdentities (L15), g_openRequest (L38), g_openSerial (L39)
 
 ## project-hub/src/parts/branch_picker_entry.c
@@ -289,8 +289,8 @@
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
-- L226  f ArmFastBurstWindow
-- globals: g_hwnd (L187), g_appIcon (L188), g_devNotifyIface (L189), g_devNotifyRadio (L190), g_radioNotifyHandle (L191), g_nid (L192), g_trayVisible (L193), g_quitting (L194), g_guardOn (L195), g_autostart (L196), g_autostartExplicit (L197), g_radioOn (L198), g_suspendAutoConnect (L199), g_trayHinted (L200), g_showEvent (L201), g_lock (L202), g_devices (L204), g_devCount (L205), g_trayDeviceAddresses (L206), g_trayMenuTracking (L207), g_hits (L209), g_hitCount (L210), g_hoverIdx (L211), g_scrollY (L212), g_contentH (L213), g_fastBurstUntil (L215), g_manualGraceUntil (L216)
+- L227  f ArmFastBurstWindow
+- globals: g_hwnd (L188), g_appIcon (L189), g_devNotifyIface (L190), g_devNotifyRadio (L191), g_radioNotifyHandle (L192), g_nid (L193), g_trayVisible (L194), g_quitting (L195), g_guardOn (L196), g_autostart (L197), g_autostartExplicit (L198), g_radioOn (L199), g_suspendAutoConnect (L200), g_trayHinted (L201), g_showEvent (L202), g_lock (L203), g_devices (L205), g_devCount (L206), g_trayDeviceAddresses (L207), g_trayMenuTracking (L208), g_hits (L210), g_hitCount (L211), g_hoverIdx (L212), g_scrollY (L213), g_contentH (L214), g_fastBurstUntil (L216), g_manualGraceUntil (L217)
 
 ## bluetooth-guard/src/parts/audio_endpoints.c
 
@@ -351,6 +351,10 @@
 - L77  f DenyDevice
 - L91  f FindDeviceIndexByAddress
 
+## bluetooth-guard/src/parts/device_presentation.c
+
+- L11  f DescribeDevice
+
 ## bluetooth-guard/src/parts/emblem.c
 
 - L8  f EmbRasterize
@@ -383,15 +387,21 @@
 - L17  f FillCanvasRect
 - L30  f SmoothRoundRect
 
+## bluetooth-guard/src/parts/window_activation.c
+
+- L3  f RevealPanel
+- L13  f EnableHubPanelReveal
+- L20  f HandleHubPanelReveal
+
 ## bluetooth-guard/src/parts/window_entry.c
 
 - L1  f RenderWindow
-- L300  f HandleHitClick
-- L434  f BluetoothTraySync
-- L447  f TakeHubOneShot
-- L453  f ApplyHubGuardToggle
-- L461  f ApplyHubExit
-- L468  f ShowTrayMenu
+- L247  f HandleHitClick
+- L381  f BluetoothTraySync
+- L394  f TakeHubOneShot
+- L400  f ApplyHubGuardToggle
+- L408  f ApplyHubExit
+- L415  f ShowTrayMenu
 
 ## keyboard-lighting/src/keyboard_lighting.c
 
@@ -1063,11 +1073,11 @@
 
 ## tools/build_windows.py
 
-- L53  f zig_version
-- L58  f target_key
-- L79  f ensure_zig_python
-- L95  f build_target
-- L131  f main
+- L56  f zig_version
+- L61  f target_key
+- L82  f ensure_zig_python
+- L98  f build_target
+- L134  f main
 
 ## tools/bump_version.py
 
@@ -1253,10 +1263,11 @@
 - L5233  f AudioSwitcherReachabilityTests
 - L5417  f AudioSwitcherSessionSweepTests
 - L5558  f AppOpenFocusTests
-- L5695  f HubLongevityTests
-- L5759  f HubGroupedEntriesTests
-- L5871  f BluetoothAudioEndpointTests
-- L5936  f RadarWindowsLocationTests
+- L5694  f HubLongevityTests
+- L5758  f HubGroupedEntriesTests
+- L5870  f BluetoothAudioEndpointTests
+- L5937  f BluetoothPanelTests
+- L6051  f RadarWindowsLocationTests
 
 ## tests/wave_cases.py
 

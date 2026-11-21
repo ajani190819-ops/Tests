@@ -10,6 +10,8 @@
 typedef int BOOL;
 typedef uint32_t DWORD;
 typedef uint32_t ULONG;
+typedef unsigned UINT;
+typedef uintptr_t WPARAM;
 typedef uint64_t ULONGLONG;
 typedef intptr_t LPARAM;
 typedef intptr_t LONG_PTR;
@@ -25,6 +27,7 @@ typedef void *HANDLE;
 #define GW_OWNER 4
 #define GWL_EXSTYLE (-20)
 #define WS_EX_TOOLWINDOW 0x80
+#define MSGFLT_ALLOW 1
 #define SW_RESTORE 9
 #define SW_SHOW 5
 #define SW_SHOWNORMAL 1
@@ -39,7 +42,7 @@ typedef void *HANDLE;
 typedef struct FakeWindow *HWND;
 #define HWND_TOP ((HWND)0)
 struct FakeWindow {
-    BOOL exists, visible, iconic, maximized, tool;
+    BOOL exists, visible, iconic, maximized, tool, revealEnabled;
     DWORD pid;
     const wchar_t *klass, *title;
     HWND owner, popup;
@@ -60,7 +63,12 @@ static int launchCalls, showCalls, focusCalls, positionCalls, grantCalls;
 static int processCloses, mutexCloses, timerStarts, timerKills, scanCalls;
 static BOOL fileExists, canFocus, applyShow, denyMutex, shellOk, returnProcess, delayShell;
 static DWORD lastError, inputTick, lastGranted, shellPids[16];
-static int lastShow;
+static int lastShow, revealPosts, childShows, filterCalls;
+static BOOL insideChild, g_quitting, postOk, registerOk = TRUE, inputOk;
+static HWND queuedWindow;
+static UINT queuedMessage;
+static WPARAM queuedWp;
+static LPARAM queuedLp;
 static ULONGLONG tick;
 static const wchar_t *availableMutex, *reenterImage;
 static const char *scenario;
@@ -83,7 +91,7 @@ static DWORD GetWindowThreadProcessId(HWND window, DWORD *pid) {
 }
 static HWND GetForegroundWindow(void) { return foreground; }
 static ULONGLONG GetTickCount64(void) { return tick; }
-static BOOL GetLastInputInfo(LASTINPUTINFO *input) { input->dwTime = inputTick; return TRUE; }
+static BOOL GetLastInputInfo(LASTINPUTINFO *input) { input->dwTime = inputTick; return inputOk; }
 static BOOL IsWindow(HWND window) { return window && window->exists; }
 static BOOL IsWindowVisible(HWND window) { return IsWindow(window) && window->visible; }
 static BOOL IsIconic(HWND window) { return window && window->iconic; }
@@ -122,16 +130,38 @@ static BOOL ShowWindowAsync(HWND window, int command) {
     }
     return TRUE;
 }
+static UINT RegisterWindowMessageW(const wchar_t *name) {
+    CHECK(wcscmp(name, L"Tests.Suite.RevealWindow.v1") == 0);
+    return registerOk ? 0xC123 : 0;
+}
+static BOOL ChangeWindowMessageFilterEx(HWND window, UINT message, DWORD action, void *change) {
+    CHECK(IsWindow(window) && message == 0xC123 && action == MSGFLT_ALLOW && !change);
+    filterCalls++; window->revealEnabled = TRUE; return TRUE;
+}
+static BOOL PostMessageW(HWND window, UINT message, WPARAM wp, LPARAM lp) {
+    CHECK(IsWindow(window) && message == 0xC123);
+    CHECK(lastGranted == window->pid); /* grant must precede the app-owned show */
+    revealPosts++;
+    if (!postOk || !window->revealEnabled) return FALSE;
+    queuedWindow = window; queuedMessage = message; queuedWp = wp; queuedLp = lp;
+    return TRUE;
+}
+static BOOL ShowWindow(HWND window, int command) {
+    CHECK(insideChild && IsWindow(window)); childShows++; lastShow = command;
+    window->visible = TRUE; window->iconic = FALSE;
+    if (command == SW_SHOWNORMAL) window->maximized = FALSE;
+    return TRUE;
+}
 static BOOL SetWindowPos(HWND window, HWND insertAfter, int x, int y, int w, int h, DWORD flags) {
     CHECK(insertAfter == HWND_TOP && !x && !y && !w && !h);
-    CHECK(flags == (SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_ASYNCWINDOWPOS));
+    CHECK(flags == (DWORD)(SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | (insideChild ? 0 : SWP_ASYNCWINDOWPOS)));
     positionCalls++; lastPositioned = window; return TRUE;
 }
 static BOOL SetForegroundWindow(HWND window) {
-    CHECK(showCalls > 0 && grantCalls > 0 && positionCalls > 0);
+    CHECK((insideChild ? childShows : showCalls) > 0 && grantCalls > 0 && positionCalls > 0);
     focusCalls++; lastFocused = window;
-    if (canFocus) foreground = window;
-    return canFocus;
+    if (canFocus || insideChild) foreground = window;
+    return canFocus || insideChild;
 }
 static HANDLE OpenMutexW(DWORD access, BOOL inherit, const wchar_t *name) {
     CHECK(access == SYNCHRONIZE && !inherit);
@@ -179,7 +209,17 @@ static BOOL ShellExecuteExW(SHELLEXECUTEINFOW *launch) {
     return shellOk;
 }
 
+#include "../../shared/win32/window_reveal.h"
+#include "../../bluetooth-guard/src/parts/window_activation.c"
 #include "../../project-hub/src/parts/app_activation.c"
+
+static void DeliverReveal(void) {
+    CHECK(queuedWindow);
+    HWND window = queuedWindow; queuedWindow = NULL;
+    insideChild = TRUE;
+    CHECK(HandleHubPanelReveal(window, queuedMessage, queuedWp, queuedLp));
+    insideChild = FALSE;
+}
 
 static const wchar_t *btg = L"C:\\Suite\\BluetoothGuard.exe";
 static const wchar_t *notes = L"C:\\Suite\\AgentNotes.exe";
@@ -200,12 +240,97 @@ static void Reset(const char *name) {
     fileExists = canFocus = applyShow = shellOk = returnProcess = TRUE;
     denyMutex = delayShell = FALSE; availableMutex = reenterImage = NULL;
     lastShow = 0; lastError = 0;
+    revealPosts = childShows = filterCalls = 0;
+    insideChild = g_quitting = FALSE; postOk = inputOk = TRUE;
+    queuedWindow = NULL;
     lastFocused = lastPositioned = NULL; footer[0] = L'\0';
     shellPids[1] = 77; shellPids[2] = 88;
     inputTick = 10; tick = 1000; lastGranted = 0;
     foreground = Window(0, L"Hub", 1, TRUE, FALSE);
 }
 int main(void) {
+    /* Failed registration must never allow message zero (WM_NULL) through UIPI. */
+    Reset("registered-message failure keeps the legacy path"); registerOk = FALSE;
+    HWND guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
+    EnableHubPanelReveal(guard);
+    CHECK(filterCalls == 0 && !HandleHubPanelReveal(guard, 0, 0, 0));
+    CHECK(HubOpenApp(btg, NULL, NULL));
+    CHECK(foreground == guard && revealPosts == 0 && launchCalls == 0);
+    registerOk = TRUE;
+
+    Reset("cross-integrity reveal runs on the owning UI without a new launch");
+    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, TRUE);
+    guard->maximized = TRUE; EnableHubPanelReveal(guard);
+    applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(btg, NULL, NULL));
+    CHECK(revealPosts == 1 && childShows == 0 && !guard->visible && guard->iconic);
+    CHECK(launchCalls == 0 && g_openRequest.active);
+    DeliverReveal();
+    CHECK(foreground == guard && guard->visible && !guard->iconic && guard->maximized);
+    CHECK(childShows == 1 && lastShow == SW_RESTORE && filterCalls == 1);
+    HubPollOpen(); CHECK(!g_openRequest.active && launchCalls == 0);
+
+    Reset("owning UI preserves a maximized window and focuses the active dialog");
+    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
+    guard->maximized = TRUE; EnableHubPanelReveal(guard);
+    HWND guardPopup = Window(2, L"Dialog", 11, TRUE, FALSE);
+    guard->popup = guardPopup; guardPopup->owner = guard;
+    applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(btg, NULL, NULL)); DeliverReveal();
+    CHECK(guard->maximized && lastShow == SW_SHOW && foreground == guardPopup);
+    CHECK(lastPositioned == guardPopup);
+    HubPollOpen(); CHECK(!g_openRequest.active && launchCalls == 0);
+
+    Reset("queued reveal loses permission after newer user input");
+    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
+    EnableHubPanelReveal(guard); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(btg, NULL, NULL));
+    foreground = Window(2, L"Other", 99, TRUE, FALSE); inputTick++;
+    DeliverReveal(); HubPollOpen();
+    CHECK(childShows == 0 && !guard->visible && !g_openRequest.active && revealPosts == 1);
+
+    Reset("queued reveal expires while the app UI is busy");
+    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
+    EnableHubPanelReveal(guard); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(btg, NULL, NULL)); tick += SUITE_WINDOW_REVEAL_MAX_AGE_MS + 1;
+    DeliverReveal(); CHECK(childShows == 0 && !guard->visible);
+    HubPollOpen(); DeliverReveal(); CHECK(childShows == 1 && foreground == guard);
+
+    Reset("ordinary pointer activity can retry while the Hub still owns foreground");
+    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
+    EnableHubPanelReveal(guard); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(btg, NULL, NULL)); inputTick++;
+    DeliverReveal(); CHECK(childShows == 0 && g_openRequest.active);
+    HubPollOpen(); DeliverReveal(); CHECK(childShows == 1 && foreground == guard);
+
+    Reset("reveal freshness is DWORD-wrap-safe");
+    tick = UINT32_MAX - 50ULL;
+    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
+    EnableHubPanelReveal(guard); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(btg, NULL, NULL)); tick += 100;
+    DeliverReveal(); CHECK(childShows == 1 && foreground == guard);
+
+    Reset("missing input snapshot and quitting never reveal");
+    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
+    EnableHubPanelReveal(guard); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(btg, NULL, NULL)); inputOk = FALSE;
+    DeliverReveal(); CHECK(childShows == 0 && !guard->visible);
+    inputOk = TRUE; HubPollOpen(); g_quitting = TRUE;
+    DeliverReveal(); CHECK(childShows == 0 && !guard->visible);
+    CHECK(!HandleHubPanelReveal(guard, 0x111, 0, 0));
+
+    Reset("missing send-time input snapshot uses legacy reveal without a private post");
+    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
+    EnableHubPanelReveal(guard); inputOk = FALSE;
+    CHECK(HubOpenApp(btg, NULL, NULL));
+    CHECK(revealPosts == 0 && foreground == guard && launchCalls == 0);
+
+    Reset("blocked private post retains the normal legacy reveal");
+    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
+    EnableHubPanelReveal(guard); postOk = FALSE;
+    CHECK(HubOpenApp(btg, NULL, NULL));
+    CHECK(foreground == guard && revealPosts == 1 && childShows == 0 && !queuedWindow);
+
     /* Every native app uses the same real reveal route, including a stray
        running copy whose expected installed file has disappeared. */
     for (size_t i = 0; i < sizeof(g_openIdentities) / sizeof(g_openIdentities[0]); i++) {

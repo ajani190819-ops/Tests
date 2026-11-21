@@ -2035,5 +2035,208 @@
   "old": "if (info.szName[0] || !d->name[0]) wcsncpy(d->name, nm, 247);",
   "new": "wcsncpy(d->name, nm, 247);",
   "label": "An incomplete saved scan replaces a known earbuds name with its MAC"
+ },
+ {
+  "id": "hub-open-16",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "        SuitePostWindowReveal(app);",
+  "new": "        if (FALSE) SuitePostWindowReveal(app);",
+  "label": "Elevated Guard loses its app-owned reveal when foreign show is blocked"
+ },
+ {
+  "id": "hub-open-17",
+  "file": "bluetooth-guard/src/parts/window_activation.c",
+  "old": "    if (message) ChangeWindowMessageFilterEx(hwnd, message, MSGFLT_ALLOW, NULL);",
+  "new": "    if (FALSE && message) ChangeWindowMessageFilterEx(hwnd, message, MSGFLT_ALLOW, NULL);",
+  "label": "Guard does not permit the single show-only message across its integrity boundary"
+ },
+ {
+  "id": "hub-open-18",
+  "file": "shared/win32/window_reveal.h",
+  "old": "    return (DWORD)((DWORD)GetTickCount64() - (DWORD)sentTick) <= SUITE_WINDOW_REVEAL_MAX_AGE_MS &&",
+  "new": "    (void)sentTick;\n    return",
+  "label": "A busy child accepts a queued reveal after its freshness bound"
+ },
+ {
+  "id": "hub-open-19",
+  "file": "shared/win32/window_reveal.h",
+  "old": "GetLastInputInfo(&input) && input.dwTime == (DWORD)inputTick;",
+  "new": "GetLastInputInfo(&input) && (input.dwTime == (DWORD)inputTick || TRUE);",
+  "label": "A queued child reveal ignores newer user input"
+ },
+ {
+  "id": "hub-open-20",
+  "file": "bluetooth-guard/src/parts/window_activation.c",
+  "old": "    if (!message || msg != message) return FALSE;",
+  "new": "    if (!message || msg == 0) return FALSE;",
+  "label": "Guard mistakes unrelated window messages for the permitted show-only request"
+ },
+ {
+  "id": "hub-open-21",
+  "file": "bluetooth-guard/src/parts/window_activation.c",
+  "old": "    ShowWindow(hwnd, IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);",
+  "new": "    if (FALSE) ShowWindow(hwnd, IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);",
+  "label": "Own-UI reveal never restores the hidden or minimized panel"
+ },
+ {
+  "id": "hub-open-22",
+  "file": "bluetooth-guard/src/parts/window_activation.c",
+  "old": "    ShowWindow(hwnd, IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);",
+  "new": "    ShowWindow(hwnd, SW_SHOWNORMAL);",
+  "label": "Own-UI Open normalizes a previously maximized Guard panel"
+ },
+ {
+  "id": "hub-open-23",
+  "file": "bluetooth-guard/src/parts/window_activation.c",
+  "old": "    SetForegroundWindow(target);",
+  "new": "    if (FALSE) SetForegroundWindow(target);",
+  "label": "Own-UI reveal leaves the visible Guard behind other applications"
+ },
+ {
+  "id": "hub-open-24",
+  "file": "bluetooth-guard/src/parts/window_activation.c",
+  "old": "    if (!target || !IsWindowVisible(target)) target = hwnd;",
+  "new": "    target = hwnd;",
+  "label": "Guard focuses its disabled parent instead of the active modal popup"
+ },
+ {
+  "id": "hub-open-25",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "            if (pid) AllowSetForegroundWindow(pid);",
+  "new": "            if (FALSE && pid) AllowSetForegroundWindow(pid);",
+  "label": "Direct second Open fails to delegate foreground permission to the running Guard"
+ },
+ {
+  "id": "hub-open-26",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "        if (id == IDM_TRAY_OPEN) {\n            RevealPanel(hwnd);",
+  "new": "        if (id == IDM_TRAY_OPEN) {\n            (void)hwnd;",
+  "label": "Guard fallback-tray Open no longer reveals its panel"
+ },
+ {
+  "id": "hub-open-27",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "        if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {\n            RevealPanel(hwnd);",
+  "new": "        if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {\n            (void)hwnd;",
+  "label": "Existing-instance show event is consumed without revealing Guard"
+ },
+ {
+  "id": "hub-open-28",
+  "file": "shared/win32/window_reveal.h",
+  "old": "    return message && GetLastInputInfo(&input) &&",
+  "new": "    return message && (GetLastInputInfo(&input) || TRUE) &&",
+  "label": "Hub posts an unverifiable show-only request when the input snapshot fails"
+ },
+ {
+  "id": "hub-open-29",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "    if (HandleHubPanelReveal(hwnd, msg, wp, lp)) return 0;",
+  "new": "    if (FALSE && HandleHubPanelReveal(hwnd, msg, wp, lp)) return 0;",
+  "label": "Guard WndProc never dispatches the app-owned reveal message"
+ },
+ {
+  "id": "btg-61",
+  "file": "bluetooth-guard/src/parts/device_presentation.c",
+  "old": "    BOOL ready = DeviceAudioReady(d) || (!audio && d->connected);",
+  "new": "    BOOL ready = d->connected;",
+  "label": "Presentation equates an audio ACL with confirmed Windows audio readiness"
+ },
+ {
+  "id": "btg-62",
+  "file": "bluetooth-guard/src/parts/device_presentation.c",
+  "old": "    } else if (ready) {",
+  "new": "    } else if (ready && !d->autoPaused) {",
+  "label": "A saved retry pause hides a real active audio connection"
+ },
+ {
+  "id": "btg-63",
+  "file": "bluetooth-guard/src/parts/device_presentation.c",
+  "old": "requested || (audio && d->connected) || d->paired || d->allowAuto",
+  "new": "requested || (audio && d->connected) || d->allowAuto",
+  "label": "A disconnected paired Auto-off row loses the paired-blue visual"
+ },
+ {
+  "id": "btg-64",
+  "file": "bluetooth-guard/src/parts/device_presentation.c",
+  "old": "requested || (audio && d->connected) || d->paired || d->allowAuto",
+  "new": "requested || (audio && d->connected) || d->paired",
+  "label": "An explicitly Auto-configured saved record loses its blue configuration visual"
+ },
+ {
+  "id": "btg-65",
+  "file": "bluetooth-guard/src/parts/device_presentation.c",
+  "old": "        view->statusFg = COL_ACCENT; view->statusBg = COL_ACCENT_BG;",
+  "new": "        view->statusFg = COL_GOOD; view->statusBg = COL_GOOD_BG;",
+  "label": "Paired, pending or link-only devices falsely turn connected-green"
+ },
+ {
+  "id": "btg-66",
+  "file": "bluetooth-guard/src/parts/device_presentation.c",
+  "old": "    } else if (!radioOn) {",
+  "new": "    } else if (!radioOn && !ready) {",
+  "label": "An unavailable radio still paints a stale audio observation green"
+ },
+ {
+  "id": "btg-67",
+  "file": "bluetooth-guard/src/parts/device_presentation.c",
+  "old": "    if (DeviceNeedsReview(d)) {",
+  "new": "    if (DeviceNeedsReview(d) && !ready) {",
+  "label": "A connected undecided device loses its approval warning"
+ },
+ {
+  "id": "btg-68",
+  "file": "bluetooth-guard/src/parts/device_presentation.c",
+  "old": "    } else if (d->denied) {",
+  "new": "    } else if (d->denied && !ready) {",
+  "label": "A denied but not-yet-dropped link masquerades as approved connected-green"
+ },
+ {
+  "id": "btg-69",
+  "file": "bluetooth-guard/src/parts/device_presentation.c",
+  "old": "d->autoPaused ? L\"Auto-Connect paused\" : L\"Auto-Connect on\"",
+  "new": "d->autoPaused ? L\"Auto-Connect on\" : L\"Auto-Connect on\"",
+  "label": "The saved Auto preference conceals its explicit current-run pause"
+ },
+ {
+  "id": "btg-70",
+  "file": "bluetooth-guard/src/parts/device_presentation.c",
+  "old": "    view->preference = L\"Auto-Connect off\";",
+  "new": "    view->preference = L\"Auto-Connect on\";",
+  "label": "A manual-only device falsely appears configured for automatic reconnect"
+ },
+ {
+  "id": "btg-71",
+  "file": "bluetooth-guard/src/parts/device_presentation.c",
+  "old": "(unsigned long)(DWORD)d->connectError,",
+  "new": "0UL,",
+  "label": "Connection failure details hide the actual Windows HRESULT"
+ },
+ {
+  "id": "btg-72",
+  "file": "bluetooth-guard/src/parts/device_presentation.c",
+  "old": "now - d->connectRequestTick < 10000ULL;",
+  "new": "now - d->connectRequestTick < 60000ULL;",
+  "label": "An expired request remains Connecting rather than paired or link-only"
+ },
+ {
+  "id": "btg-73",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "                DrawTextW(mem, visual.detail, -1, &sr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);",
+  "new": "                (void)sr;",
+  "label": "Device cards no longer paint connection or failure details"
+ },
+ {
+  "id": "btg-74",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "                DrawTextW(mem, visual.preference, -1, &pr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);",
+  "new": "                (void)pr;",
+  "label": "Device cards hide the separate Auto on/off/paused preference"
+ },
+ {
+  "id": "btg-75",
+  "file": "bluetooth-guard/src/parts/window_entry.c",
+  "old": "    int cardH = S(108, dpi);",
+  "new": "    int cardH = S(82, dpi);",
+  "label": "Shrunken cards overlap the independent connection detail and Auto/control rows"
  }
 ]

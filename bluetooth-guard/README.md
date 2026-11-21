@@ -3,6 +3,24 @@
 Install/update the native `BluetoothGuard.exe` through Project Hub on the active
 Arena branch. The legacy PowerShell/C# setup route is unchanged.
 
+## Opening the panel
+
+Update **both Project Hub (2.8.67 or later) and Bluetooth Guard** on the active
+branch. Hub card and unified-tray Open grant foreground permission and post a
+show-only request to Guard's own UI thread, so an elevated, tray-hidden Guard
+can restore itself. Its own tray, explicit first launch and existing-instance
+show event share the same restore helper. Minimized windows restore, maximized
+placement is retained, and an active modal dialog receives focus. An existing
+instance is not relaunched merely to reveal it.
+
+Guard permits only that registered message on its window, not arbitrary commands
+or a process-wide UIPI exemption. The payload contains only input/time ticks;
+queued requests expire after one second or newer input. Hub's bounded retries,
+newer-intent cancellation, legacy async fallback, elevation manifests and update
+stop/verify gates remain intact. This repairs a source-level cross-integrity
+cooperation gap; it is not a claim that the owner's exact focus failure was
+reproduced on Windows.
+
 ## Devices and decisions
 
 The native app requests authenticated, remembered and connected Windows
@@ -49,9 +67,18 @@ The worker samples address-matched CoreAudio endpoints at most once a second,
 separately from the classic Bluetooth link. **Audio connected** means Windows
 reports an ACTIVE endpoint, not that music is playing. A Bluetooth ACL/link or
 a successful one-shot request alone is not reported as confirmed audio.
-Connecting, retry, paused, no-address-matched-endpoint and failed-request states
-are distinct; failures show the Windows HRESULT. A missing classic record does
-not hide an already-known device's positively matched active audio endpoint.
+The status pill and card accent now use **green for confirmed connection** and
+**blue for paired / Auto-configured, not-connected states**. Audio **Link only**
+and **Connecting...** are also blue, never a claim of ready audio. **Needs
+approval** stays amber, **Denied** red, and an unavailable radio or an unconfirmed
+saved-only record stays neutral. Labels accompany colors.
+
+A separate line explicitly says **Auto-Connect on / off / paused**; that saved
+preference never replaces a real connected status. Connection/request details
+have their own full-width row, including retry, missing-endpoint and Windows
+HRESULT failures. A missing classic record does not hide an already-known
+device's positively matched active audio endpoint. These are display changes,
+not changes to approval, reconnect or disconnect policy.
 
 Reconnect/disconnect obtains the adapter ID from the endpoint connector, gets
 that adapter's `IMMDevice`, and **activates `IKsControl` on the adapter**, as
@@ -63,10 +90,11 @@ adapter are reported as unavailable rather than guessed at by name.
 
 Windows' classic `BluetoothFindFirstDevice` inventory does **not** discover
 LE-only devices; this is not a new WinRT/LE Audio pairing implementation. The
-owner's earbuds/phone difference has not been reproduced on hardware here.
-Automated regressions execute the real policy, discovery, controls, retries and
-COM traversal with Windows I/O mocked; cross-builds are not native acceptance.
-Use the [Windows checklist](../.agent/runbooks/test-bluetooth-reconnect.md) for
-BT-01, which remains open until the actual earbuds are checked.
+owner reports the original connection problem is now working. The new panel
+reveal/colors and remaining persistence, manual-control and lifecycle cases
+still need native checks. Automated regressions execute production activation,
+presentation, policy, discovery, retries and COM traversal with Windows I/O
+mocked; cross-builds are not native acceptance. Use the
+[Windows checklist](../.agent/runbooks/test-bluetooth-reconnect.md) for BT-01.
 
 The pre-migration history remains in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).

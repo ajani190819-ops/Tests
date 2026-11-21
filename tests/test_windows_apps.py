@@ -1547,7 +1547,7 @@ int main(void) {
         rules = (ROOT / "bluetooth-guard/src/parts/autostart_rules.c").read_text(encoding="utf-8")
         ui = (ROOT / "bluetooth-guard/src/parts/window_entry.c").read_text(encoding="utf-8")
         controls = (ROOT / "bluetooth-guard/src/parts/ui_controls.c").read_text(encoding="utf-8")
-        self.assertIn('L"Needs approval"', ui)
+        self.assertIn('L"Needs approval"', btg)
         self.assertIn('L"Accept"', ui)
         self.assertIn('L"Deny"', ui)
         self.assertIn('L"Auto-Connect"', ui)
@@ -5567,10 +5567,9 @@ class AppOpenFocusTests(unittest.TestCase):
     # (path, explicit-first-launch pattern, already-running-resurface pattern)
     APPS = [
         ("bluetooth-guard/src/bluetooth_guard.c",
-         r"if \(!silent\) \{\s*ShowWindow\(g_hwnd, SW_SHOWNORMAL\);\s*"
-         r"UpdateWindow\(g_hwnd\);\s*SetForegroundWindow\(g_hwnd\);",
+         r"if \(!silent\) \{\s*RevealPanel\(g_hwnd\);\s*UpdateWindow\(g_hwnd\);",
          r"WaitForSingleObject\(g_showEvent, 0\) == WAIT_OBJECT_0\)\s*\{\s*"
-         r"ShowWindow\(hwnd, SW_SHOWNORMAL\);\s*SetForegroundWindow\(hwnd\);"),
+         r"RevealPanel\(hwnd\);"),
         ("keyboard-lighting/src/keyboard_lighting.c",
          r"if \(!silent\) \{\s*ShowWindow\(g_hwnd, SW_SHOWNORMAL\);\s*"
          r"UpdateWindow\(g_hwnd\);\s*SetForegroundWindow\(g_hwnd\);",
@@ -5924,13 +5923,129 @@ class BluetoothAudioEndpointTests(unittest.TestCase):
         self.assertIn("DoConnectNow(item.address, item.kind, item.name, FALSE)", worker)
         self.assertIn("DisconnectIfStillRequested(item.address, item.kind, item.name)", worker)
         self.assertEqual(ui.count("SetManualConnectionChoice(d,"), 3, "card and tray must share pause/resume semantics")
-        self.assertIn('L"Audio connected"', ui)
-        self.assertIn('L"Bluetooth link only; audio not connected"', ui)
-        self.assertIn('L"No address-matched audio endpoint"', ui)
-        self.assertIn('L"Auto paused"', ui)
-        self.assertNotIn('L"Connected audio session"', ui)
+        presentation = (parts / "device_presentation.c").read_text(encoding="utf-8")
+        self.assertIn('L"Audio connected"', presentation)
+        self.assertIn('L"Bluetooth link only; audio not connected"', presentation)
+        self.assertIn('L"No address-matched audio endpoint"', presentation)
+        self.assertIn('L"Auto-Connect paused"', presentation)
+        self.assertIn("DescribeDevice(d, radioOn, GetTickCount64(), &visual)", ui)
+        self.assertNotIn('L"Connected audio session"', presentation)
         saved = rules[rules.index("static void SaveRules("):rules.index("static void LoadRules(")]
         self.assertNotIn("autoPaused", saved, "manual Disconnect pause is current-run state, not a new persisted policy")
+
+
+class BluetoothPanelTests(unittest.TestCase):
+    """Production presentation and own-UI reveal wiring; native focus/DPI is separate."""
+
+    @classmethod
+    def setUpClass(cls):
+        import shutil
+        import tempfile
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            raise unittest.SkipTest("portable C compiler is unavailable")
+        cls.temp = tempfile.TemporaryDirectory(prefix="bluetooth-panel-")
+        cls.addClassCleanup(cls.temp.cleanup)
+        folder = Path(cls.temp.name)
+        root = (ROOT / "bluetooth-guard/src/bluetooth_guard.c").read_text(encoding="utf-8")
+        parts = ROOT / "bluetooth-guard/src/parts"
+        policy = (parts / "device_policy.c").read_text(encoding="utf-8")
+        start = root.index("typedef struct {\n    ULONGLONG address;")
+        end = root.index("};", root.index("enum BtConnectState", start)) + 2
+        production = root[start:end] + "\n"
+        production += "\n".join(re.findall(r"(?m)^#define COL_.*$", root)) + "\n"
+        for name in ("DeviceNeedsReview", "DeviceIsAudio", "DeviceAudioReady"):
+            start = policy.index("static BOOL " + name + "(")
+            production += policy[start:policy.index("\n}\n", start) + 3]
+        production += (parts / "device_presentation.c").read_text(encoding="utf-8")
+        (folder / "bluetooth_presentation_production.h").write_text(production, encoding="utf-8")
+        cls.exe = folder / "bluetooth-panel"
+        built = subprocess.run(
+            [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", str(folder),
+             str(ROOT / "tests/native/bluetooth_presentation_harness.c"), "-o", str(cls.exe)],
+            capture_output=True, text=True, timeout=30)
+        if built.returncode:
+            raise AssertionError(built.stderr)
+
+    def run_case(self, case):
+        ran = subprocess.run([str(self.exe), case], capture_output=True, text=True, timeout=10)
+        self.assertEqual(ran.returncode, 0, ran.stderr)
+
+    def test_connected_green_and_paired_blue_do_not_depend_on_auto_preference(self):
+        self.run_case("connection")
+
+    def test_review_denied_and_saved_only_records_cannot_masquerade_as_paired(self):
+        self.run_case("approval")
+
+    def test_request_failure_retry_and_manual_pause_keep_readable_details(self):
+        self.run_case("details")
+
+    def test_all_presentation_combinations_are_read_only_and_truthful(self):
+        self.run_case("matrix")
+
+    def test_every_guard_open_route_uses_the_owning_ui_and_only_show_is_allowed(self):
+        parts = ROOT / "bluetooth-guard/src/parts"
+        entry = (parts / "window_entry.c").read_text(encoding="utf-8")
+        helper = (parts / "window_activation.c").read_text(encoding="utf-8")
+        self.assertIn("if (HandleHubPanelReveal(hwnd, msg, wp, lp)) return 0;", entry)
+        create = entry[entry.index("case WM_CREATE:"):entry.index("case WM_ERASEBKGND:")]
+        self.assertIn("EnableHubPanelReveal(hwnd);", create)
+        for begin, end in (("if (id == IDM_TRAY_OPEN)", "} else if (id == IDM_TRAY_PAUSE)"),
+                           ("if (g_showEvent && WaitForSingleObject", "WriteHeartbeat();"),
+                           ("case WM_TRAYICON:", "case WM_CLOSE:")):
+            route = entry[entry.index(begin):entry.index(end, entry.index(begin))]
+            self.assertIn("RevealPanel(hwnd);", route)
+            self.assertNotIn("SW_SHOWNORMAL", route)
+        self.assertIn("RevealPanel(g_hwnd);", entry)
+        duplicate = entry[entry.index("if (GetLastError() == ERROR_ALREADY_EXISTS)"):entry.index("CoInitializeEx(NULL, COINIT_APARTMENTTHREADED)")]
+        self.assertIn("if (pid) AllowSetForegroundWindow(pid);", duplicate)
+        self.assertLess(duplicate.index("AllowSetForegroundWindow"), duplicate.index("SetEvent(ev)"))
+        self.assertEqual(helper.count("ChangeWindowMessageFilterEx("), 1)
+        self.assertIn("ChangeWindowMessageFilterEx(hwnd, message, MSGFLT_ALLOW, NULL)", helper)
+        self.assertIn("if (message) ChangeWindowMessageFilterEx", helper)
+        self.assertNotIn("ChangeWindowMessageFilter(", helper)
+        for forbidden in ("ShellExecute", "CreateProcess", "EnqueueWork", "DoConnect", "CreateFile", "SendMessage(", "AttachThreadInput", "HWND_TOPMOST"):
+            self.assertNotIn(forbidden, helper)
+        guard_manifest = (ROOT / "bluetooth-guard/src/manifest.xml").read_text(encoding="utf-8")
+        hub_manifest = (ROOT / "project-hub/src/manifest.xml").read_text(encoding="utf-8")
+        self.assertIn('level="requireAdministrator" uiAccess="false"', guard_manifest)
+        self.assertIn('level="asInvoker" uiAccess="false"', hub_manifest)
+
+    def test_cards_give_connection_details_and_auto_choice_separate_rows(self):
+        entry = (ROOT / "bluetooth-guard/src/parts/window_entry.c").read_text(encoding="utf-8")
+        self.assertIn("int cardH = S(108, dpi);", entry)
+        self.assertIn("DescribeDevice(d, radioOn, GetTickCount64(), &visual);", entry)
+        self.assertIn("visual.status, visual.statusFg, visual.statusBg", entry)
+        self.assertIn("visual.statusFg, visual.statusFg, listTop, listBottom)", entry)
+        self.assertIn("DrawTextW(mem, visual.detail,", entry)
+        self.assertIn("DrawTextW(mem, visual.preference,", entry)
+        self.assertIn("SetTextColor(mem, visual.preferenceFg);", entry)
+        self.assertIn("cr.top + S(38, dpi), cr.right - S(16, dpi), cr.top + S(60, dpi)", entry)
+        self.assertIn("btnTopY, forgetR.left - S(14, dpi), btnBottomY", entry)
+
+    def test_both_binary_cache_keys_follow_the_shared_reveal_protocol(self):
+        import importlib.util
+        import tempfile
+        spec = importlib.util.spec_from_file_location("reveal_cache_build", ROOT / "tools/build_windows.py")
+        builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(builder)
+        shared = ROOT / "shared/win32/window_reveal.h"
+        for app in ("hub", "btguard"):
+            self.assertIn(shared, builder.TARGET_SHARED_SOURCES[app])
+        with tempfile.TemporaryDirectory() as name:
+            folder = Path(name)
+            src = folder / "src"
+            src.mkdir()
+            (src / "app.c").write_text("/* unchanged */", encoding="ascii")
+            header = folder / "window_reveal.h"
+            header.write_text("/* protocol one */", encoding="ascii")
+            builder.ROOT = folder
+            builder.TARGET_SHARED_SOURCES = {"hub": (header,), "btguard": (header,)}
+            before = {app: builder.target_key(app, src, [], "test") for app in ("hub", "btguard", "kbl")}
+            header.write_text("/* protocol two */", encoding="ascii")
+            for app in ("hub", "btguard"):
+                self.assertNotEqual(before[app], builder.target_key(app, src, [], "test"))
+            self.assertEqual(before["kbl"], builder.target_key("kbl", src, [], "test"))
 
 
 class RadarWindowsLocationTests(unittest.TestCase):

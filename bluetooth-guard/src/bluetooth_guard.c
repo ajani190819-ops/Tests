@@ -18,6 +18,7 @@
 #include <bluetoothapis.h>
 #include <math.h>
 #include "../../shared/win32/hub_tray_host.h"
+#include "../../shared/win32/window_reveal.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -238,10 +239,12 @@ static void ArmFastBurstWindow(ULONGLONG durationMs) {
 #include "parts/device_history.c"
 #include "parts/device_classify.c"
 #include "parts/device_policy.c"
+#include "parts/device_presentation.c"
 #include "parts/audio_endpoints.c"
 #include "parts/bt_actions.c"
 #include "parts/autostart_rules.c"
 #include "parts/ui_renderer.c"
 #include "parts/emblem.c"
 #include "parts/ui_controls.c"
+#include "parts/window_activation.c"
 #include "parts/window_entry.c"

@@ -7,8 +7,8 @@
 
 - **Hub:** main 2.8.56; Arena 2.8.66. APP-02 (2.8.64) repairs draw-locked
   icon ownership and shell recovery; original expiry/native soak unconfirmed.
-  APP-01 (2.8.63, `47b00a3`) restores/foregrounds windows, preserves modal/max
-  state and prevents duplicates; native focus pending. asInvoker, child elevation,
+  APP-01 Open reported failing again; Guard follow-up below. Retain modal/max
+  placement and duplicate prevention. asInvoker, child elevation,
   user-opened Notes and stop/update gates unchanged.
 - **Agent Notes:** `ad92320`, marker `5343e54`. Saved=receiver flush;
   Read=later checkpoint. Visual wait/opt-in sound; no startup persistence.
@@ -21,15 +21,16 @@
 
 ## Bluetooth Guard / BT-01
 
-Prior approval release `83e54d5`, Hub 2.8.62; native earbuds acceptance open.
-Owner: Guard OFF / Auto ON earbuds fail connection/status while phone connects.
-Released correction `9c91afd` (Hub still 2.8.66): saved review without trust,
-retain missing metadata, adapter
-IMMDevice activation of IKsControl, 5..60s audio retries independent of Guard,
-explicit-Disconnect pause, actual audio status separate from ACL. Preserve K/D/F,
-enabled profiles and address-only routing. Windows hardware/LE-only unproven;
-checklist: `test-bluetooth-reconnect.md`. Legacy PS unchanged.
-Cross-build/checks, 129 tests/291 mutations pass; 4 ASan/UBSan cases pass.
+Owner reports basic Bluetooth connection now works after `9c91afd` (marker
+`7740af8`, Hub 2.8.66). Remaining persistence/manual/lifecycle/LE checks stay open.
+Candidate Hub 2.8.67 + Guard: own-UI Hub/tray reveal, one per-window
+show-only UIPI message, fresh scalar ticks, no elevation change;
+legacy async/duplicate/update gates retained. Green=confirmed connected,
+blue=paired/Auto-configured/link-only/request; separate Auto on/off/paused and
+full-width details. Approval amber, denied red; no request=audio success.
+Preserve K/D/F, address-only actions, enabled profiles and 5..60s Guard-independent
+retries. Build/checks, 136 tests/320 mutations and ASan/UBSan pass; focus/DPI unrun:
+`test-bluetooth-reconnect.md` and `test-hub-open-to-front.md`. Legacy PS unchanged.
 
 ## Agreed to-do list
 
@@ -41,16 +42,16 @@ Repeat pending/parked items; omissions remain OPEN.
   Windows acceptance pending. WX-01/02 native planner/live-map review unrun;
   workflow-write permission blocks the parked review draft.
 - **Hub / Windows:** APP-02 two reproduced lifetime defects fixed in 2.8.64;
-  Windows soak/original expiry still open. APP-01 native focus pending.
+  Windows soak/original expiry still open. APP-01 Open-to-front active.
   OPS-01 monitor: latest open fine; identify UAC program/path/action if repeated
   (reports: Hub open, app open, app update). APP-03 released 2.8.65 (`b16380c`):
   General apps / Orca plugins / Minecraft mods; independent Undahang / Unlayered
   Infill, settings/legacy paths preserved. Approved abstract Undahang icon in
-  2.8.66 (`fd27fa3`); Infill art unchanged. Build/checks, 124 tests/254 mutations pass.
+  2.8.66 (`fd27fa3`); Infill art unchanged.
   Native fitting/icons unrun (`test-hub-grouped-entries.md`).
-- **Bluetooth Guard:** BT-01 active/next: Guard OFF / Auto ON earbuds discovery,
-  status/reconnect vs working phone; choices/persistence and first hardware check.
-  Prior repairs are not acceptance. Scans never grant trust.
+- **Bluetooth Guard:** BT-01 active/next: panel reveal and status visuals. Basic
+  connection owner-confirmed; choices/persistence/manual/lifecycle checks remain.
+  Scans never grant trust.
 - **Keyboard Lighting:** KBL-01 parked for fresh owner `engine.log`;
   `engine-5.log` showed learning/no key events. No engine changes without logs.
 - **Spatial HUD:** HUD-01 three-method F5W runtime/compatibility checks pending.

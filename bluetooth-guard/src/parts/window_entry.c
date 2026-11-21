@@ -114,7 +114,7 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
     /* Scrollable device cards region */
     int listTop = headerH + S(14, dpi);
     int listBottom = footerTop;
-    int cardH = S(82, dpi);
+    int cardH = S(108, dpi);
     int gap = S(11, dpi);
     g_contentH = visCount * (cardH + gap);
     int maxScroll = g_contentH - (listBottom - listTop);
@@ -148,35 +148,12 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
             if (cr.bottom >= listTop && cr.top <= listBottom) {
                 SmoothRoundRect(px, W, H, &cr, (float)S(10, dpi), COL_CARD, COL_BORDER, listTop, listBottom);
 
-                COLORREF barCol = COL_IDLE_SLATE, tagFg = COL_MUTED, tagBg = COL_PILL_MUTED;
-                const wchar_t *tagTxt = L"Auto On";
-                if (DeviceNeedsReview(d)) {
-                    barCol = COL_WARN; tagFg = COL_WARN; tagBg = COL_WARN_BG;
-                    tagTxt = L"Needs approval";
-                } else if (d->denied) {
-                    barCol = COL_DANGER; tagFg = COL_DANGER; tagBg = COL_DANGER_BG;
-                    tagTxt = L"Denied";
-                } else if (d->autoPaused) {
-                    tagTxt = L"Auto paused";
-                } else if (DeviceAudioReady(d) || (!DeviceIsAudio(d) && d->connected)) {
-                    barCol = COL_GOOD; tagFg = COL_GOOD; tagBg = COL_GOOD_BG;
-                    tagTxt = DeviceIsAudio(d) ? L"Audio connected" : L"Connected";
-                } else if (d->connectState == BT_CONNECT_REQUESTED &&
-                           GetTickCount64() - d->connectRequestTick < 10000ULL) {
-                    barCol = COL_ACCENT; tagFg = COL_ACCENT; tagBg = COL_ACCENT_BG;
-                    tagTxt = L"Connecting...";
-                } else if (d->connected) {
-                    tagTxt = L"Bluetooth link";
-                } else if (!d->allowAuto) {
-                    barCol = COL_ACCENT; tagFg = COL_ACCENT; tagBg = COL_ACCENT_BG;
-                    tagTxt = L"Auto Off";
-                } else if (DeviceIsAudio(d)) {
-                    tagTxt = L"Retry pending";
-                }
+                BtDeviceVisual visual;
+                DescribeDevice(d, radioOn, GetTickCount64(), &visual);
 
                 /* Soft rounded left accent capsule + Suite Bluetooth icon */
                 RECT barRc = { cr.left + S(1, dpi), cr.top + S(16, dpi), cr.left + S(5, dpi), cr.bottom - S(16, dpi) };
-                SmoothRoundRect(px, W, H, &barRc, (float)S(2, dpi), barCol, barCol, listTop, listBottom);
+                SmoothRoundRect(px, W, H, &barRc, (float)S(2, dpi), visual.statusFg, visual.statusFg, listTop, listBottom);
                 if (hCardIco) {
                     DrawIconEx(mem, cr.left + S(18, dpi), (cr.top + cr.bottom - cardIcoSz) / 2,
                                hCardIco, cardIcoSz, cardIcoSz, 0, NULL, DI_NORMAL);
@@ -184,12 +161,12 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
 
                 /* Top-right smooth status pill */
                 DrawStatusTag(mem, px, W, H, fBadge, cr.right - S(16, dpi), cr.top + S(11, dpi),
-                              tagTxt, tagFg, tagBg, dpi, listTop, listBottom);
+                              visual.status, visual.statusFg, visual.statusBg, dpi, listTop, listBottom);
 
                 /* Clean natural-case device name */
                 SelectObject(mem, fCard);
                 SetTextColor(mem, COL_TEXT);
-                RECT nr = { cr.left + S(72, dpi), cr.top + S(13, dpi), cr.right - S(176, dpi), cr.top + S(37, dpi) };
+                RECT nr = { cr.left + S(72, dpi), cr.top + S(13, dpi), cr.right - S(196, dpi), cr.top + S(37, dpi) };
                 DrawTextW(mem, d->name, -1, &nr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
                 /* Right bottom controls: smooth pill switch [Auto-Connect] + rounded [Connect / Disconnect] */
@@ -199,45 +176,15 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
                 RECT autoTogR  = { connBtnR.left - S(156, dpi), btnTopY, connBtnR.left - S(8, dpi), btnBottomY };
                 RECT forgetR   = { autoTogR.left - S(96, dpi), btnTopY, autoTogR.left - S(8, dpi), btnBottomY };
 
-                const wchar_t *subTxt = NULL;
-                wchar_t requestText[112];
-                if (DeviceNeedsReview(d))
-                    subTxt = d->paired ? L"Choose Accept, Deny or Auto-Connect" :
-                                        L"Windows saved record; pairing unconfirmed";
-                else if (d->denied)
-                    subTxt = L"Connection denied  \x00B7  Pairing kept";
-                else if (d->autoPaused)
-                    subTxt = d->connected ? L"Link connected; automatic retry paused" :
-                                           L"Auto paused  \x00B7  Connect resumes retry";
-                else if (DeviceAudioReady(d))
-                    subTxt = L"Audio endpoint connected in Windows";
-                else if (!radioOn)
-                    subTxt = L"Bluetooth radio unavailable";
-                else if (d->connectState == BT_CONNECT_FAILED) {
-                    _snwprintf(requestText, 111, L"Connect failed (0x%08lX)%s",
-                               (unsigned long)(DWORD)d->connectError,
-                               d->allowAuto ? L"; retry pending" : L"; try Windows Connect");
-                    requestText[111] = L'\0';
-                    subTxt = requestText;
-                } else if (d->connectState == BT_CONNECT_NO_ENDPOINT)
-                    subTxt = L"No address-matched audio endpoint";
-                else if (d->connectState == BT_CONNECT_REQUESTED &&
-                         GetTickCount64() - d->connectRequestTick < 10000ULL)
-                    subTxt = L"Request sent; waiting for Windows audio";
-                else if (DeviceIsAudio(d) && d->connected)
-                    subTxt = L"Bluetooth link only; audio not connected";
-                else if (!DeviceIsAudio(d))
-                    subTxt = d->connected ? L"Bluetooth link connected" :
-                                           L"Windows manages this device's connection";
-                else if (!d->allowAuto)
-                    subTxt = L"Auto-connect off  \x00B7  Click Connect anytime";
-                else
-                    subTxt = L"Auto retry active  \x00B7  Up to 60s between attempts";
-
+                /* Full-width observation line, then a separate saved preference.
+                   Status never substitutes Auto-on/paused for a real connection. */
                 SelectObject(mem, fBody);
                 SetTextColor(mem, COL_MUTED);
-                RECT sr = { cr.left + S(72, dpi), cr.top + S(39, dpi), forgetR.left - S(14, dpi), cr.bottom - S(12, dpi) };
-                DrawTextW(mem, subTxt, -1, &sr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+                RECT sr = { cr.left + S(72, dpi), cr.top + S(38, dpi), cr.right - S(16, dpi), cr.top + S(60, dpi) };
+                DrawTextW(mem, visual.detail, -1, &sr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+                SetTextColor(mem, visual.preferenceFg);
+                RECT pr = { cr.left + S(72, dpi), btnTopY, forgetR.left - S(14, dpi), btnBottomY };
+                DrawTextW(mem, visual.preference, -1, &pr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
                 int hitAuto = g_hitCount;
                 AddDeviceHit(autoTogR, HIT_DEV_AUTO_TOGGLE, d->address, listTop, listBottom);
@@ -504,6 +451,7 @@ static void ShowTrayMenu(void) {
 }
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (HandleHubPanelReveal(hwnd, msg, wp, lp)) return 0;
     if (msg == SuiteTaskbarCreatedMessage()) {
         g_trayVisible = FALSE;
         BluetoothTraySync();
@@ -511,6 +459,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     switch (msg) {
     case WM_CREATE:
+        EnableHubPanelReveal(hwnd);
         ApplyModernWindowFrame(hwnd);
         SetTimer(hwnd, 1, 700, NULL);
         SetTimer(hwnd, 3, 50, NULL);    /* emblem spin repaint */
@@ -567,8 +516,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_COMMAND: {
         int id = LOWORD(wp);
         if (id == IDM_TRAY_OPEN) {
-            ShowWindow(hwnd, SW_SHOWNORMAL);
-            SetForegroundWindow(hwnd);
+            RevealPanel(hwnd);
         } else if (id == IDM_TRAY_PAUSE) {
             g_guardOn = !g_guardOn;
             SaveRules();
@@ -611,8 +559,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (ApplyHubExit()) return 0;
         CheckForegroundManualIntent();
         if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {
-            ShowWindow(hwnd, SW_SHOWNORMAL);
-            SetForegroundWindow(hwnd);
+            RevealPanel(hwnd);
         }
         WriteHeartbeat();
         return 0;
@@ -660,8 +607,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_TRAYICON:
         if (lp == WM_LBUTTONDBLCLK || lp == WM_LBUTTONUP) {
-            ShowWindow(hwnd, SW_SHOWNORMAL);
-            SetForegroundWindow(hwnd);
+            RevealPanel(hwnd);
         } else if (lp == WM_RBUTTONUP || lp == WM_CONTEXTMENU) {
             ShowTrayMenu();
         }
@@ -741,6 +687,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     HANDLE hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         if (!silent) {
+            HWND running = FindWindowW(L"TestsBluetoothGuardModernWnd", NULL);
+            DWORD pid = 0;
+            if (running) GetWindowThreadProcessId(running, &pid);
+            if (pid) AllowSetForegroundWindow(pid);
             HANDLE ev = OpenEventW(EVENT_MODIFY_STATE, FALSE, SHOW_EVENT_NAME);
             if (ev) { SetEvent(ev); CloseHandle(ev); }
         }
@@ -798,9 +748,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     HANDLE hThread = CreateThread(NULL, 0, WorkerThread, NULL, 0, NULL);
 
     if (!silent) {
-        ShowWindow(g_hwnd, SW_SHOWNORMAL);
+        RevealPanel(g_hwnd);
         UpdateWindow(g_hwnd);
-        SetForegroundWindow(g_hwnd);   /* an explicit Open must take focus */
     }
 
     MSG msg;

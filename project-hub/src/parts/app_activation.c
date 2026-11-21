@@ -96,6 +96,12 @@ static void HubRevealWindow(HWND app) {
     DWORD pid = 0;
     GetWindowThreadProcessId(app, &pid);
     if (pid) AllowSetForegroundWindow(pid);
+    /* Guard keeps its elevation contract. Ask its own UI to reveal itself
+       through the single show-only message it permits across UIPI. Keep the
+       existing async route for older Guard builds and other native apps. */
+    if (g_openRequest.identity &&
+        _wcsicmp(g_openRequest.identity->exeName, L"BluetoothGuard.exe") == 0)
+        SuitePostWindowReveal(app);
     ShowWindowAsync(app, IsIconic(app) ? SW_RESTORE : SW_SHOW);
     HWND target = GetLastActivePopup(app);
     if (!target || !IsWindowVisible(target)) target = app;

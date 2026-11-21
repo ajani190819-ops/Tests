@@ -6,8 +6,9 @@ regression are not a Windows foreground-lock or cross-integrity result.
 ## Setup
 
 1. In Project Hub choose the current active Arena branch, refresh, and update
-   Hub. The implementation introduces Hub 2.8.63. Keep the existing app installs
-   and elevation settings; do not change UAC policy or run everything elevated
+   Hub to 2.8.67 or later, plus Bluetooth Guard. The original route shipped
+   in 2.8.63; 2.8.67 adds Guard-owned cross-integrity reveal. Keep existing
+   elevation settings; do not change UAC policy or run everything elevated
    to mask a failure.
 2. Cover Bluetooth Guard, Agent Notes, DNS Pilot, Audio Switcher, Weather Radar,
    and the existing Keyboard Lighting window. Do not change lighting settings,
@@ -39,6 +40,23 @@ Native single-instance protection must remain intact. Verify ordinary/elevated
 child windows from the normal unelevated Hub; an already-running window should
 not require a new launch merely to show it. A genuinely new elevated child
 retains its existing manifest and consent behavior.
+
+## Bluetooth Guard follow-up
+
+The owner reports basic Bluetooth connection now works, but Hub/tray Open did
+not show its panel. The new route adds a single per-window registered show-only
+message to the elevated Guard, with scalar ticks, freshness checks and no policy
+commands. The legacy asynchronous Hub route remains for old builds/other apps.
+Automated mocks reproduce blocked foreign show/foreground calls and execute the
+production Guard handler; they do not prove this was the owner's exact cause.
+
+Prioritize the normal unelevated Hub -> elevated Guard case from card and tray,
+then Guard's fallback tray (Hub exited), duplicate explicit launch, hidden,
+minimized/maximized and any active modal window. Keep PID unchanged and do not
+accept merely visible-but-behind as success. Move the pointer after clicking
+Open; bounded retries should still work while Hub owns foreground. Switching to
+another app must cancel deferred focus; a busy child's stale queued request must
+not pull you back later. Record display/focus and any UAC program/path separately.
 
 ## Failures / boundaries
 

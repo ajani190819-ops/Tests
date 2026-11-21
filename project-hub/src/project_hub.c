@@ -22,9 +22,10 @@
 #include <string.h>
 #include <wchar.h>
 #include "../../shared/win32/hub_tray_host.h"
+#include "../../shared/win32/window_reveal.h"
 
-#define HUB_VERSION       "2.8.66"
-#define HUB_VERSION_W     L"2.8.66"
+#define HUB_VERSION       "2.8.67"
+#define HUB_VERSION_W     L"2.8.67"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
