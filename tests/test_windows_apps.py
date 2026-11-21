@@ -1514,7 +1514,8 @@ int main(void) {
             "OrcaSlicer Plugins",
         ):
             self.assertIn(expected, hub)
-            self.assertIn(expected, hub_c)
+            self.assertIn("Undahang" if expected == "OrcaSlicer Plugins" else expected, hub_c)
+        self.assertIn("Unlayered Infill", hub_c)
         self.assertIn("DNS Pilot", hub_c)
         self.assertIn("CreateRunspace", hub)
         self.assertNotIn("$T::", hub, "Never use $Var::Member in PowerShell UI code (breaks Command Mode)")
@@ -1618,8 +1619,8 @@ int main(void) {
             # A built-in id must be one the hub actually recognises, or the
             # entry is treated as a new dynamic card and duplicates the card.
             if app_id in known:
-                self.assertLess(known.index(app_id), 7,
-                                f"{where} maps outside the 7 built-in slots")
+                self.assertLess(known.index(app_id), 8,
+                                f"{where} maps outside the 8 built-in slots")
             # An exe-backed app must point at a file that exists in the repo:
             # the hub downloads this exact path from raw.githubusercontent.
             if app.get("exe"):
@@ -2284,7 +2285,7 @@ int main(void) {
         button after a successful install because the generic status sweep only
         ever made that button amber; unlike the built-ins it never hid it again."""
         src = (ROOT / "project-hub" / "src" / "parts" / "refresh_statuses.c").read_text(encoding="utf-8")
-        block = src[src.index("/* 7+. Catalog extras"):src.index("if (g_hwnd) InvalidateRect", src.index("/* 7+. Catalog extras"))]
+        block = src[src.index("/* Catalogue extras"):src.index("if (g_hwnd) InvalidateRect", src.index("/* Catalogue extras"))]
         self.assertIn("BOOL showAction = !has || (known && upd);", block)
         self.assertIn("c->btns[action].hidden = !showAction;", block,
                       "a current dynamic app still renders a clickable Update button")
@@ -2336,35 +2337,33 @@ int main(void) {
         self.assertEqual(btn_id(known.index("orca"), "disable"), defines["ID_ORCA_DISABLE"])
         self.assertEqual(btn_id(known.index("hud"), "remove"), defines["ID_HUD_REMOVE"])
 
-    def test_orca_remove_handler_deletes_the_installed_plugin_files(self):
-        """Orca's Remove is new. It must delete exactly what
-        WorkerInstallOrcaPlugins writes, across every %APPDATA%\\OrcaSlicer*
-        profile, or the button would look like it worked and leave the plugins
-        installed."""
+    def test_orca_remove_handler_deletes_only_the_selected_plugins_files(self):
+        """Shared removal enumerates all host profiles but is keyed to one
+        package/filename. Runtime mocks below verify sibling/settings retention."""
         hub_c = read_c_inlined("project-hub/src/project_hub.c")
-        m = re.search(r'case ID_ORCA_REMOVE:\s*\{(.*?)\n    \}', hub_c, re.S)
-        self.assertIsNotNone(m, "ID_ORCA_REMOVE handler is missing or changed shape")
-        body = m.group(1)
-        self.assertIn("OrcaSlicer*", body)                 # enumerate every profile
-        self.assertIn("wave-overhangs", body)
-        self.assertIn("unlayered-infill", body)
-        self.assertIn("wave_overhangs_orca.py", body)
-        self.assertIn("unlayered_infill_orca.py", body)
+        start = hub_c.index("static void RemoveOrcaPlugin(")
+        body = hub_c[start:hub_c.index("static BOOL HandleOrcaPluginCommand", start)]
+        self.assertIn("&g_orcaPlugins[plugin]", body)
+        self.assertIn("FindOrcaProfiles(&data)", body)
+        self.assertIn("spec->file", body)
+        self.assertIn("OrcaLegacyFile(spec", body)
         self.assertIn("DeleteFileW", body)
-        self.assertIn("RefreshProjectStatuses", body)      # card refreshes after removal
+        self.assertNotIn("wave-overhangs", body)
+        self.assertNotIn("unlayered-infill", body)
+        self.assertNotIn("SHFileOperation", body, "removal must not recursively delete user settings")
+        self.assertIn("RemoveOrcaPlugin(plugin); RefreshProjectStatuses();", hub_c)
 
-    def test_orca_disable_is_persisted_and_gates_the_installer(self):
-        """g_orcaDisabled used to be toggled but never loaded, saved, or checked,
-        so Orca's Disable was a no-op. Now that it is a visible button it has to
-        survive a restart and actually stop the worker installing."""
+    def test_orca_disable_is_migrated_persisted_independently_and_gates_installs(self):
         hub_c = read_c_inlined("project-hub/src/project_hub.c")
         self.assertRegex(hub_c, r'GetPrivateProfileStringW\(L"Apps",\s*L"OrcaDisabled"')
-        self.assertRegex(hub_c, r'WritePrivateProfileStringW\(L"Apps",\s*L"OrcaDisabled"')
-        m = re.search(r'static void WorkerInstallOrcaPlugins\(void\)\s*\{(.*?)\n    wchar_t branch',
-                      hub_c, re.S)
-        self.assertIsNotNone(m, "WorkerInstallOrcaPlugins prologue changed - update this test")
-        self.assertIn("g_orcaDisabled", m.group(1))
-        self.assertIn("return", m.group(1))
+        for key in ("WaveOverhangsDisabled", "UnlayeredInfillDisabled"):
+            self.assertRegex(hub_c, rf'GetPrivateProfileStringW\(L"Apps",\s*L"{key}", legacy')
+            self.assertRegex(hub_c, rf'WritePrivateProfileStringW\(L"Apps",\s*L"{key}"')
+        self.assertNotRegex(hub_c, r'WritePrivateProfileStringW\(L"Apps",\s*L"OrcaDisabled"')
+        start = hub_c.index("static void WorkerInstallOrcaPlugin(")
+        body = hub_c[start:hub_c.index("static void RemoveOrcaPlugin", start)]
+        self.assertLess(body.index("if (OrcaPluginDisabled(plugin))"), body.index("DownloadRawRepoFile"))
+        self.assertIn("EnsureProbeRef(branch, 64);", body)
 
     def test_update_button_is_hidden_unless_an_update_is_needed(self):
         """btns[0] on every card is the dynamic Update/Install action: Install
@@ -2373,8 +2372,8 @@ int main(void) {
         the app is missing. HUD/Orca mirror the same rule."""
         hub_c = read_c_inlined("project-hub/src/project_hub.c")
         # every built-in card labels btns[0] "Install" in its not-installed branch
-        self.assertEqual(hub_c.count('.btns[0].label = L"Install"'), 7,
-                         "all 7 built-in cards should show Install when the app is missing")
+        self.assertEqual(hub_c.count('.btns[0].label = L"Install"'), 6,
+                         "six dedicated status branches plus the shared two-plugin helper")
         # HUD up-to-date branch hides btns[0] (label reset to Update)
         self.assertRegex(hub_c, r'BADGE_OK;\s*g_cards\[2\]\.btns\[0\]\.label = L"Update";'
                                 r'\s*g_cards\[2\]\.btns\[0\]\.style = BTN_SECONDARY;'
@@ -2385,11 +2384,10 @@ int main(void) {
         # not-installed + newer-build branches reveal it (exactly two)
         self.assertEqual(hub_c.count("g_cards[2].btns[0].hidden = FALSE"), 2,
                          "HUD should reveal Update/Install in exactly the not-installed and newer-build branches")
-        # Orca: disabled hides, not-installed reveals, else follows the update flag
-        self.assertRegex(hub_c, r'BADGE_IDLE;\s*g_cards\[3\]\.btns\[0\]\.style = BTN_SECONDARY;'
-                                r'\s*g_cards\[3\]\.btns\[0\]\.hidden = TRUE;')
-        self.assertEqual(hub_c.count("g_cards[3].btns[0].hidden = FALSE"), 1)
-        self.assertIn("g_cards[3].btns[0].hidden = !upd;", hub_c)
+        # Both Orca cards use the same per-plugin visibility rule, executed
+        # against independent current/legacy profile fixtures below.
+        self.assertIn('c->btns[0].label = status.files ? L"Update" : L"Install";', hub_c)
+        self.assertIn('c->btns[0].hidden = disabled || (status.files && (!known || !status.needsUpdate));', hub_c)
         # launcher cards hide Open (btns[1]) while the app is missing
         self.assertEqual(hub_c.count("/* nothing to open until installed */"), 4,
                          "BTG/DNS/Notes/Audio hide Open when the app is missing")
@@ -2418,7 +2416,7 @@ int main(void) {
                              f"{app_id} button order regressed (Update must come first)")
 
         hub_c = read_c_inlined("project-hub/src/project_hub.c")
-        for card in range(7):
+        for card in (0, 1, 2, 4, 5, 6):
             self.assertRegex(
                 hub_c,
                 r'g_cards\[%d\]\.btns\[0\]\s*=\s*\(ActionBtn\)\s*\{\s*ID_[A-Z_0-9]+,\s*L"Update"' % card,
@@ -2453,11 +2451,10 @@ int main(void) {
             self.assertIn(f".{field}", body,
                           f"RestoreBuiltInCardText does not reset button `{field}`, "
                           f"which DrawActionBtn hands straight to DrawTextW")
-        # The restore must cover all 7 built-in slots, not the first 6.
-        self.assertRegex(body, r"for \(int i = 0; i < 7; i\+\+\)",
-                         "RestoreBuiltInCardText must cover all 7 built-in slots; "
-                         "the old title-only loop stopped at 6 and left Audio "
-                         "Switcher dangling")
+        self.assertRegex(body, r"for \(int i = 0; i < BUILTIN_CARD_COUNT; i\+\+\)",
+                         "RestoreBuiltInCardText must cover every built-in slot")
+        self.assertIn("InitOrcaCard(0);", body)
+        self.assertIn("InitOrcaCard(1);", body)
 
     def test_hub_version_constants_are_paired_and_well_formed(self):
         """AGENTS.md hard rule 3.4: HUB_VERSION and HUB_VERSION_W are two
@@ -4422,7 +4419,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
                         "EnsureProbeRef prefers the branch over the released ref")
         self.assertEqual(wi.count("EnsureActiveBranch("), 0,
                          "an install worker still downloads from the branch tip")
-        self.assertGreaterEqual(wi.count("EnsureProbeRef(branch, 64);"), 6,
+        self.assertGreaterEqual((wi + (ROOT / "project-hub/src/parts/orca_plugins.c").read_text(encoding="utf-8")).count("EnsureProbeRef(branch, 64);"), 6,
                          "not every install worker honours the released ref")
 
         # The tray obeys the same marker, and Restart syncs before starting.
@@ -4821,17 +4818,18 @@ int main(void) {
         # don't actually update" for at least one app.
         for call in ("WorkerInstallBluetoothGuard(FALSE)",
                      "WorkerInstallKeyboardLighting()",
-                     "WorkerInstallOrcaPlugins()",
+                     "WorkerInstallOrcaPlugin(0)",
+                     "WorkerInstallOrcaPlugin(1)",
                      "WorkerInstallSpatialHud()",
                      "WorkerInstallDnsPilot(FALSE)",
                      "WorkerInstallNotes(FALSE)"):
             self.assertIn(call, block,
                           f"Update All no longer calls {call}, so that app's suite "
                           f"folder keeps the previous build on a one-click update")
-        self.assertRegex(block, r"for \(int i = 6; i < g_cardCount; i\+\+\) "
+        self.assertIn("WorkerInstallGeneric(6, FALSE);", block)
+        self.assertRegex(block, r"for \(int i = BUILTIN_CARD_COUNT; i < g_cardCount; i\+\+\)\s+"
                                 r"WorkerInstallGeneric\(i, FALSE\);",
-                         "Update All no longer sweeps the generic slots (Audio "
-                         "Switcher, catalog cards)")
+                         "Update All must sweep EXE extras without installing a plugin as an EXE")
         self.assertIn("WorkerCheckRemote();", block,
                       "Update All does not re-check the remote afterwards, so the "
                       "badges would still read stale after a successful update")
@@ -5553,6 +5551,112 @@ class HubLongevityTests(unittest.TestCase):
                         rebuild.index("ZeroMemory(&g_cards[i], sizeof(g_cards[i]));"))
         self.assertNotIn("DestroyIcon(", rebuild,
                          "catalog cleanup bypasses the paint/ownership lock")
+
+
+class HubGroupedEntriesTests(unittest.TestCase):
+    """Production C with mocked profiles/files and DPI/window geometry.
+    Native Windows fitting, Explorer and real Orca remain acceptance work."""
+
+    @classmethod
+    def setUpClass(cls):
+        import shutil
+        import tempfile
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            raise unittest.SkipTest("portable C compiler is unavailable")
+        cls.temp = tempfile.TemporaryDirectory(prefix="hub-groups-")
+        cls.addClassCleanup(cls.temp.cleanup)
+        folder = Path(cls.temp.name)
+        root = (ROOT / "project-hub/src/project_hub.c").read_text(encoding="utf-8")
+        parts = ROOT / "project-hub/src/parts"
+        defines = "\n".join(re.findall(
+            r"(?m)^#define (?:ID_\w+|RES_ICON_\w+|MAX_APPS|BUILTIN_CARD_COUNT) +\d+.*$", root))
+        category = re.search(r"enum \{ HUB_GROUP_GENERAL.*?\};", root).group(0)
+        types = root[root.index("enum {\n    BADGE_IDLE"):root.index("static HINSTANCE")]
+        (folder / "hub_groups_types.h").write_text(defines + "\n" + category + "\n" + types, encoding="utf-8")
+        cfg = (parts / "version_probe_cache.c").read_text(encoding="utf-8")
+
+        def function(text, start):
+            at = text.index(start)
+            return text[at:text.index("\n}\n", at) + 3]
+
+        config = cfg[cfg.index("/* Hub-only opt-outs"):cfg.index("static void EnsureActiveBranch")]
+        catalog = (parts / "catalog_icons_json.c").read_text(encoding="utf-8")
+        catalog = catalog[catalog.index("static wchar_t g_strPool["):]
+        orca = (parts / "orca_plugins.c").read_text(encoding="utf-8")
+        fallback = (parts / "builtin_card_text.c").read_text(encoding="utf-8")
+        cards = (parts / "card_defs_verbs.c").read_text(encoding="utf-8")
+        cards = cards[cards.index("static void InitCardDefinitions(void)"):]
+        layout = (parts / "ui_renderer.c").read_text(encoding="utf-8")
+        layout = layout[layout.index("/* Physical card slots"):layout.index("/* Blit the spinning emblem")]
+        production = (config + function(cfg, "static BOOL ExtractQuotedAfter(") +
+                      function(cfg, "static BOOL VerNewer(") + catalog + orca + fallback + cards + layout)
+        (folder / "hub_groups_production.h").write_text(production, encoding="utf-8")
+        cls.exe = folder / "hub-groups"
+        built = subprocess.run(
+            [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", str(folder),
+             str(ROOT / "tests/native/hub_groups_harness.c"), "-o", str(cls.exe)],
+            capture_output=True, text=True, timeout=30)
+        if built.returncode:
+            raise AssertionError(built.stderr)
+
+    def _run(self, scenario, expected):
+        run = subprocess.run([str(self.exe), scenario], capture_output=True, text=True, timeout=15)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn(expected, run.stdout)
+
+    def test_plugin_preferences_migrate_and_actions_are_independent(self):
+        self._run("config", "Hub independent configuration and routing passed")
+
+    def test_each_plugin_installs_and_removes_only_its_files_preserving_settings(self):
+        self._run("files", "Hub independent plugin filesystem scenarios passed")
+
+    def test_each_plugins_status_uses_all_profiles_and_both_install_paths(self):
+        self._run("status", "Hub independent plugin status scenarios passed")
+
+    def test_partial_old_and_duplicate_catalogues_preserve_every_known_card(self):
+        self._run("catalog", "Hub catalogue fallback and duplicate scenarios passed")
+
+    def test_grouped_layout_scrolling_clipping_and_dpi_route_to_the_drawn_card(self):
+        self._run("layout", "Hub grouped DPI geometry and clipped routing passed")
+
+    def test_catalogue_categories_and_legacy_id_remain_stable(self):
+        apps = json.loads((ROOT / "suite-apps.json").read_text(encoding="utf-8"))["apps"]
+        expected = {"hud": "Minecraft mods", "orca": "Orca plugins", "unlayered-infill": "Orca plugins"}
+        self.assertEqual(len(apps), 9)
+        for app in apps:
+            self.assertEqual(app["category"], expected.get(app["id"], "General apps"))
+        by_id = {a["id"]: a for a in apps}
+        self.assertEqual(by_id["orca"]["title"], "Undahang")
+        self.assertEqual(by_id["unlayered-infill"]["title"], "Unlayered Infill")
+        self.assertEqual(by_id["orca"]["dir"], "OrcaPlugins")
+        for app_id in ("orca", "unlayered-infill"):
+            self.assertFalse(by_id[app_id]["exe"])
+        # Broader NAME-01 and plugin/preset APIs are deliberately separate.
+        self.assertEqual(by_id["kbl"]["title"], "Keyboard Lighting")
+        self.assertEqual(by_id["weatherradar"]["title"], "Weather Radar")
+        manifest = json.loads((ROOT / "plugins.json").read_text(encoding="utf-8"))["plugins"]
+        self.assertEqual([a["id"] for a in manifest], ["wave-overhangs", "unlayered-infill"])
+        self.assertEqual(manifest[0]["name"], "Wave Overhangs")
+
+    def test_renderer_and_pointer_events_share_grouped_geometry(self):
+        parts = ROOT / "project-hub/src/parts"
+        renderer = (parts / "ui_renderer.c").read_text(encoding="utf-8")
+        router = (parts / "branch_picker_entry.c").read_text(encoding="utf-8")
+        self.assertIn("RECT title = g_groupRects[group];", renderer)
+        self.assertIn("DrawTextW(hdc, g_groupTitles[group]", renderer)
+        self.assertIn("IntersectClipRect(hdc, 0, headerH + 1, w, footerTop - 1)", renderer)
+        self.assertIn("if (!ico && card->resIconId == RES_ICON_ORCA) ico = g_cardIcons[3];", renderer)
+        for event in ("WM_MOUSEMOVE", "WM_LBUTTONUP"):
+            at = router.index("case " + event + ":")
+            body = router[at:router.index("return 0;", at)]
+            self.assertLess(body.index("ComputeLayout(hwnd)"), body.index("HitTestButtons("))
+            self.assertIn("HubHeaderHeight(cli.right, dpi)", body)
+        self.assertIn("if (HandleOrcaPluginCommand(hwnd, id)) return;", router)
+        dispatch = (parts / "enqueue_restart_prompts.c").read_text(encoding="utf-8")
+        self.assertIn("case TASK_INSTALL_ORCA_WAVE:   WorkerInstallOrcaPlugin(0);", dispatch)
+        self.assertIn("case TASK_INSTALL_ORCA_INFILL: WorkerInstallOrcaPlugin(1);", dispatch)
+        self.assertNotIn("for (int i = 6; i < g_cardCount; i++) WorkerInstallGeneric", dispatch)
 
 
 class RadarWindowsLocationTests(unittest.TestCase):

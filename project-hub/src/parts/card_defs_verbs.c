@@ -94,7 +94,7 @@ static void HandleVerb(int idx, const wchar_t *verb) {
 
 static void InitCardDefinitions(void) {
     ZeroMemory(g_cards, sizeof(g_cards));
-    g_cardCount = 7;
+    g_cardCount = BUILTIN_CARD_COUNT;
 
     g_cards[0].resIconId = RES_ICON_BTG;
     g_cards[0].title     = L"Bluetooth Guard";
@@ -120,13 +120,9 @@ static void InitCardDefinitions(void) {
     g_cards[2].btns[2]   = (ActionBtn){ ID_HUD_REMOVE,  L"Remove",  BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
     g_cards[2].btns[3]   = (ActionBtn){ ID_HUD_DISABLE, L"Disable", BTN_SECONDARY, 78, {0,0,0,0}, NULL, FALSE };
 
-    g_cards[3].resIconId = RES_ICON_ORCA;
-    g_cards[3].title     = L"OrcaSlicer Plugins";
-    g_cards[3].btnCount  = 4;
-    g_cards[3].btns[0]   = (ActionBtn){ ID_ORCA_UPDATE,  L"Update",  BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
-    g_cards[3].btns[1]   = (ActionBtn){ ID_ORCA_FOLDER,  L"Folder",  BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
-    g_cards[3].btns[2]   = (ActionBtn){ ID_ORCA_REMOVE,  L"Remove",  BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
-    g_cards[3].btns[3]   = (ActionBtn){ ID_ORCA_DISABLE, L"Disable", BTN_SECONDARY, 78, {0,0,0,0}, NULL, FALSE };
+    InitOrcaCard(0);
+    InitOrcaCard(1);
+    g_cards[2].category = HUB_GROUP_MINECRAFT;
 
     g_cards[4].resIconId = RES_ICON_DNS;
     g_cards[4].title     = L"DNS Pilot";
@@ -152,7 +148,7 @@ static void InitCardDefinitions(void) {
     /* exeRepo/exeName/appDir so Install/Update/Open/Folder work for built-in
        cards. appDir is the suite folder for every card: it is where an install
        writes and where the status sweep looks, so the two can never disagree. */
-    static const struct { const char *repo; const char *name; const wchar_t *dir; } builtinExe[7] = {
+    static const struct { const char *repo; const char *name; const wchar_t *dir; } builtinExe[8] = {
         { "bluetooth-guard/BluetoothGuard.exe", "BluetoothGuard.exe", L"BluetoothGuard" },
         { "keyboard-lighting/KeyboardLighting.exe", "KeyboardLighting.exe", L"KeyboardLighting" },
         { NULL, NULL, L"SpatialHudUpdater" },
@@ -160,8 +156,9 @@ static void InitCardDefinitions(void) {
         { "dns-pilot/DnsPilot.exe", "DnsPilot.exe", L"DnsPilot" },
         { "agent-notes/AgentNotes.exe", "AgentNotes.exe", L"AgentNotes" },
         { "audio-switcher/AudioSwitcher.exe", "AudioSwitcher.exe", L"AudioSwitcher" },
+        { NULL, NULL, L"OrcaPlugins" },
     };
-    for (int i = 0; i < 7; i++) {
+    for (int i = 0; i < BUILTIN_CARD_COUNT; i++) {
         ProjectCard *c = &g_cards[i];
         if (builtinExe[i].repo) {
             c->exeRepo = PoolAdd(builtinExe[i].repo);

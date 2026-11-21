@@ -23,8 +23,8 @@
 #include <wchar.h>
 #include "../../shared/win32/hub_tray_host.h"
 
-#define HUB_VERSION       "2.8.64"
-#define HUB_VERSION_W     L"2.8.64"
+#define HUB_VERSION       "2.8.65"
+#define HUB_VERSION_W     L"2.8.65"
 #define APP_TITLE         L"Project Hub"
 #define SINGLE_MUTEX_NAME L"Local\\Tests_ProjectHub_SingleInstance_v2"
 #define SHOW_EVENT_NAME   L"Local\\Tests_ProjectHub_ShowWindow_v2"
@@ -114,6 +114,11 @@
 #define ID_ORCA_FOLDER       1403
 #define ID_ORCA_REMOVE       1405
 
+#define ID_INFILL_UPDATE     1501
+#define ID_INFILL_FOLDER     1503
+#define ID_INFILL_DISABLE    1504
+#define ID_INFILL_REMOVE     1505
+
 
 #define ID_DNS_OPEN          1701
 #define ID_DNS_UPDATE        1702
@@ -136,6 +141,9 @@
 /* Dynamic catalog button ids: ID_DYN_BASE + appIndex*10 + buttonIndex */
 #define ID_DYN_BASE          1800
 #define MAX_APPS             12
+#define BUILTIN_CARD_COUNT   8
+
+enum { HUB_GROUP_GENERAL, HUB_GROUP_ORCA, HUB_GROUP_MINECRAFT, HUB_GROUP_COUNT };
 
 /* Soft Slate Suite Palette (matches Keyboard Lighting, Bluetooth Guard & docs/UI_STYLE_GUIDE.md) */
 #define COL_BG               RGB(24, 27, 36)    /* #181B24 */
@@ -189,7 +197,8 @@ enum {
     TASK_OPEN_OR_INSTALL_BTG,
     TASK_INSTALL_KBL,
     TASK_INSTALL_HUD,
-    TASK_INSTALL_ORCA,
+    TASK_INSTALL_ORCA_WAVE,
+    TASK_INSTALL_ORCA_INFILL,
     TASK_INSTALL_DNS,
     TASK_OPEN_OR_INSTALL_DNS,
     TASK_INSTALL_NOTES,
@@ -212,6 +221,7 @@ typedef struct {
 
 typedef struct {
     int            resIconId;
+    int            category;
     const wchar_t *title;
     wchar_t        badge[48];
     int            badgeKind;
@@ -231,6 +241,7 @@ typedef struct {
     HICON          hIcon;
     DWORD          remSize;
     char           remSha[41];   /* git blob SHA-1 of the remote build, when known */
+    char           catalogDef[1024]; /* owned fallback when a response omits this extra */
 } ProjectCard;
 
 static HINSTANCE        g_hInst       = NULL;
@@ -264,7 +275,7 @@ static ActionBtn        g_topBtns[5] = {
 static RECT             g_rcEmblem    = {0, 0, 0, 0};
 
 static ProjectCard      g_cards[MAX_APPS];
-static int              g_cardCount = 7;   /* 7 built-ins + catalog extras */
+static int              g_cardCount = BUILTIN_CARD_COUNT;
 static int              g_dynIdx = 0;      /* target of TASK_*_DYN */
 static int              g_hoverId     = 0;
 static int              g_scrollY     = 0;
@@ -427,6 +438,7 @@ static int HubTrayHandleCommand(HWND hwnd, int id);
 #include "parts/install_folder.c"
 #include "parts/app_activation.c"
 #include "parts/catalog_icons_json.c"
+#include "parts/orca_plugins.c"
 #include "parts/builtin_card_text.c"
 #include "parts/card_defs_verbs.c"
 #include "parts/refresh_statuses.c"

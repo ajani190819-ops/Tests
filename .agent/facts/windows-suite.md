@@ -6,7 +6,8 @@
 
 ## Fast One-Shot Commands
 
-- **Build all three EXEs** (`ProjectHub.exe`, `BluetoothGuard.exe`, `KeyboardLighting.exe`): `python3 tools/build_windows.py` (~2s warm zig cache, ~130s cold; compiler is `python -m ziglang cc -target x86_64-windows-gnu` from `/home/user/.venv`)
+- **Cross-build seven Windows EXEs:** `python3 tools/build_windows.py` (cached
+  Zig; `/home/user/.venv`, caches under `/home/user/.cache`).
 - **Run all verification suites:** `python3 tools/check_all.py` (~4s warm, ~45s cold)
 - **Regenerate icons + spin:** `/home/user/.venv/bin/python3 tools/generate_suite_icons.py` (~80–130s; only when brand assets change)
 - **Git sync (start of every turn):** `bash tools/sync_branch.sh`
@@ -38,7 +39,7 @@ Line numbers drift — search for the symbol names.
    - Keep the **`Update Hub`** self-update; bump `HUB_VERSION` **and** `HUB_VERSION_W` with every shipped binary.
    - Updater follows the user-selected branch (`Branch` button); `tests/test_windows_apps.py` asserts project names, `SmoothRoundRect`, `RES_ICON_EMBLEM`, multi-size `.ico` headers.
    - Longevity: owned catalogue icons swap/discard through `ReplaceCardIcon` under the draw lock; failed loads retain the last good handle. The two-second tray poll probes the shell, restores missing icons, and releases the host marker on unconfirmed registration. Quit/removal cannot re-register. Mocked lifetime tests are not a native soak or proof of the owner's original expiry symptom; see `.agent/runbooks/test-hub-longevity.md`.
-   - Settings is a separate Soft Slate window with a dark DWM frame; Keyboard Lighting controls save to both `panel.json` and the live `theme.json`, while DNS and branch-follow settings keep their owning app files.
+   - Grouped cards keep stable slots: 0 BTG, 1 KBL, 2 HUD, 3 Undahang (`orca`), 4 DNS, 5 Notes, 6 Audio, 7 Infill; extras start at `BUILTIN_CARD_COUNT`. `orca_plugins.c` owns independent plugin routes and legacy opt-out migration. Native checklist: `.agent/runbooks/test-hub-grouped-entries.md`.
    - Load `dwmapi.dll` dynamically so static PE imports stay clean. PE whitelist: no hid.dll/setupapi.dll/WIC imports.
 3. **Keyboard Lighting:**
    - **Strict 7-bit ASCII** in all `keyboard-lighting/` text files (enforced by tests). The app is C11 (`src/keyboard_lighting.c`) + PowerShell engine (`Aura-Background.ps1`); `project-hub/` + `bluetooth-guard/` I/O is latin-1 safe.
@@ -48,6 +49,6 @@ Line numbers drift — search for the symbol names.
 
 ## Git / Sandbox Gotchas
 
-- The Arena sandbox resets `.git` between turns (files survive, commit objects may not): run `bash tools/sync_branch.sh` first thing every turn.
-- All commits/pushes only on `arena/<id>-tests`; never `main`, never force-push.
+- Run `bash tools/sync_branch.sh` each turn; sandbox Git metadata may reset.
+- Commit/push only the active Arena branch; never main or force-push.
 - Download links need cache-busting `?v=<commit>`; when pixels change, prefer NEW FILENAMES (stale GitHub/Windows caches otherwise serve old art).

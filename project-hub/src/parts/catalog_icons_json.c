@@ -218,15 +218,17 @@ static int JsonGet(const char *obj, const char *key, char *out, int cap) {
     }
 }
 
+static void InitOrcaCard(int plugin);
+
 static int BuiltInSlot(const char *id) {
-    static const char *known[7] = { "btguard", "kbl", "hud", "orca", "dnspilot", "agentnotes", "audioswitcher" };
-    for (int i = 0; i < 7; i++) if (strcmp(id, known[i]) == 0) return i;
+    static const char *known[8] = { "btguard", "kbl", "hud", "orca", "dnspilot", "agentnotes", "audioswitcher", "unlayered-infill" };
+    for (int i = 0; i < BUILTIN_CARD_COUNT; i++) if (strcmp(id, known[i]) == 0) return i;
     return -1;
 }
 
 static int BuiltInBtnId(int slot, const char *verb) {
     /* verb -> the control id the existing WM_COMMAND switch understands */
-    static const struct { const char *verb; int id; } map[27] = {
+    static const struct { const char *verb; int id; } map[31] = {
         { "open",      ID_BTG_OPEN },     { "update",    ID_BTG_UPDATE },
         { "stop",      ID_BTG_STOP },     { "folder",    ID_BTG_FOLDER },
         { "open",      ID_KBL_OPEN },     { "unfreeze",  ID_KBL_RESTART },
@@ -242,10 +244,12 @@ static int BuiltInBtnId(int slot, const char *verb) {
         { "open",      ID_NOTES_OPEN },   { "update",    ID_NOTES_UPDATE },
         { "folder",    ID_NOTES_FOLDER },
         { "open",      ID_AUDIOSWITCHER_OPEN },  { "update",    ID_AUDIOSWITCHER_UPDATE },
-        { "folder",    ID_AUDIOSWITCHER_FOLDER }
+        { "folder",    ID_AUDIOSWITCHER_FOLDER },
+        { "update",    ID_INFILL_UPDATE }, { "folder", ID_INFILL_FOLDER },
+        { "remove",    ID_INFILL_REMOVE }, { "disable", ID_INFILL_DISABLE }
     };
-    static const int off[10] = { 0, 4, 8, 13, 18, 21, 24, 27, 27, 27 };
-    if (slot < 0 || slot > 6) return 0;
+    static const int off[10] = { 0, 4, 8, 13, 18, 21, 24, 27, 31, 31 };
+    if (slot < 0 || slot >= BUILTIN_CARD_COUNT) return 0;
     for (int i = off[slot]; i < off[slot + 1]; i++)
         if (strcmp(map[i].verb, verb) == 0) return map[i].id;
     return 0;
@@ -254,6 +258,13 @@ static int BuiltInBtnId(int slot, const char *verb) {
 static void FillBuiltInDef(int slot, const char *id, const char *title,
                            const char *blurb, const char *icon, const char *buttons) {
     if (slot < 0 || slot >= g_cardCount) return;
+    /* The old combined catalogue id remains an alias for Undahang. Pin both
+       plugin definitions so an old/missing catalogue cannot recombine them. */
+    if (slot == 3 || slot == 7) {
+        InitOrcaCard(slot == 3 ? 0 : 1);
+        if (icon[0]) LoadCardIcon(&g_cards[slot], icon);
+        return;
+    }
     ProjectCard *c = &g_cards[slot];
     MultiByteToWideChar(CP_UTF8, 0, id, -1, c->id, 23);
     if (title[0]) c->title = PoolAdd(title);
@@ -375,8 +386,15 @@ static void AddCatalogCard(const char *obj, BOOL loadIcon) {
         return;
     }
     if (!exe[0]) return;
+    /* First complete definition wins; duplicate ids (including retained
+       descriptors replayed below) never create another card or action id. */
+    wchar_t wid[24] = L"";
+    if (strlen(id) >= 24) return;
+    MultiByteToWideChar(CP_UTF8, 0, id, -1, wid, 24);
+    for (int i = BUILTIN_CARD_COUNT; i < g_cardCount; i++)
+        if (_wcsicmp(g_cards[i].id, wid) == 0) return;
     BOOL weatherPresent = FALSE;
-    for (int i = 7; i < g_cardCount; i++)
+    for (int i = BUILTIN_CARD_COUNT; i < g_cardCount; i++)
         if (_wcsicmp(g_cards[i].id, L"weatherradar") == 0) weatherPresent = TRUE;
     BOOL isWeatherRadar = strcmp(id, "weatherradar") == 0;
     if (g_cardCount >= MAX_APPS ||
@@ -386,6 +404,8 @@ static void AddCatalogCard(const char *obj, BOOL loadIcon) {
     ProjectCard *c = &g_cards[g_cardCount];
     ZeroMemory(c, sizeof(*c));
     c->resIconId = isWeatherRadar ? RES_ICON_WEATHER : 0;
+    c->category = HUB_GROUP_GENERAL;
+    strncpy(c->catalogDef, obj, sizeof(c->catalogDef) - 1);
     MultiByteToWideChar(CP_UTF8, 0, id, -1, c->id, 23);
     c->title = PoolAdd(title[0] ? title : id);
     c->blurb = PoolAdd(blurb[0] ? blurb : "Suite app");
@@ -475,7 +495,7 @@ static const char kWeatherRadarFallbackJson[] =
     "\"buttons\":\"update:Update:74,open:Open:68,folder:Folder:68\"}";
 
 static BOOL HasWeatherRadarCatalogCard(void) {
-    for (int i = 7; i < g_cardCount; i++)
+    for (int i = BUILTIN_CARD_COUNT; i < g_cardCount; i++)
         if (_wcsicmp(g_cards[i].id, L"weatherradar") == 0) return TRUE;
     return FALSE;
 }

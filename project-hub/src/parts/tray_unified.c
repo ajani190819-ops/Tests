@@ -443,7 +443,7 @@ static void HubTrayStopExe(const wchar_t *dir, const wchar_t *exe, const wchar_t
 }
 
 static int HubTrayFindCardByExe(const wchar_t *exeName) {
-    for (int i = 7; i < g_cardCount; i++)
+    for (int i = BUILTIN_CARD_COUNT; i < g_cardCount; i++)
         if (g_cards[i].exeName && _wcsicmp(g_cards[i].exeName, exeName) == 0)
             return i;
     return -1;

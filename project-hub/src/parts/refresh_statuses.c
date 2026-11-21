@@ -258,61 +258,10 @@ static void RefreshProjectStatuses(void) {
 
 
     }
-    /* 4. OrcaSlicer Plugins */
-    if (g_orcaDisabled) {
-        wcsncpy(g_cards[3].badge, L"Disabled", 47);
-        g_cards[3].badgeKind = BADGE_IDLE;
-        g_cards[3].btns[0].style = BTN_SECONDARY;
-        g_cards[3].btns[0].hidden = TRUE;   /* disabled: nothing to update */
-        for (int b = 0; b < g_cards[3].btnCount; b++)
-            if (g_cards[3].btns[b].id == ID_ORCA_DISABLE)
-                g_cards[3].btns[b].label = L"Enable";
-        wcsncpy(g_cards[3].detail,
-                L"Wave Overhangs & Unlayered Infill - Disabled (will not install or update)", 255);
-    } else {
-        for (int b = 0; b < g_cards[3].btnCount; b++)
-            if (g_cards[3].btns[b].id == ID_ORCA_DISABLE)
-                g_cards[3].btns[b].label = L"Disable";
-        char locWave[32] = "", locInfill[32] = "";
-        const wchar_t *probeRel[] = {
-            L"%s\\OrcaSlicer\\orca_plugins\\wave-overhangs\\wave_overhangs_orca.py",
-            L"%s\\OrcaSlicer\\plugins\\wave_overhangs_orca.py"
-        };
-        for (int i = 0; i < 2 && !locWave[0]; i++) {
-            _snwprintf(path, MAX_PATH, probeRel[i], g_roamApp);
-            char *py = ReadTextFileUtf8(path, NULL);
-            if (py) { ExtractQuotedAfter(py, "PLUGIN_VERSION", locWave, sizeof(locWave)); free(py); }
-        }
-        const wchar_t *probeInf[] = {
-            L"%s\\OrcaSlicer\\orca_plugins\\unlayered-infill\\unlayered_infill_orca.py",
-            L"%s\\OrcaSlicer\\plugins\\unlayered_infill_orca.py"
-        };
-        for (int i = 0; i < 2 && !locInfill[0]; i++) {
-            _snwprintf(path, MAX_PATH, probeInf[i], g_roamApp);
-            char *py = ReadTextFileUtf8(path, NULL);
-            if (py) { ExtractQuotedAfter(py, "PLUGIN_VERSION", locInfill, sizeof(locInfill)); free(py); }
-        }
-        if (!locWave[0] && !locInfill[0]) {
-            wcsncpy(g_cards[3].badge, L"Setup Ready", 47);
-            g_cards[3].badgeKind = BADGE_WARN;
-            g_cards[3].btns[0].label = L"Install";
-            g_cards[3].btns[0].style = BTN_PRIMARY;
-            g_cards[3].btns[0].hidden = FALSE;   /* not installed: Install */
-            _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S & Unlayered Infill %S available",
-                       remWave[0] ? remWave : "latest", remInfill[0] ? remInfill : "latest");
-        } else {
-            BOOL upd = (remWave[0] && VerNewer(remWave, locWave)) ||
-                       (remInfill[0] && VerNewer(remInfill, locInfill));
-            wcsncpy(g_cards[3].badge, upd ? L"Update Ready" : L"Up to Date", 47);
-            g_cards[3].badgeKind = upd ? BADGE_WARN : BADGE_OK;
-            g_cards[3].btns[0].label = L"Update";
-            g_cards[3].btns[0].style = upd ? BTN_PRIMARY : BTN_SECONDARY;
-            g_cards[3].btns[0].hidden = !upd;
-            _snwprintf(g_cards[3].detail, 255, L"Wave Overhangs %S & Unlayered Infill %S",
-                       locWave[0] ? locWave : "none", locInfill[0] ? locInfill : "none");
-        }
-    }
-
+    /* Independent plugin state includes both current and legacy files in
+       every OrcaSlicer profile, not only the default profile. */
+    RefreshOrcaCard(0, remWave);
+    RefreshOrcaCard(1, remInfill);
 
     /* 5. DNS Pilot */
     wchar_t dnsExe[MAX_PATH];
@@ -465,10 +414,10 @@ static void RefreshProjectStatuses(void) {
         }
     }
 
-    /* 7+. Catalog extras: generic installed / update state. Dynamic cards
+    /* Catalogue extras: generic installed / update state. Dynamic cards
        must follow the same rule as built-ins: Install while missing, Update
        only for a verified newer remote build, otherwise hide that action. */
-    for (int i = 7; i < g_cardCount; i++) {
+    for (int i = BUILTIN_CARD_COUNT; i < g_cardCount; i++) {
         ProjectCard *c = &g_cards[i];
         wchar_t exePath[MAX_PATH], altPath[MAX_PATH];
         _snwprintf(exePath, MAX_PATH - 1, L"%s\\%s", c->appDir, c->exeName);

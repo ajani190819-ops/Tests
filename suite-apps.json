@@ -10,7 +10,8 @@
    "shortcut": "Bluetooth Guard",
    "buttons": "update:Update:74,open:Open:68,folder:Folder:68,stop:Stop:62",
    "state": "btguard",
-   "worker": "btguard"
+   "worker": "btguard",
+   "category": "General apps"
   },
   {
    "id": "kbl",
@@ -22,7 +23,8 @@
    "shortcut": "Keyboard Lighting",
    "buttons": "update:Update:74,open:Open:68,folder:Folder:68,unfreeze:Unfreeze:84",
    "state": "kbl",
-   "worker": "kbl"
+   "worker": "kbl",
+   "category": "General apps"
   },
   {
    "id": "hud",
@@ -34,19 +36,34 @@
    "shortcut": "Spatial HUD Updater",
    "buttons": "updatemod:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
    "state": "hud",
-   "worker": "hud"
+   "worker": "hud",
+   "category": "Minecraft mods"
   },
   {
    "id": "orca",
-   "title": "OrcaSlicer Plugins",
-   "blurb": "Wave Overhangs & Unlayered Infill",
+   "title": "Undahang",
+   "blurb": "Wave overhang paths",
    "exe": "",
    "dir": "OrcaPlugins",
    "icon": "docs/brand/orca-plugins.ico",
    "shortcut": "Orca Plugins",
    "buttons": "update:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
    "state": "orca",
-   "worker": "orca"
+   "worker": "orca",
+   "category": "Orca plugins"
+  },
+  {
+   "id": "unlayered-infill",
+   "title": "Unlayered Infill",
+   "blurb": "Nonplanar internal infill",
+   "exe": "",
+   "dir": "OrcaPlugins",
+   "icon": "docs/brand/orca-plugins.ico",
+   "shortcut": "Unlayered Infill",
+   "buttons": "update:Update:74,folder:Folder:68,remove:Remove:74,disable:Disable:78",
+   "state": "unlayered-infill",
+   "worker": "unlayered-infill",
+   "category": "Orca plugins"
   },
   {
    "id": "dnspilot",
@@ -58,7 +75,8 @@
    "shortcut": "DNS Pilot",
    "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
    "state": "dnspilot",
-   "worker": "dnspilot"
+   "worker": "dnspilot",
+   "category": "General apps"
   },
   {
    "id": "agentnotes",
@@ -70,7 +88,8 @@
    "shortcut": "Agent Notes",
    "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
    "state": "agentnotes",
-   "worker": "agentnotes"
+   "worker": "agentnotes",
+   "category": "General apps"
   },
   {
    "id": "audioswitcher",
@@ -82,7 +101,8 @@
    "shortcut": "Audio Switcher",
    "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
    "state": "audioswitcher",
-   "worker": "audioswitcher"
+   "worker": "audioswitcher",
+   "category": "General apps"
   },
   {
    "id": "weatherradar",
@@ -94,7 +114,8 @@
    "shortcut": "Weather Radar",
    "buttons": "update:Update:74,open:Open:68,folder:Folder:68",
    "state": "weatherradar",
-   "worker": "weatherradar"
+   "worker": "weatherradar",
+   "category": "General apps"
   }
  ]
 }

@@ -233,6 +233,7 @@ static void HandleActionCommand(HWND hwnd, int id) {
             HandleVerb(aidx, g_cards[aidx].btns[bidx].verb);
         return;
     }
+    if (HandleOrcaPluginCommand(hwnd, id)) return;
     switch (id) {
     case ID_BTN_REFRESH_ALL:
         RefreshProjectStatuses();
@@ -421,75 +422,13 @@ static void HandleActionCommand(HWND hwnd, int id) {
         break;
     }
 
-    case ID_ORCA_UPDATE:
-        EnqueueTask(TASK_INSTALL_ORCA);
-        break;
     case ID_ORCA_MENU:
+        /* Old catalogue/menu commands still reach the shared batch tool.
+           The two visible cards never use this combined install route. */
         _snwprintf(p, MAX_PATH, L"%s\\Orca-Plugins.bat", g_orcaBatDir);
         if (FileExistsW(p)) ShellExecuteW(hwnd, L"open", p, NULL, g_orcaBatDir, SW_SHOWNORMAL);
-        else EnqueueTask(TASK_INSTALL_ORCA);
+        else SetFooterStatus(L"Install either plugin to download the legacy menu.", 0);
         break;
-    case ID_ORCA_FOLDER:
-        _snwprintf(p, MAX_PATH, L"%s\\OrcaSlicer\\orca_plugins", g_roamApp);
-        if (!DirExistsW(p)) _snwprintf(p, MAX_PATH, L"%s\\OrcaSlicer\\plugins", g_roamApp);
-        EnsureDirTree(p);
-        ShellExecuteW(hwnd, L"open", p, NULL, NULL, SW_SHOWNORMAL);
-        break;
-
-    case ID_ORCA_DISABLE:
-        g_orcaDisabled = !g_orcaDisabled;
-        SaveAppsCfg();
-        SetFooterStatus(g_orcaDisabled
-                            ? L"OrcaSlicer Plugins disabled - will not be installed or updated."
-                            : L"OrcaSlicer Plugins enabled.", 0);
-        RefreshProjectStatuses();
-        break;
-
-    case ID_ORCA_REMOVE: {
-        /* Delete exactly what WorkerInstallOrcaPlugins writes, in every
-           %APPDATA%\OrcaSlicer* profile: the two orca_plugins packages (files
-           + their folders) and the two legacy top-level plugin files. */
-        wchar_t base[MAX_PATH], pat[MAX_PATH], dirp[MAX_PATH], t[MAX_PATH];
-        _snwprintf(base, MAX_PATH, L"%s", g_roamApp);
-        _snwprintf(pat, MAX_PATH, L"%s\\OrcaSlicer*", base);
-        WIN32_FIND_DATAW fd;
-        HANDLE h = FindFirstFileW(pat, &fd);
-        int removed = 0, blocked = 0;
-        if (h != INVALID_HANDLE_VALUE) {
-            do {
-                if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
-                _snwprintf(dirp, MAX_PATH, L"%s\\%s", base, fd.cFileName);
-                const wchar_t *rel[] = {
-                    L"\\orca_plugins\\wave-overhangs\\wave_overhangs_orca.py",
-                    L"\\orca_plugins\\wave-overhangs\\.install_state.json",
-                    L"\\orca_plugins\\unlayered-infill\\unlayered_infill_orca.py",
-                    L"\\orca_plugins\\unlayered-infill\\.install_state.json",
-                    L"\\plugins\\wave_overhangs_orca.py",
-                    L"\\plugins\\unlayered_infill_orca.py"
-                };
-                for (int k = 0; k < 6; k++) {
-                    _snwprintf(t, MAX_PATH, L"%s%s", dirp, rel[k]);
-                    if (DeleteFileW(t)) removed++;
-                    else if (FileExistsW(t)) blocked++;
-                }
-                _snwprintf(t, MAX_PATH, L"%s\\orca_plugins\\wave-overhangs", dirp);
-                RemoveDirectoryW(t);
-                _snwprintf(t, MAX_PATH, L"%s\\orca_plugins\\unlayered-infill", dirp);
-                RemoveDirectoryW(t);
-            } while (FindNextFileW(h, &fd));
-            FindClose(h);
-        }
-        if (removed > 0 && blocked == 0)
-            SetFooterStatus(L"OrcaSlicer Plugins removed.", 0);
-        else if (removed == 0 && blocked == 0)
-            SetFooterStatus(L"OrcaSlicer Plugins not installed - nothing to remove.", 0);
-        else if (removed > 0 && blocked > 0)
-            SetFooterStatus(L"Partially removed OrcaSlicer Plugins - close OrcaSlicer and try again.", 2);
-        else
-            SetFooterStatus(L"Could not remove OrcaSlicer Plugins - close OrcaSlicer and try again.", 2);
-        RefreshProjectStatuses();
-        break;
-    }
 
     case ID_AUDIOSWITCHER_OPEN: {
         /* appDir is the suite folder (where Update writes). Until the first
@@ -587,6 +526,7 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_MOUSEWHEEL: {
+        ComputeLayout(hwnd);
         int delta = GET_WHEEL_DELTA_WPARAM(wp);
         int dpi = GetWinDpi(hwnd);
         g_scrollY -= (delta > 0) ? S(36, dpi) : -S(36, dpi);
@@ -596,12 +536,31 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
 
+    case WM_KEYDOWN: {
+        int dpi = GetWinDpi(hwnd);
+        RECT cli;
+        GetClientRect(hwnd, &cli);
+        ComputeLayout(hwnd);
+        int page = cli.bottom - HubHeaderHeight(cli.right, dpi) - S(42, dpi);
+        if (wp == VK_NEXT) g_scrollY += page;
+        else if (wp == VK_PRIOR) g_scrollY -= page;
+        else if (wp == VK_END) g_scrollY = g_maxScrollY;
+        else if (wp == VK_HOME) g_scrollY = 0;
+        else if (wp == VK_DOWN) g_scrollY += S(36, dpi);
+        else if (wp == VK_UP) g_scrollY -= S(36, dpi);
+        else break;
+        ComputeLayout(hwnd);
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 0;
+    }
+
     case WM_MOUSEMOVE: {
         int dpi = GetWinDpi(hwnd);
         RECT cli;
         GetClientRect(hwnd, &cli);
         POINT pt = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
-        int hit = HitTestButtons(pt, S(76, dpi), cli.bottom - S(42, dpi));
+        ComputeLayout(hwnd); /* resize/scroll/status changes may precede repaint */
+        int hit = HitTestButtons(pt, HubHeaderHeight(cli.right, dpi), cli.bottom - S(42, dpi));
         if (hit != g_hoverId) {
             g_hoverId = hit;
             InvalidateRect(hwnd, NULL, FALSE);
@@ -630,7 +589,8 @@ static LRESULT CALLBACK HubWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         RECT cli;
         GetClientRect(hwnd, &cli);
         POINT pt = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
-        int hit = HitTestButtons(pt, S(76, dpi), cli.bottom - S(42, dpi));
+        ComputeLayout(hwnd); /* resize/scroll/status changes may precede repaint */
+        int hit = HitTestButtons(pt, HubHeaderHeight(cli.right, dpi), cli.bottom - S(42, dpi));
         if (hit != 0) HandleActionCommand(hwnd, hit);
         return 0;
     }

@@ -4,6 +4,37 @@ This concise Git entry point preserves the active artifact and its offline role.
 
 The full pre-migration narrative and history are preserved in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk). Git retains only material required to build, run, test, release, or recover the project offline.
 
+## Grouped app catalogue
+
+Hub 2.8.65 organizes the nine current entries under **General apps**, **Orca
+plugins**, and **Minecraft mods**. Spatial HUD belongs to Minecraft mods;
+**Undahang** and **Unlayered Infill** have separate Orca cards. Headings scroll
+with their cards. Narrow windows put header controls on a second row; mouse
+wheel, Page Up/Down, Home/End and arrow keys scroll the list.
+
+Each plugin has its own Install/Update, Folder, Remove and Disable/Enable
+routes. Disable pauses **Hub installs/updates only**; it does not change Orca's
+saved enable state. The previous combined `OrcaDisabled` preference supplies
+both initial defaults; per-plugin preferences then persist independently.
+Status checks include current and legacy files in every `OrcaSlicer*` profile.
+Updates preserve existing `.install_state.json` and user settings; removal is
+nonrecursive and touches only the selected plugin's managed files. Failed
+copies/removals are reported rather than claimed successful.
+
+The old `orca` catalogue id now identifies the Undahang Hub card; the new
+`unlayered-infill` Hub card retains its existing package id. Python filenames,
+capabilities, presets, data paths and the shared `Orca-Plugins.bat` route are
+unchanged. This is not the broader NAME-01 rename rollout: the plugin still
+identifies itself to Orca as Wave Overhangs, and Weather Radar / Keyboard
+Lighting retain their current names for now.
+
+Required entries exist before a network check. Partial/old catalogues cannot
+recombine the plugin cards; remembered extra definitions are merged by id and
+retain priority/slots for the current Hub session. Duplicate ids cannot create
+extra cards. Activation, EXE close-and-prove gates and icon/tray ownership are
+unchanged. Automated C mocks are not native fitting/interaction acceptance;
+see `.agent/runbooks/test-hub-grouped-entries.md`.
+
 ## Notification-area ownership
 
 When Project Hub is running and its notification-area icon is available, it is

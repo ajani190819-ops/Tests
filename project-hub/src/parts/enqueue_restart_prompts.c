@@ -29,7 +29,8 @@ static DWORD WINAPI HubWorkerThread(LPVOID unused) {
         case TASK_OPEN_OR_INSTALL_BTG: WorkerInstallBluetoothGuard(TRUE); break;
         case TASK_INSTALL_KBL:         WorkerInstallKeyboardLighting(); break;
         case TASK_INSTALL_HUD:         WorkerInstallSpatialHud(); break;
-        case TASK_INSTALL_ORCA:        WorkerInstallOrcaPlugins(); break;
+        case TASK_INSTALL_ORCA_WAVE:   WorkerInstallOrcaPlugin(0); break;
+        case TASK_INSTALL_ORCA_INFILL: WorkerInstallOrcaPlugin(1); break;
         case TASK_INSTALL_DNS:         WorkerInstallDnsPilot(FALSE); break;
         case TASK_OPEN_OR_INSTALL_DNS: WorkerInstallDnsPilot(TRUE); break;
         case TASK_INSTALL_NOTES:         WorkerInstallNotes(FALSE); break;
@@ -37,22 +38,20 @@ static DWORD WINAPI HubWorkerThread(LPVOID unused) {
         case TASK_INSTALL_DYN:           WorkerInstallGeneric(g_dynIdx, FALSE); break;
         case TASK_OPEN_OR_INSTALL_DYN:   WorkerInstallGeneric(g_dynIdx, TRUE); break;
         case TASK_UPDATE_ALL:
-            /* Every built-in app has to be refreshed here or its suite folder
-               keeps the old build: slots 0-5 have dedicated workers (each with
-               its own MIRROR_ set), and slots 6+ (Audio Switcher and catalog
-               cards) go through the generic worker. Agent Notes
-               (slot 5) was the one dedicated worker missing from this list, so
-               "Update All" left its suite copy stale while every other app
-               updated. */
+            /* Dedicated plugin jobs preserve independent opt-outs. Only EXE
+               cards may reach the generic close-and-replace installer. */
             WorkerInstallBluetoothGuard(FALSE);
             WorkerInstallKeyboardLighting();
-            WorkerInstallOrcaPlugins();
+            WorkerInstallOrcaPlugin(0);
+            WorkerInstallOrcaPlugin(1);
             WorkerInstallSpatialHud();
             WorkerInstallDnsPilot(FALSE);
             WorkerInstallNotes(FALSE);
-            for (int i = 6; i < g_cardCount; i++) WorkerInstallGeneric(i, FALSE);
+            WorkerInstallGeneric(6, FALSE); /* Audio Switcher */
+            for (int i = BUILTIN_CARD_COUNT; i < g_cardCount; i++)
+                WorkerInstallGeneric(i, FALSE);
             WorkerCheckRemote();
-            SetFooterStatus(L"All suite apps updated!", 0);
+            SetFooterStatus(L"Suite update pass finished; check each card for remaining updates.", 0);
             break;
         case TASK_SELF_UPDATE:         WorkerSelfUpdateHub(); break;
         default: break;

@@ -377,7 +377,7 @@ static void WorkerCheckRemote(void) {
         RemoteIdentityKnown(g_remDnsSha, g_remDnsSize) &&
         RemoteIdentityKnown(g_remNotesSha, g_remNotesSize) &&
         RemoteIdentityKnown(g_remAudioSwitcherSha, g_remAudioSwitcherSize);
-    for (int i = 7; i < g_cardCount; i++) {
+    for (int i = BUILTIN_CARD_COUNT; i < g_cardCount; i++) {
         if (g_cards[i].exeRepo &&
             !RemoteIdentityKnown(g_cards[i].remSha, g_cards[i].remSize))
             allBuildIdsKnown = FALSE;

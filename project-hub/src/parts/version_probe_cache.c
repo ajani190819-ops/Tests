@@ -160,18 +160,22 @@ static void SetFollowLatestTestBranch(BOOL on) {
     LeaveCriticalSection(&g_cs);
 }
 
-/* Per-app opt-outs. The mod card (and only it, per the owner's choice)
-   can be disabled: no install, no update, Update All skips it. */
+/* Hub-only opt-outs never change the host's plugin enable state. The old
+   combined OrcaDisabled key supplies defaults only until per-plugin keys exist. */
 static int g_hudDisabled = 0;
-static int g_orcaDisabled = 0;
+static int g_orcaDisabled = 0;   /* legacy Wave/Undahang slot */
+static int g_infillDisabled = 0;
 
 static void LoadAppsCfg(void) {
-    wchar_t ini[MAX_PATH], buf[8];
+    wchar_t ini[MAX_PATH], buf[8], legacy[8];
     BranchCfgPath(ini, MAX_PATH);
     GetPrivateProfileStringW(L"Apps", L"HudDisabled", L"0", buf, 7, ini);
     g_hudDisabled = (buf[0] == L'1');
-    GetPrivateProfileStringW(L"Apps", L"OrcaDisabled", L"0", buf, 7, ini);
+    GetPrivateProfileStringW(L"Apps", L"OrcaDisabled", L"0", legacy, 7, ini);
+    GetPrivateProfileStringW(L"Apps", L"WaveOverhangsDisabled", legacy, buf, 7, ini);
     g_orcaDisabled = (buf[0] == L'1');
+    GetPrivateProfileStringW(L"Apps", L"UnlayeredInfillDisabled", legacy, buf, 7, ini);
+    g_infillDisabled = (buf[0] == L'1');
 }
 
 static void SaveAppsCfg(void) {
@@ -179,8 +183,10 @@ static void SaveAppsCfg(void) {
     BranchCfgPath(ini, MAX_PATH);
     WritePrivateProfileStringW(L"Apps", L"HudDisabled",
                                g_hudDisabled ? L"1" : L"0", ini);
-    WritePrivateProfileStringW(L"Apps", L"OrcaDisabled",
+    WritePrivateProfileStringW(L"Apps", L"WaveOverhangsDisabled",
                                g_orcaDisabled ? L"1" : L"0", ini);
+    WritePrivateProfileStringW(L"Apps", L"UnlayeredInfillDisabled",
+                               g_infillDisabled ? L"1" : L"0", ini);
 }
 
 static void EnsureActiveBranch(wchar_t *outBranch, size_t cap) {

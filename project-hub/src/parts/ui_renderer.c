@@ -108,6 +108,19 @@ static void DrawActionBtn(HDC hdc, uint32_t *px, int W, int H, const ActionBtn *
     DrawTextW(hdc, btn->label, -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 }
 
+/* Physical card slots are stable identities, not visual ordering. Layout,
+   painting and hit-testing share these rectangles even when sections scroll. */
+static RECT g_groupRects[HUB_GROUP_COUNT];
+static const wchar_t *g_groupTitles[HUB_GROUP_COUNT] = {
+    L"General apps", L"Orca plugins", L"Minecraft mods"
+};
+
+static int HubHeaderHeight(int width, int dpi) {
+    /* At narrow sizes, controls get their own row rather than covering the
+       emblem/title. Keep the same height whether Update Hub is visible or not. */
+    return S(width < S(920, dpi) ? 124 : 76, dpi);
+}
+
 static void ComputeLayout(HWND hwnd) {
     int dpi = GetWinDpi(hwnd);
     RECT cli;
@@ -115,18 +128,20 @@ static void ComputeLayout(HWND hwnd) {
     int w = cli.right - cli.left;
     int h = cli.bottom - cli.top;
     int pad = S(28, dpi);
-    int headerH = S(76, dpi);
+    int headerH = HubHeaderHeight(w, dpi);
     int footerH = S(42, dpi);
     int cardH = S(80, dpi);
     int gap = S(11, dpi);
+    int headingH = S(30, dpi), groupGap = S(18, dpi);
+    BOOL compact = headerH > S(76, dpi);
 
     int embSz = S(52, dpi);
-    int embY = (headerH - embSz) / 2;
+    int embY = (S(76, dpi) - embSz) / 2;
     SetRect(&g_rcEmblem, pad, embY, pad + embSz, embY + embSz);
 
     int bx = w - pad;
     int topBtnH = S(35, dpi);
-    int topBtnY = (headerH - topBtnH) / 2;
+    int topBtnY = compact ? S(77, dpi) : (headerH - topBtnH) / 2;
     for (int i = 4; i >= 0; i--) {
         if (g_topBtns[i].hidden) {
             SetRect(&g_topBtns[i].rc, 0, 0, 0, 0);
@@ -138,26 +153,44 @@ static void ComputeLayout(HWND hwnd) {
         bx -= S(9, dpi);
     }
 
-    int contentH = g_cardCount * cardH + (g_cardCount > 1 ? (g_cardCount - 1) : 0) * gap + S(24, dpi);
+    int counts[HUB_GROUP_COUNT] = {0};
+    for (int c = 0; c < g_cardCount; c++) counts[g_cards[c].category]++;
+    int contentH = S(24, dpi), groups = 0;
+    for (int group = 0; group < HUB_GROUP_COUNT; group++) {
+        if (!counts[group]) continue;
+        contentH += headingH + counts[group] * cardH + (counts[group] - 1) * gap;
+        if (groups++) contentH += groupGap;
+    }
     int viewH = h - headerH - footerH;
     g_maxScrollY = (contentH > viewH) ? (contentH - viewH) : 0;
     if (g_scrollY > g_maxScrollY) g_scrollY = g_maxScrollY;
     if (g_scrollY < 0) g_scrollY = 0;
 
-    int startY = headerH + ((viewH > contentH) ? (viewH - contentH) / 2 + S(12, dpi) : S(12, dpi)) - g_scrollY;
+    int startY = headerH + S(12, dpi) + ((viewH > contentH) ? (viewH - contentH) / 2 : 0) - g_scrollY;
     int btnH = S(30, dpi);
-    for (int c = 0; c < g_cardCount; c++) {
-        SetRect(&g_cards[c].rcCard, pad, startY, w - pad, startY + cardH);
-        int rx = w - pad - S(16, dpi);
-        int by = startY + cardH - S(12, dpi) - btnH;
-        for (int b = g_cards[c].btnCount - 1; b >= 0; b--) {
-            if (g_cards[c].btns[b].hidden) continue;
-            int bw = S(g_cards[c].btns[b].widthPx, dpi);
-            rx -= bw;
-            SetRect(&g_cards[c].btns[b].rc, rx, by, rx + bw, by + btnH);
-            rx -= S(7, dpi);
+    for (int group = 0; group < HUB_GROUP_COUNT; group++) {
+        SetRect(&g_groupRects[group], 0, 0, 0, 0);
+        if (!counts[group]) continue;
+        SetRect(&g_groupRects[group], pad, startY, w - pad, startY + S(24, dpi));
+        startY += headingH;
+        for (int c = 0; c < g_cardCount; c++) {
+            ProjectCard *card = &g_cards[c];
+            if (card->category != group) continue;
+            SetRect(&card->rcCard, pad, startY, w - pad, startY + cardH);
+            int rx = w - pad - S(16, dpi);
+            int by = startY + cardH - S(12, dpi) - btnH;
+            for (int b = card->btnCount - 1; b >= 0; b--) {
+                ActionBtn *btn = &card->btns[b];
+                SetRect(&btn->rc, 0, 0, 0, 0);
+                if (btn->hidden) continue;
+                int bw = S(btn->widthPx, dpi);
+                rx -= bw;
+                SetRect(&btn->rc, rx, by, rx + bw, by + btnH);
+                rx -= S(7, dpi);
+            }
+            startY += cardH + gap;
         }
-        startY += cardH + gap;
+        startY += groupGap - gap;
     }
 }
 
@@ -167,7 +200,8 @@ static int HitTestButtons(POINT pt, int headerBottom, int footerTop) {
         if (g_topBtns[i].hidden) continue;
         if (PtInRect(&g_topBtns[i].rc, pt)) return g_topBtns[i].id;
     }
-    if (pt.y < headerBottom || pt.y > footerTop) return 0;
+    /* Match the paint clip, including its one-pixel divider margins. */
+    if (pt.y <= headerBottom || pt.y >= footerTop - 1) return 0;
     for (int c = 0; c < g_cardCount; c++) {
         for (int b = 0; b < g_cards[c].btnCount; b++) {
             if (g_cards[c].btns[b].hidden) continue;
@@ -250,7 +284,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
     SetBkMode(hdc, TRANSPARENT);
 
     int pad = S(28, dpi);
-    int headerH = S(76, dpi);
+    int headerH = HubHeaderHeight(w, dpi);
     int footerH = S(42, dpi);
     int footerTop = h - footerH;
 
@@ -261,6 +295,15 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
     /* Clipped project cards */
     int saved = SaveDC(hdc);
     IntersectClipRect(hdc, 0, headerH + 1, w, footerTop - 1);
+
+    SelectObject(hdc, g_fontTitle);
+    SetTextColor(hdc, COL_TEXT_SECONDARY);
+    for (int group = 0; group < HUB_GROUP_COUNT; group++) {
+        RECT title = g_groupRects[group];
+        if (title.bottom <= headerH || title.top >= footerTop) continue;
+        DrawTextW(hdc, g_groupTitles[group], -1, &title,
+                  DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+    }
 
     int cardIcoSz = S(44, dpi);
     for (int c = 0; c < g_cardCount; c++) {
@@ -292,7 +335,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
 
         /* Catalog icon first, then the card's embedded resource, letter tile.
            Extra cards cannot use g_cardIcons[c] by position: catalog order can
-           shift Weather Radar away from slot seven, and another extra must not
+           shift Weather Radar between extra slots, and another extra must not
            accidentally inherit its icon. */
         {
             int ix = card->rcCard.left + S(18, dpi);
@@ -300,6 +343,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
             EnterCriticalSection(&g_cs);
             HICON ico = card->hIcon;
             if (!ico && c < 7) ico = g_cardIcons[c];
+            if (!ico && card->resIconId == RES_ICON_ORCA) ico = g_cardIcons[3];
             if (!ico && card->resIconId == RES_ICON_WEATHER) ico = g_cardIcons[7];
             if (ico)
                 DrawIconEx(hdc, ix, iy, ico, cardIcoSz, cardIcoSz, 0, NULL, DI_NORMAL);
@@ -383,7 +427,7 @@ static void PaintHubWindow(HWND hwnd, HDC targetDc, const RECT *updRc) {
     DrawWayfinderEmblem(px, w, h, g_rcEmblem.left, g_rcEmblem.top, embSz);
 
     int hdrTextLeft = g_rcEmblem.right + S(14, dpi);
-    int hdrRightLimit = g_topBtns[0].rc.left - S(14, dpi);
+    int hdrRightLimit = headerH > S(76, dpi) ? w - pad : g_topBtns[0].rc.left - S(14, dpi);
     SelectObject(hdc, g_fontHero);
     SetTextColor(hdc, COL_TEXT_PRIMARY);
     RECT hTitle = { hdrTextLeft, S(13, dpi), hdrRightLimit, S(40, dpi) };
