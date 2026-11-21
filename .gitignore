@@ -2,6 +2,8 @@
 orca-plugins.log
 *.log
 *.log.[0-9]*
+# Local security evidence may contain private paths/detection history.
+GuardSecurityReport*.txt
 crash-*.txt
 hs_err_pid*.log
 plugins/*/*_state.json

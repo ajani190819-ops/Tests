@@ -1292,6 +1292,7 @@
 - L5948  f BluetoothPanelTests
 - L6062  f RadarWindowsLocationTests
 - L6221  f SafetyMutationPropertyTests
+- L6324  f GuardSecurityReportTests
 
 ## tests/wave_cases.py
 

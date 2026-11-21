@@ -3348,5 +3348,95 @@
   "tests": [
    "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
   ]
+ },
+ {
+  "id": "guard-report-00",
+  "file": "tools/guard_security_report.ps1",
+  "old": "BluetoothGuard\\.exe(?=$|",
+  "new": "BluetoothGuard.exe(?=$|",
+  "label": "A similar name is accepted because the executable dot becomes a regex wildcard",
+  "tests": [
+   "tests.test_windows_apps.GuardSecurityReportTests.test_actual_resource_regex_rejects_suffixes_and_similar_executables"
+  ]
+ },
+ {
+  "id": "guard-report-01",
+  "file": "tools/guard_security_report.ps1",
+  "old": "Get-GuardResourceMatches $detection.Resources $guardPath",
+  "new": "Get-GuardResourceMatches $detection.ProcessName $guardPath",
+  "label": "An unrelated threat is attributed to Guard solely because Guard was the referring process",
+  "tests": [
+   "tests.test_windows_apps.GuardSecurityReportTests.test_history_correlates_affected_resources_not_process_mentions"
+  ]
+ },
+ {
+  "id": "guard-report-02",
+  "file": "tools/guard_security_report.ps1",
+  "old": "[IO.FileMode]::CreateNew",
+  "new": "[IO.FileMode]::Create",
+  "label": "The report can overwrite an existing local file",
+  "tests": [
+   "tests.test_windows_apps.GuardSecurityReportTests.test_only_explicit_new_local_text_report_can_be_written"
+  ]
+ },
+ {
+  "id": "guard-report-03",
+  "file": "tools/guard_security_report.ps1",
+  "old": "[IO.FileAccess]::Read, [IO.FileShare]::Read",
+  "new": "[IO.FileAccess]::ReadWrite, [IO.FileShare]::Read",
+  "label": "Installed-file provenance unnecessarily opens an executable writable",
+  "tests": [
+   "tests.test_windows_apps.GuardSecurityReportTests.test_only_explicit_new_local_text_report_can_be_written"
+  ]
+ },
+ {
+  "id": "guard-report-04",
+  "file": "tools/guard_security_report.ps1",
+  "old": "$hash -eq $ExpectedHash",
+  "new": "$hash.Substring(0, 8) -eq $ExpectedHash.Substring(0, 8)",
+  "label": "A short hash prefix is falsely presented as complete artifact identity",
+  "tests": [
+   "tests.test_windows_apps.GuardSecurityReportTests.test_full_hashes_are_bound_to_frozen_git_artifacts_not_tip_or_short_prefixes"
+  ]
+ },
+ {
+  "id": "guard-report-05",
+  "file": "tools/guard_security_report.ps1",
+  "old": "-MaxEvents $EventLimit -ErrorAction Stop",
+  "new": "-MaxEvents 1 -ErrorAction Stop",
+  "label": "The selected event-history window silently shrinks to one record",
+  "tests": [
+   "tests.test_windows_apps.GuardSecurityReportTests.test_local_queries_fail_explicitly_and_history_limits_are_visible"
+  ]
+ },
+ {
+  "id": "guard-report-06",
+  "file": "tools/guard_security_report.ps1",
+  "old": "$document.XmlResolver = $null",
+  "new": "$document.XmlResolver = [Xml.XmlUrlResolver]::new()",
+  "label": "Parsing local event evidence enables external XML resolution",
+  "tests": [
+   "tests.test_windows_apps.GuardSecurityReportTests.test_history_correlates_affected_resources_not_process_mentions"
+  ]
+ },
+ {
+  "id": "guard-report-07",
+  "file": "tools/guard_security_report.ps1",
+  "old": "(Format-GuardValue $Value)",
+  "new": "$Value",
+  "label": "Unredacted field values and forged lines reach the report",
+  "tests": [
+   "tests.test_windows_apps.GuardSecurityReportTests.test_field_privacy_and_query_errors_do_not_export_unfiltered_details"
+  ]
+ },
+ {
+  "id": "guard-report-08",
+  "file": "tools/guard_security_report.ps1",
+  "old": "No selected event IDs returned in this window. NOT a clean verdict.",
+  "new": "No selected event IDs returned; file is clean.",
+  "label": "Empty event history is misrepresented as a clean security verdict",
+  "tests": [
+   "tests.test_windows_apps.GuardSecurityReportTests.test_local_queries_fail_explicitly_and_history_limits_are_visible"
+  ]
  }
 ]

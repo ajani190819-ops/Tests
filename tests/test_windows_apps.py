@@ -6321,5 +6321,173 @@ int main(void) {
                         waiting.index("wcscmp(result->waitId, g_seenWait)"))
 
 
+class GuardSecurityReportTests(unittest.TestCase):
+    """Portable source/regex contracts; Windows query fixtures run separately."""
+
+    @staticmethod
+    def _source():
+        return (ROOT / "tools/guard_security_report.ps1").read_text(encoding="ascii")
+
+    def _function(self, name):
+        source = self._source()
+        start = source.index("function " + name + " {")
+        end = source.find("\nfunction ", start + 1)
+        return source[start:end if end >= 0 else len(source)]
+
+    def test_collector_has_closed_readonly_command_and_type_allowlists(self):
+        code = lex_powershell(self._source())
+        commands = set(re.findall(r"\b[A-Za-z][A-Za-z0-9]*-[A-Za-z][A-Za-z0-9-]*\b", code))
+        allowed = {
+            "Format-GuardValue", "Add-GuardField", "Format-GuardQueryError",
+            "Get-GuardResourceMatches", "Convert-GuardEventData", "Assert-GuardLocalPath",
+            "Get-GuardFileEvidence", "New-GuardSecurityReport", "Write-GuardReportFile",
+            "Invoke-GuardSecurityReport", "Get-CimInstance", "Get-MpComputerStatus",
+            "Get-MpThreatDetection", "Get-MpThreat", "Get-WinEvent", "Join-Path",
+            "Sort-Object", "Select-Object", "Where-Object", "ForEach-Object", "Write-Host",
+        }
+        self.assertFalse(commands - allowed, "New collector commands require safety review")
+        types = set(re.findall(r"\[([A-Za-z][\w.]*(?:\[[\w.]+\])?)\]", code))
+        self.assertFalse(types - {
+            "string", "int", "DateTime", "regex", "ordered", "pscustomobject", "BitConverter",
+            "Collections.Generic.List[string]", "Xml.XmlDocument", "IO.Path", "IO.DriveInfo",
+            "IO.DriveType", "IO.Directory", "IO.File", "IO.FileAttributes", "IO.FileMode",
+            "IO.FileAccess", "IO.FileShare", "IO.StreamWriter", "Text.UTF8Encoding",
+            "Security.Cryptography.SHA256", "Diagnostics.FileVersionInfo", "Environment", "PlatformID",
+        })
+        self.assertNotIn("&", code, "No command invocation, launch or dot-sourced dependency")
+        self.assertNotRegex(code, r"(?i)\b(?:Import-Module|using\s+(?:module|assembly))\b")
+        self.assertIn("$MyInvocation.InvocationName -ne '.'", self._source())
+        self.assertNotIn("ExecutionPolicy", code)
+
+    def test_only_explicit_new_local_text_report_can_be_written(self):
+        writer = self._function("Write-GuardReportFile")
+        reader = self._function("Get-GuardFileEvidence")
+        local = self._function("Assert-GuardLocalPath")
+        self.assertEqual(re.findall(r"\[IO\.FileMode\]::(\w+)", writer), ["CreateNew"])
+        self.assertEqual(re.findall(r"\[IO\.FileAccess\]::(\w+)", writer), ["Write"])
+        self.assertEqual(re.findall(r"\[IO\.FileMode\]::(\w+)", reader), ["Open"])
+        self.assertEqual(re.findall(r"\[IO\.FileAccess\]::(\w+)", reader), ["Read"])
+        self.assertEqual(self._source().count("[IO.File]::Open("), 2)
+        for function in (writer, reader):
+            self.assertLess(function.index("Assert-GuardLocalPath $Path"), function.index("[IO.File]::Open("))
+            self.assertIn("$stream.Dispose()", function)
+        self.assertIn("GetExtension($full) -ine '.txt'", writer)
+        self.assertIn("[IO.DriveType]::Fixed", local)
+        self.assertIn("[IO.DriveType]::Removable", local)
+        self.assertIn("$Path.Substring(2).Contains(':')", local)
+        self.assertIn("[IO.FileAttributes]::ReparsePoint", local)
+        self.assertIn("$parent = $parent.Parent", local)
+        self.assertIn("[Text.UTF8Encoding]::new($true)", writer)
+        self.assertIn("GuardSecurityReport*.txt", (ROOT / ".gitignore").read_text())
+
+    def test_actual_resource_regex_rejects_suffixes_and_similar_executables(self):
+        helper = self._function("Get-GuardResourceMatches")
+        literal = re.search(r"\$text -notmatch '((?:[^']|'')*)'", helper).group(1).replace("''", "'")
+        pattern = re.compile(literal)
+        for resource in (
+            "BluetoothGuard.exe", r"file:_C:\Suite\BluetoothGuard.exe",
+            r"file:_C:\Users\Name With Spaces\BluetoothGuard.exe;", r'"C:\Suite\BLUETOOTHGUARD.EXE"',
+            r"containerfile:_C:\bundle.zip;file:_C:\Suite\BluetoothGuard.exe",
+            "C:/Suite/BluetoothGuard.exe", r"C:\Unicode-\u03a9\BluetoothGuard.exe",
+        ):
+            with self.subTest(resource=resource):
+                self.assertIsNotNone(pattern.search(resource))
+        for resource in (
+            "BluetoothGuardXexe", "NotBluetoothGuard.exe", r"C:\Suite\BluetoothGuard.exe.bak",
+            r"C:\Suite\BluetoothGuard.exe-old", r"C:\Suite\BluetoothGuard.exe_substitute",
+            r"C:\Suite\BluetoothGuard.exe\child", "BluetoothGuard.exe:stream", "ProjectHub.exe", "",
+        ):
+            with self.subTest(resource=resource):
+                self.assertIsNone(pattern.search(resource))
+        self.assertIn("[regex]::Escape($InstalledPath.Replace", helper)
+        self.assertIn("filename-only candidate; NOT installed-path proof", helper)
+        self.assertIn("installed-path text; NOT file-hash proof", helper)
+
+    def test_history_correlates_affected_resources_not_process_mentions(self):
+        report = self._function("New-GuardSecurityReport")
+        self.assertIn("Get-GuardResourceMatches $detection.Resources $guardPath", report)
+        self.assertIn("Get-GuardResourceMatches @($data['Path'], $data['Resources']) $guardPath", report)
+        self.assertNotIn("$detection.ProcessName", report)
+        self.assertNotIn("$event.Message", report)
+        self.assertIn("if ($matches.Count -gt 0)", report)
+        self.assertIn("if ($matches.Count -eq 0) { continue }", report)
+        xml = self._function("Convert-GuardEventData")
+        self.assertIn("$document.XmlResolver = $null", xml)
+        self.assertIn("<!DOCTYPE", xml)
+        self.assertIn("$node.GetAttribute('Name')", xml)
+        self.assertIn("$node.InnerText", xml)
+        self.assertIn("$invalidEvents++", report)
+        self.assertNotIn("$data['Detection User']", report)
+
+    def test_local_queries_fail_explicitly_and_history_limits_are_visible(self):
+        report = self._function("New-GuardSecurityReport")
+        for command in ("Get-CimInstance", "Get-MpComputerStatus", "Get-MpThreatDetection", "Get-MpThreat"):
+            invocation = next(line for line in report.splitlines() if command + " " in line)
+            self.assertIn("-ErrorAction Stop", invocation)
+        self.assertIn("-OperationTimeoutSec 8", report)
+        self.assertNotRegex(report, r"-(?:ComputerName|CimSession|Credential)\b")
+        self.assertIn("Id = @(1116, 1117, 1118, 1119); StartTime = $since", report)
+        self.assertIn("-MaxEvents $EventLimit -ErrorAction Stop", report)
+        self.assertIn("-First 50", report)
+        self.assertIn("$events.Count -ge $EventLimit", report)
+        self.assertIn("$rows.Count -gt 50", report)
+        self.assertIn("NoMatchingEventsFound*", report)
+        self.assertIn("UNAVAILABLE:", self._function("Format-GuardQueryError"))
+        self.assertIn("NOT a clean verdict", report)
+        self.assertIn("history is NOT exhaustive", report)
+        self.assertIn("Third-party histories are NOT collected", report)
+        self.assertNotIn("file is clean", report.lower())
+        self.assertNotIn("no malware detected", report.lower())
+
+    def test_full_hashes_are_bound_to_frozen_git_artifacts_not_tip_or_short_prefixes(self):
+        import hashlib
+        report = self._function("New-GuardSecurityReport")
+        commit = re.search(r"\$baselineCommit = '([0-9a-f]{40})'", report).group(1)
+        for variable, path in (("guardHash", "bluetooth-guard/BluetoothGuard.exe"),
+                               ("hubHash", "project-hub/ProjectHub.exe")):
+            expected = re.search(r"\$" + variable + r" = '([0-9a-f]{64})'", report).group(1)
+            artifact = subprocess.run(["git", "show", commit + ":" + path], cwd=ROOT,
+                                      check=True, capture_output=True).stdout
+            self.assertEqual(hashlib.sha256(artifact).hexdigest(), expected)
+        reader = self._function("Get-GuardFileEvidence")
+        self.assertIn("$sha.ComputeHash($stream)", reader)
+        self.assertIn("$hash -eq $ExpectedHash", reader)
+        self.assertNotIn("Substring", reader)
+        self.assertIn("MATCHES pinned bytes; NOT a malware verdict", reader)
+        self.assertIn("NOT COMPARED.", reader)
+        self.assertIn("Signature trust/catalog/revocation validation is NOT attempted", report)
+        self.assertNotIn("Get-AuthenticodeSignature", self._source())
+
+    def test_field_privacy_and_query_errors_do_not_export_unfiltered_details(self):
+        formatter = self._function("Format-GuardValue")
+        field = self._function("Add-GuardField")
+        errors = self._function("Format-GuardQueryError")
+        report = self._function("New-GuardSecurityReport")
+        self.assertIn("Format-GuardValue $Value", field)
+        for prefix in ("$env:LOCALAPPDATA", "$env:USERPROFILE", "%LOCALAPPDATA%", "%USERPROFILE%"):
+            self.assertIn(prefix, formatter)
+        self.assertIn(".Replace(\"`r\", '\\r').Replace(\"`n\", '\\n')", formatter)
+        self.assertNotIn(".Message", errors)
+        self.assertNotIn(".ToString()", errors)
+        self.assertNotRegex(report, r"\$(?:detection|status|product)\.(?:UserName|PSComputerName|ComputerID)")
+        self.assertIn("REVIEW BEFORE SHARING", report)
+        self.assertIn("Registered antivirus products (NOT proof which product blocked this launch)", report)
+        self.assertIn("not an assertion of current active provider", report)
+
+    def test_windows_fixture_suite_is_separate_from_real_provider_acceptance(self):
+        fixture = (ROOT / "tests/native/guard_security_report_fixtures.ps1").read_text(encoding="ascii")
+        lex_powershell(fixture)
+        for mocked in ("Get-CimInstance", "Get-MpComputerStatus", "Get-MpThreatDetection", "Get-MpThreat", "Get-WinEvent"):
+            self.assertIn("function " + mocked + " {", fixture)
+        for case in ("Denied", "Empty", "NoEvents", "Cap", "PRIVATE_ACCOUNT", "UNRELATED_THREAT", "<!DOCTYPE"):
+            self.assertIn(case, fixture)
+        self.assertIn("CreateDirectory($scratch)", fixture)
+        self.assertIn("[IO.Directory]::Delete($scratch, $true)", fixture)
+        self.assertIn("fixture.bin", fixture)
+        self.assertNotIn("Start-Process", fixture)
+        self.assertNotIn("ExecutionPolicy", fixture)
+        self.assertIn("Not a native provider, malware, launch or focus verdict", fixture)
+
+
 if __name__ == "__main__":
     unittest.main()

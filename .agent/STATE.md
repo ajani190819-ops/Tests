@@ -6,17 +6,17 @@
 ## Released work
 
 - **Hub:** main 2.8.56; Arena 2.8.69. APP-02 lifetime repairs released;
-  expiry/native soak open. APP-01 Guard Start fails without UAC; cause unknown.
+  expiry/native soak open. APP-01: Guard security block 225; details below.
   Retain modal/max/no-duplicate, asInvoker, child-elevation, user-opened Notes
   and stop/update gates.
-- **Agent Notes:** Saved=receiver flush; Read=later checkpoint. Visual wait/
-  opt-in sound; no startup persistence.
+- **Agent Notes:** Saved=receiver flush; Read=later checkpoint. Opt-in sound;
+  no startup persistence.
 - **Tri-Spoke:** `shared/win32/suite_emblem.c` is the sole native renderer.
   Raw DIBs use `SuiteEmblemDibPixel`; each consumer releases its cache.
 - **Radar:** rain watch `1be38f4`/`59794dc`, 66%+ point odds in 3h, persisted
   episode/cooldown; regional coverage never alerts. Planner: Hub 2.8.62.
   Alignment `36c55bd`/`d97ba63` rejects old-place tiles, locks through blit.
-  Native/live review pending.
+  Native/live review open.
 
 ## Bluetooth Guard / BT-01
 
@@ -31,17 +31,18 @@ Native focus/DPI and persistence/manual/lifecycle/LE checks remain open:
 ## Agreed to-do list
 
 Full plan: **Tests — Master To-Do List**, `.agent/DRIVE_GUIDE.md`.
-Repeat pending/parked items; omissions remain OPEN.
+Retain pending/parked work; omissions OPEN.
 
 - **Weather Radar:** WX-03 one-shot Windows location implemented, permission,
   accuracy/errors, no tracking. Build/checks/199 mutations pass; actual-position
   Windows acceptance pending. WX-01/02 native planner/live-map review unrun;
   workflow-write permission blocks the parked review draft.
 - **Hub / Windows:** APP-02 two reproduced lifetime defects fixed in 2.8.64;
-  Windows soak/original expiry open. APP-01 active: 2.8.69 reports
-  app/Windows launch code/path; no retry/elevation change. Cause unknown.
-  Original 137-test/335-mutation release gate passed; PLAN-02 later corrected
-  six false-positive mutation kills. Exact owner error is next.
+  Windows soak/original expiry open. APP-01: observed 225 virus/PUA block, no UAC.
+  `tools/guard_security_report.ps1`: offline/read-only evidence; Windows run
+  pending. Provider/detection/action + installed hash next; false positive and
+  launch/focus unproven. No AV disable/allow/restore/exclusion, repackaging,
+  retry or elevation changes.
   OPS-01 monitor: identify UAC program/path/action if repeated (Hub open,
   app open/update). APP-03: General apps / Orca plugins / Minecraft mods;
   independent Undahang / Unlayered Infill, stable settings/paths. Approved
@@ -66,8 +67,8 @@ Repeat pending/parked items; omissions remain OPEN.
   verified: timing/fail-fast/335 explicit routes, clean 169-test gates, exact
   restoration; 335 detected, 0 survived/stale/errors in 132.622s. Same-scope
   benchmark 1199.910 -> 147.385s (8.14x), all 335 verdicts equal. Six old
-  coverage gaps repaired; no verdict cache/app changes. Artifact reuse/isolated
-  workers deferred; `.agent/runbooks/mutation-runner.md`.
+  coverage gaps repaired; no verdict cache/app changes. Reuse/workers deferred;
+  `.agent/runbooks/mutation-runner.md`.
 
 ## Offline safety / efficiency
 
