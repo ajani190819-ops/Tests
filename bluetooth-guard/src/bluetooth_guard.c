@@ -104,11 +104,43 @@ typedef struct {
     BOOL      forgotten;     /* tombstone: do not restore from stale OS history */
     BOOL      denied;        /* explicit connection denial; pairing is retained */
     BOOL      paired;        /* Windows-authenticated candidate; not Guard trust */
+    BOOL      remembered;    /* saved Windows record; not proof of pairing/trust */
     BOOL      transient;     /* undecided observation; never persisted as trust */
     BOOL      scanSeen;
     BOOL      blockPending;
+    BOOL      linkConnected; /* classic Bluetooth link, not necessarily audio */
+    BOOL      audioStatusValid;
+    BOOL      audioEndpointFound;
+    BOOL      audioConnected; /* address-matched ACTIVE CoreAudio endpoint */
+    BOOL      autoPaused;    /* explicit Disconnect pauses retries this run */
+    int       connectState;
+    unsigned  connectAttempts;
+    HRESULT   connectError;
+    ULONGLONG connectRequestTick;
+    ULONGLONG nextConnectTick;
     ULONGLONG sessionStartTick;
 } DeviceEntry;
+
+enum BtConnectState {
+    BT_CONNECT_IDLE = 0,
+    BT_CONNECT_REQUESTED,
+    BT_CONNECT_NO_ENDPOINT,
+    BT_CONNECT_FAILED,
+    BT_CONNECT_WINDOWS
+};
+
+typedef struct {
+    ULONGLONG address;
+    BOOL found;
+    BOOL active;
+} BtAudioObservation;
+
+typedef struct {
+    HRESULT enumerationHr;
+    HRESULT commandHr;
+    BOOL matched;
+    BOOL requested;
+} BtAudioResult;
 
 typedef struct {
     int       op; /* 1 = explicit disconnect, 2 = connect, 3 = forget, 4 = policy drop */
@@ -164,6 +196,7 @@ static BOOL             g_guardOn    = TRUE;
 static BOOL             g_autostart  = TRUE;
 static BOOL             g_autostartExplicit = FALSE;
 static BOOL             g_radioOn    = TRUE;
+static BOOL             g_suspendAutoConnect = FALSE;
 static BOOL             g_trayHinted = FALSE;
 static HANDLE           g_showEvent  = NULL;
 static CRITICAL_SECTION g_lock;
@@ -205,6 +238,7 @@ static void ArmFastBurstWindow(ULONGLONG durationMs) {
 #include "parts/device_history.c"
 #include "parts/device_classify.c"
 #include "parts/device_policy.c"
+#include "parts/audio_endpoints.c"
 #include "parts/bt_actions.c"
 #include "parts/autostart_rules.c"
 #include "parts/ui_renderer.c"

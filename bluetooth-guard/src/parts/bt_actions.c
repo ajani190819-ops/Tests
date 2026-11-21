@@ -1,76 +1,3 @@
-/* Native Windows KSPROPERTY_ONESHOT_RECONNECT / DISCONNECT — exact API used by Windows 11 Settings! */
-static BOOL TriggerBtAudioKsProperty(ULONGLONG address, const wchar_t *devName, ULONG propId) {
-    wchar_t hexAddr[20];
-    FormatCompactHex(address, hexAddr, 20);
-
-    IMMDeviceEnumerator *pEnum = NULL;
-    HRESULT hr = CoCreateInstance(&kClsidMMDevEnum, NULL, CLSCTX_INPROC_SERVER,
-                                  &kIidIMMDevEnum, (void **)&pEnum);
-    if (FAILED(hr) || !pEnum) return FALSE;
-
-    IMMDeviceCollection *pCol = NULL;
-    BOOL triggered = FALSE;
-    if (SUCCEEDED(IMMDeviceEnumerator_EnumAudioEndpoints(
-            pEnum, eAll, DEVICE_STATE_ACTIVE | DEVICE_STATE_UNPLUGGED, &pCol)) && pCol) {
-        UINT count = 0;
-        IMMDeviceCollection_GetCount(pCol, &count);
-        for (UINT i = 0; i < count; i++) {
-            IMMDevice *pDev = NULL;
-            if (FAILED(IMMDeviceCollection_Item(pCol, i, &pDev)) || !pDev) continue;
-
-            IDeviceTopology *pTopo = NULL;
-            if (SUCCEEDED(IMMDevice_Activate(pDev, &kIidIDeviceTopo, CLSCTX_INPROC_SERVER,
-                                             NULL, (void **)&pTopo)) && pTopo) {
-                IConnector *pConnFrom = NULL;
-                if (SUCCEEDED(IDeviceTopology_GetConnector(pTopo, 0, &pConnFrom)) && pConnFrom) {
-                    IConnector *pConnTo = NULL;
-                    if (SUCCEEDED(IConnector_GetConnectedTo(pConnFrom, &pConnTo)) && pConnTo) {
-                        static const GUID kIidIPart = {
-                            0xae2de0e4, 0x5bca, 0x4f2d, { 0xaa, 0x46, 0x5d, 0x13, 0xf8, 0xfd, 0xb3, 0xa9 }
-                        };
-                        IPart *pPart = NULL;
-                        if (SUCCEEDED(IConnector_QueryInterface(pConnTo, &kIidIPart, (void **)&pPart)) && pPart) {
-                            IDeviceTopology *pPeerTopo = NULL;
-                            if (SUCCEEDED(IPart_GetTopologyObjects(pPart, &pPeerTopo)) && pPeerTopo) {
-                                LPWSTR devId = NULL;
-                                if (SUCCEEDED(IDeviceTopology_GetDeviceId(pPeerTopo, &devId)) && devId) {
-                                    if (ContainsCI(devId, hexAddr) || EndpointMatchesName(pDev, devName)) {
-                                        IKsControl *pKs = NULL;
-                                        if (SUCCEEDED(IDeviceTopology_QueryInterface(
-                                                pPeerTopo, &kIidIKsControl, (void **)&pKs)) && pKs) {
-                                            KSPROPERTY prop;
-                                            ZeroMemory(&prop, sizeof(prop));
-                                            prop.Set  = kKsPropSetBtAudio;
-                                            prop.Id   = propId;
-                                            prop.Flags = KSPROPERTY_TYPE_GET;
-                                            ULONG bytesRet = 0;
-                                            if (SUCCEEDED(IKsControl_KsProperty(
-                                                    pKs, &prop, sizeof(prop), NULL, 0, &bytesRet))) {
-                                                triggered = TRUE;
-                                            }
-                                            IKsControl_Release(pKs);
-                                        }
-                                    }
-                                    CoTaskMemFree(devId);
-                                }
-                                IDeviceTopology_Release(pPeerTopo);
-                            }
-                            IPart_Release(pPart);
-                        }
-                        IConnector_Release(pConnTo);
-                    }
-                    IConnector_Release(pConnFrom);
-                }
-                IDeviceTopology_Release(pTopo);
-            }
-            IMMDevice_Release(pDev);
-        }
-        IMMDeviceCollection_Release(pCol);
-    }
-    IMMDeviceEnumerator_Release(pEnum);
-    return triggered;
-}
-
 /* Disconnect active link cleanly WITHOUT disabling Bluetooth profiles! */
 static void DoDisconnectOnly(ULONGLONG address, const wchar_t *kind, const wchar_t *name) {
     (void)kind;
@@ -98,19 +25,68 @@ static void DoDisconnectOnly(ULONGLONG address, const wchar_t *kind, const wchar
 
 /* Actively connect only a device with durable trusted membership. This second
    check closes stale tray-command/queue races with Forget. */
-static void DoConnectNow(ULONGLONG address, const wchar_t *kind, const wchar_t *name) {
+static void DoConnectNow(ULONGLONG address, const wchar_t *kind, const wchar_t *name, BOOL automatic) {
     BOOL trusted = FALSE;
+    ULONGLONG now = GetTickCount64();
     EnterCriticalSection(&g_lock);
     for (int i = 0; i < g_devCount; i++) {
         if (g_devices[i].address == address && g_devices[i].visible && !g_devices[i].forgotten && !g_devices[i].denied) {
+            DeviceEntry *d = &g_devices[i];
+            if (g_suspendAutoConnect || d->autoPaused || (!d->allowAuto && !d->sessionAllowed)) break;
+            if (automatic && !DeviceAutoConnectDue(d, now, g_radioOn && !g_suspendAutoConnect)) break;
             trusted = TRUE;
+            d->connectState = BT_CONNECT_REQUESTED;
+            d->connectRequestTick = now;
+            if (d->connectAttempts < 5) d->connectAttempts++;
+            d->nextConnectTick = now + ConnectRetryDelayMs(d->connectAttempts);
             break;
         }
     }
     LeaveCriticalSection(&g_lock);
     if (!trusted) return;
     EnsureProfilesEnabled(address, kind);
-    TriggerBtAudioKsProperty(address, name, KSPROPERTY_ONESHOT_RECONNECT);
+    BtAudioResult result = TriggerBtAudioKsProperty(address, name, KSPROPERTY_ONESHOT_RECONNECT);
+    EnterCriticalSection(&g_lock);
+    int idx = FindDeviceIndexByAddress(address);
+    if (idx >= 0) {
+        DeviceEntry *d = &g_devices[idx];
+        if (d->visible && !d->forgotten && !d->denied && !d->autoPaused &&
+            (d->allowAuto || d->sessionAllowed)) {
+            d->connectError = result.commandHr;
+            d->connectState = result.requested ? BT_CONNECT_REQUESTED :
+                              ((result.matched || FAILED(result.enumerationHr)) ?
+                               BT_CONNECT_FAILED : BT_CONNECT_NO_ENDPOINT);
+            if (!DeviceIsAudio(d) && !result.matched) d->connectState = BT_CONNECT_WINDOWS;
+        }
+    }
+    LeaveCriticalSection(&g_lock);
+}
+
+/* Only the worker runs automatic requests. No queue flood, no Guard gate, and
+   every request rechecks current approval/Auto/pause/radio/readiness by address. */
+static void RunAutoConnect(void) {
+    ULONGLONG now = GetTickCount64(), address = 0;
+    wchar_t kind[16] = L"", name[248] = L"";
+    EnterCriticalSection(&g_lock);
+    for (int i = 0; i < g_devCount; i++) {
+        DeviceEntry *d = &g_devices[i];
+        if (!DeviceAutoConnectDue(d, now, g_radioOn && !g_suspendAutoConnect)) continue;
+        address = d->address;
+        wcsncpy(kind, d->kind, 15);
+        wcsncpy(name, d->name, 247);
+        break; /* at most one device per worker pass; retain policy responsiveness */
+    }
+    LeaveCriticalSection(&g_lock);
+    if (address) DoConnectNow(address, kind, name, TRUE);
+}
+
+/* A Connect/Auto change can supersede a queued explicit Disconnect too. */
+static void DisconnectIfStillRequested(ULONGLONG address, const wchar_t *kind, const wchar_t *name) {
+    EnterCriticalSection(&g_lock);
+    int idx = FindDeviceIndexByAddress(address);
+    BOOL requested = idx >= 0 && g_devices[idx].autoPaused && !g_devices[idx].sessionAllowed;
+    LeaveCriticalSection(&g_lock);
+    if (requested) DoDisconnectOnly(address, kind, name);
 }
 
 /* A denial/guard drop can be queued before the owner approves a row. Check

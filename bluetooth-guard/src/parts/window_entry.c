@@ -135,7 +135,7 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
         SelectObject(mem, fBody);
         SetTextColor(mem, COL_MUTED);
         RECT er = { emptyR.left + S(24, dpi), emptyR.top, emptyR.right - S(18, dpi), emptyR.bottom };
-        DrawTextW(mem, L"No paired devices found. Pair your earbuds in Windows Bluetooth Settings, then click Refresh.",
+        DrawTextW(mem, L"No saved Bluetooth devices found. Pair your earbuds in Windows Settings, then click Refresh.",
                   -1, &er, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     } else {
         int y = listTop - g_scrollY;
@@ -156,12 +156,22 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
                 } else if (d->denied) {
                     barCol = COL_DANGER; tagFg = COL_DANGER; tagBg = COL_DANGER_BG;
                     tagTxt = L"Denied";
-                } else if (d->connected) {
+                } else if (d->autoPaused) {
+                    tagTxt = L"Auto paused";
+                } else if (DeviceAudioReady(d) || (!DeviceIsAudio(d) && d->connected)) {
                     barCol = COL_GOOD; tagFg = COL_GOOD; tagBg = COL_GOOD_BG;
-                    tagTxt = !d->allowAuto ? L"Manual Session" : L"Connected";
+                    tagTxt = DeviceIsAudio(d) ? L"Audio connected" : L"Connected";
+                } else if (d->connectState == BT_CONNECT_REQUESTED &&
+                           GetTickCount64() - d->connectRequestTick < 10000ULL) {
+                    barCol = COL_ACCENT; tagFg = COL_ACCENT; tagBg = COL_ACCENT_BG;
+                    tagTxt = L"Connecting...";
+                } else if (d->connected) {
+                    tagTxt = L"Bluetooth link";
                 } else if (!d->allowAuto) {
                     barCol = COL_ACCENT; tagFg = COL_ACCENT; tagBg = COL_ACCENT_BG;
-                    tagTxt = L"Phone Safe";
+                    tagTxt = L"Auto Off";
+                } else if (DeviceIsAudio(d)) {
+                    tagTxt = L"Retry pending";
                 }
 
                 /* Soft rounded left accent capsule + Suite Bluetooth icon */
@@ -190,18 +200,39 @@ static void RenderWindow(HWND hwnd, HDC targetDc) {
                 RECT forgetR   = { autoTogR.left - S(96, dpi), btnTopY, autoTogR.left - S(8, dpi), btnBottomY };
 
                 const wchar_t *subTxt = NULL;
+                wchar_t requestText[112];
                 if (DeviceNeedsReview(d))
-                    subTxt = L"Choose Accept, Deny or Auto-Connect";
+                    subTxt = d->paired ? L"Choose Accept, Deny or Auto-Connect" :
+                                        L"Windows saved record; pairing unconfirmed";
                 else if (d->denied)
                     subTxt = L"Connection denied  \x00B7  Pairing kept";
-                else if (d->connected && !d->allowAuto)
-                    subTxt = L"Connected manually  \x00B7  Re-locks after disconnect";
-                else if (d->connected)
-                    subTxt = L"Connected audio session";
+                else if (d->autoPaused)
+                    subTxt = d->connected ? L"Link connected; automatic retry paused" :
+                                           L"Auto paused  \x00B7  Connect resumes retry";
+                else if (DeviceAudioReady(d))
+                    subTxt = L"Audio endpoint connected in Windows";
+                else if (!radioOn)
+                    subTxt = L"Bluetooth radio unavailable";
+                else if (d->connectState == BT_CONNECT_FAILED) {
+                    _snwprintf(requestText, 111, L"Connect failed (0x%08lX)%s",
+                               (unsigned long)(DWORD)d->connectError,
+                               d->allowAuto ? L"; retry pending" : L"; try Windows Connect");
+                    requestText[111] = L'\0';
+                    subTxt = requestText;
+                } else if (d->connectState == BT_CONNECT_NO_ENDPOINT)
+                    subTxt = L"No address-matched audio endpoint";
+                else if (d->connectState == BT_CONNECT_REQUESTED &&
+                         GetTickCount64() - d->connectRequestTick < 10000ULL)
+                    subTxt = L"Request sent; waiting for Windows audio";
+                else if (DeviceIsAudio(d) && d->connected)
+                    subTxt = L"Bluetooth link only; audio not connected";
+                else if (!DeviceIsAudio(d))
+                    subTxt = d->connected ? L"Bluetooth link connected" :
+                                           L"Windows manages this device's connection";
                 else if (!d->allowAuto)
                     subTxt = L"Auto-connect off  \x00B7  Click Connect anytime";
                 else
-                    subTxt = L"Auto-connect on  \x00B7  Connects automatically in range";
+                    subTxt = L"Auto retry active  \x00B7  Up to 60s between attempts";
 
                 SelectObject(mem, fBody);
                 SetTextColor(mem, COL_MUTED);
@@ -332,15 +363,10 @@ static void HandleHitClick(int hitIdx) {
                 changed = TRUE;
                 op = d->connected ? 0 : 2;
             } else if (d->connected) {
-                d->sessionAllowed = FALSE;
-                d->seenConnected = FALSE;
-                d->connected = FALSE;
+                SetManualConnectionChoice(d, FALSE, GetTickCount64());
                 op = 1;
             } else {
-                d->sessionAllowed = TRUE;
-                d->seenConnected = FALSE;
-                d->sessionStartTick = GetTickCount64();
-                d->blockPending = FALSE;
+                SetManualConnectionChoice(d, TRUE, GetTickCount64());
                 op = 2;
             }
         }
@@ -392,6 +418,8 @@ static void HandleHitClick(int hitIdx) {
             d->sessionAllowed = FALSE;
             d->seenConnected = FALSE;
             d->blockPending = FALSE;
+            d->autoPaused = FALSE;
+            ResetConnectRequest(d);
         }
         LeaveCriticalSection(&g_lock);
         if (valid) {
@@ -563,14 +591,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 wcsncpy(dkind, d->kind, 15);
                 wcsncpy(dname, d->name, 127);
                 wcsncpy(dmac, d->mac, 23);
-                if (wasConn) {
-                    d->sessionAllowed = FALSE;
-                    d->seenConnected = FALSE;
-                } else {
-                    d->sessionAllowed = TRUE;
-                    d->seenConnected = FALSE;
-                    d->sessionStartTick = GetTickCount64();
-                }
+                SetManualConnectionChoice(d, !wasConn, GetTickCount64());
             }
             LeaveCriticalSection(&g_lock);
             if (valid) EnqueueWork(wasConn ? 1 : 2, addr, dmac, dkind, dname);
@@ -607,6 +628,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         /* Clear active sessions & disconnect guarded earbuds before Restart / Fast Startup hibernate */
         InterlockedExchange64(&g_manualGraceUntil, 0);
         EnterCriticalSection(&g_lock);
+        g_suspendAutoConnect = (msg != WM_ENDSESSION || wp != 0);
         for (int i = 0; i < g_devCount; i++) {
             g_devices[i].sessionAllowed = FALSE;
             g_devices[i].seenConnected = FALSE;
@@ -619,6 +641,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (wp == PBT_APMSUSPEND) {
             InterlockedExchange64(&g_manualGraceUntil, 0);
             EnterCriticalSection(&g_lock);
+            g_suspendAutoConnect = TRUE;
             for (int i = 0; i < g_devCount; i++) {
                 g_devices[i].sessionAllowed = FALSE;
                 g_devices[i].seenConnected = FALSE;
@@ -626,6 +649,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             LeaveCriticalSection(&g_lock);
             DisconnectGuardedDevicesNow();
         } else if (wp == PBT_APMRESUMEAUTOMATIC || wp == PBT_APMRESUMESUSPEND) {
+            EnterCriticalSection(&g_lock);
+            g_suspendAutoConnect = FALSE;
+            LeaveCriticalSection(&g_lock);
             InterlockedExchange64(&g_manualGraceUntil, 0);
             ArmFastBurstWindow(30000ULL);
             ReleaseSemaphore(g_qSem, 1, NULL);
@@ -657,6 +683,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_DESTROY:
+        EnterCriticalSection(&g_lock);
+        g_suspendAutoConnect = TRUE;
+        LeaveCriticalSection(&g_lock);
         UnregisterBluetoothNotifications();
         if (g_trayVisible) Shell_NotifyIconW(NIM_DELETE, &g_nid);
         g_trayVisible = FALSE;

@@ -723,7 +723,7 @@
  {
   "id": "btg-01",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
-  "old": "if (!info.fAuthenticated && !info.fConnected) goto next_bluetooth_device;",
+  "old": "if (!info.fAuthenticated && !info.fRemembered && !info.fConnected) goto next_bluetooth_device;",
   "new": "if (!info.fConnected) goto next_bluetooth_device;",
   "label": "Paired disconnected earbuds are hidden before the owner can review them"
  },
@@ -1094,7 +1094,7 @@
  {
   "id": "btg-16",
   "file": "bluetooth-guard/src/parts/device_policy.c",
-  "old": "if (!d->visible) return !DeviceNeedsReview(d);",
+  "old": "if (!d->visible) return !d->paired;",
   "new": "if (!d->visible) return TRUE;",
   "label": "Undecided paired earbuds are disconnected before the owner can approve them"
  },
@@ -1115,7 +1115,7 @@
  {
   "id": "btg-19",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
-  "old": "if (d->transient && !d->paired && (!d->scanSeen || !d->connected)) {",
+  "old": "if (d->transient && !d->paired && !d->remembered && (!d->scanSeen || !d->connected)) {",
   "new": "if (d->transient && (!d->scanSeen || !d->connected)) {",
   "label": "A disconnected pending Bluetooth pair vanishes from the review list"
  },
@@ -1776,5 +1776,264 @@
   "old": "#define RES_ICON_UNDAHANG     11",
   "new": "#define RES_ICON_UNDAHANG     6",
   "label": "Distinct resource name silently aliases the old Orca resource"
+ },
+ {
+  "id": "btg-24",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "sp.fReturnRemembered = TRUE;",
+  "new": "sp.fReturnRemembered = FALSE;",
+  "label": "Saved-only disconnected earbuds never reach discovery"
+ },
+ {
+  "id": "btg-25",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "(info.fAuthenticated || info.fRemembered || info.fConnected)",
+  "new": "(info.fAuthenticated || info.fConnected)",
+  "label": "Remembered-only records are filtered out after enumeration"
+ },
+ {
+  "id": "btg-26",
+  "file": "bluetooth-guard/src/parts/device_policy.c",
+  "old": "(d->paired || d->remembered) && !d->visible",
+  "new": "d->paired && !d->visible",
+  "label": "Windows-saved review candidates are hidden unless authenticated"
+ },
+ {
+  "id": "btg-27",
+  "file": "bluetooth-guard/src/parts/device_policy.c",
+  "old": "if (!d->visible) return !d->paired;",
+  "new": "if (!d->visible) return !DeviceNeedsReview(d);",
+  "label": "Unauthenticated saved history exempts stranger links from blocking"
+ },
+ {
+  "id": "btg-28",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "!ContainsCI(id, L\"BTH\")",
+  "new": "FALSE",
+  "label": "An unrelated non-Bluetooth audio adapter can match a MAC-shaped token"
+ },
+ {
+  "id": "btg-29",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "(i == 0 || !AudioIdHexDigit(id[i - 1]))",
+  "new": "TRUE",
+  "label": "An address suffix inside a longer hexadecimal identifier selects the wrong adapter"
+ },
+ {
+  "id": "btg-30",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "(i + 12 == len || !AudioIdHexDigit(id[i + 12]))",
+  "new": "TRUE",
+  "label": "An address prefix inside a longer hexadecimal identifier selects the wrong adapter"
+ },
+ {
+  "id": "btg-31",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "address > 0xFFFFFFFFFFFFULL",
+  "new": "FALSE",
+  "label": "A malformed over-48-bit saved address can act on a different Bluetooth device"
+ },
+ {
+  "id": "btg-32",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "IMMDevice_Activate(adapter, &kIidIKsControl",
+  "new": "IMMDevice_Activate(endpoint, &kIidIKsControl",
+  "label": "Reconnect activates IKsControl on an endpoint instead of the adapter"
+ },
+ {
+  "id": "btg-33",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "hr = IMMDeviceEnumerator_GetDevice(enumerator, adapterId, &adapter);",
+  "new": "hr = E_NOINTERFACE;",
+  "label": "The topology adapter ID is never resolved to an adapter IMMDevice"
+ },
+ {
+  "id": "btg-34",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "property.Flags = KSPROPERTY_TYPE_GET;",
+  "new": "property.Flags = KSPROPERTY_TYPE_SET;",
+  "label": "The audio one-shot is sent with the wrong property operation"
+ },
+ {
+  "id": "btg-35",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "property.Id = propId;",
+  "new": "property.Id = KSPROPERTY_ONESHOT_DISCONNECT; (void)propId;",
+  "label": "An audio reconnect request disconnects instead"
+ },
+ {
+  "id": "btg-36",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "if (SUCCEEDED(hr)) result.requested = TRUE;",
+  "new": "if (SUCCEEDED(hr)) result.requested = FALSE;",
+  "label": "Accepted one-shot requests are always reported as failures"
+ },
+ {
+  "id": "btg-37",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "if (state & DEVICE_STATE_ACTIVE) observations[j].active = TRUE;",
+  "new": "if (state & (DEVICE_STATE_ACTIVE | DEVICE_STATE_UNPLUGGED)) observations[j].active = TRUE;",
+  "label": "Unplugged audio endpoints are reported as connected"
+ },
+ {
+  "id": "btg-38",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "d->audioStatusValid = SUCCEEDED(result.enumerationHr);",
+  "new": "d->audioStatusValid = TRUE;",
+  "label": "A failed or partial audio enumeration is published as authoritative status"
+ },
+ {
+  "id": "btg-39",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "int idx = FindDeviceIndexByAddress(observations[i].address);",
+  "new": "int idx = i;",
+  "label": "Audio status is published to a moving row rather than its captured address"
+ },
+ {
+  "id": "btg-40",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "if (adapterId) CoTaskMemFree(adapterId);",
+  "new": "(void)adapterId;",
+  "label": "Repeated audio status/reconnect scans leak allocated adapter identifiers"
+ },
+ {
+  "id": "btg-41",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "if (ks) IKsControl_Release(ks);",
+  "new": "(void)ks;",
+  "label": "Every reconnect leaks its IKsControl reference"
+ },
+ {
+  "id": "btg-42",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "if (adapter) IMMDevice_Release(adapter);",
+  "new": "(void)adapter;",
+  "label": "Every reconnect leaks its adapter IMMDevice reference"
+ },
+ {
+  "id": "btg-43",
+  "file": "bluetooth-guard/src/parts/device_policy.c",
+  "old": "return radioOn && d->address",
+  "new": "return (radioOn || TRUE) && d->address",
+  "label": "Automatic requests continue while the radio is unavailable"
+ },
+ {
+  "id": "btg-44",
+  "file": "bluetooth-guard/src/parts/bt_actions.c",
+  "old": "if (!DeviceAutoConnectDue(d, now, g_radioOn && !g_suspendAutoConnect)) continue;",
+  "new": "if (!g_guardOn || !DeviceAutoConnectDue(d, now, g_radioOn && !g_suspendAutoConnect)) continue;",
+  "label": "Guard OFF incorrectly disables the approved earbuds reconnect worker"
+ },
+ {
+  "id": "btg-45",
+  "file": "bluetooth-guard/src/parts/device_policy.c",
+  "old": "DeviceIsAudio(d) && !DeviceAudioReady(d)",
+  "new": "DeviceIsAudio(d) && !d->connected",
+  "label": "A Bluetooth ACL without working audio suppresses reconnect attempts"
+ },
+ {
+  "id": "btg-46",
+  "file": "bluetooth-guard/src/parts/bt_actions.c",
+  "old": "d->nextConnectTick = now + ConnectRetryDelayMs(d->connectAttempts);",
+  "new": "d->nextConnectTick = now;",
+  "label": "Reconnect is hammered at the discovery cadence instead of backing off"
+ },
+ {
+  "id": "btg-47",
+  "file": "bluetooth-guard/src/parts/device_policy.c",
+  "old": "40000ULL, 60000ULL",
+  "new": "40000ULL, 600000ULL",
+  "label": "The bounded retry ceiling expands to a ten-minute wait"
+ },
+ {
+  "id": "btg-48",
+  "file": "bluetooth-guard/src/parts/bt_actions.c",
+  "old": "if (g_suspendAutoConnect || d->autoPaused || (!d->allowAuto && !d->sessionAllowed)) break;",
+  "new": "if (g_suspendAutoConnect || (!d->allowAuto && !d->sessionAllowed)) break;",
+  "label": "A stale queued Connect bypasses an explicit Disconnect pause"
+ },
+ {
+  "id": "btg-49",
+  "file": "bluetooth-guard/src/parts/device_policy.c",
+  "old": "d->autoPaused = !connect;",
+  "new": "d->autoPaused = FALSE;",
+  "label": "Manual Disconnect is immediately eligible for the app to undo"
+ },
+ {
+  "id": "btg-50",
+  "file": "bluetooth-guard/src/parts/device_policy.c",
+  "old": "d->allowAuto && !d->autoPaused && DeviceIsAudio(d)",
+  "new": "(d->allowAuto || d->sessionAllowed) && !d->autoPaused && DeviceIsAudio(d)",
+  "label": "Accept/manual-session permission is mistaken for ongoing Auto approval"
+ },
+ {
+  "id": "btg-51",
+  "file": "bluetooth-guard/src/parts/bt_actions.c",
+  "old": "if (g_suspendAutoConnect || d->autoPaused || (!d->allowAuto && !d->sessionAllowed)) break;",
+  "new": "if (g_suspendAutoConnect || d->autoPaused) break;",
+  "label": "A queued manual Connect survives revocation of both Auto and session permission"
+ },
+ {
+  "id": "btg-52",
+  "file": "bluetooth-guard/src/parts/bt_actions.c",
+  "old": "if (g_suspendAutoConnect || d->autoPaused || (!d->allowAuto && !d->sessionAllowed)) break;",
+  "new": "if (d->autoPaused || (!d->allowAuto && !d->sessionAllowed)) break;",
+  "label": "Queued manual connects run while the app is suspending or exiting"
+ },
+ {
+  "id": "btg-53",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "        RunAutoConnect();",
+  "new": "        /* automatic reconnect worker removed */",
+  "label": "Eligible Auto devices are scanned but never actively reconnected"
+ },
+ {
+  "id": "btg-54",
+  "file": "bluetooth-guard/src/parts/bt_actions.c",
+  "old": "BOOL requested = idx >= 0 && g_devices[idx].autoPaused && !g_devices[idx].sessionAllowed;",
+  "new": "BOOL requested = TRUE; (void)idx;",
+  "label": "A stale explicit Disconnect undoes a later owner Connect choice"
+ },
+ {
+  "id": "btg-55",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "BOOL isConnected = info.fConnected || d->audioConnected;",
+  "new": "BOOL isConnected = info.fConnected;",
+  "label": "An address-matched active audio endpoint is ignored when the classic link flag is stale"
+ },
+ {
+  "id": "btg-56",
+  "file": "bluetooth-guard/src/parts/bt_actions.c",
+  "old": "    EnsureProfilesEnabled(address, kind);",
+  "new": "    (void)kind;",
+  "label": "Connect no longer restores enabled service profiles before the native request"
+ },
+ {
+  "id": "btg-57",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "if (DeviceAudioReady(d) || (!DeviceIsAudio(d) && d->connected)) ResetConnectRequest(d);",
+  "new": "(void)d;",
+  "label": "A confirmed audio connection never resets automatic retry backoff"
+ },
+ {
+  "id": "btg-58",
+  "file": "bluetooth-guard/src/parts/audio_endpoints.c",
+  "old": "for (UINT i = 0; i < count; i++) {",
+  "new": "for (UINT i = 0; SUCCEEDED(result.enumerationHr) && i < count; i++) {",
+  "label": "One broken unrelated endpoint prevents reconnecting a later valid audio adapter"
+ },
+ {
+  "id": "btg-59",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "if (_wcsicmp(kind, L\"Device\") != 0 || !d->kind[0]) wcsncpy(d->kind, kind, 15);",
+  "new": "wcsncpy(d->kind, kind, 15);",
+  "label": "An incomplete saved scan erases a known earbuds audio kind and disables retry"
+ },
+ {
+  "id": "btg-60",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "if (info.szName[0] || !d->name[0]) wcsncpy(d->name, nm, 247);",
+  "new": "wcsncpy(d->name, nm, 247);",
+  "label": "An incomplete saved scan replaces a known earbuds name with its MAC"
  }
 ]

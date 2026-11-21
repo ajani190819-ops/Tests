@@ -5,32 +5,30 @@
 
 ## Released work
 
-- **Hub:** main 2.8.56; Arena 2.8.66 (implementation in RELEASED). APP-02 fixes
-  catalogue icon-handle growth with draw-locked replacement and rechecks/restores
-  lost shell icons; failed registration releases tray ownership. Build/checks/
-  213 mutations pass; native soak/original expiry unconfirmed. APP-01 (2.8.63,
-  `47b00a3`) reveals/restores windows, preserves
-  maximized/modal state and prevents duplicate starts; native focus review pending.
-  asInvoker, child elevation, user-opened Notes and stop/update gates unchanged.
+- **Hub:** main 2.8.56; Arena 2.8.66. APP-02 (2.8.64) repairs draw-locked
+  icon ownership and shell recovery; original expiry/native soak unconfirmed.
+  APP-01 (2.8.63, `47b00a3`) restores/foregrounds windows, preserves modal/max
+  state and prevents duplicates; native focus pending. asInvoker, child elevation,
+  user-opened Notes and stop/update gates unchanged.
 - **Agent Notes:** `ad92320`, marker `5343e54`. Saved=receiver flush;
   Read=later checkpoint. Visual wait/opt-in sound; no startup persistence.
 - **Tri-Spoke:** `shared/win32/suite_emblem.c` is the sole native renderer.
   Raw DIBs use `SuiteEmblemDibPixel`; each consumer releases its cache.
-- **Radar rain watch:** `1be38f4`, marker `59794dc`. Alert at 66%+ exact-point
-  odds in 3h; persisted episode/cooldown; regional coverage never alerts.
-- **Radar planner:** Hub 2.8.62; five date-first rows/hourly detail, point odds
-  distinct from regional PoP. Native review pending; release history in Drive.
-- **Radar alignment:** `36c55bd`, marker `d97ba63`. Reject old-place tiles;
-  lock the published view through its blit.
-  No prior city under a new marker. Build/checks/156 mutations passed;
-  native/live review pending.
+- **Radar:** rain watch `1be38f4`/`59794dc`, 66%+ point odds in 3h, persisted
+  episode/cooldown; regional coverage never alerts. Planner: Hub 2.8.62.
+  Alignment `36c55bd`/`d97ba63` rejects old-place tiles, locks through blit.
+  Native/live review pending; release history in Drive.
 
-## Bluetooth approval release
+## Bluetooth Guard / BT-01
 
-`83e54d5ed8648856f7dbbfa5786096d36ab8ce8e`, Hub 2.8.62. Paired rows offer
-Accept/Deny/Auto-Connect. Undecided pairs stay reviewable without trust; Deny
-keeps pairing. Actions/drops recheck addresses. Build/checks/164 mutations pass
-(0 surviving/stale); real-earbud Windows check pending. Legacy PS unchanged.
+Prior approval release `83e54d5`, Hub 2.8.62; native earbuds acceptance open.
+Owner: Guard OFF / Auto ON earbuds fail connection/status while phone connects.
+Current correction: saved review without trust, retain missing metadata, adapter
+IMMDevice activation of IKsControl, 5..60s audio retries independent of Guard,
+explicit-Disconnect pause, actual audio status separate from ACL. Preserve K/D/F,
+enabled profiles and address-only routing. Windows hardware/LE-only unproven;
+checklist: `test-bluetooth-reconnect.md`. Legacy PS unchanged.
+Cross-build/checks, 129 tests/291 mutations pass; 4 ASan/UBSan cases pass.
 
 ## Agreed to-do list
 
@@ -49,8 +47,9 @@ Repeat pending/parked items; omissions remain OPEN.
   Infill, settings/legacy paths preserved. Approved abstract Undahang icon in
   2.8.66 (`fd27fa3`); Infill art unchanged. Build/checks, 124 tests/254 mutations pass.
   Native fitting/icons unrun (`test-hub-grouped-entries.md`).
-- **Bluetooth Guard:** BT-01 released; first owner hardware check: earbuds
-  discovery, choices, persistence/reconnect. Scans never grant trust.
+- **Bluetooth Guard:** BT-01 active/next: Guard OFF / Auto ON earbuds discovery,
+  status/reconnect vs working phone; choices/persistence and first hardware check.
+  Prior repairs are not acceptance. Scans never grant trust.
 - **Keyboard Lighting:** KBL-01 parked for fresh owner `engine.log`;
   `engine-5.log` showed learning/no key events. No engine changes without logs.
 - **Spatial HUD:** HUD-01 three-method F5W runtime/compatibility checks pending.

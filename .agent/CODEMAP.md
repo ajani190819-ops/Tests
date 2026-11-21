@@ -289,8 +289,17 @@
 
 ## bluetooth-guard/src/bluetooth_guard.c
 
-- L193  f ArmFastBurstWindow
-- globals: g_hwnd (L155), g_appIcon (L156), g_devNotifyIface (L157), g_devNotifyRadio (L158), g_radioNotifyHandle (L159), g_nid (L160), g_trayVisible (L161), g_quitting (L162), g_guardOn (L163), g_autostart (L164), g_autostartExplicit (L165), g_radioOn (L166), g_trayHinted (L167), g_showEvent (L168), g_lock (L169), g_devices (L171), g_devCount (L172), g_trayDeviceAddresses (L173), g_trayMenuTracking (L174), g_hits (L176), g_hitCount (L177), g_hoverIdx (L178), g_scrollY (L179), g_contentH (L180), g_fastBurstUntil (L182), g_manualGraceUntil (L183)
+- L226  f ArmFastBurstWindow
+- globals: g_hwnd (L187), g_appIcon (L188), g_devNotifyIface (L189), g_devNotifyRadio (L190), g_radioNotifyHandle (L191), g_nid (L192), g_trayVisible (L193), g_quitting (L194), g_guardOn (L195), g_autostart (L196), g_autostartExplicit (L197), g_radioOn (L198), g_suspendAutoConnect (L199), g_trayHinted (L200), g_showEvent (L201), g_lock (L202), g_devices (L204), g_devCount (L205), g_trayDeviceAddresses (L206), g_trayMenuTracking (L207), g_hits (L209), g_hitCount (L210), g_hoverIdx (L211), g_scrollY (L212), g_contentH (L213), g_fastBurstUntil (L215), g_manualGraceUntil (L216)
+
+## bluetooth-guard/src/parts/audio_endpoints.c
+
+- L5  f AudioIdHexDigit
+- L10  f AudioAdapterMatchesAddress
+- L26  f GetAudioAdapterId
+- L47  f ProbeBtAudioEndpoints
+- L119  f TriggerBtAudioKsProperty
+- L126  f RefreshAudioConnections
 
 ## bluetooth-guard/src/parts/autostart_rules.c
 
@@ -300,26 +309,26 @@
 - L155  f EnqueueWork
 - L171  f RecordRejectedLink
 - L183  f PollPairedDevices
-- L395  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
+- L409  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
 
 ## bluetooth-guard/src/parts/bt_actions.c
 
-- L2  f TriggerBtAudioKsProperty  — Native Windows KSPROPERTY_ONESHOT_RECONNECT / DISCONNECT — exact API used by Windows 11 Settings!
-- L75  f DoDisconnectOnly  — Disconnect active link cleanly WITHOUT disabling Bluetooth profiles!
-- L101  f DoConnectNow
-- L118  f DisconnectIfStillBlocked
-- L132  f DoForgetDevice
-- L139  f InitPaths
-- L151  f WriteHeartbeat
-- L175  f IsAutostartEnabled
-- L188  f RunHiddenCmd
+- L2  f DoDisconnectOnly  — Disconnect active link cleanly WITHOUT disabling Bluetooth profiles!
+- L28  f DoConnectNow
+- L67  f RunAutoConnect
+- L84  f DisconnectIfStillRequested  — A Connect/Auto change can supersede a queued explicit Disconnect too.
+- L94  f DisconnectIfStillBlocked
+- L108  f DoForgetDevice
+- L115  f InitPaths
+- L127  f WriteHeartbeat
+- L151  f IsAutostartEnabled
+- L164  f RunHiddenCmd
 
 ## bluetooth-guard/src/parts/device_classify.c
 
 - L3  f CheckForegroundManualIntent
 - L29  f ClassifyDevice
 - L52  f EnsureProfilesEnabled  — Keep Windows Bluetooth service profiles ENABLED so manual Connect in Windows Settings ALWAYS works!
-- L72  f EndpointMatchesName  — Match endpoint adapter friendly name (covers HFP / LE Audio when PnP ID lacks classic hex MAC)
 
 ## bluetooth-guard/src/parts/device_history.c
 
@@ -332,9 +341,15 @@
 - L3  f DeviceNeedsReview
 - L7  f DeviceIsListed
 - L11  f DeviceShouldBlock
-- L21  f ApproveDevice
-- L33  f DenyDevice
-- L45  f FindDeviceIndexByAddress
+- L23  f DeviceIsAudio
+- L27  f DeviceAudioReady
+- L31  f ConnectRetryDelayMs
+- L36  f DeviceAutoConnectDue
+- L44  f ResetConnectRequest
+- L52  f SetManualConnectionChoice
+- L63  f ApproveDevice
+- L77  f DenyDevice
+- L91  f FindDeviceIndexByAddress
 
 ## bluetooth-guard/src/parts/emblem.c
 
@@ -371,12 +386,12 @@
 ## bluetooth-guard/src/parts/window_entry.c
 
 - L1  f RenderWindow
-- L269  f HandleHitClick
-- L406  f BluetoothTraySync
-- L419  f TakeHubOneShot
-- L425  f ApplyHubGuardToggle
-- L433  f ApplyHubExit
-- L440  f ShowTrayMenu
+- L300  f HandleHitClick
+- L434  f BluetoothTraySync
+- L447  f TakeHubOneShot
+- L453  f ApplyHubGuardToggle
+- L461  f ApplyHubExit
+- L468  f ShowTrayMenu
 
 ## keyboard-lighting/src/keyboard_lighting.c
 
@@ -1233,14 +1248,15 @@
 - L46  f strip_cs_comments_and_strings
 - L168  f lex_powershell
 - L303  f WindowsDesktopAppsTests
-- L3580  f SuiteFolderInstallTests
-- L4929  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L5112  f AudioSwitcherReachabilityTests
-- L5296  f AudioSwitcherSessionSweepTests
-- L5437  f AppOpenFocusTests
-- L5574  f HubLongevityTests
-- L5638  f HubGroupedEntriesTests
-- L5750  f RadarWindowsLocationTests
+- L3701  f SuiteFolderInstallTests
+- L5050  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L5233  f AudioSwitcherReachabilityTests
+- L5417  f AudioSwitcherSessionSweepTests
+- L5558  f AppOpenFocusTests
+- L5695  f HubLongevityTests
+- L5759  f HubGroupedEntriesTests
+- L5871  f BluetoothAudioEndpointTests
+- L5936  f RadarWindowsLocationTests
 
 ## tests/wave_cases.py
 

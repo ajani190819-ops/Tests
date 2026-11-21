@@ -30,7 +30,7 @@ static void ClassifyDevice(ULONG cod, const wchar_t *name, wchar_t *out, size_t 
     ULONG major = (cod >> 8) & 0x1F;
     BOOL audioSvc = ((cod & (1u << 21)) != 0) || (major == 0x04);
     if (audioSvc || ContainsCI(name, L"airpod") || ContainsCI(name, L"buds") ||
-        ContainsCI(name, L"earbud") || ContainsCI(name, L"headphone") ||
+        ContainsCI(name, L"earbud") || ContainsCI(name, L"earpod") || ContainsCI(name, L"headphone") ||
         ContainsCI(name, L"headset") || ContainsCI(name, L"sony") ||
         ContainsCI(name, L"bose") || ContainsCI(name, L"beats") ||
         ContainsCI(name, L"jbl") || ContainsCI(name, L"speaker") ||
@@ -66,27 +66,5 @@ static void EnsureProfilesEnabled(ULONGLONG address, const wchar_t *kind) {
             pBtSetServiceState(NULL, &bdi, audio[i], BLUETOOTH_SERVICE_ENABLE);
         }
     }
-}
-
-/* Match endpoint adapter friendly name (covers HFP / LE Audio when PnP ID lacks classic hex MAC) */
-static BOOL EndpointMatchesName(IMMDevice *pDev, const wchar_t *devName) {
-    if (!pDev || !devName || !devName[0]) return FALSE;
-    static const PROPERTYKEY kPkeyDevIfaceFriendly = {
-        { 0x026e516e, 0xb814, 0x414b, { 0x83, 0xcd, 0x85, 0x6d, 0x6f, 0xef, 0x48, 0x22 } }, 2
-    };
-    IPropertyStore *pProps = NULL;
-    BOOL match = FALSE;
-    if (SUCCEEDED(pDev->lpVtbl->OpenPropertyStore(pDev, STGM_READ, &pProps)) && pProps) {
-        PROPVARIANT pv;
-        PropVariantInit(&pv);
-        if (SUCCEEDED(pProps->lpVtbl->GetValue(pProps, &kPkeyDevIfaceFriendly, &pv))) {
-            if (pv.vt == VT_LPWSTR && pv.pwszVal && _wcsicmp(pv.pwszVal, devName) == 0) {
-                match = TRUE;
-            }
-            PropVariantClear(&pv);
-        }
-        pProps->lpVtbl->Release(pProps);
-    }
-    return match;
 }
 

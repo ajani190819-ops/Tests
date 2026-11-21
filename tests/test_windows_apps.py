@@ -1173,7 +1173,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
 
         # Paired, disconnected candidates are reviewable, not automatically
         # trusted; unpaired disconnected history is still ignored.
-        candidate_gate = "if (!info.fAuthenticated && !info.fConnected) goto next_bluetooth_device;"
+        candidate_gate = "if (!info.fAuthenticated && !info.fRemembered && !info.fConnected) goto next_bluetooth_device;"
         self.assertIn(candidate_gate, poll)
         self.assertLess(poll.index(candidate_gate), poll.index("idx = g_devCount++;"))
         self.assertIn("ApproveDevice(d, FALSE, now);", poll)
@@ -1212,7 +1212,7 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         declarations = "\n".join((
             declaration("enum HitKind {", "\n};"),
             declaration("typedef struct {\n    RECT rect;", "} HitBox;"),
-            declaration("typedef struct {\n    ULONGLONG address;", "} DeviceEntry;"),
+            declaration("typedef struct {\n    ULONGLONG address;", "} BtAudioResult;"),
             declaration("typedef struct {\n    int       op;", "} WorkItem;"),
         ))
         polling = rules[rules.index("static void RecordRejectedLink("):
@@ -1226,6 +1226,9 @@ class WindowsDesktopAppsTests(unittest.TestCase):
 #include <wchar.h>
 typedef int BOOL;
 typedef uint32_t DWORD;
+typedef int32_t HRESULT;
+#define S_OK 0
+#define FAILED(hr) ((hr) < 0)
 typedef uint64_t ULONGLONG;
 typedef int64_t LONGLONG;
 typedef void *HANDLE;
@@ -1241,8 +1244,8 @@ typedef struct { int left, top, right, bottom; } RECT;
 #define _wcsicmp wcscmp
 ''' + declarations + r'''
 static DeviceEntry g_devices[MAX_DEVICES];
-static int g_devCount, g_lock, g_hitCount, saveCalls, dropCalls, connectCalls, queuedCount;
-static BOOL g_guardOn = TRUE, g_radioOn, g_autostart, g_quitting, fakeIntent;
+static int g_devCount, g_lock, g_hitCount, saveCalls, dropCalls, connectCalls, profileCalls, queuedCount;
+static BOOL g_guardOn = TRUE, g_radioOn, g_autostart, g_quitting, fakeIntent, g_suspendAutoConnect;
 static HANDLE g_hwnd, g_qSem;
 static volatile LONGLONG g_manualGraceUntil;
 static HitBox g_hits[MAX_HITBOXES];
@@ -1276,22 +1279,30 @@ static void FormatMac(ULONGLONG address, wchar_t *mac, int n) {
     swprintf(mac, (size_t)n, L"%012llX", (unsigned long long)address);
 }
 static void ClassifyDevice(DWORD cod, const wchar_t *name, wchar_t *kind, int n) {
-    (void)cod; (void)name; wcsncpy(kind, L"Audio", (size_t)n);
+    (void)cod;
+    const wchar_t *classified = wcscmp(name, L"Phone") == 0 ? L"Phone" :
+                                (wcscmp(name, L"Earbuds") == 0 ? L"Audio" : L"Device");
+    wcsncpy(kind, classified, (size_t)n);
 }
-static void EnsureProfilesEnabled(ULONGLONG address, const wchar_t *kind) { (void)address; (void)kind; }
-static void TriggerBtAudioKsProperty(ULONGLONG address, const wchar_t *name, int property) {
+static void EnsureProfilesEnabled(ULONGLONG address, const wchar_t *kind) { (void)address; (void)kind; profileCalls++; }
+static BtAudioResult fakeAudioResult = {S_OK, S_OK, TRUE, TRUE};
+static BtAudioResult TriggerBtAudioKsProperty(ULONGLONG address, const wchar_t *name, int property) {
     (void)address; (void)name; (void)property; connectCalls++;
+    return fakeAudioResult;
 }
 static void DoDisconnectOnly(ULONGLONG address, const wchar_t *kind, const wchar_t *name) {
     (void)kind; (void)name; dropCalls++; lastDrop = address;
 }
 typedef struct { DWORD dwSize; } BLUETOOTH_FIND_RADIO_PARAMS;
-typedef struct { DWORD dwSize; BOOL fReturnAuthenticated, fReturnConnected; } BLUETOOTH_DEVICE_SEARCH_PARAMS;
+typedef struct {
+    DWORD dwSize;
+    BOOL fReturnAuthenticated, fReturnRemembered, fReturnConnected, fReturnUnknown, fIssueInquiry;
+} BLUETOOTH_DEVICE_SEARCH_PARAMS;
 typedef struct {
     DWORD dwSize;
     struct { ULONGLONG ullLong; } Address;
     DWORD ulClassofDevice;
-    BOOL fAuthenticated, fConnected;
+    BOOL fAuthenticated, fRemembered, fConnected;
     wchar_t szName[248];
 } BLUETOOTH_DEVICE_INFO;
 static BLUETOOTH_DEVICE_INFO observed[64];
@@ -1300,16 +1311,24 @@ static HBLUETOOTH_RADIO_FIND FakeFirstRadio(const BLUETOOTH_FIND_RADIO_PARAMS *p
     (void)p; *radio = (HANDLE)1; return (HANDLE)1;
 }
 static BOOL FakeRadioClose(HBLUETOOTH_RADIO_FIND h) { (void)h; return TRUE; }
-static HBLUETOOTH_DEVICE_FIND FakeFirstDevice(const BLUETOOTH_DEVICE_SEARCH_PARAMS *p,
-                                             BLUETOOTH_DEVICE_INFO *info) {
-    (void)p; observedIndex = 0;
-    if (!observedCount) return NULL;
-    *info = observed[0]; return (HANDLE)1;
-}
+static BLUETOOTH_DEVICE_SEARCH_PARAMS lastSearch;
 static BOOL FakeNextDevice(HBLUETOOTH_DEVICE_FIND h, BLUETOOTH_DEVICE_INFO *info) {
     (void)h;
-    if (++observedIndex >= observedCount) return FALSE;
-    *info = observed[observedIndex]; return TRUE;
+    while (++observedIndex < observedCount) {
+        BLUETOOTH_DEVICE_INFO *d = &observed[observedIndex];
+        if ((lastSearch.fReturnAuthenticated && d->fAuthenticated) ||
+            (lastSearch.fReturnRemembered && d->fRemembered) ||
+            (lastSearch.fReturnConnected && d->fConnected)) {
+            *info = *d; return TRUE;
+        }
+    }
+    return FALSE;
+}
+static HBLUETOOTH_DEVICE_FIND FakeFirstDevice(const BLUETOOTH_DEVICE_SEARCH_PARAMS *p,
+                                             BLUETOOTH_DEVICE_INFO *info) {
+    lastSearch = *p; observedIndex = -1;
+    if (p->fReturnUnknown || p->fIssueInquiry) return NULL;
+    return FakeNextDevice((HANDLE)1, info) ? (HANDLE)1 : NULL;
 }
 static BOOL FakeDeviceClose(HBLUETOOTH_DEVICE_FIND h) { (void)h; return TRUE; }
 static HBLUETOOTH_RADIO_FIND (*pBtFindFirstRadio)(const BLUETOOTH_FIND_RADIO_PARAMS *, HANDLE *) = FakeFirstRadio;
@@ -1322,7 +1341,9 @@ static BOOL (*pBtFindDeviceClose)(HBLUETOOTH_DEVICE_FIND) = FakeDeviceClose;
 static void Reset(void) {
     memset(g_devices, 0, sizeof(g_devices)); memset(g_hits, 0, sizeof(g_hits));
     memset(observed, 0, sizeof(observed)); memset(queued, 0, sizeof(queued));
-    g_devCount = saveCalls = dropCalls = connectCalls = queuedCount = observedCount = 0;
+    g_devCount = saveCalls = dropCalls = connectCalls = profileCalls = queuedCount = observedCount = 0;
+    tick = 10000; g_radioOn = TRUE; g_suspendAutoConnect = FALSE;
+    fakeAudioResult = (BtAudioResult){S_OK, S_OK, TRUE, TRUE};
     g_hitCount = 1; g_guardOn = TRUE; g_hwnd = NULL; fakeIntent = FALSE; g_manualGraceUntil = 0;
 }
 static void Observe(int i, ULONGLONG address, BOOL paired, BOOL connected) {
@@ -1348,6 +1369,20 @@ int main(void) {
     observedCount = 0; PollPairedDevices();
     CHECK(g_devCount == 1 && DeviceNeedsReview(&g_devices[0]) && !g_devices[0].connected);
 
+    /* Honor the real search flags: saved-only earbuds must reach the actual
+       review code, without conflating remembered with authenticated/trusted. */
+    Reset(); Observe(0, 1, FALSE, FALSE); observed[0].fRemembered = TRUE;
+    PollPairedDevices();
+    CHECK(lastSearch.fReturnRemembered && !lastSearch.fReturnUnknown && !lastSearch.fIssueInquiry);
+    CHECK(g_devCount == 1 && DeviceNeedsReview(&g_devices[0]) && !g_devices[0].paired);
+    CHECK(!g_devices[0].visible && saveCalls == 0 && dropCalls == 0);
+    observedCount = 0; PollPairedDevices(); CHECK(g_devCount == 1 && DeviceIsListed(&g_devices[0]));
+    Observe(0, 1, FALSE, TRUE); observed[0].fRemembered = TRUE; g_guardOn = FALSE;
+    PollPairedDevices(); CHECK(dropCalls == 1 && !g_devices[0].visible);
+    /* An unauthenticated, disconnected cache entry not returned by a requested
+       category must not get manufactured by a too-permissive enumeration mock. */
+    Reset(); Observe(0, 9, FALSE, FALSE); PollPairedDevices(); CHECK(g_devCount == 0);
+
     /* A row stays bound to its address even if a scan reorders the array. */
     Reset(); Observe(0, 1, TRUE, FALSE); Observe(1, 2, TRUE, FALSE); PollPairedDevices();
     DeviceEntry tmp = g_devices[0]; g_devices[0] = g_devices[1]; g_devices[1] = tmp;
@@ -1356,7 +1391,7 @@ int main(void) {
     CHECK(g_devices[a].visible && g_devices[a].sessionAllowed && !g_devices[a].allowAuto);
     CHECK(!g_devices[b].visible && saveCalls == 1);
     CHECK(queuedCount == 1 && queued[0].op == 2 && queued[0].address == 1);
-    DoConnectNow(1, L"Audio", L"Earbuds"); CHECK(connectCalls == 1);
+    DoConnectNow(1, L"Audio", L"Earbuds", FALSE); CHECK(connectCalls == 1);
     Click(HIT_DEV_AUTO_TOGGLE, 2);
     CHECK(g_devices[b].visible && g_devices[b].allowAuto && !g_devices[b].sessionAllowed);
     CHECK(queuedCount == 2 && queued[1].op == 2 && queued[1].address == 2 && saveCalls == 2);
@@ -1388,7 +1423,7 @@ int main(void) {
     Click(HIT_DEV_FORGET_BTN, 1);
     CHECK(g_devices[0].forgotten && !DeviceIsListed(&g_devices[0]));
     CHECK(queued[queuedCount - 1].op == 3);
-    DoConnectNow(1, L"Audio", L"Earbuds"); CHECK(connectCalls == 0);
+    DoConnectNow(1, L"Audio", L"Earbuds", FALSE); CHECK(connectCalls == 0);
     g_manualGraceUntil = 0; PollPairedDevices();
     CHECK(g_devices[0].forgotten && !g_devices[0].visible && dropCalls == 3);
 
@@ -1402,6 +1437,92 @@ int main(void) {
     Observe(0, 1, TRUE, TRUE); PollPairedDevices();
     CHECK(g_devices[0].visible && g_devices[0].sessionAllowed && !g_devices[0].allowAuto);
     CHECK(saveCalls == 1 && dropCalls == 0);
+    /* Auto reconnect is a worker action, not a Guard enforcement decision.
+       Start with Guard OFF, fail twice, then observe real audio readiness. */
+    Reset(); g_guardOn = FALSE; Observe(0, 1, TRUE, FALSE); PollPairedDevices();
+    ApproveDevice(&g_devices[0], TRUE, tick);
+    fakeAudioResult = (BtAudioResult){S_OK, -5, TRUE, FALSE};
+    int repaired = profileCalls; RunAutoConnect(); CHECK(profileCalls == repaired + 1);
+    CHECK(connectCalls == 1 && g_devices[0].connectState == BT_CONNECT_FAILED);
+    CHECK(!g_devices[0].connected && g_devices[0].nextConnectTick == tick + 5000);
+    for (int i = 0; i < 100; i++) { tick += 40; RunAutoConnect(); }
+    CHECK(connectCalls == 1); /* never hammer on the 80/250ms scan cadence */
+    tick = 15000; RunAutoConnect(); CHECK(connectCalls == 2 && g_devices[0].nextConnectTick == 25000);
+    tick = 25000; fakeAudioResult.requested = TRUE; fakeAudioResult.commandHr = S_OK;
+    /* An ACL link with no audio must not suppress the next audio request. */
+    Observe(0, 1, TRUE, TRUE); PollPairedDevices(); RunAutoConnect();
+    CHECK(connectCalls == 3 && g_devices[0].connectState == BT_CONNECT_REQUESTED);
+    CHECK(!g_devices[0].audioConnected); /* a successful request is not success */
+    g_devices[0].audioStatusValid = g_devices[0].audioEndpointFound = g_devices[0].audioConnected = TRUE;
+    PollPairedDevices(); RunAutoConnect(); CHECK(connectCalls == 3 && g_devices[0].connectAttempts == 0);
+    CHECK(DeviceAudioReady(&g_devices[0]) && !DeviceAutoConnectDue(&g_devices[0], tick, TRUE));
+    /* A later out-of-range loss resumes attempts, with a bounded ceiling. */
+    g_devices[0].audioConnected = FALSE; Observe(0, 1, TRUE, FALSE); PollPairedDevices();
+    RunAutoConnect(); CHECK(connectCalls == 4 && g_devices[0].connectAttempts == 1);
+    for (int i = 0; i < 12; i++) { tick = g_devices[0].nextConnectTick; RunAutoConnect(); }
+    CHECK(g_devices[0].connectAttempts == 5 && g_devices[0].nextConnectTick == tick + 60000);
+    CHECK(ConnectRetryDelayMs(0) == 5000 && ConnectRetryDelayMs(99) == 60000);
+    /* Guard ON must behave identically for approved Auto ON earbuds. */
+    g_guardOn = TRUE; tick = g_devices[0].nextConnectTick;
+    int before = connectCalls; RunAutoConnect(); CHECK(connectCalls == before + 1);
+    /* The radio, manual Disconnect, off toggle and current decisions all gate
+       stale work. No choice is inferred from discovery or a successful API. */
+    tick = g_devices[0].nextConnectTick; before = connectCalls;
+    g_radioOn = FALSE; RunAutoConnect(); CHECK(connectCalls == before);
+    g_radioOn = TRUE; g_suspendAutoConnect = TRUE;
+    RunAutoConnect(); DoConnectNow(1, L"Audio", L"Earbuds", FALSE); CHECK(connectCalls == before);
+    g_suspendAutoConnect = FALSE; g_devices[0].connected = TRUE;
+    Click(HIT_DEV_CONNECT_BTN, 1);
+    CHECK(g_devices[0].autoPaused && g_devices[0].allowAuto && g_devices[0].connected);
+    DisconnectIfStillRequested(1, L"Audio", L"Earbuds"); CHECK(dropCalls == 1);
+    g_devices[0].connected = FALSE;
+    tick += 3600000; RunAutoConnect(); DoConnectNow(1, L"Audio", L"Earbuds", FALSE);
+    CHECK(connectCalls == before && g_devices[0].autoPaused);
+    Click(HIT_DEV_CONNECT_BTN, 1);
+    CHECK(!g_devices[0].autoPaused && g_devices[0].sessionAllowed);
+    DisconnectIfStillRequested(1, L"Audio", L"Earbuds"); CHECK(dropCalls == 1);
+    DoConnectNow(1, L"Audio", L"Earbuds", FALSE); CHECK(connectCalls == before + 1);
+    Click(HIT_DEV_AUTO_TOGGLE, 1); tick += 60000;
+    RunAutoConnect(); DoConnectNow(1, L"Audio", L"Earbuds", FALSE);
+    CHECK(connectCalls == before + 1 && !g_devices[0].allowAuto);
+    ApproveDevice(&g_devices[0], TRUE, tick); DenyDevice(&g_devices[0]);
+    RunAutoConnect(); DoConnectNow(1, L"Audio", L"Earbuds", FALSE); CHECK(connectCalls == before + 1);
+    /* Even inconsistent old data cannot bypass Deny or Forget in queued work. */
+    g_devices[0].visible = TRUE; g_devices[0].allowAuto = TRUE;
+    CHECK(!DeviceAutoConnectDue(&g_devices[0], tick, TRUE));
+    RunAutoConnect(); DoConnectNow(1, L"Audio", L"Earbuds", FALSE); CHECK(connectCalls == before + 1);
+    g_devices[0].denied = FALSE; g_devices[0].forgotten = TRUE;
+    CHECK(!DeviceAutoConnectDue(&g_devices[0], tick, TRUE));
+    RunAutoConnect(); DoConnectNow(1, L"Audio", L"Earbuds", FALSE); CHECK(connectCalls == before + 1);
+    /* Accept/current-session permission does not authorize automatic work. */
+    Reset(); Observe(0, 1, TRUE, FALSE); PollPairedDevices(); ApproveDevice(&g_devices[0], FALSE, tick);
+    RunAutoConnect(); DoConnectNow(1, L"Audio", L"Earbuds", TRUE); CHECK(connectCalls == 0);
+    /* A saved-only scan with no name/class must not erase a known audio
+       kind, make an earbuds row anonymous, or disable automatic requests. */
+    ApproveDevice(&g_devices[0], TRUE, tick); observed[0].szName[0] = L'\0';
+    PollPairedDevices(); CHECK(wcscmp(g_devices[0].kind, L"Audio") == 0);
+    CHECK(wcscmp(g_devices[0].name, L"Earbuds") == 0 && DeviceAutoConnectDue(&g_devices[0], tick, TRUE));
+    /* Report no addressed endpoint separately from COM/driver failure. */
+    ApproveDevice(&g_devices[0], TRUE, tick);
+    fakeAudioResult = (BtAudioResult){S_OK, -1168, FALSE, FALSE}; RunAutoConnect();
+    CHECK(g_devices[0].connectState == BT_CONNECT_NO_ENDPOINT && !g_devices[0].connected);
+    tick = g_devices[0].nextConnectTick; fakeAudioResult.enumerationHr = -5;
+    RunAutoConnect(); CHECK(g_devices[0].connectState == BT_CONNECT_FAILED);
+
+    /* Non-audio phone/HID connections remain Windows-managed. */
+    Reset(); Observe(0, 2, TRUE, FALSE); wcscpy(observed[0].szName, L"Phone"); PollPairedDevices();
+    ApproveDevice(&g_devices[0], TRUE, tick); RunAutoConnect(); CHECK(connectCalls == 0);
+    Observe(0, 2, TRUE, TRUE); wcscpy(observed[0].szName, L"Phone"); PollPairedDevices();
+    CHECK(g_devices[0].connected && !DeviceShouldBlock(&g_devices[0], FALSE));
+    /* Active addressed audio is still reflected/enforced when a classic
+       record goes missing. Its disappearance is also a real disconnect. */
+    Reset(); Observe(0, 1, TRUE, FALSE); PollPairedDevices(); ApproveDevice(&g_devices[0], FALSE, tick);
+    g_devices[0].audioStatusValid = g_devices[0].audioEndpointFound = g_devices[0].audioConnected = TRUE;
+    PollPairedDevices(); CHECK(g_devices[0].connected && !g_devices[0].linkConnected);
+    observedCount = 0; PollPairedDevices(); CHECK(g_devices[0].connected && DeviceAudioReady(&g_devices[0]));
+    g_devices[0].sessionAllowed = FALSE; PollPairedDevices(); CHECK(dropCalls == 1);
+    g_devices[0].audioConnected = FALSE; PollPairedDevices(); CHECK(!g_devices[0].connected);
+
     /* Capacity exhaustion must not be interpreted as an owner denial. */
     Reset(); g_devCount = MAX_DEVICES;
     for (int i = 0; i < MAX_DEVICES; i++) {
@@ -5745,6 +5866,71 @@ class HubGroupedEntriesTests(unittest.TestCase):
         self.assertIn("case TASK_INSTALL_ORCA_WAVE:   WorkerInstallOrcaPlugin(0);", dispatch)
         self.assertIn("case TASK_INSTALL_ORCA_INFILL: WorkerInstallOrcaPlugin(1);", dispatch)
         self.assertNotIn("for (int i = 6; i < g_cardCount; i++) WorkerInstallGeneric", dispatch)
+
+
+class BluetoothAudioEndpointTests(unittest.TestCase):
+    """Real COM traversal with deterministic I/O; not native driver acceptance."""
+
+    @classmethod
+    def setUpClass(cls):
+        import shutil
+        import tempfile
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            raise unittest.SkipTest("portable C compiler is unavailable")
+        cls.temp = tempfile.TemporaryDirectory(prefix="bluetooth-audio-")
+        cls.addClassCleanup(cls.temp.cleanup)
+        folder = Path(cls.temp.name)
+        root = (ROOT / "bluetooth-guard/src/bluetooth_guard.c").read_text(encoding="utf-8")
+        start = root.index("typedef struct {\n    ULONGLONG address;")
+        end = root.index("} BtAudioResult;", start) + len("} BtAudioResult;")
+        constants = "\n".join(re.findall(
+            r"(?m)^static const (?:GUID|CLSID|IID) +k(?:KsPropSetBtAudio|ClsidMMDevEnum|IidIMMDevEnum|IidIDeviceTopo|IidIKsControl) +.*$", root))
+        (folder / "bluetooth_audio_types.h").write_text(root[start:end] + "\n" + constants, encoding="utf-8")
+        history = (ROOT / "bluetooth-guard/src/parts/device_history.c").read_text(encoding="utf-8")
+        production = history[history.index("static void FormatCompactHex("):]
+        production += (ROOT / "bluetooth-guard/src/parts/audio_endpoints.c").read_text(encoding="utf-8")
+        (folder / "bluetooth_audio_production.h").write_text(production, encoding="utf-8")
+        cls.exe = folder / "bluetooth-audio"
+        built = subprocess.run(
+            [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", str(folder),
+             str(ROOT / "tests/native/bluetooth_audio_harness.c"), "-o", str(cls.exe)],
+            capture_output=True, text=True, timeout=30)
+        if built.returncode:
+            raise AssertionError(built.stderr)
+
+    def run_case(self, case):
+        ran = subprocess.run([str(self.exe), case], capture_output=True, text=True, timeout=10)
+        self.assertEqual(ran.returncode, 0, ran.stderr)
+
+    def test_address_routing_and_adapter_ikscontrol_activation(self):
+        self.run_case("routing")
+
+    def test_active_unplugged_disabled_and_request_are_distinct(self):
+        self.run_case("state")
+
+    def test_com_failures_release_every_object_and_device_id(self):
+        self.run_case("failures")
+
+    def test_status_refresh_is_throttled_address_bound_and_never_trusts(self):
+        self.run_case("refresh")
+
+    def test_worker_status_and_manual_disconnect_wiring(self):
+        parts = ROOT / "bluetooth-guard/src/parts"
+        rules = (parts / "autostart_rules.c").read_text(encoding="utf-8")
+        ui = (parts / "window_entry.c").read_text(encoding="utf-8")
+        worker = rules[rules.index("static DWORD WINAPI WorkerThread("):]
+        self.assertIn("RefreshAudioConnections();\n        PollPairedDevices();\n        RunAutoConnect();", worker)
+        self.assertIn("DoConnectNow(item.address, item.kind, item.name, FALSE)", worker)
+        self.assertIn("DisconnectIfStillRequested(item.address, item.kind, item.name)", worker)
+        self.assertEqual(ui.count("SetManualConnectionChoice(d,"), 3, "card and tray must share pause/resume semantics")
+        self.assertIn('L"Audio connected"', ui)
+        self.assertIn('L"Bluetooth link only; audio not connected"', ui)
+        self.assertIn('L"No address-matched audio endpoint"', ui)
+        self.assertIn('L"Auto paused"', ui)
+        self.assertNotIn('L"Connected audio session"', ui)
+        saved = rules[rules.index("static void SaveRules("):rules.index("static void LoadRules(")]
+        self.assertNotIn("autoPaused", saved, "manual Disconnect pause is current-run state, not a new persisted policy")
 
 
 class RadarWindowsLocationTests(unittest.TestCase):

@@ -205,6 +205,7 @@ static void PollPairedDevices(void) {
        must be reviewable even while disconnected. Discovery is not approval:
        only an explicit Guard choice or a Windows manual connection enrolls. */
     sp.fReturnAuthenticated = TRUE;
+    sp.fReturnRemembered = TRUE;
     sp.fReturnConnected = TRUE;
 
     BLUETOOTH_DEVICE_INFO info;
@@ -228,7 +229,7 @@ static void PollPairedDevices(void) {
     HBLUETOOTH_DEVICE_FIND hFind = pBtFindFirstDevice(&sp, &info);
     if (hFind) {
         do {
-            if (info.Address.ullLong != 0 && (info.fAuthenticated || info.fConnected)) {
+            if (info.Address.ullLong != 0 && (info.fAuthenticated || info.fRemembered || info.fConnected)) {
                 wchar_t mac[24], kind[16];
                 FormatMac(info.Address.ullLong, mac, 24);
                 const wchar_t *nm = info.szName[0] ? info.szName : mac;
@@ -239,9 +240,9 @@ static void PollPairedDevices(void) {
                     if (_wcsicmp(g_devices[i].mac, mac) == 0) { idx = i; break; }
                 }
                 if (idx < 0) {
-                    /* Keep authenticated, disconnected earbuds in the review
-                       list. Never grant trusted membership just for scanning. */
-                    if (!info.fAuthenticated && !info.fConnected) goto next_bluetooth_device;
+                    /* Saved/authenticated, disconnected earbuds belong in the
+                       review list. Remembered does not mean authenticated. */
+                    if (!info.fAuthenticated && !info.fRemembered && !info.fConnected) goto next_bluetooth_device;
                     if (g_devCount >= MAX_DEVICES) {
                         /* A full UI is not an owner denial of a paired device. */
                         if (!info.fAuthenticated && info.fConnected)
@@ -258,7 +259,7 @@ static void PollPairedDevices(void) {
 
                 DeviceEntry *d = &g_devices[idx];
                 BOOL wasConnected = d->connected;
-                BOOL isConnected = info.fConnected ? TRUE : FALSE;
+                BOOL isConnected = info.fConnected || d->audioConnected;
                 BOOL newlyConnected = isConnected && !wasConnected;
                 if (newlyConnected && !manualWindow && g_hwnd) {
                     CheckForegroundManualIntent();
@@ -268,9 +269,14 @@ static void PollPairedDevices(void) {
                 BOOL manualIntent = newlyConnected && manualWindow;
                 d->scanSeen = TRUE;
                 d->address = info.Address.ullLong;
-                if (info.fAuthenticated) d->paired = TRUE;
-                wcsncpy(d->name, nm, 247);
-                wcsncpy(d->kind, kind, 15);
+                d->paired = info.fAuthenticated ? TRUE : FALSE;
+                d->remembered = info.fRemembered ? TRUE : FALSE;
+                d->linkConnected = info.fConnected ? TRUE : FALSE;
+                /* Saved-only/incomplete records can temporarily lack name or
+                   class. Do not erase known earbuds metadata and accidentally
+                   turn off their audio retry path just because of that scan. */
+                if (info.szName[0] || !d->name[0]) wcsncpy(d->name, nm, 247);
+                if (_wcsicmp(kind, L"Device") != 0 || !d->kind[0]) wcsncpy(d->kind, kind, 15);
                 d->connected = isConnected;
 
                 if (d->forgotten) {
@@ -281,6 +287,8 @@ static void PollPairedDevices(void) {
                         d->visible = TRUE;
                         d->transient = FALSE;
                         d->allowAuto = FALSE;
+                        d->autoPaused = FALSE;
+                        ResetConnectRequest(d);
                         d->sessionAllowed = TRUE;
                         d->seenConnected = TRUE;
                         d->sessionStartTick = now;
@@ -365,15 +373,21 @@ next_bluetooth_device:
     for (int i = 0; i < g_devCount; ) {
         DeviceEntry *d = &g_devices[i];
         if (!d->scanSeen) {
-            d->connected = FALSE;
-            d->blockPending = FALSE;
-            if (d->sessionAllowed &&
+            d->linkConnected = FALSE;
+            d->connected = d->audioConnected;
+            if (!d->connected) d->blockPending = FALSE;
+            if (!d->connected && d->sessionAllowed &&
                 (d->seenConnected || now - d->sessionStartTick > 45000ULL)) {
                 d->sessionAllowed = FALSE;
                 d->seenConnected = FALSE;
             }
         }
-        if (d->transient && !d->paired && (!d->scanSeen || !d->connected)) {
+        if (!d->scanSeen && DeviceShouldBlock(d, g_guardOn) && !d->blockPending) {
+            RecordRejectedLink(rejected, &rejectedCount, d->address, d->mac, d->kind, d->name);
+            d->blockPending = TRUE;
+        }
+        if (DeviceAudioReady(d) || (!DeviceIsAudio(d) && d->connected)) ResetConnectRequest(d);
+        if (d->transient && !d->paired && !d->remembered && (!d->scanSeen || !d->connected)) {
             memmove(&g_devices[i], &g_devices[i + 1],
                     sizeof(DeviceEntry) * (size_t)(g_devCount - i - 1));
             g_devCount--;
@@ -427,13 +441,15 @@ static DWORD WINAPI WorkerThread(LPVOID unused) {
                 }
                 LeaveCriticalSection(&g_lock);
                 if (!has) break;
-                if (item.op == 1) DoDisconnectOnly(item.address, item.kind, item.name);
-                else if (item.op == 2) DoConnectNow(item.address, item.kind, item.name);
+                if (item.op == 1) DisconnectIfStillRequested(item.address, item.kind, item.name);
+                else if (item.op == 2) DoConnectNow(item.address, item.kind, item.name, FALSE);
                 else if (item.op == 3) DoForgetDevice(item.address, item.kind, item.name);
                 else if (item.op == 4) DisconnectIfStillBlocked(item.address, item.kind, item.name);
             }
         }
+        RefreshAudioConnections();
         PollPairedDevices();
+        RunAutoConnect();
         if (g_hwnd && !g_devNotifyRadio) RegisterBluetoothNotifications(g_hwnd);
         WriteHeartbeat();
         if (g_hwnd && IsWindowVisible(g_hwnd)) PostMessageW(g_hwnd, WM_WORKER_DONE, 0, 0);
