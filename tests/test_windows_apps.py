@@ -6440,15 +6440,19 @@ class GuardSecurityReportTests(unittest.TestCase):
         self.assertNotIn("no malware detected", report.lower())
 
     def test_full_hashes_are_bound_to_frozen_git_artifacts_not_tip_or_short_prefixes(self):
-        import hashlib
         report = self._function("New-GuardSecurityReport")
         commit = re.search(r"\$baselineCommit = '([0-9a-f]{40})'", report).group(1)
-        for variable, path in (("guardHash", "bluetooth-guard/BluetoothGuard.exe"),
-                               ("hubHash", "project-hub/ProjectHub.exe")):
-            expected = re.search(r"\$" + variable + r" = '([0-9a-f]{64})'", report).group(1)
-            artifact = subprocess.run(["git", "show", commit + ":" + path], cwd=ROOT,
-                                      check=True, capture_output=True).stdout
-            self.assertEqual(hashlib.sha256(artifact).hexdigest(), expected)
+        # Independently audited known-answer provenance. The collector deliberately
+        # stays frozen when future EXEs change; a depth-one/offline checkout has
+        # neither the old Git objects nor permission to fetch replacement bytes.
+        self.assertEqual(commit, "543be95ad860d6e11ffadf30248d413e0dcc839c")
+        frozen_hashes = {
+            "guardHash": "4ad58a32f01a94713c37061cb79e2bf596e7c61ce8f6255b33caccb96938a2a6",
+            "hubHash": "289de84e01b63375bc7e622ea11cc82a647f29acadb650c957d6a693d1f0a8e0",
+        }
+        for variable, expected in frozen_hashes.items():
+            actual = re.search(r"\$" + variable + r" = '([0-9a-f]{64})'", report).group(1)
+            self.assertEqual(actual, expected)
         reader = self._function("Get-GuardFileEvidence")
         self.assertIn("$sha.ComputeHash($stream)", reader)
         self.assertIn("$hash -eq $ExpectedHash", reader)

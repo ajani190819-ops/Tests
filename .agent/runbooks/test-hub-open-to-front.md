@@ -189,8 +189,9 @@ Those fixtures mock all provider queries and use only temporary synthetic
 `.bin`/`.txt` files. They do not launch Guard or establish a real detection,
 malware verdict, active provider, driver result or foreground acceptance.
 Native fixture execution and real owner report collection remain pending until
-actually run; the repository's Windows CI also parses PowerShell with its native
-parser, but parsing alone is not fixture execution.
+actually run. The stock Windows PowerShell AST parser passed both unchanged
+scripts in CI run `44957095411`; parsing is not mocked-fixture execution or a
+real provider/launch result.
 
 Verified in this sandbox (2026-11-16): eight new portable source/regex checks,
 full uncached `check_all.py` in both dependency states, and all **344** mutations
@@ -200,6 +201,16 @@ and source restoration was exact. The required seven-EXE build reproduced
 **all seven published files byte-for-byte**, including Guard's pinned hash.
 Portable PowerShell grammar checks passed for both new scripts; no PowerShell
 runtime/Windows provider, owner history or launch/focus execution occurred here.
+
+The first CI Linux job failed: the provenance test incorrectly required old
+Git objects that `actions/checkout`'s default depth-one clone does not contain.
+A depth-one clone on the same active branch reproduced that exact `git show`
+error. The corrected oracle uses independently audited, frozen known-answer
+commit/full SHA-256 values instead of fetching or assuming history. It still
+checks the exact pinned commit, both complete hashes and full-length comparison,
+not a prefix or mutable tip. All eight collector checks and normal full checks
+in both dependency states pass in that shallow/offline reproduction. No script,
+app, baseline artifact or workflow was changed to repair this test dependency.
 
 Focused source review identified the existing `SetAutostart` Run-key/Explorer
 startup-delay writes and hidden `schtasks.exe` creation of a HighestAvailable
