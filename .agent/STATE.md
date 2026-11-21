@@ -5,7 +5,7 @@
 
 ## Released work
 
-- **Hub:** main 2.8.56; Arena 2.8.64 (implementation in RELEASED). APP-02 fixes
+- **Hub:** main 2.8.56; Arena 2.8.65 (implementation in RELEASED). APP-02 fixes
   catalogue icon-handle growth with draw-locked replacement and rechecks/restores
   lost shell icons; failed registration releases tray ownership. Build/checks/
   213 mutations pass; native soak/original expiry unconfirmed. APP-01 (2.8.63,
@@ -44,10 +44,10 @@ Repeat pending/parked items; omissions remain OPEN.
 - **Hub / Windows:** APP-02 two reproduced lifetime defects fixed in 2.8.64;
   Windows soak/original expiry still open. APP-01 native focus pending.
   OPS-01 monitor: latest open fine; identify UAC program/path/action if repeated
-  (reports: Hub open, app open, app update). APP-03 implemented candidate 2.8.65:
+  (reports: Hub open, app open, app update). APP-03 released 2.8.65 (`b16380c`):
   General apps / Orca plugins / Minecraft mods; independent Undahang / Unlayered
   Infill, settings/legacy paths preserved. Build/checks, 121 tests/242 mutations
-  pass; marker pending. Native fitting unrun (`test-hub-grouped-entries.md`).
+  pass; native fitting unrun (`test-hub-grouped-entries.md`).
 - **Bluetooth Guard:** BT-01 released; first owner hardware check: earbuds
   discovery, choices, persistence/reconnect. Scans never grant trust.
 - **Keyboard Lighting:** KBL-01 parked for fresh owner `engine.log`;
