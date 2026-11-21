@@ -4,7 +4,7 @@ Status: **procedure only; not run in the Linux build workspace**. Production-C
 filesystem/configuration/geometry mocks and cross-builds are not Windows GDI,
 Explorer, real Orca, DPI-transition or owner acceptance evidence.
 
-Use Hub 2.8.66 from the active Arena branch's verified release marker. Record
+Use Hub 2.8.68 from the active Arena branch's verified release marker. Record
 Windows version, Hub version/build SHA, display resolution/scaling, window size,
 profile paths, actions/results and screenshots. Back up Hub `config.ini` and
 Orca profiles before destructive checks. Use disposable profiles, not the only
@@ -19,8 +19,15 @@ copy of the owner's working presets. Keep unrelated apps/updates closed.
 2. Test default, minimum, tall and maximized sizes at 100%, 125%, 150% and 200%
    scaling, including moving between monitors. Verify readable/ellipsized text,
    complete buttons, rounded cards, correct icons, no title/badge/control
-   overlap, and no drawing into the fixed header/footer. At narrow sizes the
-   controls occupy a second header row, including when Update Hub is visible.
+   overlap, and no drawing into the fixed header/footer. At the default width,
+   Refresh / Update All / Branch / Settings must be vertically centered beside
+   the icon/title block, not unnecessarily dropped into a lower row. Test at
+   175% too, and resize just either side of the one/two-row boundary. Hidden
+   Update Hub consumes neither width nor an extra gap. If a verified newer Hub
+   makes that fifth action visible, include its real width; wrap only when the
+   controls plus a readable title/subtitle column cannot fit. A genuinely narrow
+   window still uses a second row. Check all visible controls/hit targets after
+   each resize or visibility change; do not manufacture a real update to test it.
 3. Reach every card with the wheel, arrows, Page Up/Down, Home and End. The last
    card and all its controls must be reachable. Headings must stay with their
    groups; empty space/dividers/headings must never trigger card actions.

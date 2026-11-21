@@ -5777,7 +5777,10 @@ class HubGroupedEntriesTests(unittest.TestCase):
         defines += "\nstatic const int testCardIconIds[] = " + embedded_ids + ";"
         category = re.search(r"enum \{ HUB_GROUP_GENERAL.*?\};", root).group(0)
         types = root[root.index("enum {\n    BADGE_IDLE"):root.index("static HINSTANCE")]
-        (folder / "hub_groups_types.h").write_text(defines + "\n" + category + "\n" + types, encoding="utf-8")
+        top_at = root.index("static ActionBtn        g_topBtns[5]")
+        top_buttons = root[top_at:root.index("};", top_at) + 2].replace("g_topBtns[5]", "testTopButtons[5]")
+        (folder / "hub_groups_types.h").write_text(
+            defines + "\n" + category + "\n" + types + "\n" + top_buttons, encoding="utf-8")
         cfg = (parts / "version_probe_cache.c").read_text(encoding="utf-8")
 
         def function(text, start):
@@ -5826,6 +5829,9 @@ class HubGroupedEntriesTests(unittest.TestCase):
 
     def test_grouped_layout_scrolling_clipping_and_dpi_route_to_the_drawn_card(self):
         self._run("layout", "Hub grouped DPI geometry and clipped routing passed")
+
+    def test_header_aligns_visible_buttons_with_the_title_when_they_fit(self):
+        self._run("header", "Hub aligned header and visible-control breakpoints passed")
 
     def test_catalogue_categories_and_legacy_id_remain_stable(self):
         apps = json.loads((ROOT / "suite-apps.json").read_text(encoding="utf-8"))["apps"]

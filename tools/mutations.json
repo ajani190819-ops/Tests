@@ -1661,8 +1661,8 @@
  {
   "id": "hub-groups-24",
   "file": "project-hub/src/parts/ui_renderer.c",
-  "old": "return S(width < S(920, dpi) ? 124 : 76, dpi);",
-  "new": "return S(width < S(920, dpi) ? 76 : 76, dpi);",
+  "old": "return S(width < required ? 124 : 76, dpi);",
+  "new": "return S(width < required ? 76 : 76, dpi);",
   "label": "Narrow header loses its separate control row"
  },
  {
@@ -2238,5 +2238,47 @@
   "old": "    int cardH = S(108, dpi);",
   "new": "    int cardH = S(82, dpi);",
   "label": "Shrunken cards overlap the independent connection detail and Auto/control rows"
+ },
+ {
+  "id": "hub-header-00",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "return S(width < required ? 124 : 76, dpi);",
+  "new": "return S(width < S(920, dpi) ? 124 : 76, dpi);",
+  "label": "Four fitting controls are pushed below the title by a worst-case five-button breakpoint"
+ },
+ {
+  "id": "hub-header-01",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "    for (int i = 0; i < 5; i++) {\n        if (g_topBtns[i].hidden) continue;\n        required += S(g_topBtns[i].widthPx, dpi);",
+  "new": "    for (int i = 0; i < 5; i++) {\n        if (FALSE && g_topBtns[i].hidden) continue;\n        required += S(g_topBtns[i].widthPx, dpi);",
+  "label": "A hidden Update Hub reserves width in the header fit calculation"
+ },
+ {
+  "id": "hub-header-02",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "        required += S(g_topBtns[i].widthPx, dpi);",
+  "new": "        required += g_topBtns[i].widthPx;",
+  "label": "Header fit ignores DPI-scaled visible control widths"
+ },
+ {
+  "id": "hub-header-03",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "        if (visible++) required += S(9, dpi);",
+  "new": "        if (visible++) required += 0;",
+  "label": "Header fit omits the gaps between visible controls"
+ },
+ {
+  "id": "hub-header-04",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "    int topBtnY = compact ? S(77, dpi) : (headerH - topBtnH) / 2;",
+  "new": "    int topBtnY = compact ? S(77, dpi) : S(77, dpi);",
+  "label": "Single-row header controls retain the lower-row vertical offset"
+ },
+ {
+  "id": "hub-header-05",
+  "file": "project-hub/src/parts/ui_renderer.c",
+  "old": "S(14, dpi) * 2 + S(256, dpi);",
+  "new": "S(14, dpi) * 2 + S(128, dpi);",
+  "label": "Header packs controls into the reserved readable title/subtitle column"
  }
 ]

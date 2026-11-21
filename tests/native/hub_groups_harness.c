@@ -180,8 +180,7 @@ static void RefreshProjectStatuses(void) { refreshes++; }
 #include "hub_groups_production.h"
 
 static void init(void) {
-    int widths[]={92,112,108,96,84};
-    for (int i=0;i<5;i++) { g_topBtns[i].id=1001+i; g_topBtns[i].widthPx=widths[i]; }
+    memcpy(g_topBtns, testTopButtons, sizeof(g_topBtns));
     InitCardDefinitions(); RestoreBuiltInCardText();
     CHECK(g_cardCount==9 && BUILTIN_CARD_COUNT==8);
     CHECK(g_cards[3].category==HUB_GROUP_ORCA && g_cards[7].category==HUB_GROUP_ORCA);
@@ -318,6 +317,14 @@ static void catalogScenario(void) {
     RebuildExtraCards("{\"apps\":[]}"); CHECK(g_cardCount==MAX_APPS && wcscmp(g_cards[9].id,L"addon")==0);
     puts("Hub catalogue fallback and duplicate scenarios passed");
 }
+static int headerRequiredWidth(void) {
+    int controls=0, count=0;
+    for (int i=0;i<5;i++) if (!g_topBtns[i].hidden) {
+        controls+=S(g_topBtns[i].widthPx,dpi);
+        if (count++) controls+=S(9,dpi);
+    }
+    return S(28,dpi)*2+S(52,dpi)+S(14,dpi)*2+S(256,dpi)+controls;
+}
 static void layoutScenario(void) {
     const int dpis[]={96,120,144,192};
     const int sizes[][2]={{700,420},{920,640},{1280,1250}};
@@ -327,7 +334,7 @@ static void layoutScenario(void) {
             g_topBtns[1].hidden=hidden; g_cards[3].btns[0].hidden=hidden;
             g_scrollY=0; ComputeLayout(g_hwnd);
             int header=HubHeaderHeight(width,dpi), foot=height-S(42,dpi);
-            CHECK(header==S(sizes[sz][0]<920 ? 124:76,dpi));
+            CHECK(header==S(width<headerRequiredWidth() ? 124:76,dpi));
             CHECK(g_groupRects[0].top==header+S(12,dpi) || !g_maxScrollY);
             CHECK(g_cards[8].rcCard.bottom<g_groupRects[1].top);
             CHECK(g_cards[3].rcCard.bottom<g_cards[7].rcCard.top && g_cards[7].rcCard.bottom<g_groupRects[2].top);
@@ -360,6 +367,58 @@ static void layoutScenario(void) {
     }
     puts("Hub grouped DPI geometry and clipped routing passed");
 }
+/* The screenshot/default-width regression must run the actual header layout,
+   using the production button descriptors, not a hand-maintained width copy. */
+static void checkHeader(int pixels) {
+    width=pixels; height=S(700,dpi); g_scrollY=0;
+    ComputeLayout(g_hwnd);
+    int header=HubHeaderHeight(width,dpi), foot=height-S(42,dpi);
+    BOOL fits=width>=headerRequiredWidth();
+    CHECK(header==S(fits ? 76:124,dpi));
+    int first=-1, previousRight=0;
+    for (int i=0;i<5;i++) {
+        RECT r=g_topBtns[i].rc;
+        if (g_topBtns[i].hidden) {
+            CHECK(!r.left && !r.top && !r.right && !r.bottom);
+            continue;
+        }
+        if (first<0) first=i;
+        CHECK(r.left>=S(28,dpi) && r.right<=width-S(28,dpi) && r.bottom<header);
+        CHECK(r.bottom-r.top==S(35,dpi));
+        if (previousRight) CHECK(r.left-previousRight==S(9,dpi));
+        previousRight=r.right;
+        if (fits) CHECK(abs((r.top+r.bottom)-(g_rcEmblem.top+g_rcEmblem.bottom))<=1);
+        else CHECK(r.top>g_rcEmblem.bottom);
+        CHECK(HitTestButtons((POINT){r.left+1,r.top+1},header,foot)==g_topBtns[i].id);
+    }
+    if (fits && first>=0)
+        CHECK(g_topBtns[first].rc.left-S(14,dpi)-(g_rcEmblem.right+S(14,dpi))>=S(256,dpi));
+}
+static void headerScenario(void) {
+    const int dpis[]={96,120,144,168,192};
+    for (int d=0;d<5;d++) {
+        dpi=dpis[d];
+        for (int hidden=0;hidden<2;hidden++) {
+            g_topBtns[1].hidden=hidden;
+            int required=headerRequiredWidth();
+            checkHeader(required-1); checkHeader(required); checkHeader(required+1);
+            checkHeader(S(700,dpi)); checkHeader(S(808,dpi));
+            checkHeader(S(844,dpi)); checkHeader(S(1000,dpi));
+        }
+        /* A hidden Update Hub must consume neither its width nor a gap. */
+        g_topBtns[1].hidden=TRUE;
+        int required=headerRequiredWidth();
+        g_topBtns[1].widthPx=1000; checkHeader(required);
+        g_topBtns[1].widthPx=testTopButtons[1].widthPx;
+        /* A later wider label must participate in the actual fit decision. */
+        g_topBtns[3].widthPx+=40; checkHeader(required);
+        g_topBtns[3].widthPx=testTopButtons[3].widthPx;
+    }
+    dpi=120; g_topBtns[1].hidden=TRUE;
+    checkHeader(1010); /* 1010px / 125% regression fixture; owner DPI is unconfirmed */
+    CHECK(HubHeaderHeight(width,dpi)==S(76,dpi));
+    puts("Hub aligned header and visible-control breakpoints passed");
+}
 int main(int argc, char **argv) {
     CHECK(argc==2); scenario=argv[1]; init();
     if (strcmp(scenario,"icons")==0) iconsScenario();
@@ -368,6 +427,7 @@ int main(int argc, char **argv) {
     else if (strcmp(scenario,"status")==0) statusScenario();
     else if (strcmp(scenario,"catalog")==0) catalogScenario();
     else if (strcmp(scenario,"layout")==0) layoutScenario();
+    else if (strcmp(scenario,"header")==0) headerScenario();
     else CHECK(FALSE);
     return 0;
 }

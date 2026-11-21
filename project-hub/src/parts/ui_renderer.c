@@ -127,9 +127,17 @@ static HICON HubCardIcon(const ProjectCard *card, int slot) {
 }
 
 static int HubHeaderHeight(int width, int dpi) {
-    /* At narrow sizes, controls get their own row rather than covering the
-       emblem/title. Keep the same height whether Update Hub is visible or not. */
-    return S(width < S(920, dpi) ? 124 : 76, dpi);
+    /* Keep visible controls centered beside the emblem/title whenever they
+       fit. A hidden Update Hub consumes no width or gap. Reserve a readable
+       title/subtitle column; only genuinely narrow windows need a second row. */
+    int required = S(28, dpi) * 2 + S(52, dpi) + S(14, dpi) * 2 + S(256, dpi);
+    int visible = 0;
+    for (int i = 0; i < 5; i++) {
+        if (g_topBtns[i].hidden) continue;
+        required += S(g_topBtns[i].widthPx, dpi);
+        if (visible++) required += S(9, dpi);
+    }
+    return S(width < required ? 124 : 76, dpi);
 }
 
 static void ComputeLayout(HWND hwnd) {

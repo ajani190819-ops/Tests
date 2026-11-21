@@ -21,16 +21,15 @@
 
 ## Bluetooth Guard / BT-01
 
-Owner reports basic Bluetooth connection now works after `9c91afd` (marker
-`7740af8`, Hub 2.8.66). Remaining persistence/manual/lifecycle/LE checks stay open.
-Released `1839e1e`, Hub 2.8.67 + Guard: own-UI Hub/tray reveal, one per-window
-show-only UIPI message, fresh scalar ticks, no elevation change;
-legacy async/duplicate/update gates retained. Green=confirmed connected,
-blue=paired/Auto-configured/link-only/request; separate Auto on/off/paused and
-full-width details. Approval amber, denied red; no request=audio success.
-Preserve K/D/F, address-only actions, enabled profiles and 5..60s Guard-independent
-retries. Build/checks, 136 tests/320 mutations and ASan/UBSan pass; focus/DPI unrun:
-`test-bluetooth-reconnect.md` and `test-hub-open-to-front.md`. Legacy PS unchanged.
+Owner reports basic connection now works after `9c91afd`/`7740af8` (Hub 2.8.66).
+Panel/status follow-up `1839e1e`, Hub 2.8.67 + Guard: own-UI restore, one
+show-only per-window UIPI message, fresh scalar ticks; elevation/legacy async/
+duplicate/update gates retained. Green=confirmed connected, blue=paired/Auto/
+link-only/request; separate Auto on/off/paused/details, approval amber, denied red.
+Preserve K/D/F, address-only actions, profiles and 5..60s Guard-independent retries.
+Build/checks, 136 tests/320 mutations and ASan/UBSan pass. Native focus/DPI and
+remaining persistence/manual/lifecycle/LE checks open: `test-bluetooth-reconnect.md`
+and `test-hub-open-to-front.md`. Legacy PS unchanged.
 
 ## Agreed to-do list
 
@@ -48,8 +47,10 @@ Repeat pending/parked items; omissions remain OPEN.
   General apps / Orca plugins / Minecraft mods; independent Undahang / Unlayered
   Infill, settings/legacy paths preserved. Approved abstract Undahang icon in
   2.8.66 (`fd27fa3`); Infill art unchanged.
-  Native fitting/icons unrun (`test-hub-grouped-entries.md`).
-- **Bluetooth Guard:** BT-01 active/next: panel reveal and status visuals. Basic
+  Header 2.8.68 candidate: visible controls align; wrap only if narrow.
+  137 tests/326 mutations/checks pass; native header/icons/fitting next
+  (`test-hub-grouped-entries.md`).
+- **Bluetooth Guard:** BT-01 pending: panel reveal/status confirmation. Basic
   connection owner-confirmed; choices/persistence/manual/lifecycle checks remain.
   Scans never grant trust.
 - **Keyboard Lighting:** KBL-01 parked for fresh owner `engine.log`;

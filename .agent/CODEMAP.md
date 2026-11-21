@@ -237,12 +237,12 @@
 - L89  f DrawActionBtn
 - L121  f HubCardIcon
 - L129  f HubHeaderHeight
-- L135  f ComputeLayout
-- L208  f HitTestButtons
-- L228  f PaintEmblemBlit
-- L253  f PaintHubWindow
-- L530  f ShowUtilityMenu
-- globals: g_groupRects (L113), g_groupTitles (L114), g_frameCache (L250), g_fcW (L251)
+- L143  f ComputeLayout
+- L216  f HitTestButtons
+- L236  f PaintEmblemBlit
+- L261  f PaintHubWindow
+- L538  f ShowUtilityMenu
+- globals: g_groupRects (L113), g_groupTitles (L114), g_frameCache (L258), g_fcW (L259)
 
 ## project-hub/src/parts/version_probe_cache.c
 
@@ -1265,9 +1265,9 @@
 - L5558  f AppOpenFocusTests
 - L5694  f HubLongevityTests
 - L5758  f HubGroupedEntriesTests
-- L5870  f BluetoothAudioEndpointTests
-- L5937  f BluetoothPanelTests
-- L6051  f RadarWindowsLocationTests
+- L5876  f BluetoothAudioEndpointTests
+- L5943  f BluetoothPanelTests
+- L6057  f RadarWindowsLocationTests
 
 ## tests/wave_cases.py
 
