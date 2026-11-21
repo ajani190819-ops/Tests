@@ -156,6 +156,37 @@ static void HubPollOpen(void) {
     HubRevealWindow(app);
 }
 
+/* A failed explicit launch must retain Windows' actual reason. NO_UI suppresses
+ * generic Shell error boxes, not security prompts; show one Hub-owned detail
+ * box instead of discarding the error or guessing that consent was cancelled.
+ * Paths stay local in this dialog; do not create a log or change launch policy.
+ */
+static void HubReportOpenFailure(const wchar_t *imagePath, const wchar_t *dir, DWORD error) {
+    const wchar_t *name = ImageFileNameW(imagePath);
+    wchar_t reason[512] = {0}, status[256], details[1600];
+    DWORD length = error ? FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                                         NULL, error, 0, reason, 512, NULL) : 0;
+    if (!length || length >= 512)
+        wcscpy(reason, error ? L"Windows did not provide an error description."
+                            : L"Windows returned a launch failure with no error code.");
+    reason[511] = L'\0';
+    if (error)
+        swprintf(status, 256, L"Could not open %.80ls (Windows %lu). See error details.",
+                 name, (unsigned long)error);
+    else
+        swprintf(status, 256, L"Could not open %.80ls (no Windows error code). See error details.", name);
+    status[255] = L'\0';
+    swprintf(details, 1600,
+             L"Could not open %ls.\n\nWindows error %lu:\n%ls\n\nExecutable:\n%ls"
+             L"\n\nWorking folder:\n%ls\n\nNo automatic retry or download was attempted."
+             L" Hub did not change elevation settings.\n\nPlease keep this error code and path when reporting the failure.",
+             name, (unsigned long)error, reason, imagePath,
+             dir && dir[0] ? dir : L"(not specified; Windows default)");
+    details[1599] = L'\0';
+    SetFooterStatus(status, 0);
+    MessageBoxW(g_hwnd, details, L"Project Hub - app launch failed", MB_OK | MB_ICONERROR);
+}
+
 /* TRUE means the click was handled, including a launch error or a running app
  * still starting. FALSE means absent: only then may the caller offer install.
  * A mutex/process with no HWND yet is NOT permission to launch another copy.
@@ -222,8 +253,12 @@ static BOOL HubOpenApp(const wchar_t *imagePath, const wchar_t *args, const wcha
     launch.lpDirectory = dir;
     launch.nShow = SW_SHOWNORMAL;
     g_openRequest.launching = TRUE;
+    SetLastError(ERROR_SUCCESS);
     BOOL started = ShellExecuteExW(&launch);
-    DWORD pid = launch.hProcess ? GetProcessId(launch.hProcess) : 0;
+    /* Capture before process lookup, handle cleanup or timer cancellation can
+       replace the calling thread's last-error value. */
+    DWORD launchError = started ? ERROR_SUCCESS : GetLastError();
+    DWORD pid = started && launch.hProcess ? GetProcessId(launch.hProcess) : 0;
     if (launch.hProcess) CloseHandle(launch.hProcess);
     /* ShellExecuteEx can pump messages (e.g. a child's existing UAC contract).
        A newer Open may have replaced this request while the shell was busy. */
@@ -233,7 +268,7 @@ static BOOL HubOpenApp(const wchar_t *imagePath, const wchar_t *args, const wcha
         g_openRequest.deadline = GetTickCount64() + HUB_OPEN_TIMEOUT_MS;
         if (!started) {
             HubCancelOpen();
-            SetFooterStatus(L"Could not open the app. No update or elevation change was attempted.", 0);
+            HubReportOpenFailure(imagePath, dir, launchError);
         } else {
             if (pid) {
                 g_openRequest.processes.pids[0] = pid;

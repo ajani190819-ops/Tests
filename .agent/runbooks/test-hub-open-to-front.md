@@ -6,7 +6,7 @@ regression are not a Windows foreground-lock or cross-integrity result.
 ## Setup
 
 1. In Project Hub choose the current active Arena branch, refresh, and update
-   Hub to 2.8.67 or later, plus Bluetooth Guard. The original route shipped
+   Hub to 2.8.69 or later, plus the Bluetooth Guard panel/status update. The original route shipped
    in 2.8.63; 2.8.67 adds Guard-owned cross-integrity reveal. Keep existing
    elevation settings; do not change UAC policy or run everything elevated
    to mask a failure.
@@ -58,11 +58,33 @@ Open; bounded retries should still work while Hub owns foreground. Switching to
 another app must cancel deferred focus; a busy child's stale queued request must
 not pull you back later. Record display/focus and any UAC program/path separately.
 
+## Guard launch failure / exact Windows error — APP-01 active
+
+The owner reports Bluetooth Guard Open/Start shows the generic launch-failure
+footer with **no UAC prompt**. This is a new-launch failure, not proof that the
+2.8.67 reveal protocol failed or that the owner cancelled consent. The old Hub
+suppressed generic Shell error UI and discarded GetLastError. Its NO_UI flag
+does not suppress security prompts; do not infer an elevation-policy cause.
+
+Hub 2.8.69 captures the Windows code immediately, before handle/timer cleanup,
+and shows one local Hub-owned error dialog with executable, working folder,
+code and Windows description. The footer retains the app filename and code.
+Missing/unknown descriptions or absent codes are explicit, never called success.
+Nothing is logged/uploaded, no automatic retry/download is added, and existing
+child manifests/elevation, installed-image lookup, reveal and update gates stay.
+
+Next owner check: update **Hub** on the active branch, click Guard Open/Start
+once, and retain the exact error dialog (code, description and target path).
+Also record whether a UAC prompt appeared. Diagnose that actual error before
+changing policy or replacing files. This release repairs error reporting only;
+the cause of the owner's Guard launch failure remains unconfirmed.
+
 ## Failures / boundaries
 
-- A failed/cancelled launch reports failure without installing/updating a
-  replacement or claiming success. A running but inaccessible app must not be
-  blindly launched again.
+- A failed/cancelled launch shows its actual Windows failure without
+  installing/updating a replacement or claiming success. A running but
+  inaccessible app must not be blindly launched again. A late failed shell
+  must not show a stale error over a newer successful Open.
 - A window that never becomes available stops retrying after the bounded
   startup interval (10 seconds after the shell returns). The Hub stays usable.
 - Explicit Quit, update stop/verify gates, and hidden/visible update restoration

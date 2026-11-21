@@ -21,7 +21,8 @@
 - L95  f HubRevealWindow  — Use async show/position calls so a hung foreign UI cannot hang the Hub.
 - L113  f HubOpenMayTakeForeground
 - L124  f HubPollOpen
-- L163  f HubOpenApp  — TRUE means the click was handled, including a launch error or a running app
+- L164  f HubReportOpenFailure  — A failed explicit launch must retain Windows' actual reason.
+- L194  f HubOpenApp  — TRUE means the click was handled, including a launch error or a running app
 - globals: g_openIdentities (L15), g_openRequest (L38), g_openSerial (L39)
 
 ## project-hub/src/parts/branch_picker_entry.c
@@ -1263,11 +1264,11 @@
 - L5233  f AudioSwitcherReachabilityTests
 - L5417  f AudioSwitcherSessionSweepTests
 - L5558  f AppOpenFocusTests
-- L5694  f HubLongevityTests
-- L5758  f HubGroupedEntriesTests
-- L5876  f BluetoothAudioEndpointTests
-- L5943  f BluetoothPanelTests
-- L6057  f RadarWindowsLocationTests
+- L5695  f HubLongevityTests
+- L5759  f HubGroupedEntriesTests
+- L5877  f BluetoothAudioEndpointTests
+- L5944  f BluetoothPanelTests
+- L6058  f RadarWindowsLocationTests
 
 ## tests/wave_cases.py
 

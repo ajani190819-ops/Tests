@@ -4037,7 +4037,7 @@ class SuiteFolderInstallTests(unittest.TestCase):
         self.assertIn("EnqueueTask(TASK_OPEN_OR_INSTALL_NOTES)", action)
         self.assertNotIn("ShellExecuteW", action, "Notes still bypasses the shared show-or-launch policy")
         self.assertIn("if (!started)", activation)
-        self.assertIn("Could not open the app.", activation)
+        self.assertIn("HubReportOpenFailure(imagePath, dir, launchError);", activation)
 
     def test_unified_hub_tray_consolidates_icons_and_safe_controls(self):
         """The owner selected one Project Hub tray icon, with app windows and
@@ -5610,6 +5610,7 @@ class AppOpenFocusTests(unittest.TestCase):
             run = subprocess.run([str(exe)], capture_output=True, text=True)
             self.assertEqual(run.returncode, 0, run.stderr)
             self.assertIn("Hub Open activation scenarios passed", run.stdout)
+            self.assertIn("Hub launch error detail scenarios passed", run.stdout)
 
     def test_every_hub_open_surface_uses_the_same_show_or_launch_route(self):
         entry = (ROOT / "project-hub/src/parts/branch_picker_entry.c").read_text(encoding="utf-8")

@@ -7,8 +7,8 @@
 
 - **Hub:** main 2.8.56; Arena 2.8.68. APP-02 (2.8.64) repairs draw-locked
   icon ownership and shell recovery; original expiry/native soak unconfirmed.
-  APP-01 Open reported failing again; Guard follow-up below. Retain modal/max
-  placement and duplicate prevention. asInvoker, child elevation,
+  APP-01: Guard Start fails without UAC; actual cause unknown. Retain modal/max
+  placement/duplicate prevention. asInvoker, child elevation,
   user-opened Notes and stop/update gates unchanged.
 - **Agent Notes:** `ad92320`, marker `5343e54`. Saved=receiver flush;
   Read=later checkpoint. Visual wait/opt-in sound; no startup persistence.
@@ -27,9 +27,8 @@ show-only per-window UIPI message, fresh scalar ticks; elevation/legacy async/
 duplicate/update gates retained. Green=confirmed connected, blue=paired/Auto/
 link-only/request; separate Auto on/off/paused/details, approval amber, denied red.
 Preserve K/D/F, address-only actions, profiles and 5..60s Guard-independent retries.
-Build/checks, 136 tests/320 mutations and ASan/UBSan pass. Native focus/DPI and
-remaining persistence/manual/lifecycle/LE checks open: `test-bluetooth-reconnect.md`
-and `test-hub-open-to-front.md`. Legacy PS unchanged.
+Native focus/DPI and persistence/manual/lifecycle/LE checks remain open:
+`test-bluetooth-reconnect.md` / `test-hub-open-to-front.md`. Legacy PS unchanged.
 
 ## Agreed to-do list
 
@@ -41,20 +40,21 @@ Repeat pending/parked items; omissions remain OPEN.
   Windows acceptance pending. WX-01/02 native planner/live-map review unrun;
   workflow-write permission blocks the parked review draft.
 - **Hub / Windows:** APP-02 two reproduced lifetime defects fixed in 2.8.64;
-  Windows soak/original expiry still open. APP-01 Open-to-front active.
+  Windows soak/original expiry open. APP-01 active: 2.8.69 candidate reports
+  app/Windows launch code/path; no retry/elevation change. Cause unknown.
+  137 tests/335 mutations/ASan/checks pass; exact owner error is next.
   OPS-01 monitor: latest open fine; identify UAC program/path/action if repeated
   (reports: Hub open, app open, app update). APP-03 released 2.8.65 (`b16380c`):
   General apps / Orca plugins / Minecraft mods; independent Undahang / Unlayered
   Infill, settings/legacy paths preserved. Approved abstract Undahang icon in
   2.8.66 (`fd27fa3`); Infill art unchanged.
   Header 2.8.68: visible controls align; wrap only if narrow (`9aa94e7`).
-  137 tests/326 mutations/checks pass; native header/icons/fitting next
+  Native header/icons/fitting pending
   (`test-hub-grouped-entries.md`).
 - **Bluetooth Guard:** BT-01 pending: panel reveal/status confirmation. Basic
   connection owner-confirmed; choices/persistence/manual/lifecycle checks remain.
   Scans never grant trust.
-- **Keyboard Lighting:** KBL-01 parked for fresh owner `engine.log`;
-  `engine-5.log` showed learning/no key events. No engine changes without logs.
+- **Keyboard Lighting:** KBL-01 parked; fresh owner `engine.log` required.
 - **Spatial HUD:** HUD-01 three-method F5W runtime/compatibility checks pending.
 - **Orca:** ORCA-01/02/03 historical follow-ups to confirm: actual-config curved
   walls, fresh export/physical print, real-host dual-plugin flow. ORCA-04/05

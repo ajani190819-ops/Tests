@@ -23,7 +23,12 @@ typedef void *HANDLE;
 #define MAX_PATH 260
 #define UPDATE_SCAN_MAX_PIDS 64
 #define SYNCHRONIZE 0x100000
+#define ERROR_SUCCESS 0
 #define ERROR_ACCESS_DENIED 5
+#define FORMAT_MESSAGE_FROM_SYSTEM 0x1000
+#define FORMAT_MESSAGE_IGNORE_INSERTS 0x200
+#define MB_OK 0
+#define MB_ICONERROR 0x10
 #define GW_OWNER 4
 #define GWL_EXSTYLE (-20)
 #define WS_EX_TOOLWINDOW 0x80
@@ -62,7 +67,10 @@ static HWND g_hwnd = &windows[0], foreground, lastFocused, lastPositioned;
 static int launchCalls, showCalls, focusCalls, positionCalls, grantCalls;
 static int processCloses, mutexCloses, timerStarts, timerKills, scanCalls;
 static BOOL fileExists, canFocus, applyShow, denyMutex, shellOk, returnProcess, delayShell;
-static DWORD lastError, inputTick, lastGranted, shellPids[16];
+static DWORD lastError, inputTick, lastGranted, shellPids[16], shellError;
+static int errorDialogs, failLaunchCall;
+static BOOL failErrorFormat, longErrorFormat, shellSetsError;
+static wchar_t errorDetails[1600];
 static int lastShow, revealPosts, childShows, filterCalls;
 static BOOL insideChild, g_quitting, postOk, registerOk = TRUE, inputOk;
 static HWND queuedWindow;
@@ -169,13 +177,35 @@ static HANDLE OpenMutexW(DWORD access, BOOL inherit, const wchar_t *name) {
     return availableMutex && wcscmp(name, availableMutex) == 0 ? (HANDLE)(uintptr_t)1001 : NULL;
 }
 static DWORD GetLastError(void) { return lastError; }
+static void SetLastError(DWORD error) { lastError = error; }
+static DWORD FormatMessageW(DWORD flags, const void *source, DWORD code, DWORD language,
+                     wchar_t *buffer, DWORD count, void *args) {
+    CHECK(flags == (FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS));
+    CHECK(!source && code == shellError && !language && count >= 128 && !args);
+    lastError = 9999; /* Formatting cannot replace the captured launch error. */
+    if (failErrorFormat) return 0;
+    if (longErrorFormat) {
+        wmemset(buffer, L'q', count - 1); buffer[count - 1] = L'\0'; return count - 1;
+    }
+    const wchar_t *reason = L"Windows reason: %1!s! and %n.\r\n";
+    CHECK(wcslen(reason) < count); wcscpy(buffer, reason);
+    return (DWORD)wcslen(buffer);
+}
+static int MessageBoxW(HWND owner, const wchar_t *text, const wchar_t *title, unsigned flags) {
+    CHECK(owner == g_hwnd && title && wcsstr(title, L"launch") != NULL);
+    CHECK(flags == (MB_OK | MB_ICONERROR) && wcslen(text) < 1600);
+    wcscpy(errorDetails, text); errorDialogs++;
+    return 1;
+}
 static BOOL CloseHandle(HANDLE handle) {
+    lastError = 8888; /* Cleanup APIs may destroy the shell failure code. */
     if ((uintptr_t)handle == 1001) mutexCloses++;
     else { CHECK((uintptr_t)handle > 900 && (uintptr_t)handle < 916); processCloses++; }
     return TRUE;
 }
 static DWORD GetProcessId(HANDLE handle) {
     CHECK((uintptr_t)handle > 900 && (uintptr_t)handle < 916);
+    lastError = 7777;
     return shellPids[(uintptr_t)handle - 900];
 }
 static UINT_PTR SetTimer(HWND window, UINT_PTR id, unsigned interval, void *callback) {
@@ -183,7 +213,7 @@ static UINT_PTR SetTimer(HWND window, UINT_PTR id, unsigned interval, void *call
     timerStarts++; return id;
 }
 static BOOL KillTimer(HWND window, UINT_PTR id) {
-    CHECK(window == g_hwnd && id == 3); timerKills++; return TRUE;
+    CHECK(window == g_hwnd && id == 3); timerKills++; lastError = 6666; return TRUE;
 }
 static BOOL FileExistsW(const wchar_t *path) { CHECK(path && path[0]); return fileExists; }
 static void SetFooterStatus(const wchar_t *text, int progress) {
@@ -206,7 +236,9 @@ static BOOL ShellExecuteExW(SHELLEXECUTEINFOW *launch) {
         CHECK(HubOpenApp(newImage, NULL, NULL));
     }
     launch->hProcess = returnProcess ? (HANDLE)(uintptr_t)(900 + call) : NULL;
-    return shellOk;
+    BOOL ok = shellOk && call != failLaunchCall;
+    if (shellSetsError) lastError = ok ? ERROR_SUCCESS : shellError;
+    return ok;
 }
 
 #include "../../shared/win32/window_reveal.h"
@@ -239,7 +271,10 @@ static void Reset(const char *name) {
     processCloses = mutexCloses = timerStarts = timerKills = scanCalls = 0;
     fileExists = canFocus = applyShow = shellOk = returnProcess = TRUE;
     denyMutex = delayShell = FALSE; availableMutex = reenterImage = NULL;
-    lastShow = 0; lastError = 0;
+    lastShow = 0; lastError = 0; shellError = ERROR_ACCESS_DENIED;
+    errorDialogs = failLaunchCall = 0; failErrorFormat = longErrorFormat = FALSE;
+    shellSetsError = TRUE;
+    errorDetails[0] = L'\0';
     revealPosts = childShows = filterCalls = 0;
     insideChild = g_quitting = FALSE; postOk = inputOk = TRUE;
     queuedWindow = NULL;
@@ -247,6 +282,59 @@ static void Reset(const char *name) {
     shellPids[1] = 77; shellPids[2] = 88;
     inputTick = 10; tick = 1000; lastGranted = 0;
     foreground = Window(0, L"Hub", 1, TRUE, FALSE);
+}
+static void LaunchFailureScenarios(void) {
+    const DWORD codes[] = { 2, 3, 5, 193, 225, 267, 740, 1157, 1223, 1260, 67890, 0 };
+    const wchar_t *path = L"C:\\Apps\\Bluetooth Guard \x03B1\\BluetoothGuard.exe";
+    const wchar_t *dir = L"C:\\Apps\\Bluetooth Guard \x03B1";
+    for (size_t i = 0; i < sizeof(codes) / sizeof(codes[0]); i++) {
+        Reset("failed launch retains app, raw Windows error and both paths");
+        shellOk = FALSE; shellError = codes[i]; failErrorFormat = shellError == 67890;
+        CHECK(HubOpenApp(path, NULL, dir));
+        CHECK(launchCalls == 1 && !g_openRequest.active && errorDialogs == 1);
+        CHECK(wcsstr(footer, L"BluetoothGuard.exe") != NULL);
+        wchar_t workingFolder[512]; swprintf(workingFolder, 512, L"Working folder:\n%ls", dir);
+        CHECK(wcsstr(errorDetails, path) != NULL && wcsstr(errorDetails, workingFolder) != NULL);
+        if (shellError) {
+            wchar_t code[40]; swprintf(code, 40, L"Windows %lu", (unsigned long)shellError);
+            CHECK(wcsstr(footer, code) != NULL);
+            if (failErrorFormat) CHECK(wcsstr(errorDetails, L"description") != NULL);
+            else CHECK(wcsstr(errorDetails, L"Windows reason: %1!s! and %n.") != NULL);
+        } else {
+            CHECK(wcsstr(footer, L"no Windows error code") != NULL);
+            CHECK(wcsstr(errorDetails, L"no error code") != NULL);
+        }
+        CHECK(wcsstr(errorDetails, L"No automatic retry") != NULL);
+        HubPollOpen(); CHECK(launchCalls == 1 && errorDialogs == 1);
+    }
+
+    Reset("a shell failure without a code cannot inherit an old mutex error");
+    shellOk = shellSetsError = FALSE;
+    CHECK(HubOpenApp(btg, NULL, NULL));
+    CHECK(errorDialogs == 1 && wcsstr(footer, L"no Windows error code") != NULL);
+
+    Reset("no working folder is an explicit Windows default, not a null string");
+    shellOk = FALSE;
+    CHECK(HubOpenApp(btg, NULL, NULL));
+    CHECK(wcsstr(errorDetails, L"Windows default") != NULL);
+
+    Reset("long catalogue filename cannot hide the raw code or overrun a dialog");
+    wchar_t longPath[MAX_PATH];
+    wmemset(longPath, L'x', MAX_PATH - 1); longPath[MAX_PATH - 1] = L'\0';
+    shellOk = FALSE; longErrorFormat = TRUE;
+    CHECK(HubOpenApp(longPath, NULL, longPath));
+    CHECK(errorDialogs == 1 && wcsstr(errorDetails, longPath) != NULL);
+    CHECK(wcsstr(footer, L"Windows 5") != NULL);
+    wchar_t longFolder[512]; swprintf(longFolder, 512, L"Working folder:\n%ls", longPath);
+    CHECK(wcsstr(errorDetails, longFolder) != NULL);
+
+    Reset("a failed older shell cannot show an error for a newer successful Open");
+    reenterImage = notes; failLaunchCall = 1;
+    CHECK(HubOpenApp(btg, NULL, NULL));
+    CHECK(errorDialogs == 0 && launchCalls == 2 && g_openRequest.active);
+    CHECK(g_openRequest.identity == HubIdentityForImage(notes));
+    CHECK(wcsstr(footer, L"Opening app") != NULL);
+    puts("Hub launch error detail scenarios passed");
 }
 int main(void) {
     /* Failed registration must never allow message zero (WM_NULL) through UIPI. */
@@ -464,6 +552,7 @@ int main(void) {
     Reset("missing app can still be installed by caller");
     fileExists = FALSE;
     CHECK(!HubOpenApp(notes, NULL, NULL)); CHECK(launchCalls == 0 && !g_openRequest.active);
+    LaunchFailureScenarios();
     puts("Hub Open activation scenarios passed");
     return 0;
 }

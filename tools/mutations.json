@@ -2280,5 +2280,68 @@
   "old": "S(14, dpi) * 2 + S(256, dpi);",
   "new": "S(14, dpi) * 2 + S(128, dpi);",
   "label": "Header packs controls into the reserved readable title/subtitle column"
+ },
+ {
+  "id": "hub-launch-error-00",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    DWORD launchError = started ? ERROR_SUCCESS : GetLastError();",
+  "new": "    DWORD launchError = ERROR_SUCCESS;",
+  "label": "The actual Windows launch error is discarded"
+ },
+ {
+  "id": "hub-launch-error-01",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    SetLastError(ERROR_SUCCESS);",
+  "new": "    if (FALSE) SetLastError(ERROR_SUCCESS);",
+  "label": "A failure without a shell code inherits a stale mutex or scan error"
+ },
+ {
+  "id": "hub-launch-error-02",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "            HubReportOpenFailure(imagePath, dir, launchError);",
+  "new": "            HubReportOpenFailure(imagePath, dir, GetLastError());",
+  "label": "Handle or timer cleanup replaces the real launch error"
+ },
+ {
+  "id": "hub-launch-error-03",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    MessageBoxW(g_hwnd, details, L\"Project Hub - app launch failed\", MB_OK | MB_ICONERROR);",
+  "new": "    if (FALSE) MessageBoxW(g_hwnd, details, L\"Project Hub - app launch failed\", MB_OK | MB_ICONERROR);",
+  "label": "A launch failure again hides the useful Windows reason and paths"
+ },
+ {
+  "id": "hub-launch-error-04",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "             name, (unsigned long)error, reason, imagePath,",
+  "new": "             name, (unsigned long)error, reason, L\"(not recorded)\",",
+  "label": "Launch error details omit the actual executable path"
+ },
+ {
+  "id": "hub-launch-error-05",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,",
+  "new": "FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM,",
+  "label": "Error formatting attempts to expand unprovided system-message inserts"
+ },
+ {
+  "id": "hub-launch-error-06",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "             dir && dir[0] ? dir : L\"(not specified; Windows default)\");",
+  "new": "             L\"(not specified; Windows default)\");",
+  "label": "Launch error details hide the supplied working folder"
+ },
+ {
+  "id": "hub-launch-error-07",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    if (!length || length >= 512)",
+  "new": "    if (length >= 512)",
+  "label": "Unknown Windows errors lose their explicit unavailable-description fallback"
+ },
+ {
+  "id": "hub-launch-error-08",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "L\"Could not open %.80ls (Windows %lu). See error details.\"",
+  "new": "L\"App %.0ls failed (Windows %lu). See error details.\"",
+  "label": "The persistent footer loses the identity of the app that failed"
  }
 ]
