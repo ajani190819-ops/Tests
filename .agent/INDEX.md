@@ -13,6 +13,7 @@ navigation, never automatic context.
 | Orca behavior | `docs/ORCA-PLUGIN-FACTS.md` | `python3 tools/check_all.py` |
 | Orca plans | `docs/ROADMAP.md` | `python3 tools/check_all.py` |
 | Release | `.agent/rules/release.md` | `python3 tools/build_windows.py && python3 tools/check_all.py` |
+| Mutation execution / timing | `.agent/runbooks/mutation-runner.md` | `python3 tools/mutate.py` |
 | Layout / unity parts | `.agent/rules/repo-map.md` | — |
 | Drive synchronization | `.agent/DRIVE_GUIDE.md` | — |
 | Manual HUD testing | `.agent/runbooks/test-spatial-hud-f5w.md` | — |

@@ -16,6 +16,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 NODEPS = pathlib.Path("/tmp/nodeps")
@@ -24,7 +25,7 @@ CACHE_PATH = pathlib.Path("/home/user/.cache/tests_check_merkle.json")
 
 TESTS = ["test_installer.py", "test_plugin_audit.py", "test_agent_notes.py",
          "test_post_script.py", "test_unlayered_waves.py",
-         "test_wave_gcode.py", "test_windows_apps.py",
+         "test_wave_gcode.py", "test_windows_apps.py", "test_mutation_runner.py",
          "test_spatial_hud.py"]
 NODEPS_ONLY = ["test_plugin_runtime.py", "test_plugin_audit.py"]
 TOOLS = [["tools/sync_engine.py", "--check"],
@@ -91,6 +92,7 @@ def make_nodeps():
 
 
 def exec_task(label, cmd, cwd=ROOT, env=None):
+    started = time.perf_counter()
     with tempfile.TemporaryDirectory() as tmp_storage:
         run_env = dict(os.environ if env is None else env)
         run_env.setdefault("ORCA_PLUGIN_STORAGE_DIR", tmp_storage)
@@ -108,7 +110,7 @@ def exec_task(label, cmd, cwd=ROOT, env=None):
     skipped = body.lstrip().startswith("SKIP")
     mark = "FAIL" if failed else ("SKIP" if skipped else "ok  ")
     last = [ln for ln in body.strip().splitlines() if ln.strip()]
-    lines = [f"  {mark}  {label}"]
+    lines = [f"  {mark}  {label} ({time.perf_counter() - started:.3f}s)"]
     if failed:
         for line in last[-12:]:
             lines.append(f"          {line[:160]}")
@@ -123,6 +125,17 @@ def main():
     deps = have_deps()
     cache = load_cache() if (use_cache and deps) else {}
     wave_key = wave_gcode_merkle_key() if deps else ""
+    if not use_cache:
+        cache_reason = "disabled (--no-cache or CI)"
+    elif not deps:
+        cache_reason = "unavailable (geometry dependencies missing)"
+    elif cache.get("wave_gcode") == wave_key:
+        cache_reason = "hit (source/dependency key unchanged)"
+    elif "wave_gcode" not in cache:
+        cache_reason = "miss (no saved key; external cache may have been lost)"
+    else:
+        cache_reason = "miss (source/dependency key changed)"
+    print("geometry cache:", cache_reason)
 
     nodeps_env = make_nodeps()
 

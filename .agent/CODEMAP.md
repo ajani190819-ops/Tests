@@ -1089,13 +1089,13 @@
 
 ## tools/check_all.py
 
-- L38  f have_deps
-- L46  f wave_gcode_merkle_key
-- L68  f load_cache
-- L75  f save_cache
-- L83  f make_nodeps
-- L93  f exec_task
-- L118  f main
+- L39  f have_deps
+- L47  f wave_gcode_merkle_key
+- L69  f load_cache
+- L76  f save_cache
+- L84  f make_nodeps
+- L94  f exec_task
+- L120  f main
 
 ## tools/check_context_budget.py
 
@@ -1133,8 +1133,22 @@
 
 ## tools/mutate.py
 
-- L31  f run_suite
-- L38  f main
+- L29  f registry_issues
+- L60  f validate_result
+- L84  f execute_tests
+- L133  f campaign_lock
+- L156  f termination_guard
+- L170  f run_campaign
+- L251  f successful
+- L258  f write_report
+- L274  f main
+
+## tools/mutation_worker.py
+
+- L21  f test_name
+- L27  f MeasuredResult
+- L69  f run_tests
+- L96  f main
 
 ## tools/notes_server.py
 
@@ -1185,6 +1199,14 @@
 - L775  f report_and_exit
 - L789  f build_plan
 - L801  f install_one
+
+## tests/test_mutation_runner.py
+
+- L23  f verdict
+- L30  f MutationRunnerTests
+- L209  f execute
+- L296  f MutationWorkerTests
+- L309  f Cases
 
 ## tests/test_plugin_audit.py
 
@@ -1255,20 +1277,21 @@
 
 ## tests/test_windows_apps.py
 
-- L30  f read_c_inlined
-- L46  f strip_cs_comments_and_strings
-- L168  f lex_powershell
-- L303  f WindowsDesktopAppsTests
-- L3701  f SuiteFolderInstallTests
-- L5050  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L5233  f AudioSwitcherReachabilityTests
-- L5417  f AudioSwitcherSessionSweepTests
-- L5558  f AppOpenFocusTests
-- L5695  f HubLongevityTests
-- L5759  f HubGroupedEntriesTests
-- L5877  f BluetoothAudioEndpointTests
-- L5944  f BluetoothPanelTests
-- L6058  f RadarWindowsLocationTests
+- L33  f read_c_inlined
+- L49  f strip_cs_comments_and_strings
+- L171  f lex_powershell
+- L306  f WindowsDesktopAppsTests
+- L3704  f SuiteFolderInstallTests
+- L5054  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L5237  f AudioSwitcherReachabilityTests
+- L5421  f AudioSwitcherSessionSweepTests
+- L5562  f AppOpenFocusTests
+- L5699  f HubLongevityTests
+- L5763  f HubGroupedEntriesTests
+- L5881  f BluetoothAudioEndpointTests
+- L5948  f BluetoothPanelTests
+- L6062  f RadarWindowsLocationTests
+- L6221  f SafetyMutationPropertyTests
 
 ## tests/wave_cases.py
 

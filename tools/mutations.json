@@ -4,2344 +4,3349 @@
   "file": "project-hub/src/parts/workers_remote.c",
   "old": "    char *marker = (char *)HttpGetCached(L\"raw.githubusercontent.com\", murl, &msz, &mst);",
   "new": "    char *marker = NULL;",
-  "label": "A marker fetch removed"
+  "label": "A marker fetch removed",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_and_tray_only_consume_released_work"
+  ]
  },
  {
   "id": "marker-01",
   "file": "project-hub/src/parts/workers_remote.c",
   "old": "REPO_NAME_W, probeRef);\n    path[511]",
   "new": "REPO_NAME_W, branch);\n    path[511]",
-  "label": "B trees probe back on branch tip"
+  "label": "B trees probe back on branch tip",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_and_tray_only_consume_released_work"
+  ]
  },
  {
   "id": "marker-02",
   "file": "project-hub/src/parts/workers_remote.c",
   "old": "    if (!probeRef[0]) _snwprintf(probeRef, 63, L\"%s\", branch);\n",
   "new": "",
-  "label": "C no-marker fallback removed"
+  "label": "C no-marker fallback removed",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_and_tray_only_consume_released_work"
+  ]
  },
  {
   "id": "marker-03",
   "file": "project-hub/src/parts/workers_remote.c",
   "old": "    if (!hubFromMarker) {",
   "new": "    if (1) {",
-  "label": "D hub version probe ungated"
+  "label": "D hub version probe ungated",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_and_tray_only_consume_released_work"
+  ]
  },
  {
   "id": "marker-04",
   "file": "project-hub/src/parts/install_folder.c",
   "old": "    if (g_probeRef[0]) {\n        _snwprintf(outBranch, cap - 1, L\"%s\", g_probeRef);\n        outBranch[cap - 1] = L'\\0';\n        return;\n    }\n    EnsureActiveBranch(outBranch, cap);",
   "new": "    EnsureActiveBranch(outBranch, cap);",
-  "label": "E downloads ignore the released ref"
+  "label": "E downloads ignore the released ref",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_and_tray_only_consume_released_work"
+  ]
  },
  {
   "id": "marker-05",
   "file": "project-hub/src/parts/workers_install.c",
   "old": "    EnsureProbeRef(branch, 64);",
   "new": "    EnsureActiveBranch(branch, 64);",
-  "label": "F one install worker ungated"
+  "label": "F one install worker ungated",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_and_tray_only_consume_released_work"
+  ]
  },
  {
   "id": "marker-06",
   "file": "keyboard-lighting/Tray.ps1",
   "old": "foreach ($f in @('KeyboardLighting.exe','Aura-Background.ps1',",
   "new": "foreach ($f in @('Aura-Background.ps1',",
-  "label": "G restart sync skips the EXE"
+  "label": "G restart sync skips the EXE",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_and_tray_only_consume_released_work"
+  ]
  },
  {
   "id": "marker-07",
   "file": "keyboard-lighting/Tray.ps1",
   "old": "    } -ArgumentList (Get-UpdateBase), $Here",
   "new": "    } -ArgumentList $Base, $Here",
-  "label": "H background refresh on branch tip"
+  "label": "H background refresh on branch tip",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_and_tray_only_consume_released_work"
+  ]
  },
  {
   "id": "set-00",
   "file": "project-hub/src/parts/install_folder.c",
   "old": "            L\"Keyboard Lighting.lnk\", L\"Project Hub.lnk\"",
   "new": "            L\"Keyboard Lighting.lnk\"",
-  "label": "A cleanup misses the hub shortcut"
+  "label": "A cleanup misses the hub shortcut",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "set-01",
   "file": "project-hub/src/parts/install_folder.c",
   "old": "    if (GetFileAttributesW(flag) != INVALID_FILE_ATTRIBUTES) return;\n",
   "new": "",
-  "label": "B once-only flag guard removed"
+  "label": "B once-only flag guard removed",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "set-02",
   "file": "project-hub/src/parts/settings_page.c",
   "old": "static const char *kSetModes[3] = { \"tap\", \"latch\", \"burst\" };",
   "new": "static const char *kSetModes[3] = { \"tap\", \"latch\", \"glide\" };",
-  "label": "C page offers a mode engine rejects"
+  "label": "C page offers a mode engine rejects",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "set-04",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "    for (int i = 0; i < 5; i++) {\n        if (g_topBtns[i].hidden) continue;\n        if (PtInRect(&g_topBtns[i].rc, pt))",
   "new": "    for (int i = 0; i < 4; i++) {\n        if (g_topBtns[i].hidden) continue;\n        if (PtInRect(&g_topBtns[i].rc, pt))",
-  "label": "E fifth button not hit-testable"
+  "label": "E fifth button not hit-testable",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "set-05",
   "file": "project-hub/src/parts/settings_page.c",
   "old": "    SetKblPath(p, MAX_PATH, L\"hold_mode.txt\");\n    return WriteBinaryFileAtomic",
   "new": "    SetKblPath(p, MAX_PATH, L\"live_level.txt\");\n    return WriteBinaryFileAtomic",
-  "label": "F hold mode written to wrong file"
+  "label": "F hold mode written to wrong file",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "set-06",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "    RemoveLegacyDesktopShortcuts();\n",
   "new": "",
-  "label": "G cleanup never called at startup"
+  "label": "G cleanup never called at startup",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "lnk-00",
   "file": "project-hub/src/parts/workers_install.c",
   "old": "        if (RepointDesktopShortcutIfPresent(lnk, destExe, g_btgDir,\n                                            L\"Bluetooth Guard - Phone audio protection\"))\n            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);",
   "new": "        CreateShortcutLink(lnk, destExe, g_btgDir, L\"Bluetooth Guard - Phone audio protection\");\n        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);",
-  "label": "A worker creates shortcut directly"
+  "label": "A worker creates shortcut directly",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_repoints_desktop_shortcuts_but_never_creates_them"
+  ]
  },
  {
   "id": "lnk-01",
   "file": "project-hub/src/parts/install_folder.c",
   "old": "    if (GetFileAttributesW(lnkPath) == INVALID_FILE_ATTRIBUTES) return FALSE;\n",
   "new": "",
-  "label": "B helper guard removed"
+  "label": "B helper guard removed",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_repoints_desktop_shortcuts_but_never_creates_them"
+  ]
  },
  {
   "id": "lnk-02",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "            if (CreateShortcutLink(lnk, g_exePath, g_exeDir, L\"Project Hub - Status & Updates\")) {",
   "new": "            if (RepointDesktopShortcutIfPresent(lnk, g_exePath, g_exeDir, L\"Project Hub - Status & Updates\")) {",
-  "label": "C explicit pin routed through guard"
+  "label": "C explicit pin routed through guard",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_repoints_desktop_shortcuts_but_never_creates_them"
+  ]
  },
  {
   "id": "lnk-03",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "                repointed = RepointDesktopShortcutIfPresent(lnk, g_suiteHubExe, g_suiteDir,\n                                                            L\"Project Hub - Status & Updates\");",
   "new": "                repointed = CreateShortcutLink(lnk, g_suiteHubExe, g_suiteDir,\n                                               L\"Project Hub - Status & Updates\");",
-  "label": "D consolidate menu creates shortcut"
+  "label": "D consolidate menu creates shortcut",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_repoints_desktop_shortcuts_but_never_creates_them"
+  ]
  },
  {
   "id": "ntui-01",
   "file": "agent-notes/src/parts/entry.c",
   "old": "        RichTextColor(g_hNote, COL_MUTED);   /* starts as hint text */\n",
   "new": "",
-  "label": "A note editor keeps default black text"
+  "label": "A note editor keeps default black text",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_is_readable_in_either_windows_theme"
+  ]
  },
  {
   "id": "ntui-02",
   "file": "agent-notes/src/parts/ui.c",
   "old": "    RichTextColor(g_hNote, on ? COL_MUTED : COL_TXT);\n",
   "new": "",
-  "label": "B hint swap drops the recolour"
+  "label": "B hint swap drops the recolour",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_is_readable_in_either_windows_theme"
+  ]
  },
  {
   "id": "ntui-03",
   "file": "agent-notes/src/parts/ui.c",
   "old": "    cf.dwMask = CFM_COLOR;",
   "new": "    cf.dwMask = 0;",
-  "label": "C char format omits CFM_COLOR"
+  "label": "C char format omits CFM_COLOR",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_is_readable_in_either_windows_theme"
+  ]
  },
  {
   "id": "ntui-04",
   "file": "agent-notes/src/agent_notes.c",
   "old": "    if (AppsUseLightTheme()) {",
   "new": "    if (1) {",
-  "label": "D palette ignores the Windows theme"
+  "label": "D palette ignores the Windows theme",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_is_readable_in_either_windows_theme"
+  ]
  },
  {
   "id": "ntui-05",
   "file": "agent-notes/src/parts/ui.c",
   "old": "    SendMessageW(h, EM_SETCHARFORMAT, SCF_DEFAULT, (LPARAM)&cf);\n",
   "new": "",
-  "label": "E newly typed text reverts to black"
+  "label": "E newly typed text reverts to black",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_is_readable_in_either_windows_theme"
+  ]
  },
  {
   "id": "ntui-06",
   "file": "agent-notes/src/parts/entry.c",
   "old": "    InitPalette();\n",
   "new": "",
-  "label": "F palette never initialised"
+  "label": "F palette never initialised",
+  "tests": [
+   "tests.test_windows_apps.SafetyMutationPropertyTests.test_notes_palette_is_initialized_before_native_window_resources"
+  ]
  },
  {
   "id": "ntui-07",
   "file": "agent-notes/src/agent_notes.c",
   "old": "static HWND      g_hwnd, g_hNote;",
   "new": "static HWND      g_hwnd, g_hNote, g_hLink;",
-  "label": "G Agent Notes restores a manual session-link control"
+  "label": "G Agent Notes restores a manual session-link control",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_is_readable_in_either_windows_theme"
+  ]
  },
  {
   "id": "ntui-08",
   "file": "agent-notes/src/parts/ui.c",
   "old": "    SetRect(r, S(20), S(410), S(600), S(454));",
   "new": "    SetRect(r, S(20), S(410), S(20) + S(190), S(448));",
-  "label": "H Send shrinks back to a narrow chip"
+  "label": "H Send shrinks back to a narrow chip",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_is_readable_in_either_windows_theme"
+  ]
  },
  {
   "id": "ntui-09",
   "file": "agent-notes/src/parts/ui.c",
   "old": "    DrawTextW(mem, L\"Agent Notes\", -1, &title, DT_LEFT | DT_VCENTER | DT_SINGLELINE);",
   "new": "    DrawTextW(mem, L\"Agent Notes\", -1, &title, DT_LEFT | DT_VCENTER | DT_SINGLELINE);\n    DrawTextW(mem, L\"Agent Notes\", -1, &title, DT_LEFT | DT_VCENTER | DT_SINGLELINE);",
-  "label": "I title drawn twice, overlapping"
+  "label": "I title drawn twice, overlapping",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_is_readable_in_either_windows_theme"
+  ]
  },
  {
   "id": "ntui-10",
   "file": "agent-notes/src/parts/ui.c",
   "old": "            StartStatusPoll();\n",
   "new": "            if (0) StartStatusPoll();\n",
-  "label": "J Agent Notes stops its background wait/session polling"
+  "label": "J Agent Notes stops its background wait/session polling",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_waiting_alerts_and_two_stage_receipts"
+  ]
  },
  {
   "id": "ntui-11",
   "file": "agent-notes/src/parts/emblem.c",
   "old": "SuiteEmblemResolvePalette(COL_BG, COL_ACCENT, COL_TXT, &nearColor, &farColor);",
   "new": "nearColor = RGB(246, 249, 254); farColor = RGB(196, 212, 234);",
-  "label": "K Agent Notes emblem falls back to a pale fixed light-theme colour"
+  "label": "K Agent Notes emblem falls back to a pale fixed light-theme colour",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_is_readable_in_either_windows_theme"
+  ]
  },
  {
   "id": "wx-01",
   "file": "weather-radar/src/weather_radar.c",
   "old": "#define RAIN_MM        0.1",
   "new": "#define RAIN_MM        0.0",
-  "label": "A rain threshold drops to zero"
+  "label": "A rain threshold drops to zero",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "wx-02",
   "file": "weather-radar/src/parts/forecast.c",
   "old": "            if (isnan(v)) continue;      /* this member's horizon ended: absent, not dry */\n            reported++;",
   "new": "            reported++;",
-  "label": "B silent members counted as dry"
+  "label": "B silent members counted as dry",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "wx-03",
   "file": "weather-radar/src/parts/forecast.c",
   "old": "        if (!any) continue;\n        reporting++;",
   "new": "        reporting++;",
-  "label": "C window probability counts absent members"
+  "label": "C window probability counts absent members",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "wx-04",
   "file": "weather-radar/src/parts/radar.c",
   "old": "L\"%s%hs/256/%d/%d/%d/2/1_1.png\"",
   "new": "L\"%s%hs/256/%d/%d/%d/2/1_0.png\"",
-  "label": "D radar tile URL loses the snow flag"
+  "label": "D radar tile URL loses the snow flag",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "wx-05",
   "file": "weather-radar/src/parts/radar.c",
   "old": "CoCreateInstance(&CLSID_WICImagingFactory",
   "new": "CoGetClassObject(&CLSID_WICImagingFactory",
-  "label": "E WIC no longer created through CoCreateInstance"
+  "label": "E WIC no longer created through CoCreateInstance",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "wx-06",
   "file": "weather-radar/src/parts/ui.c",
   "old": "static void PaintAll(HWND hwnd) {",
   "new": "static void PaintAll(HWND hwnd) {\n    HttpBuf probe;\n    HttpGetBuf(L\"https://example.invalid/\", &probe);",
-  "label": "F the paint path fetches synchronously"
+  "label": "F the paint path fetches synchronously",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "wx-07",
   "file": "weather-radar/src/parts/radar.c",
   "old": "FetchTileGrid(L\"rv\", z, tx, ty, g_frames[frameIdx].path, radar,\n                            2 * 24 * 3600);",
   "new": "FetchTileGrid(L\"rv\", z, tx, ty, g_frames[frameIdx].path, radar,\n                            30 * 24 * 3600);",
-  "label": "G radar frames cached for a month"
+  "label": "G radar frames cached for a month",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "wx-08",
   "file": "weather-radar/src/weather_radar.c",
   "old": "#define RADAR_TILE_ZOOM_MAX     7",
   "new": "#define RADAR_TILE_ZOOM_MAX     8",
-  "label": "H Weather Radar requests the unsupported level-8 placeholder"
+  "label": "H Weather Radar requests the unsupported level-8 placeholder",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "wx-09",
   "file": "weather-radar/src/parts/ui.c",
   "old": "    double honest = EnsWindowProb(&g_ens, start, 6);\n    double blended = g_fc.have ? PoPWindowMax(&g_fc, 0, 6) : NAN;",
   "new": "    double honest = g_fc.have ? PoPWindowMax(&g_fc, 0, 6) : NAN;\n    double blended = EnsWindowProb(&g_ens, start, 6);",
-  "label": "I blended PoP becomes the headline"
+  "label": "I blended PoP becomes the headline",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "wx-10",
   "file": "weather-radar/src/parts/places.c",
   "old": "    g_places[g_placeN] = *p;\n    g_placeSel = g_placeN;\n    g_placeN++;\n    SavePlaces();",
   "new": "    g_places[g_placeN] = *p;\n    g_placeSel = g_placeN;\n    g_placeN++;",
-  "label": "J a kept place is never persisted"
+  "label": "J a kept place is never persisted",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-11",
   "file": "weather-radar/src/parts/ui.c",
   "old": "        LayoutSearchEdit();\n        InvalidateRect(hwnd, NULL, TRUE);",
   "new": "        InvalidateRect(hwnd, NULL, TRUE);",
-  "label": "K search edit is not relaid out after DPI changes"
+  "label": "K search edit is not relaid out after DPI changes",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_search_field_scales_and_submits_without_stale_results"
+  ]
  },
  {
   "id": "wx-12",
   "file": "weather-radar/src/parts/ui.c",
   "old": "        PostMessageW(GetParent(edit), WM_APP_SEARCH, 0, 0);",
   "new": "        PostMessageW(GetParent(edit), WM_APP_STATUS, 0, 0);",
-  "label": "L Return no longer submits the place search"
+  "label": "L Return no longer submits the place search",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_search_field_scales_and_submits_without_stale_results"
+  ]
  },
  {
   "id": "wx-13",
   "file": "weather-radar/src/parts/places.c",
   "old": "    current = (ticket == g_searchTicket);",
   "new": "    current = 1;",
-  "label": "M stale geocoding response is accepted"
+  "label": "M stale geocoding response is accepted",
+  "tests": [
+   "tests.test_windows_apps.SafetyMutationPropertyTests.test_geocoding_ticket_helper_rejects_old_answers_under_its_lock"
+  ]
  },
  {
   "id": "wx-17",
   "file": "weather-radar/src/parts/forecast.c",
   "old": "weather_code,wind_speed_10m,wind_gusts_10m,cloud_cover,precipitation",
   "new": "weather_code,wind_speed_10m,precipitation",
-  "label": "Q current conditions lose gust and cloud context"
+  "label": "Q current conditions lose gust and cloud context",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "wx-18",
   "file": "weather-radar/src/parts/ui.c",
   "old": "#define RADAR_FOCUS_PX 512",
   "new": "#define RADAR_FOCUS_PX 768",
-  "label": "R radar falls back to an unreadable full-grid shrink"
+  "label": "R radar falls back to an unreadable full-grid shrink",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "wx-19",
   "file": "weather-radar/src/parts/ui.c",
   "old": "light     moderate     heavy     intense",
   "new": "radar echoes",
-  "label": "S radar intensity legend loses its meanings"
+  "label": "S radar intensity legend loses its meanings",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "wx-20",
   "file": "weather-radar/src/parts/entry.c",
   "old": "    SetTimer(hwnd, TIMER_EMBLEM, 50, NULL);",
   "new": "    /* header animation disabled */",
-  "label": "T Weather Radar never starts its spinning suite emblem"
+  "label": "T Weather Radar never starts its spinning suite emblem",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "wx-21",
   "file": "weather-radar/src/parts/ui.c",
   "old": "            g_radarSpinAngle += 6.283185307179586 / 600.0;",
   "new": "            g_radarSpinAngle += 0.0;",
-  "label": "U Weather Radar emblem timer no longer advances the mark"
+  "label": "U Weather Radar emblem timer no longer advances the mark",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "wx-22",
   "file": "weather-radar/src/parts/ui.c",
   "old": "                g_zoom = (g_zoom >= RADAR_DISPLAY_ZOOM_MAX) ? RADAR_TILE_ZOOM_MIN : g_zoom + 1;",
   "new": "                g_zoom = 8;",
-  "label": "V Weather Radar zoom button no longer increments into local detail levels"
+  "label": "V Weather Radar zoom button no longer increments into local detail levels",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "hub-18",
   "file": "project-hub/src/parts/refresh_statuses.c",
   "old": "            c->btns[action].hidden = !showAction;",
   "new": "            c->btns[action].hidden = FALSE;",
-  "label": "R current dynamic card keeps its Update button"
+  "label": "R current dynamic card keeps its Update button",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_dynamic_catalog_cards_hide_update_when_their_build_is_current"
+  ]
  },
  {
   "id": "hub-weather-startup-00",
   "file": "project-hub/src/parts/card_defs_verbs.c",
   "old": "    EnsureWeatherRadarCatalogCard(FALSE);",
   "new": "    /* Weather Radar is absent until a remote catalog fetch succeeds. */",
-  "label": "Weather Radar has no Hub card before the first catalog response"
+  "label": "Weather Radar has no Hub card before the first catalog response",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_hub_card_survives_missing_or_incomplete_catalog"
+  ]
  },
  {
   "id": "hub-weather-refresh-00",
   "file": "project-hub/src/parts/builtin_card_text.c",
   "old": "    EnsureWeatherRadarCatalogCard(TRUE);",
   "new": "    /* Partial catalog rebuild silently drops Weather Radar. */",
-  "label": "A fetched catalog without Weather Radar erases its Hub card"
+  "label": "A fetched catalog without Weather Radar erases its Hub card",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_hub_card_survives_missing_or_incomplete_catalog"
+  ]
  },
  {
   "id": "hub-weather-icon-00",
   "file": "project-hub/src/parts/catalog_icons_json.c",
   "old": "    c->resIconId = isWeatherRadar ? RES_ICON_WEATHER : 0;",
   "new": "    c->resIconId = 0;",
-  "label": "Weather Radar loses its embedded icon when the remote icon is unavailable"
+  "label": "Weather Radar loses its embedded icon when the remote icon is unavailable",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_hub_card_survives_missing_or_incomplete_catalog"
+  ]
  },
  {
   "id": "wx-14",
   "file": "weather-radar/src/parts/radar.c",
   "old": "            for (int row = 0; row < TILE_PX; row++) {\n                uint32_t *dstRow = dst + (size_t)(gy * TILE_PX + row) * GRID_PX +\n                                   (size_t)gx * TILE_PX;\n                memcpy(dstRow, tile + (size_t)row * TILE_PX, TILE_PX * sizeof(uint32_t));\n            }",
   "new": "            memcpy(dst + (size_t)(gy * TILE_PX) * GRID_PX + (size_t)gx * TILE_PX,\n                   tile, TILE_PX * TILE_PX * sizeof(uint32_t));",
-  "label": "N map tiles wrap into horizontal stripes"
+  "label": "N map tiles wrap into horizontal stripes",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "wx-15",
   "file": "weather-radar/src/parts/ui.c",
   "old": "    PaintRadarPane(mem, &radarCard);\n    DrawBtn(mem, BTN_PREV, L\"<\", 0);",
   "new": "    DrawBtn(mem, BTN_PREV, L\"<\", 0);\n    PaintRadarPane(mem, &radarCard);",
-  "label": "O radar card covers its playback controls"
+  "label": "O radar card covers its playback controls",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "wx-16",
   "file": "weather-radar/src/parts/ui.c",
   "old": "        if (wp != SIZE_MINIMIZED) LayoutSearchEdit();",
   "new": "        if (wp != SIZE_MINIMIZED) InvalidateRect(hwnd, NULL, FALSE);",
-  "label": "P search field remains at its provisional creation rectangle"
+  "label": "P search field remains at its provisional creation rectangle",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "hubvis-00",
   "file": "project-hub/src/parts/refresh_statuses.c",
   "old": "    g_topBtns[1].hidden = !g_hubUpdAvail;",
   "new": "    g_topBtns[1].hidden = FALSE;",
-  "label": "A current Hub still shows Update Hub"
+  "label": "A current Hub still shows Update Hub",
+  "tests": [
+   "tests.test_windows_apps.ProjectHubUpdateVisibilityAndBranchFollowingTests.test_hub_update_action_is_hidden_until_a_newer_hub_is_verified"
+  ]
  },
  {
   "id": "hubvis-01",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "        if (g_topBtns[i].hidden) {\n            SetRect(&g_topBtns[i].rc, 0, 0, 0, 0);\n            continue;\n        }\n",
   "new": "",
-  "label": "B hidden Hub update still consumes header layout"
+  "label": "B hidden Hub update still consumes header layout",
+  "tests": [
+   "tests.test_windows_apps.ProjectHubUpdateVisibilityAndBranchFollowingTests.test_hub_update_action_is_hidden_until_a_newer_hub_is_verified"
+  ]
  },
  {
   "id": "branchauto-00",
   "file": "project-hub/src/parts/version_probe_cache.c",
   "old": "GetPrivateProfileIntW(L\"Update\", L\"FollowLatestTestBranch\", 1, ini)",
   "new": "GetPrivateProfileIntW(L\"Update\", L\"FollowLatestTestBranch\", 0, ini)",
-  "label": "C automatic test-branch following defaults off"
+  "label": "C automatic test-branch following defaults off",
+  "tests": [
+   "tests.test_windows_apps.ProjectHubUpdateVisibilityAndBranchFollowingTests.test_latest_test_branch_setting_is_defaulted_and_manual_choice_pauses_it"
+  ]
  },
  {
   "id": "branchauto-01",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "    SaveBranchCfg(branch);\n    SaveFollowLatestTestBranch(FALSE);",
   "new": "    SaveBranchCfg(branch);",
-  "label": "D manual branch choice does not pause auto following"
+  "label": "D manual branch choice does not pause auto following",
+  "tests": [
+   "tests.test_windows_apps.ProjectHubUpdateVisibilityAndBranchFollowingTests.test_latest_test_branch_setting_is_defaulted_and_manual_choice_pauses_it"
+  ]
  },
  {
   "id": "branchauto-02",
   "file": "project-hub/src/parts/workers_remote.c",
   "old": "    RefreshAutomaticBranch();\n    EnsureActiveBranch(branch, 64);",
   "new": "    EnsureActiveBranch(branch, 64);",
-  "label": "E automatic branch discovery is skipped before remote checks"
+  "label": "E automatic branch discovery is skipped before remote checks",
+  "tests": [
+   "tests.test_windows_apps.ProjectHubUpdateVisibilityAndBranchFollowingTests.test_latest_test_branch_setting_is_defaulted_and_manual_choice_pauses_it"
+  ]
  },
  {
   "id": "close-00",
   "file": "project-hub/src/parts/install_folder.c",
   "old": "        if (!CloseRunningImageForUpdate(paths[i], quitCommand)) {",
   "new": "        if (0) {",
-  "label": "F managed app copies are no longer asked to close before update"
+  "label": "F managed app copies are no longer asked to close before update",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_update_closes_and_proves_every_managed_executable_copy_is_gone"
+  ]
  },
  {
   "id": "close-01",
   "file": "project-hub/src/parts/content_identity.c",
   "old": "    if (IsExeImagePath(dest) && !NoProcessRunsImage(dest)) {\n        DeleteFileW(tmp);\n        return FALSE;\n    }\n",
   "new": "",
-  "label": "G executable replacement loses its last-moment running-process check"
+  "label": "G executable replacement loses its last-moment running-process check",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_update_closes_and_proves_every_managed_executable_copy_is_gone"
+  ]
  },
  {
   "id": "close-02",
   "file": "project-hub/src/parts/card_defs_verbs.c",
   "old": "    if (!CloseManagedExeCopies(mirrorSlot, c->appDir, c->exeName,\n                               c->title ? c->title : L\"The app\", quitCommand))\n        return;\n",
   "new": "",
-  "label": "H a catalogue app update bypasses the close-and-verify gate"
+  "label": "H a catalogue app update bypasses the close-and-verify gate",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_update_closes_and_proves_every_managed_executable_copy_is_gone"
+  ]
  },
  {
   "id": "close-03",
   "file": "project-hub/src/parts/card_defs_verbs.c",
   "old": "                   ? MIRROR_AUDIO : MIRROR_GENERIC;",
   "new": "                   ? MIRROR_GENERIC : MIRROR_GENERIC;",
-  "label": "I Audio Switcher stray copies bypass the managed close-and-mirror set"
+  "label": "I Audio Switcher stray copies bypass the managed close-and-mirror set",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_update_closes_and_proves_every_managed_executable_copy_is_gone"
+  ]
  },
  {
   "id": "close-04",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "    if (!NoProcessRunsImage(target)) return FALSE;\n",
   "new": "",
-  "label": "J staged Hub handoff swaps the old image without proving it has closed"
+  "label": "J staged Hub handoff swaps the old image without proving it has closed",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_self_update_keeps_a_suite_copy_and_repoints_the_shortcut"
+  ]
  },
  {
   "id": "close-05",
   "file": "project-hub/src/parts/card_defs_verbs.c",
   "old": "    BOOL hasExplicitStopRoute = c->exeName &&\n        (_wcsicmp(c->exeName, L\"AudioSwitcher.exe\") == 0 ||\n         _wcsicmp(c->exeName, L\"WeatherRadar.exe\") == 0);\n    if (hasExplicitStopRoute)\n        RequestManagedExeCopiesStop(mirrorSlot, c->appDir, c->exeName);\n",
   "new": "    BOOL hasExplicitStopRoute = c->exeName &&\n        _wcsicmp(c->exeName, L\"AudioSwitcher.exe\") == 0;\n    if (hasExplicitStopRoute)\n        RequestManagedExeCopiesStop(mirrorSlot, c->appDir, c->exeName);\n",
-  "label": "K Weather Radar update loses its explicit tray-safe stop request"
+  "label": "K Weather Radar update loses its explicit tray-safe stop request",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_update_closes_and_proves_every_managed_executable_copy_is_gone"
+  ]
  },
  {
   "id": "emblem-00",
   "file": "shared/win32/suite_emblem.c",
   "old": "static uint32_t SuiteEmblemDibPixel(COLORREF color) {",
   "new": "static uint32_t LegacyDibPixel(COLORREF color) {",
-  "label": "V shared engine loses the only approved COLORREF-to-DIB conversion"
+  "label": "V shared engine loses the only approved COLORREF-to-DIB conversion",
+  "tests": [
+   "tests.test_windows_apps.SafetyMutationPropertyTests.test_canonical_emblem_conversion_exports_the_required_bgr_adapter"
+  ]
  },
  {
   "id": "emblem-01",
   "file": "agent-notes/src/agent_notes.c",
   "old": "#include \"../../shared/win32/suite_emblem.c\"",
   "new": "/* canonical emblem engine omitted */",
-  "label": "W Agent Notes can bypass the canonical emblem engine"
+  "label": "W Agent Notes can bypass the canonical emblem engine",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_suite_header_emblem_has_one_dib_safe_engine"
+  ]
  },
  {
   "id": "emblem-02",
   "file": "agent-notes/src/parts/ui.c",
   "old": "bits[i] = SuiteEmblemDibPixel(COL_BG);",
   "new": "bits[i] = COL_BG;",
-  "label": "X Agent Notes writes raw COLORREF pixels into its narrow emblem DIB"
+  "label": "X Agent Notes writes raw COLORREF pixels into its narrow emblem DIB",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_suite_header_emblem_has_one_dib_safe_engine"
+  ]
  },
  {
   "id": "emblem-03",
   "file": "audio-switcher/src/parts/control_theming.c",
   "old": "SuiteEmblemDraw(&g_audioSwitcherEmblem, pixels, width, height, x, y, size,\n                    SuiteEmblemAngleNow(GetTickCount64(), 30000ULL),\n                    nearColor, farColor);",
   "new": "/* a local copied renderer would go here */",
-  "label": "Y Audio Switcher stops using the canonical transparent draw path"
+  "label": "Y Audio Switcher stops using the canonical transparent draw path",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_suite_header_emblem_has_one_dib_safe_engine"
+  ]
  },
  {
   "id": "emblem-04",
   "file": "shared/win32/suite_emblem.c",
   "old": "    if (luma >= 160) {",
   "new": "    if (0) {",
-  "label": "Z light themes lose their readable emblem palette branch"
+  "label": "Z light themes lose their readable emblem palette branch",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_is_readable_in_either_windows_theme"
+  ]
  },
  {
   "id": "wr-alert-00",
   "file": "weather-radar/src/parts/alerts.c",
   "old": "    double odds = EnsWindowProb(&g_ens, 0, RAIN_ALERT_HOURS);",
   "new": "    double odds = PoPWindowMax(&g_fc, 0, RAIN_ALERT_HOURS);",
-  "label": "Rain alert switched to regional coverage probability"
+  "label": "Rain alert switched to regional coverage probability",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_alert_uses_exact_ensemble_and_latches_one_rain_episode"
+  ]
  },
  {
   "id": "wr-alert-01",
   "file": "weather-radar/src/parts/alerts.c",
   "old": "    if (samePlace && g_rainAlertEpisode) return;",
   "new": "    if (0) return;",
-  "label": "Rain episode duplicate-alert latch removed"
+  "label": "Rain episode duplicate-alert latch removed",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_alert_uses_exact_ensemble_and_latches_one_rain_episode"
+  ]
  },
  {
   "id": "wr-alert-02",
   "file": "weather-radar/src/parts/ui.c",
   "old": "            if (!current) return 0; /* an old location finished after a new selection */",
   "new": "            if (0) return 0; /* an old location finished after a new selection */",
-  "label": "Late old-place forecast can replace current place"
+  "label": "Late old-place forecast can replace current place",
+  "tests": [
+   "tests.test_windows_apps.SafetyMutationPropertyTests.test_old_place_forecast_cannot_publish_status_or_consider_rain_alerts"
+  ]
  },
  {
   "id": "notes-receipt-00",
   "file": "agent-notes/src/parts/wait_alerts.c",
   "old": "            if (wcscmp(result->waitId, g_seenWait) != 0) {",
   "new": "            if (0) {",
-  "label": "Agent Notes never emits a native alert for a newly published wait"
+  "label": "Agent Notes never emits a native alert for a newly published wait",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_waiting_alerts_and_two_stage_receipts"
+  ]
  },
  {
   "id": "notes-discovery-00",
   "file": "agent-notes/src/parts/wait_alerts.c",
   "old": "    if (LinkDiscoveryTick()) result->linkFound = 1;",
   "new": "    if (!g_link[0] && LinkDiscoveryTick()) result->linkFound = 1;",
-  "label": "Agent Notes stops refreshing a stale saved session link"
+  "label": "Agent Notes stops refreshing a stale saved session link",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_discovers_the_live_session_itself"
+  ]
  },
  {
   "id": "hub-notes-open-00",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "        if (!HubOpenApp(p, NULL, g_notesDir)) {",
   "new": "        if (!FileExistsW(p)) {",
-  "label": "Hub Open no longer reveals a tray-hidden Agent Notes window"
+  "label": "Hub Open no longer reveals a tray-hidden Agent Notes window",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_open_reveals_a_running_agent_notes_window"
+  ]
  },
  {
   "id": "trayhub-00",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "    g_trayHostEvent = CreateEventW(NULL, TRUE, TRUE, HUB_TRAY_HOST_EVENT);",
   "new": "    g_trayHostEvent = NULL;",
-  "label": "Unified Hub tray never publishes its live-host capability"
+  "label": "Unified Hub tray never publishes its live-host capability",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_consolidates_icons_and_safe_controls"
+  ]
  },
  {
   "id": "trayhub-01",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "        if (!g_hubQuitting) {\n            ShowWindow(hwnd, SW_HIDE);\n            return 0;\n        }",
   "new": "        if (0) {\n            ShowWindow(hwnd, SW_HIDE);\n            return 0;\n        }",
-  "label": "Normal Hub close exits instead of preserving the unified tray"
+  "label": "Normal Hub close exits instead of preserving the unified tray",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_consolidates_icons_and_safe_controls"
+  ]
  },
  {
   "id": "trayhub-02",
   "file": "agent-notes/src/parts/wait_alerts.c",
   "old": "            PublishHubWaitRelay(result->waitId);",
   "new": "            /* Hub wait relay removed */",
-  "label": "Agent Notes wait state is no longer relayed to the unified Hub icon"
+  "label": "Agent Notes wait state is no longer relayed to the unified Hub icon",
+  "tests": [
+   "tests.test_windows_apps.SafetyMutationPropertyTests.test_waiting_notes_relay_the_same_wait_id_before_local_duplicate_suppression"
+  ]
  },
  {
   "id": "trayhub-03",
   "file": "weather-radar/src/parts/alerts.c",
   "old": "        PublishHubRainAlert(p, odds);\n        return;",
   "new": "        return;",
-  "label": "Weather Radar drops rain alerts whenever Hub owns the tray"
+  "label": "Weather Radar drops rain alerts whenever Hub owns the tray",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_consolidates_icons_and_safe_controls"
+  ]
  },
  {
   "id": "trayhub-04",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "        if (ApplyHubExit()) return 0;",
   "new": "        if (0) return 0;",
-  "label": "Bluetooth Guard leaves the elevated-safe Hub quit request unconsumed"
+  "label": "Bluetooth Guard leaves the elevated-safe Hub quit request unconsumed",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_consolidates_icons_and_safe_controls"
+  ]
  },
  {
   "id": "trayhub-05",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "        HubTrayRestore();",
   "new": "        /* Explorer recovery removed. */",
-  "label": "Project Hub does not recreate its unified tray icon after Explorer restarts"
+  "label": "Project Hub does not recreate its unified tray icon after Explorer restarts",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_consolidates_icons_and_safe_controls"
+  ]
  },
  {
   "id": "trayhub-06",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "        HubTrayEnsureLive();",
   "new": "        /* startup tray retry removed. */",
-  "label": "Project Hub never retries a transient initial tray registration failure"
+  "label": "Project Hub never retries a transient initial tray registration failure",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_consolidates_icons_and_safe_controls"
+  ]
  },
  {
   "id": "trayhub-07",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "    if (!HubTrayShowAgentWaitingAlert()) return;",
   "new": "    HubTrayShowAgentWaitingAlert();",
-  "label": "Hub marks an Agent Notes wait seen when Windows rejected its notification"
+  "label": "Hub marks an Agent Notes wait seen when Windows rejected its notification",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_consolidates_icons_and_safe_controls"
+  ]
  },
  {
   "id": "trayhub-08",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "    return notified;\n}\n\nstatic void HubTrayPollAgentWait(void) {",
   "new": "    return TRUE;\n}\n\nstatic void HubTrayPollAgentWait(void) {",
-  "label": "Hub treats a failed Agent Notes notification as successfully shown"
+  "label": "Hub treats a failed Agent Notes notification as successfully shown",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_consolidates_icons_and_safe_controls"
+  ]
  },
  {
   "id": "trayhub-09",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "    if (!notified) return;  /* leave the token pending for the next Hub poll */\n    wcsncpy(g_hubSeenRainAlert, token, 79);",
   "new": "    wcsncpy(g_hubSeenRainAlert, token, 79);",
-  "label": "Hub drops a rain alert token when Windows rejects its notification"
+  "label": "Hub drops a rain alert token when Windows rejects its notification",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_consolidates_icons_and_safe_controls"
+  ]
  },
  {
   "id": "trayhub-10",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "        g_hwnd = hwnd;\n        return DefWindowProcW(hwnd, msg, wp, lp);",
   "new": "        return DefWindowProcW(hwnd, msg, wp, lp);",
-  "label": "Hub tray registers before CreateWindowEx publishes its HWND"
+  "label": "Hub tray registers before CreateWindowEx publishes its HWND",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_consolidates_icons_and_safe_controls"
+  ]
  },
  {
   "id": "trayhub-hover-reset-00",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "    FillRect(dc, &rc, bg);\n\n    if (item->kind == HUB_TRAY_MENU_SEPARATOR)",
   "new": "    if (item->kind == HUB_TRAY_MENU_SEPARATOR)",
-  "label": "Hub tray hover redraws leave the previous row fill behind"
+  "label": "Hub tray hover redraws leave the previous row fill behind",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_menu_row_paint_is_isolated"
+  ]
  },
  {
   "id": "trayhub-hover-state-00",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "    if (savedDc) RestoreDC(draw->hDC, savedDc);",
   "new": "    if (0 && savedDc) RestoreDC(draw->hDC, savedDc);",
-  "label": "Hub tray hover drawing leaks GDI state between menu rows"
+  "label": "Hub tray hover drawing leaks GDI state between menu rows",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_menu_row_paint_is_isolated"
+  ]
  },
  {
   "id": "trayhub-menu-reentry-00",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "    if (g_hubTrayMenuTracking) return;\n    g_hubTrayMenuTracking = TRUE;",
   "new": "    if (0 && g_hubTrayMenuTracking) return;\n    g_hubTrayMenuTracking = TRUE;",
-  "label": "Hub tray callback can re-enter shared popup paint state"
+  "label": "Hub tray callback can re-enter shared popup paint state",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_tray_menu_tracking_cannot_reenter_shared_paint_state"
+  ]
  },
  {
   "id": "branch-follow-00",
   "file": "project-hub/src/parts/branch_json.h",
   "old": "    while (*p == ' ' || *p == '\\t' || *p == '\\r' || *p == '\\n') p++;",
   "new": "    while (0) p++;",
-  "label": "Whitespace in GitHub branch JSON makes automatic discovery fail"
+  "label": "Whitespace in GitHub branch JSON makes automatic discovery fail",
+  "tests": [
+   "tests.test_windows_apps.ProjectHubUpdateVisibilityAndBranchFollowingTests.test_branch_json_reader_and_retry_policy_with_realistic_api_payload"
+  ]
  },
  {
   "id": "branch-follow-01",
   "file": "project-hub/src/parts/version_probe_cache.c",
   "old": "        g_autoBranchRetryDelay = HubBranchRetryAfterFailure(g_autoBranchRetryDelay);",
   "new": "        g_autoBranchRetryDelay = 0;",
-  "label": "A failed GitHub scan suppresses automatic-branch retries for six hours"
+  "label": "A failed GitHub scan suppresses automatic-branch retries for six hours",
+  "tests": [
+   "tests.test_windows_apps.ProjectHubUpdateVisibilityAndBranchFollowingTests.test_latest_test_branch_setting_is_defaulted_and_manual_choice_pauses_it"
+  ]
  },
  {
   "id": "brand-00",
   "file": "tools/generate_suite_icons.py",
   "old": "    for stale in REDUNDANT_BRAND_EXPORTS:",
   "new": "    for stale in ():",
-  "label": "Icon regeneration no longer removes duplicate aliases"
+  "label": "Icon regeneration no longer removes duplicate aliases",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_brand_exports_keep_one_canonical_copy_per_asset"
+  ]
  },
  {
   "id": "notes-api-00",
   "file": "tools/agent_notes_protocol.py",
   "old": "        receipt_id = receipt_in_inbox(note_key)\n        if receipt_id:\n",
   "new": "        receipt_id = receipt_in_inbox(note_key)\n        if False:\n",
-  "label": "Agent Notes retry duplicates an inbox append after receipt-state failure"
+  "label": "Agent Notes retry duplicates an inbox append after receipt-state failure",
+  "tests": [
+   "tests.test_agent_notes.AgentNotesApiTests.test_retry_recovers_append_after_receipt_state_write_failure"
+  ]
  },
  {
   "id": "notes-api-01",
   "file": "tools/notes_server.py",
   "old": "        if self.headers.get(\"Origin\"):\n",
   "new": "        if False:\n",
-  "label": "Agent Notes API accepts cross-origin browser writes"
+  "label": "Agent Notes API accepts cross-origin browser writes",
+  "tests": [
+   "tests.test_agent_notes.AgentNotesApiTests.test_server_is_api_only_and_refuses_browser_origin_writes"
+  ]
  },
  {
   "id": "notes-api-02",
   "file": "tools/agent_notes_protocol.py",
   "old": "        f.flush()\n        os.fsync(f.fileno())\n    os.replace(tmp, STATE)",
   "new": "        f.flush()\n    os.replace(tmp, STATE)",
-  "label": "Agent Notes reports a receipt before flushing inbox data to disk"
+  "label": "Agent Notes reports a receipt before flushing inbox data to disk",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_waiting_alerts_and_two_stage_receipts"
+  ]
  },
  {
   "id": "wx-23",
   "file": "weather-radar/src/parts/radar.c",
   "old": "    g_frameSel = firstForecast >= 0 ? firstForecast\n                : (latestObserved >= 0 ? latestObserved : 0);",
   "new": "    g_frameSel = latestObserved >= 0 ? latestObserved : 0;",
-  "label": "Weather Radar opens on observed frames instead of the nearest future nowcast"
+  "label": "Weather Radar opens on observed frames instead of the nearest future nowcast",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "wx-24",
   "file": "weather-radar/src/weather_radar.c",
   "old": "#define MAX_PAST_FRAMES 24",
   "new": "#define MAX_PAST_FRAMES 12",
-  "label": "Weather Radar truncates the expanded observed timeline back to twelve frames"
+  "label": "Weather Radar truncates the expanded observed timeline back to twelve frames",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "wx-25",
   "file": "weather-radar/src/weather_radar.c",
   "old": "#define MAX_FRAMES     64",
   "new": "#define MAX_FRAMES     32",
-  "label": "Weather Radar caps the timeline before its expanded forecast frame capacity"
+  "label": "Weather Radar caps the timeline before its expanded forecast frame capacity",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "notes-api-03",
   "file": "tools/agent_notes_protocol.py",
   "old": "    with INBOX.open(\"a\", encoding=\"utf-8\") as f:\n        f.write(entry)\n        f.flush()\n        os.fsync(f.fileno())\n",
   "new": "    with INBOX.open(\"a\", encoding=\"utf-8\") as f:\n        f.write(entry)\n        f.flush()\n",
-  "label": "Agent Notes returns a saved receipt before the inbox append is durable"
+  "label": "Agent Notes returns a saved receipt before the inbox append is durable",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_agent_notes_waiting_alerts_and_two_stage_receipts"
+  ]
  },
  {
   "id": "wx-26",
   "file": "weather-radar/src/parts/radar.c",
   "old": "        while (j >= 0 && g_frames[j].time > current.time) {\n",
   "new": "        while (0) {\n",
-  "label": "Weather Radar plays forecast frames in provider order instead of chronological order"
+  "label": "Weather Radar plays forecast frames in provider order instead of chronological order",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_the_honest_probability_not_the_blended_one"
+  ]
  },
  {
   "id": "btg-00",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "d->visible ? L\"K\" : (d->denied ? L\"D\" : L\"F\")",
   "new": "L\"F\"",
-  "label": "Trusted Bluetooth membership is serialized as forgotten"
+  "label": "Trusted Bluetooth membership is serialized as forgotten",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_review_controls_and_denials_are_persistent_and_address_bound"
+  ]
  },
  {
   "id": "btg-01",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "if (!info.fAuthenticated && !info.fRemembered && !info.fConnected) goto next_bluetooth_device;",
   "new": "if (!info.fConnected) goto next_bluetooth_device;",
-  "label": "Paired disconnected earbuds are hidden before the owner can review them"
+  "label": "Paired disconnected earbuds are hidden before the owner can review them",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-02",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "BOOL manualIntent = newlyConnected && manualWindow;",
   "new": "BOOL manualIntent = newlyConnected;",
-  "label": "A connection without Windows UI intent is trusted"
+  "label": "A connection without Windows UI intent is trusted",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-03",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "d->forgotten = TRUE;",
   "new": "d->forgotten = FALSE;",
-  "label": "Forget fails to persist its native tombstone"
+  "label": "Forget fails to persist its native tombstone",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-04",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "if (!g_devices[i].visible || g_devices[i].forgotten) continue;",
   "new": "if (FALSE) continue;",
-  "label": "Hidden Bluetooth devices leak into the native tray menu"
+  "label": "Hidden Bluetooth devices leak into the native tray menu",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_guard_forget_unpairs_and_filters_phantom_devices"
+  ]
  },
  {
   "id": "btg-05",
   "file": "bluetooth-guard/src/parts/bt_actions.c",
   "old": "g_devices[i].visible && !g_devices[i].forgotten",
   "new": "g_devices[i].visible",
-  "label": "A stale native queue can reconnect a device after Forget"
+  "label": "A stale native queue can reconnect a device after Forget",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-06",
   "file": "bluetooth-guard/BluetoothGuard.ps1",
   "old": "if ($o.DeviceTrustFormat -eq 2 -and $o.Devices) {",
   "new": "if ($o.Devices) {",
-  "label": "Legacy PowerShell scan history is loaded as trusted membership"
+  "label": "Legacy PowerShell scan history is loaded as trusted membership",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_guard_powershell_uses_the_same_trusted_inventory"
+  ]
  },
  {
   "id": "btg-07",
   "file": "bluetooth-guard/BluetoothGuard.ps1",
   "old": "$script:SnapshotBaseline -and $newLink -and $manualUi",
   "new": "$newLink",
-  "label": "PowerShell trusts a new connection without Windows UI intent"
+  "label": "PowerShell trusts a new connection without Windows UI intent",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_guard_powershell_uses_the_same_trusted_inventory"
+  ]
  },
  {
   "id": "btg-08",
   "file": "bluetooth-guard/BluetoothGuard.ps1",
   "old": "$currentEntry.Forgotten = $true",
   "new": "$currentEntry.Forgotten = $false",
-  "label": "PowerShell Forget leaves the device trusted"
+  "label": "PowerShell Forget leaves the device trusted",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_guard_powershell_uses_the_same_trusted_inventory"
+  ]
  },
  {
   "id": "btg-09",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "g_devices[idx].allowAuto = FALSE;",
   "new": "g_devices[idx].allowAuto = TRUE;",
-  "label": "Newly trusted Bluetooth devices default to auto-connect"
+  "label": "Newly trusted Bluetooth devices default to auto-connect",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-10",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "DisconnectIfStillBlocked(rejected[i].address, rejected[i].kind, rejected[i].name);",
   "new": "(void)rejected[i];",
-  "label": "Explicitly denied and unpaired Bluetooth links are not actively dropped"
+  "label": "Explicitly denied and unpaired Bluetooth links are not actively dropped",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-11",
   "file": "bluetooth-guard/BluetoothGuard.ps1",
   "old": "Queue-BtWork 'drop' ([uint64]$snap.Address) ([string]$snap.Kind) ([string]$snap.Name)\n                    Log (\"dropping connection to untrusted device",
   "new": "Log (\"dropping connection to untrusted device",
-  "label": "PowerShell leaves a newly connected untrusted device active"
+  "label": "PowerShell leaves a newly connected untrusted device active",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_guard_powershell_uses_the_same_trusted_inventory"
+  ]
  },
  {
   "id": "btg-12",
   "file": "bluetooth-guard/src/parts/device_classify.c",
   "old": "if (!GetLastInputInfo(&inputInfo) || GetTickCount() - inputInfo.dwTime > 5000U) return;",
   "new": "if (FALSE) return;",
-  "label": "Opening Windows Bluetooth UI without recent user input creates connection intent"
+  "label": "Opening Windows Bluetooth UI without recent user input creates connection intent",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_guard_contracts"
+  ]
  },
  {
   "id": "btg-13",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "                    CheckForegroundManualIntent();\n",
   "new": "                    (void)g_hwnd;\n",
-  "label": "A fast Windows UI connection race bypasses manual-intent detection"
+  "label": "A fast Windows UI connection race bypasses manual-intent detection",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-14",
   "file": "bluetooth-guard/BluetoothGuard.ps1",
   "old": "$manualUi = Update-WindowsUiIntent",
   "new": "$manualUi = $false",
-  "label": "PowerShell loses short-lived Windows Bluetooth UI intent after the flyout closes"
+  "label": "PowerShell loses short-lived Windows Bluetooth UI intent after the flyout closes",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_guard_powershell_uses_the_same_trusted_inventory"
+  ]
  },
  {
   "id": "btg-15",
   "file": "bluetooth-guard/BluetoothGuard.ps1",
   "old": "Connected = $false",
   "new": "Connected = $true",
-  "label": "A disconnected trusted device is no longer kept in the PowerShell list"
+  "label": "A disconnected trusted device is no longer kept in the PowerShell list",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_guard_powershell_uses_the_same_trusted_inventory"
+  ]
  },
  {
   "id": "wx-27",
   "file": "weather-radar/src/parts/ui.c",
   "old": "if (prob >= RAIN_ETA_LIKELY_PROB && likelyK < 0) likelyK = k;",
   "new": "if (prob >= 0.0 && likelyK < 0) likelyK = k;",
-  "label": "Rain ETA treats the first dry hour as a majority-likelihood arrival"
+  "label": "Rain ETA treats the first dry hour as a majority-likelihood arrival",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_selected_place_rain_eta"
+  ]
  },
  {
   "id": "wx-28",
   "file": "weather-radar/src/parts/ui.c",
   "old": "RainEtaText(&g_fc, &g_ens, eta, 192);",
   "new": "wcscpy(eta, L\"Rain ETA: unavailable\");",
-  "label": "Weather Radar computes a rain ETA but never shows it in the rain card"
+  "label": "Weather Radar computes a rain ETA but never shows it in the rain card",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_shows_selected_place_rain_eta"
+  ]
  },
  {
   "id": "kbl-hold-00",
   "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
   "old": "g_scanNext[i] = now + 30;",
   "new": "g_scanNext[i] = now + 60;",
-  "label": "A 60 ms target skips 45 ms UI timer ticks and leaves a held ramp irregular"
+  "label": "A 60 ms target skips 45 ms UI timer ticks and leaves a held ramp irregular",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_hold_ramp_is_not_quantized_by_the_panel"
+  ]
  },
  {
   "id": "kbl-live-00",
   "file": "keyboard-lighting/src/parts/brightness_hotkeys.c",
   "old": "if (now - g_lastFnPoll < 35ULL) return;",
   "new": "if (now - g_lastFnPoll < 150ULL) return;",
-  "label": "Brightness readback falls back to coarse 150 ms slider updates"
+  "label": "Brightness readback falls back to coarse 150 ms slider updates",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_hold_ramp_is_not_quantized_by_the_panel"
+  ]
  },
  {
   "id": "kbl-live-01",
   "file": "keyboard-lighting/src/parts/brightness_hotkeys.c",
   "old": "    g_brightnessCfgSaveAt = now + 300ULL;\n",
   "new": "    g_brightnessCfgSaveAt = now + 300ULL;\n    ScheduleLiveApply();\n",
-  "label": "The panel echoes its rounded brightness sample back into the active engine ramp"
+  "label": "The panel echoes its rounded brightness sample back into the active engine ramp",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_hold_ramp_is_not_quantized_by_the_panel"
+  ]
  },
  {
   "id": "kbl-live-02",
   "file": "keyboard-lighting/src/parts/brightness_hotkeys.c",
   "old": "if (!parseOk || !end || *end != '\\0') {",
   "new": "if (FALSE) {",
-  "label": "A truncated live.txt sample is accepted as a bogus brightness value"
+  "label": "A truncated live.txt sample is accepted as a bogus brightness value",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_hold_ramp_is_not_quantized_by_the_panel"
+  ]
  },
  {
   "id": "set-09",
   "file": "project-hub/src/parts/settings_page.c",
   "old": "if (selIdx < 0) {",
   "new": "if (FALSE) {",
-  "label": "An invalid DNS interval is no longer normalized"
+  "label": "An invalid DNS interval is no longer normalized",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "kbl-hold-01",
   "file": "keyboard-lighting/Aura-Background.ps1",
   "old": "$script:brightPending -and $gapMs -le $brightHoldMs",
   "new": "$script:brightPending -or $gapMs -le $brightHoldMs",
-  "label": "A released brightness gesture is mistaken for a live hold"
+  "label": "A released brightness gesture is mistaken for a live hold",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_hold_ramp_is_not_quantized_by_the_panel"
+  ]
  },
  {
   "id": "kbl-hold-02",
   "file": "keyboard-lighting/Aura-Background.ps1",
   "old": "} elseif ($nowU -ge $script:brightRampNext) {",
   "new": "} elseif ($continuing) {",
-  "label": "A held continuation bypasses the brightness ramp cadence"
+  "label": "A held continuation bypasses the brightness ramp cadence",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_hold_ramp_is_not_quantized_by_the_panel"
+  ]
  },
  {
   "id": "kbl-color-00",
   "file": "keyboard-lighting/Aura-Background.ps1",
   "old": "MixOklab(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);",
   "new": "MixOklch(La, Aa, Ba, Lb, Ab, Bb, w, out lr, out lg, out lb);",
-  "label": "Purple-orange palette transitions revive a vivid pink hue arc"
+  "label": "Purple-orange palette transitions revive a vivid pink hue arc",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_palette_balance_keeps_orange_and_neutral_white"
+  ]
  },
  {
   "id": "kbl-color-01",
   "file": "keyboard-lighting/Aura-Background.ps1",
   "old": "r <= 1.0 + 1e-9",
   "new": "r <= 255.0 + 1e-9",
-  "label": "The color gamut fitter clips bright red transitions"
+  "label": "The color gamut fitter clips bright red transitions",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_palette_balance_keeps_orange_and_neutral_white"
+  ]
  },
  {
   "id": "kbl-color-02",
   "file": "keyboard-lighting/Aura-Background.ps1",
   "old": "const double BalanceStrength = 0.55;",
   "new": "const double BalanceStrength = 0.0;",
-  "label": "Balance Colors has no visible lightness correction"
+  "label": "Balance Colors has no visible lightness correction",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_palette_balance_keeps_orange_and_neutral_white"
+  ]
  },
  {
   "id": "set-03",
   "file": "project-hub/src/parts/settings_page.c",
   "old": "if (!WriteBinaryFileAtomic(themePath, (const BYTE *)themeOut, themeOutLen)) {",
   "new": "if (FALSE) {",
-  "label": "D Smooth theme.json write discarded"
+  "label": "D Smooth theme.json write discarded",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "set-10",
   "file": "project-hub/src/parts/settings_page.c",
   "old": "static const int kSetIntervals[6] = { 0, 15, 30, 60, 120, 300 };",
   "new": "static const int kSetIntervals[5] = { 15, 30, 60, 120, 300 };",
-  "label": "DNS live-watch interval is missing from Suite Settings"
+  "label": "DNS live-watch interval is missing from Suite Settings",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "set-11",
   "file": "project-hub/src/parts/settings_page.c",
   "old": "SetWindowTextW(g_setHotkeys, line);",
   "new": "SetWindowTextW(g_setHotkeys, L\"Brightness hotkeys unavailable\");",
-  "label": "Settings stops showing the configured brightness hotkeys"
+  "label": "Settings stops showing the configured brightness hotkeys",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "set-12",
   "file": "project-hub/src/parts/settings_page.c",
   "old": "                int savedMode = HoldModeCurrent();\n                for (int i = 0; i < 3; i++)\n                    SendMessageW(g_setHold[i], BM_SETCHECK,\n                                 i == savedMode ? BST_CHECKED : BST_UNCHECKED, 0);\n                SetStatusError(L\"Could not save the Keyboard Lighting hold choice. Try again.\");",
   "new": "                SetStatusError(L\"Could not save the Keyboard Lighting hold choice. Try again.\");",
-  "label": "A failed hold-mode write leaves the radio selection unsaved"
+  "label": "A failed hold-mode write leaves the radio selection unsaved",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "set-13",
   "file": "project-hub/src/parts/settings_page.c",
   "old": "if (!WriteBinaryFileAtomic(panelPath, (const BYTE *)panelOut, panelOutLen))",
   "new": "if (FALSE)",
-  "label": "Hub lighting changes are not saved to Keyboard Lighting panel.json"
+  "label": "Hub lighting changes are not saved to Keyboard Lighting panel.json",
+  "tests": [
+   "tests.test_windows_apps.SafetyMutationPropertyTests.test_hub_settings_persist_panel_before_live_theme_and_keep_rollback"
+  ]
  },
  {
   "id": "set-14",
   "file": "project-hub/src/parts/settings_page.c",
   "old": "return ApplyKeyboardSetting(\"Kbd\", \"Equalise\", on);",
   "new": "return ApplyKeyboardSetting(NULL, \"Equalise\", on);",
-  "label": "Balance Colours is no longer scoped to the keyboard group"
+  "label": "Balance Colours is no longer scoped to the keyboard group",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "set-15",
   "file": "project-hub/src/parts/settings_page.c",
   "old": "wc.hbrBackground = NULL;",
   "new": "wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);",
-  "label": "The Settings window falls back to the system white client background"
+  "label": "The Settings window falls back to the system white client background",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "set-16",
   "file": "project-hub/src/parts/settings_page.c",
   "old": "ApplyModernWindowFrame(g_setHwnd);",
   "new": "/* Dark Settings frame omitted. */",
-  "label": "Settings loses the Hub's dark native title bar and frame"
+  "label": "Settings loses the Hub's dark native title bar and frame",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "kbl-config-00",
   "file": "keyboard-lighting/Tray.ps1",
   "old": "    Sync-ExternalPanelCfg\n",
   "new": "    # external config sync removed\n",
-  "label": "The tray can overwrite a Hub preference from stale in-memory settings"
+  "label": "The tray can overwrite a Hub preference from stale in-memory settings",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "hub-elevation-00",
   "file": "project-hub/src/manifest.xml",
   "old": "level=\"asInvoker\"",
   "new": "level=\"requireAdministrator\"",
-  "label": "Project Hub asks for elevation just to open"
+  "label": "Project Hub asks for elevation just to open",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_project_hub_starts_without_elevation_but_children_keep_their_boundaries"
+  ]
  },
  {
   "id": "hub-notes-startup-00",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "        /* Agent Notes is user-opened only; startup refreshes suite status but\n           must never launch its composer window. */\n        EnqueueTask(TASK_CHECK_REMOTE);",
   "new": "        /* startup notes launch */\n        EnqueueTask(TASK_INSTALL_NOTES);",
-  "label": "Opening Project Hub automatically opens Agent Notes"
+  "label": "Opening Project Hub automatically opens Agent Notes",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_startup_keeps_agent_notes_explicitly_user_opened"
+  ]
  },
  {
   "id": "trayhub-style-00",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "    UINT flags = MF_OWNERDRAW;",
   "new": "    UINT flags = MF_STRING;",
-  "label": "Hub tray right-click menu falls back to stock unstyled rows"
+  "label": "Hub tray right-click menu falls back to stock unstyled rows",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_consolidates_icons_and_safe_controls"
+  ]
  },
  {
   "id": "settings-theme-00",
   "file": "project-hub/src/parts/settings_page.c",
   "old": "g_settingsSetWindowTheme(ctl, L\"\", L\"\");",
   "new": "g_settingsSetWindowTheme(ctl, L\"Explorer\", L\"Button\");",
-  "label": "Settings native controls can render black text on dark surfaces again"
+  "label": "Settings native controls can render black text on dark surfaces again",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
+  ]
  },
  {
   "id": "hub-notes-stop-00",
   "file": "project-hub/src/parts/workers_install.c",
   "old": "stop.lpVerb = L\"runas\";",
   "new": "stop.lpVerb = L\"open\";",
-  "label": "Hub Notes update tries a UIPI-blocked stop instead of elevating the helper"
+  "label": "Hub Notes update tries a UIPI-blocked stop instead of elevating the helper",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_agent_notes_update_uses_the_app_owned_elevated_exit_route"
+  ]
  },
  {
   "id": "kbl-raw-00",
   "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
   "old": "for (j = 0; j < n; j++)",
   "new": "for (j = 1; j < n; j++)",
-  "label": "ASUS HID registration can duplicate the generic keyboard usage"
+  "label": "ASUS HID registration can duplicate the generic keyboard usage",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_raw_input_keeps_keyboard_and_all_hid_reports"
+  ]
  },
  {
   "id": "kbl-raw-01",
   "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
   "old": "for (DWORD i = 0; i < hid->dwCount; i++)",
   "new": "for (DWORD i = 0; i < 1; i++)",
-  "label": "Batched HID reports after the first are dropped from hold detection"
+  "label": "Batched HID reports after the first are dropped from hold detection",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_raw_input_keeps_keyboard_and_all_hid_reports"
+  ]
  },
  {
   "id": "kbl-raw-02",
   "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
   "old": "RegisterRawInputDevices(rid, 1, sizeof(RAWINPUTDEVICE));",
   "new": "/* keyboard fallback removed */",
-  "label": "A vendor usage registration failure can leave keyboard hold input blind"
+  "label": "A vendor usage registration failure can leave keyboard hold input blind",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_raw_input_keeps_keyboard_and_all_hid_reports"
+  ]
  },
  {
   "id": "wx-planner-01",
   "file": "weather-radar/src/parts/forecast.c",
   "old": "&forecast_days=5&timezone=auto",
   "new": "&forecast_days=2&timezone=auto",
-  "label": "The five-day planner quietly falls back to two forecast days"
+  "label": "The five-day planner quietly falls back to two forecast days",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_has_a_five_day_balanced_planner"
+  ]
  },
  {
   "id": "wx-planner-02",
   "file": "weather-radar/src/parts/ui.c",
   "old": "            g_planCategory = planCategory;",
   "new": "            g_planCategory = PLAN_RAIN;",
-  "label": "Selecting a planner cell always shows rain instead of its category"
+  "label": "Selecting a planner cell always shows rain instead of its category",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_has_a_five_day_balanced_planner"
+  ]
  },
  {
   "id": "wx-planner-03",
   "file": "weather-radar/src/parts/forecast.c",
   "old": "            if (isnan(v)) { complete = 0; break; }",
   "new": "            if (isnan(v)) continue;",
-  "label": "A partial ensemble day treats unreported hours as dry"
+  "label": "A partial ensemble day treats unreported hours as dry",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_has_a_five_day_balanced_planner"
+  ]
  },
  {
   "id": "wx-planner-04",
   "file": "weather-radar/src/parts/ui.c",
   "old": "    int top = table.top + S(20 + day * 29);",
   "new": "    int top = table.top + S(20 + g_planCategory * 29);",
-  "label": "The planner stacks measures rather than grouping values by day"
+  "label": "The planner stacks measures rather than grouping values by day",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "wx-planner-05",
   "file": "weather-radar/src/parts/ui.c",
   "old": "    RECT plot = { card->left + S(46), card->top + S(29),\n                  card->right - S(8), card->bottom - S(66) };",
   "new": "    RECT plot = { card->left + S(9), card->top + S(35), card->right - S(9), card->top + S(55) };",
-  "label": "The selected hourly chart collapses to its old unreadable height"
+  "label": "The selected hourly chart collapses to its old unreadable height",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "wx-planner-06",
   "file": "weather-radar/src/parts/ui.c",
   "old": "            PaintPlannerCellValue(mem, day, category, &cell, selected);",
   "new": "            DrawRoundedBox(mem, &cell, S(5), COL_CARD, COL_CARD_BD);\n            PaintPlannerCellValue(mem, day, category, &cell, selected);",
-  "label": "The dense per-value box matrix returns to the planner"
+  "label": "The dense per-value box matrix returns to the planner",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "wx-29",
   "file": "weather-radar/src/parts/ui.c",
   "old": "            srcLeft = RadarFocusOrigin(placePixelX, focusPx);\n            srcTop = RadarFocusOrigin(placePixelY, focusPx);",
   "new": "            srcLeft = (GRID_PX - focusPx) / 2;\n            srcTop = (GRID_PX - focusPx) / 2;",
-  "label": "Radar zoom recenters the tile grid instead of the selected place"
+  "label": "Radar zoom recenters the tile grid instead of the selected place",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "wx-30",
   "file": "weather-radar/src/parts/radar.c",
   "old": "    if (placeTicket != g_placeTicket) {\n        LeaveCriticalSection(&g_lock);\n        return;\n    }",
   "new": "    if (FALSE) {\n        LeaveCriticalSection(&g_lock);\n        return;\n    }",
-  "label": "a late tile response from a prior place overwrites the selected city's view"
+  "label": "a late tile response from a prior place overwrites the selected city's view",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "wx-31",
   "file": "weather-radar/src/parts/ui.c",
   "old": "        StretchDIBits(mem, d.left, d.top, side, side, srcLeft, srcTop,\n                      focusPx, focusPx, view, &bi,\n                      DIB_RGB_COLORS, SRCCOPY);",
   "new": "        LeaveCriticalSection(&g_lock);\n        StretchDIBits(mem, d.left, d.top, side, side, srcLeft, srcTop,\n                      focusPx, focusPx, view, &bi,\n                      DIB_RGB_COLORS, SRCCOPY);",
-  "label": "the worker can recycle the radar view while the UI is drawing it"
+  "label": "the worker can recycle the radar view while the UI is drawing it",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_weather_radar_layout_keeps_text_controls_and_tiles_separate"
+  ]
  },
  {
   "id": "btg-16",
   "file": "bluetooth-guard/src/parts/device_policy.c",
   "old": "if (!d->visible) return !d->paired;",
   "new": "if (!d->visible) return TRUE;",
-  "label": "Undecided paired earbuds are disconnected before the owner can approve them"
+  "label": "Undecided paired earbuds are disconnected before the owner can approve them",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-17",
   "file": "bluetooth-guard/src/parts/device_policy.c",
   "old": "d->denied = TRUE;",
   "new": "d->denied = FALSE;",
-  "label": "The owner Deny decision is not retained in the Bluetooth device state"
+  "label": "The owner Deny decision is not retained in the Bluetooth device state",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-18",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "if (!DeviceIsListed(d)) continue;",
   "new": "if (!d->visible) continue;",
-  "label": "Bluetooth approval candidates have no visible card to accept or configure"
+  "label": "Bluetooth approval candidates have no visible card to accept or configure",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_review_controls_and_denials_are_persistent_and_address_bound"
+  ]
  },
  {
   "id": "btg-19",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "if (d->transient && !d->paired && !d->remembered && (!d->scanSeen || !d->connected)) {",
   "new": "if (d->transient && (!d->scanSeen || !d->connected)) {",
-  "label": "A disconnected pending Bluetooth pair vanishes from the review list"
+  "label": "A disconnected pending Bluetooth pair vanishes from the review list",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-20",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "d->denied = denied;",
   "new": "d->denied = FALSE;",
-  "label": "Persisted Bluetooth denials are lost when rules are loaded"
+  "label": "Persisted Bluetooth denials are lost when rules are loaded",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_review_controls_and_denials_are_persistent_and_address_bound"
+  ]
  },
  {
   "id": "btg-21",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "ULONGLONG target = g_hits[hitIdx].address;",
   "new": "ULONGLONG target = 0;",
-  "label": "Bluetooth approval clicks lose the stable painted device address"
+  "label": "Bluetooth approval clicks lose the stable painted device address",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-22",
   "file": "bluetooth-guard/src/parts/bt_actions.c",
   "old": "BOOL blocked = (idx < 0) || DeviceShouldBlock(&g_devices[idx], g_guardOn);",
   "new": "BOOL blocked = TRUE; (void)idx;",
-  "label": "A stale Bluetooth policy drop disconnects an app-approved session"
+  "label": "A stale Bluetooth policy drop disconnects an app-approved session",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-23",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "ApproveDevice(d, nowAllow, GetTickCount64());",
   "new": "ApproveDevice(d, FALSE, GetTickCount64());",
-  "label": "Auto-Connect cannot explicitly approve and enable a pending Bluetooth pair"
+  "label": "Auto-Connect cannot explicitly approve and enable a pending Bluetooth pair",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "hub-open-01",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    ShowWindowAsync(app, IsIconic(app) ? SW_RESTORE : SW_SHOW);",
   "new": "    if (0) ShowWindowAsync(app, IsIconic(app) ? SW_RESTORE : SW_SHOW);",
-  "label": "A hidden or minimized app loses its restore/show route"
+  "label": "A hidden or minimized app loses its restore/show route",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-02",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    ShowWindowAsync(app, IsIconic(app) ? SW_RESTORE : SW_SHOW);",
   "new": "    ShowWindowAsync(app, SW_SHOWNORMAL);",
-  "label": "Opening an existing maximized app normalizes its window"
+  "label": "Opening an existing maximized app normalizes its window",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-03",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    SetForegroundWindow(target);",
   "new": "    if (0) SetForegroundWindow(target);",
-  "label": "Hub Open leaves the app behind other windows"
+  "label": "Hub Open leaves the app behind other windows",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-04",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    if (!target || !IsWindowVisible(target)) target = app;",
   "new": "    target = app;",
-  "label": "Hub Open gives focus to a disabled parent instead of its modal dialog"
+  "label": "Hub Open gives focus to a disabled parent instead of its modal dialog",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-05",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    if (app) {\n        HubBeginOpen(imagePath, identity, app, NULL);",
   "new": "    if (0 && app) {\n        HubBeginOpen(imagePath, identity, app, NULL);",
-  "label": "A hidden existing native instance is mistaken for an absent app"
+  "label": "A hidden existing native instance is mistaken for an absent app",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-06",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "        if (mutex) {",
   "new": "        if (0 && mutex) {",
-  "label": "A native app still creating its window is launched again"
+  "label": "A native app still creating its window is launched again",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-07",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    if (processes.count > 0) {",
   "new": "    if (0 && processes.count > 0) {",
-  "label": "An already-running catalogue app is launched again"
+  "label": "An already-running catalogue app is launched again",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-08",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    if (g_openRequest.active &&\n        (_wcsicmp(g_openRequest.imagePath, imagePath) == 0 ||",
   "new": "    if (FALSE && g_openRequest.active &&\n        (_wcsicmp(g_openRequest.imagePath, imagePath) == 0 ||",
-  "label": "A rapid repeated Open click starts a duplicate process"
+  "label": "A rapid repeated Open click starts a duplicate process",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-09",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    if (!HubOpenMayTakeForeground()) { HubCancelOpen(); return; }",
   "new": "    if (0 && !HubOpenMayTakeForeground()) { HubCancelOpen(); return; }",
-  "label": "Delayed Open steals focus after newer user activity"
+  "label": "Delayed Open steals focus after newer user activity",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-10",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    if (GetTickCount64() >= g_openRequest.deadline) {",
   "new": "    if (FALSE && GetTickCount64() >= g_openRequest.deadline) {",
-  "label": "Open retries never expire for an app that has no window"
+  "label": "Open retries never expire for an app that has no window",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-11",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    if (g_openRequest.active && g_openRequest.serial == serial) {",
   "new": "    if (g_openRequest.active && serial != 0) {",
-  "label": "Shell message reentry overwrites the newest Open request"
+  "label": "Shell message reentry overwrites the newest Open request",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-12",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "        if (!started) {",
   "new": "        if (FALSE && !started) {",
-  "label": "A failed app launch is reported as an in-progress successful Open"
+  "label": "A failed app launch is reported as an in-progress successful Open",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-13",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    if (pid) AllowSetForegroundWindow(pid);",
   "new": "    if (0 && pid) AllowSetForegroundWindow(pid);",
-  "label": "Hub fails to grant the target process user-requested foreground permission"
+  "label": "Hub fails to grant the target process user-requested foreground permission",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-14",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "        if (wp == HUB_OPEN_TIMER) { HubPollOpen(); return 0; }",
   "new": "        if (FALSE && wp == HUB_OPEN_TIMER) { HubPollOpen(); return 0; }",
-  "label": "Hub never completes an Open whose target window appears after the click"
+  "label": "Hub never completes an Open whose target window appears after the click",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_activation_retries_only_on_the_ui_timer_and_preserves_boundaries"
+  ]
  },
  {
   "id": "hub-open-15",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    if (!g_openRequest.active || g_openRequest.launching) return;",
   "new": "    if (!g_openRequest.active) return;",
-  "label": "A child consent wait consumes the Open startup timeout before ShellExecute returns"
+  "label": "A child consent wait consumes the Open startup timeout before ShellExecute returns",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "wx-location-00",
   "file": "weather-radar/src/parts/location.c",
   "old": "if (GetForegroundWindow() != g_hwnd)",
   "new": "if (0 && GetForegroundWindow() != g_hwnd)",
-  "label": "Location requests permission while Radar is not the foreground window"
+  "label": "Location requests permission while Radar is not the foreground window",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-01",
   "file": "weather-radar/src/parts/location_policy.c",
   "old": "return pending && ticket != 0 && ticket == current;",
   "new": "return pending && ticket != 0 && current != 0;",
-  "label": "An obsolete location generation replaces a newer explicit request"
+  "label": "An obsolete location generation replaces a newer explicit request",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-02",
   "file": "weather-radar/src/parts/location_policy.c",
   "old": "lat < -LOCATION_MAP_LAT || lat > LOCATION_MAP_LAT ||",
   "new": "0 ||",
-  "label": "Windows coordinates outside the supported Mercator map are accepted"
+  "label": "Windows coordinates outside the supported Mercator map are accepted",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-03",
   "file": "weather-radar/src/parts/location_policy.c",
   "old": "if (!isfinite(accuracyM) || accuracyM <= 0.0)",
   "new": "if (accuracyM < 0.0)",
-  "label": "A missing, zero or non-finite accuracy is advertised as a usable fix"
+  "label": "A missing, zero or non-finite accuracy is advertised as a usable fix",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-04",
   "file": "weather-radar/src/parts/location_policy.c",
   "old": "(now >= fixEpoch && now - fixEpoch > LOCATION_MAX_AGE_SEC)",
   "new": "(now >= fixEpoch && now - fixEpoch > 999999999ULL)",
-  "label": "A stale provider location replaces the selected point"
+  "label": "A stale provider location replaces the selected point",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-05",
   "file": "weather-radar/src/parts/location_policy.c",
   "old": "(fixEpoch > now && fixEpoch - now > LOCATION_FUTURE_SEC)",
   "new": "0",
-  "label": "An implausibly future-dated Windows fix is accepted"
+  "label": "An implausibly future-dated Windows fix is accepted",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-06",
   "file": "weather-radar/src/parts/location_winrt.c",
   "old": "return allowed == 1 ? LOCATION_PROVIDER_READY",
   "new": "return allowed != 2 ? LOCATION_PROVIDER_READY",
-  "label": "Unspecified Windows permission is silently treated as Allowed"
+  "label": "Unspecified Windows permission is silently treated as Allowed",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_location_permission_is_explicit_foreground_and_nonblocking"
+  ]
  },
  {
   "id": "wx-location-07",
   "file": "weather-radar/src/parts/places.c",
   "old": "int sameWindows = p->fromWindows && g_places[i].fromWindows;",
   "new": "int sameWindows = 0;",
-  "label": "Repeated one-shot fixes fill saved-place slots instead of refreshing one snapshot"
+  "label": "Repeated one-shot fixes fill saved-place slots instead of refreshing one snapshot",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-08",
   "file": "weather-radar/src/parts/ui.c",
   "old": "            if (result.have) {\n                RememberPlace(&result.place);",
   "new": "            if (1) {\n                RememberPlace(&result.place);",
-  "label": "A denied or unavailable location result overwrites the prior selected place"
+  "label": "A denied or unavailable location result overwrites the prior selected place",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-09",
   "file": "weather-radar/src/parts/ui.c",
   "old": "    int canceled = CancelWindowsLocation();\n    if (i == g_placeSel)",
   "new": "    int canceled = 0;\n    if (i == g_placeSel)",
-  "label": "Clicking the selected saved row fails to cancel an outstanding location request"
+  "label": "Clicking the selected saved row fails to cancel an outstanding location request",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-10",
   "file": "weather-radar/src/parts/location.c",
   "old": "if (state != LOCATION_PROVIDER_READY)",
   "new": "if (state == LOCATION_PROVIDER_CANCELED)",
-  "label": "Denied or unavailable permission still starts a physical-location lookup"
+  "label": "Denied or unavailable permission still starts a physical-location lookup",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-11",
   "file": "weather-radar/src/parts/location.c",
   "old": "g_locationPending = 0; g_locationPhase = 0;\n    if (++g_locationTicket",
   "new": "g_locationPhase = 0;\n    if (++g_locationTicket",
-  "label": "Cancel leaves the physical-location request pending"
+  "label": "Cancel leaves the physical-location request pending",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-12",
   "file": "weather-radar/src/parts/location_winrt.c",
   "old": "if (cancel) (void)IAsyncInfo_Cancel(g_locationInfo);",
   "new": "(void)cancel;",
-  "label": "A canceled lookup keeps its Windows asynchronous operation running"
+  "label": "A canceled lookup keeps its Windows asynchronous operation running",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_location_permission_is_explicit_foreground_and_nonblocking"
+  ]
  },
  {
   "id": "wx-location-13",
   "file": "weather-radar/src/parts/workers.c",
   "old": "    g_reqHas = 0;\n    if (++g_placeTicket",
   "new": "    g_reqHas = 1;\n    if (++g_placeTicket",
-  "label": "Removing the final saved point leaves old-place data requests active"
+  "label": "Removing the final saved point leaves old-place data requests active",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_location_selection_cancellation_and_single_coordinate_route"
+  ]
  },
  {
   "id": "wx-location-14",
   "file": "weather-radar/src/parts/places.c",
   "old": "GetPrivateProfileIntW(L\"Places\", key, 0, g_cfgPath) == 1",
   "new": "GetPrivateProfileIntW(L\"Places\", key, 1, g_cfgPath) == 1",
-  "label": "Old search configurations acquire an invented Windows-location source"
+  "label": "Old search configurations acquire an invented Windows-location source",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-15",
   "file": "weather-radar/src/parts/location.c",
   "old": "if (problem != LOCATION_FIX_OK) {",
   "new": "if (0 && problem != LOCATION_FIX_OK) {",
-  "label": "A result that aged in the UI message queue is accepted as a fresh fix"
+  "label": "A result that aged in the UI message queue is accepted as a fresh fix",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-16",
   "file": "weather-radar/src/parts/location_abi.h",
   "old": "0xfeea0525,0xd22c,0x4d46",
   "new": "0xfeea0526,0xd22c,0x4d46",
-  "label": "The modern coordinate Point interface is requested with the wrong IID"
+  "label": "The modern coordinate Point interface is requested with the wrong IID",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_geolocation_abi_prefixes_match_documented_sdk_slots"
+  ]
  },
  {
   "id": "wx-location-17",
   "file": "weather-radar/src/parts/places.c",
   "old": "            g_places[i] = *p;\n            g_placeSel = i;",
   "new": "            g_places[i].lat = p->lat;\n            g_places[i].lon = p->lon;\n            g_placeSel = i;",
-  "label": "Refreshing My location leaves its old accuracy and fix timestamp attached to new coordinates"
+  "label": "Refreshing My location leaves its old accuracy and fix timestamp attached to new coordinates",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-18",
   "file": "weather-radar/src/parts/ui.c",
   "old": "    int top = PLACE_LIST_TOP + i * 30;\n    SetRect(r, S(16), S(top), S(244), S(top + 28));",
   "new": "    SetRect(r, S(16), S(PLACE_LIST_TOP) + i * S(30), S(244), S(PLACE_LIST_TOP) + i * S(30) + S(28));",
-  "label": "Accumulated DPI/fit rounding consumes the gap between search results and saved-place heading"
+  "label": "Accumulated DPI/fit rounding consumes the gap between search results and saved-place heading",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "wx-location-19",
   "file": "weather-radar/src/parts/places.c",
   "old": "L\"%.9g\", g_places[i].accuracyM",
   "new": "L\"%.3f\", g_places[i].accuracyM",
-  "label": "Persistence rounds a small positive reported accuracy to zero and truncates very broad values"
+  "label": "Persistence rounds a small positive reported accuracy to zero and truncates very broad values",
+  "tests": [
+   "tests.test_windows_apps.RadarWindowsLocationTests.test_one_shot_location_executes_production_lifecycle_and_storage"
+  ]
  },
  {
   "id": "hub-lifetime-00",
   "file": "project-hub/src/parts/catalog_icons_json.c",
   "old": "        if (loaded) ReplaceCardIcon(c, loaded);",
   "new": "        if (loaded) c->hIcon = loaded;",
-  "label": "catalogue refresh leaks every replaced built-in icon"
+  "label": "catalogue refresh leaks every replaced built-in icon",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests"
+  ]
  },
  {
   "id": "hub-lifetime-01",
   "file": "project-hub/src/parts/catalog_icons_json.c",
   "old": "    if (previous && previous != replacement) DestroyIcon(previous);",
   "new": "    (void)previous;",
-  "label": "owned previous icon is never released"
+  "label": "owned previous icon is never released",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests.test_catalog_icon_swaps_and_drawing_share_the_ownership_lock"
+  ]
  },
  {
   "id": "hub-lifetime-02",
   "file": "project-hub/src/parts/catalog_icons_json.c",
   "old": "        if (loaded) ReplaceCardIcon(c, loaded);",
   "new": "        ReplaceCardIcon(c, loaded);",
-  "label": "failed icon load discards the last good icon"
+  "label": "failed icon load discards the last good icon",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests.test_catalog_icon_refresh_stays_bounded_and_preserves_last_good_icon"
+  ]
  },
  {
   "id": "hub-lifetime-03",
   "file": "project-hub/src/parts/catalog_icons_json.c",
   "old": "static void ReplaceCardIcon(ProjectCard *c, HICON replacement) {\n    EnterCriticalSection(&g_cs);",
   "new": "static void ReplaceCardIcon(ProjectCard *c, HICON replacement) {",
-  "label": "icon replacement destroys handles without the draw lock"
+  "label": "icon replacement destroys handles without the draw lock",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests.test_catalog_icon_swaps_and_drawing_share_the_ownership_lock"
+  ]
  },
  {
   "id": "hub-lifetime-04",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "            EnterCriticalSection(&g_cs);\n            HICON ico = HubCardIcon(card, c);",
   "new": "            HICON ico = HubCardIcon(card, c);",
-  "label": "paint reads and draws a worker-replaceable icon without its lock"
+  "label": "paint reads and draws a worker-replaceable icon without its lock",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests.test_catalog_icon_swaps_and_drawing_share_the_ownership_lock"
+  ]
  },
  {
   "id": "hub-lifetime-05",
   "file": "project-hub/src/parts/builtin_card_text.c",
   "old": "        ReplaceCardIcon(&g_cards[i], NULL);",
   "new": "        /* Extra icon discarded without releasing ownership. */",
-  "label": "rebuild forgets owned extra-card icons"
+  "label": "rebuild forgets owned extra-card icons",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests.test_catalog_rebuild_releases_extra_icons_through_the_same_owned_route"
+  ]
  },
  {
   "id": "hub-lifetime-06",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "        if (!Shell_NotifyIconW(NIM_MODIFY, &probe)) HubTrayReleaseOwnership();",
   "new": "        (void)probe;",
-  "label": "tray poll trusts stale state instead of probing Explorer"
+  "label": "tray poll trusts stale state instead of probing Explorer",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests.test_tray_recovers_silent_shell_loss_and_never_revives_after_quit"
+  ]
  },
  {
   "id": "hub-lifetime-07",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "    g_hubTrayVisible = FALSE;\n    if (g_trayHostEvent) {",
   "new": "    g_hubTrayVisible = TRUE;\n    if (g_trayHostEvent) {",
-  "label": "failed shell probe leaves live flag true and suppresses recovery"
+  "label": "failed shell probe leaves live flag true and suppresses recovery",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests.test_tray_recovers_silent_shell_loss_and_never_revives_after_quit"
+  ]
  },
  {
   "id": "hub-lifetime-08",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "    if (!Shell_NotifyIconW(NIM_ADD, &g_hubNid) &&\n        !Shell_NotifyIconW(NIM_MODIFY, &g_hubNid)) {",
   "new": "    if (!Shell_NotifyIconW(NIM_ADD, &g_hubNid)) {",
-  "label": "duplicate Explorer registration strands an existing tray icon"
+  "label": "duplicate Explorer registration strands an existing tray icon",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests.test_tray_recovers_silent_shell_loss_and_never_revives_after_quit"
+  ]
  },
  {
   "id": "hub-lifetime-09",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "        CloseHandle(g_trayHostEvent);\n        g_trayHostEvent = NULL;",
   "new": "        g_trayHostEvent = NULL;",
-  "label": "unavailable Hub icon retains the suite-host capability"
+  "label": "unavailable Hub icon retains the suite-host capability",
+  "tests": [
+   "tests.test_windows_apps.SuiteFolderInstallTests.test_unified_hub_tray_consolidates_icons_and_safe_controls"
+  ]
  },
  {
   "id": "hub-lifetime-10",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "static void HubTrayEnsureLive(void) {\n    if (!g_hubNid.cbSize || g_hubQuitting) return;",
   "new": "static void HubTrayEnsureLive(void) {\n    if (!g_hubNid.cbSize) return;",
-  "label": "tray housekeeping still runs after explicit Quit"
+  "label": "tray housekeeping still runs after explicit Quit",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests.test_tray_recovers_silent_shell_loss_and_never_revives_after_quit"
+  ]
  },
  {
   "id": "hub-lifetime-11",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "static void HubTrayRestore(void) {\n    if (!g_hubNid.cbSize || g_hubQuitting) return;",
   "new": "static void HubTrayRestore(void) {\n    if (!g_hubNid.cbSize) return;",
-  "label": "Explorer broadcast can recreate a quitting Hub tray"
+  "label": "Explorer broadcast can recreate a quitting Hub tray",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests.test_tray_recovers_silent_shell_loss_and_never_revives_after_quit"
+  ]
  },
  {
   "id": "hub-lifetime-12",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "    ZeroMemory(&g_hubNid, sizeof(g_hubNid));\n}\n\nstatic HWND HubTrayAppWindow",
   "new": "}\n\nstatic HWND HubTrayAppWindow",
-  "label": "removed tray lifetime can resurrect on a later poll"
+  "label": "removed tray lifetime can resurrect on a later poll",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests.test_tray_recovers_silent_shell_loss_and_never_revives_after_quit"
+  ]
  },
  {
   "id": "hub-lifetime-13",
   "file": "project-hub/src/parts/tray_unified.c",
   "old": "    if (g_hubNid.cbSize) Shell_NotifyIconW(NIM_DELETE, &g_hubNid);",
   "new": "    if (g_hubTrayVisible) Shell_NotifyIconW(NIM_DELETE, &g_hubNid);",
-  "label": "explicit exit leaves an icon whose last probe was uncertain"
+  "label": "explicit exit leaves an icon whose last probe was uncertain",
+  "tests": [
+   "tests.test_windows_apps.HubLongevityTests.test_tray_recovers_silent_shell_loss_and_never_revives_after_quit"
+  ]
  },
  {
   "id": "hub-groups-00",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "L\"Undahang\", L\"wave-overhangs\",",
   "new": "L\"Undahang\", L\"unlayered-infill\",",
-  "label": "Undahang writes the sibling package directory"
+  "label": "Undahang writes the sibling package directory",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_each_plugins_status_uses_all_profiles_and_both_install_paths"
+  ]
  },
  {
   "id": "hub-groups-01",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "TASK_INSTALL_ORCA_INFILL, L\"Unlayered Infill\"",
   "new": "TASK_INSTALL_ORCA_WAVE, L\"Unlayered Infill\"",
-  "label": "Infill card queues the other plugin"
+  "label": "Infill card queues the other plugin",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_plugin_preferences_migrate_and_actions_are_independent"
+  ]
  },
  {
   "id": "hub-groups-02",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "return plugin == 0 ? g_orcaDisabled : g_infillDisabled;",
   "new": "return plugin == 0 ? g_orcaDisabled : g_orcaDisabled;",
-  "label": "Infill loses its independent install opt-out"
+  "label": "Infill loses its independent install opt-out",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_each_plugin_installs_and_removes_only_its_files_preserving_settings"
+  ]
  },
  {
   "id": "hub-groups-03",
   "file": "project-hub/src/parts/version_probe_cache.c",
   "old": "L\"UnlayeredInfillDisabled\", legacy, buf",
   "new": "L\"UnlayeredInfillDisabled\", L\"0\", buf",
-  "label": "Legacy combined disabled preference lost for Infill"
+  "label": "Legacy combined disabled preference lost for Infill",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_plugin_preferences_migrate_and_actions_are_independent"
+  ]
  },
  {
   "id": "hub-groups-04",
   "file": "project-hub/src/parts/version_probe_cache.c",
   "old": "g_infillDisabled ? L\"1\" : L\"0\", ini);",
   "new": "g_orcaDisabled ? L\"1\" : L\"0\", ini);",
-  "label": "Save overwrites Infill preference with Undahang preference"
+  "label": "Save overwrites Infill preference with Undahang preference",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_plugin_preferences_migrate_and_actions_are_independent"
+  ]
  },
  {
   "id": "hub-groups-05",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "            ProbeOrcaFile(file, remote, &status);",
   "new": "            /* current install is never probed */",
-  "label": "Status ignores current package path"
+  "label": "Status ignores current package path",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_each_plugins_status_uses_all_profiles_and_both_install_paths"
+  ]
  },
  {
   "id": "hub-groups-06",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "} while (FindNextFileW(find, &data));",
   "new": "} while (FALSE);",
-  "label": "Status ignores all but the first Orca profile"
+  "label": "Status ignores all but the first Orca profile",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_each_plugins_status_uses_all_profiles_and_both_install_paths"
+  ]
  },
  {
   "id": "hub-groups-07",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "if (VerNewer(remote, version)) status->needsUpdate = TRUE;",
   "new": "if (VerNewer(version, remote)) status->needsUpdate = TRUE;",
-  "label": "Plugin version ordering reversed"
+  "label": "Plugin version ordering reversed",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_each_plugins_status_uses_all_profiles_and_both_install_paths"
+  ]
  },
  {
   "id": "hub-groups-08",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "BOOL known = remote && remote[0];",
   "new": "BOOL known = TRUE;",
-  "label": "Unknown remote plugin version falsely called current"
+  "label": "Unknown remote plugin version falsely called current",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_each_plugins_status_uses_all_profiles_and_both_install_paths"
+  ]
  },
  {
   "id": "hub-groups-09",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "c->btns[0].hidden = disabled || (status.files && (!known || !status.needsUpdate));",
   "new": "c->btns[0].hidden = disabled;",
-  "label": "Current plugins show Update"
+  "label": "Current plugins show Update",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_each_plugins_status_uses_all_profiles_and_both_install_paths"
+  ]
  },
  {
   "id": "hub-groups-10",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "    HANDLE file = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);",
   "new": "    DeleteFileW(path);\n    HANDLE file = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);",
-  "label": "Updates reset the existing host enable state"
+  "label": "Updates reset the existing host enable state",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_each_plugin_installs_and_removes_only_its_files_preserving_settings"
+  ]
  },
  {
   "id": "hub-groups-11",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "return modernOk && legacyOk && stateOk;",
   "new": "return modernOk && (legacyOk || TRUE) && stateOk;",
-  "label": "Failed legacy copy reported as a full plugin install"
+  "label": "Failed legacy copy reported as a full plugin install",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_each_plugin_installs_and_removes_only_its_files_preserving_settings"
+  ]
  },
  {
   "id": "hub-groups-12",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "InstallOrcaProfile(spec, L\"OrcaSlicer\", source)",
   "new": "InstallOrcaProfile(&g_orcaPlugins[1 - plugin], L\"OrcaSlicer\", source)",
-  "label": "No-profile fallback installs the sibling"
+  "label": "No-profile fallback installs the sibling",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_each_plugin_installs_and_removes_only_its_files_preserving_settings"
+  ]
  },
  {
   "id": "hub-groups-13",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "static void RemoveOrcaPlugin(int plugin) {\n    const HubOrcaPlugin *spec = &g_orcaPlugins[plugin];",
   "new": "static void RemoveOrcaPlugin(int plugin) {\n    const HubOrcaPlugin *spec = &g_orcaPlugins[1 - plugin];",
-  "label": "Remove deletes the sibling instead of selected plugin"
+  "label": "Remove deletes the sibling instead of selected plugin",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_orca_remove_handler_deletes_only_the_selected_plugins_files"
+  ]
  },
  {
   "id": "hub-groups-14",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "else g_infillDisabled = !g_infillDisabled;",
   "new": "else g_infillDisabled = !g_orcaDisabled;",
-  "label": "Infill Disable toggles from the sibling preference"
+  "label": "Infill Disable toggles from the sibling preference",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_plugin_preferences_migrate_and_actions_are_independent"
+  ]
  },
  {
   "id": "hub-groups-15",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "c->btns[b].hidden = previous[b].hidden;",
   "new": "c->btns[b].hidden = FALSE;",
-  "label": "Refresh briefly exposes Update on a disabled/current plugin"
+  "label": "Refresh briefly exposes Update on a disabled/current plugin",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_partial_old_and_duplicate_catalogues_preserve_every_known_card"
+  ]
  },
  {
   "id": "hub-groups-16",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "c->btns[b].label = previous[b].label;",
   "new": "/* Enable/Install labels discarded during refresh */",
-  "label": "Background refresh loses live Enable/Install labels"
+  "label": "Background refresh loses live Enable/Install labels",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_partial_old_and_duplicate_catalogues_preserve_every_known_card"
+  ]
  },
  {
   "id": "hub-groups-17",
   "file": "project-hub/src/parts/builtin_card_text.c",
   "old": "if (g_cards[i].catalogDef[0])",
   "new": "if (FALSE)",
-  "label": "Partial catalogue erases remembered apps"
+  "label": "Partial catalogue erases remembered apps",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_partial_old_and_duplicate_catalogues_preserve_every_known_card"
+  ]
  },
  {
   "id": "hub-groups-18",
   "file": "project-hub/src/parts/builtin_card_text.c",
   "old": "if (at < retainedCount && !refreshed[at]) {",
   "new": "if (at < retainedCount) {",
-  "label": "Duplicate catalogue ids override the first valid definition"
+  "label": "Duplicate catalogue ids override the first valid definition",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests"
+  ]
  },
  {
   "id": "hub-groups-19",
   "file": "project-hub/src/parts/catalog_icons_json.c",
   "old": "if (_wcsicmp(g_cards[i].id, wid) == 0) return;",
   "new": "if (_wcsicmp(g_cards[i].id, wid) == 0) { /* append duplicate */ }",
-  "label": "Direct catalogue merge creates duplicate cards"
+  "label": "Direct catalogue merge creates duplicate cards",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_partial_old_and_duplicate_catalogues_preserve_every_known_card"
+  ]
  },
  {
   "id": "hub-groups-20",
   "file": "project-hub/src/parts/builtin_card_text.c",
   "old": "g_cardCount = BUILTIN_CARD_COUNT;",
   "new": "g_cardCount = 7;",
-  "label": "Extra rebuild overwrites the new fixed plugin slot"
+  "label": "Extra rebuild overwrites the new fixed plugin slot",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_partial_old_and_duplicate_catalogues_preserve_every_known_card"
+  ]
  },
  {
   "id": "hub-groups-21",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "contentH += headingH + counts[group] * cardH + (counts[group] - 1) * gap;",
   "new": "contentH += counts[group] * cardH + (counts[group] - 1) * gap;",
-  "label": "Scroll extent omits section headings"
+  "label": "Scroll extent omits section headings",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_grouped_layout_scrolling_clipping_and_dpi_route_to_the_drawn_card"
+  ]
  },
  {
   "id": "hub-groups-22",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "if (card->category != group) continue;",
   "new": "if (card->category != group && FALSE) continue;",
-  "label": "Cards laid out repeatedly instead of in their section"
+  "label": "Cards laid out repeatedly instead of in their section",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_grouped_layout_scrolling_clipping_and_dpi_route_to_the_drawn_card"
+  ]
  },
  {
   "id": "hub-groups-23",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "if (pt.y <= headerBottom || pt.y >= footerTop - 1) return 0;",
   "new": "if (pt.y <= headerBottom) return 0;",
-  "label": "Offscreen buttons remain clickable through the footer"
+  "label": "Offscreen buttons remain clickable through the footer",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests"
+  ]
  },
  {
   "id": "hub-groups-24",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "return S(width < required ? 124 : 76, dpi);",
   "new": "return S(width < required ? 76 : 76, dpi);",
-  "label": "Narrow header loses its separate control row"
+  "label": "Narrow header loses its separate control row",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_header_aligns_visible_buttons_with_the_title_when_they_fit"
+  ]
  },
  {
   "id": "hub-groups-25",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "                SetRect(&btn->rc, 0, 0, 0, 0);",
   "new": "                /* hidden buttons keep stale geometry */",
-  "label": "Hidden button rectangles survive a layout change"
+  "label": "Hidden button rectangles survive a layout change",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_grouped_layout_scrolling_clipping_and_dpi_route_to_the_drawn_card"
+  ]
  },
  {
   "id": "hub-groups-26",
   "file": "project-hub/src/parts/branch_picker_entry.c",
   "old": "        ComputeLayout(hwnd); /* resize/scroll/status changes may precede repaint */",
   "new": "        /* stale pointer rectangles used before next repaint */",
-  "label": "Pointer route trusts pre-scroll layout"
+  "label": "Pointer route trusts pre-scroll layout",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_renderer_and_pointer_events_share_grouped_geometry"
+  ]
  },
  {
   "id": "hub-groups-27",
   "file": "project-hub/src/parts/enqueue_restart_prompts.c",
   "old": "case TASK_INSTALL_ORCA_INFILL: WorkerInstallOrcaPlugin(1);",
   "new": "case TASK_INSTALL_ORCA_INFILL: WorkerInstallOrcaPlugin(0);",
-  "label": "Worker dispatch installs wrong plugin"
+  "label": "Worker dispatch installs wrong plugin",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_renderer_and_pointer_events_share_grouped_geometry"
+  ]
  },
  {
   "id": "hub-groups-28",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "                if (i == 1 && FileExistsW(files[0])) continue;",
   "new": "                /* discard host state even while its script remains locked */",
-  "label": "Partial removal deletes the still-installed plugin enable state"
+  "label": "Partial removal deletes the still-installed plugin enable state",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_each_plugin_installs_and_removes_only_its_files_preserving_settings"
+  ]
  },
  {
   "id": "hub-wave-icon-00",
   "file": "project-hub/src/parts/orca_plugins.c",
   "old": "    c->resIconId = plugin == 0 ? RES_ICON_UNDAHANG : RES_ICON_ORCA;",
   "new": "    c->resIconId = RES_ICON_ORCA;",
-  "label": "Both plugin cards reuse the Infill resource identity"
+  "label": "Both plugin cards reuse the Infill resource identity",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_undahang_and_infill_keep_distinct_online_and_offline_icons"
+  ]
  },
  {
   "id": "hub-wave-icon-01",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "if (card->resIconId == RES_ICON_UNDAHANG) return g_cardIcons[8];",
   "new": "if (card->resIconId == RES_ICON_UNDAHANG) return g_cardIcons[3];",
-  "label": "Offline Undahang falls back to the sibling icon"
+  "label": "Offline Undahang falls back to the sibling icon",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_undahang_and_infill_keep_distinct_online_and_offline_icons"
+  ]
  },
  {
   "id": "hub-wave-icon-02",
   "file": "project-hub/src/parts/catalog_icons_json.c",
   "old": "slot == 3 ? \"docs/brand/undahang-wave-v1.ico\"",
   "new": "slot == 3 ? \"docs/brand/orca-plugins.ico\"",
-  "label": "An old catalogue restores the shared Orca artwork"
+  "label": "An old catalogue restores the shared Orca artwork",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_undahang_and_infill_keep_distinct_online_and_offline_icons"
+  ]
  },
  {
   "id": "hub-wave-icon-03",
   "file": "project-hub/src/project_hub.c",
   "old": "    for (int i = 0; i < 9; i++) {",
   "new": "    for (int i = 0; i < 8; i++) {",
-  "label": "The new embedded icon never loads or releases during DPI rebuilds"
+  "label": "The new embedded icon never loads or releases during DPI rebuilds",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_undahang_icon_has_distinct_multisize_rgba_assets"
+  ]
  },
  {
   "id": "hub-wave-icon-04",
   "file": "suite-apps.json",
   "old": "\"icon\": \"docs/brand/undahang-wave-v1.ico\"",
   "new": "\"icon\": \"docs/brand/orca-plugins.ico\"",
-  "label": "Catalogue advertises the same icon for both independent plugins"
+  "label": "Catalogue advertises the same icon for both independent plugins",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_undahang_icon_has_distinct_multisize_rgba_assets"
+  ]
  },
  {
   "id": "hub-wave-icon-05",
   "file": "project-hub/src/hub.rc",
   "old": "11 ICON \"../../docs/brand/undahang-wave-v1.ico\"",
   "new": "11 ICON \"../../docs/brand/orca-plugins.ico\"",
-  "label": "New resource embeds the old sibling artwork"
+  "label": "New resource embeds the old sibling artwork",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_undahang_icon_has_distinct_multisize_rgba_assets"
+  ]
  },
  {
   "id": "hub-wave-icon-06",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "    if (card->hIcon) return card->hIcon;",
   "new": "    if (card->hIcon) return NULL;",
-  "label": "A valid catalogue icon is ignored by the draw route"
+  "label": "A valid catalogue icon is ignored by the draw route",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_undahang_and_infill_keep_distinct_online_and_offline_icons"
+  ]
  },
  {
   "id": "hub-wave-icon-07",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "if (card->resIconId == RES_ICON_ORCA) return g_cardIcons[3];",
   "new": "if (card->resIconId == RES_ICON_ORCA) return g_cardIcons[8];",
-  "label": "Unlayered Infill inherits the new Undahang fallback"
+  "label": "Unlayered Infill inherits the new Undahang fallback",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_renderer_and_pointer_events_share_grouped_geometry"
+  ]
  },
  {
   "id": "hub-wave-icon-08",
   "file": "tools/build_windows.py",
   "old": "ROOT / \"docs\" / \"brand\" / \"undahang-wave-v1.ico\"",
   "new": "ROOT / \"shared\" / \"win32\" / \"suite_emblem.c\"",
-  "label": "New external icon edits reuse a stale cached Hub binary"
+  "label": "New external icon edits reuse a stale cached Hub binary",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_hub_build_cache_tracks_the_new_external_icon_resource"
+  ]
  },
  {
   "id": "hub-wave-icon-09",
   "file": "tools/generate_suite_icons.py",
   "old": "Image.open(BRAND_DIR / \"icon-undahang-wave-v1.png\")",
   "new": "Image.open(BRAND_DIR / \"icon-orca-plugins.png\")",
-  "label": "Regeneration reads the sibling art instead of the approved source"
+  "label": "Regeneration reads the sibling art instead of the approved source",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_undahang_icon_has_distinct_multisize_rgba_assets"
+  ]
  },
  {
   "id": "hub-wave-icon-10",
   "file": "tools/generate_suite_icons.py",
   "old": "BRAND_DIR / \"undahang-wave-v1.ico\",                None",
   "new": "BRAND_DIR / \"undahang-wave-v1.ico\",                BRAND_DIR / \"icon-undahang-wave-v1.png\"",
-  "label": "Regeneration overwrites the approved master with an enlarged derivative"
+  "label": "Regeneration overwrites the approved master with an enlarged derivative",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_undahang_icon_has_distinct_multisize_rgba_assets"
+  ]
  },
  {
   "id": "hub-wave-icon-11",
   "file": "project-hub/src/project_hub.c",
   "old": "#define RES_ICON_UNDAHANG     11",
   "new": "#define RES_ICON_UNDAHANG     6",
-  "label": "Distinct resource name silently aliases the old Orca resource"
+  "label": "Distinct resource name silently aliases the old Orca resource",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_undahang_and_infill_keep_distinct_online_and_offline_icons"
+  ]
  },
  {
   "id": "btg-24",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "sp.fReturnRemembered = TRUE;",
   "new": "sp.fReturnRemembered = FALSE;",
-  "label": "Saved-only disconnected earbuds never reach discovery"
+  "label": "Saved-only disconnected earbuds never reach discovery",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-25",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "(info.fAuthenticated || info.fRemembered || info.fConnected)",
   "new": "(info.fAuthenticated || info.fConnected)",
-  "label": "Remembered-only records are filtered out after enumeration"
+  "label": "Remembered-only records are filtered out after enumeration",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-26",
   "file": "bluetooth-guard/src/parts/device_policy.c",
   "old": "(d->paired || d->remembered) && !d->visible",
   "new": "d->paired && !d->visible",
-  "label": "Windows-saved review candidates are hidden unless authenticated"
+  "label": "Windows-saved review candidates are hidden unless authenticated",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-27",
   "file": "bluetooth-guard/src/parts/device_policy.c",
   "old": "if (!d->visible) return !d->paired;",
   "new": "if (!d->visible) return !DeviceNeedsReview(d);",
-  "label": "Unauthenticated saved history exempts stranger links from blocking"
+  "label": "Unauthenticated saved history exempts stranger links from blocking",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-28",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "!ContainsCI(id, L\"BTH\")",
   "new": "FALSE",
-  "label": "An unrelated non-Bluetooth audio adapter can match a MAC-shaped token"
+  "label": "An unrelated non-Bluetooth audio adapter can match a MAC-shaped token",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests"
+  ]
  },
  {
   "id": "btg-29",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "(i == 0 || !AudioIdHexDigit(id[i - 1]))",
   "new": "TRUE",
-  "label": "An address suffix inside a longer hexadecimal identifier selects the wrong adapter"
+  "label": "An address suffix inside a longer hexadecimal identifier selects the wrong adapter",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_address_routing_and_adapter_ikscontrol_activation"
+  ]
  },
  {
   "id": "btg-30",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "(i + 12 == len || !AudioIdHexDigit(id[i + 12]))",
   "new": "TRUE",
-  "label": "An address prefix inside a longer hexadecimal identifier selects the wrong adapter"
+  "label": "An address prefix inside a longer hexadecimal identifier selects the wrong adapter",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_address_routing_and_adapter_ikscontrol_activation"
+  ]
  },
  {
   "id": "btg-31",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "address > 0xFFFFFFFFFFFFULL",
   "new": "FALSE",
-  "label": "A malformed over-48-bit saved address can act on a different Bluetooth device"
+  "label": "A malformed over-48-bit saved address can act on a different Bluetooth device",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_address_routing_and_adapter_ikscontrol_activation"
+  ]
  },
  {
   "id": "btg-32",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "IMMDevice_Activate(adapter, &kIidIKsControl",
   "new": "IMMDevice_Activate(endpoint, &kIidIKsControl",
-  "label": "Reconnect activates IKsControl on an endpoint instead of the adapter"
+  "label": "Reconnect activates IKsControl on an endpoint instead of the adapter",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_com_failures_release_every_object_and_device_id"
+  ]
  },
  {
   "id": "btg-33",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "hr = IMMDeviceEnumerator_GetDevice(enumerator, adapterId, &adapter);",
   "new": "hr = E_NOINTERFACE;",
-  "label": "The topology adapter ID is never resolved to an adapter IMMDevice"
+  "label": "The topology adapter ID is never resolved to an adapter IMMDevice",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests"
+  ]
  },
  {
   "id": "btg-34",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "property.Flags = KSPROPERTY_TYPE_GET;",
   "new": "property.Flags = KSPROPERTY_TYPE_SET;",
-  "label": "The audio one-shot is sent with the wrong property operation"
+  "label": "The audio one-shot is sent with the wrong property operation",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_com_failures_release_every_object_and_device_id"
+  ]
  },
  {
   "id": "btg-35",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "property.Id = propId;",
   "new": "property.Id = KSPROPERTY_ONESHOT_DISCONNECT; (void)propId;",
-  "label": "An audio reconnect request disconnects instead"
+  "label": "An audio reconnect request disconnects instead",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_address_routing_and_adapter_ikscontrol_activation"
+  ]
  },
  {
   "id": "btg-36",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "if (SUCCEEDED(hr)) result.requested = TRUE;",
   "new": "if (SUCCEEDED(hr)) result.requested = FALSE;",
-  "label": "Accepted one-shot requests are always reported as failures"
+  "label": "Accepted one-shot requests are always reported as failures",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_address_routing_and_adapter_ikscontrol_activation"
+  ]
  },
  {
   "id": "btg-37",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "if (state & DEVICE_STATE_ACTIVE) observations[j].active = TRUE;",
   "new": "if (state & (DEVICE_STATE_ACTIVE | DEVICE_STATE_UNPLUGGED)) observations[j].active = TRUE;",
-  "label": "Unplugged audio endpoints are reported as connected"
+  "label": "Unplugged audio endpoints are reported as connected",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_status_refresh_is_throttled_address_bound_and_never_trusts"
+  ]
  },
  {
   "id": "btg-38",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "d->audioStatusValid = SUCCEEDED(result.enumerationHr);",
   "new": "d->audioStatusValid = TRUE;",
-  "label": "A failed or partial audio enumeration is published as authoritative status"
+  "label": "A failed or partial audio enumeration is published as authoritative status",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests"
+  ]
  },
  {
   "id": "btg-39",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "int idx = FindDeviceIndexByAddress(observations[i].address);",
   "new": "int idx = i;",
-  "label": "Audio status is published to a moving row rather than its captured address"
+  "label": "Audio status is published to a moving row rather than its captured address",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_status_refresh_is_throttled_address_bound_and_never_trusts"
+  ]
  },
  {
   "id": "btg-40",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "if (adapterId) CoTaskMemFree(adapterId);",
   "new": "(void)adapterId;",
-  "label": "Repeated audio status/reconnect scans leak allocated adapter identifiers"
+  "label": "Repeated audio status/reconnect scans leak allocated adapter identifiers",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests"
+  ]
  },
  {
   "id": "btg-41",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "if (ks) IKsControl_Release(ks);",
   "new": "(void)ks;",
-  "label": "Every reconnect leaks its IKsControl reference"
+  "label": "Every reconnect leaks its IKsControl reference",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_com_failures_release_every_object_and_device_id"
+  ]
  },
  {
   "id": "btg-42",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "if (adapter) IMMDevice_Release(adapter);",
   "new": "(void)adapter;",
-  "label": "Every reconnect leaks its adapter IMMDevice reference"
+  "label": "Every reconnect leaks its adapter IMMDevice reference",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_com_failures_release_every_object_and_device_id"
+  ]
  },
  {
   "id": "btg-43",
   "file": "bluetooth-guard/src/parts/device_policy.c",
   "old": "return radioOn && d->address",
   "new": "return (radioOn || TRUE) && d->address",
-  "label": "Automatic requests continue while the radio is unavailable"
+  "label": "Automatic requests continue while the radio is unavailable",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-44",
   "file": "bluetooth-guard/src/parts/bt_actions.c",
   "old": "if (!DeviceAutoConnectDue(d, now, g_radioOn && !g_suspendAutoConnect)) continue;",
   "new": "if (!g_guardOn || !DeviceAutoConnectDue(d, now, g_radioOn && !g_suspendAutoConnect)) continue;",
-  "label": "Guard OFF incorrectly disables the approved earbuds reconnect worker"
+  "label": "Guard OFF incorrectly disables the approved earbuds reconnect worker",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-45",
   "file": "bluetooth-guard/src/parts/device_policy.c",
   "old": "DeviceIsAudio(d) && !DeviceAudioReady(d)",
   "new": "DeviceIsAudio(d) && !d->connected",
-  "label": "A Bluetooth ACL without working audio suppresses reconnect attempts"
+  "label": "A Bluetooth ACL without working audio suppresses reconnect attempts",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-46",
   "file": "bluetooth-guard/src/parts/bt_actions.c",
   "old": "d->nextConnectTick = now + ConnectRetryDelayMs(d->connectAttempts);",
   "new": "d->nextConnectTick = now;",
-  "label": "Reconnect is hammered at the discovery cadence instead of backing off"
+  "label": "Reconnect is hammered at the discovery cadence instead of backing off",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-47",
   "file": "bluetooth-guard/src/parts/device_policy.c",
   "old": "40000ULL, 60000ULL",
   "new": "40000ULL, 600000ULL",
-  "label": "The bounded retry ceiling expands to a ten-minute wait"
+  "label": "The bounded retry ceiling expands to a ten-minute wait",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-48",
   "file": "bluetooth-guard/src/parts/bt_actions.c",
   "old": "if (g_suspendAutoConnect || d->autoPaused || (!d->allowAuto && !d->sessionAllowed)) break;",
   "new": "if (g_suspendAutoConnect || (!d->allowAuto && !d->sessionAllowed)) break;",
-  "label": "A stale queued Connect bypasses an explicit Disconnect pause"
+  "label": "A stale queued Connect bypasses an explicit Disconnect pause",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-49",
   "file": "bluetooth-guard/src/parts/device_policy.c",
   "old": "d->autoPaused = !connect;",
   "new": "d->autoPaused = FALSE;",
-  "label": "Manual Disconnect is immediately eligible for the app to undo"
+  "label": "Manual Disconnect is immediately eligible for the app to undo",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-50",
   "file": "bluetooth-guard/src/parts/device_policy.c",
   "old": "d->allowAuto && !d->autoPaused && DeviceIsAudio(d)",
   "new": "(d->allowAuto || d->sessionAllowed) && !d->autoPaused && DeviceIsAudio(d)",
-  "label": "Accept/manual-session permission is mistaken for ongoing Auto approval"
+  "label": "Accept/manual-session permission is mistaken for ongoing Auto approval",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-51",
   "file": "bluetooth-guard/src/parts/bt_actions.c",
   "old": "if (g_suspendAutoConnect || d->autoPaused || (!d->allowAuto && !d->sessionAllowed)) break;",
   "new": "if (g_suspendAutoConnect || d->autoPaused) break;",
-  "label": "A queued manual Connect survives revocation of both Auto and session permission"
+  "label": "A queued manual Connect survives revocation of both Auto and session permission",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-52",
   "file": "bluetooth-guard/src/parts/bt_actions.c",
   "old": "if (g_suspendAutoConnect || d->autoPaused || (!d->allowAuto && !d->sessionAllowed)) break;",
   "new": "if (d->autoPaused || (!d->allowAuto && !d->sessionAllowed)) break;",
-  "label": "Queued manual connects run while the app is suspending or exiting"
+  "label": "Queued manual connects run while the app is suspending or exiting",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-53",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "        RunAutoConnect();",
   "new": "        /* automatic reconnect worker removed */",
-  "label": "Eligible Auto devices are scanned but never actively reconnected"
+  "label": "Eligible Auto devices are scanned but never actively reconnected",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_worker_status_and_manual_disconnect_wiring"
+  ]
  },
  {
   "id": "btg-54",
   "file": "bluetooth-guard/src/parts/bt_actions.c",
   "old": "BOOL requested = idx >= 0 && g_devices[idx].autoPaused && !g_devices[idx].sessionAllowed;",
   "new": "BOOL requested = TRUE; (void)idx;",
-  "label": "A stale explicit Disconnect undoes a later owner Connect choice"
+  "label": "A stale explicit Disconnect undoes a later owner Connect choice",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-55",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "BOOL isConnected = info.fConnected || d->audioConnected;",
   "new": "BOOL isConnected = info.fConnected;",
-  "label": "An address-matched active audio endpoint is ignored when the classic link flag is stale"
+  "label": "An address-matched active audio endpoint is ignored when the classic link flag is stale",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-56",
   "file": "bluetooth-guard/src/parts/bt_actions.c",
   "old": "    EnsureProfilesEnabled(address, kind);",
   "new": "    (void)kind;",
-  "label": "Connect no longer restores enabled service profiles before the native request"
+  "label": "Connect no longer restores enabled service profiles before the native request",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-57",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "if (DeviceAudioReady(d) || (!DeviceIsAudio(d) && d->connected)) ResetConnectRequest(d);",
   "new": "(void)d;",
-  "label": "A confirmed audio connection never resets automatic retry backoff"
+  "label": "A confirmed audio connection never resets automatic retry backoff",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-58",
   "file": "bluetooth-guard/src/parts/audio_endpoints.c",
   "old": "for (UINT i = 0; i < count; i++) {",
   "new": "for (UINT i = 0; SUCCEEDED(result.enumerationHr) && i < count; i++) {",
-  "label": "One broken unrelated endpoint prevents reconnecting a later valid audio adapter"
+  "label": "One broken unrelated endpoint prevents reconnecting a later valid audio adapter",
+  "tests": [
+   "tests.test_windows_apps.BluetoothAudioEndpointTests.test_com_failures_release_every_object_and_device_id"
+  ]
  },
  {
   "id": "btg-59",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "if (_wcsicmp(kind, L\"Device\") != 0 || !d->kind[0]) wcsncpy(d->kind, kind, 15);",
   "new": "wcsncpy(d->kind, kind, 15);",
-  "label": "An incomplete saved scan erases a known earbuds audio kind and disables retry"
+  "label": "An incomplete saved scan erases a known earbuds audio kind and disables retry",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "btg-60",
   "file": "bluetooth-guard/src/parts/autostart_rules.c",
   "old": "if (info.szName[0] || !d->name[0]) wcsncpy(d->name, nm, 247);",
   "new": "wcsncpy(d->name, nm, 247);",
-  "label": "An incomplete saved scan replaces a known earbuds name with its MAC"
+  "label": "An incomplete saved scan replaces a known earbuds name with its MAC",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  },
  {
   "id": "hub-open-16",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "        SuitePostWindowReveal(app);",
   "new": "        if (FALSE) SuitePostWindowReveal(app);",
-  "label": "Elevated Guard loses its app-owned reveal when foreign show is blocked"
+  "label": "Elevated Guard loses its app-owned reveal when foreign show is blocked",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-17",
   "file": "bluetooth-guard/src/parts/window_activation.c",
   "old": "    if (message) ChangeWindowMessageFilterEx(hwnd, message, MSGFLT_ALLOW, NULL);",
   "new": "    if (FALSE && message) ChangeWindowMessageFilterEx(hwnd, message, MSGFLT_ALLOW, NULL);",
-  "label": "Guard does not permit the single show-only message across its integrity boundary"
+  "label": "Guard does not permit the single show-only message across its integrity boundary",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-18",
   "file": "shared/win32/window_reveal.h",
   "old": "    return (DWORD)((DWORD)GetTickCount64() - (DWORD)sentTick) <= SUITE_WINDOW_REVEAL_MAX_AGE_MS &&",
   "new": "    (void)sentTick;\n    return",
-  "label": "A busy child accepts a queued reveal after its freshness bound"
+  "label": "A busy child accepts a queued reveal after its freshness bound",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-19",
   "file": "shared/win32/window_reveal.h",
   "old": "GetLastInputInfo(&input) && input.dwTime == (DWORD)inputTick;",
   "new": "GetLastInputInfo(&input) && (input.dwTime == (DWORD)inputTick || TRUE);",
-  "label": "A queued child reveal ignores newer user input"
+  "label": "A queued child reveal ignores newer user input",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-20",
   "file": "bluetooth-guard/src/parts/window_activation.c",
   "old": "    if (!message || msg != message) return FALSE;",
   "new": "    if (!message || msg == 0) return FALSE;",
-  "label": "Guard mistakes unrelated window messages for the permitted show-only request"
+  "label": "Guard mistakes unrelated window messages for the permitted show-only request",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-21",
   "file": "bluetooth-guard/src/parts/window_activation.c",
   "old": "    ShowWindow(hwnd, IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);",
   "new": "    if (FALSE) ShowWindow(hwnd, IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);",
-  "label": "Own-UI reveal never restores the hidden or minimized panel"
+  "label": "Own-UI reveal never restores the hidden or minimized panel",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-22",
   "file": "bluetooth-guard/src/parts/window_activation.c",
   "old": "    ShowWindow(hwnd, IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);",
   "new": "    ShowWindow(hwnd, SW_SHOWNORMAL);",
-  "label": "Own-UI Open normalizes a previously maximized Guard panel"
+  "label": "Own-UI Open normalizes a previously maximized Guard panel",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-23",
   "file": "bluetooth-guard/src/parts/window_activation.c",
   "old": "    SetForegroundWindow(target);",
   "new": "    if (FALSE) SetForegroundWindow(target);",
-  "label": "Own-UI reveal leaves the visible Guard behind other applications"
+  "label": "Own-UI reveal leaves the visible Guard behind other applications",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-24",
   "file": "bluetooth-guard/src/parts/window_activation.c",
   "old": "    if (!target || !IsWindowVisible(target)) target = hwnd;",
   "new": "    target = hwnd;",
-  "label": "Guard focuses its disabled parent instead of the active modal popup"
+  "label": "Guard focuses its disabled parent instead of the active modal popup",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-25",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "            if (pid) AllowSetForegroundWindow(pid);",
   "new": "            if (FALSE && pid) AllowSetForegroundWindow(pid);",
-  "label": "Direct second Open fails to delegate foreground permission to the running Guard"
+  "label": "Direct second Open fails to delegate foreground permission to the running Guard",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_every_guard_open_route_uses_the_owning_ui_and_only_show_is_allowed"
+  ]
  },
  {
   "id": "hub-open-26",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "        if (id == IDM_TRAY_OPEN) {\n            RevealPanel(hwnd);",
   "new": "        if (id == IDM_TRAY_OPEN) {\n            (void)hwnd;",
-  "label": "Guard fallback-tray Open no longer reveals its panel"
+  "label": "Guard fallback-tray Open no longer reveals its panel",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_every_guard_open_route_uses_the_owning_ui_and_only_show_is_allowed"
+  ]
  },
  {
   "id": "hub-open-27",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "        if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {\n            RevealPanel(hwnd);",
   "new": "        if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {\n            (void)hwnd;",
-  "label": "Existing-instance show event is consumed without revealing Guard"
+  "label": "Existing-instance show event is consumed without revealing Guard",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_every_guard_open_route_uses_the_owning_ui_and_only_show_is_allowed"
+  ]
  },
  {
   "id": "hub-open-28",
   "file": "shared/win32/window_reveal.h",
   "old": "    return message && GetLastInputInfo(&input) &&",
   "new": "    return message && (GetLastInputInfo(&input) || TRUE) &&",
-  "label": "Hub posts an unverifiable show-only request when the input snapshot fails"
+  "label": "Hub posts an unverifiable show-only request when the input snapshot fails",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-open-29",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "    if (HandleHubPanelReveal(hwnd, msg, wp, lp)) return 0;",
   "new": "    if (FALSE && HandleHubPanelReveal(hwnd, msg, wp, lp)) return 0;",
-  "label": "Guard WndProc never dispatches the app-owned reveal message"
+  "label": "Guard WndProc never dispatches the app-owned reveal message",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_every_guard_open_route_uses_the_owning_ui_and_only_show_is_allowed"
+  ]
  },
  {
   "id": "btg-61",
   "file": "bluetooth-guard/src/parts/device_presentation.c",
   "old": "    BOOL ready = DeviceAudioReady(d) || (!audio && d->connected);",
   "new": "    BOOL ready = d->connected;",
-  "label": "Presentation equates an audio ACL with confirmed Windows audio readiness"
+  "label": "Presentation equates an audio ACL with confirmed Windows audio readiness",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests"
+  ]
  },
  {
   "id": "btg-62",
   "file": "bluetooth-guard/src/parts/device_presentation.c",
   "old": "    } else if (ready) {",
   "new": "    } else if (ready && !d->autoPaused) {",
-  "label": "A saved retry pause hides a real active audio connection"
+  "label": "A saved retry pause hides a real active audio connection",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_connected_green_and_paired_blue_do_not_depend_on_auto_preference"
+  ]
  },
  {
   "id": "btg-63",
   "file": "bluetooth-guard/src/parts/device_presentation.c",
   "old": "requested || (audio && d->connected) || d->paired || d->allowAuto",
   "new": "requested || (audio && d->connected) || d->allowAuto",
-  "label": "A disconnected paired Auto-off row loses the paired-blue visual"
+  "label": "A disconnected paired Auto-off row loses the paired-blue visual",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_connected_green_and_paired_blue_do_not_depend_on_auto_preference"
+  ]
  },
  {
   "id": "btg-64",
   "file": "bluetooth-guard/src/parts/device_presentation.c",
   "old": "requested || (audio && d->connected) || d->paired || d->allowAuto",
   "new": "requested || (audio && d->connected) || d->paired",
-  "label": "An explicitly Auto-configured saved record loses its blue configuration visual"
+  "label": "An explicitly Auto-configured saved record loses its blue configuration visual",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_review_denied_and_saved_only_records_cannot_masquerade_as_paired"
+  ]
  },
  {
   "id": "btg-65",
   "file": "bluetooth-guard/src/parts/device_presentation.c",
   "old": "        view->statusFg = COL_ACCENT; view->statusBg = COL_ACCENT_BG;",
   "new": "        view->statusFg = COL_GOOD; view->statusBg = COL_GOOD_BG;",
-  "label": "Paired, pending or link-only devices falsely turn connected-green"
+  "label": "Paired, pending or link-only devices falsely turn connected-green",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_review_denied_and_saved_only_records_cannot_masquerade_as_paired"
+  ]
  },
  {
   "id": "btg-66",
   "file": "bluetooth-guard/src/parts/device_presentation.c",
   "old": "    } else if (!radioOn) {",
   "new": "    } else if (!radioOn && !ready) {",
-  "label": "An unavailable radio still paints a stale audio observation green"
+  "label": "An unavailable radio still paints a stale audio observation green",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_connected_green_and_paired_blue_do_not_depend_on_auto_preference"
+  ]
  },
  {
   "id": "btg-67",
   "file": "bluetooth-guard/src/parts/device_presentation.c",
   "old": "    if (DeviceNeedsReview(d)) {",
   "new": "    if (DeviceNeedsReview(d) && !ready) {",
-  "label": "A connected undecided device loses its approval warning"
+  "label": "A connected undecided device loses its approval warning",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_review_denied_and_saved_only_records_cannot_masquerade_as_paired"
+  ]
  },
  {
   "id": "btg-68",
   "file": "bluetooth-guard/src/parts/device_presentation.c",
   "old": "    } else if (d->denied) {",
   "new": "    } else if (d->denied && !ready) {",
-  "label": "A denied but not-yet-dropped link masquerades as approved connected-green"
+  "label": "A denied but not-yet-dropped link masquerades as approved connected-green",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_review_denied_and_saved_only_records_cannot_masquerade_as_paired"
+  ]
  },
  {
   "id": "btg-69",
   "file": "bluetooth-guard/src/parts/device_presentation.c",
   "old": "d->autoPaused ? L\"Auto-Connect paused\" : L\"Auto-Connect on\"",
   "new": "d->autoPaused ? L\"Auto-Connect on\" : L\"Auto-Connect on\"",
-  "label": "The saved Auto preference conceals its explicit current-run pause"
+  "label": "The saved Auto preference conceals its explicit current-run pause",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_request_failure_retry_and_manual_pause_keep_readable_details"
+  ]
  },
  {
   "id": "btg-70",
   "file": "bluetooth-guard/src/parts/device_presentation.c",
   "old": "    view->preference = L\"Auto-Connect off\";",
   "new": "    view->preference = L\"Auto-Connect on\";",
-  "label": "A manual-only device falsely appears configured for automatic reconnect"
+  "label": "A manual-only device falsely appears configured for automatic reconnect",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_request_failure_retry_and_manual_pause_keep_readable_details"
+  ]
  },
  {
   "id": "btg-71",
   "file": "bluetooth-guard/src/parts/device_presentation.c",
   "old": "(unsigned long)(DWORD)d->connectError,",
   "new": "0UL,",
-  "label": "Connection failure details hide the actual Windows HRESULT"
+  "label": "Connection failure details hide the actual Windows HRESULT",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_request_failure_retry_and_manual_pause_keep_readable_details"
+  ]
  },
  {
   "id": "btg-72",
   "file": "bluetooth-guard/src/parts/device_presentation.c",
   "old": "now - d->connectRequestTick < 10000ULL;",
   "new": "now - d->connectRequestTick < 60000ULL;",
-  "label": "An expired request remains Connecting rather than paired or link-only"
+  "label": "An expired request remains Connecting rather than paired or link-only",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_connected_green_and_paired_blue_do_not_depend_on_auto_preference"
+  ]
  },
  {
   "id": "btg-73",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "                DrawTextW(mem, visual.detail, -1, &sr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);",
   "new": "                (void)sr;",
-  "label": "Device cards no longer paint connection or failure details"
+  "label": "Device cards no longer paint connection or failure details",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_cards_give_connection_details_and_auto_choice_separate_rows"
+  ]
  },
  {
   "id": "btg-74",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "                DrawTextW(mem, visual.preference, -1, &pr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);",
   "new": "                (void)pr;",
-  "label": "Device cards hide the separate Auto on/off/paused preference"
+  "label": "Device cards hide the separate Auto on/off/paused preference",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_cards_give_connection_details_and_auto_choice_separate_rows"
+  ]
  },
  {
   "id": "btg-75",
   "file": "bluetooth-guard/src/parts/window_entry.c",
   "old": "    int cardH = S(108, dpi);",
   "new": "    int cardH = S(82, dpi);",
-  "label": "Shrunken cards overlap the independent connection detail and Auto/control rows"
+  "label": "Shrunken cards overlap the independent connection detail and Auto/control rows",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_cards_give_connection_details_and_auto_choice_separate_rows"
+  ]
  },
  {
   "id": "hub-header-00",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "return S(width < required ? 124 : 76, dpi);",
   "new": "return S(width < S(920, dpi) ? 124 : 76, dpi);",
-  "label": "Four fitting controls are pushed below the title by a worst-case five-button breakpoint"
+  "label": "Four fitting controls are pushed below the title by a worst-case five-button breakpoint",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_header_aligns_visible_buttons_with_the_title_when_they_fit"
+  ]
  },
  {
   "id": "hub-header-01",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "    for (int i = 0; i < 5; i++) {\n        if (g_topBtns[i].hidden) continue;\n        required += S(g_topBtns[i].widthPx, dpi);",
   "new": "    for (int i = 0; i < 5; i++) {\n        if (FALSE && g_topBtns[i].hidden) continue;\n        required += S(g_topBtns[i].widthPx, dpi);",
-  "label": "A hidden Update Hub reserves width in the header fit calculation"
+  "label": "A hidden Update Hub reserves width in the header fit calculation",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_header_aligns_visible_buttons_with_the_title_when_they_fit"
+  ]
  },
  {
   "id": "hub-header-02",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "        required += S(g_topBtns[i].widthPx, dpi);",
   "new": "        required += g_topBtns[i].widthPx;",
-  "label": "Header fit ignores DPI-scaled visible control widths"
+  "label": "Header fit ignores DPI-scaled visible control widths",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_header_aligns_visible_buttons_with_the_title_when_they_fit"
+  ]
  },
  {
   "id": "hub-header-03",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "        if (visible++) required += S(9, dpi);",
   "new": "        if (visible++) required += 0;",
-  "label": "Header fit omits the gaps between visible controls"
+  "label": "Header fit omits the gaps between visible controls",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_header_aligns_visible_buttons_with_the_title_when_they_fit"
+  ]
  },
  {
   "id": "hub-header-04",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "    int topBtnY = compact ? S(77, dpi) : (headerH - topBtnH) / 2;",
   "new": "    int topBtnY = compact ? S(77, dpi) : S(77, dpi);",
-  "label": "Single-row header controls retain the lower-row vertical offset"
+  "label": "Single-row header controls retain the lower-row vertical offset",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_header_aligns_visible_buttons_with_the_title_when_they_fit"
+  ]
  },
  {
   "id": "hub-header-05",
   "file": "project-hub/src/parts/ui_renderer.c",
   "old": "S(14, dpi) * 2 + S(256, dpi);",
   "new": "S(14, dpi) * 2 + S(128, dpi);",
-  "label": "Header packs controls into the reserved readable title/subtitle column"
+  "label": "Header packs controls into the reserved readable title/subtitle column",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_header_aligns_visible_buttons_with_the_title_when_they_fit"
+  ]
  },
  {
   "id": "hub-launch-error-00",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    DWORD launchError = started ? ERROR_SUCCESS : GetLastError();",
   "new": "    DWORD launchError = ERROR_SUCCESS;",
-  "label": "The actual Windows launch error is discarded"
+  "label": "The actual Windows launch error is discarded",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-launch-error-01",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    SetLastError(ERROR_SUCCESS);",
   "new": "    if (FALSE) SetLastError(ERROR_SUCCESS);",
-  "label": "A failure without a shell code inherits a stale mutex or scan error"
+  "label": "A failure without a shell code inherits a stale mutex or scan error",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-launch-error-02",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "            HubReportOpenFailure(imagePath, dir, launchError);",
   "new": "            HubReportOpenFailure(imagePath, dir, GetLastError());",
-  "label": "Handle or timer cleanup replaces the real launch error"
+  "label": "Handle or timer cleanup replaces the real launch error",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-launch-error-03",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    MessageBoxW(g_hwnd, details, L\"Project Hub - app launch failed\", MB_OK | MB_ICONERROR);",
   "new": "    if (FALSE) MessageBoxW(g_hwnd, details, L\"Project Hub - app launch failed\", MB_OK | MB_ICONERROR);",
-  "label": "A launch failure again hides the useful Windows reason and paths"
+  "label": "A launch failure again hides the useful Windows reason and paths",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-launch-error-04",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "             name, (unsigned long)error, reason, imagePath,",
   "new": "             name, (unsigned long)error, reason, L\"(not recorded)\",",
-  "label": "Launch error details omit the actual executable path"
+  "label": "Launch error details omit the actual executable path",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-launch-error-05",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,",
   "new": "FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM,",
-  "label": "Error formatting attempts to expand unprovided system-message inserts"
+  "label": "Error formatting attempts to expand unprovided system-message inserts",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-launch-error-06",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "             dir && dir[0] ? dir : L\"(not specified; Windows default)\");",
   "new": "             L\"(not specified; Windows default)\");",
-  "label": "Launch error details hide the supplied working folder"
+  "label": "Launch error details hide the supplied working folder",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-launch-error-07",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "    if (!length || length >= 512)",
   "new": "    if (length >= 512)",
-  "label": "Unknown Windows errors lose their explicit unavailable-description fallback"
+  "label": "Unknown Windows errors lose their explicit unavailable-description fallback",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  },
  {
   "id": "hub-launch-error-08",
   "file": "project-hub/src/parts/app_activation.c",
   "old": "L\"Could not open %.80ls (Windows %lu). See error details.\"",
   "new": "L\"App %.0ls failed (Windows %lu). See error details.\"",
-  "label": "The persistent footer loses the identity of the app that failed"
+  "label": "The persistent footer loses the identity of the app that failed",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  }
 ]

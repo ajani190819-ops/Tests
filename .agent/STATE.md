@@ -5,26 +5,24 @@
 
 ## Released work
 
-- **Hub:** main 2.8.56; Arena 2.8.69. APP-02 (2.8.64) repairs draw-locked
-  icon ownership and shell recovery; original expiry/native soak unconfirmed.
-  APP-01: Guard Start fails without UAC; actual cause unknown. Retain modal/max
-  placement/duplicate prevention. asInvoker, child elevation,
-  user-opened Notes and stop/update gates unchanged.
-- **Agent Notes:** `ad92320`, marker `5343e54`. Saved=receiver flush;
-  Read=later checkpoint. Visual wait/opt-in sound; no startup persistence.
+- **Hub:** main 2.8.56; Arena 2.8.69. APP-02 lifetime repairs released;
+  expiry/native soak open. APP-01 Guard Start fails without UAC; cause unknown.
+  Retain modal/max/no-duplicate, asInvoker, child-elevation, user-opened Notes
+  and stop/update gates.
+- **Agent Notes:** Saved=receiver flush; Read=later checkpoint. Visual wait/
+  opt-in sound; no startup persistence.
 - **Tri-Spoke:** `shared/win32/suite_emblem.c` is the sole native renderer.
   Raw DIBs use `SuiteEmblemDibPixel`; each consumer releases its cache.
 - **Radar:** rain watch `1be38f4`/`59794dc`, 66%+ point odds in 3h, persisted
   episode/cooldown; regional coverage never alerts. Planner: Hub 2.8.62.
   Alignment `36c55bd`/`d97ba63` rejects old-place tiles, locks through blit.
-  Native/live review pending; release history in Drive.
+  Native/live review pending.
 
 ## Bluetooth Guard / BT-01
 
 Owner reports basic connection now works after `9c91afd`/`7740af8` (Hub 2.8.66).
-Panel/status follow-up `1839e1e`, Hub 2.8.67 + Guard: own-UI restore, one
-show-only per-window UIPI message, fresh scalar ticks; elevation/legacy async/
-duplicate/update gates retained. Green=confirmed connected, blue=paired/Auto/
+Hub 2.8.67 + Guard: own-UI restore, show-only per-window UIPI message,
+fresh scalar ticks; elevation/legacy async/duplicate/update gates retained. Green=confirmed connected, blue=paired/Auto/
 link-only/request; separate Auto on/off/paused/details, approval amber, denied red.
 Preserve K/D/F, address-only actions, profiles and 5..60s Guard-independent retries.
 Native focus/DPI and persistence/manual/lifecycle/LE checks remain open:
@@ -42,18 +40,17 @@ Repeat pending/parked items; omissions remain OPEN.
 - **Hub / Windows:** APP-02 two reproduced lifetime defects fixed in 2.8.64;
   Windows soak/original expiry open. APP-01 active: 2.8.69 reports
   app/Windows launch code/path; no retry/elevation change. Cause unknown.
-  137 tests/335 mutations/ASan/checks pass; exact owner error is next.
-  OPS-01 monitor: latest open fine; identify UAC program/path/action if repeated
-  (reports: Hub open, app open, app update). APP-03 released 2.8.65 (`b16380c`):
-  General apps / Orca plugins / Minecraft mods; independent Undahang / Unlayered
-  Infill, settings/legacy paths preserved. Approved abstract Undahang icon in
-  2.8.66 (`fd27fa3`); Infill art unchanged.
-  Header 2.8.68: visible controls align; wrap only if narrow (`9aa94e7`).
-  Native header/icons/fitting pending
+  Original 137-test/335-mutation release gate passed; PLAN-02 later corrected
+  six false-positive mutation kills. Exact owner error is next.
+  OPS-01 monitor: identify UAC program/path/action if repeated (Hub open,
+  app open/update). APP-03: General apps / Orca plugins / Minecraft mods;
+  independent Undahang / Unlayered Infill, stable settings/paths. Approved
+  Undahang icon in 2.8.66; Infill art unchanged. Header 2.8.68 aligns controls,
+  wraps when narrow. Native header/icons/fitting pending
   (`test-hub-grouped-entries.md`).
 - **Bluetooth Guard:** BT-01 pending: panel reveal/status confirmation. Basic
   connection owner-confirmed; choices/persistence/manual/lifecycle checks remain.
-  Scans never grant trust.
+  Scans/review rows never grant persisted trust.
 - **Keyboard Lighting:** KBL-01 parked; fresh owner `engine.log` required.
 - **Spatial HUD:** HUD-01 three-method F5W runtime/compatibility checks pending.
 - **Orca:** ORCA-01/02/03 historical follow-ups to confirm: actual-config curved
@@ -65,19 +62,21 @@ Repeat pending/parked items; omissions remain OPEN.
   Infill/Bluetooth Guard stay unchanged; not Bluetooth Bouncer. Public labels only;
   preserve internal IDs/paths and fresh-log gate. APP-03 applies only the Undahang
   Hub label; wider public-name rollout is still queued.
-- **Planning:** PLAN-01 missing-request recovery open.
+- **Planning:** PLAN-01 missing-request recovery open. PLAN-02 first slice
+  verified: timing/fail-fast/335 explicit routes, clean 169-test gates, exact
+  restoration; 335 detected, 0 survived/stale/errors in 132.622s. Same-scope
+  benchmark 1199.910 -> 147.385s (8.14x), all 335 verdicts equal. Six old
+  coverage gaps repaired; no verdict cache/app changes. Artifact reuse/isolated
+  workers deferred; `.agent/runbooks/mutation-runner.md`.
 
 ## Offline safety / efficiency
 
 - Move `.agent/RELEASED` only in a second commit blessing verified finished work;
   download that SHA, not an unfinished tip. Current apps never offer Update.
 - Close and prove managed targets stopped before replacing EXEs.
-- Keep Bluetooth profiles enabled; K/D/F distinguish trusted/denied/forgotten.
-  Review candidates are not persisted as trust.
 - Preserve Radar attribution/cache, generation-gated staging, source zoom <=7,
   local display 8-10 crops and a lock through the published-view blit.
 - Behavior edits need regressions/mutations. Build/check before commits;
   regenerate CODEMAP after mapped C/Python layout changes.
-- Context: AGENTS/STATE/execution/topic <=15,000 chars; map/Drive on demand.
-  HUD needs JDK 25 (in CI).
-- Keep Drive plan/Guide synced from verified Git; no source/raw-output mirrors.
+- Default context <=15,000 chars; map/Drive on demand. HUD: JDK 25 (CI).
+- Keep Drive plan/Guide synced; no source/raw-output mirrors.

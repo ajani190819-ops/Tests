@@ -25,6 +25,9 @@ import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
+# Set only by the mutation worker. Clean pre/post runs verify all needles;
+# replacing the active file's own needle is not a behavioral mutation kill.
+MUTATION_FILE = None
 
 
 def read_c_inlined(rel, encoding="utf-8", errors="replace"):
@@ -4539,9 +4542,10 @@ class SuiteFolderInstallTests(unittest.TestCase):
             p = ROOT / e["file"]
             self.assertTrue(p.exists(), "mutation %s points at a missing file" % e["id"])
             src = p.read_text(encoding="utf-8")
-            self.assertGreaterEqual(src.count(e["old"]), 1,
-                                    "mutation %s no longer applies - its needle "
-                                    "drifted and it now tests nothing" % e["id"])
+            if e["file"] != MUTATION_FILE:
+                self.assertGreaterEqual(src.count(e["old"]), 1,
+                                        "mutation %s no longer applies - its needle "
+                                        "drifted and it now tests nothing" % e["id"])
         mu = (ROOT / "tools" / "mutate.py").read_text(encoding="utf-8")
         for needle in ("SURVIVED", "STALE", "--list"):
             self.assertIn(needle, mu, "the mutation runner lost a mode")
@@ -6212,6 +6216,109 @@ static void StatusSet(const wchar_t *text, int kind) { (void)kind; wcsncpy(statu
         self.assertIn("typedef struct { INT64 Duration; } LocTimeSpan;", header)
         self.assertIn("typedef struct { INT64 UniversalTime; } LocDateTime;", header)
         self.assertIn("typedef struct { double Latitude, Longitude, Altitude; } LocBasicPosition;", header)
+
+
+class SafetyMutationPropertyTests(unittest.TestCase):
+    """Properties previously hidden by the mutation registry's own drift check.
+    Static call-order contracts and production-C helpers are distinct from
+    native Windows/network acceptance; no app behavior is changed here."""
+
+    def _native(self, source):
+        import shutil
+        import tempfile
+        compiler = shutil.which("cc") or shutil.which("clang") or shutil.which("gcc")
+        if compiler is None:
+            raise FileNotFoundError("Portable C compiler is required for this property test")
+        with tempfile.TemporaryDirectory(prefix="safety-property-") as name:
+            folder = Path(name)
+            (folder / "property.c").write_text(source, encoding="utf-8")
+            built = subprocess.run([compiler, "-std=c11", "-Wall", "-Wextra", "-Werror",
+                                    str(folder / "property.c"), "-o", str(folder / "property")],
+                                   capture_output=True, text=True, timeout=15)
+            self.assertEqual(built.returncode, 0, built.stderr)
+            ran = subprocess.run([str(folder / "property")], capture_output=True, text=True, timeout=15)
+            self.assertEqual(ran.returncode, 0, ran.stderr)
+
+    def test_notes_palette_is_initialized_before_native_window_resources(self):
+        entry = (ROOT / "agent-notes/src/parts/entry.c").read_text()
+        self.assertIn("    InitPalette();", entry)
+        self.assertLess(entry.index("InitPalette();"), entry.index("CreateMutexW("))
+        self.assertLess(entry.index("InitPalette();"), entry.index("CreateWindowExW("))
+
+    def test_geocoding_ticket_helper_rejects_old_answers_under_its_lock(self):
+        places = (ROOT / "weather-radar/src/parts/places.c").read_text()
+        start = places.index("static int SearchTicketIsCurrent(DWORD ticket)")
+        helper = places[start:places.index("\n}", start) + 2]
+        self._native("""#include <assert.h>
+#include <stdint.h>
+typedef uint32_t DWORD;
+static int g_lock, locked;
+static DWORD g_searchTicket;
+static void EnterCriticalSection(int *p) { assert(p == &g_lock && !locked); locked = 1; }
+static void LeaveCriticalSection(int *p) { assert(p == &g_lock && locked); locked = 0; }
+""" + helper + """
+int main(void) {
+    const DWORD tickets[] = {0, 1, 100, UINT32_MAX};
+    for (unsigned i = 0; i < sizeof(tickets)/sizeof(tickets[0]); i++) {
+        g_searchTicket = tickets[i];
+        assert(SearchTicketIsCurrent(tickets[i]) && !locked);
+        assert(!SearchTicketIsCurrent(tickets[i] + 1) && !locked);
+    }
+    return 0;
+}
+""")
+
+    def test_canonical_emblem_conversion_exports_the_required_bgr_adapter(self):
+        emblem = (ROOT / "shared/win32/suite_emblem.c").read_text()
+        start = emblem.index("static uint32_t SuiteEmblemDibRgb(")
+        helpers = emblem[start:emblem.index("/* One shared timebase", start)]
+        self._native("""#include <assert.h>
+#include <stdint.h>
+typedef uint32_t COLORREF;
+#define GetRValue(c) ((c) & 255)
+#define GetGValue(c) (((c) >> 8) & 255)
+#define GetBValue(c) (((c) >> 16) & 255)
+""" + helpers + """
+int main(void) {
+    assert(SuiteEmblemDibPixel(0x00412111) == 0x00112141);
+    assert(SuiteEmblemDibPixel(0) == 0);
+    assert(SuiteEmblemDibPixel(0x00ffffff) == 0x00ffffff);
+    return 0;
+}
+""")
+
+    def test_old_place_forecast_cannot_publish_status_or_consider_rain_alerts(self):
+        ui = (ROOT / "weather-radar/src/parts/ui.c").read_text()
+        start = ui.index("if (kind == JOB_FORECAST)")
+        forecast = ui[start:ui.index("else if (kind == JOB_ENSEMBLE)", start)]
+        self.assertIn("int current = (ticket == g_placeTicket);", forecast)
+        self.assertIn("if (!current) return 0;", forecast)
+        guard = forecast.index("if (!current) return 0;")
+        self.assertLess(guard, forecast.index("StatusSet("))
+        self.assertLess(guard, forecast.index("RainAlertConsider("))
+
+    def test_hub_settings_persist_panel_before_live_theme_and_keep_rollback(self):
+        page = (ROOT / "project-hub/src/parts/settings_page.c").read_text()
+        start = page.index("static BOOL ApplyKeyboardSetting(")
+        apply = page[start:page.index("static BOOL ApplySmooth(", start)]
+        panel = "if (!WriteBinaryFileAtomic(panelPath, (const BYTE *)panelOut, panelOutLen))"
+        theme = "if (!WriteBinaryFileAtomic(themePath, (const BYTE *)themeOut, themeOutLen))"
+        self.assertIn(panel, apply, "Hub must persist the saved panel preference")
+        self.assertIn(theme, apply, "Hub must persist the corresponding live preference")
+        self.assertLess(apply.index(panel), apply.index(theme))
+        rollback = apply[apply.index(theme):apply.index("ok = TRUE;")]
+        self.assertIn("WriteBinaryFileAtomic(panelPath, (const BYTE *)panelTxt, panelLen)", rollback)
+        self.assertIn("else DeleteFileW(panelPath);", rollback)
+        self.assertIn("goto done;", rollback)
+
+    def test_waiting_notes_relay_the_same_wait_id_before_local_duplicate_suppression(self):
+        notes = (ROOT / "agent-notes/src/parts/wait_alerts.c").read_text()
+        start = notes.index("static void HandleStatusPoll(")
+        waiting = notes[start:notes.index("ShowAgentWaitingAlert();", start)]
+        self.assertRegex(waiting, r"(?s)if \(result->statusOk\).*if \(result->waiting\).*"
+                                 r"PublishHubWaitRelay\(result->waitId\);")
+        self.assertLess(waiting.index("PublishHubWaitRelay(result->waitId);"),
+                        waiting.index("wcscmp(result->waitId, g_seenWait)"))
 
 
 if __name__ == "__main__":
