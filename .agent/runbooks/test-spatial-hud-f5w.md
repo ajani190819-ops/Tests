@@ -1,58 +1,64 @@
-# Test Spatial HUD in F5W
+# Spatial HUD F5W: source-aware verification and retained scope
 
-- Status: current test procedure.
-- Last verified: 2026-10-08 CI build `37730150490` (`7964948`); all F5W method results remain pending.
-- Read when: requesting or evaluating an F5W runtime test.
+**HUD-01 remains OPEN.** The saved request is Classic Affine, Captured Mesh and
+World-Space Texture three-method acceptance. The current source cannot execute
+that checklist: it only activates the **Purple Horizontal Panel**. This runbook
+corrects the handoff; it does not restore methods or redefine the owner's request.
 
-## Before starting
+## Stop the version/method mismatch first
 
-1. Close Minecraft.
-2. Install the current rolling Spatial HUD JAR in the F5W profile. Remove or
-   replace older copies so Fabric does not load the wrong artifact. Confirm the
-   new `latest.log` contains `Spatial HUD render-method build initialized` and
-   contains neither `spatialhud:world_texture_through_world` nor `Sampler1`. The
-   current Method 3 uses vanilla `ENTITY_TRANSLUCENT` or `GUI_TEXTURED`, not a
-   custom shader pipeline.
-3. Keep the normal F5W renderer and HUD-mod stack enabled. Do not disable Iris
-   or companion HUD mods unless the test is explicitly an isolation test.
+Current source 1.0.5 / Minecraft 26.3 / Java 25 has enum identities
+`WORLD_SPACE_TEXTURE` and `POLYGON_TEST`, but `selectedRenderMethod()` always
+returns `POLYGON_TEST`; the picker is excluded, Method 3 is shelved and the old
+Classic Affine/Captured Mesh choices are absent. Current panel smoke results
+must be recorded separately from the **unfulfilled original three-method test**.
+If a tested JAR shows those old choices, identify that different build; do not
+call its results current-source acceptance. No hidden JSON edits to force old
+methods. Scope reconciliation with the owner is required before restoring or
+replacing the retained three-method requirement.
 
-## Test setup
+## Identify a real built artifact
 
-1. Press H and verify that it opens Spatial HUD settings without changing HUD
-   enabled state. Confirm **Method Guide — Read This First** is a read-only tab
-   with plain-language, wrapped cards for green Method 1, blue Method 2, and
-   red Method 3. Confirm its content has no editable field or saved setting.
-   The remaining three sections are **Setup & Render Method**, **Panel
-   Positioning & Orientation**, and **HUD Contents**; all placement controls
-   remain together in the middle section.
-2. Start with `Minimum Look-Down Angle` at 30, `Primary Lectern Tilt — Left ↔
-   Right Axis` at 45, `Fine Tilt Offset` at 0, `Turn — Up Axis` at 0, and
-   `Roll — Panel-Normal Axis` at 0. The positive direction and affected axis
-   are defined in the in-game tooltips.
-3. Test with native status-bar preservation both on and off if companion bars
-   are involved. This setting changes only Method 1 behavior.
+1. Close Minecraft. Back up the profile config/JAR privately before changes.
+2. Use a **successfully built** branch-scoped
+   `spatial-hud-build-<branch-with-slashes-replaced>` release for the active
+   branch, recording build commit, asset timestamp, version and JAR SHA-256.
+   Do not assume the shared `spatial-hud-latest` fallback matches that branch.
+   If no correct asset exists, stop and record the build/delivery gap.
+3. Replace only the old Spatial HUD JAR; avoid duplicate versions in `mods`.
+   Preserve the normal F5W renderer/HUD stack. Do not disable Iris or companions
+   just to obtain a green result; label any later isolation run separately.
+4. Record Minecraft/Fabric/Cloth Config/Iris and companion versions. Retain
+   same-run `latest.log`; startup should reach `Spatial HUD initialized. Press H
+   for the settings and guide.` A shader reload/capture error is a failure to
+   investigate, not an automatically passing fallback.
 
-## Required observations
+## Current Purple Horizontal Panel smoke matrix (not three-method acceptance)
 
-Record each result separately by Render Method:
+Record the original values before changing a test setting. Test a known safe
+world and return any deliberately altered setting afterward.
 
-| Method | Check | Pass condition |
-|---|---|---|
-| 1–3 | Physical visibility gate | At pitches below the configured 30° downward threshold—including level/upward views—the selected Spatial HUD roots and marker are absent, with no flat vanilla fallback. They appear only after looking down toward the waist-height lectern. |
-| 1 — Classic Affine | Compatibility baseline and marker | Selected HUD is stable at the same physical location/gate. It may not form a true icon-level trapezoid because it intentionally uses the native affine path. The compact upper-left marker is green. |
-| 2 — Captured Projective Mesh | Capture stability and marker | No flicker, disappearing plate, or frame-to-frame loss. The compact upper-left marker is blue and follows the captured mesh. |
-| 2 — Captured Projective Mesh | Geometry | With 45° primary lectern tilt at the 30° downward threshold, backing, hotbar, icons, bars, text, and blue marker use one genuine trapezoid whose far/top edge is visibly narrower than its near/bottom edge. |
-| 2 or 3 | Scope | Menus and unrelated GUI elements remain normal. |
-| 2 or 3 | Companion pixels | AppleSkin and Detail Armor pixels are captured with their selected status root. |
-| 3 — World-Space Texture | Camera Yaw anchor, geometry, and marker | Plane stays in front while looking left/right without player-body lag. At the default lectern tilt, its physical far/top edge is visibly narrower than the near/bottom edge. The compact upper-left marker is red and is part of the world texture. |
-| 3 — World-Space Texture | Player Body anchor | Plane stays at the body heading and may move to the side when looking away. |
-| 3 — World-Space Texture | Occlude Behind World on | A block between camera and panel hides the panel like a physical object. |
-| 3 — World-Space Texture | Occlude Behind World off | Panel remains visible through the same block. |
-| 3 — World-Space Texture | Latency/stability | One completed-frame delay is expected; persistent loss, flicker, or stale texture is not. |
+| Check | Evidence to record |
+| --- | --- |
+| Settings | H opens Guide, Setup, Presets, Panel, Wiggle and HUD Contents without toggling enabled state. Enabled/config values survive normal restart. |
+| Presets | Waist is feet/body anchored; Face stays square to the camera; Custom 1/2 respect their recorded anchor/distance/height/width. Only the active preset's width should change. |
+| Placement/motion | Look/turn/walk, first/third person and any shoulder camera. Observe curvature, angle, heading and wiggle response. No fixed 30-degree cutoff is promised by current source. |
+| Occlusion | First person: blocks hide the captured image **and** its fill/border with Occlusion on, including while Body Exclusion is on. Third person: record behavior with the body exception on/off. Through-world behavior with Occlusion off must be explicit. |
+| Selected-HUD scope | Hotbar/status/XP/held-item pixels and selected companions stay together, without duplicate vanilla strips, missing slots, flicker, stale captures or unrelated GUI capture. |
+| Companion HUDs | AppleSkin, Detail Armor Bar Reconstructed and actually installed same-region HUD/slot-cycling mods, with the normal Iris stack retained. Record what was really present. |
+| GUI boundaries | With default Gameplay Only on, ordinary screens/chat/inventory/maps/config remain normal. Test Gameplay Only off only if intentionally evaluating it, recording that difference; unrelated screen content is never a capture target. |
+| Lifecycle/performance | Resize/fullscreen/GUI scale, world leave/rejoin, normal resource reload and restart. Record capture errors, bounded wrapper-reapply warnings, sustained flicker, frame-time change or leaks. |
+| Failure indication | If a capture fails, preserve logs/screenshots of vanilla/error indication. Do not mark it as a passing archived affine fallback or repeatedly restart to hide it. |
 
-## Report format
+## Report and retained decision
 
-Provide the installed JAR timestamp or commit if known, the config values,
-which HUD mods were visible, a screenshot or short clip if possible, and
-`latest.log` from the same run. State whether the test was performed with Iris
-enabled.
+Share a private reviewed summary containing build/JAR SHA, F5W/OS/renderer and
+companion versions, relevant saved settings, action, expected/observed behavior,
+screenshots/clip and same-run log. Logs can contain private names/server paths;
+review before sharing, never commit raw owner logs to public Git/Drive.
+
+- Current-panel smoke: **not run / pass / fail / blocked**, with evidence.
+- Original Classic Affine/Captured Mesh/World-Space Texture acceptance:
+  **OPEN — incompatible with current source; owner scope reconciliation needed**.
+- Do not restore old methods or claim the original request complete based on
+  source contracts, successful Gradle compilation or a purple-panel smoke pass.

@@ -3578,5 +3578,195 @@
   "tests": [
    "tests.test_windows_apps.PublicNameRolloutTests.test_future_version_bump_updates_brand_docs_but_not_orca_identity"
   ]
+ },
+ {
+  "id": "review-01",
+  "file": "tools/test_radar_windows.py",
+  "old": "data.get(\"native_windows\") is not True or data.get(\"passed\") is not True",
+  "new": "data.get(\"native_windows\") is not True",
+  "label": "A string or numeric success flag becomes a native pass",
+  "tests": [
+   "tests.test_review_tools.WeatherReviewToolTests.test_schema_refuses_missing_wrong_mode_or_coerced_booleans"
+  ]
+ },
+ {
+  "id": "review-02",
+  "file": "tools/test_radar_windows.py",
+  "old": "if returncode != 0 or not isinstance(data, dict):",
+  "new": "if not isinstance(data, dict):",
+  "label": "A crashed process can be called passing when it left a result file",
+  "tests": [
+   "tests.test_review_tools.WeatherReviewToolTests.test_schema_refuses_missing_wrong_mode_or_coerced_booleans"
+  ]
+ },
+ {
+  "id": "review-03",
+  "file": "tools/test_radar_windows.py",
+  "old": "data[\"clicks\"] < 125",
+  "new": "data[\"clicks\"] < 1",
+  "label": "Incomplete planner click coverage is accepted",
+  "tests": [
+   "tests.test_review_tools.WeatherReviewToolTests.test_fixture_cannot_pass_without_click_stress_or_offline_gate"
+  ]
+ },
+ {
+  "id": "review-04",
+  "file": "tools/test_radar_windows.py",
+  "old": "or not data[\"concurrent_builds\"]",
+  "new": "or False",
+  "label": "No background stress work is accepted as a completed fixture review",
+  "tests": [
+   "tests.test_review_tools.WeatherReviewToolTests.test_fixture_cannot_pass_without_click_stress_or_offline_gate"
+  ]
+ },
+ {
+  "id": "review-05",
+  "file": "tools/test_radar_windows.py",
+  "old": "path.mkdir(exist_ok=False)",
+  "new": "path.mkdir(exist_ok=True)",
+  "label": "The review runner reuses an existing profile/output directory",
+  "tests": [
+   "tests.test_review_tools.WeatherReviewToolTests.test_output_directory_is_new_external_and_never_overwritten"
+  ]
+ },
+ {
+  "id": "review-06",
+  "file": "tools/test_radar_windows.py",
+  "old": "stat.S_ISLNK(info.st_mode)",
+  "new": "False",
+  "label": "The review output follows a symlinked parent",
+  "tests": [
+   "tests.test_review_tools.WeatherReviewToolTests.test_symlink_or_reparse_parent_is_not_followed"
+  ]
+ },
+ {
+  "id": "review-07",
+  "file": "tools/test_radar_windows.py",
+  "old": "with Path(path).open(\"x\", encoding=\"utf-8\", newline=\"\\n\") as stream:",
+  "new": "with Path(path).open(\"w\", encoding=\"utf-8\", newline=\"\\n\") as stream:",
+  "label": "Evidence JSON overwrites an existing record",
+  "tests": [
+   "tests.test_review_tools.WeatherReviewToolTests.test_json_writer_refuses_an_existing_file"
+  ]
+ },
+ {
+  "id": "review-08",
+  "file": "tools/test_radar_windows.py",
+  "old": "or data[\"members\"] < 2",
+  "new": "or data[\"members\"] < 1",
+  "label": "A single-member result becomes a complete live ensemble review",
+  "tests": [
+   "tests.test_review_tools.WeatherReviewToolTests.test_live_city_requires_complete_fresh_telemetry"
+  ]
+ },
+ {
+  "id": "review-09",
+  "file": "tests/native/radar_windows_review.c",
+  "old": "    if (!reviewLive) {",
+  "new": "    if (0) {",
+  "label": "Fixture cache misses can open real HTTP sessions",
+  "tests": [
+   "tests.test_review_tools.WeatherReviewToolTests.test_harness_keeps_production_include_explicit_live_and_new_state"
+  ]
+ },
+ {
+  "id": "review-10",
+  "file": "tests/native/radar_windows_review.c",
+  "old": "    if (!CreateDirectoryW(outputDir, NULL)) return 2;",
+  "new": "    EnsureDirW(outputDir);",
+  "label": "Direct harness invocation can reuse existing cache/config state",
+  "tests": [
+   "tests.test_review_tools.WeatherReviewToolTests.test_harness_keeps_production_include_explicit_live_and_new_state"
+  ]
+ },
+ {
+  "id": "review-11",
+  "file": "tests/native/radar_windows_review.c",
+  "old": "        g_frameN = 0;\n        g_radarHost[0] = L'\\0';",
+  "new": "        /* wrongly keep a prior successful catalogue */",
+  "label": "Live review can reuse prior-city catalogue success after a failed fetch",
+  "tests": [
+   "tests.test_review_tools.WeatherReviewToolTests.test_harness_keeps_production_include_explicit_live_and_new_state"
+  ]
+ },
+ {
+  "id": "review-12",
+  "file": "tests/native/radar_windows_review.c",
+  "old": "        int ok = g_fc.have == 2",
+  "new": "        int ok = g_fc.have",
+  "label": "Partial forecast data can be reported as a complete live review",
+  "tests": [
+   "tests.test_review_tools.WeatherReviewToolTests.test_harness_keeps_production_include_explicit_live_and_new_state"
+  ]
+ },
+ {
+  "id": "evidence-01",
+  "file": "tools/inspect_orca_export.py",
+  "old": "    processed = marker_count > 0 or wave_begin > 0 or wave_end > 0",
+  "new": "    processed = False",
+  "label": "Previously rewritten G-code is misidentified as lacking rewrite evidence",
+  "tests": [
+   "tests.test_review_tools.OrcaExportEvidenceTests.test_archived_clean_named_inputs_are_recognized_as_infill_output"
+  ]
+ },
+ {
+  "id": "evidence-02",
+  "file": "tools/inspect_orca_export.py",
+  "old": "            digest.update(raw)",
+  "new": "            digest.update(b\"\")",
+  "label": "The export evidence hash no longer identifies the exact input bytes",
+  "tests": [
+   "tests.test_review_tools.OrcaExportEvidenceTests.test_exact_hash_size_and_original_file_are_preserved"
+  ]
+ },
+ {
+  "id": "evidence-03",
+  "file": "tools/inspect_orca_export.py",
+  "old": "NUMERIC_LIST.fullmatch(value) is None",
+  "new": "False",
+  "label": "Arbitrary private config strings enter the supposedly minimized evidence summary",
+  "tests": [
+   "tests.test_review_tools.OrcaExportEvidenceTests.test_only_allowlisted_numeric_metadata_inside_config_is_reported"
+  ]
+ },
+ {
+  "id": "evidence-04",
+  "file": "tools/inspect_orca_export.py",
+  "old": "name = token.rsplit(\";\", 1)[-1] if references else token",
+  "new": "name = token",
+  "label": "Full registered references are confused with selected capability identities",
+  "tests": [
+   "tests.test_review_tools.OrcaExportEvidenceTests.test_plugin_references_and_selection_are_separate_and_do_not_echo_private_keys"
+  ]
+ },
+ {
+  "id": "evidence-05",
+  "file": "tools/inspect_orca_export.py",
+  "old": "            field = FIELD.match(line) if inside else None",
+  "new": "            field = FIELD.match(line)",
+  "label": "Loose comments outside the config block override evidence metadata",
+  "tests": [
+   "tests.test_review_tools.OrcaExportEvidenceTests.test_only_allowlisted_numeric_metadata_inside_config_is_reported"
+  ]
+ },
+ {
+  "id": "evidence-06",
+  "file": "tools/inspect_orca_export.py",
+  "old": "        return 2\n    return 0",
+  "new": "        return 0\n    return 0",
+  "label": "The reject-processed CLI silently succeeds for rewritten input",
+  "tests": [
+   "tests.test_review_tools.OrcaExportEvidenceTests.test_cli_rejects_recognized_processing_without_writing_or_leaking_paths"
+  ]
+ },
+ {
+  "id": "evidence-07",
+  "file": "tools/inspect_orca_export.py",
+  "old": "\"error\": type(exc).__name__",
+  "new": "\"error\": str(exc)",
+  "label": "Unavailable-input errors leak private input paths into shareable JSON",
+  "tests": [
+   "tests.test_review_tools.OrcaExportEvidenceTests.test_cli_errors_are_explicit_nonzero_and_do_not_leak_missing_paths"
+  ]
  }
 ]

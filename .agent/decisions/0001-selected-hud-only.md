@@ -15,7 +15,17 @@ same vanilla roots.
 The older global/offscreen true-3D renderer interfered with unrelated GUI
 screens. The user explicitly rejected restoring that behavior.
 
-## Consequences
+## Current-source caveat (2026-11-16)
+
+The selected-lower-HUD scope remains required. The historical affine-default
+clause below no longer describes current source: `selectedRenderMethod()` forces
+`POLYGON_TEST` (Purple Horizontal Panel); the archived Classic Affine/Captured
+Mesh choices are absent and Method 3 is shelved. HUD-01's original three-method
+acceptance remains open for owner scope reconciliation. This audit neither
+approves that divergence nor authorizes restoring/redefining methods. See
+`test-spatial-hud-f5w.md` before requesting a current-build test.
+
+## Historical consequences (scope retained; default caveat above)
 
 - Never cancel or broadly reroute GUI rendering.
 - Never capture unrelated screens, menus, chat, maps, debug overlays, or

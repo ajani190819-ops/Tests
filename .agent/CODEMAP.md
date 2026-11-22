@@ -1132,17 +1132,23 @@
 - L658  f main
 - L691  f export_spin_loops
 
+## tools/inspect_orca_export.py
+
+- L36  f selected_capabilities
+- L51  f inspect_export
+- L143  f main
+
 ## tools/mutate.py
 
-- L29  f registry_issues
-- L60  f validate_result
-- L84  f execute_tests
-- L133  f campaign_lock
-- L156  f termination_guard
-- L170  f run_campaign
-- L251  f successful
-- L258  f write_report
-- L274  f main
+- L30  f registry_issues
+- L61  f validate_result
+- L85  f execute_tests
+- L134  f campaign_lock
+- L157  f termination_guard
+- L171  f run_campaign
+- L252  f successful
+- L259  f write_report
+- L275  f main
 
 ## tools/mutation_worker.py
 
@@ -1171,6 +1177,19 @@
 - L37  f read_engine
 - L46  f current_literal_text
 - L55  f main
+
+## tools/test_radar_windows.py
+
+- L26  f validate_windows_path
+- L36  f create_output_directory
+- L54  f write_json
+- L60  f validate_result
+- L82  f validate_live_city
+- L94  f capture_manifest
+- L116  f run_command
+- L130  f source_manifest
+- L138  f run_review
+- L187  f main
 
 ## tests/fake_orca.py
 
@@ -1228,6 +1247,13 @@
 - L40  f fake_cube
 - L76  f load_tool
 - L83  f total_e
+
+## tests/test_review_tools.py
+
+- L21  f fixture_result
+- L26  f WeatherReviewToolTests
+- L181  f OrcaExportEvidenceTests
+- L299  f OwnerHandoffContractTests
 
 ## tests/test_spatial_hud.py
 
