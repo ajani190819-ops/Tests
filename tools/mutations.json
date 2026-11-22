@@ -1332,8 +1332,8 @@
  {
   "id": "set-12",
   "file": "project-hub/src/parts/settings_page.c",
-  "old": "                int savedMode = HoldModeCurrent();\n                for (int i = 0; i < 3; i++)\n                    SendMessageW(g_setHold[i], BM_SETCHECK,\n                                 i == savedMode ? BST_CHECKED : BST_UNCHECKED, 0);\n                SetStatusError(L\"Could not save the Keyboard Lighting hold choice. Try again.\");",
-  "new": "                SetStatusError(L\"Could not save the Keyboard Lighting hold choice. Try again.\");",
+  "old": "                int savedMode = HoldModeCurrent();\n                for (int i = 0; i < 3; i++)\n                    SendMessageW(g_setHold[i], BM_SETCHECK,\n                                 i == savedMode ? BST_CHECKED : BST_UNCHECKED, 0);\n                SetStatusError(L\"Could not save the Prism Lighting hold choice. Try again.\");",
+  "new": "                SetStatusError(L\"Could not save the Prism Lighting hold choice. Try again.\");",
   "label": "A failed hold-mode write leaves the radio selection unsaved",
   "tests": [
    "tests.test_windows_apps.SuiteFolderInstallTests.test_hub_settings_page_writes_the_apps_own_files"
@@ -3437,6 +3437,146 @@
   "label": "Empty event history is misrepresented as a clean security verdict",
   "tests": [
    "tests.test_windows_apps.GuardSecurityReportTests.test_local_queries_fail_explicitly_and_history_limits_are_visible"
+  ]
+ },
+ {
+  "id": "name-00",
+  "file": "project-hub/src/parts/catalog_icons_json.c",
+  "old": "    if (slot == 1) {\n        c->title = L\"Prism Lighting\";",
+  "new": "    if (0) {\n        c->title = L\"Prism Lighting\";",
+  "label": "An old catalogue restores the retired lighting title",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_public_names_survive_offline_old_partial_duplicate_catalogues"
+  ]
+ },
+ {
+  "id": "name-01",
+  "file": "project-hub/src/parts/catalog_icons_json.c",
+  "old": "c->title = PoolAdd(isWeatherRadar ? \"Weather Report\" : (title[0] ? title : id));",
+  "new": "c->title = PoolAdd(title[0] ? title : id);",
+  "label": "An old catalogue restores the retired weather title",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_public_names_survive_offline_old_partial_duplicate_catalogues"
+  ]
+ },
+ {
+  "id": "name-02",
+  "file": "project-hub/src/parts/catalog_icons_json.c",
+  "old": "c->shortcutName = PoolAdd(isWeatherRadar ? \"Weather Report\"\n                              : (shortcut[0] ? shortcut : (title[0] ? title : id)));",
+  "new": "c->shortcutName = PoolAdd(shortcut[0] ? shortcut : (title[0] ? title : id));",
+  "label": "An old weather shortcut descriptor silently reverts the public brand",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_public_names_survive_offline_old_partial_duplicate_catalogues"
+  ]
+ },
+ {
+  "id": "name-03",
+  "file": "weather-radar/src/weather_radar.c",
+  "old": "#define APP_TITLE_W   L\"Weather Report\"",
+  "new": "#define APP_TITLE_W   L\"Weather Radar\"",
+  "label": "The weather window keeps the old public title",
+  "tests": [
+   "tests.test_windows_apps.PublicNameRolloutTests.test_weather_brand_is_consistent_without_changing_native_identities"
+  ]
+ },
+ {
+  "id": "name-04",
+  "file": "weather-radar/src/weather_radar.c",
+  "old": "#define APP_DIRNAME_W L\"WeatherRadar\"",
+  "new": "#define APP_DIRNAME_W L\"WeatherReport\"",
+  "label": "A cosmetic rename orphans weather saved data",
+  "tests": [
+   "tests.test_windows_apps.PublicNameRolloutTests.test_weather_brand_is_consistent_without_changing_native_identities"
+  ]
+ },
+ {
+  "id": "name-05",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "# name = \"Wave Overhangs\"",
+  "new": "# name = \"Undahang\"",
+  "label": "The Undahang brand wrongly replaces the stable Orca package identity",
+  "tests": [
+   "tests.test_windows_apps.PublicNameRolloutTests.test_orca_brand_does_not_rename_preset_or_output_identities"
+  ]
+ },
+ {
+  "id": "name-06",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    def get_name(self):\n        return \"Wave Overhangs\"",
+  "new": "    def get_name(self):\n        return \"Undahang\"",
+  "label": "The public brand wrongly detaches the Orca slicing capability from presets",
+  "tests": [
+   "tests.test_windows_apps.PublicNameRolloutTests.test_orca_brand_does_not_rename_preset_or_output_identities"
+  ]
+ },
+ {
+  "id": "name-07",
+  "file": "project-hub/src/parts/install_folder.c",
+  "old": "    const wchar_t *names[2] = { publicName, legacyName };",
+  "new": "    const wchar_t *names[2] = { publicName, NULL };",
+  "label": "A renamed app stops repointing previously pinned legacy shortcuts",
+  "tests": [
+   "tests.test_windows_apps.PublicNameRolloutTests.test_existing_shortcut_aliases_repoint_without_creating_or_renaming"
+  ]
+ },
+ {
+  "id": "name-08",
+  "file": "project-hub/src/parts/install_folder.c",
+  "old": "    if (GetFileAttributesW(lnkPath) == INVALID_FILE_ATTRIBUTES) return FALSE;\n",
+  "new": "",
+  "label": "The alias updater recreates deleted or never-pinned Desktop links",
+  "tests": [
+   "tests.test_windows_apps.PublicNameRolloutTests.test_existing_shortcut_aliases_repoint_without_creating_or_renaming"
+  ]
+ },
+ {
+  "id": "name-09",
+  "file": "project-hub/src/parts/install_folder.c",
+  "old": "        if (i && names[0] && _wcsicmp(names[0], names[i]) == 0) continue;\n",
+  "new": "",
+  "label": "Public and legacy aliases repoint the same link twice",
+  "tests": [
+   "tests.test_windows_apps.PublicNameRolloutTests.test_existing_shortcut_aliases_repoint_without_creating_or_renaming"
+  ]
+ },
+ {
+  "id": "name-10",
+  "file": "project-hub/src/parts/install_folder.c",
+  "old": "        if (RepointDesktopShortcutIfPresent(link, targetExe, workDir, desc))\n            changed = TRUE;",
+  "new": "        RepointDesktopShortcutIfPresent(link, targetExe, workDir, desc);\n        changed = TRUE;",
+  "label": "The shortcut updater claims success after every ShellLink save failed",
+  "tests": [
+   "tests.test_windows_apps.PublicNameRolloutTests.test_existing_shortcut_aliases_repoint_without_creating_or_renaming"
+  ]
+ },
+ {
+  "id": "name-11",
+  "file": "project-hub/src/parts/card_defs_verbs.c",
+  "old": "    g_cards[1].title     = L\"Prism Lighting\";",
+  "new": "    g_cards[1].title     = L\"Keyboard Lighting\";",
+  "label": "Offline startup exposes the retired lighting name before refresh",
+  "tests": [
+   "tests.test_windows_apps.HubGroupedEntriesTests.test_public_names_survive_offline_old_partial_duplicate_catalogues"
+  ]
+ },
+ {
+  "id": "name-12",
+  "file": "weather-radar/src/parts/alerts.c",
+  "old": "L\"Open Weather Report\"",
+  "new": "L\"Open Weather Radar\"",
+  "label": "The independent weather tray exposes a different public name",
+  "tests": [
+   "tests.test_windows_apps.PublicNameRolloutTests.test_weather_brand_is_consistent_without_changing_native_identities"
+  ]
+ },
+ {
+  "id": "name-13",
+  "file": "tools/bump_version.py",
+  "old": "\\[Undahang\\]\\(plugins/wave-overhangs/\\)",
+  "new": "\\[Wave Overhangs\\]\\(plugins/wave-overhangs/\\)",
+  "label": "A later plugin bump cannot synchronize the branded README table",
+  "tests": [
+   "tests.test_windows_apps.PublicNameRolloutTests.test_future_version_bump_updates_brand_docs_but_not_orca_identity"
   ]
  }
 ]

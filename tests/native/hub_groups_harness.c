@@ -317,6 +317,46 @@ static void catalogScenario(void) {
     RebuildExtraCards("{\"apps\":[]}"); CHECK(g_cardCount==MAX_APPS && wcscmp(g_cards[9].id,L"addon")==0);
     puts("Hub catalogue fallback and duplicate scenarios passed");
 }
+static void checkPublicNames(void) {
+    CHECK(wcscmp(g_cards[1].title,L"Prism Lighting")==0);
+    CHECK(wcscmp(g_cards[1].shortcutName,L"Prism Lighting")==0);
+    CHECK(wcscmp(g_cards[1].exeName,L"KeyboardLighting.exe")==0);
+    CHECK(wcsstr(g_cards[1].appDir,L"KeyboardLighting"));
+    int weather=0;
+    for (int i=BUILTIN_CARD_COUNT;i<g_cardCount;i++) if (wcscmp(g_cards[i].id,L"weatherradar")==0) {
+        weather++;
+        CHECK(wcscmp(g_cards[i].title,L"Weather Report")==0);
+        CHECK(wcscmp(g_cards[i].shortcutName,L"Weather Report")==0);
+        CHECK(wcscmp(g_cards[i].exeName,L"WeatherRadar.exe")==0);
+        CHECK(wcscmp(g_cards[i].exeRepo,L"weather-radar/WeatherRadar.exe")==0);
+        CHECK(wcsstr(g_cards[i].appDir,L"WeatherRadar"));
+        CHECK(g_cards[i].resIconId==RES_ICON_WEATHER && g_cards[i].category==HUB_GROUP_GENERAL);
+    }
+    CHECK(weather==1);
+}
+static void namesScenario(void) {
+    /* Check startup before RestoreBuiltInCardText can mask an old literal. */
+    InitCardDefinitions();
+    CHECK(wcscmp(g_cards[1].title,L"Prism Lighting")==0);
+    RestoreBuiltInCardText(); checkPublicNames();
+    const char *old="{\"apps\":[{\"id\":\"kbl\",\"title\":\"Keyboard Lighting\"},"
+        "{\"id\":\"weatherradar\",\"title\":\"Weather Radar\",\"shortcut\":\"Weather Radar\","
+        "\"exe\":\"weather-radar/WeatherRadar.exe\",\"dir\":\"WeatherRadar\"},"
+        "{\"id\":\"weatherradar\",\"title\":\"Duplicate\",\"exe\":\"weather-radar/WeatherRadar.exe\"},"
+        "{\"id\":\"addon\",\"title\":\"Weather Radar\",\"exe\":\"x/Addon.exe\"}]}";
+    for (int i=0;i<100;i++) {
+        switch (i%4) {
+        case 0: RebuildExtraCards(old); break;
+        case 1: RebuildExtraCards("{\"apps\":[{\"id\":\"kbl\"},{\"id\":\"weatherradar\"}]}"); break;
+        case 2: RebuildExtraCards(NULL); break;
+        default: RebuildExtraCards("{\"apps\":[{\"id\":\"broken"); break;
+        }
+        checkPublicNames(); CHECK(g_cardCount==10);
+        for (int n=BUILTIN_CARD_COUNT;n<g_cardCount;n++) if (wcscmp(g_cards[n].id,L"addon")==0)
+            CHECK(wcscmp(g_cards[n].title,L"Weather Radar")==0); /* never relabel unrelated ids */
+    }
+    puts("Hub public brands and stable catalogue identities passed");
+}
 static int headerRequiredWidth(void) {
     int controls=0, count=0;
     for (int i=0;i<5;i++) if (!g_topBtns[i].hidden) {
@@ -428,6 +468,7 @@ int main(int argc, char **argv) {
     else if (strcmp(scenario,"catalog")==0) catalogScenario();
     else if (strcmp(scenario,"layout")==0) layoutScenario();
     else if (strcmp(scenario,"header")==0) headerScenario();
+    else if (strcmp(scenario,"names")==0) namesScenario();
     else CHECK(FALSE);
     return 0;
 }

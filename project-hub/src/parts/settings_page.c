@@ -1,10 +1,10 @@
 /* ---- Suite settings page -------------------------------------------
    One polished place for the settings that used to need each app's tray:
-   Keyboard Lighting hold behaviour, DNS Pilot scheduling, and the Hub's
+   Prism Lighting hold behaviour, DNS Pilot scheduling, and the Hub's
    branch-following preference. Each control writes the file or API that
    the owning app already uses; there is no shadow settings schema.
 
-   Keyboard Lighting and branch-following changes apply immediately. DNS
+   Prism Lighting and branch-following changes apply immediately. DNS
    Pilot reads its INI at startup, so the page says that restart is needed. */
 
 #define IDS_SET_TITLE      2001
@@ -108,7 +108,7 @@ static BOOL ApplyHoldMode(int mode) {
                                  (DWORD)strlen(kSetModes[mode]));
 }
 
-/* Keyboard Lighting treats panel.json as the saved preference and
+/* Prism Lighting treats panel.json as the saved preference and
    theme.json as the live engine inbox. Update both so a Hub change applies now
    and survives the tray's next restart. The app writes flat JSON objects for
    the root and the Kbd group; these small helpers preserve every other byte. */
@@ -264,7 +264,7 @@ static BOOL JsonReadSetting(char *json, DWORD len, const char *objectName,
     if (objectName && JsonObjectSpan(json, end, objectName, &open, &close) &&
         JsonReadBool(open, close, memberName, out))
         return TRUE;
-    /* Older single-zone Keyboard Lighting files stored Equalise at the root. */
+    /* Older single-zone Prism Lighting files stored Equalise at the root. */
     return JsonReadBool(rootOpen, rootClose, memberName, out);
 }
 
@@ -644,7 +644,7 @@ static LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM l
                 for (int i = 0; i < 3; i++)
                     SendMessageW(g_setHold[i], BM_SETCHECK,
                                  i == savedMode ? BST_CHECKED : BST_UNCHECKED, 0);
-                SetStatusError(L"Could not save the Keyboard Lighting hold choice. Try again.");
+                SetStatusError(L"Could not save the Prism Lighting hold choice. Try again.");
             }
             return 0;
         }
@@ -656,7 +656,7 @@ static LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM l
             else {
                 SendMessageW(g_setBalance, BM_SETCHECK,
                              BalanceCurrent() ? BST_CHECKED : BST_UNCHECKED, 0);
-                SetStatusError(L"Could not save Keyboard Lighting's balance setting. Try again.");
+                SetStatusError(L"Could not save Prism Lighting's balance setting. Try again.");
             }
             return 0;
         }
@@ -668,7 +668,7 @@ static LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM l
             else {
                 SendMessageW(g_setSmooth, BM_SETCHECK,
                              SmoothCurrent() ? BST_CHECKED : BST_UNCHECKED, 0);
-                SetStatusError(L"Could not save Keyboard Lighting's colour setting. Open the app once, then try again.");
+                SetStatusError(L"Could not save Prism Lighting's colour setting. Open the app once, then try again.");
             }
             return 0;
         }
@@ -782,10 +782,10 @@ static void OpenSettingsWindow(HWND owner) {
     HWND title = SetCtl(0, L"STATIC", L"Settings", xL, 17, CW, 30,
                         IDS_SET_TITLE, g_setHwnd, dpi);
     SetSettingsFont(title, g_fontTitle);
-    SetCtl(0, L"STATIC", L"Keyboard Lighting, DNS Pilot, and update preferences in one place.",
+    SetCtl(0, L"STATIC", L"Prism Lighting, DNS Pilot, and update preferences in one place.",
            xL, 49, CW, 22, IDS_SET_SUBTITLE, g_setHwnd, dpi);
 
-    HWND kblHead = SetCtl(0, L"STATIC", L"Keyboard Lighting", xL + 12, 98, CW - 24, 22,
+    HWND kblHead = SetCtl(0, L"STATIC", L"Prism Lighting", xL + 12, 98, CW - 24, 22,
                           IDS_KBL_GROUP, g_setHwnd, dpi);
     SetSettingsFont(kblHead, g_fontTitle);
     g_setHold[0] = SetCtl(BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP, L"BUTTON",

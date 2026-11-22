@@ -349,13 +349,24 @@ static void InitAllPaths(void) {
     _snwprintf(cand, MAX_PATH, L"%s\\KeyboardLighting.exe", kblSuite);
     BOOL kblInSuite = FileExistsW(cand);
     wchar_t kblLnkDir[MAX_PATH] = L"";
-    if (desk[0]) {
-        _snwprintf(lnk, MAX_PATH, L"%s\\Keyboard Lighting.lnk", desk);
-        ResolveShortcutTargetDir(lnk, kblLnkDir);
-    }
-    if (!kblLnkDir[0]) {
-        _snwprintf(lnk, MAX_PATH, L"%s\\Microsoft\\Windows\\Start Menu\\Programs\\Keyboard Lighting.lnk", g_roamApp);
-        ResolveShortcutTargetDir(lnk, kblLnkDir);
+    static const wchar_t *const kblLinkNames[2] = { L"Prism Lighting", L"Keyboard Lighting" };
+    for (int i = 0; i < 2; i++) {
+        wchar_t found[MAX_PATH] = L"";
+        if (desk[0]) {
+            _snwprintf(lnk, MAX_PATH, L"%s\\%s.lnk", desk, kblLinkNames[i]);
+            ResolveShortcutTargetDir(lnk, found);
+            if (found[0]) {
+                AddMirrorDir(MIRROR_KBL, found);
+                if (!kblLnkDir[0]) wcscpy(kblLnkDir, found);
+            }
+        }
+        _snwprintf(lnk, MAX_PATH, L"%s\\Microsoft\\Windows\\Start Menu\\Programs\\%s.lnk", g_roamApp, kblLinkNames[i]);
+        found[0] = L'\0';
+        ResolveShortcutTargetDir(lnk, found);
+        if (found[0]) {
+            AddMirrorDir(MIRROR_KBL, found);
+            if (!kblLnkDir[0]) wcscpy(kblLnkDir, found);
+        }
     }
     if (kblInSuite) wcsncpy(g_kblDir, kblSuite, MAX_PATH - 1);
     else if (kblInSibling) wcsncpy(g_kblDir, kblSibling, MAX_PATH - 1);
@@ -536,6 +547,32 @@ static BOOL RepointDesktopShortcutIfPresent(const wchar_t *lnkPath, const wchar_
                                             const wchar_t *workDir, const wchar_t *desc) {
     if (GetFileAttributesW(lnkPath) == INVALID_FILE_ATTRIBUTES) return FALSE;
     return CreateShortcutLink(lnkPath, targetExe, workDir, desc);
+}
+
+/* A public rename must not strand a previously pinned link. Keep both names
+   working, but never create, rename or delete a shortcut during an update.
+   The legacy filename is a compatibility path, not another requested icon. */
+static BOOL RepointAppDesktopShortcutsIfPresent(const wchar_t *desktop,
+                                               const wchar_t *publicName,
+                                               const wchar_t *legacyName,
+                                               const wchar_t *targetExe,
+                                               const wchar_t *workDir,
+                                               const wchar_t *desc) {
+    const wchar_t *names[2] = { publicName, legacyName };
+    BOOL changed = FALSE;
+    for (int i = 0; i < 2; i++) {
+        if (!names[i] || !names[i][0]) continue;
+        if (i && names[0] && _wcsicmp(names[0], names[i]) == 0) continue;
+        if (wcslen(desktop) + 1 + wcslen(names[i]) + 4 >= MAX_PATH) continue;
+        wchar_t link[MAX_PATH];
+        wcscpy(link, desktop);
+        wcscat(link, L"\\");
+        wcscat(link, names[i]);
+        wcscat(link, L".lnk");
+        if (RepointDesktopShortcutIfPresent(link, targetExe, workDir, desc))
+            changed = TRUE;
+    }
+    return changed;
 }
 
 

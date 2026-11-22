@@ -35,7 +35,7 @@ static const struct { int id; const wchar_t *label; const wchar_t *verb; } g_btn
    "Disable" -> "Enable"), and only the two string pointers go stale. */
 static void RestoreBuiltInCardText(void) {
     static const wchar_t *titles[8] = {
-        L"Bluetooth Guard", L"Keyboard Lighting", L"Spatial HUD",
+        L"Bluetooth Guard", L"Prism Lighting", L"Spatial HUD",
         L"Undahang", L"DNS Pilot", L"Agent Notes", L"Audio Switcher", L"Unlayered Infill" };
     static const wchar_t *blurbs[8] = {
         L"Phone audio protection", L"ROG Strix G16 RGB lighting",
@@ -156,7 +156,7 @@ static void RebuildExtraCards(const char *json) {
     }
     for (int i = 0; i < retainedCount; i++)
         AddCatalogCard(retained[i], TRUE);
-    /* Weather Radar is a core suite app, not an optional remote-only card. A
+    /* Weather Report is a core suite app, not an optional remote-only card. A
        missing, truncated, or branch-specific catalog must not erase its Hub row. */
     EnsureWeatherRadarCatalogCard(TRUE);
 }

@@ -1632,13 +1632,14 @@ int main(void) {
         hub_c = read_c_inlined("project-hub/src/project_hub.c")
         setup = (ROOT / "project-hub" / "Setup.ps1").read_text(encoding="utf-8")
         for expected in (
-            "Keyboard Lighting",
+            "Prism Lighting",
             "Bluetooth Guard",
             "Spatial HUD",
             "OrcaSlicer Plugins",
         ):
             self.assertIn(expected, hub)
-            self.assertIn("Undahang" if expected == "OrcaSlicer Plugins" else expected, hub_c)
+            self.assertIn({"OrcaSlicer Plugins": "Undahang",
+                           "Keyboard Lighting": "Prism Lighting"}.get(expected, expected), hub_c)
         self.assertIn("Unlayered Infill", hub_c)
         self.assertIn("DNS Pilot", hub_c)
         self.assertIn("CreateRunspace", hub)
@@ -4149,8 +4150,8 @@ class SuiteFolderInstallTests(unittest.TestCase):
             self.assertIn("SuiteTaskbarCreatedMessage()", path.read_text(encoding="utf-8"),
                           f"{name} cannot restore its fallback after an Explorer restart")
 
-        for needle in ("Agent Notes", "Bluetooth Guard", "Keyboard Lighting", "DNS Pilot",
-                       "Audio Switcher", "Weather Radar", "Show window", "Hide window", "Quit"):
+        for needle in ("Agent Notes", "Bluetooth Guard", "Prism Lighting", "DNS Pilot",
+                       "Audio Switcher", "Weather Report", "Show window", "Hide window", "Quit"):
             self.assertIn(needle, tray,
                           f"the unified Hub tray no longer exposes {needle}")
         self.assertIn("Toggle Guard Enabled", tray)
@@ -4959,8 +4960,9 @@ int main(void) {
                              "%s creates a Desktop shortcut directly, so the next "
                              "update drops a new icon on the Desktop" % name)
             self.assertEqual(src.count("CSIDL_DESKTOPDIRECTORY"),
-                             src.count("RepointDesktopShortcutIfPresent("),
-                             "%s touches the Desktop outside the repoint helper" % name)
+                             src.count("RepointDesktopShortcutIfPresent(") +
+                             src.count("RepointAppDesktopShortcutsIfPresent("),
+                             "%s touches the Desktop outside the repoint helpers" % name)
 
         pin = picker[picker.index("case ID_MENU_SHORTCUT:"):]
         pin = pin[:pin.index("case ID_MENU_SUITE_DIR:")]
@@ -5850,12 +5852,15 @@ class HubGroupedEntriesTests(unittest.TestCase):
         self.assertEqual(by_id["orca"]["dir"], "OrcaPlugins")
         for app_id in ("orca", "unlayered-infill"):
             self.assertFalse(by_id[app_id]["exe"])
-        # Broader NAME-01 and plugin/preset APIs are deliberately separate.
-        self.assertEqual(by_id["kbl"]["title"], "Keyboard Lighting")
-        self.assertEqual(by_id["weatherradar"]["title"], "Weather Radar")
+        # Public branding and plugin/preset APIs are deliberately separate.
+        self.assertEqual(by_id["kbl"]["title"], "Prism Lighting")
+        self.assertEqual(by_id["weatherradar"]["title"], "Weather Report")
         manifest = json.loads((ROOT / "plugins.json").read_text(encoding="utf-8"))["plugins"]
         self.assertEqual([a["id"] for a in manifest], ["wave-overhangs", "unlayered-infill"])
         self.assertEqual(manifest[0]["name"], "Wave Overhangs")
+
+    def test_public_names_survive_offline_old_partial_duplicate_catalogues(self):
+        self._run("names", "Hub public brands and stable catalogue identities passed")
 
     def test_renderer_and_pointer_events_share_grouped_geometry(self):
         parts = ROOT / "project-hub/src/parts"
@@ -6491,6 +6496,146 @@ class GuardSecurityReportTests(unittest.TestCase):
         self.assertNotIn("Start-Process", fixture)
         self.assertNotIn("ExecutionPolicy", fixture)
         self.assertIn("Not a native provider, malware, launch or focus verdict", fixture)
+
+
+class PublicNameRolloutTests(unittest.TestCase):
+    """Public labels are not storage, launch, preset or G-code identities."""
+
+    def test_catalogue_brands_keep_storage_launch_and_update_identities(self):
+        apps = {a["id"]: a for a in json.loads((ROOT / "suite-apps.json").read_text())["apps"]}
+        for app_id, title, exe, directory in (
+            ("kbl", "Prism Lighting", "keyboard-lighting/KeyboardLighting.exe", "KeyboardLighting"),
+            ("weatherradar", "Weather Report", "weather-radar/WeatherRadar.exe", "WeatherRadar"),
+        ):
+            app = apps[app_id]
+            self.assertEqual((app["title"], app["shortcut"]), (title, title))
+            self.assertEqual((app["exe"], app["dir"], app["state"], app["worker"]),
+                             (exe, directory, app_id, app_id))
+        self.assertEqual(apps["btguard"]["title"], "Bluetooth Guard")
+        self.assertEqual(apps["unlayered-infill"]["title"], "Unlayered Infill")
+
+    def test_weather_brand_is_consistent_without_changing_native_identities(self):
+        source = (ROOT / "weather-radar/src/weather_radar.c").read_text()
+        self.assertRegex(source, r'#define APP_TITLE_W\s+L"Weather Report"')
+        self.assertRegex(source, r'#define APP_DIRNAME_W\s+L"WeatherRadar"')
+        for identity in (r'Local\\Tests_WeatherRadar_SingleInstance_v1',
+                         r'Local\\Tests_WeatherRadar_Show_v1', 'TestsSuite-WeatherRadar/1.0'):
+            self.assertIn(identity, source)
+        entry = (ROOT / "weather-radar/src/parts/entry.c").read_text()
+        self.assertIn('L"WeatherRadarMainV1"', entry)
+        alerts = (ROOT / "weather-radar/src/parts/alerts.c").read_text()
+        for label in ('L"Weather Report - exact-place rain watch"', 'L"Open Weather Report"',
+                      'L"Weather Report keeps watching"', 'Open Weather Report for details.',
+                      'Weather Report will not repeat this while this rain episode continues.'):
+            self.assertIn(label, alerts)
+        location = (ROOT / "weather-radar/src/parts/location.c").read_text()
+        self.assertIn('L"Bring Weather Report to the front, then use My location."', location)
+        self.assertNotIn('Weather Radar', alerts + location)
+
+    def test_prism_hub_labels_keep_native_and_legacy_launch_routes(self):
+        parts = ROOT / "project-hub/src/parts"
+        for rel in ('settings_page.c', 'tray_unified.c', 'enqueue_restart_prompts.c'):
+            source = (parts / rel).read_text()
+            self.assertIn('Prism Lighting', source)
+            self.assertNotIn('Keyboard Lighting', source)
+        worker = (parts / "workers_install.c").read_text()
+        self.assertIn('desk, L"Prism Lighting", L"Keyboard Lighting",', worker)
+        self.assertIn('L"KeyboardLighting.exe"', worker)
+        self.assertIn('L"TestsKeyboardLightingSuiteWnd"', worker)
+        folder = (parts / "install_folder.c").read_text()
+        self.assertIn('{ L"Prism Lighting", L"Keyboard Lighting" }', folder)
+        self.assertIn('kblLinkNames[i]', folder)
+        self.assertIn('AddMirrorDir(MIRROR_KBL, found);', folder)
+        generic = (parts / "card_defs_verbs.c").read_text()
+        self.assertIn('_wcsicmp(c->id, L"weatherradar") == 0', generic)
+        self.assertIn('? L"Weather Radar" : NULL;', generic)
+        self.assertIn('RepointAppDesktopShortcutsIfPresent(desk, name, legacy, destExe,', generic)
+        # The fallback PowerShell Hub is not part of the gated lighting app.
+        legacy = (ROOT / "project-hub/ProjectHub.ps1").read_text(encoding="utf-8")
+        self.assertIn("New-ProjectCard 'Prism Lighting'", legacy)
+
+    def test_orca_brand_does_not_rename_preset_or_output_identities(self):
+        source = (ROOT / "plugins/wave-overhangs/wave_overhangs_orca.py").read_text()
+        manifest = json.loads((ROOT / "plugins.json").read_text())["plugins"][0]
+        self.assertEqual((manifest["id"], manifest["name"], manifest["orca_dir"], manifest["file"]),
+                         ("wave-overhangs", "Wave Overhangs", "WaveOverhangs", "wave_overhangs_orca.py"))
+        self.assertEqual(manifest["path"], "plugins/wave-overhangs/wave_overhangs_orca.py")
+        expected = ["Wave Overhangs", "Wave Overhangs - Settings guide & check"]
+        self.assertEqual(manifest["capabilities"], expected)
+        self.assertIn('# name = "Wave Overhangs"', source)
+        self.assertIn('# description = "Undahang (Orca identity: Wave Overhangs).', source)
+        tree = ast.parse(source)
+        names = []
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef) and node.name in ("WaveOverhangsSlicing", "WaveOverhangsCheck"):
+                method = next(f for f in node.body if isinstance(f, ast.FunctionDef) and f.name == "get_name")
+                names.append(ast.literal_eval(method.body[0].value))
+        self.assertEqual(names, expected, "Orca stores these strings in presets and global config")
+        self.assertIn('Undahang v{PLUGIN_VERSION} -- setup check', source)
+        self.assertIn('Orca identity: Wave Overhangs (kept for saved presets).', source)
+        self.assertIn('Select Wave Overhangs there and export again.', source)
+        self.assertIn('; wave-overhangs v', source)
+        self.assertIn('Undahang v{PLUGIN_VERSION} loaded', source)
+
+    def test_existing_shortcut_aliases_repoint_without_creating_or_renaming(self):
+        import shutil
+        import tempfile
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            raise unittest.SkipTest("portable C compiler is unavailable")
+        text = (ROOT / "project-hub/src/parts/install_folder.c").read_text()
+        functions = []
+        for name in ('RepointDesktopShortcutIfPresent', 'RepointAppDesktopShortcutsIfPresent'):
+            start = text.index('static BOOL ' + name + '(')
+            functions.append(text[start:text.index('\n}\n', start) + 3])
+        with tempfile.TemporaryDirectory(prefix="name-shortcuts-") as tmp:
+            folder = Path(tmp)
+            (folder / "name_shortcut_production.h").write_text('\n'.join(functions))
+            exe = folder / "name-shortcuts"
+            run = subprocess.run([compiler, '-std=c11', '-Wall', '-Wextra', '-Werror',
+                                  '-I', str(folder), str(ROOT / 'tests/native/name_shortcut_harness.c'),
+                                  '-o', str(exe)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            run = subprocess.run([str(exe)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            self.assertIn('existing-only, deduplicated, bounded, failure-honest', run.stdout)
+
+    def test_future_version_bump_updates_brand_docs_but_not_orca_identity(self):
+        import shutil
+        import sys
+        import tempfile
+        files = ['tools/bump_version.py', 'Orca-Plugins.bat', 'plugins.json', 'README.md',
+                 'docs/ROADMAP.md', 'plugins/unlayered-infill/README.md',
+                 'plugins/wave-overhangs/README.md', 'plugins/wave-overhangs/CHANGELOG.md',
+                 'plugins/wave-overhangs/wave_overhangs_orca.py']
+        with tempfile.TemporaryDirectory(prefix="brand-version-") as tmp:
+            folder = Path(tmp)
+            for rel in files:
+                target = folder / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / rel, target)
+            changelog = folder / 'plugins/wave-overhangs/CHANGELOG.md'
+            changelog.write_text('## 9.9.9 — 2026-11-16\n\n* Future version probe.\n\n' + changelog.read_text())
+            run = subprocess.run([sys.executable, str(folder / 'tools/bump_version.py'),
+                                  'wave-overhangs', '9.9.9'], capture_output=True, text=True, timeout=10)
+            self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+            readme = (folder / 'README.md').read_text()
+            self.assertIn('[Undahang](plugins/wave-overhangs/) | 9.9.9 |', readme)
+            self.assertIn('`Undahang v9.9.9 -- setup check`', readme)
+            self.assertIn('`Wave Overhangs v9.9.9`', readme)
+            self.assertIn('**9.9.9** for Undahang.', readme)
+            self.assertIn('| Undahang | 9.9.9.', (folder / 'docs/ROADMAP.md').read_text())
+            self.assertIn('Version column reads **9.9.9**.',
+                          (folder / 'plugins/wave-overhangs/README.md').read_text())
+            raw = (folder / 'Orca-Plugins.bat').read_bytes()
+            self.assertIn(b'wave-overhangs^|Wave Overhangs^|9.9.9^|WaveOverhangs^|', raw)
+            self.assertNotIn(b'\n', raw.replace(b'\r\n', b''))
+            manifest = json.loads((folder / 'plugins.json').read_text())["plugins"]
+            self.assertEqual((manifest[0]['name'], manifest[0]['version']), ('Wave Overhangs', '9.9.9'))
+            self.assertEqual((manifest[1]['name'], manifest[1]['version']), ('Unlayered Infill', '0.4.10'))
+            run = subprocess.run([sys.executable, str(folder / 'tools/bump_version.py'), '--check-docs'],
+                                 capture_output=True, text=True, timeout=10)
+            self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
 
 
 if __name__ == "__main__":

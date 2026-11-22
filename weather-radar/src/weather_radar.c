@@ -45,7 +45,7 @@
 #include <wchar.h>
 #include "../../shared/win32/hub_tray_host.h"
 
-#define APP_TITLE_W   L"Weather Radar"
+#define APP_TITLE_W   L"Weather Report"
 #define APP_DIRNAME_W L"WeatherRadar"
 #define MUTEX_NAME    L"Local\\Tests_WeatherRadar_SingleInstance_v1"
 #define SHOW_EVENT    L"Local\\Tests_WeatherRadar_Show_v1"

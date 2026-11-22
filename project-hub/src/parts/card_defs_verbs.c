@@ -45,12 +45,14 @@ static void WorkerInstallGeneric(int idx, BOOL launchAfter) {
         SetFooterStatus(L"Could not save the file - close the app if it is open, then retry.", 0);
         return;
     }
-    wchar_t desk[MAX_PATH], lnk[MAX_PATH];
+    wchar_t desk[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
-        _snwprintf(lnk, MAX_PATH - 1, L"%s\\%s.lnk", desk,
-                   c->shortcutName ? c->shortcutName : (c->title ? c->title : L"Suite App"));
-        if (RepointDesktopShortcutIfPresent(lnk, destExe, c->appDir,
-                                            c->title ? c->title : L"Suite App"))
+        const wchar_t *name = c->shortcutName ? c->shortcutName
+                                             : (c->title ? c->title : L"Suite App");
+        const wchar_t *legacy = _wcsicmp(c->id, L"weatherradar") == 0
+                              ? L"Weather Radar" : NULL;
+        if (RepointAppDesktopShortcutsIfPresent(desk, name, legacy, destExe,
+                                                c->appDir, c->title ? c->title : L"Suite App"))
             SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
     }
     if (launchAfter) {
@@ -105,7 +107,7 @@ static void InitCardDefinitions(void) {
     g_cards[0].btns[3]   = (ActionBtn){ ID_BTG_STOP,   L"Stop",   BTN_SECONDARY, 62, {0,0,0,0}, NULL, FALSE };
 
     g_cards[1].resIconId = RES_ICON_KBL;
-    g_cards[1].title     = L"Keyboard Lighting";
+    g_cards[1].title     = L"Prism Lighting";
     g_cards[1].btnCount  = 4;
     g_cards[1].btns[0]   = (ActionBtn){ ID_KBL_UPDATE,  L"Update",   BTN_SECONDARY, 74, {0,0,0,0}, NULL, FALSE };
     g_cards[1].btns[1]   = (ActionBtn){ ID_KBL_OPEN,    L"Open",     BTN_SECONDARY, 68, {0,0,0,0}, NULL, FALSE };
@@ -167,7 +169,7 @@ static void InitCardDefinitions(void) {
         if (builtinExe[i].dir && g_suiteDir[0])
             SuiteAppPath(c->appDir, MAX_PATH, builtinExe[i].dir);
     }
-    /* Keep the core Weather Radar card present before any remote check. */
+    /* Keep the core Weather Report card present before any remote check. */
     EnsureWeatherRadarCatalogCard(FALSE);
 }
 

@@ -5,7 +5,7 @@
 
 ## Released work
 
-- **Hub:** main 2.8.56; Arena 2.8.69. APP-02 lifetime repairs released;
+- **Hub:** main 2.8.56; Arena 2.8.70. APP-02 lifetime repairs released;
   expiry/native soak open. APP-01: Guard security block 225; details below.
   Retain modal/max/no-duplicate, asInvoker, child-elevation, user-opened Notes
   and stop/update gates.
@@ -58,17 +58,16 @@ Retain pending/parked work; omissions OPEN.
   walls, fresh export/physical print, real-host dual-plugin flow. ORCA-04/05
   parked research: wake/seam blending without coverage/fragment regressions,
   smoother curved-wall perimeter-following rung; not new coding approval.
-- **Naming:** NAME-01 confirmed/queued: Weather Radar -> Weather Report;
-  Wave Overhangs -> Undahang; Keyboard Lighting -> Prism Lighting. Unlayered
-  Infill/Bluetooth Guard stay unchanged; not Bluetooth Bouncer. Public labels only;
-  preserve internal IDs/paths and fresh-log gate. APP-03 applies only the Undahang
-  Hub label; wider public-name rollout is still queued.
+- **Naming:** NAME-01 permitted rollout: Hub 2.8.70 Weather Report / Prism
+  Lighting; Weather native labels; Undahang 0.0.52 description/check/logs.
+  Preserve Orca PEP/capability names Wave Overhangs, preset/data/EXE identities,
+  legacy shortcut aliases and Infill/Guard names. Native acceptance pending:
+  `test-public-names.md`. Lighting own files stay gated on fresh `engine.log`.
+  Build/full checks + 358 mutations pass; 184-test gates, exact restoration.
 - **Planning:** PLAN-01 missing-request recovery open. PLAN-02 first slice
-  verified: timing/fail-fast/335 explicit routes, clean 169-test gates, exact
-  restoration; 335 detected, 0 survived/stale/errors in 132.622s. Same-scope
-  benchmark 1199.910 -> 147.385s (8.14x), all 335 verdicts equal. Six old
-  coverage gaps repaired; no verdict cache/app changes. Reuse/workers deferred;
-  `.agent/runbooks/mutation-runner.md`.
+  published: all 335 detected/restored; matched benchmark 8.14x faster with
+  identical verdicts. Six old coverage gaps repaired, no verdict cache/app
+  changes. Further reuse/workers deferred; `mutation-runner.md`.
 
 ## Offline safety / efficiency
 

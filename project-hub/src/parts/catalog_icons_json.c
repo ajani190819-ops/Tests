@@ -270,7 +270,10 @@ static void FillBuiltInDef(int slot, const char *id, const char *title,
     }
     ProjectCard *c = &g_cards[slot];
     MultiByteToWideChar(CP_UTF8, 0, id, -1, c->id, 23);
-    if (title[0]) c->title = PoolAdd(title);
+    if (slot == 1) {
+        c->title = L"Prism Lighting";
+        c->shortcutName = L"Prism Lighting";
+    } else if (title[0]) c->title = PoolAdd(title);
     if (blurb[0]) c->blurb = PoolAdd(blurb);
 
     /* Set exeRepo/exeName so install/update/open work for built-in cards.
@@ -402,7 +405,7 @@ static void AddCatalogCard(const char *obj, BOOL loadIcon) {
     BOOL isWeatherRadar = strcmp(id, "weatherradar") == 0;
     if (g_cardCount >= MAX_APPS ||
         (!isWeatherRadar && !weatherPresent && g_cardCount >= MAX_APPS - 1))
-        return; /* reserve one slot so a missing catalog entry cannot drop Weather Radar */
+        return; /* reserve one slot so a missing catalog entry cannot drop Weather Report */
 
     ProjectCard *c = &g_cards[g_cardCount];
     ZeroMemory(c, sizeof(*c));
@@ -410,14 +413,15 @@ static void AddCatalogCard(const char *obj, BOOL loadIcon) {
     c->category = HUB_GROUP_GENERAL;
     strncpy(c->catalogDef, obj, sizeof(c->catalogDef) - 1);
     MultiByteToWideChar(CP_UTF8, 0, id, -1, c->id, 23);
-    c->title = PoolAdd(title[0] ? title : id);
+    c->title = PoolAdd(isWeatherRadar ? "Weather Report" : (title[0] ? title : id));
     c->blurb = PoolAdd(blurb[0] ? blurb : "Suite app");
     c->exeRepo = PoolAdd(exe);
     {
         const char *bs = strrchr(exe, '/');
         c->exeName = PoolAdd(bs ? bs + 1 : exe);
     }
-    c->shortcutName = PoolAdd(shortcut[0] ? shortcut : (title[0] ? title : id));
+    c->shortcutName = PoolAdd(isWeatherRadar ? "Weather Report"
+                              : (shortcut[0] ? shortcut : (title[0] ? title : id)));
     c->launchArgs = args[0] ? PoolAdd(args) : NULL;
 
     /* Install dir: the suite folder, exactly like the built-ins. A stray copy
@@ -489,12 +493,12 @@ static void AddCatalogCard(const char *obj, BOOL loadIcon) {
 }
 
 static const char kWeatherRadarFallbackJson[] =
-    "{\"id\":\"weatherradar\",\"title\":\"Weather Radar\","
+    "{\"id\":\"weatherradar\",\"title\":\"Weather Report\","
     "\"blurb\":\"Honest rain odds + live radar\","
     "\"exe\":\"weather-radar/WeatherRadar.exe\","
     "\"dir\":\"WeatherRadar\","
     "\"icon\":\"weather-radar/weather-radar.ico\","
-    "\"shortcut\":\"Weather Radar\","
+    "\"shortcut\":\"Weather Report\","
     "\"buttons\":\"update:Update:74,open:Open:68,folder:Folder:68\"}";
 
 static BOOL HasWeatherRadarCatalogCard(void) {

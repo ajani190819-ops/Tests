@@ -289,7 +289,7 @@ if /i not "%REF_1%"=="main" set "BRANCH_MODE=1"
 echo.
 echo ===========================================================================
 echo  OrcaSlicer plugins  --  install / update
-echo  Wave Overhangs + Unlayered Infill
+echo  Undahang + Unlayered Infill
 echo.
 echo  ***************************************************************
 echo  * BRANCH: %REF_1%
@@ -380,7 +380,7 @@ echo    3. To use one, pick it under Others ^> Slicing Pipeline Plugin.
 echo    4. Unlayered Infill needs "Use relative E distances" enabled.
 echo.
 echo  IMPORTANT -- what you will and will not see in the preview:
-echo    * Wave Overhangs edits exported Bridge G-code after slicing. Its
+echo    * Undahang ^(Wave Overhangs in Orca^) edits exported Bridge G-code. Its
 echo      changes do NOT appear in the normal preview; export and reopen the file.
 echo    * Post-processing runs on Export G-code file, not Print or Send.
 if exist "%DLDIR%" echo    * Copies for Orca's UI installer are in "%DLDIR%"
@@ -607,7 +607,7 @@ rem  writes, and this way it lands on a field nothing reads.
 rem ---------------------------------------------------------------------------
 :fallback_plan
 echo   Using the fallback plan built into this file.
->  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.51^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Settings guide & check^|end
+>  "%PLAN_FILE%" echo wave-overhangs^|Wave Overhangs^|0.0.52^|WaveOverhangs^|wave_overhangs_orca.py^|plugins/wave-overhangs/wave_overhangs_orca.py^|Wave Overhangs^|Wave Overhangs - Settings guide & check^|end
 >> "%PLAN_FILE%" echo unlayered-infill^|Unlayered Infill^|0.4.10^|UnlayeredInfill^|unlayered_infill_orca.py^|plugins/unlayered-infill/unlayered_infill_orca.py^|Unlayered Infill^|Unlayered Infill - Check setup^|end
 exit /b 0
 
@@ -919,7 +919,7 @@ goto :fail
 rem ---------------------------------------------------------------------------
 :help
 echo Installs or updates the OrcaSlicer plugins
-echo   Wave Overhangs, Unlayered Infill
+echo   Undahang ^(select Wave Overhangs in Orca^), Unlayered Infill
 echo from https://github.com/%REPO% into your Orca data folder.
 echo.
 echo   Orca-Plugins.bat [data_dir] [--local] [--no-self-update] [--help]

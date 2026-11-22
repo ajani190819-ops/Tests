@@ -76,7 +76,7 @@ static void RestartKeyboardLightingCleanly(void) {
         ShellExecuteW(g_hwnd, L"open", rstBat, NULL, g_kblDir, SW_SHOWNORMAL);
     else
         EnqueueTask(TASK_INSTALL_KBL);
-    SetFooterStatus(L"Restarted Keyboard Lighting cleanly.", 0);
+    SetFooterStatus(L"Restarted Prism Lighting cleanly.", 0);
 }
 
 static INT_PTR PromptTextInput(HWND hwnd, const wchar_t *label, const wchar_t *preset,

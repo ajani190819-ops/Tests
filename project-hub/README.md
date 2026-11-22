@@ -24,9 +24,24 @@ copies/removals are reported rather than claimed successful.
 The old `orca` catalogue id now identifies the Undahang Hub card; the new
 `unlayered-infill` Hub card retains its existing package id. Python filenames,
 capabilities, presets, data paths and the shared `Orca-Plugins.bat` route are
-unchanged. This is not the broader NAME-01 rename rollout: the plugin still
-identifies itself to Orca as Wave Overhangs, and Weather Radar / Keyboard
-Lighting retain their current names for now.
+unchanged. Hub 2.8.70 applies the approved public names **Weather Report** and
+**Prism Lighting**, including offline startup, old/partial catalogues, the
+unified tray, Settings and update notices. Weather Report also updates its
+native title, tray and guidance. Lighting app files stay untouched pending a
+fresh owner `engine.log`; their own UI can still say Keyboard Lighting.
+
+Undahang 0.0.52 brands its description, setup report and logs. Its Orca package
+and capability names remain **Wave Overhangs** / **Wave Overhangs - Settings
+guide & check** because Orca stores them in presets/config references. Installer
+headings explain the public brand without changing plan/sidecar identities.
+There is no executable, module, saved-data, mutex, window-class or G-code-stamp
+rename. Unlayered Infill and Bluetooth Guard keep their names.
+
+Existing Desktop shortcuts under Weather Radar / Keyboard Lighting remain
+compatibility paths; updates repoint either public or legacy name **only if
+already present**. They do not create, rename or delete pins. Both lighting
+shortcut names are recognized for existing-copy discovery. Native Windows and
+real-Orca acceptance are in [the naming runbook](../.agent/runbooks/test-public-names.md).
 
 Required entries exist before a network check. Partial/old catalogues cannot
 recombine the plugin cards; remembered extra definitions are merged by id and
@@ -86,9 +101,9 @@ remains separate from the automated checks; see
 
 ## Suite Settings
 
-The Soft Slate Settings window centralizes Keyboard Lighting hold behavior,
+The Soft Slate Settings window centralizes Prism Lighting hold behavior,
 keyboard Balance/Steady Colours, DNS Pilot scheduling, and Hub branch following.
-Keyboard Lighting preferences update both `panel.json` (saved state) and
+Prism Lighting preferences update both `panel.json` (saved state) and
 `theme.json` (the live engine input); its tray reloads an external panel change
 before it can write stale in-memory values back. DNS Pilot still applies its
 saved INI changes after restart.

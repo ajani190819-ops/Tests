@@ -104,7 +104,7 @@ static void FinishWindowsLocation(DWORD ticket, const LocationSample *sample, co
 static void RequestWindowsLocation(void) {
     if (g_locationPending) { CancelWindowsLocation(); return; } /* second click cancels, not another prompt */
     if (GetForegroundWindow() != g_hwnd) {
-        LocationNotice(L"Bring Weather Radar to the front, then use My location.", 2);
+        LocationNotice(L"Bring Weather Report to the front, then use My location.", 2);
         return;
     }
     if (++g_locationTicket == 0) g_locationTicket = 1;

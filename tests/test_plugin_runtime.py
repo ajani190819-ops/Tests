@@ -906,12 +906,15 @@ with tempfile.TemporaryDirectory() as tmp:
         result = orca.REGISTERED[1]().execute()
         check(not result.ok and result.kind == fake_orca.PluginResult.RecoverableError,
               "Check setup must return a recoverable failure when dependencies are absent")
+        check(result.message.startswith(f"Undahang v{want_wave} -- setup check\n") and
+              "Orca identity: Wave Overhangs (kept for saved presets)." in result.message,
+              f"Undahang branding or the stable Orca identity is missing: {result.message!r}")
         check("numpy" in result.message and "shapely" in result.message and
               "Fully quit OrcaSlicer (not just close the window)" in result.message and
               "Diagnostics" in result.message,
               f"dependency failure does not give a complete beginner-safe fix: {result.message!r}")
         log = read_log(logs)
-        check(f"Wave Overhangs v{want_wave} loaded" in log and "MISSING" in log,
+        check(f"Undahang v{want_wave} loaded" in log and "MISSING" in log,
               f"Wave dependency state was not logged clearly:\n{log}")
         pipeline = orca.REGISTERED[0]()
         result = pipeline.execute(fake_orca.Context(fake_orca.Step.posSlice))

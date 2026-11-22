@@ -75,7 +75,7 @@ static void WeatherTrayInit(void) {
     g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     g_nid.uCallbackMessage = WM_TRAYICON;
     g_nid.hIcon = LoadIconW(g_hInst, MAKEINTRESOURCEW(1));
-    wcsncpy(g_nid.szTip, L"Weather Radar - exact-place rain watch", 127);
+    wcsncpy(g_nid.szTip, L"Weather Report - exact-place rain watch", 127);
     g_nid.szTip[127] = L'\0';
     WeatherTraySync();
 }
@@ -89,7 +89,7 @@ static void WeatherTrayRemove(void) {
 static void ShowWeatherTrayMenu(HWND hwnd) {
     HMENU menu = CreatePopupMenu();
     if (!menu) return;
-    AppendMenuW(menu, MF_STRING, ID_TRAY_OPEN, L"Open Weather Radar");
+    AppendMenuW(menu, MF_STRING, ID_TRAY_OPEN, L"Open Weather Report");
     AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(menu, MF_STRING, ID_TRAY_EXIT, L"Exit");
     POINT pt;
@@ -105,7 +105,7 @@ static void WeatherTrayHintOnce(void) {
     g_trayHinted = 1;
     g_nid.uFlags = NIF_INFO;
     g_nid.dwInfoFlags = NIIF_INFO;
-    wcsncpy(g_nid.szInfoTitle, L"Weather Radar keeps watching", 63);
+    wcsncpy(g_nid.szInfoTitle, L"Weather Report keeps watching", 63);
     wcsncpy(g_nid.szInfo, L"It will notify you when the selected place is likely to get rain. Right-click its notification-area icon to exit.", 255);
     g_nid.szInfoTitle[63] = L'\0';
     g_nid.szInfo[255] = L'\0';
@@ -118,7 +118,7 @@ static void PublishHubRainAlert(const Place *p, double odds) {
     _snwprintf(token, 63, L"%llu", (unsigned long long)UnixNowSeconds());
     _snwprintf(title, 63, L"Rain likely near %s", p->name);
     _snwprintf(body, 255,
-               L"Exact-location ensemble chance: %d%% within the next %d hours. Open Weather Radar for details.",
+               L"Exact-location ensemble chance: %d%% within the next %d hours. Open Weather Report for details.",
                (int)(odds * 100.0 + 0.5), RAIN_ALERT_HOURS);
     token[63] = title[63] = body[255] = L'\0';
     /* Commit the token last: Hub ignores an alert until the title and body are
@@ -138,7 +138,7 @@ static void ShowRainAlert(const Place *p, double odds) {
     g_nid.dwInfoFlags = NIIF_WARNING;
     _snwprintf(g_nid.szInfoTitle, 63, L"Rain likely near %s", p->name);
     _snwprintf(g_nid.szInfo, 255,
-               L"Exact-location ensemble chance: %d%% within the next %d hours. Weather Radar will not repeat this while this rain episode continues.",
+               L"Exact-location ensemble chance: %d%% within the next %d hours. Weather Report will not repeat this while this rain episode continues.",
                (int)(odds * 100.0 + 0.5), RAIN_ALERT_HOURS);
     g_nid.szInfoTitle[63] = L'\0';
     g_nid.szInfo[255] = L'\0';

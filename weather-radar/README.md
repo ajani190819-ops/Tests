@@ -1,4 +1,10 @@
-# Weather Radar
+# Weather Report
+
+Public name only: the executable is still `WeatherRadar.exe`, the native
+window/mutex identities and `%LOCALAPPDATA%\WeatherRadar\` data are unchanged,
+and old saved places, map caches and rain-watch episodes remain valid.
+Previously pinned `Weather Radar.lnk` links keep working; Hub updates repoint
+only existing public/legacy Desktop aliases and never add duplicate icons.
 
 Choose and save a place. The app headlines the exact-location ensemble chance of measurable rain, while showing regional coverage-blended probability as a labelled comparison. Radar data comes from RainViewer over OpenStreetMap; both stay attributed and cached locally. Native radar requests are capped at validated host level 7; display levels 8-10 are local crops centered on the selected place, not unsupported higher-level requests. Switching places discards late tile results for the previous place and keeps the map in a loading state until imagery for the current selection is ready, so the marker is not drawn over another city's map. When published, the map opens on the nearest future nowcast, labels its forecast-step position, and keeps a longer time history for smoother playback.
 
@@ -18,6 +24,6 @@ Builds and portable regression tests do not prove Windows permission behavior or
 
 ## Rain watch
 
-While Weather Radar is running, closing its window keeps it in the Windows notification area. It alerts only when the currently selected saved place reaches an exact-location ensemble chance of **66% or more within 3 hours**. Each episode is persisted, has a three-hour cooldown, and is never announced again while rain is already underway. Right-click the notification-area icon to exit.
+While Weather Report is running, closing its window keeps it in the Windows notification area. It alerts only when the currently selected saved place reaches an exact-location ensemble chance of **66% or more within 3 hours**. Each episode is persisted, has a three-hour cooldown, and is never announced again while rain is already underway. Right-click the notification-area icon to exit.
 
 Detailed data semantics, map/cache behavior, and the historical product narrative are in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).

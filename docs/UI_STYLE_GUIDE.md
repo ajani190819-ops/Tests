@@ -4,7 +4,7 @@ Every desktop application in this repository shares one calm, approachable, unif
 
 - **Project Hub** (`project-hub/ProjectHub.exe`, icon: `project-hub/hub.ico`)
 - **Bluetooth Guard** (`bluetooth-guard/BluetoothGuard.exe`, icon: `bluetooth-guard/btguard.ico`)
-- **Keyboard Lighting** (`keyboard-lighting/Tray.ps1` + `keyboard-lighting/ui_controls.cs.txt`, icon: `keyboard-lighting/app.ico`)
+- **Prism Lighting** (`keyboard-lighting/Tray.ps1` + `keyboard-lighting/ui_controls.cs.txt`, icon: `keyboard-lighting/app.ico`) — public Hub label; own-app branding waits for a fresh owner `engine.log`.
 - **Spatial HUD** (`docs/brand/spatial-hud.ico`)
 - **Undahang** (`docs/brand/undahang-wave-v1.ico`)
 - **Unlayered Infill** (`docs/brand/orca-plugins.ico`, unchanged legacy asset path)
@@ -33,13 +33,13 @@ Every desktop application in this repository shares one calm, approachable, unif
    - Every app icon is built on the **exact same brushed dark slate Windows 11 superellipse squircle** with a subtle recessed Tri-Spoke Core motif, soft top-left studio lighting, and a distinct per-app Fluent accent color:
      - **Project Hub:** Platinum-Ice & Soft Sky (`#93C5FD` / `#F8FAFC`) — full Tri-Spoke Core Medallion
      - **Bluetooth Guard:** Soft Cobalt-Sky (`#60A5FA` -> `#2563EB`) — rounded Bluetooth shield badge
-     - **Keyboard Lighting:** Soft Violet-Sky Aura (`#A78BFA` -> `#38BDF8` + warm amber underglow) — rounded keycap & lightbar glyph
+     - **Prism Lighting:** Soft Violet-Sky Aura (`#A78BFA` -> `#38BDF8` + warm amber underglow) — rounded keycap & lightbar glyph
      - **Spatial HUD:** Warm Amber-Gold (`#FDE68A` -> `#D97706`) — soft isometric 3D cube
      - **Undahang:** Mint–Ice Cyan — abstract rising wave-overhang stroke with a shorter underside echo; owner-approved artwork, not a literal print sample
      - **Unlayered Infill:** Soft Mint-Emerald (`#6EE7B7` -> `#10B981`) — existing three non-planar wave ribbons, unchanged
      - **Arena Link:** Soft Teal-Mint (`#5EEAD4` -> `#14B8A6`) — rounded interlocking link glyph
 5. **Calm, Natural Typography:**
-   - Use natural **Title Case** (`Project Hub`, `Bluetooth Guard`, `Keyboard Lighting`) and plain human sentences rather than shouty wide-spaced all-caps strings or raw `C:\Users\...` file paths.
+   - Use natural **Title Case** (`Project Hub`, `Bluetooth Guard`, `Prism Lighting`) and plain human sentences rather than shouty wide-spaced all-caps strings or raw `C:\Users\...` file paths.
 
 ---
 

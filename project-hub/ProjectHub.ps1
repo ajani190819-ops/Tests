@@ -4,7 +4,7 @@
 #  Clean, fast Windows dashboard for checking live status, launching,
 #  restarting, and downloading updates across every project in this
 #  repository:
-#    1. Keyboard Lighting  (ROG Strix G16 RGB + tray recovery)
+#    1. Prism Lighting  (ROG Strix G16 RGB + tray recovery)
 #    2. Bluetooth Guard    (stops Windows stealing phone earbuds)
 #    3. Spatial HUD        (Minecraft 26.3 Modrinth mod updater)
 #    4. OrcaSlicer Plugins (Wave Overhangs + Unlayered Infill)
@@ -387,7 +387,7 @@ $script:WorkerPs.Runspace = $script:WorkerRunspace
             }
             elseif ($cmd.Op -eq 'install-kbl') {
                 $target = [string]$cmd.Target
-                $Sync.ActionStatus = 'Downloading Keyboard Lighting files...'
+                $Sync.ActionStatus = 'Downloading Prism Lighting files...'
                 foreach ($f in @('Aura-Background.ps1','Tray.ps1','ui_controls.cs.txt','app.ico','Setup.ps1','Setup.bat','Restart.bat','Zones.ps1','Zones.bat','MyEffect.ps1','README.md')) {
                     try { Download-CheckedFile "$RawBase/keyboard-lighting/$f" (Join-Path $target $f) } catch { }
                 }
@@ -399,7 +399,7 @@ $script:WorkerPs.Runspace = $script:WorkerRunspace
                     $psi.UseShellExecute = $true
                     $psi.EnvironmentVariables['KEYBOARD_LIGHTING_BASE'] = "$RawBase/keyboard-lighting"
                     [void][System.Diagnostics.Process]::Start($psi)
-                    $Sync.ActionStatus = 'Launched Keyboard Lighting Setup (approve Administrator prompt).'
+                    $Sync.ActionStatus = 'Launched Prism Lighting Setup (approve Administrator prompt).'
                 }
             }
             elseif ($cmd.Op -eq 'install-btg') {
@@ -621,14 +621,14 @@ function New-ProjectCard([string]$title, [string]$subtitle, [System.Drawing.Colo
     return [pscustomobject]@{ Card = $card; Pill = $pill; Detail = $lblS; Buttons = $btns }
 }
 
-$uiKbl   = New-ProjectCard 'Keyboard Lighting' 'ROG Strix G16 per-zone keyboard & chassis light bar' ([HubUi.Theme]::Accent)  @('Open / Start', 'Restart / Unfreeze', 'Update / Repair', 'Open Folder')
+$uiKbl   = New-ProjectCard 'Prism Lighting' 'ROG Strix G16 per-zone keyboard & chassis light bar' ([HubUi.Theme]::Accent)  @('Open / Start', 'Restart / Unfreeze', 'Update / Repair', 'Open Folder')
 $uiBtg   = New-ProjectCard 'Bluetooth Guard'   'Prevents Windows stealing phone earbuds on boot/wake' ([HubUi.Theme]::Accent2) @('Open / Start', 'Restart Guard', 'Install / Update', 'Open Folder')
 $uiHud   = New-ProjectCard 'Spatial HUD (Minecraft 26.3)' 'Waist-height lower HUD mod for Modrinth F5W' ([HubUi.Theme]::Good)    @('Install / Update', 'Pick Mods Folder', 'Open Mods Folder')
 $uiOrca  = New-ProjectCard 'OrcaSlicer Plugins' 'Wave Overhangs + Unlayered Infill + Orca-Plugins.bat' ([HubUi.Theme]::Warn)    @('Update Plugins', 'Open Updater Menu', 'Plugins Folder', 'Logs Folder')
 $uiArena = New-ProjectCard 'Arena Link Windows' 'Local Git repository bridge desktop app'              ([HubUi.Theme]::Accent)  @('Launch App', 'Sync Latest Files', 'Open Folder')
 
 # ---------------------------------------------------------------- card button actions
-# 1. Keyboard Lighting
+# 1. Prism Lighting
 $uiKbl.Buttons[0].Add_Click({
     $dir  = $script:Cfg.Paths.KeyboardLighting
     $exe  = Join-Path $dir 'KeyboardLighting.exe'
@@ -643,7 +643,7 @@ $uiKbl.Buttons[1].Add_Click({
     $tray= Join-Path $dir 'Tray.ps1'
     if (Test-Path $rst) { Start-Process -FilePath $rst -WorkingDirectory $dir }
     elseif (Test-Path $tray) { Start-Process -FilePath 'powershell.exe' -Verb RunAs -WorkingDirectory $dir -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',('"{0}"' -f $tray),'-Restart','-NoElevate') }
-    $lblGlobal.Text = 'Sent clean restart signal to Keyboard Lighting.'
+    $lblGlobal.Text = 'Sent clean restart signal to Prism Lighting.'
 })
 $uiKbl.Buttons[2].Add_Click({ Queue-HubWork @{ Op = 'install-kbl'; Target = $script:Cfg.Paths.KeyboardLighting } })
 $uiKbl.Buttons[3].Add_Click({
@@ -769,7 +769,7 @@ function Refresh-StatusCards {
     $warnCol = [HubUi.Theme]::Warn
     $badCol  = [HubUi.Theme]::Bad
 
-    # 1. Keyboard Lighting
+    # 1. Prism Lighting
     $kblDir  = $script:Cfg.Paths.KeyboardLighting
     $kblTray = Join-Path $kblDir 'Tray.ps1'
     $kblLock = Join-Path $env:LOCALAPPDATA 'KeyboardLighting\running.lock'
@@ -781,7 +781,7 @@ function Refresh-StatusCards {
     if (-not (Test-Path $kblTray)) {
         $uiKbl.Pill.Text      = 'Not installed'
         $uiKbl.Pill.PillColor = $Mut
-        $uiKbl.Detail.Text    = 'Click "Update / Repair" to download and set up Keyboard Lighting.'
+        $uiKbl.Detail.Text    = 'Click "Update / Repair" to download and set up Prism Lighting.'
     } elseif ($kblState -eq 'hung') {
         $uiKbl.Pill.Text      = 'Frozen - Click Restart'
         $uiKbl.Pill.PillColor = $badCol
@@ -926,7 +926,7 @@ $miOpenHub.Add_Click({
 [void]$trayMenu.Items.Add($miOpenHub)
 
 $miRestartKbl = New-Object System.Windows.Forms.ToolStripMenuItem
-$miRestartKbl.Text = 'Restart Keyboard Lighting'
+$miRestartKbl.Text = 'Restart Prism Lighting'
 $miRestartKbl.Add_Click({ $uiKbl.Buttons[1].PerformClick() })
 [void]$trayMenu.Items.Add($miRestartKbl)
 

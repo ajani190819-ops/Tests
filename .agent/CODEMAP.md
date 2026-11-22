@@ -45,8 +45,8 @@
 ## project-hub/src/parts/card_defs_verbs.c
 
 - L1  f WorkerInstallGeneric
-- L69  f HandleVerb
-- L95  f InitCardDefinitions
+- L71  f HandleVerb
+- L97  f InitCardDefinitions
 
 ## project-hub/src/parts/catalog_icons_json.c
 
@@ -58,9 +58,9 @@
 - L223  f BuiltInSlot
 - L229  f BuiltInBtnId
 - L258  f FillBuiltInDef
-- L374  f AddCatalogCard
-- L500  f HasWeatherRadarCatalogCard
-- L506  f EnsureWeatherRadarCatalogCard
+- L377  f AddCatalogCard
+- L504  f HasWeatherRadarCatalogCard
+- L510  f EnsureWeatherRadarCatalogCard
 - globals: g_catalogJson (L6), g_strPool (L63), g_strPoolUsed (L64)
 
 ## project-hub/src/parts/content_identity.c
@@ -121,10 +121,11 @@
 - L218  f EnsureProbeRef
 - L228  f InstallRepoFileEverywhere  — One download, every copy: the suite folder plus any stray copy on disk.
 - L246  f InitAllPaths
-- L449  f CheckPidLockStatus
-- L481  f CreateShortcutLink
-- L514  f RemoveLegacyDesktopShortcuts
-- L535  f RepointDesktopShortcutIfPresent
+- L460  f CheckPidLockStatus
+- L492  f CreateShortcutLink
+- L525  f RemoveLegacyDesktopShortcuts
+- L546  f RepointDesktopShortcutIfPresent
+- L555  f RepointAppDesktopShortcutsIfPresent
 
 ## project-hub/src/parts/orca_plugins.c
 
@@ -1281,18 +1282,19 @@
 - L49  f strip_cs_comments_and_strings
 - L171  f lex_powershell
 - L306  f WindowsDesktopAppsTests
-- L3704  f SuiteFolderInstallTests
-- L5054  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L5237  f AudioSwitcherReachabilityTests
-- L5421  f AudioSwitcherSessionSweepTests
-- L5562  f AppOpenFocusTests
-- L5699  f HubLongevityTests
-- L5763  f HubGroupedEntriesTests
-- L5881  f BluetoothAudioEndpointTests
-- L5948  f BluetoothPanelTests
-- L6062  f RadarWindowsLocationTests
-- L6221  f SafetyMutationPropertyTests
-- L6324  f GuardSecurityReportTests
+- L3705  f SuiteFolderInstallTests
+- L5056  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L5239  f AudioSwitcherReachabilityTests
+- L5423  f AudioSwitcherSessionSweepTests
+- L5564  f AppOpenFocusTests
+- L5701  f HubLongevityTests
+- L5765  f HubGroupedEntriesTests
+- L5886  f BluetoothAudioEndpointTests
+- L5953  f BluetoothPanelTests
+- L6067  f RadarWindowsLocationTests
+- L6226  f SafetyMutationPropertyTests
+- L6329  f GuardSecurityReportTests
+- L6501  f PublicNameRolloutTests
 
 ## tests/wave_cases.py
 

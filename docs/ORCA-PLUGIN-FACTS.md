@@ -219,6 +219,11 @@ replaces an earlier **guess** in `MEMORY.md` that said Orca copies
   explicitly chose one final migration over retaining confusing old-looking
   compatibility names. Never rename these identities again. Updater sidecars
   exactly match the PEP 723 package names.
+* Public branding is separate: Undahang 0.0.52 uses its brand in the
+  description, setup report and logs, but keeps `Wave Overhangs` in the PEP
+  name, `plugins.json`, installer plans/sidecars and both `get_name()` values.
+  Preserve module/storage paths and `; wave-overhangs v...` output recognition;
+  a cosmetic rename is not permission to migrate preset identities.
 
 ## Where plugins live on disk
 

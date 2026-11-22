@@ -1,6 +1,13 @@
-# Changelog — Wave Overhangs
+# Changelog — Undahang
 
 The in-app Check setup view carries these three current releases. Full version history is preserved in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
+
+## 0.0.52 — 2026-11-16
+
+* Introduces Undahang branding in the description, setup report and logs while
+  preserving the Wave Overhangs package/capability identities used by presets.
+* Keeps Python/storage paths, settings recovery, output stamps, attribution and
+  all toolpath behavior unchanged; Unlayered Infill stays separate.
 
 ## 0.0.51 — 2026-10-20
 

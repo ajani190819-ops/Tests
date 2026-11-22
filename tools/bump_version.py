@@ -25,19 +25,19 @@ CATALOGUE = ROOT / "plugins.json"
 DOC_PATTERNS = {
     "wave-overhangs": [
         (ROOT / "README.md", [
-            (r"(\| \[Wave Overhangs\]\(plugins/wave-overhangs/\) \| )\d+\.\d+\.\d+( \|)", r"\g<1>{v}\g<2>"),
+            (r"(\| \[Undahang\]\(plugins/wave-overhangs/\) \| )\d+\.\d+\.\d+( \|)", r"\g<1>{v}\g<2>"),
             (r"(\| File → Plugins, \*\*Version\*\* column \| `)\d+\.\d+\.\d+(`)", r"\g<1>{v}\g<2>"),
             (r"(\| The updater's output \| `Wave Overhangs v)\d+\.\d+\.\d+(` \|)", r"\g<1>{v}\g<2>"),
-            (r"(\| \*\*Settings guide & check\*\*, first line \| `Wave Overhangs v)\d+\.\d+\.\d+( -- setup check` \|)", r"\g<1>{v}\g<2>"),
-            (r"( for Unlayered Infill and \*\*)\d+\.\d+\.\d+(\*\* for Wave\s+Overhangs\.)", r"\g<1>{v}\g<2>"),
+            (r"(\| \*\*Settings guide & check\*\*, first line \| `Undahang v)\d+\.\d+\.\d+( -- setup check` \|)", r"\g<1>{v}\g<2>"),
+            (r"( for Unlayered Infill and \*\*)\d+\.\d+\.\d+(\*\* for Undahang\.)", r"\g<1>{v}\g<2>"),
             (r"(Version column to confirm )\d+\.\d+\.\d+( / )", r"\g<1>{v}\g<2>"),
         ]),
         (ROOT / "plugins" / "wave-overhangs" / "README.md", [
             (r"(Version column reads \*\*)\d+\.\d+\.\d+(\*\*\.)", r"\g<1>{v}\g<2>"),
         ]),
         (ROOT / "docs" / "ROADMAP.md", [
-            (r"(plugins: Wave Overhangs \*\*)\d+\.\d+\.\d+(\*\* and Unlayered Infill)", r"\g<1>{v}\g<2>"),
-            (r"(\| Wave Overhangs \| )\d+\.\d+\.\d+(\.)", r"\g<1>{v}\g<2>"),
+            (r"(plugins: Undahang \*\*)\d+\.\d+\.\d+(\*\* and Unlayered Infill)", r"\g<1>{v}\g<2>"),
+            (r"(\| Undahang \| )\d+\.\d+\.\d+(\.)", r"\g<1>{v}\g<2>"),
         ]),
     ],
     "unlayered-infill": [

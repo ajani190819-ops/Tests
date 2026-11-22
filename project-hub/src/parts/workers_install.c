@@ -244,7 +244,7 @@ static void WorkerInstallKeyboardLighting(void) {
         HWND wK = FindWindowW(L"TestsKeyboardLightingSuiteWnd", NULL);
         if (wK && IsWindowVisible(wK)) kblWasVisible = TRUE;
     }
-    SetFooterStatus(L"Stopping running Keyboard Lighting for clean update...", 10);
+    SetFooterStatus(L"Stopping running Prism Lighting for clean update...", 10);
     if (FileExistsW(kblExe)) {
         SHELLEXECUTEINFOW sei;
         ZeroMemory(&sei, sizeof(sei));
@@ -267,7 +267,7 @@ static void WorkerInstallKeyboardLighting(void) {
        proves no visible, trayed, or stray KeyboardLighting.exe remains before
        we delete or download any of its update files. */
     if (!CloseManagedExeCopies(MIRROR_KBL, g_kblDir, L"KeyboardLighting.exe",
-                               L"Keyboard Lighting", 0))
+                               L"Prism Lighting", 0))
         return;
     _snwprintf(uiDll, MAX_PATH, L"%s\\Ui.dll", g_kblDir);
     DeleteFileW(uiDll);
@@ -281,7 +281,7 @@ static void WorkerInstallKeyboardLighting(void) {
     int dlFail = 0;
     for (int i = 0; i < count; i++) {
         wchar_t msg[256], rel[128], dest[MAX_PATH];
-        _snwprintf(msg, 255, L"Downloading Keyboard Lighting (%d/%d): %s...", i + 1, count, files[i]);
+        _snwprintf(msg, 255, L"Downloading Prism Lighting (%d/%d): %s...", i + 1, count, files[i]);
         SetFooterStatus(msg, 15 + (i * 80) / count);
         _snwprintf(rel, 127, L"keyboard-lighting/%s", files[i]);
         _snwprintf(dest, MAX_PATH, L"%s\\%s", g_kblDir, files[i]);
@@ -297,11 +297,11 @@ static void WorkerInstallKeyboardLighting(void) {
     }
 
     if (FileExistsW(kblExe)) {
-        wchar_t desk[MAX_PATH], lnk[MAX_PATH];
+        wchar_t desk[MAX_PATH];
         if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk))) {
-            _snwprintf(lnk, MAX_PATH, L"%s\\Keyboard Lighting.lnk", desk);
-            if (RepointDesktopShortcutIfPresent(lnk, kblExe, g_kblDir,
-                                                L"Keyboard Lighting - ROG Strix G16 RGB"))
+            if (RepointAppDesktopShortcutsIfPresent(desk, L"Prism Lighting", L"Keyboard Lighting",
+                                                    kblExe, g_kblDir,
+                                                    L"Prism Lighting - ROG Strix G16 RGB"))
                 SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
         }
         /* restore as it was: a visible window comes back to the front,
@@ -316,14 +316,14 @@ static void WorkerInstallKeyboardLighting(void) {
             /* never claim a clean update when helper files are missing */
             wchar_t warn[256];
             _snwprintf(warn, 255,
-                       L"Keyboard Lighting updated, but %d of %d files failed to download - press Update to retry.",
+                       L"Prism Lighting updated, but %d of %d files failed to download - press Update to retry.",
                        dlFail, count);
             warn[255] = L'\0';
             SetFooterStatus(warn, 0);
         } else {
             SetFooterStatus(kblWasVisible || !kblWasInstalled
-                                ? L"Keyboard Lighting updated and reopened!"
-                                : L"Keyboard Lighting updated - running quietly in the tray.", 0);
+                                ? L"Prism Lighting updated and reopened!"
+                                : L"Prism Lighting updated - running quietly in the tray.", 0);
         }
     } else {
         SetFooterStatus(L"Could not download KeyboardLighting.exe from GitHub.", 0);

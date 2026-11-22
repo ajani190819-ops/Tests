@@ -311,7 +311,7 @@ static void HubTrayPollWeatherAlert(void) {
     if (!token[0] || wcscmp(token, g_hubSeenRainAlert) == 0) return;
     GetPrivateProfileStringW(L"HubRelay", L"RainTitle", L"Rain likely near your selected place",
                              title, 63, weatherCfg);
-    GetPrivateProfileStringW(L"HubRelay", L"RainBody", L"Open Weather Radar for details.",
+    GetPrivateProfileStringW(L"HubRelay", L"RainBody", L"Open Weather Report for details.",
                              body, 255, weatherCfg);
     title[63] = body[255] = L'\0';
     g_hubNid.uFlags = NIF_INFO;
@@ -460,7 +460,7 @@ static void HubTrayOpenWeather(void) {
     _snwprintf(weatherExe, MAX_PATH - 1, L"%s\\WeatherRadar.exe", weatherDir);
     weatherExe[MAX_PATH - 1] = L'\0';
     if (!HubOpenApp(weatherExe, NULL, weatherDir))
-        SetFooterStatus(L"Weather Radar will appear after the next Hub refresh confirms its install.", 0);
+        SetFooterStatus(L"Weather Report will appear after the next Hub refresh confirms its install.", 0);
 }
 
 static void HubTrayOpenApp(int id) {
@@ -562,7 +562,7 @@ static void HubTrayShowMenu(HWND hwnd) {
     HubTrayAppendApp(menu, L"Bluetooth Guard", L"TestsBluetoothGuardModernWnd",
                       ID_TRAY_BTG_OPEN, ID_TRAY_BTG_HIDE, ID_TRAY_BTG_QUIT,
                       ID_TRAY_BTG_TOGGLE, L"Toggle Guard Enabled");
-    HubTrayAppendApp(menu, L"Keyboard Lighting", L"TestsKeyboardLightingSuiteWnd",
+    HubTrayAppendApp(menu, L"Prism Lighting", L"TestsKeyboardLightingSuiteWnd",
                       ID_TRAY_KBL_OPEN, ID_TRAY_KBL_HIDE, ID_TRAY_KBL_QUIT,
                       ID_TRAY_KBL_TOGGLE, L"Toggle Lighting On or Off");
     HubTrayAppendApp(menu, L"DNS Pilot", L"KBLSuiteDnsPilotWindow",
@@ -570,7 +570,7 @@ static void HubTrayShowMenu(HWND hwnd) {
                       ID_TRAY_DNS_TOGGLE, L"Toggle DNS Auto-Pilot");
     HubTrayAppendApp(menu, L"Audio Switcher", L"TestsAudioSwitcherWnd",
                       ID_TRAY_AUDIO_OPEN, ID_TRAY_AUDIO_HIDE, ID_TRAY_AUDIO_QUIT, 0, NULL);
-    HubTrayAppendApp(menu, L"Weather Radar", L"WeatherRadarMainV1",
+    HubTrayAppendApp(menu, L"Weather Report", L"WeatherRadarMainV1",
                       ID_TRAY_WEATHER_OPEN, ID_TRAY_WEATHER_HIDE, ID_TRAY_WEATHER_QUIT, 0, NULL);
     HubTrayMenuAdd(menu, 0, NULL, HUB_TRAY_MENU_SEPARATOR,
                    FALSE, TRUE, FALSE, FALSE, FALSE, FALSE);
@@ -633,7 +633,7 @@ static int HubTrayHandleCommand(HWND hwnd, int id) {
         HubTrayRunControl(g_btgDir, L"BluetoothGuard.exe", L"--hub-exit", L"Bluetooth Guard");
         return 1;
     case ID_TRAY_KBL_QUIT:
-        HubTrayRunControl(g_kblDir, L"KeyboardLighting.exe", L"--hub-exit", L"Keyboard Lighting");
+        HubTrayRunControl(g_kblDir, L"KeyboardLighting.exe", L"--hub-exit", L"Prism Lighting");
         return 1;
     case ID_TRAY_DNS_QUIT:
         HubTrayRunControl(g_dnsDir, L"DnsPilot.exe", L"--hub-exit", L"DNS Pilot");
@@ -641,18 +641,18 @@ static int HubTrayHandleCommand(HWND hwnd, int id) {
     case ID_TRAY_AUDIO_QUIT: HubTrayStopExe(g_audioSwitcherDir, L"AudioSwitcher.exe", L"Audio Switcher"); return 1;
     case ID_TRAY_WEATHER_QUIT: {
         int idx = HubTrayFindCardByExe(L"WeatherRadar.exe");
-        if (idx >= 0) HubTrayStopExe(g_cards[idx].appDir, L"WeatherRadar.exe", L"Weather Radar");
+        if (idx >= 0) HubTrayStopExe(g_cards[idx].appDir, L"WeatherRadar.exe", L"Weather Report");
         else {
             wchar_t dir[MAX_PATH];
             SuiteAppPath(dir, MAX_PATH, L"WeatherRadar");
-            HubTrayStopExe(dir, L"WeatherRadar.exe", L"Weather Radar");
+            HubTrayStopExe(dir, L"WeatherRadar.exe", L"Weather Report");
         }
         return 1;
     }
 
     case ID_TRAY_BTG_TOGGLE: HubTrayToggleBluetooth(); return 1;
     case ID_TRAY_KBL_TOGGLE:
-        HubTrayRunControl(g_kblDir, L"KeyboardLighting.exe", L"--hub-toggle", L"Keyboard Lighting");
+        HubTrayRunControl(g_kblDir, L"KeyboardLighting.exe", L"--hub-toggle", L"Prism Lighting");
         return 1;
     case ID_TRAY_DNS_TOGGLE:
         HubTrayRunControl(g_dnsDir, L"DnsPilot.exe", L"--hub-toggle-auto", L"DNS Auto-Pilot");
