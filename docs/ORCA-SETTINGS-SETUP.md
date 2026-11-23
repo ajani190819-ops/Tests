@@ -111,6 +111,19 @@ Normal slice preview does not prove exported rewrites. Verify an explicit
 version-dependent and is not certified by these source tests. Existing
 experimental print/collision/strength limitations still apply.
 
+## Latest owner feedback / next request
+
+The owner confirms the new menus are visible, working and look good in their
+Orca installation. This is **owner-reported settings UI feedback**, not proof
+that every save/restore, setup transaction or export path has been tested.
+Test-print results are pending; no new physical-print outcome is recorded.
+The exact Orca version and selected printer profile have not been supplied.
+
+The next request is to preview **processed G-code without manually exporting
+and reopening it**. [Feasibility findings](ROADMAP.md#processed-g-code-preview--feasibility-review)
+remain a review, not a delivered feature or approval for new toolpath behavior.
+Version renumbering is paused; releases remain 0.0.53 / 0.4.11.
+
 ## Verification boundary / development
 
 For this increment, the eight-target Windows build check and full **uncached**

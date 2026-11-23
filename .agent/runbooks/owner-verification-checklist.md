@@ -14,7 +14,10 @@ No repeated logs/matrix or invented fixture/security/hardware/print evidence.
   both Orca plugins: every control visible in labelled groups, exact approved
   process diffs only, no automatic preset saves. Printer/filament stay read-only;
   relative E stays advisory by explicit owner choice. Inspector/toolpath work is
-  not in this pass. ORCA-04/05 remain PARKED. [Scope](../../docs/ORCA-SETTINGS-SETUP.md).
+  not in this pass. Owner sees the new menus working/looking good; prints are
+  pending. Next is processed-preview feasibility without manual export/reopen;
+  host version/profile unknown, implementation unchosen, renumbering paused.
+  ORCA-04/05 remain PARKED. [Scope](../../docs/ORCA-SETTINGS-SETUP.md).
 - **APP-01 Owner-reported good:** Lighting Open/current use now fine. The 2.8.72
   offscreen source regression does not establish the owner's cause or installed
   build, and no new Guard-specific result is inferred. No log/test loop.
@@ -228,7 +231,7 @@ newly executed individual acceptance matrix or independently verified test.
 | Orca | ORCA-04 | PARKED: wake/seam research, no coding approval |
 | Orca | ORCA-05 | PARKED: curved-boundary research, no coding approval |
 | Naming | NAME-01 | Rollout owner-reported good; own lighting branding unchanged |
-| Planning | PLAN-01 | **CURRENT:** approved Orca settings/setup only; printer/filament read-only, no autosave; known list owner-reviewed, all old IDs retained |
+| Planning | PLAN-01 | **CURRENT:** settings/setup menus owner-reported good; prints pending; preview feasibility next, renumbering paused; printer/filament read-only, no autosave; known list owner-reviewed, all old IDs retained |
 | Planning | PLAN-02 | First optimization shipped; further caching/workers DEFERRED |
 
 The current task needs no new owner logs or reproduction. Existing procedures

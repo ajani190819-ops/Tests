@@ -11,10 +11,10 @@ Guard-specific outcome, repeated logs or full matrix; no permanent/native safety
 certification is inferred.
 
 **Current focus / monitor (20 retained IDs):**
-- **PLAN-01 CURRENT:** approved Orca settings/setup implemented: all controls
-  visible in groups; exact approved process diffs only. Printer/filament stay
-  read-only, relative E advisory, no autosave. Inspector/toolpaths excluded.
-  `docs/ORCA-SETTINGS-SETUP.md`; native UI/installed host unverified.
+- **PLAN-01 CURRENT:** menus owner-reported good; prints pending. Review preview
+  without manual export/reopen; renumbering paused. All controls visible; approved
+  process diffs only, printer/filament read-only, relative E advisory, no autosave.
+  `docs/ORCA-SETTINGS-SETUP.md`; host version unknown.
 - **APP-01 Owner-reported good:** Lighting Open/current use now fine; prior
   "nothing visible" is history. Hub 2.8.72 offscreen correction/458 mutations
   do not establish that cause. No new Guard outcome. `test-hub-open-to-front.md`.
