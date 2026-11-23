@@ -1,8 +1,12 @@
 # Orca real-host evidence: ORCA-01 / ORCA-02 / ORCA-03
 
-**All three acceptance items remain OPEN.** The owner authorized batching safe
-work, not guessing effective settings, printing automatically, changing plugin
-algorithms or reviving ORCA-04/05 research. Keep original evidence unchanged.
+**ORCA-01/02/03 are owner-reported good for current use.** The older procedure
+below is a retained reference, not a request to repeat the full matrix or logs.
+The approved settings/setup increment has no new native UI/callback/export or
+physical-print evidence here; that does not revoke the current-use approval.
+Do not guess effective settings, print automatically, change algorithms or
+revive ORCA-04/05 research. Keep original evidence unchanged. The narrower
+current boundary is in [settings/setup](../../docs/ORCA-SETTINGS-SETUP.md).
 
 ## 1. Establish evidence identity before reproducing
 
@@ -44,8 +48,8 @@ invocation from a missing stamp alone: a no-op/applicability gate is possible.
 
 Before any reset/reinstall, record:
 
-- Orca build/version and OS; installed **Undahang 0.0.52** (package/capabilities
-  still **Wave Overhangs**) and **Unlayered Infill 0.4.10**, or the exact versions
+- Orca build/version and OS; installed **Undahang 0.0.53** (package/capabilities
+  still **Wave Overhangs**) and **Unlayered Infill 0.4.11**, or the exact versions
   actually installed. Older versions are not current-release acceptance.
 - The Plugins dialog's activation/version and each slicing capability's Config
   JSON, plus any process/filament/printer preset plugin overrides. Preserve

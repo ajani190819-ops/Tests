@@ -2,6 +2,16 @@
 
 The in-app Check setup view carries these three current releases. Full version history is preserved in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
 
+## 0.0.53 — 2026-11-16
+
+* Adds a grouped settings form with every tuning control visible, units,
+  inline guidance, explicit global/preset scope and a value-preserving JSON fallback.
+* Settings guide and setup check report active prerequisites without inventing
+  universal process fixes. Printer/filament profiles remain read-only; no
+  selection rewiring, automatic preset saves or toolpath experiments.
+* Labels backed-up guide values honestly and keeps engines, tuning defaults,
+  identities and slicing callbacks unchanged. No native UI/print claim.
+
 ## 0.0.52 — 2026-11-16
 
 * Introduces Undahang branding in the description, setup report and logs while

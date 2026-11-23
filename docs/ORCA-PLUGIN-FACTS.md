@@ -10,6 +10,22 @@ The source snapshots are kept in `docs/reference/`:
 registration; `Getting Started - OrcaSlicer Wiki.pdf` covers the user-facing
 plugin workflow. The captured Wave export and model are in `tests/fixtures/`.
 
+## Current settings/setup increment
+
+Undahang 0.0.53 and Infill 0.4.11 use self-contained forms generated from the
+existing defaults/sections/notes, with all controls visible and JSON fallback.
+See [settings/setup](ORCA-SETTINGS-SETUP.md) for the exact scope and source links.
+The config getter is pure; the explicit Script action alone may confirm and
+stage an allowlisted **process** change. Printer/filament stay read-only in
+setup, relative E is manual advice, and no preset is automatically saved.
+Host context reports global/preset scope but not the preset category; do not
+label every preset override as a process override. The config iframe is
+`sandbox="allow-scripts"`: use inline confirmation, not modal JavaScript APIs.
+The v2.5.1/Nov-16-main API review and host/DOM doubles are not native callback,
+export or physical-print evidence. The owner's installed host remains unknown.
+Historical host behavior below is retained, not blanket certification of
+Print/Send or UI behavior in every newer build.
+
 ## The preset field
 
 * There is **ONE** preset field: Process preset → Others → **Slicing Pipeline
@@ -178,7 +194,7 @@ replaces an earlier **guess** in `MEMORY.md` that said Orca copies
   plugin's default configuration". The old advice ("set the preset's Slicing
   Pipeline Plugin to None and back, then save the preset") was based on the
   wrong storage model. It is harmless but it is not the fix.
-* **The config editor is a plain JSON editor, so a note containing `\n` is
+* **In the plain JSON fallback, a note containing `\n` is
   shown as the two literal characters.** Notes must therefore be one short
   sentence each. Grouping is done with `_`-prefixed heading keys, which the
   editor shows in insertion order; both plugins generate the panel and the

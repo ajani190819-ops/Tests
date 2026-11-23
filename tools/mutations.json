@@ -4578,5 +4578,295 @@
   "tests": [
    "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
   ]
+ },
+ {
+  "id": "orca-setup-01",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "buttons=\"yes_no_cancel\", icon=\"question\") != \"yes\":",
+  "new": "buttons=\"yes_no_cancel\", icon=\"question\") == \"yes\":",
+  "label": "setup inverts explicit approval",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_no_cancel_close_and_non_yes_never_open_a_transaction"
+  ]
+ },
+ {
+  "id": "orca-setup-02",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "if _setup_snapshot() != before:\n            out.append(\"Preset or reviewed values changed during review.",
+  "new": "if False:\n            out.append(\"Preset or reviewed values changed during review.",
+  "label": "setup accepts stale review",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_profile_or_reviewed_value_changes_during_review_abort_without_switch"
+  ]
+ },
+ {
+  "id": "orca-setup-03",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "if (tx.target_name != before[\"process\"] or tx.category != \"process\"",
+  "new": "if (False or tx.category != \"process\"",
+  "label": "setup ignores bound target",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_bound_target_category_selection_or_values_must_still_match"
+  ]
+ },
+ {
+  "id": "orca-setup-04",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "or tx.category != \"process\"",
+  "new": "or False",
+  "label": "setup ignores target category",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_bound_target_category_selection_or_values_must_still_match"
+  ]
+ },
+ {
+  "id": "orca-setup-05",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "or tx.selection_changed is not False or _setup_snapshot() != before):",
+  "new": "or False or _setup_snapshot() != before):",
+  "label": "setup accepts host selection switch",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_bound_target_category_selection_or_values_must_still_match"
+  ]
+ },
+ {
+  "id": "orca-setup-06",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "or tx.selection_changed is not False or _setup_snapshot() != before):",
+  "new": "or tx.selection_changed is not False):",
+  "label": "setup skips post-bind snapshot",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_bound_target_category_selection_or_values_must_still_match"
+  ]
+ },
+ {
+  "id": "orca-setup-07",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "if _setup_snapshot() != before:\n            out.append(\"Reviewed values changed before commit.",
+  "new": "if False:\n            out.append(\"Reviewed values changed before commit.",
+  "label": "setup skips precommit snapshot",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_reviewed_values_are_rechecked_even_after_staging"
+  ]
+ },
+ {
+  "id": "orca-setup-08",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "if key != \"enable_arc_fitting\" or new != \"0\" or not _UI_INFILL:",
+  "new": "if False:",
+  "label": "setup drops process key/value allowlist",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_only_allowlisted_process_key_value_can_be_staged"
+  ]
+ },
+ {
+  "id": "orca-setup-09",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "result = tx.commit()",
+  "new": "result = None",
+  "label": "setup pretends to commit",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_exact_approved_process_diff_uses_one_unsaved_active_transaction"
+  ]
+ },
+ {
+  "id": "orca-setup-10",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "or list(result.keys) != [item[0] for item in changes]",
+  "new": "or False",
+  "label": "setup trusts wrong committed keys",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_host_result_and_readback_must_confirm_exact_target_and_keys"
+  ]
+ },
+ {
+  "id": "orca-setup-11",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "or any(after[\"values\"].get(key) != new for key, _old, new, _reason in changes)):",
+  "new": "or False):",
+  "label": "setup skips committed value readback",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_host_result_and_readback_must_confirm_exact_target_and_keys"
+  ]
+ },
+ {
+  "id": "orca-setup-12",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "if _UI_INFILL and arcs is not None and arcs.strip().lower() in (\"1\", \"true\"):",
+  "new": "if arcs is not None and arcs.strip().lower() in (\"1\", \"true\"):",
+  "label": "Undahang offers an Infill-only fix",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_undahang_does_not_offer_unnecessary_infill_fixes"
+  ]
+ },
+ {
+  "id": "orca-setup-13",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "        lines.extend(_setup_assistant_lines())\n",
+  "new": "",
+  "label": "Script action omits setup assistant",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_script_entry_runs_setup_even_with_the_optional_guide_off"
+  ]
+ },
+ {
+  "id": "orca-setup-14",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        lines.extend(_setup_assistant_lines())\n",
+  "new": "",
+  "label": "Script action omits setup assistant",
+  "tests": [
+   "tests.test_orca_settings_ui.SetupAssistantTests.test_script_entry_runs_setup_even_with_the_optional_guide_off"
+  ]
+ },
+ {
+  "id": "orca-form-01",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "latest !== null && typeof bridge.saveConfig === 'function' && context.readOnly !== true",
+  "new": "latest !== null && typeof bridge.saveConfig === 'function' && true",
+  "label": "form bypasses host read-only context",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-form-02",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "latest !== null && typeof bridge.saveConfig === 'function'",
+  "new": "typeof bridge.saveConfig === 'function'",
+  "label": "form can overwrite values before host load",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-form-03",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "  Object.keys(cfg).forEach(function (key) { result[key] = clone(cfg[key]); });",
+  "new": "  // Dropped saved and unknown values.",
+  "label": "form drops stored keys and types",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-form-04",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "value = draft[spec.key];",
+  "new": "value = spec.default;",
+  "label": "form displays defaults instead of stored values",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-form-05",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "draft[item.spec.key] = parseInput(item.spec,item.input);",
+  "new": "parseInput(item.spec,item.input);",
+  "label": "form discards control edits",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-form-06",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "if (!writable || !draft || rawDirty) {",
+  "new": "if (!writable || !draft) {",
+  "label": "form saves before JSON draft is loaded",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-form-07",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "if (dirty && !acknowledged) {",
+  "new": "if (false) {",
+  "label": "late host reply overwrites newer draft",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-form-08",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    payload = json.dumps(schema, ensure_ascii=True).replace(\"<\", \"\\\\u003c\").replace(\">\", \"\\\\u003e\").replace(\"&\", \"\\\\u0026\")",
+  "new": "    payload = json.dumps(schema, ensure_ascii=True)",
+  "label": "schema escapes no script close tag",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_html_generation_is_pure_and_schema_cannot_escape_its_script"
+  ]
+ },
+ {
+  "id": "orca-form-09",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "pendingAction = action; confirmationOrigin = origin;",
+  "new": "pendingAction = action; action(); confirmationOrigin = origin;",
+  "label": "restore runs before inline approval",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-form-10",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "return value !== null && typeof value === 'object' && !Array.isArray(value);",
+  "new": "return value !== null && typeof value === 'object';",
+  "label": "form accepts array/scalar config shapes",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-form-11",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "Object.keys(value).sort().map(function (key)",
+  "new": "Object.keys(value).map(function (key)",
+  "label": "form rejects reordered host acknowledgment",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-form-12",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "list(sections) + [(\"_OTHER\", \"Other settings\", list(settings))]",
+  "new": "list(sections)",
+  "label": "form omits future unsectioned controls",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_unsectioned_new_control_cannot_disappear"
+  ]
+ },
+ {
+  "id": "orca-form-13",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "if (context.scope !== scope || document.getElementById('restore').disabled)",
+  "new": "if (document.getElementById('restore').disabled)",
+  "label": "restore applies after scope changes",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-form-14",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "  closeConfirmation();\n  try {",
+  "new": "  // Keep stale inline action.\n  try {",
+  "label": "host refresh leaves stale restore confirmation",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-form-15",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "if (typeof value === 'number' && !Number.isFinite(value)) throw new Error(",
+  "new": "if (false) throw new Error(",
+  "label": "overflowing raw JSON numbers turn into null",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
  }
 ]

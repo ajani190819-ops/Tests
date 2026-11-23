@@ -1,39 +1,44 @@
 # Orca plugin roadmap
 
-Current releases: plugins: Undahang **0.0.52** and Unlayered Infill **0.4.10**, with the package names kept version-free.
+Current releases: plugins: Undahang **0.0.53** and Unlayered Infill **0.4.11**, with the package names kept version-free.
 Capability names, module/storage paths and G-code stamp prefixes stay stable.
 
 | Plugin | Current state |
 | --- | --- |
-| Unlayered Infill | 0.4.10. Current engine and regressions retained; owner-reported good for current use. |
-| Undahang | 0.0.52. Owner-reported good for current use; experimental print/safety limits still apply. |
+| Unlayered Infill | 0.4.11. Settings/setup increment; engine/defaults retained. Earlier current-use approval is not new native UI evidence. |
+| Undahang | 0.0.53. Settings/setup increment; engine/defaults retained. Experimental print/safety limits still apply. |
 | Wave Overhangs Geometry | Archived, not a new development target. |
 
-## Current review - proposals only, not implementation approval
+## Approved first pass — settings and setup only
 
-The owner asks for addition/change ideas after Orca's plugin-system updates.
-This is a source/API review, not a new real-Orca callback, export or print test.
-The owner's installed Orca version is unknown; do not infer it from upstream.
-The existing ORCA-01/02/03 current-use approvals remain. ORCA-04 wake/seam and
-ORCA-05 curved-boundary research stay **PARKED** until explicitly selected.
-Further PLAN-02 optimization stays **DEFERRED**. PLAN-01 tracks this ideas review;
-no extra task ID or algorithm change is approved by asking for suggestions.
+The owner explicitly selected settings/setup for both plugins, **all controls
+visible** in labelled groups, and exact approved **process** diffs with no
+preset autosave. A separate decision keeps **printer/filament read-only**;
+relative E stays advisory because it belongs to the printer profile. No
+Simple/Advanced hiding, inspector or toolpath experiments in this pass.
+Implementation and compatibility details: [settings/setup](ORCA-SETTINGS-SETUP.md).
 
-### Recommended order
+This is source/API and mocked/DOM verification, not a new real-Orca callback,
+export or print test. The owner's installed Orca version is unknown; do not
+infer it from upstream. Existing ORCA-01/02/03 current-use approvals remain.
+ORCA-04 wake/seam and ORCA-05 curved-boundary research stay **PARKED** until
+explicitly selected. Further PLAN-02 optimization stays **DEFERRED**. PLAN-01
+tracks this increment; further additions require owner questions/approval.
+
+### Sequence and retained later proposals
 
 | Priority | Proposed change | Value and boundary |
 | --- | --- | --- |
-| 1 | Usable settings forms for both plugins | Units, sliders/dropdowns, simple/advanced groups, clear preset/global scope explanations, and diagrams of existing controls. Custom HTML config UI is already supported; it is unused here, not a newly invented API. Keep JSON fallback, migrations and user values. |
-| 2 | Review-and-apply setup assistant | The newer staged preset API can offer an explicit process-settings diff, e.g. relative E for Infill. Commit only user-approved edits through Orca, leave them unsaved, and respect cancel/dirty-preset prompts. No silent printer/filament changes, selection rewiring or automatic save. |
+| 1 — implemented | Settings forms for both plugins | All controls visible in labelled groups, with units, typed selects, numeric/auto inputs, schematics, clear global/preset scope, explicit save/restore, JSON fallback and user-value preservation. Custom HTML config UI was already supported; it is not a new host API. |
+| 2 — implemented | Review-and-apply setup assistant | Explicit Script action reads prerequisites. Infill can offer only a confirmed process `enable_arc_fitting` on → off diff for its existing linear parser. Relative E is manual printer advice; Undahang needs no universal process fix. Leave edits unsaved, honor cancel/dirty state, reject stale approval, never rewire selection. Printer/filament remain read-only. |
 | 3 | Analyze-only / before-after layer inspector | Reuse the existing Check setup Script capability for a docked or ordinary HTML report. Show actual changed/unchanged regions, skip reasons, resolved values, max lift and existing clearance estimates on a chosen exported file. A dry run must not rewrite the print file. A separate 2D layer view is feasible work to build, not a promise of native 3D preview integration or a collision-free print. |
 | 4 | Opt-in adaptive experiments after visibility improves | Infill: reduce local wave amplitude where the existing clearance estimate warns, rather than only warning/refusing or requiring a global clamp. Undahang: investigate cooling/revisit-aware ordering, distinct from the existing smart/monotonic/zigzag policies. These change toolpaths and need regressions, mutations and print validation; no strength, cooling or collision-safety guarantee. |
 
-Start with **1 + 2**, then **3**, before changing the working path generators.
-Inspector statistics, clearance checking, multiple Infill patterns/shapes, and
-Undahang ordering already exist in some form; the additions are better exposure,
-a non-writing comparison view and optional new adaptive policies, not rebranding
-those existing features as new engines. A calibration coupon/export pair can
-support later comparisons without claiming an unexposed model-insertion API.
+Only **1 + 2** are approved/implemented in this pass. **3 + 4 are proposals
+only**, not selected for implementation. Inspector statistics, clearance
+checking, multiple Infill patterns/shapes and Undahang ordering already exist
+in some form; do not rebrand those controls as new engines. A later calibration
+coupon/export comparison would not imply an unexposed model-insertion API.
 
 ### Upstream evidence and compatibility gates
 

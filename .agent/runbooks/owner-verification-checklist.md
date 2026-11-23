@@ -10,10 +10,11 @@ No repeated logs/matrix or invented fixture/security/hardware/print evidence.
 
 ## Current actions only
 
-- **PLAN-01 NEXT:** review Orca addition/change proposals in
-  [`docs/ROADMAP.md`](../../docs/ROADMAP.md). Settings forms, explicit setup
-  assistance and analyze-only inspection are recommended before algorithm work.
-  Ideas only; no new plugin behavior approved. ORCA-04/05 remain PARKED.
+- **PLAN-01 CURRENT:** approved settings/setup increment implemented for
+  both Orca plugins: every control visible in labelled groups, exact approved
+  process diffs only, no automatic preset saves. Printer/filament stay read-only;
+  relative E stays advisory by explicit owner choice. Inspector/toolpath work is
+  not in this pass. ORCA-04/05 remain PARKED. [Scope](../../docs/ORCA-SETTINGS-SETUP.md).
 - **APP-01 Owner-reported good:** Lighting Open/current use now fine. The 2.8.72
   offscreen source regression does not establish the owner's cause or installed
   build, and no new Guard-specific result is inferred. No log/test loop.
@@ -47,9 +48,9 @@ changes Hub/Lighting placement only, not engines, input or settings. No installa
 
 - Selected Hub branch and its `.agent/RELEASED` commit; installed Hub version
   (placement follow-up **2.8.72**), Windows version, screen/DPI/theme.
-- Installed app/plugin/JAR identity, not just current Git tip. Undahang's public
-  version is **0.0.52**; Infill **0.4.10**. Orca intentionally still calls the
-  underlying package/capabilities **Wave Overhangs**.
+- Installed app/plugin/JAR identity, not just current Git tip. This increment
+  is Undahang **0.0.53** / Infill **0.4.11**; the owner's installed identity is
+  unknown. Orca still calls the stable package/capabilities **Wave Overhangs**.
 - For each item: **PASS / FAIL / BLOCKED / NOT RUN**, exact action, expected vs
   observed result, build/environment and a reviewed screenshot/log if relevant.
   Keep precise locations, security history, user paths and server data private;
@@ -185,18 +186,18 @@ verification boundary: [`test-app-review.md`](test-app-review.md).
   substitute these observations for the original three-method acceptance or
   restore retired methods without a scope decision.
 
-## Monitoring, missing evidence and parked work
+## Monitoring, evidence limits and parked work
 
-- **OPS-01:** the owner reaffirms UAC remains a problem. Record the actual
-  prompting EXE/path/action; identity is still unknown. Guard's earlier 225
-  case had no prompt. Do not infer a shared cause or change elevation policy.
-- **KBL-01:** fresh log received. All 824 device-write warnings are SHARED, with
-  no failed writes/reopens and a worst write of 814675 us; no input diagnostics
-  or build identity. The prior receiver update and local snapshot do not settle
-  physical hold. Do not ask again for `input-status.txt`/engine logs as the next
-  step; preserve settings and other software. APP-01 is the current source task.
-- **PLAN-01:** review the known list for missing earlier requests; add omissions
-  rather than assuming this audit recovered unsaved conversations.
+- **OPS-01:** UAC seems fixed for current use. The historical prompting
+  EXE/path/action is unknown, not a new collection request. Guard's earlier
+  225 case had no prompt; do not infer a shared cause or change elevation.
+- **KBL-01:** Lighting is generally fine for current use; the fresh log was
+  already received/scanned. Its write warnings and prior receiver diagnostics
+  do not establish a physical-hold result or installed build. No repeated
+  `input-status.txt`/engine-log request; preserve settings and other software.
+  APP-01's earlier active failure is superseded, not an ongoing source task.
+- **PLAN-01:** the known list is owner-reviewed. Retain all IDs and add any
+  recovered omissions; do not claim recovery of unsaved conversations.
 - **ORCA-04 / ORCA-05:** wake/seam blending and smoother curved-boundary
   research stay parked. No new coding approval is inferred.
 - **PLAN-02:** first optimization is shipped; further caches/workers stay
@@ -227,7 +228,7 @@ newly executed individual acceptance matrix or independently verified test.
 | Orca | ORCA-04 | PARKED: wake/seam research, no coding approval |
 | Orca | ORCA-05 | PARKED: curved-boundary research, no coding approval |
 | Naming | NAME-01 | Rollout owner-reported good; own lighting branding unchanged |
-| Planning | PLAN-01 | **NEXT:** Orca ideas review, proposals only; known list owner-reviewed, all old IDs retained |
+| Planning | PLAN-01 | **CURRENT:** approved Orca settings/setup only; printer/filament read-only, no autosave; known list owner-reviewed, all old IDs retained |
 | Planning | PLAN-02 | First optimization shipped; further caching/workers DEFERRED |
 
 The current task needs no new owner logs or reproduction. Existing procedures

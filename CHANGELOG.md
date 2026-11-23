@@ -1,5 +1,17 @@
 # Project changelog
 
+## 0.0.53 — 2026-11-16 (Undahang)
+
+* All existing controls are visible in labelled form groups, with units,
+  scope-aware save/restore and JSON fallback. Setup stays in the Script capability.
+* No engine/default/path-generation changes, native Orca test claim or app changes.
+
+## 0.4.11 — 2026-11-16 (Unlayered Infill)
+
+* Adds the same visible settings form and a confirmed process-only arc-fitting
+  prerequisite diff. Relative E stays manual/read-only; no preset autosave.
+* Preserves independent single-file plugins, existing capabilities and user values.
+
 ## 0.0.52 — 2026-11-16
 
 * Undahang adopts public branding without renaming Orca package/capability,

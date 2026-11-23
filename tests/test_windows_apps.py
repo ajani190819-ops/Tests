@@ -6751,7 +6751,8 @@ class PublicNameRolloutTests(unittest.TestCase):
         self.assertEqual(names, expected, "Orca stores these strings in presets and global config")
         self.assertIn('Undahang v{PLUGIN_VERSION} -- setup check', source)
         self.assertIn('Orca identity: Wave Overhangs (kept for saved presets).', source)
-        self.assertIn('Select Wave Overhangs there and export again.', source)
+        self.assertIn('Wave Overhangs. Host selection/reference handling can', source)
+        self.assertIn('vary; this setup check never rewires it for you.', source)
         self.assertIn('; wave-overhangs v', source)
         self.assertIn('Undahang v{PLUGIN_VERSION} loaded', source)
 
@@ -6810,7 +6811,8 @@ class PublicNameRolloutTests(unittest.TestCase):
             self.assertNotIn(b'\n', raw.replace(b'\r\n', b''))
             manifest = json.loads((folder / 'plugins.json').read_text())["plugins"]
             self.assertEqual((manifest[0]['name'], manifest[0]['version']), ('Wave Overhangs', '9.9.9'))
-            self.assertEqual((manifest[1]['name'], manifest[1]['version']), ('Unlayered Infill', '0.4.10'))
+            self.assertEqual(manifest[1], json.loads((ROOT / 'plugins.json').read_text())['plugins'][1],
+                             'Bumping Undahang must not change the other plugin at any current version')
             run = subprocess.run([sys.executable, str(folder / 'tools/bump_version.py'), '--check-docs'],
                                  capture_output=True, text=True, timeout=10)
             self.assertEqual(run.returncode, 0, run.stdout + run.stderr)

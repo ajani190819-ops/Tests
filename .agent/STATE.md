@@ -11,9 +11,10 @@ Guard-specific outcome, repeated logs or full matrix; no permanent/native safety
 certification is inferred.
 
 **Current focus / monitor (20 retained IDs):**
-- **PLAN-01 NEXT:** Orca addition/change ideas, proposals only. `docs/ROADMAP.md`
-  compares 2.5.1 APIs and unmerged native infill. Recommend settings UI/setup,
-  then analyze-only inspection before engine changes. No coding approval.
+- **PLAN-01 CURRENT:** approved Orca settings/setup implemented: all controls
+  visible in groups; exact approved process diffs only. Printer/filament stay
+  read-only, relative E advisory, no autosave. Inspector/toolpaths excluded.
+  `docs/ORCA-SETTINGS-SETUP.md`; native UI/installed host unverified.
 - **APP-01 Owner-reported good:** Lighting Open/current use now fine; prior
   "nothing visible" is history. Hub 2.8.72 offscreen correction/458 mutations
   do not establish that cause. No new Guard outcome. `test-hub-open-to-front.md`.
@@ -52,8 +53,8 @@ certification is inferred.
   Lighting, Undahang 0.0.52); own lighting branding unchanged. Keep Wave
   package/capabilities, preset paths, aliases and Infill/Guard names stable.
 - **PLAN-01:** known list owner-reviewed; add APP-05, retain all prior IDs.
-  **PLAN-02:** first optimization shipped (matched 8.14x); further caches/workers
-  DEFERRED. No new owner benchmark requested.
+  **PLAN-02:** first optimization shipped (8.14x); further caches/workers
+  DEFERRED. No owner benchmark requested.
 
 ## Retained safety / delivery facts
 
@@ -72,4 +73,4 @@ certification is inferred.
   regenerate CODEMAP after mapped C/Python changes. HUD build requires JDK 25.
 - Keep Drive Guide/Master synced, no source/raw-owner-evidence mirrors. The
   owner checklist's older matrices are reference, not a request to rerun all.
-  Default context <=15,000 chars; map/Drive on demand.
+  Context <=15,000 chars; map/Drive on demand.

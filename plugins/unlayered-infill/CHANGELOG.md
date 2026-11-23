@@ -2,6 +2,16 @@
 
 The in-app Check setup view carries these three current releases. Full version history is preserved in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
 
+## 0.4.11 — 2026-11-16
+
+* Adds a grouped settings form with every tuning control visible, units,
+  inline guidance, explicit global/preset scope and a value-preserving JSON fallback.
+* Check setup offers an exact, confirmed process-only arc-fitting diff when
+  needed. Relative E remains printer-profile advice only; no printer/filament
+  edits, selection rewiring or automatic preset saves.
+* Keeps engines, tuning defaults, migration/recovery and slicing callbacks
+  unchanged; setup/DOM tests are not native Orca or physical-print validation.
+
 ## 0.4.10 — 2026-10-20
 
 * Fixes settings recovery when Orca clears the Config panel to `{}` after

@@ -1160,13 +1160,13 @@
 
 ## tools/check_all.py
 
-- L39  f have_deps
-- L47  f wave_gcode_merkle_key
-- L69  f load_cache
-- L76  f save_cache
-- L84  f make_nodeps
-- L94  f exec_task
-- L120  f main
+- L41  f have_deps
+- L49  f wave_gcode_merkle_key
+- L71  f load_cache
+- L78  f save_cache
+- L86  f make_nodeps
+- L96  f exec_task
+- L122  f main
 
 ## tools/check_context_budget.py
 
@@ -1248,6 +1248,10 @@
 - L46  f current_literal_text
 - L55  f main
 
+## tools/sync_orca_ui.py
+
+- L18  f sync
+
 ## tools/test_app_review_windows.py
 
 - L32  f validate_native_result
@@ -1311,6 +1315,15 @@
 - L209  f execute
 - L296  f MutationWorkerTests
 - L309  f Cases
+
+## tests/test_orca_settings_ui.py
+
+- L26  f load_plugins
+- L40  f schema
+- L44  f Preset
+- L54  f SetupHost
+- L132  f SettingsPageTests
+- L223  f SetupAssistantTests
 
 ## tests/test_plugin_audit.py
 

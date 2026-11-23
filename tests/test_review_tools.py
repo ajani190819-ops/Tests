@@ -328,8 +328,10 @@ class OwnerHandoffContractTests(unittest.TestCase):
         for ident in ("ORCA-04", "ORCA-05"):
             self.assertIn("PARKED", rows[ident])
         self.assertIn("DEFERRED", rows["PLAN-02"])
-        self.assertIn("NEXT", rows["PLAN-01"])
-        self.assertIn("proposals only", rows["PLAN-01"])
+        self.assertIn("CURRENT", rows["PLAN-01"])
+        self.assertIn("settings/setup", rows["PLAN-01"])
+        self.assertIn("printer/filament read-only", rows["PLAN-01"])
+        self.assertIn("no autosave", rows["PLAN-01"])
         self.assertIn("2/3. kindarandom/ all", checklist)
         self.assertIn("MONITOR", rows["APP-05"])
         self.assertIn("startup currently working", rows["APP-05"])
@@ -381,9 +383,10 @@ class OwnerHandoffContractTests(unittest.TestCase):
         self.assertIn("no new owner test/log request", runbook)
         self.assertIn("maximized placement is unchanged", runbook)
 
-    def test_orca_ideas_retain_approval_and_host_thread_boundaries(self):
+    def test_orca_selected_scope_retains_approval_and_host_thread_boundaries(self):
         roadmap = " ".join((ROOT / "docs/ROADMAP.md").read_text().split())
-        for phrase in ("proposals only", "PARKED", "DEFERRED", "16518", "16941", "unmerged",
+        for phrase in ("proposals only", "all controls visible", "printer/filament read-only",
+                       "relative E stays advisory", "No Simple/Advanced hiding", "PARKED", "DEFERRED", "16518", "16941", "unmerged",
                        "2D XY", "two capabilities per plugin", "only Script capabilities",
                        "SlicingPipeline hooks remain synchronous", "can deadlock", "JSON fallback",
                        "dry run must not rewrite the print file", "installed Orca version is unknown"):
