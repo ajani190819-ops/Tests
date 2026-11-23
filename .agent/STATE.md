@@ -5,25 +5,26 @@ Git: implementation/tests/releases; Drive: extended plans/history.
 
 ## Current owner status / next work
 
-Owner reports Lighting Open still does nothing visible after the follow-up;
-no new Guard outcome. Kill/reopen or Lighting Unfreeze remain workarounds.
-One tray icon was working, not permanent startup acceptance. No repeated logs
-or old full matrix. Other current use stays owner-reported good.
+Owner reports UAC prompts, Lighting and startup seem fixed for current use.
+The prior silent Lighting failure is history, not cause/build proof. No new
+Guard-specific outcome, repeated logs or full matrix; no permanent/native safety
+certification is inferred.
 
 **Current focus / monitor (20 retained IDs):**
-- **APP-01 NEXT:** Lighting Open still fails silently. Hub 2.8.72 +
-  Lighting recover fully offscreen normal windows; Hub checks the active window
-  is on a connected display. Source regression, not proof of the owner's cause.
-  458 mutations pass; native acceptance open, no log/retest loop. No restart/duplicates,
-  modal/maximized, freshness and elevation. `test-hub-open-to-front.md`.
-- **APP-05 MONITOR:** one tray icon currently working; no startup fix claimed.
-  Preserve accessible fallbacks and startup choices; no new registration.
-  `test-hub-startup-tray.md` retains the source-only delete-retry lead.
-- **OPS-01 OPEN:** UAC program/path/action unknown. No speculative policy change.
-- **KBL-01 OPEN:** fresh `engine-6.log` received/scanned; prior bounded receiver
-  guard/diagnostics released, physical hold unverified. No additional log request.
-  Keep ASCII/C# 5.0, pacing, exclusive-lock and single-engine safeguards.
-  `test-lighting-input.md`; Open work changes no engine or input behavior.
+- **PLAN-01 NEXT:** Orca addition/change ideas, proposals only. `docs/ROADMAP.md`
+  compares 2.5.1 APIs and unmerged native infill. Recommend settings UI/setup,
+  then analyze-only inspection before engine changes. No coding approval.
+- **APP-01 Owner-reported good:** Lighting Open/current use now fine; prior
+  "nothing visible" is history. Hub 2.8.72 offscreen correction/458 mutations
+  do not establish that cause. No new Guard outcome. `test-hub-open-to-front.md`.
+- **APP-05 MONITOR / Owner-reported good:** startup currently working; no lasting
+  startup fix claimed. Preserve fallbacks/preferences; `test-hub-startup-tray.md`.
+- **OPS-01 Owner-reported good:** UAC now seems fixed; prior prompt identity
+  remains unknown, not a security-policy diagnosis or permission to change it.
+- **KBL-01 Owner-reported good:** Lighting generally fine; physical M4/M5 hold
+  not separately retested. Fresh `engine-6.log` received/scanned.
+  No additional log request. Keep ASCII/C# 5.0, pacing, exclusive-lock/single-engine.
+  `test-lighting-input.md`.
 
 ## Released / owner-reported good
 

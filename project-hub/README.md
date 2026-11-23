@@ -108,14 +108,17 @@ These source gaps failed controlled regressions before correction; the owner's
 exact intermittent cause and native foreground behavior remain unconfirmed.
 No additional logs, startup registration or elevation/security change is needed.
 
-The owner subsequently reported that Lighting Open **still does nothing visible**.
+The owner previously reported that Lighting Open did **nothing visible**; the
+latest report now says Lighting is fine and UAC/startup seem fixed. This is
+current-use approval, not proof of the exact cause or an independent matrix.
 The 2.8.72 follow-up covers a further source case: Hub must not accept
 WS_VISIBLE/foreground as success when the active window is outside every
 connected monitor. Lighting's owning UI can recover a fully offscreen normal
 panel/dialog into the nearest work area, retaining its size. Connected/partial
 and maximized placement, fresh intent and no-restart behavior are preserved.
-This is not proof that the owner's window was offscreen or that the reported
-failure is resolved; APP-01 stays open without another log/test request.
+This is not proof that the owner's window was offscreen. APP-01 is now
+owner-reported good for Lighting current use; no new Guard result or additional
+log/test request is inferred.
 
 ## Suite Settings
 

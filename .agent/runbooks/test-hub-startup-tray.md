@@ -2,13 +2,12 @@
 
 ## Owner report and intended behavior
 
-The owner now sees one tray icon and reports it working. Keep APP-05 as
-**MONITOR**, not permanently repaired: no startup/tray change was made in the
-Open follow-up. The earlier report was that startup sometimes presents every
-app's individual icon instead of one Project Hub icon. This is a new retained
-item, separate from APP-01's intermittent Hub Open failure, OPS-01's UAC prompts
-and KBL-01's lighting issue (fresh log now received). The owner reports other current use good;
-do not turn this into another whole-suite acceptance matrix.
+The owner now reports startup seems fixed right now, alongside Lighting and
+UAC. APP-05 is **owner-reported good / MONITOR**, not permanently certified.
+The earlier one-icon working observation is retained; the original report was
+that startup sometimes showed every app's icon instead of one Hub icon. No
+startup/tray change was made in the Open follow-up, so the exact cause remains
+unproven. Do not turn this current-use approval into another acceptance matrix.
 
 Expected while Hub is running with a usable tray: one Hub icon, with apps and
 controls reachable from it. If Hub is unavailable, independent icons are an
@@ -33,15 +32,15 @@ create a Run key/task/service or silently start Hub/Agent Notes at sign-in.
 - Full Hub `wWinMain` was inspected: mutex/show-event coordination and window
   setup do not enroll Hub at sign-in. Existing child timers do not launch it.
 - The present design coordinates an **already-running** Hub; it does not add a
-  Hub sign-in registration. First missing observation: is Hub itself running
-  when the individual icons remain, or is the coordinator absent?
+  Hub sign-in registration. Historical Hub presence during the multi-icon
+  condition remains unknown; that is not a new owner observation request.
 - `project-hub/src/parts/app_activation.c`: card and unified-tray Open share
   bounded asynchronous show/launch handling. The 2.8.71 Open follow-up extends
   Guard's show-only reveal to Lighting and keeps driver enumeration outside
   Guard's UI lock. These are separate source repairs, not a startup consolidation
-  fix or native UAC/foreground acceptance. The owner now reports Lighting Open
-  still does nothing visible; the 2.8.72 offscreen-window source correction is not proof
-  of that cause and changes no tray/startup behavior. Hub remains asInvoker.
+  fix or native UAC/foreground acceptance. The prior silent Lighting failure
+  preceded the 2.8.72 offscreen correction; Lighting, UAC and startup are now
+  owner-reported good. Their exact causes are not proven. Hub stays asInvoker.
 
 ## Next observations / future regression boundary
 
@@ -52,7 +51,8 @@ again or request another copy of the old Windows 225 screenshot.
 The fresh lighting log has now arrived and was scanned; its separate input
 receiver follow-up is in [`test-lighting-input.md`](test-lighting-input.md). The
 shorthand `2/3. kindarandom/ all` does not clearly establish Hub presence or the
-prompting executable, so those observations remain genuinely missing.
+prompting executable. Those historical unknowns do not negate the latest
+current-use approval or make further collection the next task.
 
 A later fix needs controlled startup-order, delayed/missing Explorer, Hub marker
 failure/recovery, Explorer-restart, Hub-exit/crash and duplicate-free Open

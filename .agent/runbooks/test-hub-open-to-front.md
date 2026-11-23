@@ -2,13 +2,18 @@
 
 ## Current owner clarification and scope
 
-The affected apps are **Bluetooth Guard and Keyboard Lighting**. The latest
-owner report is that **Lighting Open still fails**, with **nothing visible
-happening**: no panel, error or permission prompt. No new Guard outcome or
-installed-build identity was supplied. APP-01 remains unresolved. Kill/reopen
-and Lighting's **Unfreeze** are workarounds, not acceptable Open behavior.
-The earlier one-icon observation stays APP-05 monitoring, not a startup fix.
-Do not ask which apps again, request more logs, or repeat the old full matrix.
+The latest owner report says **Lighting is fine**, UAC/account-control prompts
+seem fixed and startup is working now. APP-01 is **owner-reported good for
+Lighting current use**, not an independently executed Windows matrix or proof
+of the original cause. No new Guard outcome or installed-build identity was
+supplied. APP-05 remains monitoring with startup owner-reported good.
+
+The historical affected apps are **Bluetooth Guard and Keyboard Lighting**.
+The prior Lighting failure did **nothing visible**: no panel, error or permission
+prompt. That earlier unresolved status is superseded by the latest report, not
+erased from history. Kill/reopen and Lighting's **Unfreeze** remain workarounds,
+not acceptable Open behavior. No new owner test/log request; do not ask which
+apps again, request more logs, or repeat the old full matrix.
 
 ## Latest source correction - on-screen placement (Hub 2.8.72 source follow-up)
 
@@ -35,7 +40,7 @@ cause** or evidence that the owner's panel was offscreen.
 - These tests execute production Hub/Lighting C with mocked monitor/delivery
   I/O. They do not exercise Windows display-topology changes, DWM cloaking,
   virtual desktops, a hung native UI, or the owner's installed paths/builds.
-  The prior green source tests and CI did not settle the continuing failure.
+  The prior green source tests and CI did not settle the then-continuing failure.
 
 Verification: the eight-target Zig 0.17.1 cross-build, full uncached checks
 with/without optional geometry dependencies, 21 focused activation/input/handoff
@@ -113,10 +118,10 @@ never retry a blocked app or alter protection for acceptance testing.
 
 ## Native acceptance reference - not another owner test request
 
-Lighting's continued silent failure means native acceptance is still open;
-the 2.8.72 follow-up is another controlled source correction, not an accepted
-owner fix. There is no new owner test/log request. Delivery must use the active
-branch's released Hub and matching Lighting update, not an arbitrary tip build.
+Lighting current use is now owner-reported good. This is a newer owner outcome,
+not a claim that the 2.8.72 offscreen case was their cause or that an independent
+native matrix ran. There is no new owner test/log request. Delivery must use the
+active branch's released Hub and matching Lighting update, not an arbitrary tip build.
 Never launch a blocked executable or bypass security just to test. Keep current manifests/elevation and settings. Do not elevate Hub or
 change UAC policy to make focus appear to work.
 

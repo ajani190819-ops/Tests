@@ -315,21 +315,25 @@ class OwnerHandoffContractTests(unittest.TestCase):
         self.assertIn("under identical settings", checklist)
         self.assertIn("not untouched controls", normalized)
 
-    def test_current_status_keeps_open_focus_and_monitoring_distinct_from_owner_approval(self):
+    def test_latest_owner_approval_keeps_monitoring_and_parked_scope_distinct(self):
         import re
         checklist = (ROOT / ".agent/runbooks/owner-verification-checklist.md").read_text()
         rows = dict(re.findall(r"(?m)^\| [^|]+ \| ([A-Z]+-[0-9]{2}) \| ([^|]+) \|$", checklist))
         self.assertEqual(len(rows), 20)
-        for ident in ("APP-01", "OPS-01", "KBL-01"):
-            self.assertNotIn("Owner-reported good", rows[ident])
-        for ident in ("BT-01", "APP-02", "APP-03", "APP-04", "WX-01", "WX-02", "WX-03"):
+        for ident in ("APP-01", "OPS-01", "KBL-01", "BT-01", "APP-02", "APP-03", "APP-04",
+                      "WX-01", "WX-02", "WX-03", "APP-05"):
             self.assertIn("Owner-reported good", rows[ident])
+        self.assertIn("no new Guard outcome", rows["APP-01"])
+        self.assertIn("no separately executed physical-hold test", rows["KBL-01"])
         for ident in ("ORCA-04", "ORCA-05"):
             self.assertIn("PARKED", rows[ident])
         self.assertIn("DEFERRED", rows["PLAN-02"])
+        self.assertIn("NEXT", rows["PLAN-01"])
+        self.assertIn("proposals only", rows["PLAN-01"])
         self.assertIn("2/3. kindarandom/ all", checklist)
         self.assertIn("MONITOR", rows["APP-05"])
-        self.assertIn("one icon currently working", rows["APP-05"])
+        self.assertIn("startup currently working", rows["APP-05"])
+        self.assertIn("earlier one-icon report", rows["APP-05"])
         self.assertIn("no lasting startup fix claimed", rows["APP-05"])
         self.assertIn("Bluetooth Guard and Keyboard Lighting", checklist)
         self.assertIn("historical Hub presence", " ".join(checklist.split()))
@@ -357,23 +361,34 @@ class OwnerHandoffContractTests(unittest.TestCase):
         self.assertIn("observation request is superseded", " ".join(lighting.split()))
         self.assertNotIn("## Focused owner observation, only after a verified release", lighting)
 
-    def test_continued_silent_lighting_failure_overrides_prior_source_success(self):
+    def test_new_owner_lighting_approval_supersedes_failure_without_inventing_cause(self):
         paths = (".agent/STATE.md", ".agent/runbooks/test-hub-open-to-front.md",
                  ".agent/runbooks/owner-verification-checklist.md")
         for path in paths:
             with self.subTest(file=path):
                 text = " ".join((ROOT / path).read_text().split())
+                self.assertIn("owner-reported good", text.lower())
                 self.assertIn("Lighting", text)
                 self.assertIn("nothing visible", text)
                 self.assertIn("offscreen", text)
-                self.assertNotIn("Open currently works", text)
-                self.assertNotIn("Currently Open works", text)
+                self.assertNotIn("APP-01 NEXT", text)
+                self.assertNotIn("OPS-01 OPEN", text)
+                self.assertNotIn("KBL-01 OPEN", text)
         runbook = " ".join((ROOT / paths[1]).read_text().split())
-        self.assertIn("APP-01 remains unresolved", runbook)
+        self.assertIn("earlier unresolved status is superseded", runbook)
         self.assertIn("not proof of the owner's exact intermittent cause", runbook)
         self.assertIn("No new Guard outcome", runbook)
         self.assertIn("no new owner test/log request", runbook)
         self.assertIn("maximized placement is unchanged", runbook)
+
+    def test_orca_ideas_retain_approval_and_host_thread_boundaries(self):
+        roadmap = " ".join((ROOT / "docs/ROADMAP.md").read_text().split())
+        for phrase in ("proposals only", "PARKED", "DEFERRED", "16518", "16941", "unmerged",
+                       "2D XY", "two capabilities per plugin", "only Script capabilities",
+                       "SlicingPipeline hooks remain synchronous", "can deadlock", "JSON fallback",
+                       "dry run must not rewrite the print file", "installed Orca version is unknown"):
+            with self.subTest(boundary=phrase):
+                self.assertIn(phrase, roadmap)
 
     def test_hud_guidance_exposes_source_mismatch_instead_of_dropping_old_request(self):
         config = (ROOT / "spatial-hud-template-26.3/src/client/java/dev/arena/spatialhud/SpatialHudConfig.java").read_text()

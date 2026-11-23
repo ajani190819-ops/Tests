@@ -1,5 +1,13 @@
 # KBL-01 - fresh log follow-up and M4/M5 receiver diagnostics
 
+## Latest owner status
+
+Lighting is now **owner-reported good for current use**; the owner says the app
+is fine and UAC/startup seem fixed. This supersedes the prior active failure
+status, not the historical evidence below. No separately executed M4/M5 hold
+test, established hardware cause or new installed-build identity is claimed.
+No new logs, reproduction or settings change is requested.
+
 ## Evidence received; actual hardware cause still open
 
 The owner supplied a fresh `engine-6.log`; do not ask for the same prerequisite
@@ -61,10 +69,11 @@ exclusive-lock, pacing, single-engine and strict ASCII/C# 5.0 contracts.
 
 The owner does not want another log/reproduction loop. The former focused
 `input-status.txt` observation request is superseded, not silently left pending.
-APP-01 remains open: Lighting Open still does nothing visible. The 2.8.72
-candidate addresses a controlled offscreen-window case, not an established owner
-cause. It changes no input/engine behavior; KBL-01's physical hold stays unresolved. This is not a
-request for another engine log or the old full matrix. Do not ask again for
+Lighting Open and general Lighting use are now owner-reported good. The prior
+silent failure and 2.8.72 offscreen source regression remain history, not proof
+of an established owner cause. No separate physical-hold test or engine repair
+is inferred. This is not a request for another engine log or the old full
+matrix. Do not ask again for
 `input-status.txt` as the next step, or change GHelper/security/mode/startup to
 force evidence. Existing diagnostics remain local and optional to inspect.
 

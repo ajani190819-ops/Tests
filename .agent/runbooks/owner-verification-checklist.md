@@ -1,30 +1,31 @@
 # Owner status and verification reference — 20 retained IDs
 
-**Latest owner clarification:** Bluetooth Guard and Keyboard Lighting were the
-affected Open apps. Lighting Open **still fails**, with **nothing visible
-happening** (no window, error or permission prompt). No new Guard outcome or
-installed-build identity is known. Kill/reopen and Lighting **Unfreeze** are
-workarounds, not intended Open. The earlier one-icon observation remains only
-monitoring. Other current items stay owner-reported good; no repeated logs/matrix.
-Broad approval is not invented native fixture/security/hardware/print evidence.
+**Latest owner report:** UAC/account-control prompts, Lighting and startup seem
+fixed for current use. Record **owner-reported good**, not permanent/native
+certification. This supersedes the prior Lighting report of **nothing visible**
+happening; no new Guard outcome or installed-build identity is supplied. The
+historical affected Open apps were Bluetooth Guard and Keyboard Lighting.
+Kill/reopen and Lighting **Unfreeze** remain workarounds, not intended Open.
+No repeated logs/matrix or invented fixture/security/hardware/print evidence.
 
 ## Current actions only
 
-- **APP-01 NEXT:** investigate the continuing silent Lighting failure; no new
-  log/test loop. Hub 2.8.72 + Lighting correct a separately reproduced
-  offscreen-window case: visible/foreground was wrongly accepted as on-screen,
-  and Lighting never recovered the stranded normal panel/dialog. This does not
-  establish the owner's cause or installed build. Prior 2.8.71 source/443-mutation
-  success is not native acceptance. No restart/duplicate fallback or new logs.
+- **PLAN-01 NEXT:** review Orca addition/change proposals in
+  [`docs/ROADMAP.md`](../../docs/ROADMAP.md). Settings forms, explicit setup
+  assistance and analyze-only inspection are recommended before algorithm work.
+  Ideas only; no new plugin behavior approved. ORCA-04/05 remain PARKED.
+- **APP-01 Owner-reported good:** Lighting Open/current use now fine. The 2.8.72
+  offscreen source regression does not establish the owner's cause or installed
+  build, and no new Guard-specific result is inferred. No log/test loop.
   See [`test-hub-open-to-front.md`](test-hub-open-to-front.md).
-- **APP-05 MONITOR:** one icon currently working, no startup repair claimed.
-  Keep usable fallback icons and startup choices. The source-only delete/retry
-  lead remains in [`test-hub-startup-tray.md`](test-hub-startup-tray.md).
-- **OPS-01 OPEN:** actual UAC executable/path/action still unknown; preserve
-  manifests and security policy rather than guessing at a cause.
-- **KBL-01 OPEN:** fresh `engine-6.log` received and fully scanned. Prior bounded
-  receiver/diagnostics are released; physical hold remains unverified. No new
-  `input-status.txt` or engine-log request; do not repeat that evidence loop.
+- **APP-05 MONITOR / Owner-reported good:** startup currently working; preserve
+  usable fallback icons and choices. The source-only delete/retry lead remains
+  in [`test-hub-startup-tray.md`](test-hub-startup-tray.md), not new coding scope.
+- **OPS-01 Owner-reported good:** UAC seems fixed; exact historical prompting
+  executable/path/action remains unknown, not a new evidence request.
+- **KBL-01 Owner-reported good:** Lighting generally fine; no separately executed
+  physical-hold test claimed; fresh `engine-6.log` received and fully scanned.
+  No new `input-status.txt` or engine-log request; do not repeat that loop.
   See [`test-lighting-input.md`](test-lighting-input.md).
 
 The older shorthand `2/3. kindarandom/ all` did not identify the UAC executable
@@ -209,16 +210,16 @@ newly executed individual acceptance matrix or independently verified test.
 | Category | ID | Current owner status / next action |
 | --- | --- | --- |
 | Bluetooth | BT-01 | Owner-reported good; known wording finding not falsely marked fixed |
-| Hub/Windows | APP-01 | **NEXT / UNRESOLVED:** Lighting still does nothing visible; offscreen source correction is not owner acceptance |
+| Hub/Windows | APP-01 | Owner-reported good: Lighting current use; no new Guard outcome or proof of offscreen cause |
 | Hub/Windows | APP-02 | Owner-reported good; no new detailed soak claimed |
 | Hub/Windows | APP-03 | Owner-reported good: current layout/icons |
 | Hub/Windows | APP-04 | Owner-reported good; separate native kit still manual/unrun |
-| Hub/Windows | APP-05 | **MONITOR:** one icon currently working; no lasting startup fix claimed |
-| Hub/Windows | OPS-01 | OPEN: prompting EXE/path/action needed |
+| Hub/Windows | APP-05 | **MONITOR / Owner-reported good:** startup currently working; earlier one-icon report retained, no lasting startup fix claimed |
+| Hub/Windows | OPS-01 | Owner-reported good: UAC seems fixed; historical prompt identity unproven, no new request |
 | Weather | WX-01 | Owner-reported good: planner |
 | Weather | WX-02 | Owner-reported good: live map/desktop |
 | Weather | WX-03 | Owner-reported good: actual-position experience; no new measurement claimed |
-| Lighting | KBL-01 | OPEN: fresh log received; physical hold unverified, no repeated log request |
+| Lighting | KBL-01 | Owner-reported good: Lighting generally fine; no separately executed physical-hold test or repeated log request |
 | Spatial HUD | HUD-01 | Current experience owner-reported good; missing original methods not claimed restored |
 | Orca | ORCA-01 | Owner-reported good; no new configuration/export artifact claimed |
 | Orca | ORCA-02 | Owner-reported good; no independently documented print claimed |
@@ -226,7 +227,7 @@ newly executed individual acceptance matrix or independently verified test.
 | Orca | ORCA-04 | PARKED: wake/seam research, no coding approval |
 | Orca | ORCA-05 | PARKED: curved-boundary research, no coding approval |
 | Naming | NAME-01 | Rollout owner-reported good; own lighting branding unchanged |
-| Planning | PLAN-01 | Known list owner-reviewed; APP-05 added, old IDs retained |
+| Planning | PLAN-01 | **NEXT:** Orca ideas review, proposals only; known list owner-reviewed, all old IDs retained |
 | Planning | PLAN-02 | First optimization shipped; further caching/workers DEFERRED |
 
 The current task needs no new owner logs or reproduction. Existing procedures
