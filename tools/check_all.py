@@ -26,7 +26,7 @@ CACHE_PATH = pathlib.Path("/home/user/.cache/tests_check_merkle.json")
 TESTS = ["test_installer.py", "test_plugin_audit.py", "test_agent_notes.py",
          "test_post_script.py", "test_unlayered_waves.py",
          "test_wave_gcode.py", "test_windows_apps.py", "test_mutation_runner.py",
-         "test_spatial_hud.py", "test_review_tools.py"]
+         "test_spatial_hud.py", "test_review_tools.py", "test_app_review.py"]
 NODEPS_ONLY = ["test_plugin_runtime.py", "test_plugin_audit.py"]
 TOOLS = [["tools/sync_engine.py", "--check"],
          ["tools/sync_changelog.py", "--check"],

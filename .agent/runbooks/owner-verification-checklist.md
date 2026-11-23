@@ -1,4 +1,4 @@
-# Owner verification checklist — retained 18-item plan
+# Owner verification checklist — 18 retained items + APP-04
 
 **Nothing below is owner-accepted yet.** Automation, prepared tools and
 cross-builds are separate from desktop/hardware/host/game/print acceptance.
@@ -6,9 +6,11 @@ After reviewing your observations together, mark only the demonstrated parts
 complete; retain failed, blocked, not-run and parked items. This is the known
 list, not a claim that every earlier request has been recovered.
 
-This execution batch prepares Weather/Orca review tooling and repairs stale HUD
-handoff guidance. It does not change the seven shipped EXEs, plugin algorithms,
-lighting files or HUD renderer. No new app install is needed just for the tools.
+The prior batch prepared Weather/Orca review tooling and repaired stale HUD
+handoff guidance. APP-04 adds standalone AppReview.exe for local evidence; it
+is not a Hub button or an update to the seven existing apps. Their EXEs, plugin
+algorithms, lighting files and HUD renderer are unchanged. No installation or
+settings reset is required to run the review utility.
 
 ## Record once for each test session
 
@@ -54,6 +56,28 @@ choices cannot be tested as requested. No methods were restored in this batch.
 A purple-panel smoke pass cannot close the original request. Identify the
 actual branch JAR and reconcile this scope mismatch before marking HUD-01 off;
 see [`test-spatial-hud-f5w.md`](test-spatial-hud-f5w.md).
+
+## APP-04 — optional automatic evidence shortcut (owner pilot OPEN)
+
+**Portable pilot:** no installer, Hub entry or Install/Update button. Local
+build/safety checks pass; native Windows capture and the owner pilot have not
+run. The native test kit is manual, not CI-integrated. Preserve intended settings
+and stop if security refuses the utility; no security workaround or Guard launch.
+
+Run the released **AppReview.exe**, check already-open Hub/Weather windows, then
+click **Capture + read-only checks**. It takes OS-composited window screenshots
+without Print Screen/clipboard and saves a local self-contained **report.html**,
+PNGs and metadata. No automatic sharing, target clicks/navigation, config access,
+launch/update, resizing/restoring or setting changes/rollback. Unknown capture
+support and blank/protected/hidden/minimized windows are evidence gaps, not passes.
+No fallback bypasses capture restrictions. More active UI tests are not enabled.
+
+Use **Open report** to review private contents, then **Open folder** and manually
+attach report.html (its images are embedded), or selected PNGs. The agent can
+review visuals; ping/bounds/placement checks do not certify app functions. Keep
+normal intended settings. Do not open blocked Guard or weaken security to use
+this tool. Full instructions: [`app-review/README.md`](../../app-review/README.md);
+verification boundary: [`test-app-review.md`](test-app-review.md).
 
 ## Priority 1 — useful checks that do not require Guard
 

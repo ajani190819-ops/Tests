@@ -5,16 +5,13 @@
 
 ## Released work / verified tooling
 
-- **Hub:** main 2.8.56; Arena 2.8.70. APP-02 lifetime repairs released;
-  original expiry/native soak open. Retain modal/max/no-duplicate, asInvoker,
-  child-elevation, user-opened Notes and stop/update gates.
+- **Hub:** main 2.8.56; Arena 2.8.70. Longevity repairs shipped; original soak
+  open. Keep modal/max/no-duplicate, asInvoker, elevation, Notes and update gates.
 - **Agent Notes:** Saved=receiver flush; Read=later checkpoint. Opt-in sound;
   no startup persistence.
 - **Tri-Spoke:** `shared/win32/suite_emblem.c` is the sole native renderer.
   Raw DIBs use `SuiteEmblemDibPixel`; each consumer releases its cache.
-- **Review batch:** Weather kit cross-build, 24 portable tests, seven-EXE build,
-  full uncached checks and 377 mutations pass; 208-test clean gates, restored,
-  151.364s. Seven EXEs/app/plugin/HUD source unchanged; no native acceptance.
+- Prior Weather/Orca review tooling shipped; native/owner acceptance OPEN.
 
 ## Bluetooth Guard / BT-01
 
@@ -33,7 +30,7 @@ legacy PS unchanged.
 
 Full plan: **Tests — Master To-Do List**, `.agent/DRIVE_GUIDE.md`.
 Owner sequence: `.agent/runbooks/owner-verification-checklist.md`.
-All 18 IDs retained; acceptance after joint review, omissions OPEN.
+All 18 IDs + APP-04 retained; joint acceptance only, omissions OPEN.
 
 - **Weather:** WX-03 one-shot Windows permission/accuracy/errors, no tracking;
   actual-position acceptance OPEN. WX-01/02 native/live/desktop unrun.
@@ -46,7 +43,9 @@ All 18 IDs retained; acceptance after joint review, omissions OPEN.
   change. APP-02 2.8.64 repairs shipped; original expiry/soak open. APP-03
   grouping, independent plugins/approved icons and 2.8.68 fitting header/wrap
   shipped; native layout open (`test-hub-grouped-entries.md`). OPS-01 monitor
-  UAC program/path/action on Hub open/app open/update; do not guess.
+  UAC program/path/action on Hub open/app open/update; do not guess. APP-04:
+  AppReview 0.1.0 PNG/HTML/JSON; no input/config/launch changes. Native kit
+  manual/unrun; CI hook deferred. Owner pilot OPEN (`test-app-review.md`).
 - **Bluetooth:** BT-01 basic success; rest above. Reviews never grant trust.
 - **Lighting:** KBL-01 parked; fresh owner `engine.log` required.
 - **Spatial HUD:** HUD-01 original Classic Affine/Captured Mesh/World-Space

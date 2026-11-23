@@ -1029,6 +1029,68 @@
 - L129  f RequestSearch
 - globals: g_workerThread (L9), g_jobEvent (L10), g_jobs (L11), g_jobHead (L12), g_reqPlace (L13), g_reqHas (L14), g_reqQuery (L15), g_reqSearchTicket (L16)
 
+## app-review/src/app_review.c
+
+- L76  f ReviewFileTime
+- L80  f ReviewJoin
+- L84  f ReviewLeaf
+- L93  f ReviewLocalDirectory
+- L112  f ReviewRoot
+- L128  f ReviewSessionPath
+- L144  f ReviewNewSession
+- L155  f ReviewWriteNew
+- L164  f ReviewDescribe
+- L191  f ReviewSameIdentity
+- globals: g_instance (L65), g_main (L66), g_font (L67), g_surface (L68), g_emblem (L69), g_windows (L70), g_window_count (L71), g_thread (L72), g_cancel (L73), g_run (L74)
+
+## app-review/src/parts/capture.c
+
+- L4  f ReviewCloaked
+- L14  f ReviewDpi
+- L20  f ReviewSnapshot
+- L47  f ReviewFileVersion
+- L69  f ReviewChildHints
+- L87  f ReviewSavePng
+- L130  f ReviewCaptureWindow
+- L181  f ReviewReadFixed
+- L195  f ReviewWindowStringsValid
+- L200  f ReviewWorkerMain
+- L229  f ReviewReadResult
+- L237  f ReviewRunWorker
+
+## app-review/src/parts/report.c
+
+- L6  f ReviewOpenNewText
+- L16  f ReviewBigEndian
+- L21  f ReviewPngValid
+- L38  f ReviewBase64
+- L58  f ReviewTimestamp
+- L64  f ReviewJsonReport
+- L118  f ReviewHtmlReport
+
+## app-review/src/parts/ui.c
+
+- L10  f ReviewScale
+- L17  f ReviewFonts
+- L32  f ReviewLayout
+- L84  f ReviewRefresh
+- L95  f ReviewEnable
+- L105  f ReviewStart
+- L139  f ReviewHeader
+- L168  f ReviewDrawButton
+- L302  f ReviewMain
+- L327  f ReviewLaunchUi  — A second explicit launch reveals only this utility, never a selected app.
+- globals: g_folder (L8)
+
+## app-review/src/parts/wgc.c
+
+- L131  f ReviewRuntimeBegin
+- L147  f ReviewRuntimeEnd
+- L152  f ReviewFactory
+- L160  f ReviewCloseObject
+- L171  f ReviewWindowPixels
+- globals: g_runtime (L129)
+
 ## shared/win32/suite_emblem.c
 
 - L28  f SuiteEmblemDibRgb
@@ -1042,12 +1104,12 @@
 
 ## tools/agent_map.py
 
-- L46  f comment_purpose
-- L70  f scan_c
-- L95  f scan_py
-- L106  f c_file_list
-- L118  f build
-- L143  f main
+- L47  f comment_purpose
+- L71  f scan_c
+- L96  f scan_py
+- L107  f c_file_list
+- L119  f build
+- L144  f main
 
 ## tools/agent_notes_protocol.py
 
@@ -1075,11 +1137,11 @@
 
 ## tools/build_windows.py
 
-- L56  f zig_version
-- L61  f target_key
-- L82  f ensure_zig_python
-- L98  f build_target
-- L134  f main
+- L57  f zig_version
+- L62  f target_key
+- L83  f ensure_zig_python
+- L99  f build_target
+- L135  f main
 
 ## tools/bump_version.py
 
@@ -1178,6 +1240,14 @@
 - L46  f current_literal_text
 - L55  f main
 
+## tools/test_app_review_windows.py
+
+- L32  f validate_native_result
+- L51  f run_command
+- L72  f validate_fixture_report
+- L108  f run_review
+- L149  f main
+
 ## tools/test_radar_windows.py
 
 - L26  f validate_windows_path
@@ -1209,6 +1279,12 @@
 ## tests/test_agent_notes.py
 
 - L24  f AgentNotesApiTests
+
+## tests/test_app_review.py
+
+- L25  f AppReviewPolicyTests
+- L74  f AppReviewSafetyTests
+- L249  f AppReviewNativeProtocolTests
 
 ## tests/test_installer.py
 

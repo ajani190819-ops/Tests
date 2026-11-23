@@ -27,6 +27,7 @@ C_FILES = [
     "agent-notes/src/agent_notes.c",
     "audio-switcher/src/audio_switcher.c",
     "weather-radar/src/weather_radar.c",
+    "app-review/src/app_review.c",
     # Shared source outside an app src/ tree; every native header adapter includes it.
     "shared/win32/suite_emblem.c",
 ]

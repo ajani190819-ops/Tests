@@ -23,7 +23,7 @@ import time
 ROOT = Path(__file__).resolve().parent.parent
 REG = ROOT / "tools" / "mutations.json"
 FULL_TESTS = ("tests.test_windows_apps", "tests.test_agent_notes", "tests.test_mutation_runner",
-              "tests.test_review_tools")
+              "tests.test_review_tools", "tests.test_app_review")
 CACHE = Path.home() / ".cache" / "tests_mutate"
 
 

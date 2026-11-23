@@ -6,7 +6,7 @@
 
 ## Fast One-Shot Commands
 
-- **Cross-build seven Windows EXEs:** `python3 tools/build_windows.py` (cached
+- **Cross-build seven apps + standalone App Review:** `python3 tools/build_windows.py` (cached
   Zig; `/home/user/.venv`, caches under `/home/user/.cache`).
 - **Run all verification suites:** `python3 tools/check_all.py` (~4s warm, ~45s cold)
 - **Regenerate icons + spin:** `/home/user/.venv/bin/python3 tools/generate_suite_icons.py` (~80–130s; only when brand assets change)

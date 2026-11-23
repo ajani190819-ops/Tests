@@ -301,7 +301,7 @@ class OwnerHandoffContractTests(unittest.TestCase):
         import re
         checklist = (ROOT / ".agent/runbooks/owner-verification-checklist.md").read_text()
         ids = set(re.findall(r"\b(?:BT|APP|OPS|WX|KBL|HUD|ORCA|NAME|PLAN)-[0-9]{2}\b", checklist))
-        self.assertEqual(ids, {"BT-01", "APP-01", "APP-02", "APP-03", "OPS-01", "WX-01", "WX-02", "WX-03",
+        self.assertEqual(ids, {"BT-01", "APP-01", "APP-02", "APP-03", "APP-04", "OPS-01", "WX-01", "WX-02", "WX-03",
                                "KBL-01", "HUD-01", "ORCA-01", "ORCA-02", "ORCA-03", "ORCA-04", "ORCA-05",
                                "NAME-01", "PLAN-01", "PLAN-02"})
         self.assertIn("Nothing below is owner-accepted yet", checklist)

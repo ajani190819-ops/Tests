@@ -4,6 +4,10 @@ orca-plugins.log
 *.log.[0-9]*
 # Local security evidence may contain private paths/detection history.
 GuardSecurityReport*.txt
+# App Review images/titles are private owner evidence, never public source.
+AppReview-*/
+AppReview-*.html
+AppReview-*.zip
 crash-*.txt
 hs_err_pid*.log
 plugins/*/*_state.json

@@ -3768,5 +3768,335 @@
   "tests": [
    "tests.test_review_tools.OrcaExportEvidenceTests.test_cli_errors_are_explicit_nonzero_and_do_not_leak_missing_paths"
   ]
+ },
+ {
+  "id": "capture-01",
+  "file": "app-review/src/review_policy.h",
+  "old": "if (!c.identity) return REVIEW_IDENTITY;",
+  "new": "/* incorrectly ignore changed window identity */",
+  "label": "Changed window identity no longer blocks capture",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_every_gate_is_fail_closed"
+  ]
+ },
+ {
+  "id": "capture-02",
+  "file": "app-review/src/review_policy.h",
+  "old": "if (!c.visible) return REVIEW_HIDDEN;",
+  "new": "/* incorrectly ignore hidden windows */",
+  "label": "Hidden windows become capture candidates",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_every_gate_is_fail_closed"
+  ]
+ },
+ {
+  "id": "capture-03",
+  "file": "app-review/src/review_policy.h",
+  "old": "if (c.minimized) return REVIEW_MINIMIZED;",
+  "new": "/* incorrectly ignore minimization */",
+  "label": "Minimized-window evidence is incorrectly accepted",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_every_gate_is_fail_closed"
+  ]
+ },
+ {
+  "id": "capture-04",
+  "file": "app-review/src/review_policy.h",
+  "old": "if (c.cloaked) return REVIEW_CLOAKED;",
+  "new": "/* incorrectly ignore cloaking */",
+  "label": "Cloaked windows are no longer skipped",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_every_gate_is_fail_closed"
+  ]
+ },
+ {
+  "id": "capture-05",
+  "file": "app-review/src/review_policy.h",
+  "old": "if (!c.queries_ok) return REVIEW_QUERY_FAILED;",
+  "new": "/* incorrectly assume failed queries succeeded */",
+  "label": "Unknown required window state can authorize capture",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_every_gate_is_fail_closed"
+  ]
+ },
+ {
+  "id": "capture-06",
+  "file": "app-review/src/review_policy.h",
+  "old": "if (c.affinity != 0) return REVIEW_PROTECTED;",
+  "new": "/* incorrectly ignore capture protection */",
+  "label": "Known capture-protected windows are not skipped",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_every_gate_is_fail_closed"
+  ]
+ },
+ {
+  "id": "capture-07",
+  "file": "app-review/src/review_policy.h",
+  "old": "<= REVIEW_MAX_PIXELS;",
+  "new": "<= REVIEW_MAX_PIXELS * 4u;",
+  "label": "Oversized captures exceed the pixel memory bound",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_dimensions_bound_memory_and_reject_overflow"
+  ]
+ },
+ {
+  "id": "capture-08",
+  "file": "app-review/src/review_policy.h",
+  "old": "different * 100 > count",
+  "new": "different > 0",
+  "label": "Cursor-like outliers turn a nearly blank image into usable evidence",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_uniform_or_unpainted_pixels_cannot_be_evidence"
+  ]
+ },
+ {
+  "id": "capture-09",
+  "file": "app-review/src/review_policy.h",
+  "old": "n > max / 10 || (n == max / 10 && digit > max % 10)",
+  "new": "n > max",
+  "label": "Worker numeric arguments can wrap on overflow",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_worker_numbers_reject_overflow_and_non_decimal_tokens"
+  ]
+ },
+ {
+  "id": "capture-10",
+  "file": "app-review/src/review_policy.h",
+  "old": "if (!*a && !*b) return apps[i].name;",
+  "new": "if (!*b) return apps[i].name;",
+  "label": "An executable with an extra suffix is miscategorized as a suite app",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_known_image_names_are_exact_case_insensitive_categories_only"
+  ]
+ },
+ {
+  "id": "capture-11",
+  "file": "app-review/src/review_policy.h",
+  "old": "\"IMAGE_UNVERIFIED\", \"WINDOW_IDENTITY_CHANGED\"",
+  "new": "\"PASS\", \"WINDOW_IDENTITY_CHANGED\"",
+  "label": "An image incorrectly grants visual acceptance",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_no_image_status_grants_a_pass"
+  ]
+ },
+ {
+  "id": "capture-12",
+  "file": "app-review/src/review_policy.h",
+  "old": " && c != '<' && c != '>' && c != '&'",
+  "new": "",
+  "label": "Raw HTML delimiters enter structured caption evidence",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_json_escapes_selected_caption_including_unicode_and_controls"
+  ]
+ },
+ {
+  "id": "capture-13",
+  "file": "app-review/src/review_policy.h",
+  "old": "else if (c == '<') fputs(\"&lt;\", out);",
+  "new": "else if (c == '<') fputc('<', out);",
+  "label": "Untrusted selected-window captions introduce HTML markup",
+  "tests": [
+   "tests.test_app_review.AppReviewPolicyTests.test_html_caption_is_inert_and_round_trips_unicode"
+  ]
+ },
+ {
+  "id": "capture-14",
+  "file": "app-review/src/parts/capture.c",
+  "old": "SendMessageTimeoutW(window, WM_NULL, 0, 0,",
+  "new": "SendMessageTimeoutW(window, WM_CLOSE, 0, 0,",
+  "label": "A supposedly read-only ping closes the selected app",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_capture_has_no_target_mutation_or_desktop_fallback"
+  ]
+ },
+ {
+  "id": "capture-15",
+  "file": "app-review/src/parts/capture.c",
+  "old": "ReviewDescribe(window, current) && ReviewSameIdentity(expected, current)",
+  "new": "ReviewDescribe(window, current)",
+  "label": "Live window is not compared against the selected identity",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_selection_identity_is_transported_not_rebuilt_from_a_reused_handle"
+  ]
+ },
+ {
+  "id": "capture-16",
+  "file": "app-review/src/parts/capture.c",
+  "old": "CREATE_SUSPENDED | CREATE_NO_WINDOW",
+  "new": "CREATE_NO_WINDOW",
+  "label": "Capture worker can run before containment is assigned",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_worker_is_owned_suspended_and_bounded_not_the_target"
+  ]
+ },
+ {
+  "id": "capture-17",
+  "file": "app-review/src/parts/capture.c",
+  "old": "GetTickCount64() - started >= timeout_ms",
+  "new": "GetTickCount64() - started >= UINT64_MAX",
+  "label": "Stalled capture is no longer practically bounded",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_worker_is_owned_suspended_and_bounded_not_the_target"
+  ]
+ },
+ {
+  "id": "capture-18",
+  "file": "app-review/src/parts/capture.c",
+  "old": "if (after_status != REVIEW_IMAGE || !result->placement_unchanged)",
+  "new": "if (after_status != REVIEW_IMAGE)",
+  "label": "Changed placement/DPI can be mislabeled as a stable capture",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_checks_precede_capture_and_revalidate_before_saving"
+  ]
+ },
+ {
+  "id": "capture-19",
+  "file": "app-review/src/app_review.c",
+  "old": "a->created == b->created",
+  "new": "a->created != 0",
+  "label": "PID reuse no longer invalidates the selected process identity",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_selection_identity_is_transported_not_rebuilt_from_a_reused_handle"
+  ]
+ },
+ {
+  "id": "capture-20",
+  "file": "app-review/src/app_review.c",
+  "old": "GENERIC_WRITE, 0, NULL, CREATE_NEW",
+  "new": "GENERIC_WRITE, 0, NULL, CREATE_ALWAYS",
+  "label": "Evidence output can overwrite an existing file",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_output_is_exclusive_local_and_never_an_app_profile"
+  ]
+ },
+ {
+  "id": "capture-21",
+  "file": "app-review/src/app_review.c",
+  "old": "(attributes & FILE_ATTRIBUTE_REPARSE_POINT)",
+  "new": "0",
+  "label": "Local report output can traverse a reparse ancestor",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_output_is_exclusive_local_and_never_an_app_profile"
+  ]
+ },
+ {
+  "id": "capture-22",
+  "file": "app-review/src/parts/ui.c",
+  "old": "ListView_SetCheckState(g_list, row, FALSE)",
+  "new": "ListView_SetCheckState(g_list, row, TRUE)",
+  "label": "Window capture switches from explicit consent to opt-out",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_only_explicitly_checked_windows_enter_reports"
+  ]
+ },
+ {
+  "id": "capture-23",
+  "file": "app-review/src/parts/report.c",
+  "old": "\\\"owner_acceptance\\\": false",
+  "new": "\\\"owner_acceptance\\\": true",
+  "label": "A capture report incorrectly marks owner acceptance complete",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_reports_are_inert_local_and_never_acceptance"
+  ]
+ },
+ {
+  "id": "capture-24",
+  "file": "app-review/src/parts/report.c",
+  "old": "!ReviewPngValid(png, &g_run.results[i])",
+  "new": "0",
+  "label": "Missing/corrupt capture artifact is no longer rejected",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_reports_are_inert_local_and_never_acceptance"
+  ]
+ },
+ {
+  "id": "capture-25",
+  "file": "app-review/src/parts/report.c",
+  "old": "default-src 'none'; img-src data:",
+  "new": "default-src *; img-src data:",
+  "label": "Local HTML evidence loses its closed external-content policy",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_reports_are_inert_local_and_never_acceptance"
+  ]
+ },
+ {
+  "id": "capture-26",
+  "file": "app-review/src/parts/wgc.c",
+  "old": "if (SUCCEEDED(hr) && !is_supported) hr = E_NOTIMPL;",
+  "new": "if (SUCCEEDED(hr) && !is_supported) hr = S_OK;",
+  "label": "Unsupported OS capture is not rejected before session creation",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_os_capture_keeps_protection_and_finishes_its_own_session"
+  ]
+ },
+ {
+  "id": "capture-27",
+  "file": "app-review/src/parts/wgc.c",
+  "old": "ReviewCloseObject(frame); ReviewCloseObject(session); ReviewCloseObject(pool);",
+  "new": "ReviewCloseObject(frame); ReviewCloseObject(pool);",
+  "label": "The one-frame capture session is not explicitly closed",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_os_capture_keeps_protection_and_finishes_its_own_session"
+  ]
+ },
+ {
+  "id": "capture-28",
+  "file": "app-review/src/parts/wgc.c",
+  "old": "ReviewIID_Direct3DDevice, (void **)&winrt_device",
+  "new": "IID_IInspectable, (void **)&winrt_device",
+  "label": "WinRT bridge object is not queried for its required default device interface",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_os_capture_keeps_protection_and_finishes_its_own_session"
+  ]
+ },
+ {
+  "id": "capture-29",
+  "file": "tools/build_windows.py",
+  "old": "return 1 if failed else 0",
+  "new": "return 0",
+  "label": "A failed Windows target compilation incorrectly exits successfully",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_builder_returns_nonzero_for_any_failed_target"
+  ]
+ },
+ {
+  "id": "capture-30",
+  "file": "tools/test_app_review_windows.py",
+  "old": "if data.get(name) is not True:",
+  "new": "if not data.get(name):",
+  "label": "Coerced truthy strings can impersonate native fixture results",
+  "tests": [
+   "tests.test_app_review.AppReviewNativeProtocolTests.test_native_schema_accepts_only_complete_synthetic_evidence"
+  ]
+ },
+ {
+  "id": "capture-31",
+  "file": "app-review/src/parts/capture.c",
+  "old": "if (affinity_known) *affinity_known = known != FALSE;",
+  "new": "if (affinity_known) *affinity_known = 0;",
+  "label": "A known capture-protection query is incorrectly reported unknown",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_failed_or_unscheduled_attempts_do_not_fabricate_time_or_affinity"
+  ]
+ },
+ {
+  "id": "capture-32",
+  "file": "app-review/src/parts/capture.c",
+  "old": "GetSystemTime(&result->utc); /* An attempted worker can fail before its IPC result. */",
+  "new": "/* Parent-side worker failures lose their real attempt time. */",
+  "label": "Timed-out or failed capture attempts have no real timestamp",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_failed_or_unscheduled_attempts_do_not_fabricate_time_or_affinity"
+  ]
+ },
+ {
+  "id": "capture-33",
+  "file": "app-review/src/parts/report.c",
+  "old": "else fputs(\"null\", out); /* Cancelled before scheduling",
+  "new": "else fputs(\"\\\"0000-00-00T00:00:00Z\\\"\", out); /* Cancelled before scheduling",
+  "label": "Unscheduled cancelled rows fabricate a capture timestamp",
+  "tests": [
+   "tests.test_app_review.AppReviewSafetyTests.test_failed_or_unscheduled_attempts_do_not_fabricate_time_or_affinity"
+  ]
  }
 ]

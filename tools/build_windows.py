@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Parallel zero-discovery builder for ProjectHub.exe, BluetoothGuard.exe,
-KeyboardLighting.exe, and DnsPilot.exe.
+"""Parallel zero-discovery builder for the seven Windows apps + AppReview.exe.
 
 Usage:
     python3 tools/build_windows.py
@@ -50,6 +49,8 @@ TARGET_SHARED_SOURCES = {
     "btguard": (ROOT / "shared" / "win32" / "window_reveal.h",),
     "agentnotes": (ROOT / "shared" / "win32" / "suite_emblem.c",),
     "weatherradar": (ROOT / "shared" / "win32" / "suite_emblem.c",),
+    "appreview": (ROOT / "shared" / "win32" / "suite_emblem.c",
+                  ROOT / "project-hub" / "hub.ico"),
 }
 
 
@@ -202,14 +203,26 @@ def main() -> int:
             ["-luser32", "-lgdi32", "-lshell32", "-ladvapi32",
              "-lcomctl32", "-lwinhttp", "-lole32", "-luuid", "-lshlwapi"],
         ),
+        (
+            "appreview",
+            ROOT / "app-review" / "src",
+            "review.rc",
+            ROOT / "app-review" / "src" / "app_review.c",
+            ROOT / "app-review" / "AppReview.exe",
+            ["-luser32", "-lgdi32", "-lshell32", "-lole32", "-luuid", "-lcomctl32", "-lversion",
+             "-ld3d11", "-ldxguid"],
+        ),
     ]
 
+    failed = False
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         futs = [pool.submit(build_target, zig_py, env, *t, zig_ver, force)
                 for t in targets]
         for fut in futs:
-            print(fut.result())
-    return 0
+            result = fut.result()
+            print(result)
+            failed = failed or result.startswith("FAIL")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
