@@ -57,18 +57,15 @@ PowerShell/C# engine change is included. Existing 15 ms input timer, 30 ms repea
 pacing, physical-release polling and 10 s ceiling remain intact, as do engine
 exclusive-lock, pacing, single-engine and strict ASCII/C# 5.0 contracts.
 
-## Focused owner observation, only after a verified release
+## Current evidence boundary - no repeated collection request
 
-Use the active branch's released Keyboard Lighting update, keeping intended
-settings. Reproduce only the remaining M4/M5 symptom: hold/release M4, then M5,
-and let the app run for about a minute afterward. Review and attach
-`%LOCALAPPDATA%\KeyboardLighting\input-status.txt`, and say whether the slider
-stayed at one tap, kept gliding after release, or moved normally. This is new
-receiver evidence, not a request for another engine log or the old full matrix.
-Do not change GHelper, security policy, mode or startup choices for the test.
-
-If no status file appears, report that absence and the installed build; do not
-reset settings, elevate again or change permissions merely to force collection.
+The owner does not want another log/reproduction loop. The former focused
+`input-status.txt` observation request is superseded, not silently left pending.
+APP-01 now addresses the clarified Guard/Lighting Open failures from source and
+controlled regressions; KBL-01's physical hold remains unresolved. This is not a
+request for another engine log or the old full matrix. Do not ask again for
+`input-status.txt` as the next step, or change GHelper/security/mode/startup to
+force evidence. Existing diagnostics remain local and optional to inspect.
 
 ## Automated verification boundary
 
@@ -93,7 +90,7 @@ CODEMAP before committing; cross-build/mock results do not prove Windows raw
 input delivery, physical M4/M5 hold, brightness smoothness or startup behavior.
 
 
-## Local release verification record
+## Prior receiver-only release verification record
 
 - Eight-target Windows cross-build passes with Zig 0.17.1. Only
   `KeyboardLighting.exe` changes: 232960 bytes, SHA-256
@@ -111,6 +108,8 @@ input delivery, physical M4/M5 hold, brightness smoothness or startup behavior.
   gate errors; 247-test clean pre/post gates, exact source-byte restoration,
   one worker, no verdict cache, 202.743 seconds on this host.
 - Use the active branch's `.agent/RELEASED` implementation SHA for delivery.
-  Hub remains 2.8.70. Build/check gates must precede implementation and the
+  That receiver-only release kept Hub at 2.8.70; the later 2.8.71 Open follow-up
+  is documented separately in `test-hub-open-to-front.md`. Build/check gates
+  must precede implementation and the
   separate marker commit. Native Windows delivery and physical M4/M5 hold,
   smoothness, Open, startup-tray and UAC results are not certified here.

@@ -1,64 +1,91 @@
-# Hub Open-to-front — native Windows check
+# APP-01 - Bluetooth Guard and Keyboard Lighting Open
 
-Status: pending owner/native Windows execution. A cross-build and mocked Win32
-regression are not a Windows foreground-lock or cross-integrity result.
+## Current owner clarification and scope
 
-## Setup
+The affected apps are **Bluetooth Guard and Keyboard Lighting**. Their existing
+processes sometimes fail to reveal/foreground until kill/reopen, or Lighting's
+**Unfreeze**. Open currently works, and the owner sees one tray icon. This is not
+permanent acceptance or a new startup repair. Do not ask which apps again, request
+more logs, or send the owner through the former full matrix.
 
-1. In Project Hub choose the current active Arena branch, refresh, and update
-   Hub to 2.8.69 or later, plus the Bluetooth Guard panel/status update. The original route shipped
-   in 2.8.63; 2.8.67 adds Guard-owned cross-integrity reveal. Keep existing
-   elevation settings; do not change UAC policy or run everything elevated
-   to mask a failure.
-2. Cover Bluetooth Guard, Agent Notes, DNS Pilot, Audio Switcher, Weather Radar,
-   and the existing Keyboard Lighting window. Do not change lighting settings,
-   keys, or engine files: M4/M5 work is still parked for a fresh `engine.log`.
-3. If another catalogue EXE is installed, cover its normal main window too.
-   Open targets must refer to that installed image, not an unrelated same-name
-   executable. Folder/browser actions are outside this native-app matrix.
+## Controlled source findings and correction
 
-## Matrix — both the Hub card and unified-tray Open
+- **Guard UI lock:** `PollPairedDevices` held `g_lock` across Bluetooth first,
+  next and close enumeration calls. Paint and the hidden window's housekeeping/
+  heartbeat also acquire it; a delayed driver can therefore strand the UI before
+  it dispatches a queued reveal. The regression pauses fake driver callbacks
+  while a second thread attempts that same lock. The exact released poll fails;
+  the correction passes without sleeps or timing assumptions. Enumeration now
+  runs outside the lock; each observation and final cleanup remain protected.
+  Actual Deny/Disconnect choices injected between records retain their current
+  address-based approval/pause semantics. No Bluetooth policy/API/backoff changes.
+- **Lighting cooperation:** Hub only posted the permitted app-owned reveal to
+  Guard. Lighting had no receiver and relied on foreign show/focus calls. A
+  controlled blocked-foreign-show case fails the old route without any restart.
+  Hub 2.8.71 sends the existing scalar-tick, show-only message to both; Lighting
+  opts in on its own window and dispatches its own reveal on the owning UI thread.
+  Both real receivers pass hidden/minimized/maximized/modal, expiry, newer-input,
+  quitting, registration/post failure and legacy fallback cases. Direct duplicate
+  Lighting Open also delegates foreground permission before its existing flag/
+  event signal. All Lighting Open paths use the same placement-preserving helper.
+- **Open versus Unfreeze:** `RestartKeyboardLightingCleanly` explicitly stops
+  `running.lock` and `engine.pid` processes and launches Lighting again. It is a
+  separate action. Open never calls it, kills a process or restarts the engine.
+  The workaround does not identify the original cause.
 
-For each installed app:
+These are verified source-level defects/regressions, **not proof of the owner's
+exact intermittent cause**, native foreground/UIPI behavior or all possible UI
+hangs. Existing engine/input/pacing/exclusive/single-engine behavior, startup,
+tray ownership, manifests, UAC/security policy and no-duplicate launch gates stay
+unchanged. Historical Windows 225 refusal is a separate security boundary below.
 
-- **Visible, behind Hub:** Open puts the app in front and makes it usable.
-- **Minimized:** Open restores the existing window, not a second instance.
-- **Tray-hidden:** close/hide normally, then Open reveals the same instance.
-- **Maximized:** Open preserves maximized placement; also minimize the maximized
-  window and check it restores correctly.
-- **Modal dialog:** if the app has one, leave it active. Open brings its dialog
-  forward rather than stranding it behind a disabled parent.
-- **Repeated click/startup:** from a genuinely stopped app, click Open rapidly
-  twice. One normal instance appears; a late window is focused when ready.
-- **Already running from a registered stray native copy:** Open reveals that
-  instance instead of launching the suite-folder copy on top of it.
-- **Newer activity:** open a stopped app and switch to another application
-  before startup finishes. The Hub's deferred retry must not steal focus back.
+## Release and automated verification
 
-For an existing instance, the process ID should stay the same across Open.
-Native single-instance protection must remain intact. Verify ordinary/elevated
-child windows from the normal unelevated Hub; an already-running window should
-not require a new launch merely to show it. A genuinely new elevated child
-retains its existing manifest and consent behavior.
+The verified payload includes Hub **2.8.71**, Guard and Lighting EXEs; the
+other five suite EXEs are byte-identical. Eight-target Zig 0.17.1 cross-build and
+full uncached checks pass with and without optional geometry dependencies.
+Fifteen focused activation/presentation/poll tests pass, including both actual
+WM_CREATE bodies; the production Hub/child reveal and Guard poll probes also
+pass address/undefined-behavior sanitization. Initialization coverage executes
+production C rather than accepting a source-text mention of the enabling call.
 
-## Bluetooth Guard follow-up
+All **443/443 mutations** are detected, including 20 new activation/lock-boundary
+breaks, with zero survivors/stale/mutation or gate errors. Clean 249-test pre/post
+gates and exact source-byte restoration pass; one worker/no verdict cache,
+173.053 seconds on this host. CODEMAP/default-context/whitespace checks pass.
+Build/check gates must still immediately precede each implementation and marker
+commit. These are not Windows foreground/UIPI, native hardware or soak results.
 
-The owner reports basic Bluetooth connection now works, but Hub/tray Open did
-not show its panel. The new route adds a single per-window registered show-only
-message to the elevated Guard, with scalar ticks, freshness checks and no policy
-commands. The legacy asynchronous Hub route remains for old builds/other apps.
-Automated mocks reproduce blocked foreign show/foreground calls and execute the
-production Guard handler; they do not prove this was the owner's exact cause.
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| ProjectHub.exe | 891904 | e13738e8d51b16df489a2a9fdb8e8c4f6ea7d668915d7f08b2558647e0c9b2c4 |
+| BluetoothGuard.exe | 197120 | 19ccceee9d340df01b84b8bd69e7d3987c85bb253c09b99bee9149a089e40be8 |
+| KeyboardLighting.exe | 233984 | 94916acd2bda3827a53b34c0db4656422c45e1601520b32c44f65aee3ffc1ae1 |
 
-Prioritize the normal unelevated Hub -> elevated Guard case from card and tray,
-then Guard's fallback tray (Hub exited), duplicate explicit launch, hidden,
-minimized/maximized and any active modal window. Keep PID unchanged and do not
-accept merely visible-but-behind as success. Move the pointer after clicking
-Open; bounded retries should still work while Hub owns foreground. Switching to
-another app must cancel deferred focus; a busy child's stale queued request must
-not pull you back later. Record display/focus and any UAC program/path separately.
+Delivery uses the active branch's `.agent/RELEASED` implementation SHA, not an
+unreleased branch-tip download. No security block is cleared by a changed hash;
+never retry a blocked app or alter protection for acceptance testing.
 
-## Guard launch failure / exact Windows error — APP-01 active
+## Native acceptance reference - not another owner test request
+
+Normal use of the active branch's released Hub **2.8.71** and both affected app
+updates is the remaining real-world acceptance boundary; no new logs are needed
+for this source task. Never launch a blocked executable or bypass security just
+to test. Keep current manifests/elevation and settings. Do not elevate Hub or
+change UAC policy to make focus appear to work.
+
+If a focused native check is later appropriate, card and unified-tray Open must
+show the **same PID in front**, whether behind, tray-hidden or minimized. Preserve
+maximized placement and an active modal dialog. Repeated Open must not create a
+second instance. A new launch retains existing consent behavior. Pointer motion
+while Hub owns foreground can retry within the existing bound; switching to a
+new app must cancel deferred focus. A busy child's expired request may not steal
+focus later. Agent Notes, DNS Pilot, Audio Switcher, Weather and generic catalogue
+activation remain automated regression coverage, not a demand to rerun all apps.
+Fallback tray/direct duplicate Open use each affected app's own helper. No
+Task Manager/Unfreeze workaround counts as successful Open acceptance.
+
+## Historical Guard launch failure / exact Windows error - separate security reference
 
 Owner evidence (2026-11-16): the Hub error dialog shows **Windows 225** for
 `BluetoothGuard.exe` in `%LOCALAPPDATA%\Programs\TestsSuite\BluetoothGuard\`:

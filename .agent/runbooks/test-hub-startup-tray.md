@@ -2,8 +2,10 @@
 
 ## Owner report and intended behavior
 
-Sometimes startup presents every app's individual notification-area icon instead
-of one Project Hub icon providing access to the suite. This is a new retained
+The owner now sees one tray icon and reports it working. Keep APP-05 as
+**MONITOR**, not permanently repaired: no startup/tray change was made in the
+Open follow-up. The earlier report was that startup sometimes presents every
+app's individual icon instead of one Project Hub icon. This is a new retained
 item, separate from APP-01's intermittent Hub Open failure, OPS-01's UAC prompts
 and KBL-01's lighting issue (fresh log now received). The owner reports other current use good;
 do not turn this into another whole-suite acceptance matrix.
@@ -34,17 +36,17 @@ create a Run key/task/service or silently start Hub/Agent Notes at sign-in.
   Hub sign-in registration. First missing observation: is Hub itself running
   when the individual icons remain, or is the coordinator absent?
 - `project-hub/src/parts/app_activation.c`: card and unified-tray Open share
-  bounded asynchronous show/launch handling. Only Guard currently receives the
-  explicit registered show-only reveal request. Hub is asInvoker; native child
-  manifests retain their administrator requirements. These source facts are
-  investigation leads, not a reproduction or identified UAC/failure cause.
+  bounded asynchronous show/launch handling. The 2.8.71 Open follow-up extends
+  Guard's show-only reveal to Lighting and keeps driver enumeration outside
+  Guard's UI lock. These are separate source repairs, not a startup consolidation
+  fix or native UAC/foreground acceptance. Hub remains asInvoker.
 
 ## Next observations / future regression boundary
 
-Ask whether Hub's window or blue/silver icon is present during the failure,
-whether the extra icons persist after startup settles, and which app fails Open
-when that separate symptom recurs. Note the actual UAC program/path/action when
-it appears; do not request another copy of the old Windows 225 screenshot.
+There is no current owner reproduction/log request while one icon is working.
+Historical Hub presence during the multi-icon condition remains unestablished.
+The separate Open apps are now known: Guard and Lighting. Do not ask which apps
+again or request another copy of the old Windows 225 screenshot.
 The fresh lighting log has now arrived and was scanned; its separate input
 receiver follow-up is in [`test-lighting-input.md`](test-lighting-input.md). The
 shorthand `2/3. kindarandom/ all` does not clearly establish Hub presence or the

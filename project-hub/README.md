@@ -27,8 +27,8 @@ capabilities, presets, data paths and the shared `Orca-Plugins.bat` route are
 unchanged. Hub 2.8.70 applies the approved public names **Weather Report** and
 **Prism Lighting**, including offline startup, old/partial catalogues, the
 unified tray, Settings and update notices. Weather Report also updates its
-native title, tray and guidance. Lighting app files stay untouched pending a
-fresh owner `engine.log`; their own UI can still say Keyboard Lighting.
+native title, tray and guidance. Lighting's own branding still says Keyboard
+Lighting; the fresh-log receiver/Open follow-ups do not rename its files/UI.
 
 Undahang 0.0.52 brands its description, setup report and logs. Its Orca package
 and capability names remain **Wave Overhangs** / **Wave Overhangs - Settings
@@ -98,6 +98,15 @@ retried as extra instances. Child elevation contracts, update close-and-prove
 gates, and Keyboard Lighting's engine are unchanged. Native Windows validation
 remains separate from the automated checks; see
 `.agent/runbooks/test-hub-open-to-front.md`.
+
+The 2.8.71 follow-up extends Guard's app-owned show-only reveal to Keyboard
+Lighting, including its existing elevated panel. Both need their matching app
+updates; older builds retain the async fallback. Guard also releases its
+UI-shared model lock during driver enumeration so a slow query does not hold
+paint/heartbeat behind it. Open never substitutes Lighting's **Unfreeze** restart.
+These source gaps failed controlled regressions before correction; the owner's
+exact intermittent cause and native foreground behavior remain unconfirmed.
+No additional logs, startup registration or elevation/security change is needed.
 
 ## Suite Settings
 

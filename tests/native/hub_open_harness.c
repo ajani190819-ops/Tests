@@ -71,7 +71,7 @@ static DWORD lastError, inputTick, lastGranted, shellPids[16], shellError;
 static int errorDialogs, failLaunchCall;
 static BOOL failErrorFormat, longErrorFormat, shellSetsError;
 static wchar_t errorDetails[1600];
-static int lastShow, revealPosts, childShows, filterCalls;
+static int lastShow, revealPosts, childShows, filterCalls, childTimers;
 static BOOL insideChild, g_quitting, postOk, registerOk = TRUE, inputOk;
 static HWND queuedWindow;
 static UINT queuedMessage;
@@ -208,7 +208,15 @@ static DWORD GetProcessId(HANDLE handle) {
     lastError = 7777;
     return shellPids[(uintptr_t)handle - 900];
 }
+static void ApplyModernWindowFrame(HWND window) { CHECK(insideChild && IsWindow(window)); }
 static UINT_PTR SetTimer(HWND window, UINT_PTR id, unsigned interval, void *callback) {
+    if (insideChild) {
+        CHECK(IsWindow(window) && !callback);
+        BOOL lighting = wcscmp(window->klass, L"TestsKeyboardLightingSuiteWnd") == 0;
+        CHECK(lighting ? ((id == 1 && interval == 45) || (id == 2 && interval == 600) || (id == 3 && interval == 15))
+                       : ((id == 1 && interval == 700) || (id == 3 && interval == 50)));
+        childTimers++; return id;
+    }
     CHECK(window == g_hwnd && id == 3 && interval == 100 && !callback);
     timerStarts++; return id;
 }
@@ -243,13 +251,31 @@ static BOOL ShellExecuteExW(SHELLEXECUTEINFOW *launch) {
 
 #include "../../shared/win32/window_reveal.h"
 #include "../../bluetooth-guard/src/parts/window_activation.c"
+#include "../../keyboard-lighting/src/parts/window_activation.c"
+/* Exact WM_CREATE bodies extracted from the two production window procedures. */
+#include "hub_open_create_production.h"
 #include "../../project-hub/src/parts/app_activation.c"
+
+static BOOL IsLighting(HWND window) {
+    return window->klass && wcscmp(window->klass, L"TestsKeyboardLightingSuiteWnd") == 0;
+}
+static void EnableChildReveal(HWND window) {
+    int before = childTimers;
+    insideChild = TRUE;
+    CHECK((IsLighting(window) ? LightingWindowCreate(window) : GuardWindowCreate(window)) == 0);
+    insideChild = FALSE;
+    CHECK(childTimers - before == (IsLighting(window) ? 3 : 2));
+}
+static BOOL HandleChildReveal(HWND window, UINT msg, WPARAM wp, LPARAM lp) {
+    return IsLighting(window) ? HandleHubLightingReveal(window, msg, wp, lp)
+                              : HandleHubPanelReveal(window, msg, wp, lp);
+}
 
 static void DeliverReveal(void) {
     CHECK(queuedWindow);
     HWND window = queuedWindow; queuedWindow = NULL;
     insideChild = TRUE;
-    CHECK(HandleHubPanelReveal(window, queuedMessage, queuedWp, queuedLp));
+    CHECK(HandleChildReveal(window, queuedMessage, queuedWp, queuedLp));
     insideChild = FALSE;
 }
 
@@ -275,7 +301,7 @@ static void Reset(const char *name) {
     errorDialogs = failLaunchCall = 0; failErrorFormat = longErrorFormat = FALSE;
     shellSetsError = TRUE;
     errorDetails[0] = L'\0';
-    revealPosts = childShows = filterCalls = 0;
+    revealPosts = childShows = filterCalls = childTimers = 0;
     insideChild = g_quitting = FALSE; postOk = inputOk = TRUE;
     queuedWindow = NULL;
     lastFocused = lastPositioned = NULL; footer[0] = L'\0';
@@ -340,84 +366,106 @@ int main(void) {
     /* Failed registration must never allow message zero (WM_NULL) through UIPI. */
     Reset("registered-message failure keeps the legacy path"); registerOk = FALSE;
     HWND guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
-    EnableHubPanelReveal(guard);
+    EnableChildReveal(guard);
     CHECK(filterCalls == 0 && !HandleHubPanelReveal(guard, 0, 0, 0));
     CHECK(HubOpenApp(btg, NULL, NULL));
     CHECK(foreground == guard && revealPosts == 0 && launchCalls == 0);
+    Reset("Lighting registered-message failure keeps the legacy path");
+    HWND unregisteredLighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, FALSE, FALSE);
+    EnableChildReveal(unregisteredLighting);
+    CHECK(filterCalls == 0 && !HandleHubLightingReveal(unregisteredLighting, 0, 0, 0));
+    CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL));
+    CHECK(foreground == unregisteredLighting && revealPosts == 0 && launchCalls == 0);
     registerOk = TRUE;
 
-    Reset("cross-integrity reveal runs on the owning UI without a new launch");
-    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, TRUE);
-    guard->maximized = TRUE; EnableHubPanelReveal(guard);
-    applyShow = canFocus = FALSE;
-    CHECK(HubOpenApp(btg, NULL, NULL));
-    CHECK(revealPosts == 1 && childShows == 0 && !guard->visible && guard->iconic);
-    CHECK(launchCalls == 0 && g_openRequest.active);
+    /* The actual Guard and Lighting receivers must pass the same safety,
+       placement, modal, freshness and fallback cases. */
+    for (int child = 0; child < 2; child++) {
+        const wchar_t *testClass = child ? L"TestsKeyboardLightingSuiteWnd" : L"TestsBluetoothGuardModernWnd";
+        const wchar_t *testImage = child ? L"KeyboardLighting.exe" : btg;
+        Reset("cross-integrity reveal runs on the owning UI without a new launch");
+        HWND guard = Window(1, testClass, 11, FALSE, TRUE);
+        guard->maximized = TRUE; EnableChildReveal(guard);
+        applyShow = canFocus = FALSE;
+        CHECK(HubOpenApp(testImage, NULL, NULL));
+        CHECK(revealPosts == 1 && childShows == 0 && !guard->visible && guard->iconic);
+        CHECK(launchCalls == 0 && g_openRequest.active);
+        DeliverReveal();
+        CHECK(foreground == guard && guard->visible && !guard->iconic && guard->maximized);
+        CHECK(childShows == 1 && lastShow == SW_RESTORE && filterCalls == 1);
+        HubPollOpen(); CHECK(!g_openRequest.active && launchCalls == 0);
+
+        Reset("owning UI preserves a maximized window and focuses the active dialog");
+        guard = Window(1, testClass, 11, FALSE, FALSE);
+        guard->maximized = TRUE; EnableChildReveal(guard);
+        HWND guardPopup = Window(2, L"Dialog", 11, TRUE, FALSE);
+        guard->popup = guardPopup; guardPopup->owner = guard;
+        applyShow = canFocus = FALSE;
+        CHECK(HubOpenApp(testImage, NULL, NULL)); DeliverReveal();
+        CHECK(guard->maximized && lastShow == SW_SHOW && foreground == guardPopup);
+        CHECK(lastPositioned == guardPopup);
+        HubPollOpen(); CHECK(!g_openRequest.active && launchCalls == 0);
+
+        Reset("queued reveal loses permission after newer user input");
+        guard = Window(1, testClass, 11, FALSE, FALSE);
+        EnableChildReveal(guard); applyShow = canFocus = FALSE;
+        CHECK(HubOpenApp(testImage, NULL, NULL));
+        foreground = Window(2, L"Other", 99, TRUE, FALSE); inputTick++;
+        DeliverReveal(); HubPollOpen();
+        CHECK(childShows == 0 && !guard->visible && !g_openRequest.active && revealPosts == 1);
+
+        Reset("queued reveal expires while the app UI is busy");
+        guard = Window(1, testClass, 11, FALSE, FALSE);
+        EnableChildReveal(guard); applyShow = canFocus = FALSE;
+        CHECK(HubOpenApp(testImage, NULL, NULL)); tick += SUITE_WINDOW_REVEAL_MAX_AGE_MS + 1;
+        DeliverReveal(); CHECK(childShows == 0 && !guard->visible);
+        HubPollOpen(); DeliverReveal(); CHECK(childShows == 1 && foreground == guard);
+
+        Reset("ordinary pointer activity can retry while the Hub still owns foreground");
+        guard = Window(1, testClass, 11, FALSE, FALSE);
+        EnableChildReveal(guard); applyShow = canFocus = FALSE;
+        CHECK(HubOpenApp(testImage, NULL, NULL)); inputTick++;
+        DeliverReveal(); CHECK(childShows == 0 && g_openRequest.active);
+        HubPollOpen(); DeliverReveal(); CHECK(childShows == 1 && foreground == guard);
+
+        Reset("reveal freshness is DWORD-wrap-safe");
+        tick = UINT32_MAX - 50ULL;
+        guard = Window(1, testClass, 11, FALSE, FALSE);
+        EnableChildReveal(guard); applyShow = canFocus = FALSE;
+        CHECK(HubOpenApp(testImage, NULL, NULL)); tick += 100;
+        DeliverReveal(); CHECK(childShows == 1 && foreground == guard);
+
+        Reset("missing input snapshot and quitting never reveal");
+        guard = Window(1, testClass, 11, FALSE, FALSE);
+        EnableChildReveal(guard); applyShow = canFocus = FALSE;
+        CHECK(HubOpenApp(testImage, NULL, NULL)); inputOk = FALSE;
+        DeliverReveal(); CHECK(childShows == 0 && !guard->visible);
+        inputOk = TRUE; HubPollOpen(); g_quitting = TRUE;
+        DeliverReveal(); CHECK(childShows == 0 && !guard->visible);
+        CHECK(!HandleChildReveal(guard, 0x111, 0, 0));
+
+        Reset("missing send-time input snapshot uses legacy reveal without a private post");
+        guard = Window(1, testClass, 11, FALSE, FALSE);
+        EnableChildReveal(guard); inputOk = FALSE;
+        CHECK(HubOpenApp(testImage, NULL, NULL));
+        CHECK(revealPosts == 0 && foreground == guard && launchCalls == 0);
+
+        Reset("blocked private post retains the normal legacy reveal");
+        guard = Window(1, testClass, 11, FALSE, FALSE);
+        EnableChildReveal(guard); postOk = FALSE;
+        CHECK(HubOpenApp(testImage, NULL, NULL));
+        CHECK(foreground == guard && revealPosts == 1 && childShows == 0 && !queuedWindow);
+
+    }
+
+    Reset("cross-integrity Lighting Open must not rely on foreign show or restart");
+    HWND lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, FALSE, TRUE);
+    EnableChildReveal(lighting); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(L"C:\\Suite\\KeyboardLighting.exe", NULL, NULL));
+    CHECK(revealPosts == 1 && launchCalls == 0 && !lighting->visible);
     DeliverReveal();
-    CHECK(foreground == guard && guard->visible && !guard->iconic && guard->maximized);
-    CHECK(childShows == 1 && lastShow == SW_RESTORE && filterCalls == 1);
+    CHECK(childShows == 1 && foreground == lighting && !lighting->iconic);
     HubPollOpen(); CHECK(!g_openRequest.active && launchCalls == 0);
-
-    Reset("owning UI preserves a maximized window and focuses the active dialog");
-    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
-    guard->maximized = TRUE; EnableHubPanelReveal(guard);
-    HWND guardPopup = Window(2, L"Dialog", 11, TRUE, FALSE);
-    guard->popup = guardPopup; guardPopup->owner = guard;
-    applyShow = canFocus = FALSE;
-    CHECK(HubOpenApp(btg, NULL, NULL)); DeliverReveal();
-    CHECK(guard->maximized && lastShow == SW_SHOW && foreground == guardPopup);
-    CHECK(lastPositioned == guardPopup);
-    HubPollOpen(); CHECK(!g_openRequest.active && launchCalls == 0);
-
-    Reset("queued reveal loses permission after newer user input");
-    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
-    EnableHubPanelReveal(guard); applyShow = canFocus = FALSE;
-    CHECK(HubOpenApp(btg, NULL, NULL));
-    foreground = Window(2, L"Other", 99, TRUE, FALSE); inputTick++;
-    DeliverReveal(); HubPollOpen();
-    CHECK(childShows == 0 && !guard->visible && !g_openRequest.active && revealPosts == 1);
-
-    Reset("queued reveal expires while the app UI is busy");
-    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
-    EnableHubPanelReveal(guard); applyShow = canFocus = FALSE;
-    CHECK(HubOpenApp(btg, NULL, NULL)); tick += SUITE_WINDOW_REVEAL_MAX_AGE_MS + 1;
-    DeliverReveal(); CHECK(childShows == 0 && !guard->visible);
-    HubPollOpen(); DeliverReveal(); CHECK(childShows == 1 && foreground == guard);
-
-    Reset("ordinary pointer activity can retry while the Hub still owns foreground");
-    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
-    EnableHubPanelReveal(guard); applyShow = canFocus = FALSE;
-    CHECK(HubOpenApp(btg, NULL, NULL)); inputTick++;
-    DeliverReveal(); CHECK(childShows == 0 && g_openRequest.active);
-    HubPollOpen(); DeliverReveal(); CHECK(childShows == 1 && foreground == guard);
-
-    Reset("reveal freshness is DWORD-wrap-safe");
-    tick = UINT32_MAX - 50ULL;
-    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
-    EnableHubPanelReveal(guard); applyShow = canFocus = FALSE;
-    CHECK(HubOpenApp(btg, NULL, NULL)); tick += 100;
-    DeliverReveal(); CHECK(childShows == 1 && foreground == guard);
-
-    Reset("missing input snapshot and quitting never reveal");
-    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
-    EnableHubPanelReveal(guard); applyShow = canFocus = FALSE;
-    CHECK(HubOpenApp(btg, NULL, NULL)); inputOk = FALSE;
-    DeliverReveal(); CHECK(childShows == 0 && !guard->visible);
-    inputOk = TRUE; HubPollOpen(); g_quitting = TRUE;
-    DeliverReveal(); CHECK(childShows == 0 && !guard->visible);
-    CHECK(!HandleHubPanelReveal(guard, 0x111, 0, 0));
-
-    Reset("missing send-time input snapshot uses legacy reveal without a private post");
-    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
-    EnableHubPanelReveal(guard); inputOk = FALSE;
-    CHECK(HubOpenApp(btg, NULL, NULL));
-    CHECK(revealPosts == 0 && foreground == guard && launchCalls == 0);
-
-    Reset("blocked private post retains the normal legacy reveal");
-    guard = Window(1, L"TestsBluetoothGuardModernWnd", 11, FALSE, FALSE);
-    EnableHubPanelReveal(guard); postOk = FALSE;
-    CHECK(HubOpenApp(btg, NULL, NULL));
-    CHECK(foreground == guard && revealPosts == 1 && childShows == 0 && !queuedWindow);
 
     /* Every native app uses the same real reveal route, including a stray
        running copy whose expected installed file has disappeared. */
@@ -426,6 +474,7 @@ int main(void) {
         HWND app = Window(1, g_openIdentities[i].windowClass, 11, FALSE, FALSE);
         CHECK(HubOpenApp(g_openIdentities[i].exeName, NULL, NULL));
         CHECK(launchCalls == 0 && foreground == app && lastShow == SW_SHOW && lastGranted == 11);
+        CHECK(revealPosts == ((i == 0 || i == 1) ? 1 : 0));
         HubPollOpen(); CHECK(!g_openRequest.active);
     }
     Reset("minimized window restores without normalizing its placement");

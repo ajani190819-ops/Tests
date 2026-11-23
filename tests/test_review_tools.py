@@ -315,12 +315,12 @@ class OwnerHandoffContractTests(unittest.TestCase):
         self.assertIn("under identical settings", checklist)
         self.assertIn("not untouched controls", normalized)
 
-    def test_current_status_keeps_four_problems_and_parked_work_distinct_from_owner_approval(self):
+    def test_current_status_keeps_open_focus_and_monitoring_distinct_from_owner_approval(self):
         import re
         checklist = (ROOT / ".agent/runbooks/owner-verification-checklist.md").read_text()
         rows = dict(re.findall(r"(?m)^\| [^|]+ \| ([A-Z]+-[0-9]{2}) \| ([^|]+) \|$", checklist))
         self.assertEqual(len(rows), 20)
-        for ident in ("APP-01", "APP-05", "OPS-01", "KBL-01"):
+        for ident in ("APP-01", "OPS-01", "KBL-01"):
             self.assertNotIn("Owner-reported good", rows[ident])
         for ident in ("BT-01", "APP-02", "APP-03", "APP-04", "WX-01", "WX-02", "WX-03"):
             self.assertIn("Owner-reported good", rows[ident])
@@ -328,7 +328,12 @@ class OwnerHandoffContractTests(unittest.TestCase):
             self.assertIn("PARKED", rows[ident])
         self.assertIn("DEFERRED", rows["PLAN-02"])
         self.assertIn("2/3. kindarandom/ all", checklist)
-        self.assertIn("Hub presence during APP-05 remain", checklist)
+        self.assertIn("MONITOR", rows["APP-05"])
+        self.assertIn("one icon currently working", rows["APP-05"])
+        self.assertIn("no lasting startup fix claimed", rows["APP-05"])
+        self.assertIn("Bluetooth Guard and Keyboard Lighting", checklist)
+        self.assertIn("historical Hub presence", " ".join(checklist.split()))
+        self.assertNotIn("Ask which app fails", checklist)
 
     def test_lighting_followup_retains_log_receipt_and_mock_hardware_boundary(self):
         runbook = (ROOT / ".agent/runbooks/test-lighting-input.md").read_text(encoding="ascii")
@@ -339,6 +344,18 @@ class OwnerHandoffContractTests(unittest.TestCase):
             self.assertIn(phrase, normalized)
         self.assertIn("No other software was stopped", normalized)
         self.assertIn("No owner-hardware reproduction or successful hold is claimed", normalized)
+
+    def test_open_handoff_respects_no_log_loop_and_source_vs_native_boundary(self):
+        checklist = (ROOT / ".agent/runbooks/owner-verification-checklist.md").read_text()
+        runbook = (ROOT / ".agent/runbooks/test-hub-open-to-front.md").read_text()
+        lighting = (ROOT / ".agent/runbooks/test-lighting-input.md").read_text(encoding="ascii")
+        state = (ROOT / ".agent/STATE.md").read_text()
+        self.assertIn("No more log collection is the next action", checklist)
+        self.assertIn("not proof of the owner's exact intermittent cause", " ".join(runbook.split()))
+        self.assertIn("Open never calls it, kills a process or restarts the engine", " ".join(runbook.split()))
+        self.assertIn("No additional log request", state)
+        self.assertIn("observation request is superseded", " ".join(lighting.split()))
+        self.assertNotIn("## Focused owner observation, only after a verified release", lighting)
 
     def test_hud_guidance_exposes_source_mismatch_instead_of_dropping_old_request(self):
         config = (ROOT / "spatial-hud-template-26.3/src/client/java/dev/arena/spatialhud/SpatialHudConfig.java").read_text()

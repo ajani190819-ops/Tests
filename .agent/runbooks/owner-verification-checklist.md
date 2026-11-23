@@ -1,29 +1,33 @@
 # Owner status and verification reference — 20 retained IDs
 
-**Latest owner report:** everything is good except lighting, UAC, intermittent
-Hub Open and startup showing all app tray icons instead of one Hub icon.
-Record the other current items as owner-reported good. Do not ask the owner to
-repeat the whole old matrix; do not convert a broad report into invented native
-fixture, security, hardware or physical-print evidence. Parked research remains
-parked, and missing source features are not implemented by an approval.
+**Latest owner clarification:** Bluetooth Guard and Keyboard Lighting sometimes
+fail to reveal/foreground their existing windows until kill/reopen or Lighting's
+**Unfreeze**. These are workarounds, not intended Open behavior. Currently Open
+works and there is one tray icon; neither proves a lasting fix. Other current
+items remain owner-reported good. Do not request repeated logs or the old matrix.
+Broad approval is not invented native fixture/security/hardware/print evidence.
 
 ## Current actions only
 
-- **APP-01 NEXT:** investigate intermittent Hub Open. Ask which app fails and
-  whether it stays hidden/running or produces a launch error; no duplicate starts.
-- **APP-05 NEXT (new):** investigate startup tray consolidation. Establish whether
-  Hub itself is running when the individual icons persist. Keep fallbacks usable
-  when Hub is absent; no new startup registration. See
-  [`test-hub-startup-tray.md`](test-hub-startup-tray.md).
-- **OPS-01:** identify the actual UAC program/path and triggering action. Do not
-  guess that Hub, a child manifest or the earlier Guard security block caused it.
-- **KBL-01 NEXT:** fresh `engine-6.log` received and fully scanned. The receiver
-  now guards failed device enumeration and writes bounded local diagnostics; the
-  hardware hold issue remains open. See [`test-lighting-input.md`](test-lighting-input.md).
+- **APP-01 NEXT:** native/normal-use acceptance of the verified Hub 2.8.71 +
+  Guard/Lighting source follow-up, not another requested log/test loop. Controlled
+  tests failed old code: Guard blocked a UI-shared lock during enumeration;
+  Lighting lacked its own cross-integrity reveal route. Corrections pass full
+  checks and 443/443 mutations; the owner's exact intermittent cause remains
+  unestablished. No duplicate/restart fallback or new logs. See [`test-hub-open-to-front.md`](test-hub-open-to-front.md).
+- **APP-05 MONITOR:** one icon currently working, no startup repair claimed.
+  Keep usable fallback icons and startup choices. The source-only delete/retry
+  lead remains in [`test-hub-startup-tray.md`](test-hub-startup-tray.md).
+- **OPS-01 OPEN:** actual UAC executable/path/action still unknown; preserve
+  manifests and security policy rather than guessing at a cause.
+- **KBL-01 OPEN:** fresh `engine-6.log` received and fully scanned. Prior bounded
+  receiver/diagnostics are released; physical hold remains unverified. No new
+  `input-status.txt` or engine-log request; do not repeat that evidence loop.
+  See [`test-lighting-input.md`](test-lighting-input.md).
 
-The latest shorthand `2/3. kindarandom/ all` is not silently allocated between
-questions: UAC executable/path/action and Hub presence during APP-05 remain
-unidentified. Shared-device/timing log evidence is not a key-input diagnosis.
+The older shorthand `2/3. kindarandom/ all` did not identify the UAC executable
+or historical Hub presence. The affected Open apps are now known; do not ask
+which apps again. No more log collection is the next action.
 
 The procedures below are retained **reference**, not a new request to retest
 items the owner has just reported good. The ledger at the end is current.
@@ -32,13 +36,14 @@ The prior batch prepared Weather/Orca review tooling and repaired stale HUD
 handoff guidance. APP-04 adds standalone AppReview.exe for local evidence; it
 is not a Hub button or an update to the seven existing apps. Those tooling-only
 releases left their EXEs, plugin algorithms, lighting files and HUD renderer
-unchanged; the later focused receiver update changes Keyboard Lighting only. No installation or
-settings reset is required to run the review utility.
+unchanged. The prior receiver release changed Keyboard Lighting only; the current
+Open follow-up changes Hub and both affected native panels, not their engines or
+settings. No installation or settings reset is required to run the review utility.
 
 ## Record once for each test session
 
 - Selected Hub branch and its `.agent/RELEASED` commit; installed Hub version
-  (expected product version **2.8.70**), Windows version, screen/DPI/theme.
+  (Open follow-up product version **2.8.71**), Windows version, screen/DPI/theme.
 - Installed app/plugin/JAR identity, not just current Git tip. Undahang's public
   version is **0.0.52**; Infill **0.4.10**. Orca intentionally still calls the
   underlying package/capabilities **Wave Overhangs**.
@@ -184,9 +189,9 @@ verification boundary: [`test-app-review.md`](test-app-review.md).
   case had no prompt. Do not infer a shared cause or change elevation policy.
 - **KBL-01:** fresh log received. All 824 device-write warnings are SHARED, with
   no failed writes/reopens and a worst write of 814675 us; no input diagnostics
-  or build identity. After the verified receiver update, hold/release M4 then M5,
-  wait about a minute and review/share `input-status.txt`. Keep intended settings
-  and other software unchanged. No repeated engine-log or full-matrix request.
+  or build identity. The prior receiver update and local snapshot do not settle
+  physical hold. Do not ask again for `input-status.txt`/engine logs as the next
+  step; preserve settings and other software. APP-01 is the current source task.
 - **PLAN-01:** review the known list for missing earlier requests; add omissions
   rather than assuming this audit recovered unsaved conversations.
 - **ORCA-04 / ORCA-05:** wake/seam blending and smoother curved-boundary
@@ -202,16 +207,16 @@ newly executed individual acceptance matrix or independently verified test.
 | Category | ID | Current owner status / next action |
 | --- | --- | --- |
 | Bluetooth | BT-01 | Owner-reported good; known wording finding not falsely marked fixed |
-| Hub/Windows | APP-01 | **NEXT:** intermittent Hub Open; identify affected app/result |
+| Hub/Windows | APP-01 | **NEXT:** Guard/Lighting source follow-up; native intermittent acceptance unverified |
 | Hub/Windows | APP-02 | Owner-reported good; no new detailed soak claimed |
 | Hub/Windows | APP-03 | Owner-reported good: current layout/icons |
 | Hub/Windows | APP-04 | Owner-reported good; separate native kit still manual/unrun |
-| Hub/Windows | APP-05 | **NEW / NEXT:** startup single-icon consolidation; is Hub running? |
+| Hub/Windows | APP-05 | **MONITOR:** one icon currently working; no lasting startup fix claimed |
 | Hub/Windows | OPS-01 | OPEN: prompting EXE/path/action needed |
 | Weather | WX-01 | Owner-reported good: planner |
 | Weather | WX-02 | Owner-reported good: live map/desktop |
 | Weather | WX-03 | Owner-reported good: actual-position experience; no new measurement claimed |
-| Lighting | KBL-01 | OPEN / NEXT: fresh log received; bounded receiver guard/diagnostics, physical hold unverified |
+| Lighting | KBL-01 | OPEN: fresh log received; physical hold unverified, no repeated log request |
 | Spatial HUD | HUD-01 | Current experience owner-reported good; missing original methods not claimed restored |
 | Orca | ORCA-01 | Owner-reported good; no new configuration/export artifact claimed |
 | Orca | ORCA-02 | Owner-reported good; no independently documented print claimed |
@@ -222,5 +227,6 @@ newly executed individual acceptance matrix or independently verified test.
 | Planning | PLAN-01 | Known list owner-reviewed; APP-05 added, old IDs retained |
 | Planning | PLAN-02 | First optimization shipped; further caching/workers DEFERRED |
 
-For a recurrence, report the affected ID/app, the action and what happened.
-There is no need to compile tools, reset settings or rerun the old full list.
+The current task needs no new owner logs or reproduction. Existing procedures
+are reference only, not a request to compile tools, reset settings or rerun the
+old full list. Native acceptance remains honestly open.

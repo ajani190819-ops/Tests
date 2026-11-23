@@ -1223,10 +1223,17 @@ class WindowsDesktopAppsTests(unittest.TestCase):
         connect_and_drop = actions[actions.index("static void DoConnectNow("):
                                    actions.index("/* True unpair:")]
         click = ui[ui.index("static void HandleHitClick("):ui.index("static void BluetoothTraySync(")]
-        harness = r'''#include <stdio.h>
+        harness = r'''/* At a paused Bluetooth API, another thread probes the exact
+   model lock shared by Guard's WM_TIMER/heartbeat and paint paths. No sleep,
+   timing assumption, real Bluetooth action or Windows foreground claim. */
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <wchar.h>
+#include <assert.h>
+#include <errno.h>
+#include <pthread.h>
+#include <stdlib.h>
 typedef int BOOL;
 typedef uint32_t DWORD;
 typedef int32_t HRESULT;
@@ -1254,8 +1261,43 @@ static volatile LONGLONG g_manualGraceUntil;
 static HitBox g_hits[MAX_HITBOXES];
 static WorkItem queued[64];
 static ULONGLONG tick = 10000, lastDrop;
-static void EnterCriticalSection(int *lock) { (void)lock; }
-static void LeaveCriticalSection(int *lock) { (void)lock; }
+static pthread_mutex_t deviceLock = PTHREAD_MUTEX_INITIALIZER;
+static _Thread_local int lockDepth;
+static BOOL probeUi, uiLockAvailable;
+static int uiProbes, uiSnapshotCount;
+static void (*betweenRecords)(void);
+static void EnterCriticalSection(int *lock) {
+    assert(lock == &g_lock && pthread_mutex_lock(&deviceLock) == 0);
+    lockDepth++;
+}
+static void LeaveCriticalSection(int *lock) {
+    assert(lock == &g_lock && lockDepth == 1);
+    lockDepth--;
+    assert(pthread_mutex_unlock(&deviceLock) == 0);
+}
+static void *TryUiSnapshot(void *unused) {
+    (void)unused;
+    int result = pthread_mutex_trylock(&deviceLock);
+    assert(result == 0 || result == EBUSY);
+    uiLockAvailable = result == 0;
+    if (uiLockAvailable) {
+        uiSnapshotCount = g_devCount;
+        assert(pthread_mutex_unlock(&deviceLock) == 0);
+    }
+    return NULL;
+}
+static void ProbeUiWhileDriverWaits(void) {
+    if (!probeUi) return;
+    pthread_t ui;
+    assert(pthread_create(&ui, NULL, TryUiSnapshot, NULL) == 0);
+    assert(pthread_join(ui, NULL) == 0);
+    if (!uiLockAvailable) {
+        fputs("Bluetooth enumeration held Guard's UI lock; paint/heartbeat/Open cannot proceed.\n", stderr);
+        exit(1);
+    }
+    assert(uiSnapshotCount >= 0 && uiSnapshotCount <= MAX_DEVICES);
+    uiProbes++;
+}
 static ULONGLONG GetTickCount64(void) { return tick; }
 static LONGLONG InterlockedCompareExchange64(volatile LONGLONG *p, LONGLONG n, LONGLONG old) {
     LONGLONG value = *p; if (value == old) *p = n; return value;
@@ -1311,12 +1353,20 @@ typedef struct {
 static BLUETOOTH_DEVICE_INFO observed[64];
 static int observedCount, observedIndex;
 static HBLUETOOTH_RADIO_FIND FakeFirstRadio(const BLUETOOTH_FIND_RADIO_PARAMS *p, HANDLE *radio) {
-    (void)p; *radio = (HANDLE)1; return (HANDLE)1;
+    (void)p; ProbeUiWhileDriverWaits(); *radio = (HANDLE)1; return (HANDLE)1;
 }
-static BOOL FakeRadioClose(HBLUETOOTH_RADIO_FIND h) { (void)h; return TRUE; }
+static BOOL FakeRadioClose(HBLUETOOTH_RADIO_FIND h) {
+    (void)h; ProbeUiWhileDriverWaits(); return TRUE;
+}
 static BLUETOOTH_DEVICE_SEARCH_PARAMS lastSearch;
 static BOOL FakeNextDevice(HBLUETOOTH_DEVICE_FIND h, BLUETOOTH_DEVICE_INFO *info) {
-    (void)h;
+    (void)h; ProbeUiWhileDriverWaits();
+    if (betweenRecords && observedIndex == 0) {
+        assert(lockDepth == 0);
+        void (*action)(void) = betweenRecords;
+        betweenRecords = NULL;
+        action();
+    }
     while (++observedIndex < observedCount) {
         BLUETOOTH_DEVICE_INFO *d = &observed[observedIndex];
         if ((lastSearch.fReturnAuthenticated && d->fAuthenticated) ||
@@ -1329,11 +1379,13 @@ static BOOL FakeNextDevice(HBLUETOOTH_DEVICE_FIND h, BLUETOOTH_DEVICE_INFO *info
 }
 static HBLUETOOTH_DEVICE_FIND FakeFirstDevice(const BLUETOOTH_DEVICE_SEARCH_PARAMS *p,
                                              BLUETOOTH_DEVICE_INFO *info) {
-    lastSearch = *p; observedIndex = -1;
+    ProbeUiWhileDriverWaits(); lastSearch = *p; observedIndex = -1;
     if (p->fReturnUnknown || p->fIssueInquiry) return NULL;
     return FakeNextDevice((HANDLE)1, info) ? (HANDLE)1 : NULL;
 }
-static BOOL FakeDeviceClose(HBLUETOOTH_DEVICE_FIND h) { (void)h; return TRUE; }
+static BOOL FakeDeviceClose(HBLUETOOTH_DEVICE_FIND h) {
+    (void)h; ProbeUiWhileDriverWaits(); return TRUE;
+}
 static HBLUETOOTH_RADIO_FIND (*pBtFindFirstRadio)(const BLUETOOTH_FIND_RADIO_PARAMS *, HANDLE *) = FakeFirstRadio;
 static BOOL (*pBtFindRadioClose)(HBLUETOOTH_RADIO_FIND) = FakeRadioClose;
 static HBLUETOOTH_DEVICE_FIND (*pBtFindFirstDevice)(const BLUETOOTH_DEVICE_SEARCH_PARAMS *, BLUETOOTH_DEVICE_INFO *) = FakeFirstDevice;
@@ -1348,6 +1400,8 @@ static void Reset(void) {
     tick = 10000; g_radioOn = TRUE; g_suspendAutoConnect = FALSE;
     fakeAudioResult = (BtAudioResult){S_OK, S_OK, TRUE, TRUE};
     g_hitCount = 1; g_guardOn = TRUE; g_hwnd = NULL; fakeIntent = FALSE; g_manualGraceUntil = 0;
+    assert(lockDepth == 0); probeUi = FALSE; uiProbes = uiSnapshotCount = 0;
+    betweenRecords = NULL;
 }
 static void Observe(int i, ULONGLONG address, BOOL paired, BOOL connected) {
     memset(&observed[i], 0, sizeof(observed[i]));
@@ -1359,7 +1413,15 @@ static void Observe(int i, ULONGLONG address, BOOL paired, BOOL connected) {
 static void Click(int kind, ULONGLONG address) {
     g_hits[0].kind = kind; g_hits[0].address = address; HandleHitClick(0);
 }
+static void DenySecondDuringScan(void) { Click(HIT_DEV_DENY_BTN, 2); }
+static void PauseSecondDuringScan(void) { Click(HIT_DEV_CONNECT_BTN, 2); }
 int main(void) {
+    /* Slow first/next/close driver calls may never own the UI model lock. */
+    Reset(); probeUi = TRUE; Observe(0, 99, TRUE, FALSE); PollPairedDevices();
+    CHECK(uiProbes >= 6 && lockDepth == 0 && g_devCount == 1);
+    observedCount = 0; PollPairedDevices(); /* empty discovery also releases it */
+    CHECK(lockDepth == 0 && g_devCount == 1);
+
     /* Disconnected paired earbuds must appear without becoming trusted. */
     Reset(); Observe(0, 1, TRUE, FALSE); PollPairedDevices();
     CHECK(g_devCount == 1 && DeviceIsListed(&g_devices[0]));
@@ -1526,6 +1588,19 @@ int main(void) {
     g_devices[0].sessionAllowed = FALSE; PollPairedDevices(); CHECK(dropCalls == 1);
     g_devices[0].audioConnected = FALSE; PollPairedDevices(); CHECK(!g_devices[0].connected);
 
+    /* A UI choice made while the driver is returning the next record must
+       survive that observation. Never merge a stale approval/pause snapshot. */
+    Reset(); Observe(0, 1, TRUE, FALSE); Observe(1, 2, TRUE, TRUE); PollPairedDevices();
+    ApproveDevice(&g_devices[0], TRUE, tick);
+    betweenRecords = DenySecondDuringScan; PollPairedDevices();
+    CHECK(betweenRecords == NULL && g_devices[1].denied && !g_devices[1].visible);
+    CHECK(g_devices[0].visible && g_devices[0].allowAuto && dropCalls == 1 && lastDrop == 2);
+    Reset(); Observe(0, 1, TRUE, TRUE); Observe(1, 2, TRUE, TRUE); PollPairedDevices();
+    ApproveDevice(&g_devices[0], TRUE, tick); ApproveDevice(&g_devices[1], TRUE, tick);
+    betweenRecords = PauseSecondDuringScan; PollPairedDevices();
+    CHECK(betweenRecords == NULL && g_devices[1].autoPaused && g_devices[1].allowAuto);
+    CHECK(!g_devices[1].sessionAllowed && !g_devices[0].autoPaused && lockDepth == 0);
+
     /* Capacity exhaustion must not be interpreted as an owner denial. */
     Reset(); g_devCount = MAX_DEVICES;
     for (int i = 0; i < MAX_DEVICES; i++) {
@@ -1539,10 +1614,10 @@ int main(void) {
             src, exe = Path(td) / "review.c", Path(td) / "review"
             src.write_text(harness, encoding="utf-8")
             built = subprocess.run(
-                [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", str(src), "-o", str(exe)],
-                capture_output=True, text=True)
+                [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread", str(src), "-o", str(exe)],
+                capture_output=True, text=True, timeout=30)
             self.assertEqual(built.returncode, 0, built.stderr)
-            ran = subprocess.run([str(exe)], capture_output=True, text=True)
+            ran = subprocess.run([str(exe)], capture_output=True, text=True, timeout=15)
             self.assertEqual(ran.returncode, 0, ran.stderr)
 
     def test_bluetooth_review_controls_and_denials_are_persistent_and_address_bound(self):
@@ -5635,10 +5710,9 @@ class AppOpenFocusTests(unittest.TestCase):
          r"WaitForSingleObject\(g_showEvent, 0\) == WAIT_OBJECT_0\)\s*\{\s*"
          r"RevealPanel\(hwnd\);"),
         ("keyboard-lighting/src/keyboard_lighting.c",
-         r"if \(!silent\) \{\s*ShowWindow\(g_hwnd, SW_SHOWNORMAL\);\s*"
-         r"UpdateWindow\(g_hwnd\);\s*SetForegroundWindow\(g_hwnd\);",
+         r"if \(!silent\) \{\s*RevealLightingPanel\(g_hwnd\);\s*UpdateWindow\(g_hwnd\);",
          r"WaitForSingleObject\(g_showEvent, 0\) == WAIT_OBJECT_0\)\s*\{\s*"
-         r"ShowWindow\(hwnd, SW_SHOWNORMAL\);\s*SetForegroundWindow\(hwnd\);"),
+         r"RevealLightingPanel\(hwnd\);"),
         ("dns-pilot/src/dns_pilot.c",
          r"if \(!silent\) \{\s*ShowWindow\(g_hwnd, SW_SHOW\);\s*"
          r"SetForegroundWindow\(g_hwnd\);\s*\}",
@@ -5666,8 +5740,16 @@ class AppOpenFocusTests(unittest.TestCase):
             self.skipTest("portable C compiler is unavailable")
         with tempfile.TemporaryDirectory(prefix="hub-open-") as td:
             exe = Path(td) / "hub-open"
+            creates = []
+            for app, entry, function in (("bluetooth-guard", "window_entry.c", "GuardWindowCreate"),
+                                         ("keyboard-lighting", "picker_window_entry.c", "LightingWindowCreate")):
+                source = (ROOT / app / "src/parts" / entry).read_text()
+                start = source.index("    case WM_CREATE:") + len("    case WM_CREATE:")
+                body = source[start:source.index("    case WM_ERASEBKGND:", start)]
+                creates.append("static int " + function + "(HWND hwnd) {" + body + "}\n")
+            (Path(td) / "hub_open_create_production.h").write_text("\n".join(creates))
             build = subprocess.run(
-                [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror",
+                [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", td,
                  str(ROOT / "tests/native/hub_open_harness.c"), "-o", str(exe)],
                 capture_output=True, text=True)
             self.assertEqual(build.returncode, 0, build.stderr)
@@ -5738,6 +5820,44 @@ class AppOpenFocusTests(unittest.TestCase):
         self.assertNotIn("ASFW_ANY", activation)
         self.assertIn('launch.lpVerb = L"open";', activation)
         self.assertIn("if (launch.hProcess) CloseHandle(launch.hProcess);", activation)
+
+    def test_lighting_open_is_wired_to_its_own_show_only_ui_without_engine_actions(self):
+        main = (ROOT / "keyboard-lighting/src/keyboard_lighting.c").read_text(encoding="ascii")
+        entry = (ROOT / "keyboard-lighting/src/parts/picker_window_entry.c").read_text(encoding="ascii")
+        helper = (ROOT / "keyboard-lighting/src/parts/window_activation.c").read_text(encoding="ascii")
+        self.assertIn('#include "../../shared/win32/window_reveal.h"', main)
+        self.assertLess(main.index('#include "parts/window_activation.c"'),
+                        main.index('#include "parts/picker_window_entry.c"'))
+        proc = entry[entry.index("static LRESULT CALLBACK KblWndProc("):]
+        self.assertIn("if (HandleHubLightingReveal(hwnd, msg, wp, lp)) return 0;", proc)
+        self.assertLess(proc.index("HandleHubLightingReveal"), proc.index("switch (msg)"))
+        create = proc[proc.index("case WM_CREATE:"):proc.index("case WM_ERASEBKGND:")]
+        self.assertRegex(create, r"(?m)^[ \t]*EnableHubLightingReveal\(hwnd\);[ \t]*$")
+        for begin, end in (("} else if (id == IDM_TRAY_OPEN)", "} else if (id == IDM_TRAY_TOGGLE)"),
+                           ("if (FileExistsW(g_showPath))", "if (g_showEvent && WaitForSingleObject"),
+                           ("if (g_showEvent && WaitForSingleObject", "if (!g_wantOff && !IsEngineAlive()"),
+                           ("case WM_TRAYICON:", "case WM_CLOSE:")):
+            route = proc[proc.index(begin):proc.index(end, proc.index(begin))]
+            self.assertIn("RevealLightingPanel(hwnd);", route)
+            self.assertNotIn("SW_SHOWNORMAL", route)
+            self.assertNotIn("StartEngine", route)
+        duplicate = entry[entry.index("if (GetLastError() == ERROR_ALREADY_EXISTS)"):
+                          entry.index("/* Request elevation once")]
+        self.assertIn('FindWindowW(L"TestsKeyboardLightingSuiteWnd", NULL)', duplicate)
+        self.assertIn("if (pid) AllowSetForegroundWindow(pid);", duplicate)
+        self.assertLess(duplicate.index("AllowSetForegroundWindow"), duplicate.index("WriteAtomicUtf8(g_showPath"))
+        self.assertLess(duplicate.index("AllowSetForegroundWindow"), duplicate.index("SetEvent(ev)"))
+        self.assertEqual(helper.count("ChangeWindowMessageFilterEx("), 1)
+        self.assertIn("if (message) ChangeWindowMessageFilterEx(hwnd, message, MSGFLT_ALLOW, NULL);", helper)
+        for forbidden in ("ChangeWindowMessageFilter(", "StartEngine", "StopEngine", "WriteAtomicUtf8",
+                          "CreateFile", "ShellExecute", "CreateProcess", "SendMessage(", "AttachThreadInput",
+                          "HWND_TOPMOST", "ASFW_ANY"):
+            self.assertNotIn(forbidden, helper)
+        # The explicit restart remains a different action, not an Open fallback.
+        actions = (ROOT / "project-hub/src/parts/branch_picker_entry.c").read_text()
+        opening = actions[actions.index("case ID_KBL_OPEN:"):actions.index("case ID_KBL_RESTART:")]
+        self.assertNotIn("RestartKeyboardLightingCleanly", opening)
+        self.assertNotIn("StopProcess", opening)
 
     def test_explicit_open_shows_and_foregrounds_the_window(self):
         for rel, first, _second in self.APPS:
@@ -6063,7 +6183,7 @@ class BluetoothPanelTests(unittest.TestCase):
         helper = (parts / "window_activation.c").read_text(encoding="utf-8")
         self.assertIn("if (HandleHubPanelReveal(hwnd, msg, wp, lp)) return 0;", entry)
         create = entry[entry.index("case WM_CREATE:"):entry.index("case WM_ERASEBKGND:")]
-        self.assertIn("EnableHubPanelReveal(hwnd);", create)
+        self.assertRegex(create, r"(?m)^[ \t]*EnableHubPanelReveal\(hwnd\);[ \t]*$")
         for begin, end in (("if (id == IDM_TRAY_OPEN)", "} else if (id == IDM_TRAY_PAUSE)"),
                            ("if (g_showEvent && WaitForSingleObject", "WriteHeartbeat();"),
                            ("case WM_TRAYICON:", "case WM_CLOSE:")):
@@ -6097,14 +6217,14 @@ class BluetoothPanelTests(unittest.TestCase):
         self.assertIn("cr.top + S(38, dpi), cr.right - S(16, dpi), cr.top + S(60, dpi)", entry)
         self.assertIn("btnTopY, forgetR.left - S(14, dpi), btnBottomY", entry)
 
-    def test_both_binary_cache_keys_follow_the_shared_reveal_protocol(self):
+    def test_three_binary_cache_keys_follow_the_shared_reveal_protocol(self):
         import importlib.util
         import tempfile
         spec = importlib.util.spec_from_file_location("reveal_cache_build", ROOT / "tools/build_windows.py")
         builder = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(builder)
         shared = ROOT / "shared/win32/window_reveal.h"
-        for app in ("hub", "btguard"):
+        for app in ("hub", "btguard", "kbl"):
             self.assertIn(shared, builder.TARGET_SHARED_SOURCES[app])
         with tempfile.TemporaryDirectory() as name:
             folder = Path(name)
@@ -6114,12 +6234,12 @@ class BluetoothPanelTests(unittest.TestCase):
             header = folder / "window_reveal.h"
             header.write_text("/* protocol one */", encoding="ascii")
             builder.ROOT = folder
-            builder.TARGET_SHARED_SOURCES = {"hub": (header,), "btguard": (header,)}
-            before = {app: builder.target_key(app, src, [], "test") for app in ("hub", "btguard", "kbl")}
+            builder.TARGET_SHARED_SOURCES = {app: (header,) for app in ("hub", "btguard", "kbl")}
+            before = {app: builder.target_key(app, src, [], "test") for app in ("hub", "btguard", "kbl", "agentnotes")}
             header.write_text("/* protocol two */", encoding="ascii")
-            for app in ("hub", "btguard"):
+            for app in ("hub", "btguard", "kbl"):
                 self.assertNotEqual(before[app], builder.target_key(app, src, [], "test"))
-            self.assertEqual(before["kbl"], builder.target_key("kbl", src, [], "test"))
+            self.assertEqual(before["agentnotes"], builder.target_key("agentnotes", src, [], "test"))
 
 
 class RadarWindowsLocationTests(unittest.TestCase):

@@ -19,10 +19,10 @@
 - L69  f HubCancelOpen
 - L74  f HubBeginOpen
 - L95  f HubRevealWindow  — Use async show/position calls so a hung foreign UI cannot hang the Hub.
-- L113  f HubOpenMayTakeForeground
-- L124  f HubPollOpen
-- L164  f HubReportOpenFailure  — A failed explicit launch must retain Windows' actual reason.
-- L194  f HubOpenApp  — TRUE means the click was handled, including a launch error or a running app
+- L114  f HubOpenMayTakeForeground
+- L125  f HubPollOpen
+- L165  f HubReportOpenFailure  — A failed explicit launch must retain Windows' actual reason.
+- L195  f HubOpenApp  — TRUE means the click was handled, including a launch error or a running app
 - globals: g_openIdentities (L15), g_openRequest (L38), g_openSerial (L39)
 
 ## project-hub/src/parts/branch_picker_entry.c
@@ -311,7 +311,7 @@
 - L155  f EnqueueWork
 - L171  f RecordRejectedLink
 - L183  f PollPairedDevices
-- L409  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
+- L417  f DisconnectGuardedDevicesNow  — Disconnect all guarded non-auto devices right before shutdown / Fast Startup hibernate / sleep
 
 ## bluetooth-guard/src/parts/bt_actions.c
 
@@ -407,20 +407,20 @@
 
 ## keyboard-lighting/src/keyboard_lighting.c
 
-- L247  f GetWinDpi
-- L262  f S
-- L264  f ApplyModernWindowFrame
-- L282  f FileExistsW
-- L287  f EnsureDirTree
-- L302  f CheckIsAdmin
-- L314  f ReadFileUtf8
-- L330  f WriteAtomicUtf8
-- L346  f ParseHexColor
-- L355  f FormatHexColor
-- L359  f FindEffectIndex
-- L369  f CurGroup
-- L373  f InitDefaultCfg
-- globals: g_hwnd (L183), g_appIcon (L184), g_nid (L185), g_trayVisible (L186), g_showEvent (L187), g_engineProc (L188), g_enginePid (L189), g_isAdmin (L190), g_autostart (L191), g_wantOff (L192), g_quitting (L193), g_trayHinted (L194), g_downloading (L195), g_cfg (L197), g_tab (L198), g_hits (L199), g_hitCount (L200), g_hoverIdx (L201), g_dragKind (L202), g_dragIdx (L203), g_dragRect (L204), g_scrollY (L205), g_contentH (L206), g_applyPending (L207), g_applyAtTick (L208), g_liveCols (L211), g_liveKbdN (L212), g_liveBarN (L213), g_hasLiveFrame (L214), g_lastFrameTick (L215), g_toastText (L218), g_toastAt (L219), g_lastFnPoll (L220), g_exePath (L223), g_exeDir (L224), g_cfgDir (L225), g_panelPath (L226), g_themePath (L227), g_livePath (L228), g_framePath (L229), g_layoutPath (L230), g_lockPath (L231), g_showPath (L232), g_engPidPath (L233), g_stopPath (L234), g_brightUpPath (L235), g_brightDownPath (L236), g_holdModePath (L237), g_hubTogglePath (L238), g_hubExitPath (L239), g_engineScript (L240), g_zonesBat (L241), g_statusText (L242)
+- L248  f GetWinDpi
+- L263  f S
+- L265  f ApplyModernWindowFrame
+- L283  f FileExistsW
+- L288  f EnsureDirTree
+- L303  f CheckIsAdmin
+- L315  f ReadFileUtf8
+- L331  f WriteAtomicUtf8
+- L347  f ParseHexColor
+- L356  f FormatHexColor
+- L360  f FindEffectIndex
+- L370  f CurGroup
+- L374  f InitDefaultCfg
+- globals: g_hwnd (L184), g_appIcon (L185), g_nid (L186), g_trayVisible (L187), g_showEvent (L188), g_engineProc (L189), g_enginePid (L190), g_isAdmin (L191), g_autostart (L192), g_wantOff (L193), g_quitting (L194), g_trayHinted (L195), g_downloading (L196), g_cfg (L198), g_tab (L199), g_hits (L200), g_hitCount (L201), g_hoverIdx (L202), g_dragKind (L203), g_dragIdx (L204), g_dragRect (L205), g_scrollY (L206), g_contentH (L207), g_applyPending (L208), g_applyAtTick (L209), g_liveCols (L212), g_liveKbdN (L213), g_liveBarN (L214), g_hasLiveFrame (L215), g_lastFrameTick (L216), g_toastText (L219), g_toastAt (L220), g_lastFnPoll (L221), g_exePath (L224), g_exeDir (L225), g_cfgDir (L226), g_panelPath (L227), g_themePath (L228), g_livePath (L229), g_framePath (L230), g_layoutPath (L231), g_lockPath (L232), g_showPath (L233), g_engPidPath (L234), g_stopPath (L235), g_brightUpPath (L236), g_brightDownPath (L237), g_holdModePath (L238), g_hubTogglePath (L239), g_hubExitPath (L240), g_engineScript (L241), g_zonesBat (L242), g_statusText (L243)
 
 ## keyboard-lighting/src/parts/brightness_hotkeys.c
 
@@ -546,7 +546,7 @@
 - L242  f ApplyHubLightingToggle
 - L248  f ApplyHubExit
 - L255  f ShowTrayContextMenu
-- L555  f InitKblPaths
+- L553  f InitKblPaths
 - globals: g_pickOrig (L6), g_pickLast (L7), g_pickIdx (L8), g_pickLive (L9)
 
 ## keyboard-lighting/src/parts/ui_renderer.c
@@ -555,6 +555,12 @@
 - L31  f SmoothRoundRect
 - L78  f SmoothCircle
 - L116  f SmoothRingTrack  — Thin annulus: the track that makes the Light Bar read as one closed loop.
+
+## keyboard-lighting/src/parts/window_activation.c
+
+- L3  f RevealLightingPanel
+- L13  f EnableHubLightingReveal
+- L20  f HandleHubLightingReveal
 
 ## dns-pilot/src/dns_pilot.c
 
@@ -1138,11 +1144,11 @@
 
 ## tools/build_windows.py
 
-- L57  f zig_version
-- L62  f target_key
-- L83  f ensure_zig_python
-- L99  f build_target
-- L135  f main
+- L58  f zig_version
+- L63  f target_key
+- L84  f ensure_zig_python
+- L100  f build_target
+- L136  f main
 
 ## tools/bump_version.py
 
@@ -1385,20 +1391,20 @@
 - L49  f strip_cs_comments_and_strings
 - L171  f lex_powershell
 - L306  f WindowsDesktopAppsTests
-- L3705  f SuiteFolderInstallTests
-- L5056  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L5239  f AudioSwitcherReachabilityTests
-- L5423  f AudioSwitcherSessionSweepTests
-- L5564  f LightingInputTests
-- L5622  f AppOpenFocusTests
-- L5759  f HubLongevityTests
-- L5823  f HubGroupedEntriesTests
-- L5944  f BluetoothAudioEndpointTests
-- L6011  f BluetoothPanelTests
-- L6125  f RadarWindowsLocationTests
-- L6284  f SafetyMutationPropertyTests
-- L6387  f GuardSecurityReportTests
-- L6559  f PublicNameRolloutTests
+- L3780  f SuiteFolderInstallTests
+- L5131  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L5314  f AudioSwitcherReachabilityTests
+- L5498  f AudioSwitcherSessionSweepTests
+- L5639  f LightingInputTests
+- L5697  f AppOpenFocusTests
+- L5879  f HubLongevityTests
+- L5943  f HubGroupedEntriesTests
+- L6064  f BluetoothAudioEndpointTests
+- L6131  f BluetoothPanelTests
+- L6245  f RadarWindowsLocationTests
+- L6404  f SafetyMutationPropertyTests
+- L6507  f GuardSecurityReportTests
+- L6679  f PublicNameRolloutTests
 
 ## tests/wave_cases.py
 

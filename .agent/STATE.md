@@ -5,30 +5,29 @@ Git: implementation/tests/releases; Drive: extended plans/history.
 
 ## Current owner status / next work
 
-Owner reports current use good except lighting, UAC, intermittent Hub Open and
-startup tray consolidation. Do not demand the old full matrix again. This is
-broad owner approval, not new fixture/security/print evidence, implementation
-of missing HUD methods, parked-work approval or recovery of unsaved requests.
-Shorthand `2/3. kindarandom/ all` leaves UAC identity/Hub presence unresolved.
+Owner identifies intermittent Open failures in Bluetooth Guard and Keyboard
+Lighting; kill/reopen or Lighting Unfreeze are workarounds, not intended Open.
+Currently working with one tray icon, not permanent acceptance. No repeated
+logs or old full matrix. Other current use is owner-reported good.
 
-**Four active problems (20 retained IDs total):**
-- **APP-01 NEXT:** intermittent Hub Open, not just the old Guard error. Need
-  affected app/result. Shared card/tray repair must preserve no duplicates,
-  focus freshness and elevation. `test-hub-open-to-front.md`.
-- **APP-05 NEXT (new):** startup exposes all app icons instead of one Hub icon.
-  Is Hub running then? Only a usable Hub may suppress fallbacks; preserve their
-  recovery and startup choices, no new Run/task/service/auto-start.
-  `test-hub-startup-tray.md`: source audit and unknowns.
-- **OPS-01:** UAC remains an issue; prompting EXE/path/action unknown. Keep Hub
-  asInvoker and child manifests; no speculative elevation/security change.
-- **KBL-01 NEXT:** fresh `engine-6.log` received/scanned: shared-write/timing
-  evidence, no input diagnostics/cause proof. Receiver enumeration guard and
-  bounded local `input-status.txt`; hardware hold unverified. `test-lighting-input.md`.
+**Current focus / monitor (20 retained IDs):**
+- **APP-01 NEXT:** controlled regressions failed old sources: Guard held the
+  UI model lock during Bluetooth enumeration; Lighting lacked app-owned reveal.
+  Hub 2.8.71 + both children repair those source gaps; 443 mutations pass.
+  Native acceptance pending; no exact owner-cause proof. Keep duplicate,
+  modal/maximized, freshness and elevation safeguards. `test-hub-open-to-front.md`.
+- **APP-05 MONITOR:** one tray icon currently working; no startup fix claimed.
+  Preserve accessible fallbacks and startup choices; no new registration.
+  `test-hub-startup-tray.md` retains the source-only delete-retry lead.
+- **OPS-01 OPEN:** UAC program/path/action unknown. No speculative policy change.
+- **KBL-01 OPEN:** fresh `engine-6.log` received/scanned; prior bounded receiver
+  guard/diagnostics released, physical hold unverified. No additional log request.
   Keep ASCII/C# 5.0, pacing, exclusive-lock and single-engine safeguards.
+  `test-lighting-input.md`; Open work changes no engine or input behavior.
 
 ## Released / owner-reported good
 
-- **Hub:** Arena 2.8.70 (main 2.8.56). APP-02 longevity and APP-03 grouping,
+- **Hub:** Arena 2.8.71 (main 2.8.56). APP-02 longevity and APP-03 grouping,
   icons/header are now owner-reported good; no detailed new soak is claimed.
   Preserve modal/maximized placement, single-instance and safe update gates.
 - **BT-01:** current use owner-reported good. Original Guard OFF + Auto ON

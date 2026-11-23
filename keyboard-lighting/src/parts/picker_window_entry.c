@@ -296,6 +296,7 @@ static void ShowTrayContextMenu(HWND hwnd) {
 }
 
 static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (HandleHubLightingReveal(hwnd, msg, wp, lp)) return 0;
     if (msg == SuiteTaskbarCreatedMessage()) {
         g_trayVisible = FALSE;
         KeyboardTraySync();
@@ -304,6 +305,7 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_CREATE:
         ApplyModernWindowFrame(hwnd);
+        EnableHubLightingReveal(hwnd);
         SetTimer(hwnd, 1, 45, NULL);  /* 22 FPS live preview & slider debounce */
         SetTimer(hwnd, 2, 600, NULL); /* Heartbeat, show.flag & engine watchdog */
         SetTimer(hwnd, 3, 15, NULL);  /* fine M4/M5 token pump and key learning */
@@ -428,8 +430,7 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 InvalidateRect(hwnd, NULL, FALSE);
             }
         } else if (id == IDM_TRAY_OPEN) {
-            ShowWindow(hwnd, SW_SHOWNORMAL);
-            SetForegroundWindow(hwnd);
+            RevealLightingPanel(hwnd);
         } else if (id == IDM_TRAY_TOGGLE) {
             if (g_wantOff) StartEngine(); else TurnAllLightsOff();
             InvalidateRect(hwnd, NULL, FALSE);
@@ -497,12 +498,10 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             PollFnBrightness();
             if (FileExistsW(g_showPath)) {
                 DeleteFileW(g_showPath);
-                ShowWindow(hwnd, SW_SHOWNORMAL);
-                SetForegroundWindow(hwnd);
+                RevealLightingPanel(hwnd);
             }
             if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {
-                ShowWindow(hwnd, SW_SHOWNORMAL);
-                SetForegroundWindow(hwnd);
+                RevealLightingPanel(hwnd);
             }
             if (!g_wantOff && !IsEngineAlive() && InterlockedCompareExchange(&g_downloading, 0, 0) == 0) {
                 StartEngine();
@@ -515,8 +514,7 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_TRAYICON:
         if (lp == WM_LBUTTONDBLCLK || lp == WM_LBUTTONUP) {
-            ShowWindow(hwnd, SW_SHOWNORMAL);
-            SetForegroundWindow(hwnd);
+            RevealLightingPanel(hwnd);
         } else if (lp == WM_RBUTTONUP || lp == WM_CONTEXTMENU) {
             ShowTrayContextMenu(hwnd);
         }
@@ -665,6 +663,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     HANDLE hMutex = CreateMutexW(NULL, TRUE, SINGLE_MUTEX_NAME);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         if (!silent) {
+            HWND running = FindWindowW(L"TestsKeyboardLightingSuiteWnd", NULL);
+            DWORD pid = 0;
+            if (running) GetWindowThreadProcessId(running, &pid);
+            if (pid) AllowSetForegroundWindow(pid);
             WriteAtomicUtf8(g_showPath, "1");
             HANDLE ev = OpenEventW(EVENT_MODIFY_STATE, FALSE, SHOW_EVENT_NAME);
             if (ev) { SetEvent(ev); CloseHandle(ev); }
@@ -753,9 +755,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     StartEngine();
 
     if (!silent) {
-        ShowWindow(g_hwnd, SW_SHOWNORMAL);
+        RevealLightingPanel(g_hwnd);
         UpdateWindow(g_hwnd);
-        SetForegroundWindow(g_hwnd);   /* an explicit Open must take focus */
     }
 
     MSG msg;

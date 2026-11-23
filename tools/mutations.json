@@ -4228,5 +4228,205 @@
   "tests": [
    "tests.test_windows_apps.LightingInputTests.test_snapshot_runs_after_registration_and_off_the_fine_input_timer"
   ]
+ },
+ {
+  "id": "hub-open-30",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "         _wcsicmp(g_openRequest.identity->exeName, L\"KeyboardLighting.exe\") == 0))",
+  "new": "         (FALSE && _wcsicmp(g_openRequest.identity->exeName, L\"KeyboardLighting.exe\") == 0)))",
+  "label": "Lighting again relies on blocked foreign reveal instead of its existing UI",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-31",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "    if (message) ChangeWindowMessageFilterEx(hwnd, message, MSGFLT_ALLOW, NULL);",
+  "new": "    if (FALSE && message) ChangeWindowMessageFilterEx(hwnd, message, MSGFLT_ALLOW, NULL);",
+  "label": "Elevated Lighting never permits its one show-only message",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-32",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "    if (!message || msg != message) return FALSE;",
+  "new": "    if (!message || msg == 0) return FALSE;",
+  "label": "Lighting consumes unrelated window messages as reveal commands",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-33",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "    if (SuiteWindowRevealIsCurrent(wp, lp)) RevealLightingPanel(hwnd);",
+  "new": "    if (TRUE || SuiteWindowRevealIsCurrent(wp, lp)) RevealLightingPanel(hwnd);",
+  "label": "Lighting replays stale requests after newer input or a busy UI",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-34",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "    ShowWindow(hwnd, IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);",
+  "new": "    if (FALSE) ShowWindow(hwnd, IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);",
+  "label": "Lighting owns the request but never reveals its hidden or minimized panel",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-35",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "    ShowWindow(hwnd, IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);",
+  "new": "    ShowWindow(hwnd, SW_SHOWNORMAL);",
+  "label": "Lighting Open discards maximized placement",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-36",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "    SetForegroundWindow(target);",
+  "new": "    if (FALSE) SetForegroundWindow(target);",
+  "label": "Lighting reveals behind other applications instead of taking the delegated foreground",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-37",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "    if (!target || !IsWindowVisible(target)) target = hwnd;",
+  "new": "    target = hwnd;",
+  "label": "Lighting focuses a disabled parent instead of its active modal dialog",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-38",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "    if (g_quitting || !IsWindow(hwnd)) return;",
+  "new": "    if (!IsWindow(hwnd)) return;",
+  "label": "Queued Lighting Open resurfaces a panel after explicit Quit",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-39",
+  "file": "keyboard-lighting/src/parts/picker_window_entry.c",
+  "old": "    if (HandleHubLightingReveal(hwnd, msg, wp, lp)) return 0;",
+  "new": "    if (FALSE && HandleHubLightingReveal(hwnd, msg, wp, lp)) return 0;",
+  "label": "Lighting WndProc never dispatches its app-owned reveal",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_lighting_open_is_wired_to_its_own_show_only_ui_without_engine_actions"
+  ]
+ },
+ {
+  "id": "hub-open-40",
+  "file": "keyboard-lighting/src/parts/picker_window_entry.c",
+  "old": "        EnableHubLightingReveal(hwnd);",
+  "new": "        if (FALSE) EnableHubLightingReveal(hwnd);",
+  "label": "Lighting creates its window without enabling cross-integrity reveal",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-41",
+  "file": "keyboard-lighting/src/parts/picker_window_entry.c",
+  "old": "            if (pid) AllowSetForegroundWindow(pid);",
+  "new": "            if (FALSE && pid) AllowSetForegroundWindow(pid);",
+  "label": "A direct duplicate Lighting Open fails to delegate foreground before signaling",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_lighting_open_is_wired_to_its_own_show_only_ui_without_engine_actions"
+  ]
+ },
+ {
+  "id": "hub-open-42",
+  "file": "keyboard-lighting/src/parts/picker_window_entry.c",
+  "old": "        } else if (id == IDM_TRAY_OPEN) {\n            RevealLightingPanel(hwnd);",
+  "new": "        } else if (id == IDM_TRAY_OPEN) {\n            (void)hwnd;",
+  "label": "Lighting fallback-tray Open does not reveal the panel",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_lighting_open_is_wired_to_its_own_show_only_ui_without_engine_actions"
+  ]
+ },
+ {
+  "id": "hub-open-43",
+  "file": "keyboard-lighting/src/parts/picker_window_entry.c",
+  "old": "                DeleteFileW(g_showPath);\n                RevealLightingPanel(hwnd);",
+  "new": "                DeleteFileW(g_showPath);\n                (void)hwnd;",
+  "label": "Lighting consumes its existing-instance show flag without revealing",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_lighting_open_is_wired_to_its_own_show_only_ui_without_engine_actions"
+  ]
+ },
+ {
+  "id": "hub-open-44",
+  "file": "keyboard-lighting/src/parts/picker_window_entry.c",
+  "old": "            if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {\n                RevealLightingPanel(hwnd);",
+  "new": "            if (g_showEvent && WaitForSingleObject(g_showEvent, 0) == WAIT_OBJECT_0) {\n                (void)hwnd;",
+  "label": "Lighting consumes its existing-instance show event without revealing",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_lighting_open_is_wired_to_its_own_show_only_ui_without_engine_actions"
+  ]
+ },
+ {
+  "id": "hub-open-45",
+  "file": "tools/build_windows.py",
+  "old": "    \"kbl\": (ROOT / \"shared\" / \"win32\" / \"window_reveal.h\",),",
+  "new": "    \"kbl\": (),",
+  "label": "A shared reveal protocol change leaves a stale Lighting EXE cached",
+  "tests": [
+   "tests.test_windows_apps.BluetoothPanelTests.test_three_binary_cache_keys_follow_the_shared_reveal_protocol"
+  ]
+ },
+ {
+  "id": "hub-open-46",
+  "file": "keyboard-lighting/src/parts/picker_window_entry.c",
+  "old": "        RevealLightingPanel(g_hwnd);\n        UpdateWindow(g_hwnd);",
+  "new": "        (void)g_hwnd;\n        UpdateWindow(g_hwnd);",
+  "label": "Explicit Lighting first launch starts hidden without taking foreground",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_explicit_open_shows_and_foregrounds_the_window"
+  ]
+ },
+ {
+  "id": "btg-76",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "    HBLUETOOTH_DEVICE_FIND hFind = pBtFindFirstDevice(&sp, &info);",
+  "new": "    EnterCriticalSection(&g_lock);\n    HBLUETOOTH_DEVICE_FIND hFind = pBtFindFirstDevice(&sp, &info);\n    LeaveCriticalSection(&g_lock);",
+  "label": "Guard blocks the UI model lock during the first Bluetooth driver query",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
+ },
+ {
+  "id": "btg-77",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "        } while (pBtFindNextDevice(hFind, &info));",
+  "new": "            EnterCriticalSection(&g_lock);\n            BOOL more = pBtFindNextDevice(hFind, &info);\n            LeaveCriticalSection(&g_lock);\n            if (!more) break;\n        } while (TRUE);",
+  "label": "Guard blocks paint and housekeeping during a slow next-device query",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
+ },
+ {
+  "id": "btg-78",
+  "file": "bluetooth-guard/src/parts/autostart_rules.c",
+  "old": "        pBtFindDeviceClose(hFind);",
+  "new": "        EnterCriticalSection(&g_lock);\n        pBtFindDeviceClose(hFind);\n        LeaveCriticalSection(&g_lock);",
+  "label": "Guard holds the UI lock while the Bluetooth enumerator closes",
+  "tests": [
+   "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
+  ]
  }
 ]

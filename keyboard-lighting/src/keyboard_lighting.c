@@ -14,6 +14,7 @@
 #include <winhttp.h>
 #include <math.h>
 #include "../../shared/win32/hub_tray_host.h"
+#include "../../shared/win32/window_reveal.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -419,4 +420,5 @@ static void InitDefaultCfg(void) {
 #include "parts/ui_renderer.c"
 #include "parts/emblem.c"
 #include "parts/mouse_drag_menus.c"
+#include "parts/window_activation.c"
 #include "parts/picker_window_entry.c"

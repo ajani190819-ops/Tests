@@ -21,6 +21,15 @@ stop/verify gates remain intact. This repairs a source-level cross-integrity
 cooperation gap; it is not a claim that the owner's exact focus failure was
 reproduced on Windows.
 
+The Hub 2.8.71 follow-up also keeps Bluetooth driver enumeration outside the
+shared device-model lock used by paint and the hidden UI's heartbeat. A slow
+first/next/close query must not hold that UI lock and strand queued Open.
+Per-observation updates remain locked and recheck current owner decisions;
+approval, pause, enabled profiles, address-based actions and retry delays are
+unchanged. A deterministic second-thread lock probe fails the old poll and
+passes the correction. This does not certify native responsiveness or every
+possible hang. No additional owner logs are requested for this source repair.
+
 ## Devices and decisions
 
 The native app requests authenticated, remembered and connected Windows

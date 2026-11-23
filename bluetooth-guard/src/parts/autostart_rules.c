@@ -225,10 +225,16 @@ static void PollPairedDevices(void) {
     EnterCriticalSection(&g_lock);
     g_radioOn = radioPresent;
     for (int i = 0; i < g_devCount; i++) g_devices[i].scanSeen = FALSE;
+    LeaveCriticalSection(&g_lock);
 
+    /* Bluetooth enumeration may wait on a driver. Paint and the hidden UI's
+       timer/heartbeat need this same lock before they can dispatch Open, so
+       never hold it across first/next/close. Merge each observation under the
+       lock instead, rechecking the owner's current approval/pause choices. */
     HBLUETOOTH_DEVICE_FIND hFind = pBtFindFirstDevice(&sp, &info);
     if (hFind) {
         do {
+            EnterCriticalSection(&g_lock);
             if (info.Address.ullLong != 0 && (info.fAuthenticated || info.fRemembered || info.fConnected)) {
                 wchar_t mac[24], kind[16];
                 FormatMac(info.Address.ullLong, mac, 24);
@@ -362,12 +368,14 @@ static void PollPairedDevices(void) {
                 }
             }
 next_bluetooth_device:
+            LeaveCriticalSection(&g_lock);
             ZeroMemory(&info, sizeof(info));
             info.dwSize = sizeof(info);
         } while (pBtFindNextDevice(hFind, &info));
         pBtFindDeviceClose(hFind);
     }
 
+    EnterCriticalSection(&g_lock);
     /* Missing trusted/review devices remain listed, just disconnected.
        Remove only unpaired stranger observations when their active link ends. */
     for (int i = 0; i < g_devCount; ) {
