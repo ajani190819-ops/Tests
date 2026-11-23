@@ -1,15 +1,38 @@
-# Owner verification checklist — 18 retained items + APP-04
+# Owner status and verification reference — 20 retained IDs
 
-**Nothing below is owner-accepted yet.** Automation, prepared tools and
-cross-builds are separate from desktop/hardware/host/game/print acceptance.
-After reviewing your observations together, mark only the demonstrated parts
-complete; retain failed, blocked, not-run and parked items. This is the known
-list, not a claim that every earlier request has been recovered.
+**Latest owner report:** everything is good except lighting, UAC, intermittent
+Hub Open and startup showing all app tray icons instead of one Hub icon.
+Record the other current items as owner-reported good. Do not ask the owner to
+repeat the whole old matrix; do not convert a broad report into invented native
+fixture, security, hardware or physical-print evidence. Parked research remains
+parked, and missing source features are not implemented by an approval.
+
+## Current actions only
+
+- **APP-01 NEXT:** investigate intermittent Hub Open. Ask which app fails and
+  whether it stays hidden/running or produces a launch error; no duplicate starts.
+- **APP-05 NEXT (new):** investigate startup tray consolidation. Establish whether
+  Hub itself is running when the individual icons persist. Keep fallbacks usable
+  when Hub is absent; no new startup registration. See
+  [`test-hub-startup-tray.md`](test-hub-startup-tray.md).
+- **OPS-01:** identify the actual UAC program/path and triggering action. Do not
+  guess that Hub, a child manifest or the earlier Guard security block caused it.
+- **KBL-01 NEXT:** fresh `engine-6.log` received and fully scanned. The receiver
+  now guards failed device enumeration and writes bounded local diagnostics; the
+  hardware hold issue remains open. See [`test-lighting-input.md`](test-lighting-input.md).
+
+The latest shorthand `2/3. kindarandom/ all` is not silently allocated between
+questions: UAC executable/path/action and Hub presence during APP-05 remain
+unidentified. Shared-device/timing log evidence is not a key-input diagnosis.
+
+The procedures below are retained **reference**, not a new request to retest
+items the owner has just reported good. The ledger at the end is current.
 
 The prior batch prepared Weather/Orca review tooling and repaired stale HUD
 handoff guidance. APP-04 adds standalone AppReview.exe for local evidence; it
-is not a Hub button or an update to the seven existing apps. Their EXEs, plugin
-algorithms, lighting files and HUD renderer are unchanged. No installation or
+is not a Hub button or an update to the seven existing apps. Those tooling-only
+releases left their EXEs, plugin algorithms, lighting files and HUD renderer
+unchanged; the later focused receiver update changes Keyboard Lighting only. No installation or
 settings reset is required to run the review utility.
 
 ## Record once for each test session
@@ -24,15 +47,15 @@ settings reset is required to run the review utility.
   Keep precise locations, security history, user paths and server data private;
   raw owner evidence must not enter public Git/Drive.
 
-## Priority 0 — preserve the gates
+## Reference safety gates
 
-### APP-01: collect evidence; do not retry blocked Guard
+### APP-01: historical security-block procedure, if still blocked
 
-The existing screenshot already establishes Windows error 225 for Bluetooth
-Guard and no UAC prompt. **Do not send the same screenshot again.** What is
-still missing is the actual blocking provider, detection/rule, action/time,
-affected file and installed-file provenance. A 225 error is not a malware or
-false-positive verdict.
+An earlier screenshot established Windows error 225 for Bluetooth Guard with
+no UAC prompt. **Do not send the same screenshot again.** Its actual provider,
+detection/rule, action/time and installed-file provenance were not supplied.
+The latest broad owner report is not a malware/false-positive or safe-resolution
+verdict. Do not assume this old refusal explains every new intermittent Open.
 
 Use the actual antivirus/Windows Protection history, or optionally the published
 read-only `tools/guard_security_report.ps1` under the existing ordinary,
@@ -44,25 +67,30 @@ a changed Hub hash is not automatically suspicious or a clean verdict.
 If policy/security refuses collection, stop and use the History UI. **No
 Allow/Restore, exclusions, protection disable, policy bypass, elevation changes,
 renaming/repackaging/rebuilding to evade detection, or Guard launch/update for
-testing.** Resolve evidence/provenance and the legitimate vendor-review path
-first. Guard-dependent BT-01 and Open-to-front tests wait on that prerequisite.
-You can still do the independent Hub/Weather checks below.
+testing.** If the security block is still present, resolve evidence/provenance
+and the legitimate vendor-review path first; do not launch a blocked executable
+to obtain tests. The independent Hub/Open/tray investigation needs no bypass.
 
-### HUD-01: don't test the wrong methods/build
+### HUD-01: retained source/scope boundary
 
 The original **Classic Affine / Captured Mesh / World-Space Texture** request is
 retained. Current source instead forces **Purple Horizontal Panel**; the old
 choices cannot be tested as requested. No methods were restored in this batch.
-A purple-panel smoke pass cannot close the original request. Identify the
-actual branch JAR and reconcile this scope mismatch before marking HUD-01 off;
-see [`test-spatial-hud-f5w.md`](test-spatial-hud-f5w.md).
+The owner now reports the current experience good. This is not proof that the
+three missing methods were implemented/tested, nor a request to reopen that work.
+Keep this scope boundary in [`test-spatial-hud-f5w.md`](test-spatial-hud-f5w.md).
 
-## APP-04 — optional automatic evidence shortcut (owner pilot OPEN)
+## APP-04 — optional evidence shortcut (current use owner-reported good)
 
 **Portable pilot:** no installer, Hub entry or Install/Update button. Local
-build/safety checks pass; native Windows capture and the owner pilot have not
-run. The native test kit is manual, not CI-integrated. Preserve intended settings
-and stop if security refuses the utility; no security workaround or Guard launch.
+build/safety checks pass; the first owner-supplied Hub/Guard images have now been
+reviewed at 120 DPI (125%). The owner now reports current use good. That does
+not execute the separate synthetic native kit (manual/unrun, not CI-integrated)
+or supply a new preference-persistence test. The already-running Guard image
+does not establish how the earlier security block was resolved. Preserve intended
+settings; no security workaround or further Guard test before APP-01 clearance.
+The pause/detail versus button wording conflict is recorded in
+[`test-app-review.md`](test-app-review.md#first-supplied-two-window-pilot--reviewed).
 
 Run the released **AppReview.exe**, check already-open Hub/Weather windows, then
 click **Capture + read-only checks**. It takes OS-composited window screenshots
@@ -79,7 +107,7 @@ normal intended settings. Do not open blocked Guard or weaken security to use
 this tool. Full instructions: [`app-review/README.md`](../../app-review/README.md);
 verification boundary: [`test-app-review.md`](test-app-review.md).
 
-## Priority 1 — useful checks that do not require Guard
+## Reference: installed desktop checks (not a new retest request)
 
 1. **APP-03 + NAME-01: Hub layout and public names.** Open the Hub without
    opening blocked Guard. Verify General apps / Orca plugins / Minecraft mods;
@@ -116,7 +144,7 @@ verification boundary: [`test-app-review.md`](test-app-review.md).
    [`test-hub-longevity.md`](test-hub-longevity.md). A quick successful opening
    is not an expiry/soak pass. Do not restart merely to hide a recurrence.
 
-## Priority 2 — conditional hardware/host/game checks
+## Reference: conditional hardware/host/game checks
 
 - **BT-01 / remaining APP-01 foreground checks:** only after the security
   prerequisite is genuinely cleared. Verify card/unified/fallback-tray Open
@@ -149,13 +177,16 @@ verification boundary: [`test-app-review.md`](test-app-review.md).
   substitute these observations for the original three-method acceptance or
   restore retired methods without a scope decision.
 
-## Priority 3 — monitoring, missing evidence and parked work
+## Monitoring, missing evidence and parked work
 
-- **OPS-01:** if UAC recurs on Hub open/app open/update, record the prompting
-  EXE/path/action. Earlier UAC reports were uncertain; Guard's later 225 case
-  had no prompt. Do not infer a shared cause or change elevation speculatively.
-- **KBL-01:** provide a **fresh `engine.log`** for the current lighting issue
-  before lighting work/own-app Prism branding. No lighting code changed.
+- **OPS-01:** the owner reaffirms UAC remains a problem. Record the actual
+  prompting EXE/path/action; identity is still unknown. Guard's earlier 225
+  case had no prompt. Do not infer a shared cause or change elevation policy.
+- **KBL-01:** fresh log received. All 824 device-write warnings are SHARED, with
+  no failed writes/reopens and a worst write of 814675 us; no input diagnostics
+  or build identity. After the verified receiver update, hold/release M4 then M5,
+  wait about a minute and review/share `input-status.txt`. Keep intended settings
+  and other software unchanged. No repeated engine-log or full-matrix request.
 - **PLAN-01:** review the known list for missing earlier requests; add omissions
   rather than assuming this audit recovered unsaved conversations.
 - **ORCA-04 / ORCA-05:** wake/seam blending and smoother curved-boundary
@@ -163,28 +194,33 @@ verification boundary: [`test-app-review.md`](test-app-review.md).
 - **PLAN-02:** first optimization is shipped; further caches/workers stay
   deferred. No new owner performance acceptance is requested for this batch.
 
-## Signoff ledger — eight categories, all 18 IDs retained
+## Current ledger — eight categories, all 20 IDs retained
 
-| Category | ID | Owner acceptance / next evidence |
+“Owner-reported good” records the owner's broad current-use report, not a
+newly executed individual acceptance matrix or independently verified test.
+
+| Category | ID | Current owner status / next action |
 | --- | --- | --- |
-| Bluetooth | BT-01 | Basic connection confirmed; remaining checks OPEN after APP-01 clearance |
-| Hub/Windows | APP-01 | **NEXT safety evidence**: provider/detection/action/installed provenance, then foreground |
-| Hub/Windows | APP-02 | OPEN: longevity and original-expiry soak |
-| Hub/Windows | APP-03 | **NEXT unblocked desktop check**: header/icons/layout |
-| Hub/Windows | OPS-01 | OPEN: separate UAC monitoring |
-| Weather | WX-01 | OPEN: installed planner review; component kit prepared, not natively run |
-| Weather | WX-02 | OPEN: actual live-map/place alignment; component kit prepared, not natively run |
-| Weather | WX-03 | OPEN: Windows permission/provider and actual-position acceptance |
-| Lighting | KBL-01 | PARKED: fresh owner engine.log required |
-| Spatial HUD | HUD-01 | OPEN: original three-method scope mismatch; current-panel F5W evidence separate |
-| Orca | ORCA-01 | OPEN: actual effective configuration and fresh curved-wall control |
-| Orca | ORCA-02 | OPEN: fresh exports and physical print |
-| Orca | ORCA-03 | OPEN: independent real-host plugin execution |
+| Bluetooth | BT-01 | Owner-reported good; known wording finding not falsely marked fixed |
+| Hub/Windows | APP-01 | **NEXT:** intermittent Hub Open; identify affected app/result |
+| Hub/Windows | APP-02 | Owner-reported good; no new detailed soak claimed |
+| Hub/Windows | APP-03 | Owner-reported good: current layout/icons |
+| Hub/Windows | APP-04 | Owner-reported good; separate native kit still manual/unrun |
+| Hub/Windows | APP-05 | **NEW / NEXT:** startup single-icon consolidation; is Hub running? |
+| Hub/Windows | OPS-01 | OPEN: prompting EXE/path/action needed |
+| Weather | WX-01 | Owner-reported good: planner |
+| Weather | WX-02 | Owner-reported good: live map/desktop |
+| Weather | WX-03 | Owner-reported good: actual-position experience; no new measurement claimed |
+| Lighting | KBL-01 | OPEN / NEXT: fresh log received; bounded receiver guard/diagnostics, physical hold unverified |
+| Spatial HUD | HUD-01 | Current experience owner-reported good; missing original methods not claimed restored |
+| Orca | ORCA-01 | Owner-reported good; no new configuration/export artifact claimed |
+| Orca | ORCA-02 | Owner-reported good; no independently documented print claimed |
+| Orca | ORCA-03 | Owner-reported good; no new host callback run claimed |
 | Orca | ORCA-04 | PARKED: wake/seam research, no coding approval |
 | Orca | ORCA-05 | PARKED: curved-boundary research, no coding approval |
-| Naming | NAME-01 | Rollout shipped; OPEN native acceptance / lighting log gate |
-| Planning | PLAN-01 | Known-list audit done; OPEN owner completeness review |
+| Naming | NAME-01 | Rollout owner-reported good; own lighting branding unchanged |
+| Planning | PLAN-01 | Known list owner-reviewed; APP-05 added, old IDs retained |
 | Planning | PLAN-02 | First optimization shipped; further caching/workers DEFERRED |
 
-Suggested reply: `APP-03 — PASS/FAIL/BLOCKED/NOT RUN — build + DPI + action + evidence`.
-Continue by ID; we mark acceptance only after reviewing what was actually tested.
+For a recurrence, report the affected ID/app, the action and what happened.
+There is no need to compile tools, reset settings or rerun the old full list.

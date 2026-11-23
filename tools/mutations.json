@@ -4098,5 +4098,135 @@
   "tests": [
    "tests.test_app_review.AppReviewSafetyTests.test_failed_or_unscheduled_attempts_do_not_fabricate_time_or_affinity"
   ]
+ },
+ {
+  "id": "kbl-enum-00",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (queried == (UINT)-1) {",
+  "new": "if (0) {",
+  "label": "Initial enumeration error is ignored",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_failed_or_growing_device_lists_never_become_iteration_counts"
+  ]
+ },
+ {
+  "id": "kbl-enum-01",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (found != (UINT)-1 && found <= 64) {",
+  "new": "if (found <= (UINT)-1) {",
+  "label": "UINT_MAX or oversized fill is iterated as a raw-device list",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_failed_or_growing_device_lists_never_become_iteration_counts"
+  ]
+ },
+ {
+  "id": "kbl-enum-02",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "UINT capacity = 64;",
+  "new": "UINT capacity = 1;",
+  "label": "Raw-device fill has insufficient capacity even for a stable list",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_keyboard_and_deduplicated_vendor_usages_register_at_the_capacity_boundary"
+  ]
+ },
+ {
+  "id": "kbl-enum-03",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "else if (num > 64) {",
+  "new": "else if (num > 640) {",
+  "label": "Oversized device list loses its honest bounded fallback",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_failed_or_growing_device_lists_never_become_iteration_counts"
+  ]
+ },
+ {
+  "id": "kbl-input-diag-00",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (!g_holdInputDiag.keyboardReady) {",
+  "new": "if (0) {",
+  "label": "Both failed registrations lose the keyboard fallback error",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_keyboard_fallback_and_both_registration_errors_are_observable"
+  ]
+ },
+ {
+  "id": "kbl-input-diag-01",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "g_holdInputDiag.vendorUsages = n - 1;",
+  "new": "g_holdInputDiag.vendorUsages = n;",
+  "label": "Keyboard usage is mislabeled as a registered vendor usage",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_keyboard_and_deduplicated_vendor_usages_register_at_the_capacity_boundary"
+  ]
+ },
+ {
+  "id": "kbl-input-diag-02",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "g_holdInputDiag.tokenObservations[dir]++;",
+  "new": "g_holdInputDiag.tokenObservations[dir] += 0;",
+  "label": "Observed brightness tokens disappear from receiver diagnostics",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_both_directions_keep_first_token_learning_pacing_and_release"
+  ]
+ },
+ {
+  "id": "kbl-input-diag-03",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "g_holdInputDiag.repeatWrites[dir]++;",
+  "new": "g_holdInputDiag.repeatWrites[dir] += 0;",
+  "label": "Successful held-key repeat writes are not counted",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_both_directions_keep_first_token_learning_pacing_and_release"
+  ]
+ },
+ {
+  "id": "kbl-input-diag-04",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (!force && now - g_holdDiagAt < 60000ULL) return;",
+  "new": "if (!force && now - g_holdDiagAt < 1ULL) return;",
+  "label": "Housekeeping writes the status snapshot on every tick",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_snapshot_is_bounded_rate_limited_and_has_only_allowlisted_scalars"
+  ]
+ },
+ {
+  "id": "kbl-input-diag-05",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "g_scanBound[0] != 0, g_scanBound[1] != 0,",
+  "new": "g_scanBound[0], g_scanBound[1],",
+  "label": "Snapshot leaks learned scan values instead of bound/not-bound scalars",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_snapshot_is_bounded_rate_limited_and_has_only_allowlisted_scalars"
+  ]
+ },
+ {
+  "id": "kbl-input-diag-06",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "L\"%ls\\\\input-status.txt\"",
+  "new": "L\"%ls\\\\panel.json\"",
+  "label": "Diagnostics overwrite an app configuration path",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_snapshot_is_bounded_rate_limited_and_has_only_allowlisted_scalars"
+  ]
+ },
+ {
+  "id": "kbl-input-diag-07",
+  "file": "keyboard-lighting/src/parts/picker_window_entry.c",
+  "old": "    WriteHoldDiagnostics(TRUE);",
+  "new": "    /* initial receiver snapshot removed */",
+  "label": "Startup receiver registration has no initial status",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_snapshot_runs_after_registration_and_off_the_fine_input_timer"
+  ]
+ },
+ {
+  "id": "kbl-input-diag-08",
+  "file": "keyboard-lighting/src/parts/picker_window_entry.c",
+  "old": "            WriteHoldDiagnostics(FALSE);",
+  "new": "            /* receiver status refresh removed */",
+  "label": "The receiver snapshot is never refreshed after startup",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_snapshot_runs_after_registration_and_off_the_fine_input_timer"
+  ]
  }
 ]

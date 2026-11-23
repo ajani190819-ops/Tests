@@ -1,79 +1,75 @@
 # Repository Current State
 
 **Active branch:** use `git rev-parse --abbrev-ref HEAD`; never hardcode it.
-**Updated:** 2026-11-16. Git: code/tests/releases; Drive: extended plans/history.
+Git: implementation/tests/releases; Drive: extended plans/history.
 
-## Released work / verified tooling
+## Current owner status / next work
 
-- **Hub:** main 2.8.56; Arena 2.8.70. Longevity repairs shipped; original soak
-  open. Keep modal/max/no-duplicate, asInvoker, elevation, Notes and update gates.
-- **Agent Notes:** Saved=receiver flush; Read=later checkpoint. Opt-in sound;
-  no startup persistence.
-- **Tri-Spoke:** `shared/win32/suite_emblem.c` is the sole native renderer.
-  Raw DIBs use `SuiteEmblemDibPixel`; each consumer releases its cache.
-- Prior Weather/Orca review tooling shipped; native/owner acceptance OPEN.
+Owner reports current use good except lighting, UAC, intermittent Hub Open and
+startup tray consolidation. Do not demand the old full matrix again. This is
+broad owner approval, not new fixture/security/print evidence, implementation
+of missing HUD methods, parked-work approval or recovery of unsaved requests.
+Shorthand `2/3. kindarandom/ all` leaves UAC identity/Hub presence unresolved.
 
-## Bluetooth Guard / BT-01
+**Four active problems (20 retained IDs total):**
+- **APP-01 NEXT:** intermittent Hub Open, not just the old Guard error. Need
+  affected app/result. Shared card/tray repair must preserve no duplicates,
+  focus freshness and elevation. `test-hub-open-to-front.md`.
+- **APP-05 NEXT (new):** startup exposes all app icons instead of one Hub icon.
+  Is Hub running then? Only a usable Hub may suppress fallbacks; preserve their
+  recovery and startup choices, no new Run/task/service/auto-start.
+  `test-hub-startup-tray.md`: source audit and unknowns.
+- **OPS-01:** UAC remains an issue; prompting EXE/path/action unknown. Keep Hub
+  asInvoker and child manifests; no speculative elevation/security change.
+- **KBL-01 NEXT:** fresh `engine-6.log` received/scanned: shared-write/timing
+  evidence, no input diagnostics/cause proof. Receiver enumeration guard and
+  bounded local `input-status.txt`; hardware hold unverified. `test-lighting-input.md`.
+  Keep ASCII/C# 5.0, pacing, exclusive-lock and single-engine safeguards.
 
-Basic connection owner-confirmed after `9c91afd`/`7740af8` (2.8.66).
-2.8.67 + Guard: own-UI restore, show-only UIPI message, fresh scalar ticks;
-elevation/async/duplicate/update gates retained. Green=confirmed connected,
-blue=paired/Auto/link-only/request; separate Auto, amber approval, red denied.
-Keep K/D/F, address-only actions, profiles, 5..60s Guard-independent retries.
-Focus/DPI, choices/persistence/manual/lifecycle/LE open. Original Guard OFF +
-Auto ON earbuds/Earpods failure versus working phone under identical settings
-is separate from missing rows/pre-decision drops/no Auto row. Guard tests wait
-for APP-01 clearance. `test-bluetooth-reconnect.md` / `test-hub-open-to-front.md`;
-legacy PS unchanged.
+## Released / owner-reported good
 
-## Agreed to-do list
+- **Hub:** Arena 2.8.70 (main 2.8.56). APP-02 longevity and APP-03 grouping,
+  icons/header are now owner-reported good; no detailed new soak is claimed.
+  Preserve modal/maximized placement, single-instance and safe update gates.
+- **BT-01:** current use owner-reported good. Original Guard OFF + Auto ON
+  earbuds/Earpods-versus-phone and approval/manual/persistence cases are retained
+  regression references. Keep K/D/F, address-only actions, enabled profiles,
+  independent 5..60s retries and honest status colours. Pause/button wording
+  finding remains recorded, not fixed or newly prioritized.
+- **APP-04:** standalone AppReview 0.1.0, no target input/config/launch changes;
+  two Hub/Guard images inspected at 120 DPI. Owner reports current use good.
+  Separate native fixture remains manual/unrun; CI hook deferred. No claim
+  that broad approval executes fixtures. `test-app-review.md`.
+- **WX-01/02/03:** planner/map/position owner-reported good; no new provider
+  measurement or native kit run. Keep exact-point odds, attribution/cache/staging.
+- **HUD-01:** current experience owner-reported good. Source forces Purple Panel,
+  not the original Classic Affine/Captured Mesh/World-Space Texture. Do not claim
+  those restored/tested or reopen scope without a decision. `test-spatial-hud-f5w.md`.
+- **ORCA-01/02/03:** owner-reported good; no new exports/host callbacks/print
+  claimed. T2/T3 contain Infill 0.4.8 rewrites, not untouched controls. Keep
+  independent plugins/APIs. ORCA-04/05 research stays PARKED, not approved.
+- **NAME-01:** naming rollout owner-reported good (Hub Weather Report/Prism
+  Lighting, Undahang 0.0.52); own lighting branding unchanged. Keep Wave
+  package/capabilities, preset paths, aliases and Infill/Guard names stable.
+- **PLAN-01:** known list owner-reviewed; add APP-05, retain all prior IDs.
+  **PLAN-02:** first optimization shipped (matched 8.14x); further caches/workers
+  DEFERRED. No new owner benchmark requested.
 
-Full plan: **Tests — Master To-Do List**, `.agent/DRIVE_GUIDE.md`.
-Owner sequence: `.agent/runbooks/owner-verification-checklist.md`.
-All 18 IDs + APP-04 retained; joint acceptance only, omissions OPEN.
+## Retained safety / delivery facts
 
-- **Weather:** WX-03 one-shot Windows permission/accuracy/errors, no tracking;
-  actual-position acceptance OPEN. WX-01/02 native/live/desktop unrun.
-  Standalone kit: HTTP-refused fixtures, opt-in live, not CI-integrated.
-  `test-weather-radar-windows.md` / `test-weather-location.md`.
-- **Hub / Windows:** APP-01 Guard 225 virus/PUA block, no UAC. Read-only
-  `tools/guard_security_report.ps1`: provider/detection/action + installed hash
-  next, not another screenshot. No safety/false-positive verdict, Guard retry,
-  allow/restore/exclusion/AV disable, repackaging, policy bypass or elevation
-  change. APP-02 2.8.64 repairs shipped; original expiry/soak open. APP-03
-  grouping, independent plugins/approved icons and 2.8.68 fitting header/wrap
-  shipped; native layout open (`test-hub-grouped-entries.md`). OPS-01 monitor
-  UAC program/path/action on Hub open/app open/update; do not guess. APP-04:
-  AppReview 0.1.0 PNG/HTML/JSON; no input/config/launch changes. Native kit
-  manual/unrun; CI hook deferred. Owner pilot OPEN (`test-app-review.md`).
-- **Bluetooth:** BT-01 basic success; rest above. Reviews never grant trust.
-- **Lighting:** KBL-01 parked; fresh owner `engine.log` required.
-- **Spatial HUD:** HUD-01 original Classic Affine/Captured Mesh/World-Space
-  Texture request OPEN. Current source forces Purple Horizontal Panel; no old
-  three-method selectors/fixed 30-degree gate. Owner scope reconciliation needed;
-  current-panel smoke separate, not completion (`test-spatial-hud-f5w.md`).
-- **Orca:** ORCA-01 actual-config curved walls, ORCA-02 fresh export/physical
-  print, ORCA-03 real-host independent plugins OPEN. T2 `clean.gcode` and T3
-  already contain Infill 0.4.8 rewrites, not untouched controls; effective plugin
-  settings missing. Read-only inspector/procedure: `test-orca-real-host.md`.
-  ORCA-04/05 wake/seam and smoother curved-boundary research PARKED, no approval.
-- **Naming:** NAME-01 shipped: Hub 2.8.70 Weather Report/Prism Lighting,
-  Undahang 0.0.52. Wave package/capability/preset APIs, paths, shortcut aliases
-  and Infill/Guard names stay stable. Native review OPEN (`test-public-names.md`);
-  lighting own files unchanged/log-gated.
-- **Planning:** PLAN-01 known-list audit done; owner completeness review OPEN.
-  PLAN-02 first slice shipped: 335 detected/restored, matched 8.14x speedup,
-  identical verdicts; six old gaps fixed, no verdict cache/app changes.
-  Further reuse/workers deferred (`mutation-runner.md`).
-
-## Offline safety / efficiency
-
-- Move `.agent/RELEASED` only in a second commit blessing verified finished work;
-  download that SHA, not unfinished tip. Current apps never offer Update.
-- Close and prove managed targets stopped before replacing EXEs.
-- Preserve Weather attribution/cache, generation-gated staging, source zoom <=7,
-  local display 8-10 crops and lock through published-view blit.
-- Behavior edits need regressions/mutations; build/check before every commit;
-  regenerate CODEMAP after mapped C/Python layout changes.
-- Default context <=15,000 chars; map/Drive on demand. HUD build needs JDK 25.
-- Keep Drive plan/Guide synced; no source/raw-owner-evidence mirrors.
+- Historical Guard Windows 225/no-UAC evidence is not a malware/false-positive
+  verdict or proof of safe resolution. Do not retry blocked launch, Allow/Restore,
+  exclude, disable security, repackage to evade detection, bypass policy or elevate
+  to obtain a test. `tools/guard_security_report.ps1` remains read-only/unelevated.
+- Agent Notes: Saved=receiver flush; Read=later checkpoint. Opt-in sound;
+  user-opened only, no startup persistence. Keep Notes receipt/wait protocol.
+- `shared/win32/suite_emblem.c` is the sole native Tri-Spoke renderer;
+  raw DIBs use `SuiteEmblemDibPixel`, each consumer releases its cache.
+- `.agent/RELEASED` moves only in a second commit blessing verified work;
+  download that SHA. Current apps never offer Update. Close/prove stopped
+  before replacing EXEs. No main merge/force-push/workflow-permission bypass.
+- Behavior edits need regressions/mutations, build/check before every commit;
+  regenerate CODEMAP after mapped C/Python changes. HUD build requires JDK 25.
+- Keep Drive Guide/Master synced, no source/raw-owner-evidence mirrors. The
+  owner checklist's older matrices are reference, not a request to rerun all.
+  Default context <=15,000 chars; map/Drive on demand.

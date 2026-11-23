@@ -7,11 +7,14 @@ It is not a Hub button, installer, background recorder or automatic test driver.
 No Python, PowerShell, .NET download, account or administrator permission is
 needed to run the shipped `AppReview.exe`.
 
-**Verification status:** the cross-build and portable safety checks pass;
-native Windows capture and installed-app compatibility are **not yet verified**.
-This is a portable pilot, not automatic acceptance. No Hub install/update button
-is added. The Windows-native test kit is included for explicit manual use, not
-integrated into CI; existing GitHub workflows are unchanged.
+**Verification status:** cross-build and portable safety checks pass. The first
+owner-supplied Hub/Guard pilot has been inspected: two readable, complete window
+images at 120 DPI (125%), matching across PNG/JSON/embedded HTML. The owner later
+reported current use good, with lighting/UAC and Hub Open/startup-tray issues
+tracked separately. That broad approval is not a new settings-persistence test
+or execution of the separate synthetic Windows-native kit, which remains
+manual/unrun and not CI-integrated; existing workflows are unchanged.
+No Hub install/update button is added. See the [review record](../.agent/runbooks/test-app-review.md#first-supplied-two-window-pilot--reviewed).
 
 ## Use it
 

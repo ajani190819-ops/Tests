@@ -5561,6 +5561,64 @@ class AudioSwitcherSessionSweepTests(unittest.TestCase):
         self.assertIn("g_session_mgr = NULL;", cleanup)
 
 
+class LightingInputTests(unittest.TestCase):
+    """Production receiver/hold state with synthetic Win32 packets only.
+    No Windows or physical-keyboard acceptance is inferred from these tests."""
+
+    @classmethod
+    def setUpClass(cls):
+        import shutil
+        import tempfile
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            raise unittest.SkipTest("portable C compiler is unavailable")
+        cls.temp = tempfile.TemporaryDirectory(prefix="lighting-input-")
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.exe = Path(cls.temp.name) / "lighting-input"
+        built = subprocess.run(
+            [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror",
+             str(ROOT / "tests/native/lighting_input_harness.c"), "-o", str(cls.exe)],
+            capture_output=True, text=True)
+        if built.returncode:
+            raise AssertionError("lighting input harness did not compile:\n" + built.stderr)
+
+    def _run(self, scenario):
+        result = subprocess.run([str(self.exe), scenario], capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Lighting input " + scenario + " passed", result.stdout)
+
+    def test_keyboard_and_deduplicated_vendor_usages_register_at_the_capacity_boundary(self):
+        self._run("enumeration")
+
+    def test_failed_or_growing_device_lists_never_become_iteration_counts(self):
+        self._run("enumeration-errors")
+
+    def test_keyboard_fallback_and_both_registration_errors_are_observable(self):
+        self._run("registration")
+
+    def test_both_directions_keep_first_token_learning_pacing_and_release(self):
+        self._run("hold")
+
+    def test_batched_hid_press_release_and_repeat_reports_reach_the_learner(self):
+        self._run("hid-batch")
+
+    def test_snapshot_is_bounded_rate_limited_and_has_only_allowlisted_scalars(self):
+        self._run("snapshot")
+
+    def test_modes_physical_release_ceiling_and_failed_repeat_write_stay_safe(self):
+        self._run("modes-ceiling")
+
+    def test_snapshot_runs_after_registration_and_off_the_fine_input_timer(self):
+        entry = (ROOT / "keyboard-lighting/src/parts/picker_window_entry.c").read_text(encoding="ascii")
+        self.assertIn("InitRawInput(g_hwnd);\n    WriteHoldDiagnostics(TRUE);", entry)
+        timer = entry[entry.index("case WM_TIMER:"):entry.index("case WM_TRAYICON:")]
+        self.assertIn("WriteHoldDiagnostics(FALSE);", timer[timer.index("} else if (wp == 2)"):])
+        fine = timer[timer.index("} else if (wp == 3)"):]
+        self.assertNotIn("WriteHoldDiagnostics", fine)
+        self.assertIn("WatchBrightTokens();", fine)
+        self.assertIn("HoldPump();", fine)
+
+
 class AppOpenFocusTests(unittest.TestCase):
     """The Hub reveals an existing instance and launches only an absent app.
     Exercise its actual activation code and routing, and retain app-side show

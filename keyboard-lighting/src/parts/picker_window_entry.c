@@ -489,6 +489,7 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 InvalidateRect(hwnd, NULL, FALSE);
             }
         } else if (wp == 2) {
+            WriteHoldDiagnostics(FALSE);
             KeyboardTraySync();
             ApplyHubLightingToggle();
             if (ApplyHubExit()) return 0;
@@ -737,6 +738,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
        previously called before CreateWindowExW, i.e. with a NULL hwnd, so raw
        input never arrived and the hook was doing all the work. */
     InitRawInput(g_hwnd);
+    WriteHoldDiagnostics(TRUE);
 
     ZeroMemory(&g_nid, sizeof(g_nid));
     g_nid.cbSize           = sizeof(g_nid);

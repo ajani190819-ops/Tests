@@ -297,19 +297,48 @@ class OrcaExportEvidenceTests(unittest.TestCase):
 
 
 class OwnerHandoffContractTests(unittest.TestCase):
-    def test_checklist_preserves_all_18_ids_and_safety_acceptance_boundary(self):
+    def test_checklist_preserves_all_20_ids_and_safety_acceptance_boundary(self):
         import re
         checklist = (ROOT / ".agent/runbooks/owner-verification-checklist.md").read_text()
         ids = set(re.findall(r"\b(?:BT|APP|OPS|WX|KBL|HUD|ORCA|NAME|PLAN)-[0-9]{2}\b", checklist))
-        self.assertEqual(ids, {"BT-01", "APP-01", "APP-02", "APP-03", "APP-04", "OPS-01", "WX-01", "WX-02", "WX-03",
+        self.assertEqual(ids, {"BT-01", "APP-01", "APP-02", "APP-03", "APP-04", "APP-05", "OPS-01", "WX-01", "WX-02", "WX-03",
                                "KBL-01", "HUD-01", "ORCA-01", "ORCA-02", "ORCA-03", "ORCA-04", "ORCA-05",
                                "NAME-01", "PLAN-01", "PLAN-02"})
-        self.assertIn("Nothing below is owner-accepted yet", checklist)
-        self.assertIn("do not retry blocked Guard", checklist)
-        self.assertIn("fresh `engine.log`", checklist)
+        normalized = " ".join(checklist.split())
+        self.assertIn("owner-reported good", checklist)
+        self.assertIn("not a new request to retest", normalized)
+        self.assertIn("do not launch a blocked executable", normalized)
+        self.assertIn("Do not send the same screenshot again", normalized)
+        self.assertIn("fresh `engine-6.log` received", checklist)
+        self.assertNotIn("OPEN / LOG-GATED", checklist)
         self.assertIn("original three-method", checklist)
         self.assertIn("under identical settings", checklist)
-        self.assertIn("not untouched controls", " ".join(checklist.split()))
+        self.assertIn("not untouched controls", normalized)
+
+    def test_current_status_keeps_four_problems_and_parked_work_distinct_from_owner_approval(self):
+        import re
+        checklist = (ROOT / ".agent/runbooks/owner-verification-checklist.md").read_text()
+        rows = dict(re.findall(r"(?m)^\| [^|]+ \| ([A-Z]+-[0-9]{2}) \| ([^|]+) \|$", checklist))
+        self.assertEqual(len(rows), 20)
+        for ident in ("APP-01", "APP-05", "OPS-01", "KBL-01"):
+            self.assertNotIn("Owner-reported good", rows[ident])
+        for ident in ("BT-01", "APP-02", "APP-03", "APP-04", "WX-01", "WX-02", "WX-03"):
+            self.assertIn("Owner-reported good", rows[ident])
+        for ident in ("ORCA-04", "ORCA-05"):
+            self.assertIn("PARKED", rows[ident])
+        self.assertIn("DEFERRED", rows["PLAN-02"])
+        self.assertIn("2/3. kindarandom/ all", checklist)
+        self.assertIn("Hub presence during APP-05 remain", checklist)
+
+    def test_lighting_followup_retains_log_receipt_and_mock_hardware_boundary(self):
+        runbook = (ROOT / ".agent/runbooks/test-lighting-input.md").read_text(encoding="ascii")
+        normalized = " ".join(runbook.split())
+        for phrase in ("fresh `engine-6.log`", "824", "814675", "does not prove no physical",
+                       "not proof", "not an established build identity", "not a request for another engine log",
+                       "not what the owner's keyboard emitted", "input-status.txt"):
+            self.assertIn(phrase, normalized)
+        self.assertIn("No other software was stopped", normalized)
+        self.assertIn("No owner-hardware reproduction or successful hold is claimed", normalized)
 
     def test_hud_guidance_exposes_source_mismatch_instead_of_dropping_old_request(self):
         config = (ROOT / "spatial-hud-template-26.3/src/client/java/dev/arena/spatialhud/SpatialHudConfig.java").read_text()

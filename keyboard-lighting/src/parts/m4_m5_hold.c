@@ -40,6 +40,22 @@ static char      g_seenTok[2][32];
 static ULONGLONG g_pendingLearnAt[2] = { 0, 0 };
 static ULONGLONG g_pendingLearnUntil[2] = { 0, 0 };
 
+/* Aggregate receiver health only: never persist typed keys, scan codes, HID
+   payloads, device identities or profile contents in the diagnostic snapshot. */
+typedef struct HoldInputDiagnostics {
+    DWORD enumerateError;
+    DWORD registrationError;
+    UINT requestedUsages;
+    UINT vendorUsages;
+    BOOL keyboardReady;
+    ULONGLONG keyboardReports;
+    ULONGLONG asusReports;
+    ULONGLONG tokenObservations[2];
+    ULONGLONG repeatWrites[2];
+} HoldInputDiagnostics;
+static HoldInputDiagnostics g_holdInputDiag;
+static ULONGLONG g_holdDiagAt;
+
 static void ReleaseSignal(int dir, ULONGLONG now);
 static void PressSignal(int dir, int repeat, ULONGLONG now);
 static void PersistKeyValue(const wchar_t *key, DWORD value);
@@ -92,7 +108,8 @@ static void HoldTokenWrite(int dir) {
     char tok[32];
     _snprintf(tok, 32, "%llu", (unsigned long long)GetTickCount64());
     tok[31] = '\0';
-    WriteAtomicUtf8(dir == 0 ? g_brightDownPath : g_brightUpPath, tok);
+    if (WriteAtomicUtf8(dir == 0 ? g_brightDownPath : g_brightUpPath, tok))
+        g_holdInputDiag.repeatWrites[dir]++;
 }
 
 /* One paced token per interval while the gesture is live. */
@@ -214,6 +231,7 @@ static void BindHid(int dir, DWORD code) {
 
 static void OnRawHid(const BYTE *b, int len, ULONGLONG now) {
     if (len < 2 || b[0] != 0x5A) return;
+    g_holdInputDiag.asusReports++;
     DWORD rawCode = b[1];
     DWORD code = rawCode;
     int rel = 0, mapped = -1;
@@ -434,6 +452,7 @@ static void WatchBrightTokens(void) {
             ParseBrightTokenTick(cur, now, &tokenAt);
             strncpy(g_seenTok[dir], cur, 31);
             g_seenTok[dir][31] = '\0';
+            g_holdInputDiag.tokenObservations[dir]++;
             if (!g_holdOn[dir]) {
                 g_pendingLearnAt[dir] = tokenAt;
                 g_pendingLearnUntil[dir] = now + 1500ULL;
@@ -455,37 +474,68 @@ static void WatchBrightTokens(void) {
 static void InitRawInput(HWND hwnd) {
     RAWINPUTDEVICE rid[16];
     UINT n = 0;
+    g_holdInputDiag.enumerateError = 0;
+    g_holdInputDiag.registrationError = 0;
+    g_holdInputDiag.keyboardReady = FALSE;
+    g_holdInputDiag.vendorUsages = 0;
+    g_holdInputDiag.requestedUsages = 0;
+    if (!hwnd) {
+        g_holdInputDiag.registrationError = ERROR_INVALID_WINDOW_HANDLE;
+        return;
+    }
     rid[n].usUsagePage = 0x01; rid[n].usUsage = 0x06;
     rid[n].dwFlags = RIDEV_INPUTSINK; rid[n].hwndTarget = hwnd;
     n++;
     UINT num = 0;
-    GetRawInputDeviceList(NULL, &num, sizeof(RAWINPUTDEVICELIST));
-    if (num > 0 && num < 64) {
-        RAWINPUTDEVICELIST list[64];
-        num = GetRawInputDeviceList(list, &num, sizeof(RAWINPUTDEVICELIST));
-        for (UINT i = 0; i < num && n < 16; i++) {
-            RID_DEVICE_INFO info;
-            UINT cb = sizeof(info);
-            info.cbSize = sizeof(info);
-            if (GetRawInputDeviceInfoW(list[i].hDevice, RIDI_DEVICEINFO, &info, &cb) != (UINT)-1 &&
-                info.dwType == RIM_TYPEHID && info.hid.dwVendorId == 0x0B05) {
-                UINT j; int dup = 0;
-                for (j = 0; j < n; j++)
-                    if (rid[j].usUsagePage == info.hid.usUsagePage && rid[j].usUsage == info.hid.usUsage) dup = 1;
-                if (!dup) {
-                    rid[n].usUsagePage = info.hid.usUsagePage;
-                    rid[n].usUsage = info.hid.usUsage;
-                    rid[n].dwFlags = RIDEV_INPUTSINK;
-                    rid[n].hwndTarget = hwnd;
-                    n++;
+    UINT queried = GetRawInputDeviceList(NULL, &num, sizeof(RAWINPUTDEVICELIST));
+    if (queried == (UINT)-1) {
+        g_holdInputDiag.enumerateError = GetLastError();
+    } else if (num > 64) {
+        g_holdInputDiag.enumerateError = ERROR_INSUFFICIENT_BUFFER;
+    } else if (num > 0) {
+        RAWINPUTDEVICELIST list[64] = {0};
+        UINT capacity = 64;
+        UINT found = GetRawInputDeviceList(list, &capacity, sizeof(RAWINPUTDEVICELIST));
+        /* Devices can change between the size query and fill. UINT_MAX is an
+           error, never a count: the old loop could walk past list[64]. Keep
+           keyboard fallback usable and report the actual enumeration failure. */
+        if (found != (UINT)-1 && found <= 64) {
+            for (UINT i = 0; i < found && n < 16; i++) {
+                RID_DEVICE_INFO info = {0};
+                UINT cb = sizeof(info);
+                info.cbSize = sizeof(info);
+                if (GetRawInputDeviceInfoW(list[i].hDevice, RIDI_DEVICEINFO, &info, &cb) != (UINT)-1 &&
+                    info.dwType == RIM_TYPEHID && info.hid.dwVendorId == 0x0B05) {
+                    UINT j; int dup = 0;
+                    for (j = 0; j < n; j++)
+                        if (rid[j].usUsagePage == info.hid.usUsagePage && rid[j].usUsage == info.hid.usUsage) dup = 1;
+                    if (!dup) {
+                        rid[n].usUsagePage = info.hid.usUsagePage;
+                        rid[n].usUsage = info.hid.usUsage;
+                        rid[n].dwFlags = RIDEV_INPUTSINK;
+                        rid[n].hwndTarget = hwnd;
+                        n++;
+                    }
                 }
             }
+        } else {
+            g_holdInputDiag.enumerateError = found == (UINT)-1
+                ? GetLastError() : ERROR_INVALID_DATA;
         }
     }
+    g_holdInputDiag.requestedUsages = n;
     if (!RegisterRawInputDevices(rid, n, sizeof(RAWINPUTDEVICE))) {
         /* A rejected ASUS usage must not also disable the generic keyboard
            registration that can still report the M4/M5 scan codes. */
-        RegisterRawInputDevices(rid, 1, sizeof(RAWINPUTDEVICE));
+        g_holdInputDiag.registrationError = GetLastError();
+        g_holdInputDiag.keyboardReady = RegisterRawInputDevices(rid, 1, sizeof(RAWINPUTDEVICE));
+        if (!g_holdInputDiag.keyboardReady) {
+            DWORD error = GetLastError();
+            if (error) g_holdInputDiag.registrationError = error;
+        }
+    } else {
+        g_holdInputDiag.keyboardReady = TRUE;
+        g_holdInputDiag.vendorUsages = n - 1;
     }
 }
 
@@ -499,6 +549,7 @@ static void OnRawInputMsg(HWND hwnd, LPARAM lp) {
     const RAWINPUT *ri = (const RAWINPUT *)buf;
     ULONGLONG now = GetTickCount64();
     if (ri->header.dwType == RIM_TYPEKEYBOARD) {
+        g_holdInputDiag.keyboardReports++;
         int down = (ri->data.keyboard.Flags & RI_KEY_BREAK) == 0;
         KeyRec *r = &g_keyRing[g_keyRingHead];
         r->tick = now; r->scan = ri->data.keyboard.MakeCode;
@@ -571,3 +622,47 @@ static const wchar_t *HoldReadyLabel(void) {
     return L"M4/M5 Keys: Still Learning";
 }
 
+
+/* One small local snapshot per minute, plus the initial receiver setup. The
+   dedicated filename never replaces settings or engine.log. A failed write
+   does not stop input, change preferences or start another app/engine. */
+static void WriteHoldDiagnostics(int force) {
+    ULONGLONG now = GetTickCount64();
+    if (!force && now - g_holdDiagAt < 60000ULL) return;
+    g_holdDiagAt = now;
+    wchar_t path[MAX_PATH];
+    /* Leave room for the atomic writer's .tmp suffix too. */
+    int plen = _snwprintf(path, MAX_PATH - 5, L"%ls\\input-status.txt", g_cfgDir);
+    if (plen < 0 || plen >= MAX_PATH - 5) return;
+    path[plen] = L'\0';
+    char text[2048];
+    int length = _snprintf(text, sizeof(text),
+        "schema=tests.lighting-input.v1\r\n"
+        "panel_pid=%lu\r\nsample_tick_ms=%llu\r\n"
+        "keyboard_registered=%d\r\nrequested_usages=%u\r\nvendor_usages_registered=%u\r\n"
+        "enumeration_error=%lu\r\nregistration_error=%lu\r\n"
+        "keyboard_reports=%llu\r\nasus_reports=%llu\r\n"
+        "token_observations_down=%llu\r\ntoken_observations_up=%llu\r\n"
+        "repeat_tokens_written_down=%llu\r\nrepeat_tokens_written_up=%llu\r\n"
+        "scan_bound_down=%d\r\nscan_bound_up=%d\r\n"
+        "hid_bound_down=%d\r\nhid_bound_up=%d\r\n"
+        "release_source_down=%d\r\nrelease_source_up=%d\r\n"
+        "hold_active_down=%d\r\nhold_active_up=%d\r\n",
+        (unsigned long)GetCurrentProcessId(), (unsigned long long)now,
+        g_holdInputDiag.keyboardReady != 0, g_holdInputDiag.requestedUsages,
+        g_holdInputDiag.vendorUsages, (unsigned long)g_holdInputDiag.enumerateError,
+        (unsigned long)g_holdInputDiag.registrationError,
+        (unsigned long long)g_holdInputDiag.keyboardReports,
+        (unsigned long long)g_holdInputDiag.asusReports,
+        (unsigned long long)g_holdInputDiag.tokenObservations[0],
+        (unsigned long long)g_holdInputDiag.tokenObservations[1],
+        (unsigned long long)g_holdInputDiag.repeatWrites[0],
+        (unsigned long long)g_holdInputDiag.repeatWrites[1],
+        g_scanBound[0] != 0, g_scanBound[1] != 0,
+        g_hidCode[0] != 0, g_hidCode[1] != 0,
+        HasReleaseSrc(0) != 0, HasReleaseSrc(1) != 0,
+        g_holdOn[0] != 0, g_holdOn[1] != 0);
+    if (length < 0 || (size_t)length >= sizeof(text)) return;
+    text[length] = '\0';
+    WriteAtomicUtf8(path, text);
+}
