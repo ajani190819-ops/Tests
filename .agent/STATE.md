@@ -5,17 +5,17 @@ Git: implementation/tests/releases; Drive: extended plans/history.
 
 ## Current owner status / next work
 
-Owner identifies intermittent Open failures in Bluetooth Guard and Keyboard
-Lighting; kill/reopen or Lighting Unfreeze are workarounds, not intended Open.
-Currently working with one tray icon, not permanent acceptance. No repeated
-logs or old full matrix. Other current use is owner-reported good.
+Owner reports Lighting Open still does nothing visible after the follow-up;
+no new Guard outcome. Kill/reopen or Lighting Unfreeze remain workarounds.
+One tray icon was working, not permanent startup acceptance. No repeated logs
+or old full matrix. Other current use stays owner-reported good.
 
 **Current focus / monitor (20 retained IDs):**
-- **APP-01 NEXT:** controlled regressions failed old sources: Guard held the
-  UI model lock during Bluetooth enumeration; Lighting lacked app-owned reveal.
-  Hub 2.8.71 + both children repair those source gaps; 443 mutations pass.
-  Native acceptance pending; no exact owner-cause proof. Keep duplicate,
-  modal/maximized, freshness and elevation safeguards. `test-hub-open-to-front.md`.
+- **APP-01 NEXT:** Lighting Open still fails silently. Hub 2.8.72 +
+  Lighting recover fully offscreen normal windows; Hub checks the active window
+  is on a connected display. Source regression, not proof of the owner's cause.
+  458 mutations pass; native acceptance open, no log/retest loop. No restart/duplicates,
+  modal/maximized, freshness and elevation. `test-hub-open-to-front.md`.
 - **APP-05 MONITOR:** one tray icon currently working; no startup fix claimed.
   Preserve accessible fallbacks and startup choices; no new registration.
   `test-hub-startup-tray.md` retains the source-only delete-retry lead.
@@ -27,7 +27,7 @@ logs or old full matrix. Other current use is owner-reported good.
 
 ## Released / owner-reported good
 
-- **Hub:** Arena 2.8.71 (main 2.8.56). APP-02 longevity and APP-03 grouping,
+- **Hub:** Arena 2.8.72 (main 2.8.56). APP-02 longevity and APP-03 grouping,
   icons/header are now owner-reported good; no detailed new soak is claimed.
   Preserve modal/maximized placement, single-instance and safe update gates.
 - **BT-01:** current use owner-reported good. Original Guard OFF + Auto ON

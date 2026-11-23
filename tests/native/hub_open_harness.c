@@ -10,6 +10,7 @@
 typedef int BOOL;
 typedef uint32_t DWORD;
 typedef uint32_t ULONG;
+typedef int32_t LONG;
 typedef unsigned UINT;
 typedef uintptr_t WPARAM;
 typedef uint64_t ULONGLONG;
@@ -40,10 +41,18 @@ typedef void *HANDLE;
 #define SWP_NOSIZE 1
 #define SWP_SHOWWINDOW 0x40
 #define SWP_ASYNCWINDOWPOS 0x4000
+#define SWP_NOZORDER 4
+#define SWP_NOACTIVATE 0x10
+#define MONITOR_DEFAULTTONULL 0
+#define MONITOR_DEFAULTTONEAREST 2
 #define SEE_MASK_NOCLOSEPROCESS 0x40
 #define SEE_MASK_FLAG_NO_UI 0x400
 #define ZeroMemory(p, n) memset(p, 0, n)
 
+typedef struct { LONG left, top, right, bottom; } RECT;
+typedef struct { DWORD cbSize; RECT rcMonitor, rcWork; DWORD dwFlags; } MONITORINFO;
+typedef struct FakeMonitor { RECT monitor, work; } *HMONITOR;
+static struct FakeMonitor monitors[2];
 typedef struct FakeWindow *HWND;
 #define HWND_TOP ((HWND)0)
 struct FakeWindow {
@@ -51,6 +60,7 @@ struct FakeWindow {
     DWORD pid;
     const wchar_t *klass, *title;
     HWND owner, popup;
+    RECT bounds;
 };
 typedef struct { DWORD pids[UPDATE_SCAN_MAX_PIDS]; int count; } UpdateImageProcesses;
 typedef struct { DWORD cbSize, dwTime; } LASTINPUTINFO;
@@ -78,6 +88,9 @@ static UINT queuedMessage;
 static WPARAM queuedWp;
 static LPARAM queuedLp;
 static ULONGLONG tick;
+static int recoveryMoves;
+static BOOL rectOk, monitorInfoOk;
+static HMONITOR recoveryMonitor;
 static const wchar_t *availableMutex, *reenterImage;
 static const char *scenario;
 static wchar_t footer[256], launchedImage[MAX_PATH], launchedArgs[128], launchedDir[MAX_PATH];
@@ -103,6 +116,29 @@ static BOOL GetLastInputInfo(LASTINPUTINFO *input) { input->dwTime = inputTick; 
 static BOOL IsWindow(HWND window) { return window && window->exists; }
 static BOOL IsWindowVisible(HWND window) { return IsWindow(window) && window->visible; }
 static BOOL IsIconic(HWND window) { return window && window->iconic; }
+static inline BOOL IsZoomed(HWND window) { return window && window->maximized; }
+static inline BOOL GetWindowRect(HWND window, RECT *rect) {
+    CHECK(IsWindow(window)); *rect = window->bounds; return rectOk;
+}
+static inline HMONITOR MonitorFromRect(const RECT *rect, DWORD flags) {
+    CHECK(flags == MONITOR_DEFAULTTONULL || flags == MONITOR_DEFAULTTONEAREST);
+    for (int i = 0; i < 2; i++) {
+        RECT m = monitors[i].monitor;
+        if (rect->left < m.right && rect->right > m.left &&
+            rect->top < m.bottom && rect->bottom > m.top) return &monitors[i];
+    }
+    /* The OS chooses the nearest monitor; tests select that I/O result rather
+       than duplicating the Windows distance/virtual-screen implementation. */
+    return flags == MONITOR_DEFAULTTONEAREST ? recoveryMonitor : NULL;
+}
+static inline HMONITOR MonitorFromWindow(HWND window, DWORD flags) {
+    CHECK(IsWindow(window)); return MonitorFromRect(&window->bounds, flags);
+}
+static inline BOOL GetMonitorInfoW(HMONITOR monitor, MONITORINFO *info) {
+    CHECK((monitor == &monitors[0] || monitor == &monitors[1]) && info->cbSize == sizeof(*info));
+    info->rcMonitor = monitor->monitor; info->rcWork = monitor->work;
+    return monitorInfoOk;
+}
 static HWND GetLastActivePopup(HWND window) { return window->popup ? window->popup : window; }
 static HWND GetWindow(HWND window, int what) { CHECK(what == GW_OWNER); return window->owner; }
 static LONG_PTR GetWindowLongPtrW(HWND window, int what) {
@@ -161,8 +197,17 @@ static BOOL ShowWindow(HWND window, int command) {
     return TRUE;
 }
 static BOOL SetWindowPos(HWND window, HWND insertAfter, int x, int y, int w, int h, DWORD flags) {
-    CHECK(insertAfter == HWND_TOP && !x && !y && !w && !h);
-    CHECK(flags == (DWORD)(SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | (insideChild ? 0 : SWP_ASYNCWINDOWPOS)));
+    CHECK(insertAfter == HWND_TOP && !w && !h);
+    if (!(flags & SWP_NOMOVE)) {
+        CHECK(insideChild && flags == (SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE));
+        LONG width = window->bounds.right - window->bounds.left;
+        LONG height = window->bounds.bottom - window->bounds.top;
+        window->bounds = (RECT){ x, y, x + width, y + height };
+        recoveryMoves++;
+    } else {
+        CHECK(!x && !y);
+        CHECK(flags == (DWORD)(SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | (insideChild ? 0 : SWP_ASYNCWINDOWPOS)));
+    }
     positionCalls++; lastPositioned = window; return TRUE;
 }
 static BOOL SetForegroundWindow(HWND window) {
@@ -286,6 +331,7 @@ static HWND Window(int i, const wchar_t *klass, DWORD pid, BOOL visible, BOOL ic
     memset(&windows[i], 0, sizeof(windows[i]));
     windows[i].exists = TRUE; windows[i].klass = klass; windows[i].pid = pid;
     windows[i].title = L"App"; windows[i].visible = visible; windows[i].iconic = iconic;
+    windows[i].bounds = (RECT){ 100, 100, 900, 700 };
     return &windows[i];
 }
 static void Reset(const char *name) {
@@ -307,6 +353,10 @@ static void Reset(const char *name) {
     lastFocused = lastPositioned = NULL; footer[0] = L'\0';
     shellPids[1] = 77; shellPids[2] = 88;
     inputTick = 10; tick = 1000; lastGranted = 0;
+    recoveryMoves = 0; rectOk = monitorInfoOk = TRUE;
+    monitors[0] = (struct FakeMonitor){ {0, 0, 1920, 1080}, {0, 0, 1920, 1040} };
+    monitors[1] = (struct FakeMonitor){ {-1600, -200, 0, 900}, {-1600, -200, 0, 860} };
+    recoveryMonitor = &monitors[0];
     foreground = Window(0, L"Hub", 1, TRUE, FALSE);
 }
 static void LaunchFailureScenarios(void) {
@@ -466,6 +516,125 @@ int main(void) {
     DeliverReveal();
     CHECK(childShows == 1 && foreground == lighting && !lighting->iconic);
     HubPollOpen(); CHECK(!g_openRequest.active && launchCalls == 0);
+
+    /* WS_VISIBLE and foreground ownership do not mean a window is on a
+       connected screen. Execute the real Hub/Lighting recovery together. */
+    Reset("offscreen visible Lighting is not falsely accepted as successful Open");
+    lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, TRUE, FALSE);
+    lighting->bounds = (RECT){ 5000, 200, 5800, 800 }; foreground = lighting;
+    EnableChildReveal(lighting); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL));
+    CHECK(g_openRequest.active && revealPosts == 1 && launchCalls == 0);
+    DeliverReveal();
+    CHECK(recoveryMoves == 1 && lighting->bounds.left == 560 && lighting->bounds.top == 220);
+    CHECK(lighting->bounds.right - lighting->bounds.left == 800 && lastShow == SW_SHOW);
+    HubPollOpen(); CHECK(!g_openRequest.active && foreground == lighting);
+
+    Reset("offscreen foreground modal is not hidden by its connected visible owner");
+    lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, TRUE, FALSE);
+    HWND strandedPopup = Window(2, L"Dialog", 12, TRUE, FALSE);
+    strandedPopup->owner = lighting; lighting->popup = strandedPopup;
+    strandedPopup->bounds = (RECT){5000, 200, 5400, 500}; foreground = strandedPopup;
+    EnableChildReveal(lighting); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL));
+    CHECK(g_openRequest.active && revealPosts == 1);
+    DeliverReveal(); HubPollOpen(); CHECK(recoveryMoves == 1 && !g_openRequest.active);
+
+    Reset("connected active modal is sufficient even when its owner is offscreen");
+    lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, TRUE, FALSE);
+    lighting->bounds = (RECT){5000, 200, 5800, 800};
+    HWND connectedPopup = Window(2, L"Dialog", 12, TRUE, FALSE);
+    connectedPopup->owner = lighting; lighting->popup = connectedPopup; foreground = connectedPopup;
+    EnableChildReveal(lighting);
+    CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL));
+    CHECK(!g_openRequest.active && !recoveryMoves && !revealPosts && launchCalls == 0);
+
+    Reset("hidden former popup must not prevent completion for a connected panel");
+    lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, TRUE, FALSE);
+    HWND hiddenPopup = Window(2, L"Dialog", 12, FALSE, FALSE);
+    hiddenPopup->owner = lighting; lighting->popup = hiddenPopup;
+    hiddenPopup->bounds = (RECT){5000, 200, 5400, 500}; foreground = lighting;
+    EnableChildReveal(lighting);
+    CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL));
+    CHECK(!g_openRequest.active && !revealPosts && launchCalls == 0);
+
+    Reset("minimized offscreen Lighting restores its existing window without a restart");
+    lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, FALSE, TRUE);
+    lighting->bounds = (RECT){ 5000, 200, 5800, 800 };
+    EnableChildReveal(lighting); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL)); DeliverReveal();
+    CHECK(recoveryMoves == 1 && !lighting->iconic && lastShow == SW_RESTORE && launchCalls == 0);
+    HubPollOpen(); CHECK(!g_openRequest.active);
+
+    Reset("offscreen active modal recovers without moving or normalizing its maximized owner");
+    lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, FALSE, FALSE);
+    lighting->maximized = TRUE;
+    HWND lightingPopup = Window(2, L"Dialog", 12, TRUE, FALSE);
+    lightingPopup->owner = lighting; lighting->popup = lightingPopup;
+    lightingPopup->bounds = (RECT){ 5000, 300, 5400, 600 };
+    EnableChildReveal(lighting); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL)); DeliverReveal();
+    CHECK(recoveryMoves == 1 && foreground == lightingPopup && lightingPopup->bounds.left == 760);
+    CHECK(lighting->maximized && lighting->bounds.left == 100 && lastShow == SW_SHOW);
+    HubPollOpen(); CHECK(!g_openRequest.active);
+
+    for (int placement = 0; placement < 2; placement++) {
+        Reset("partly visible or negative-coordinate connected placement must not move");
+        lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, FALSE, FALSE);
+        RECT original = placement ? (RECT){1850, 200, 2650, 800} : (RECT){-1500, -100, -700, 500};
+        lighting->bounds = original;
+        EnableChildReveal(lighting); applyShow = canFocus = FALSE;
+        CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL)); DeliverReveal();
+        CHECK(!recoveryMoves && memcmp(&original, &lighting->bounds, sizeof(original)) == 0);
+        CHECK(foreground == lighting && launchCalls == 0);
+    }
+
+    Reset("recovery uses the nearest monitor work area including negative coordinates");
+    lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, FALSE, FALSE);
+    lighting->bounds = (RECT){-5000, 200, -4200, 800}; recoveryMonitor = &monitors[1];
+    EnableChildReveal(lighting); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL)); DeliverReveal();
+    CHECK(recoveryMoves == 1 && lighting->bounds.left == -1200 && lighting->bounds.top == 30);
+
+    Reset("oversized offscreen panel retains its dimensions and gets an accessible origin");
+    lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, FALSE, FALSE);
+    lighting->bounds = (RECT){5000, 200, 7500, 1600};
+    EnableChildReveal(lighting); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL)); DeliverReveal();
+    CHECK(recoveryMoves == 1 && lighting->bounds.left == 0 && lighting->bounds.top == 0);
+    CHECK(lighting->bounds.right == 2500 && lighting->bounds.bottom == 1400);
+
+    for (int failure = 0; failure < 4; failure++) {
+        Reset("unknown geometry and maximized state never permit a speculative relocation");
+        lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, FALSE, FALSE);
+        RECT original = {5000, 200, 5800, 800}; lighting->bounds = original;
+        rectOk = failure != 0; monitorInfoOk = failure != 1;
+        if (failure == 2) recoveryMonitor = NULL;
+        if (failure == 3) lighting->maximized = TRUE;
+        EnableChildReveal(lighting); applyShow = canFocus = FALSE;
+        CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL)); DeliverReveal();
+        CHECK(!recoveryMoves && memcmp(&original, &lighting->bounds, sizeof(original)) == 0);
+        HubPollOpen(); CHECK(g_openRequest.active && launchCalls == 0);
+        tick += HUB_OPEN_TIMEOUT_MS; HubPollOpen(); CHECK(!g_openRequest.active && launchCalls == 0);
+    }
+
+    for (int invalid = 0; invalid < 2; invalid++) {
+        Reset("invalid offscreen dimensions never cause a speculative move");
+        lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, FALSE, FALSE);
+        lighting->bounds = invalid ? (RECT){5000, 200, 5800, 200} : (RECT){5000, 200, 5000, 800};
+        EnableChildReveal(lighting); applyShow = canFocus = FALSE;
+        CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL)); DeliverReveal();
+        CHECK(!recoveryMoves && launchCalls == 0);
+    }
+
+    Reset("expired offscreen reveal cannot move or focus the panel after newer input");
+    lighting = Window(1, L"TestsKeyboardLightingSuiteWnd", 12, FALSE, FALSE);
+    lighting->bounds = (RECT){5000, 200, 5800, 800};
+    EnableChildReveal(lighting); applyShow = canFocus = FALSE;
+    CHECK(HubOpenApp(L"KeyboardLighting.exe", NULL, NULL));
+    foreground = Window(2, L"Other", 99, TRUE, FALSE); inputTick++;
+    DeliverReveal(); HubPollOpen();
+    CHECK(!recoveryMoves && !childShows && !g_openRequest.active && foreground != lighting);
 
     /* Every native app uses the same real reveal route, including a stray
        running copy whose expected installed file has disappeared. */

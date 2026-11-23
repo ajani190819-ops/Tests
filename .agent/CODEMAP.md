@@ -21,8 +21,8 @@
 - L95  f HubRevealWindow  — Use async show/position calls so a hung foreign UI cannot hang the Hub.
 - L114  f HubOpenMayTakeForeground
 - L125  f HubPollOpen
-- L165  f HubReportOpenFailure  — A failed explicit launch must retain Windows' actual reason.
-- L195  f HubOpenApp  — TRUE means the click was handled, including a launch error or a running app
+- L171  f HubReportOpenFailure  — A failed explicit launch must retain Windows' actual reason.
+- L201  f HubOpenApp  — TRUE means the click was handled, including a launch error or a running app
 - globals: g_openIdentities (L15), g_openRequest (L38), g_openSerial (L39)
 
 ## project-hub/src/parts/branch_picker_entry.c
@@ -558,9 +558,10 @@
 
 ## keyboard-lighting/src/parts/window_activation.c
 
-- L3  f RevealLightingPanel
-- L13  f EnableHubLightingReveal
-- L20  f HandleHubLightingReveal
+- L4  f RecoverLightingWindowPosition
+- L23  f RevealLightingPanel
+- L34  f EnableHubLightingReveal
+- L41  f HandleHubLightingReveal
 
 ## dns-pilot/src/dns_pilot.c
 

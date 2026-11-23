@@ -357,6 +357,24 @@ class OwnerHandoffContractTests(unittest.TestCase):
         self.assertIn("observation request is superseded", " ".join(lighting.split()))
         self.assertNotIn("## Focused owner observation, only after a verified release", lighting)
 
+    def test_continued_silent_lighting_failure_overrides_prior_source_success(self):
+        paths = (".agent/STATE.md", ".agent/runbooks/test-hub-open-to-front.md",
+                 ".agent/runbooks/owner-verification-checklist.md")
+        for path in paths:
+            with self.subTest(file=path):
+                text = " ".join((ROOT / path).read_text().split())
+                self.assertIn("Lighting", text)
+                self.assertIn("nothing visible", text)
+                self.assertIn("offscreen", text)
+                self.assertNotIn("Open currently works", text)
+                self.assertNotIn("Currently Open works", text)
+        runbook = " ".join((ROOT / paths[1]).read_text().split())
+        self.assertIn("APP-01 remains unresolved", runbook)
+        self.assertIn("not proof of the owner's exact intermittent cause", runbook)
+        self.assertIn("No new Guard outcome", runbook)
+        self.assertIn("no new owner test/log request", runbook)
+        self.assertIn("maximized placement is unchanged", runbook)
+
     def test_hud_guidance_exposes_source_mismatch_instead_of_dropping_old_request(self):
         config = (ROOT / "spatial-hud-template-26.3/src/client/java/dev/arena/spatialhud/SpatialHudConfig.java").read_text()
         start = config.index("RenderMethod selectedRenderMethod() {")

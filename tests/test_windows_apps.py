@@ -5730,9 +5730,9 @@ class AppOpenFocusTests(unittest.TestCase):
     ]
 
     def test_hub_open_executes_real_activation_policy_with_mocked_win32_io(self):
-        """Exercise hidden/minimized/modal, startup, double-click, generic
+        """Exercise hidden/minimized/modal/offscreen, startup, double-click,
         image lookup, focus cancellation, timeout, failure, and shell reentry.
-        This runs production C; it cannot prove Windows focus-lock behavior."""
+        This runs production C; Win32 delivery/monitor I/O remains mocked."""
         import shutil
         import tempfile
         compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
@@ -5751,9 +5751,9 @@ class AppOpenFocusTests(unittest.TestCase):
             build = subprocess.run(
                 [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", td,
                  str(ROOT / "tests/native/hub_open_harness.c"), "-o", str(exe)],
-                capture_output=True, text=True)
+                capture_output=True, text=True, timeout=30)
             self.assertEqual(build.returncode, 0, build.stderr)
-            run = subprocess.run([str(exe)], capture_output=True, text=True)
+            run = subprocess.run([str(exe)], capture_output=True, text=True, timeout=10)
             self.assertEqual(run.returncode, 0, run.stderr)
             self.assertIn("Hub Open activation scenarios passed", run.stdout)
             self.assertIn("Hub launch error detail scenarios passed", run.stdout)

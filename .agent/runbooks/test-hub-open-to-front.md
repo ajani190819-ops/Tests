@@ -2,13 +2,58 @@
 
 ## Current owner clarification and scope
 
-The affected apps are **Bluetooth Guard and Keyboard Lighting**. Their existing
-processes sometimes fail to reveal/foreground until kill/reopen, or Lighting's
-**Unfreeze**. Open currently works, and the owner sees one tray icon. This is not
-permanent acceptance or a new startup repair. Do not ask which apps again, request
-more logs, or send the owner through the former full matrix.
+The affected apps are **Bluetooth Guard and Keyboard Lighting**. The latest
+owner report is that **Lighting Open still fails**, with **nothing visible
+happening**: no panel, error or permission prompt. No new Guard outcome or
+installed-build identity was supplied. APP-01 remains unresolved. Kill/reopen
+and Lighting's **Unfreeze** are workarounds, not acceptable Open behavior.
+The earlier one-icon observation stays APP-05 monitoring, not a startup fix.
+Do not ask which apps again, request more logs, or repeat the old full matrix.
 
-## Controlled source findings and correction
+## Latest source correction - on-screen placement (Hub 2.8.72 source follow-up)
+
+A new controlled regression fails the published sources: an existing Lighting
+window is WS_VISIBLE and owns foreground, but lies completely outside every
+connected monitor. Hub calls that successful Open before posting a reveal;
+Lighting's own reveal never changes its offscreen position. This is a concrete
+source-level silent-failure case, **not proof of the owner's exact intermittent
+cause** or evidence that the owner's panel was offscreen.
+
+- Hub now requires the active visible popup/main window to intersect a connected
+  monitor before completing Open. A visible connected owner cannot hide an
+  offscreen active dialog; a connected active dialog is sufficient even when
+  its owner is elsewhere. A hidden former popup does not block completion.
+- Lighting's owning UI recovers only a fully offscreen **normal** panel/dialog,
+  after the existing show/restore and active-popup choice. It retains size and
+  moves it into the nearest monitor's work area without a topmost/input trick.
+  Connected, partly visible and maximized placement is unchanged. Oversized
+  panels keep their dimensions with an accessible top-left origin. Negative
+  virtual-screen coordinates are valid. Unknown/invalid geometry is not moved.
+- Existing freshness/newer-input/quitting guards apply before any relocation.
+  Failed recovery remains bounded by Hub's existing timer/deadline; there is no
+  speculative normalization, extra process, engine restart or policy change.
+- These tests execute production Hub/Lighting C with mocked monitor/delivery
+  I/O. They do not exercise Windows display-topology changes, DWM cloaking,
+  virtual desktops, a hung native UI, or the owner's installed paths/builds.
+  The prior green source tests and CI did not settle the continuing failure.
+
+Verification: the eight-target Zig 0.17.1 cross-build, full uncached checks
+with/without optional geometry dependencies, 21 focused activation/input/handoff
+tests and the production Open harness under ASan+UBSan pass. Separate negative
+checks fail the published Hub and Lighting sources independently, then restore
+the exact candidate source bytes. All **458/458 mutations** are detected (15 new),
+with zero survivors, stale entries, mutation/gate errors or skips. Clean 250-test
+pre/post gates and exact restoration pass: one worker, no verdict cache,
+194.783 seconds on this host. CODEMAP has 1415 lines; context/whitespace pass.
+Only Hub and Lighting EXEs changed; Guard and the other five remain identical.
+These controlled results are not native Windows or owner acceptance.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| ProjectHub.exe | 891904 | 274f01dbba01a8971db1d3c57e19f712f5838a7e21de790328d3b9636934dd4b |
+| KeyboardLighting.exe | 233984 | 52d4f4566703f6091c8a349d11284be5ccb5cf99b211594ca09d87b0ea65df2a |
+
+## Prior 2.8.71 controlled source findings and correction
 
 - **Guard UI lock:** `PollPairedDevices` held `g_lock` across Bluetooth first,
   next and close enumeration calls. Paint and the hidden window's housekeeping/
@@ -39,7 +84,7 @@ hangs. Existing engine/input/pacing/exclusive/single-engine behavior, startup,
 tray ownership, manifests, UAC/security policy and no-duplicate launch gates stay
 unchanged. Historical Windows 225 refusal is a separate security boundary below.
 
-## Release and automated verification
+## Prior 2.8.71 release and automated verification
 
 The verified payload includes Hub **2.8.71**, Guard and Lighting EXEs; the
 other five suite EXEs are byte-identical. Eight-target Zig 0.17.1 cross-build and
@@ -68,10 +113,11 @@ never retry a blocked app or alter protection for acceptance testing.
 
 ## Native acceptance reference - not another owner test request
 
-Normal use of the active branch's released Hub **2.8.71** and both affected app
-updates is the remaining real-world acceptance boundary; no new logs are needed
-for this source task. Never launch a blocked executable or bypass security just
-to test. Keep current manifests/elevation and settings. Do not elevate Hub or
+Lighting's continued silent failure means native acceptance is still open;
+the 2.8.72 follow-up is another controlled source correction, not an accepted
+owner fix. There is no new owner test/log request. Delivery must use the active
+branch's released Hub and matching Lighting update, not an arbitrary tip build.
+Never launch a blocked executable or bypass security just to test. Keep current manifests/elevation and settings. Do not elevate Hub or
 change UAC policy to make focus appear to work.
 
 If a focused native check is later appropriate, card and unified-tray Open must

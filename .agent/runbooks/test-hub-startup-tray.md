@@ -39,7 +39,9 @@ create a Run key/task/service or silently start Hub/Agent Notes at sign-in.
   bounded asynchronous show/launch handling. The 2.8.71 Open follow-up extends
   Guard's show-only reveal to Lighting and keeps driver enumeration outside
   Guard's UI lock. These are separate source repairs, not a startup consolidation
-  fix or native UAC/foreground acceptance. Hub remains asInvoker.
+  fix or native UAC/foreground acceptance. The owner now reports Lighting Open
+  still does nothing visible; the 2.8.72 offscreen-window source correction is not proof
+  of that cause and changes no tray/startup behavior. Hub remains asInvoker.
 
 ## Next observations / future regression boundary
 

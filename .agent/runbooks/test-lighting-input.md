@@ -61,8 +61,9 @@ exclusive-lock, pacing, single-engine and strict ASCII/C# 5.0 contracts.
 
 The owner does not want another log/reproduction loop. The former focused
 `input-status.txt` observation request is superseded, not silently left pending.
-APP-01 now addresses the clarified Guard/Lighting Open failures from source and
-controlled regressions; KBL-01's physical hold remains unresolved. This is not a
+APP-01 remains open: Lighting Open still does nothing visible. The 2.8.72
+candidate addresses a controlled offscreen-window case, not an established owner
+cause. It changes no input/engine behavior; KBL-01's physical hold stays unresolved. This is not a
 request for another engine log or the old full matrix. Do not ask again for
 `input-status.txt` as the next step, or change GHelper/security/mode/startup to
 force evidence. Existing diagnostics remain local and optional to inspect.

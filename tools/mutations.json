@@ -4428,5 +4428,155 @@
   "tests": [
    "tests.test_windows_apps.WindowsDesktopAppsTests.test_bluetooth_paired_review_runs_actual_poll_policy_and_click_handlers"
   ]
+ },
+ {
+  "id": "hub-open-47",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "        MonitorFromWindow(target, MONITOR_DEFAULTTONULL)) {",
+  "new": "        TRUE) {",
+  "label": "Hub accepts foreground/visible as success even when the active window is offscreen",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-48",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "    RecoverLightingWindowPosition(target);",
+  "new": "    (void)target;",
+  "label": "Lighting never recovers its fully offscreen active window",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-49",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "        MonitorFromRect(&rect, MONITOR_DEFAULTTONULL)) return;",
+  "new": "        (FALSE && MonitorFromRect(&rect, MONITOR_DEFAULTTONULL))) return;",
+  "label": "Lighting moves connected or partly visible windows on every Open",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-50",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "IsIconic(hwnd) || IsZoomed(hwnd) || !GetWindowRect(hwnd, &rect)",
+  "new": "IsIconic(hwnd) || !GetWindowRect(hwnd, &rect)",
+  "label": "Offscreen recovery moves a maximized window instead of preserving its placement",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-51",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "!GetWindowRect(hwnd, &rect) ||",
+  "new": "(GetWindowRect(hwnd, &rect) && FALSE) ||",
+  "label": "Lighting relocates from an unsuccessful rectangle query",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-52",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "!monitor || !GetMonitorInfoW(monitor, &info)",
+  "new": "!monitor || (GetMonitorInfoW(monitor, &info) && FALSE)",
+  "label": "Lighting relocates using a failed monitor-information query",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-53",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "HMONITOR monitor = MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST);",
+  "new": "HMONITOR monitor = MonitorFromRect(&rect, MONITOR_DEFAULTTONULL);",
+  "label": "An offscreen window never selects a recovery monitor",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-54",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "LONG spareY = info.rcWork.bottom - info.rcWork.top - height;",
+  "new": "LONG spareY = info.rcMonitor.bottom - info.rcMonitor.top - height;",
+  "label": "Recovery centers against full monitor bounds instead of the taskbar-safe work area",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-55",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "    RecoverLightingWindowPosition(target);",
+  "new": "    RecoverLightingWindowPosition(hwnd);",
+  "label": "Recovery moves the main panel instead of its offscreen active modal",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-56",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "SetWindowPos(hwnd, NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);",
+  "new": "SetWindowPos(hwnd, NULL, x, y, 0, 0, SWP_NOZORDER | SWP_NOACTIVATE);",
+  "label": "Offscreen recovery resizes the existing window to zero instead of retaining dimensions",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-57",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "LONG x = info.rcWork.left + (spareX > 0 ? spareX / 2 : 0);",
+  "new": "LONG x = (info.rcWork.left > 0 ? info.rcWork.left : 0) + (spareX > 0 ? spareX / 2 : 0);",
+  "label": "Recovery discards a connected monitor's negative virtual-screen origin",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-58",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "LONG x = info.rcWork.left + (spareX > 0 ? spareX / 2 : 0);",
+  "new": "LONG x = info.rcWork.left + spareX / 2;",
+  "label": "An oversized window is recentered with its left edge inaccessible",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-59",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "        MonitorFromWindow(target, MONITOR_DEFAULTTONULL)) {",
+  "new": "        MonitorFromWindow(app, MONITOR_DEFAULTTONULL)) {",
+  "label": "A connected owner hides that its active modal remains offscreen",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-60",
+  "file": "keyboard-lighting/src/parts/window_activation.c",
+  "old": "        rect.right <= rect.left || rect.bottom <= rect.top ||\n",
+  "new": "",
+  "label": "Invalid window dimensions still cause a speculative relocation",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
+ },
+ {
+  "id": "hub-open-61",
+  "file": "project-hub/src/parts/app_activation.c",
+  "old": "    if (!target || !IsWindowVisible(target)) target = app;\n    /* WS_VISIBLE/foreground",
+  "new": "    if (!target) target = app;\n    /* WS_VISIBLE/foreground",
+  "label": "A hidden former popup prevents completion for a visible connected main panel",
+  "tests": [
+   "tests.test_windows_apps.AppOpenFocusTests.test_hub_open_executes_real_activation_policy_with_mocked_win32_io"
+  ]
  }
 ]

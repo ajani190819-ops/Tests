@@ -150,7 +150,13 @@ static void HubPollOpen(void) {
     if (pid && !HubOpenContainsPid(pid) && g_openRequest.processes.count < UPDATE_SCAN_MAX_PIDS)
         g_openRequest.processes.pids[g_openRequest.processes.count++] = pid;
     GetWindowThreadProcessId(GetForegroundWindow(), &foregroundPid);
-    if (pid && foregroundPid == pid && IsWindowVisible(app) && !IsIconic(app)) {
+    HWND target = GetLastActivePopup(app);
+    if (!target || !IsWindowVisible(target)) target = app;
+    /* WS_VISIBLE/foreground alone can accept a window on a disconnected
+       display. Keep retrying the app-owned reveal until its active window
+       intersects a connected screen; never move a foreign UI from the Hub. */
+    if (pid && foregroundPid == pid && IsWindowVisible(app) && !IsIconic(app) &&
+        MonitorFromWindow(target, MONITOR_DEFAULTTONULL)) {
         HubCancelOpen();
         return;
     }

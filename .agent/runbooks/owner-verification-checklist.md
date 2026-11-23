@@ -1,20 +1,22 @@
 # Owner status and verification reference — 20 retained IDs
 
-**Latest owner clarification:** Bluetooth Guard and Keyboard Lighting sometimes
-fail to reveal/foreground their existing windows until kill/reopen or Lighting's
-**Unfreeze**. These are workarounds, not intended Open behavior. Currently Open
-works and there is one tray icon; neither proves a lasting fix. Other current
-items remain owner-reported good. Do not request repeated logs or the old matrix.
+**Latest owner clarification:** Bluetooth Guard and Keyboard Lighting were the
+affected Open apps. Lighting Open **still fails**, with **nothing visible
+happening** (no window, error or permission prompt). No new Guard outcome or
+installed-build identity is known. Kill/reopen and Lighting **Unfreeze** are
+workarounds, not intended Open. The earlier one-icon observation remains only
+monitoring. Other current items stay owner-reported good; no repeated logs/matrix.
 Broad approval is not invented native fixture/security/hardware/print evidence.
 
 ## Current actions only
 
-- **APP-01 NEXT:** native/normal-use acceptance of the verified Hub 2.8.71 +
-  Guard/Lighting source follow-up, not another requested log/test loop. Controlled
-  tests failed old code: Guard blocked a UI-shared lock during enumeration;
-  Lighting lacked its own cross-integrity reveal route. Corrections pass full
-  checks and 443/443 mutations; the owner's exact intermittent cause remains
-  unestablished. No duplicate/restart fallback or new logs. See [`test-hub-open-to-front.md`](test-hub-open-to-front.md).
+- **APP-01 NEXT:** investigate the continuing silent Lighting failure; no new
+  log/test loop. Hub 2.8.72 + Lighting correct a separately reproduced
+  offscreen-window case: visible/foreground was wrongly accepted as on-screen,
+  and Lighting never recovered the stranded normal panel/dialog. This does not
+  establish the owner's cause or installed build. Prior 2.8.71 source/443-mutation
+  success is not native acceptance. No restart/duplicate fallback or new logs.
+  See [`test-hub-open-to-front.md`](test-hub-open-to-front.md).
 - **APP-05 MONITOR:** one icon currently working, no startup repair claimed.
   Keep usable fallback icons and startup choices. The source-only delete/retry
   lead remains in [`test-hub-startup-tray.md`](test-hub-startup-tray.md).
@@ -37,13 +39,13 @@ handoff guidance. APP-04 adds standalone AppReview.exe for local evidence; it
 is not a Hub button or an update to the seven existing apps. Those tooling-only
 releases left their EXEs, plugin algorithms, lighting files and HUD renderer
 unchanged. The prior receiver release changed Keyboard Lighting only; the current
-Open follow-up changes Hub and both affected native panels, not their engines or
-settings. No installation or settings reset is required to run the review utility.
+2.8.71 Open follow-up changed Hub and both affected panels; the 2.8.72 follow-up
+changes Hub/Lighting placement only, not engines, input or settings. No installation or settings reset is required to run the review utility.
 
 ## Record once for each test session
 
 - Selected Hub branch and its `.agent/RELEASED` commit; installed Hub version
-  (Open follow-up product version **2.8.71**), Windows version, screen/DPI/theme.
+  (placement follow-up **2.8.72**), Windows version, screen/DPI/theme.
 - Installed app/plugin/JAR identity, not just current Git tip. Undahang's public
   version is **0.0.52**; Infill **0.4.10**. Orca intentionally still calls the
   underlying package/capabilities **Wave Overhangs**.
@@ -207,7 +209,7 @@ newly executed individual acceptance matrix or independently verified test.
 | Category | ID | Current owner status / next action |
 | --- | --- | --- |
 | Bluetooth | BT-01 | Owner-reported good; known wording finding not falsely marked fixed |
-| Hub/Windows | APP-01 | **NEXT:** Guard/Lighting source follow-up; native intermittent acceptance unverified |
+| Hub/Windows | APP-01 | **NEXT / UNRESOLVED:** Lighting still does nothing visible; offscreen source correction is not owner acceptance |
 | Hub/Windows | APP-02 | Owner-reported good; no new detailed soak claimed |
 | Hub/Windows | APP-03 | Owner-reported good: current layout/icons |
 | Hub/Windows | APP-04 | Owner-reported good; separate native kit still manual/unrun |

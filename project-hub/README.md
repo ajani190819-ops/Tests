@@ -108,6 +108,15 @@ These source gaps failed controlled regressions before correction; the owner's
 exact intermittent cause and native foreground behavior remain unconfirmed.
 No additional logs, startup registration or elevation/security change is needed.
 
+The owner subsequently reported that Lighting Open **still does nothing visible**.
+The 2.8.72 follow-up covers a further source case: Hub must not accept
+WS_VISIBLE/foreground as success when the active window is outside every
+connected monitor. Lighting's owning UI can recover a fully offscreen normal
+panel/dialog into the nearest work area, retaining its size. Connected/partial
+and maximized placement, fresh intent and no-restart behavior are preserved.
+This is not proof that the owner's window was offscreen or that the reported
+failure is resolved; APP-01 stays open without another log/test request.
+
 ## Suite Settings
 
 The Soft Slate Settings window centralizes Prism Lighting hold behavior,

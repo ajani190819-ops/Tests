@@ -15,7 +15,13 @@ Only the registered show-only message is permitted on this window across UIPI;
 it carries scalar ticks, expires after one second and rejects newer input.
 Engine/input behavior, settings and existing elevation contracts are unchanged.
 Controlled production-C tests are not native Windows acceptance or proof of the
-owner's exact intermittent failure. See the [Open record](../.agent/runbooks/test-hub-open-to-front.md).
+owner's exact intermittent failure. The owner subsequently confirmed that Open
+still does nothing visible; APP-01 remains unresolved, without another log/test
+request. The 2.8.72 follow-up adds recovery for a fully offscreen normal
+panel/dialog on the nearest monitor's work area, retaining its size and leaving
+connected/partial or maximized placement alone. The Hub no longer counts an
+offscreen active window as completed Open. This source regression is not proof
+that the owner's window was offscreen. See the [Open record](../.agent/runbooks/test-hub-open-to-front.md).
 
 ## Hardware diagnostic
 
