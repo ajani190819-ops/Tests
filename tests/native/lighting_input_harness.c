@@ -201,6 +201,10 @@ static void Reset(void) {
     memset(g_hidDown, 0, sizeof(g_hidDown));
     memset(g_sigAt, 0, sizeof(g_sigAt));
     memset(g_scanNext, 0, sizeof(g_scanNext));
+    memset(g_learnCand, 0, sizeof(g_learnCand));
+    memset(g_learnN, 0, sizeof(g_learnN));
+    memset(g_learnHid, 0, sizeof(g_learnHid));
+    memset(g_learnHidN, 0, sizeof(g_learnHidN));
     memset(g_pendingLearnAt, 0, sizeof(g_pendingLearnAt));
     memset(g_pendingLearnUntil, 0, sizeof(g_pendingLearnUntil));
     memset(tokens, 0, sizeof(tokens));
@@ -350,6 +354,65 @@ static void TestSnapshot(void) {
     g_cfgDir[MAX_PATH - 1] = 0;
     tick += 60000; WriteHoldDiagnostics(FALSE); CHECK(snapshotWrites == 3);
 }
+/* Latch/burst consume one Custom action per press. Native hold repeats
+   otherwise toggle a latch repeatedly or restart a burst on every tick. */
+static void TestNonHoldModes(void) {
+    for (int mode = 1; mode <= 2; mode++) {
+        for (int dir = 0; dir < 2; dir++) {
+            /* Keyboard, HID high-bit release, and HID zero release. */
+            for (int hid = 0; hid < 3; hid++) {
+                Reset(); InitRawInput(target); SeedBrightTokenWatch(); HoldModeWrite(mode);
+                BYTE press[] = { 0x5A, (BYTE)(0x38 + dir) };
+                BYTE release[] = { 0x5A, hid == 2 ? 0 : (BYTE)(0xB8 + dir) };
+                if (hid) Hid(press, 1);
+                else Keyboard((WORD)(0x70 + dir), 255, TRUE);
+                Token(dir); WatchBrightTokens();
+                CHECK(g_holdOn[dir]); /* Real input still learns the binding. */
+                CHECK(!g_scanBound[1 - dir] && !g_hidCode[1 - dir]);
+                char initial[32]; strcpy(initial, tokens[dir]);
+                int savedProfiles = profileWrites, savedModes = modeWrites;
+                for (int n = 0; n < 12; n++) {
+                    tick += 30;
+                    if (hid) Hid(press, 1);
+                    else Keyboard((WORD)(0x70 + dir), 255, TRUE);
+                    WatchBrightTokens(); HoldPump();
+                    if (hid) CHECK(g_hidDown[dir]); /* Suppress repeats, not release tracking. */
+                }
+                CHECK(!tokenWrites[0] && !tokenWrites[1]);
+                CHECK(!g_holdOn[0] && !g_holdOn[1]);
+                CHECK(strcmp(initial, tokens[dir]) == 0);
+                CHECK(profileWrites == savedProfiles && modeWrites == savedModes);
+                CHECK(HoldModeRead() == mode);
+                if (hid) Hid(release, 1);
+                else Keyboard((WORD)(0x70 + dir), 255, FALSE);
+                CHECK(g_scanArmed[dir] && !g_holdOn[dir]);
+                if (hid) CHECK(g_hidCode[dir] == (DWORD)(0x38 + dir) && g_hidRelSeen[dir]);
+                else CHECK(g_scanBound[dir] == 0x70 + dir && g_scanVk[dir] == 255);
+            }
+        }
+    }
+    /* A mode change during a real hold stops repeats without resetting the
+       learned key, and switching back still permits a fresh tap-mode hold. */
+    for (int dir = 0; dir < 2; dir++) {
+        Reset(); InitRawInput(target); SeedBrightTokenWatch();
+        Keyboard((WORD)(0x70 + dir), 255, TRUE); Token(dir); WatchBrightTokens();
+        tick += 30; HoldPump(); CHECK(tokenWrites[dir] == 1);
+        HoldModeWrite(1); tick += 30; HoldPump();
+        CHECK(tokenWrites[dir] == 1 && !g_holdOn[dir]);
+        Keyboard((WORD)(0x70 + dir), 255, FALSE);
+        HoldModeWrite(0); tick++;
+        Keyboard((WORD)(0x70 + dir), 255, TRUE); Token(dir); WatchBrightTokens();
+        tick += 30; HoldPump(); CHECK(tokenWrites[dir] == 2 && g_holdOn[dir]);
+        Keyboard((WORD)(0x70 + dir), 255, FALSE);
+        tick += 30; HoldPump(); CHECK(tokenWrites[dir] == 2 && !g_holdOn[dir]);
+    }
+    Reset(); HoldModeWrite(1);
+    g_scanBound[0] = 0x70; g_scanBound[1] = 0x71;
+    g_scanVk[0] = g_scanVk[1] = 255;
+    PressSignal(0, 0, tick); PressSignal(1, 0, tick);
+    tick += 30; HoldPump();
+    CHECK(!g_holdOn[0] && !g_holdOn[1] && !tokenWrites[0] && !tokenWrites[1]);
+}
 static void TestModesAndCeiling(void) {
     Reset();
     CHECK(wcscmp(HoldReadyLabel(), L"M4/M5 Keys: Not Recognised") == 0);
@@ -374,6 +437,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(scenario, "hid-batch")) TestHidBatch();
     else if (!strcmp(scenario, "snapshot")) TestSnapshot();
     else if (!strcmp(scenario, "modes-ceiling")) TestModesAndCeiling();
+    else if (!strcmp(scenario, "non-hold-modes")) TestNonHoldModes();
     else CHECK(FALSE);
     printf("Lighting input %s passed\n", scenario);
     return 0;

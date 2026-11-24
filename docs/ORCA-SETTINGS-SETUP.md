@@ -50,6 +50,37 @@ The existing Script capabilities also have a small form for their original
 configuration. Undahang's written guide labels its last backed-up snapshot
 rather than claiming to read another capability's live preset override.
 
+## Owner-confirmed Save resolution
+
+The owner now confirms **“the saving issue is fixed.”** Mark the reported
+global Save issue resolved and cancel the requested Config screenshot/version
+collection. This is the owner's installed-use confirmation, not a newly
+established technical cause or a matrix of every capability/preset scope.
+No new plugin code, version or release was needed in this follow-up. The
+independent fan ceiling and approved setup boundaries remain. The owner now
+reports the earlier items verified and prioritizes Prism M4/M5 brightness;
+processed-preview work follows that task. No new technical cause is inferred.
+
+## Earlier Save investigation — unresolved at that stage
+
+The owner had explicitly reopened Save and confirmed **nothing happens**
+in **File → Plugins → Config (global scope)**. That was not a report of forgetting
+to save a preset. The installed plugin version, whether the button was disabled,
+and the page's exact status were not established. The screenshot request from
+that investigation is now superseded by the confirmation above.
+
+The current four pages still pass 504 DOM assertions. A fresh Chromium replay
+also loads the complete pinned Orca 2.5.2 Plugins HTML/scripts/styles from
+`file://`, uses its unchanged iframe bridge/handlers and scripts-only sandbox,
+and sends one global save per actual button click on each page. Native `wx`
+transport/storage/responses are simulated, **not installed Orca acceptance**.
+The ordinary-click owner failure has not been reproduced. Editing the raw JSON
+box does disable Save until Load JSON is clicked by design; that was reproduced,
+but the owner has not said they use that box. Do not label it the confirmed
+cause, remove the validation guard speculatively, or publish another Save-fix
+claim from these checks. No plugin code/version/release marker changes in this
+investigation. The independent fan ceiling and approved setup boundaries remain.
+
 ## Fan cap without Save — Undahang 0.0.58
 
 The owner reports that **Save still does not work after 0.0.57/0.4.13** and

@@ -5658,5 +5658,65 @@
   "tests": [
    "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_export_caps_fan_when_configuration_save_is_refused"
   ]
+ },
+ {
+  "id": "kbl-hold-mode-00",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (HoldModeRead() != 0) {",
+  "new": "if (0) {",
+  "label": "native holds feed repeat tokens into latch and burst",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction"
+  ]
+ },
+ {
+  "id": "kbl-hold-mode-01",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (HoldModeRead() != 0) {",
+  "new": "if (HoldModeRead() == 1) {",
+  "label": "repeat guard omits burst mode",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction"
+  ]
+ },
+ {
+  "id": "kbl-hold-mode-02",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (HoldModeRead() != 0) {",
+  "new": "if (HoldModeRead() == 2) {",
+  "label": "repeat guard omits latch mode",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction"
+  ]
+ },
+ {
+  "id": "kbl-hold-mode-03",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "g_holdOn[0] = g_holdOn[1] = 0;",
+  "new": "g_holdOn[0] = 0;",
+  "label": "non-hold mode leaves M5 native stream active",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction"
+  ]
+ },
+ {
+  "id": "kbl-hold-mode-04",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (HoldModeRead() != 0) {",
+  "new": "if (HoldModeRead() == 0) {",
+  "label": "mode guard disables tap holds and allows latch repeats",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction"
+  ]
+ },
+ {
+  "id": "kbl-hold-mode-05",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "g_holdOn[0] = g_holdOn[1] = 0;",
+  "new": "g_holdOn[0] = g_holdOn[1] = 0; g_hidDown[0] = g_hidDown[1] = 0;",
+  "label": "mode guard discards physical HID release tracking",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction"
+  ]
  }
 ]

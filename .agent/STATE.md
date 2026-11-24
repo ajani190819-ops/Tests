@@ -5,19 +5,17 @@ Git: implementation/tests/releases; Drive: extended plans/history.
 
 ## Current owner status / next work
 
-Owner reports UAC prompts, Lighting and startup good for current use, not
-permanent/native certification. Prior silent Lighting failure is history,
-not cause/build proof. No new Guard outcome or collection/matrix request.
+Save and earlier Prism items owner-reported verified; no cause/build matrix.
+CURRENT: M4/M5 brightness, mirroring M5 up as M4 down. UAC/startup/Open good.
 
 **Current focus / monitor (20 retained IDs):**
-- **PLAN-01 CURRENT:** Save still fails per owner after 0.0.57/0.4.13.
-  Wave 0.0.58: fan default/fallback 0.5; S127 cap needs no Save. Logs retained.
-  Wave 0.0.53 walls/S255; 0.0.55 wall helper passes, not fresh export/print.
-  Curl unproven. Orca2.5.2/custom Ender3/PLA205°C/Auto/12V; S127 is not
-  voltage conversion. NEXT: processed-preview handoff (native preferred,
-  separate acceptable). Renumbering paused. All controls visible; approved
-  process only, printer/filament read-only, relative E manual, no autosave.
-  `docs/ROADMAP.md`.
+- **PLAN-01 CURRENT:** owner confirms Save fixed; no more Config collection.
+  Wave0.0.58 default/fallback0.5, independent S127 cap. Old0.0.53 output is
+  historical; wall/curl acceptance open. Orca2.5.2/custom Ender3/PLA205C/Auto/
+  12V; PWM is not voltage conversion. NEXT after M4/M5: processed preview
+  (native preferred/separate acceptable); renumbering paused. Controls visible,
+  process-only approval; printer/filament read-only, E manual/no autosave.
+  `docs/ORCA-SETTINGS-SETUP.md`.
 - **APP-01 Owner-reported good:** Lighting Open fine; prior "nothing visible"
   is history. Hub 2.8.72 offscreen/458 mutations do not establish that cause.
   `test-hub-open-to-front.md`.
@@ -25,10 +23,11 @@ not cause/build proof. No new Guard outcome or collection/matrix request.
   startup fix claimed. Preserve fallbacks/preferences; `test-hub-startup-tray.md`.
 - **OPS-01 Owner-reported good:** UAC seems fixed; prior prompt unidentified,
   not a security-policy diagnosis/change approval.
-- **KBL-01 Owner-reported good:** Lighting generally fine; physical M4/M5 hold
-  not separately retested. Fresh `engine-6.log` received/scanned.
-  No additional log request. Keep ASCII/C# 5.0, pacing, exclusive-lock/single-engine.
-  `test-lighting-input.md`.
+- **KBL-01 CURRENT:** fresh engine-7 received; edit gate satisfied. Reproduced
+  native repeats toggling latch/restarting burst; both-key mode guard added.
+  Nine mock tests pass, not owner-cause/physical acceptance. Keep distinct
+  bindings, saved mode/preferences, ASCII/C#5, pacing/lock/single-engine;
+  `test-lighting-input.md`. No additional log request or hold/input-status matrix.
 
 ## Released / owner-reported good
 

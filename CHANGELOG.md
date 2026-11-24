@@ -1,5 +1,15 @@
 # Project changelog
 
+## 2026-11-16 (Prism Lighting - M4/M5 mode interaction)
+
+* Stops native hold-repeat tokens outside tap mode: those repeats were toggling
+  press-to-glide on/off or restarting burst mode instead of sustaining a hold.
+* Uses the same mode guard for M4/down and M5/up, preserving learned bindings,
+  real release tracking, saved mode/preferences and tap-mode pacing/safety caps.
+* Adds a production-receiver red/green regression for both directions and raw
+  keyboard/HID input. This proves the mode defect, not the owner's selected
+  mode, physical-key delivery or original cause. No engine/ramp-rate change.
+
 ## 0.0.58 — 2026-11-16 (Undahang)
 
 * Makes fan default/fallbacks explicitly 0.5 (50%); the existing independent

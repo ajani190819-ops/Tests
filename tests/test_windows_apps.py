@@ -5683,6 +5683,9 @@ class LightingInputTests(unittest.TestCase):
     def test_modes_physical_release_ceiling_and_failed_repeat_write_stay_safe(self):
         self._run("modes-ceiling")
 
+    def test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction(self):
+        self._run("non-hold-modes")
+
     def test_snapshot_runs_after_registration_and_off_the_fine_input_timer(self):
         entry = (ROOT / "keyboard-lighting/src/parts/picker_window_entry.c").read_text(encoding="ascii")
         self.assertIn("InitRawInput(g_hwnd);\n    WriteHoldDiagnostics(TRUE);", entry)

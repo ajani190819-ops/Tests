@@ -10,9 +10,10 @@
         and some models send a RELEASE frame (byte1 == 0, like the ROG
         Ally) or press|0x80. A press+release pair gives TRUE hold with
         no repeats needed at all.
-   All three feed one state machine: the first token takes an immediate 5%
-   step, then the engine glides down 1% or up 1.5% every 30 ms while fresh
-   tokens confirm the hold; release stops it.
+   All three feed one state machine: in tap mode the first token takes an
+   immediate 5% step, then the engine glides down 1% or up 1.5% every 30 ms
+   while fresh tokens confirm the hold; release stops it. Latch/burst modes
+   use only the Custom action, never native hold-repeat tokens.
    Learned bindings persist in presets.ini [Keys] M4Scan=/M5Scan=/M4Vk=/
    M5Vk=/M4Hid=/M5Hid=/M4HidRelease=/M5HidRelease=. Without any hold signal,
    behavior stays a clean tap per press. */
@@ -60,6 +61,7 @@ static void ReleaseSignal(int dir, ULONGLONG now);
 static void PressSignal(int dir, int repeat, ULONGLONG now);
 static void PersistKeyValue(const wchar_t *key, DWORD value);
 static void MarkHidReleaseSeen(int dir);
+static int HoldModeRead(void);
 
 static int HasReleaseSrc(int dir) {
     /* One observed HID press/release pair is a real release source. Requiring
@@ -112,9 +114,17 @@ static void HoldTokenWrite(int dir) {
         g_holdInputDiag.repeatWrites[dir]++;
 }
 
-/* One paced token per interval while the gesture is live. */
+/* One paced token per interval while a tap-mode gesture is live. */
 static void HoldPump(void) {
     ULONGLONG now = GetTickCount64();
+    if (!g_holdOn[0] && !g_holdOn[1]) return;
+    if (HoldModeRead() != 0) {
+        /* Latch toggles on each token; burst restarts on each token. Only
+           G-Helper's one Custom action per press belongs in those modes.
+           Keep the learned bindings and HID-down state for real releases. */
+        g_holdOn[0] = g_holdOn[1] = 0;
+        return;
+    }
     for (int i = 0; i < 2; i++) {
         if (!g_holdOn[i]) continue;
         /* Raw key-up can be lost while the UI thread is busy. For ordinary

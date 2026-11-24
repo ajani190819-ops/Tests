@@ -5,8 +5,8 @@ Capability names, module/storage paths and G-code stamp prefixes stay stable.
 
 | Plugin | Current state |
 | --- | --- |
-| Unlayered Infill | 0.4.13. Unchanged. Prior direct-click correction is browser-only evidence; owner still reports Save failure. Config changelogs and engine/defaults retained. |
-| Undahang | 0.0.58. Fan default/fallbacks explicitly 0.5; existing S127 code cap needs no successful config save. Save remains unresolved per owner. Wall safeguards retained; no native/physical/curl acceptance. |
+| Unlayered Infill | 0.4.13. Unchanged. Owner now confirms the reported Save issue fixed; no new cause or all-scope matrix claimed. Config changelogs and engine/defaults retained. |
+| Undahang | 0.0.58. Owner-confirmed Save resolution. Fan default/fallbacks explicitly 0.5 and independent S127 code cap retained. Wall safeguards retained; no new physical/curl acceptance. |
 | Wave Overhangs Geometry | Archived, not a new development target. |
 
 ## Approved first pass — settings and setup only
@@ -28,13 +28,22 @@ Save now uses a plain button/click; corrected actual-click regressions and
 headless-Chromium checks with unmodified pinned host JavaScript pass for all
 four pages in both scopes. Browser backing storage is simulated, not native
 Orca persistence or export/print acceptance. The earlier synthetic-submit
-checks did not expose this bug. The owner now reports **Save still fails**
-after that correction: keep it unresolved, not certified from browser doubles.
+checks did not expose this bug. The owner subsequently reported **Save still
+fails**, so browser doubles were not treated as installed acceptance.
 At the owner's request, Undahang 0.0.58 makes fan default/fallbacks explicitly
 **0.5**. The existing code-level S127 ceiling needs no successful settings
 save; actual temporary-file exports with refused/raising config saves pass.
-No new Save diagnosis/owner collection loop is added. Preset overrides still
-need a manual preset save.
+The owner then reopened the inert **File → Plugins → Config (global)** Save
+issue. Full pinned-parent Chromium replay passed with simulated native storage,
+not a reproduced owner cause. The latest owner confirmation is **“the saving
+issue is fixed.”** Save is resolved for the reported issue; cancel Config
+screenshot/version collection. No new technical cause or all-scope matrix is
+claimed; see [owner confirmation](ORCA-SETTINGS-SETUP.md#owner-confirmed-save-resolution).
+Preset overrides still need a manual preset save, separate from that global
+report. The owner now says the earlier items are verified and prioritizes
+Prism **M4/M5 brightness** (mirror M5 up as M4 down). That is owner-reported
+verification, not a new code repair or native matrix. Processed preview follows
+M4/M5. Renumbering remains paused.
 The owner confirms **Orca 2.5.2**, a custom modified-Ender-3 profile, **PLA at
 205°C**, Auto fan and a **12 V fan**. New print feedback is an unsupported outer
 strand before waves and upward-curling edges. The explicit ≤50% duty request

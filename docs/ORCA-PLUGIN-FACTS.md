@@ -23,7 +23,8 @@ label every preset override as a process override. The config iframe is
 `sandbox="allow-scripts"`: use inline confirmation, not modal JavaScript APIs.
 It also lacks `allow-forms`: Save must be a `type="button"` click action, not
 form submission (blocked before submit fires). The 0.0.57/0.4.13 correction
-is browser-reproduced only: the owner still reports Save failure. Keep it open.
+was browser-reproduced; the owner now confirms the reported Save issue fixed.
+The confirmation does not establish the cause or test every scope/capability.
 Wave 0.0.58 sets fan default/fallbacks to 0.5; its existing S127 code cap needs
 no successful config save, including legacy higher/auto values. It is not a
 firmware/electrical limiter or native/physical acceptance; see the plugin README.

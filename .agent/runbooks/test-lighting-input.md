@@ -1,12 +1,100 @@
 # KBL-01 - fresh log follow-up and M4/M5 receiver diagnostics
 
-## Latest owner status
+## Latest owner status - M4/M5 reopened
 
-Lighting is now **owner-reported good for current use**; the owner says the app
-is fine and UAC/startup seem fixed. This supersedes the prior active failure
-status, not the historical evidence below. No separately executed M4/M5 hold
-test, established hardware cause or new installed-build identity is claimed.
-No new logs, reproduction or settings change is requested.
+The owner says the earlier items are verified and now prioritizes M4/M5:
+mirror working M5 brightness-up behavior for M4 brightness-down. Treat earlier
+Save/startup preferences as owner-reported verified, not a new code repair,
+installed-build identity or independently executed matrix. Processed preview
+follows M4/M5; renumbering remains paused and parked/deferred scope is unchanged.
+
+Read-only source review finds a shared native receiver (`PressSignal`,
+`ReleaseSignal`, `HoldPump`) and shared engine `Step-BrightRamp` for both
+keys. M4/down is direction index 0 and M5/up is index 1, with distinct learned
+scan/HID bindings and token files. The engine applies 1% down versus 1.5% up
+per 30 ms, both after the same immediate 5% tap. Mirroring speed alone would
+not repair missing press/repeat/release input. Do not copy M5's physical key
+binding to M4, infer a hardware cause, reset bindings/mode/preferences, or
+remove release, pacing and ten-second safety guards to fake a working hold.
+Earlier, all eight production-receiver regression tests passed with synthetic
+Win32 I/O without exercising native repeats against latch/burst consumption.
+Passing those tests did not establish the owner's M4 signal or physical hold.
+
+## Current mode-conflict correction - reproduced, not hardware-certified
+
+Fresh owner `engine-7.log` satisfies the Lighting edit gate for this task.
+Its complete 828-line, 211614-byte content was scanned: the 816 device-write
+status samples report shared ownership with zero failed writes/reopens.
+There is no individual M4/M5 press/repeat/release trace. These engine records
+cannot establish a per-key hold cause. Do not request another equivalent
+engine log, `engine-6.log`, `input-status.txt` or the old hold/input matrix.
+Keep private logs and their raw contents out of Git/Drive.
+
+A new production-receiver test reproduced a real mode interaction: `HoldPump`
+previously wrote 30 ms repeat tokens regardless of the saved mode. The engine
+interprets each token as a toggle in `latch` (press-to-glide) mode and as a fresh
+5% tap/restarted 20% movement in `burst` mode. Consequently a learned physical
+key can repeatedly cancel/restart its glide while an unlearned key delivering
+only its Custom action appears to work. This is a supported theory for the
+asymmetry, not proof of the owner's selected mode, current bindings or cause.
+
+`HoldPump` now reads the existing saved mode when a stream is active and clears
+both native repeat streams outside `tap`. It does not consume or rewrite the
+real Custom tokens, reset bindings, save a preference or force another mode.
+HID-down state remains intact so real releases are still observed and learned.
+`tap` keeps first-token learning, physical release, 30 ms repeats and the 10 s
+ceiling. The direction/rate constants and the PowerShell/C# engine are unchanged.
+
+The added regression failed against the prior production receiver at the
+unexpected repeat-token assertion, then passed with the guard. It covers
+both keys, raw-keyboard and HID repeats, latch/burst, no mode/profile/token
+rewrites, release learning, simultaneous streams and switching from an active
+tap hold to latch and back for a fresh hold. Nine `LightingInputTests` now pass.
+Six new mode-guard mutations cover disabled/partial/wrong guards, the M5 stream
+and accidental HID release-state loss. A first full campaign exposed a gap in
+release-state coverage; the test now asserts live HID-down state on every tick
+and exercises both high-bit and zero release reports.
+
+### Current correction verification
+
+- Eight-target Windows cross-build passes with Zig 0.17.1. Only
+  `KeyboardLighting.exe` changes: 233984 bytes, SHA-256
+  `a12bf2ce378089f349ded4e74c43b148a7637ca9b4f0281e322eb90852c75bb9`.
+  Other seven EXEs, engine, tray, CLI, manifests and workflows are unchanged.
+- Nine `LightingInputTests` pass; all eight native receiver scenarios also pass
+  with undefined-behavior sanitization. The exact prior HEAD receiver fails
+  the new unexpected-repeat assertion, rather than a compile/setup error.
+- Full uncached repository checks pass with and without optional geometry
+  dependencies; the uncached geometry suite takes 45.468 s on this host.
+  CODEMAP, ASCII, whitespace and the 14963-character default context pass.
+- Final full mutation campaign: 572/572 detected; zero survivors/stale/mutation
+  or gate errors, 307-test clean pre/post gates, exact source restoration,
+  one worker, no verdict cache, 273.544 s. Reports/scratch binaries stay outside
+  Git under the agent cache; no owner evidence is published.
+- Delivery uses the active branch's separate `.agent/RELEASED` marker commit;
+  Hub remains 2.8.72 and plugins remain 0.0.58/0.4.13. Synthetic I/O and
+  cross-builds are not Windows delivery, physical hold or owner-cause proof.
+
+## Prior startup-preference investigation - owner now reports verified
+
+The owner had reported **Balance Colours / Steady Colours start enabled despite
+saved off choices**. The newer broad verification supersedes that unresolved
+status; it does not establish the installed technical cause. No Lighting product
+edits or resets were made in this investigation. Its fresh-startup-log request
+is no longer a pending acceptance task; the standing edit gate still applies
+to new Lighting changes.
+
+Read-only replay of the production C parser/default/load/save functions under
+GCC ASan/UBSan confirms order-sensitive `Smooth` parsing, nested `Equalise`
+shadowing and ignored legacy flat `Equalise`. Native-order direct false values
+load correctly. A controlled external panel-file edit followed by a native
+save without reloading overwrites the edit with stale in-memory values. These
+are synthetic parser/state cases, **not the owner's configuration or established
+installed cause**. Preserve saved choices, unrelated preferences, ASCII/C# 5.0,
+exclusive-lock, pacing and single-engine safeguards; do not force defaults off.
+
+The previous generally-good/M4/M5 status below is historical. No separate
+physical-hold test, installed-build identity or hardware cause is claimed.
 
 ## Evidence received; actual hardware cause still open
 
@@ -65,7 +153,7 @@ PowerShell/C# engine change is included. Existing 15 ms input timer, 30 ms repea
 pacing, physical-release polling and 10 s ceiling remain intact, as do engine
 exclusive-lock, pacing, single-engine and strict ASCII/C# 5.0 contracts.
 
-## Current evidence boundary - no repeated collection request
+## Earlier M4/M5 evidence boundary - no repeated collection request
 
 The owner does not want another log/reproduction loop. The former focused
 `input-status.txt` observation request is superseded, not silently left pending.
