@@ -5248,5 +5248,255 @@
   "tests": [
    "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_safeguards_are_in_normal_and_full_mutation_gates"
   ]
+ },
+ {
+  "id": "wave-feature-00",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if _wall_run_continues(between):\n",
+  "new": "        if not any(_MOVE_CODE.match(t.strip()) for t in between):\n",
+  "label": "speed-only changes split an intact wall again",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_speed_only_moves_keep_the_whole_wall_feature_together"
+  ]
+ },
+ {
+  "id": "wave-feature-01",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "                and \"F\" in words and set(words) <= {\"G\", \"F\"}):\n",
+  "new": "                and True):\n",
+  "label": "coordinate and extrusion moves mistaken for speed-only changes",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_speed_only_moves_keep_the_whole_wall_feature_together"
+  ]
+ },
+ {
+  "id": "wave-feature-02",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            if s.startswith((\";WIPE\", \";Z:\", \";LAYER_CHANGE\",\n                             \";LAYER_HEIGHT:\", \";HEIGHT:\")):\n                return False\n",
+  "new": "",
+  "label": "wall grouping ignores wipe and layer boundaries",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_speed_only_moves_keep_the_whole_wall_feature_together"
+  ]
+ },
+ {
+  "id": "wave-feature-03",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            if s.startswith(\";TYPE:\") and s[6:].strip().lower() not in _WALL_TYPES:\n",
+  "new": "            if False:\n",
+  "label": "wall grouping crosses a non-wall feature marker",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_speed_only_moves_keep_the_whole_wall_feature_together"
+  ]
+ },
+ {
+  "id": "wave-feature-04",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            continue\n        return False\n    return True\n\n\ndef _overhanging_wall_runs",
+  "new": "            continue\n        continue\n    return True\n\n\ndef _overhanging_wall_runs",
+  "label": "unknown commands and E-coordinate resets ignored inside a wall",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_speed_only_moves_keep_the_whole_wall_feature_together"
+  ]
+ },
+ {
+  "id": "wave-feature-05",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if s.split()[0] in _PASSIVE_MCODES:\n            continue\n",
+  "new": "        if s.split()[0] in _PASSIVE_MCODES:\n            return False\n",
+  "label": "known passive state codes split a continuous wall",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_speed_only_moves_keep_the_whole_wall_feature_together"
+  ]
+ },
+ {
+  "id": "wave-feature-06",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            position = words.get(\"E\", position)\n",
+  "new": "            position = words.get(\"E\", position)\n            debt = 0.0\n",
+  "label": "G92 incorrectly clears physical retraction",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_handoff_state_scan_tracks_resets_modes_and_unknown_retractions"
+  ]
+ },
+ {
+  "id": "wave-feature-07",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "                delta = words[\"E\"] if relative else words[\"E\"] - position\n",
+  "new": "                delta = words[\"E\"]\n",
+  "label": "absolute E positions treated as relative retraction deltas",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_handoff_state_scan_tracks_resets_modes_and_unknown_retractions"
+  ]
+ },
+ {
+  "id": "wave-feature-08",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "                    debt = max(0.0, debt - delta)\n",
+  "new": "                    debt = debt - delta if delta < 0 or not {\"X\", \"Y\"}.intersection(words) else debt\n",
+  "label": "positive XY extrusion does not repay retract debt in source scan",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_handoff_state_scan_tracks_resets_modes_and_unknown_retractions"
+  ]
+ },
+ {
+  "id": "wave-feature-09",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        elif re.match(r\"^(?:G1[01]|T\\d+)(?!\\d)\", s):\n            debt = None\n",
+  "new": "        elif re.match(r\"^(?:G1[01]|T\\d+)(?!\\d)\", s):\n            pass\n",
+  "label": "unknown firmware/tool retraction state assumed known",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_handoff_state_scan_tracks_resets_modes_and_unknown_retractions"
+  ]
+ },
+ {
+  "id": "wave-feature-10",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            states[i] = (relative, debt, feed)\n",
+  "new": "            states[i] = (True, 0.0, feed)\n",
+  "label": "source retraction checkpoints always assumed primed relative E",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_handoff_state_scan_tracks_resets_modes_and_unknown_retractions"
+  ]
+ },
+ {
+  "id": "wave-feature-11",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            or abs(debt - prime) > 1e-6):\n",
+  "new": "            or False):\n",
+  "label": "copied prime not matched to source entry retraction",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_relocation_proves_retract_state_and_preserves_source_entry_feed"
+  ]
+ },
+ {
+  "id": "wave-feature-12",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if words.get(\"G\") not in (0, 1) or not set(words) <= {\"G\", \"E\", \"F\"}:\n",
+  "new": "        if False:\n",
+  "label": "mixed XY/E retract scaffold allowed to use a pure-E handoff",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_relocation_proves_retract_state_and_preserves_source_entry_feed"
+  ]
+ },
+ {
+  "id": "wave-feature-13",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    if prime and any(f is None or not math.isfinite(f) or f <= 0\n                     for f in (prime_feed, retract_feed)):\n",
+  "new": "    if False:\n",
+  "label": "unknown or unsafe retract feeds accepted",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_retract_plan_refuses_unsafe_feeds_and_nonfinite_amounts"
+  ]
+ },
+ {
+  "id": "wave-feature-14",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    if not mode or debt is None or not math.isfinite(debt) or debt > 1e-6:\n",
+  "new": "    if False:\n",
+  "label": "nonprimed or absolute-E wave insertion accepted",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_relocation_proves_retract_state_and_preserves_source_entry_feed"
+  ]
+ },
+ {
+  "id": "wave-feature-15",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if adjustment < -1e-9:\n            moved.append(f\"G1 F{retract_feed:g} E{adjustment:.12g} \"\n                         \"; wave-overhangs wall handoff retract\\n\")\n",
+  "new": "",
+  "label": "wall replay not retracted before its copied unretract",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_real_rewrite_keeps_speed_segmented_wall_and_retract_handoff"
+  ]
+ },
+ {
+  "id": "wave-feature-16",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        carried_retract = required_retract\n",
+  "new": "        carried_retract = 0.0\n",
+  "label": "wall retraction state lost between copied features",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_retraction_handoffs_carry_between_whole_wall_features"
+  ]
+ },
+ {
+  "id": "wave-feature-17",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        adjustment = carried_retract - required_retract\n",
+  "new": "        adjustment = -required_retract\n",
+  "label": "each feature retracts afresh instead of carrying existing debt",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_retraction_handoffs_carry_between_whole_wall_features"
+  ]
+ },
+ {
+  "id": "wave-feature-18",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if adjustment > 1e-9:\n            moved.append(f\"G1 F{carried_prime_feed:g} E{adjustment:.12g} \"\n                         \"; wave-overhangs wall handoff prime\\n\")\n",
+  "new": "",
+  "label": "smaller next-feature retraction not primed back to its source state",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_retraction_handoffs_carry_between_whole_wall_features"
+  ]
+ },
+ {
+  "id": "wave-feature-19",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if carried_retract > 1e-9:\n            moved.append(f\"G1 F{carried_prime_feed:g} E{carried_retract:.12g} \"\n                         \"; wave-overhangs wall handoff prime\\n\")\n",
+  "new": "",
+  "label": "wall replay leaves the rest of the file retracted",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_real_rewrite_keeps_speed_segmented_wall_and_retract_handoff"
+  ]
+ },
+ {
+  "id": "wave-feature-20",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        feed = states[first][2] or run[0].get(\"feed\")\n",
+  "new": "        feed = run[0].get(\"feed\")\n",
+  "label": "copied travel and unretract inherit wall feed instead of original entry F",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_relocation_proves_retract_state_and_preserves_source_entry_feed"
+  ]
+ },
+ {
+  "id": "wave-feature-21",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "f\"G1 F{carried_prime_feed:g} E{carried_retract:.12g} \"",
+  "new": "f\"G1 F{carried_prime_feed:g} E{-carried_retract:.12g} \"",
+  "label": "return handoff retracts again instead of priming at resume XY",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_real_rewrite_keeps_speed_segmented_wall_and_retract_handoff"
+  ]
+ },
+ {
+  "id": "wave-feature-22",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    if not relative or debt is None or not math.isfinite(debt):\n",
+  "new": "    if debt is None or not math.isfinite(debt):\n",
+  "label": "absolute source handoff mode accepted by retract proof",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_relocation_proves_retract_state_and_preserves_source_entry_feed"
+  ]
+ },
+ {
+  "id": "wave-feature-23",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        carried_prime_feed = prime_feed\n",
+  "new": "        carried_prime_feed = retract_feed\n",
+  "label": "resume prime uses retract feed instead of original prime feed",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_retraction_handoffs_carry_between_whole_wall_features"
+  ]
+ },
+ {
+  "id": "wave-feature-24",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    if (not math.isfinite(prime) or abs(prime - retract) > 1e-6\n",
+  "new": "    if (not math.isfinite(prime)\n",
+  "label": "unmatched scaffold E accepted by handoff proof",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_retract_plan_refuses_unsafe_feeds_and_nonfinite_amounts"
+  ]
  }
 ]

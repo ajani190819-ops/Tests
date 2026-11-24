@@ -10,14 +10,14 @@ permanent/native certification. Prior silent Lighting failure is history,
 not cause/build proof. No new Guard outcome or collection/matrix request.
 
 **Current focus / monitor (20 retained IDs):**
-- **PLAN-01 CURRENT:** menus good; Wave pre-wave strand/curl reported. Orca
-  2.5.2/custom Ender 3, PLA205°C, Auto/12V fan confirmed. Wave 0.0.54 addresses
-  the synthetic minority-loop gap and requested ≤50% primary M106 ceiling,
-  restore included. Curl cause/exact file match unproven; PWM is not voltage
-  conversion. NEXT: supported processed-preview handoff; native preferred,
-  separate viewer if needed. Series renumbering paused. All controls visible;
-  approved process only, printer/filament read-only, relative E manual, no
-  autosave. `docs/ROADMAP.md`.
+- **PLAN-01 CURRENT:** menus good. Owner's Wave 0.0.53 output: walls before
+  waves/S255. Speed-only G1 F split the wall; 0.0.55 fixes grouping/retract
+  handoffs. Exact 14-move helper passes, not a fresh export/physical trial.
+  Curl unproven. Orca2.5.2/custom Ender3/PLA205°C/Auto/12V; retained S127 is
+  not voltage conversion. NEXT: processed-preview handoff (native preferred,
+  separate acceptable). Renumbering paused. All controls visible; approved
+  process only, printer/filament read-only, relative E manual, no autosave.
+  `docs/ROADMAP.md`.
 - **APP-01 Owner-reported good:** Lighting Open fine; prior "nothing visible"
   is history. Hub 2.8.72 offscreen/458 mutations do not establish that cause.
   `test-hub-open-to-front.md`.

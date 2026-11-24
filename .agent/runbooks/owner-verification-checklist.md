@@ -16,9 +16,11 @@ No repeated logs/matrix or invented fixture/security/hardware/print evidence.
   relative E stays advisory by explicit owner choice. Inspector/toolpath work is
   not in that pass. Menus work/look good; owner now reports a pre-wave outer
   strand and curl. Orca 2.5.2/custom modified Ender 3, PLA 205°C, Auto/12 V fan
-  confirmed. Undahang 0.0.54 addresses a synthetic minority-loop ordering gap
-  and the requested ≤50% primary M106 ceiling (restore included). Curl cause
-  and exact owner-file match remain unproven; PWM is not voltage conversion.
+  confirmed. The owner's 0.0.53 output confirms walls before waves/S255, not
+  a trial of 0.0.54. Undahang 0.0.55 fixes the demonstrated speed-only wall-run
+  split and retract handoff; its exact 14-move helper diagnostic passes, not a
+  fresh export/physical trial. The S127 ceiling remains; curl cause is unproven
+  and PWM is not voltage conversion. Raw owner evidence stays private.
   Next: supported processed-preview handoff; native preferred, separate viewer
   acceptable if needed. Series renumbering remains paused.
   ORCA-04/05 remain PARKED. [Scope](../../docs/ORCA-SETTINGS-SETUP.md).

@@ -6,7 +6,7 @@ Public source repository for the OrcaSlicer plugin lane and the companion Window
 
 | Plugin | Version | Purpose |
 | --- | --- | --- |
-| [Undahang](plugins/wave-overhangs/) | 0.0.54 | Replaces supported bridge extrusion with wall-bounded wave toolpaths. |
+| [Undahang](plugins/wave-overhangs/) | 0.0.55 | Replaces supported bridge extrusion with wall-bounded wave toolpaths. |
 | [Unlayered Infill](plugins/unlayered-infill/) | 0.4.11 | Writes sparse infill through Z so adjacent layers interlock. |
 
 ## Install
@@ -47,10 +47,10 @@ only for now: its own files remain gated on a fresh owner `engine.log`.
 
 | Check | Expected value |
 | --- | --- |
-| File → Plugins, **Version** column | `0.0.54` |
-| The updater's output | `Wave Overhangs v0.0.54` |
-| **Settings guide & check**, first line | `Undahang v0.0.54 -- setup check` |
+| File → Plugins, **Version** column | `0.0.55` |
+| The updater's output | `Wave Overhangs v0.0.55` |
+| **Settings guide & check**, first line | `Undahang v0.0.55 -- setup check` |
 
-The current test-build version applies to `Unlayered Infill`; its current test-build version is `0.4.11`. A successful build reads **0.4.11** for Unlayered Infill and **0.0.54** for Undahang. Use the Version column to confirm 0.0.54 / 0.4.11.
+The current test-build version applies to `Unlayered Infill`; its current test-build version is `0.4.11`. A successful build reads **0.4.11** for Unlayered Infill and **0.0.55** for Undahang. Use the Version column to confirm 0.0.55 / 0.4.11.
 
 For detailed configuration, print evidence, older releases, and app overview, see the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk) and the [Tests Project Guide](https://docs.google.com/document/d/1Fp4zZcQrljlHDMMu6h2u5WMRgBju1_M5D3yafTJgslQ/edit?usp=drivesdk).

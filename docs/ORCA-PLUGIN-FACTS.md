@@ -23,9 +23,11 @@ label every preset override as a process override. The config iframe is
 `sandbox="allow-scripts"`: use inline confirmation, not modal JavaScript APIs.
 The v2.5.1/Nov-16-main API review and host/DOM doubles are not native callback,
 export or physical-print evidence. The owner confirms Orca 2.5.2/custom
-modified Ender 3 and working menus. Later 0.0.54 print safeguards and their
-limits are in the [plugin README](../plugins/wave-overhangs/README.md#print-safeguards);
-this does not certify native callbacks or physical results.
+modified Ender 3 and working menus. Later 0.0.55 print safeguards retain the
+0.0.54 fan ceiling and correct the speed-only wall-run split demonstrated by
+the owner's older 0.0.53 output. Exact wall-helper diagnostics are not a fresh
+owner export or native/physical acceptance. Scope and conservative retract
+handoff refusals: [plugin README](../plugins/wave-overhangs/README.md#print-safeguards).
 Historical host behavior below is retained, not blanket certification of
 Print/Send or UI behavior in every newer build.
 

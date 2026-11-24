@@ -1,6 +1,6 @@
 # Undahang
 
-Current version: **0.0.53**. Install with [Orca-Plugins.bat](../../Orca-Plugins.bat), then choose **Wave Overhangs** in **Process → Others → Slicing Pipeline Plugin**. The Plugins dialog Version column reads **0.0.54**.
+Install with [Orca-Plugins.bat](../../Orca-Plugins.bat), then choose **Wave Overhangs** in **Process → Others → Slicing Pipeline Plugin**. The Plugins dialog Version column reads **0.0.55**.
 
 **Wave Overhangs** remains the package/selector identity inside Orca and in
 saved presets. Undahang is the public brand; its description, setup report
@@ -19,9 +19,28 @@ Detailed configuration, limitations, troubleshooting, and print history are in t
 With `wall_last=true` (the existing default), an eligible wall loop moves
 whole after the layer's waves if any portion lies beyond the support tolerance.
 The former >25%-of-loop test missed short unsupported portions of large loops.
-Relocation still refuses absolute E, unmatched retracts and overlapping edits;
-it preserves layer Z, complete retract/wipe plumbing, final XY and modal feed.
-Ineligible features are left in place, not split or moved indiscriminately.
+Standalone `G0/G1 F…` speed changes now remain inside the same wall feature,
+including transitions between Outer wall and Overhang wall. Actual movement,
+E/mode changes, wipes and non-wall/layer boundaries still split features.
+
+The owner's **0.0.53** output exposed this separate grouping gap: a continuous
+14-move wall was split at speed changes, so its hanging run could not take a
+balanced retract/wipe block with it and was left before the waves. Its exposed
+wall length was about 49.5%; removing the 25% cutoff alone did not fix this case.
+A read-only current-helper diagnostic now selects the intact 14-move feature
+and preserves its deposition geometry/Z/E/feed and retract state after moving
+it behind the existing waves. The old stamped upload was not reprocessed as
+an untouched slicer control, changed, or published.
+
+Relocation still refuses absolute E, unmatched retracts and overlapping edits.
+Copied prime/retract plumbing must match the source entry retraction. Handoffs
+retain that debt between moved features and prime at the wave resume XY,
+without double priming or leaving the next deposition retracted. Unknown
+firmware/tool retraction state, mixed XY/E retract plumbing, unsafe/missing
+retract feeds and nonprimed or absolute-E insertion points are refused.
+Layer boundaries/Z hops stay in place; original wall commands, final wipe XY,
+source entry/exit feed and net E survive. Ineligible features stay in place,
+not split or moved indiscriminately.
 
 The owner requests a **maximum 50% part-fan duty** for a modified Ender 3.
 On an **enabled post-processing pass**, Auto and explicit Wave fan requests,
@@ -46,19 +65,27 @@ covered. Inspect the final file, not the unchanged slice Preview.
 correctly rated supply/control arrangement; the owner's wiring is unverified.
 PLA at 205°C and Auto fan are owner-confirmed. Excess cooling is an unproven
 curl hypothesis, not a diagnosis; no temperature/profile change is included.
-The small-overhang regression is synthetic, not the owner's failing G-code.
+The fresh-rewrite regressions are synthetic; the separate owner-file check
+uses its exact existing wall block diagnostically, not as a fresh export.
 Automated geometry/order/fan checks do not prove physical print quality.
 
 ### Automated verification
 
-The 25 focused print-safeguard tests pass, alongside the existing Cube/t3
-geometry, extrusion-total and retract/wipe regressions. All **525/525** retained
-mutation cases are detected, including all **38 new cases** in their targeted
-behavior tests without fallback. Both clean **296-test** gates pass with exact
-source restoration and no skips/errors/survivors (211.880 seconds on this host).
-These are offline source/G-code checks, not the owner's file or a physical
-print. `tools/check_all.py` and the full mutation fallback include the focused
-suite; numpy/Shapely are required as in `requirements-dev.txt`.
+The **31 focused tests** pass, alongside the existing Cube/t3 geometry,
+extrusion-total and retract/wipe regressions. The new synthetic fresh rewrite
+checks the whole speed-segmented wall after all waves exactly once, unchanged
+wall commands and deposition geometry/Z/E/feed/retract state, no surplus prime,
+old-seam plumbing removal and idempotence. Separate tests cover multi-feature
+retract handoffs and conservative refusal cases.
+
+All **550/550 mutation cases** are detected: the prior 525 definitions remain
+unchanged, plus 25 wall-feature cases detected in their targeted tests without
+fallback. Both clean **302-test** gates pass with exact source restoration and
+zero skips/errors/survivors/stale entries (216.407 seconds on this host).
+The exact 14-move owner-block diagnostic is read-only evidence of these helpers,
+not a freshly exported 0.0.55 file, native-host trial or physical print.
+`tools/check_all.py` and the full mutation fallback include the focused suite;
+numpy/Shapely are required as in `requirements-dev.txt`.
 
 ## Settings and setup
 

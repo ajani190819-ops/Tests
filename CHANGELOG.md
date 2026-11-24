@@ -1,5 +1,15 @@
 # Project changelog
 
+## 0.0.55 — 2026-11-16 (Undahang)
+
+* Fixes the speed-only G1 F wall-run split demonstrated by the owner's older
+  0.0.53 output; this case was not solved by removing the 25% exposure cutoff.
+* Keeps eligible wall features intact after waves and preserves their retract
+  state, entry feed and resume handoff, with conservative unsupported-case
+  refusal. Original wall deposition and net E stay unchanged.
+* Retains the S127 fan ceiling, independent Infill 0.4.11, stable identities
+  and paused renumbering. Preview handoff and physical acceptance remain open.
+
 ## 0.0.54 — 2026-11-16 (Undahang)
 
 * Fixes the demonstrated minority-overhang wall-order gap, retaining safe

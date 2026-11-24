@@ -1403,7 +1403,9 @@
 
 - L20  f load_wave
 - L31  f small_overhang_print
-- L57  f WavePrintSafeguardsTests
+- L57  f variable_feed_overhang_print
+- L85  f relative_extrusion_state
+- L108  f WavePrintSafeguardsTests
 
 ## tests/test_windows_apps.py
 

@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from shapely.geometry import Polygon, box
+from shapely.geometry import LineString, Polygon, box
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -52,6 +52,57 @@ def small_overhang_print():
                  f"G1 X111.15 Y{y:.3f} E0.4 F1200"]
     text += [";TYPE:Sparse infill", "G0 X25 Y25 F6000", "G1 X26 Y25 E0.1 F2400"]
     return "\n".join(text) + "\n"
+
+
+def variable_feed_overhang_print():
+    """Synthetic speed-segmented wall with balanced retract/wipe plumbing.
+
+    This reproduces the command structure, not an owner file or machine preset.
+    """
+    source = small_overhang_print().replace(
+        ";Z:0.6", "G1 E-1.25 F1500\n;Z:0.6", 1).replace(
+        "G1 X111.15 Y35.500 E0.4 F1200",
+        "G1 E1.25 F2700\nG1 X111.15 Y35.500 E0.4 F1200", 1)
+    output = []
+    n = 0
+    for line in source.splitlines():
+        if "; upper boundary" in line:
+            if n == 0:
+                output.append("G1 E1.25 F2700")
+            output.append(f"G1 F{(1800, 1500, 600, 900)[n % 4]}")
+            if n in (2, 4):
+                output.append(";TYPE:Overhang wall" if n == 2 else ";TYPE:Outer wall")
+            output.append(line.replace(" F1800", ""))
+            n += 1
+        else:
+            if line == ";TYPE:Bridge":
+                output += ["G1 E-1.25 F1500", ";WIPE_START", "G1 F600",
+                           "G1 X20.85 Y20.25", ";WIPE_END"]
+            output.append(line)
+    return "\n".join(output) + "\n"
+
+
+def relative_extrusion_state(wave, text):
+    """Deposition geometry/Z/E/feed/debt, final debt and surplus priming."""
+    x = y = 0.0
+    z = feed = None
+    debt = surplus = 0.0
+    events = []
+    for line in text.splitlines():
+        if not wave._MOVE_CODE.match(line):
+            continue
+        words = wave._gwords(line)
+        feed = words.get("F", feed)
+        z = words.get("Z", z)
+        nx, ny = words.get("X", x), words.get("Y", y)
+        e = words.get("E", 0)
+        if e and (nx, ny) != (x, y):
+            events.append((x, y, nx, ny, z, e, feed, debt))
+        elif e > 0:
+            surplus += max(0, e - debt)
+        debt = max(0, debt - e)
+        x, y = nx, ny
+    return sorted(events), debt, surplus
 
 
 class WavePrintSafeguardsTests(unittest.TestCase):
@@ -124,6 +175,75 @@ class WavePrintSafeguardsTests(unittest.TestCase):
         z_line = "G1 Z0.6 F9000 ; layer Z must stay here"
         self.assertLess(ordered.index(z_line), ordered.index("WAVE OVERHANG BEGIN"))
 
+    def test_speed_only_moves_keep_the_whole_wall_feature_together(self):
+        lines = [";Z:0.6\n", ";TYPE:Outer wall\n", "G1 F1800\n",
+                 "G1 X2 Y0 E0.1\n", "G1 F600\n", ";TYPE:Overhang wall\n",
+                 "G1 X3 Y0 E0.1\n", "G1 F900\n", ";TYPE:Outer wall\n",
+                 "G1 X2 Y1 E0.1\n"]
+        def wall(index, a, b):
+            return {"line": index, "a": a, "b": b, "geom": LineString([a, b])}
+
+        def select(walls, text):
+            return self.wave._overhanging_wall_runs(
+                {"walls": walls}, box(-10, -10, -5, -5), 0.05, text)
+
+        walls = [wall(3, (1, 0), (2, 0)), wall(6, (2, 0), (3, 0)),
+                 wall(9, (3, 0), (2, 1))]
+        runs = select(walls, lines)
+        self.assertEqual([[m["line"] for m in run] for run in runs], [[3, 6, 9]])
+        for command in ("", "; harmless comment", ";WIDTH:0.6", "G0 F2700",
+                        "G1F600 ; E-1.25 X9 is only a comment", "M205 X7.5 Y7.5",
+                        "M73 P22 R7"):
+            with self.subTest(inert=command):
+                inert = list(lines)
+                inert[4] = command + "\n"
+                self.assertEqual(len(select(walls, inert)), 1)
+        for command in ("G1 X3 Y1", "G0 X3 Y1", "G1 E-1.25", "G1 Z0.9",
+                        "G1 X2.5 Y0 E0.1", "G92 E0", "M104 S205",
+                        ";TYPE:Bridge", ";WIPE_START", ";Z:0.9",
+                        ";LAYER_CHANGE", ";LAYER_HEIGHT:0.3"):
+            with self.subTest(command=command):
+                boundaries = list(lines)
+                boundaries[4] = command + "\n"
+                self.assertEqual(len(select(walls, boundaries)), 2)
+        adjacent = ["G1 X1 Y0 E0.1\n", ";LAYER_CHANGE\n", "G1 X2 Y0 E0.1\n"]
+        self.assertEqual(len(select([wall(0, (0, 0), (1, 0)),
+                                     wall(2, (1, 0), (2, 0))], adjacent)), 2)
+
+    def test_real_rewrite_keeps_speed_segmented_wall_and_retract_handoff(self):
+        source = variable_feed_overhang_print()
+        cfg = {**self.wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0}
+        result, stats = self.wave._gcode_wave_rewrite(source, cfg)
+        baseline, _ = self.wave._gcode_wave_rewrite(source, {**cfg, "wall_last": False})
+        self.assertGreater(stats.get("walls_moved", 0), 0, stats)
+        self.assertEqual(result.count(self.wave.WALL_LAST_BEGIN), 1)
+        self.assertLess(result.rindex("; ==== WAVE OVERHANG END ===="),
+                        result.index(self.wave.WALL_LAST_BEGIN))
+        start = result.index(self.wave.WALL_LAST_BEGIN)
+        end = result.index(self.wave.WALL_LAST_END, start)
+        moved = result[start:end]
+        for line in source.splitlines():
+            if "; upper boundary" in line:
+                self.assertEqual(result.count(line), 1)
+                self.assertIn(line, moved)
+        self.assertIn(";WIPE_START\nG1 F600\nG1 X20.85 Y20.25\n;WIPE_END", moved)
+        # The old seam must not strand a prime/retract/wipe cycle. The next
+        # bridge's own unretract stays in place; the wall's plumbing moves.
+        old_seam = result[result.index("; wave-overhangs moved this overhanging wall"):
+                          result.index("; ==== WAVE OVERHANG BEGIN ====")]
+        self.assertEqual(old_seam.count("E1.25"), 1)
+        self.assertNotIn("E-1.25", old_seam)
+        self.assertNotIn("WIPE_START", old_seam)
+        self.assertEqual(self.wave._gcode_wave_rewrite(result, cfg)[0], result)
+        for marker in (";Z:0.6", "G1 Z0.6 F9000 ; layer Z must stay here"):
+            self.assertLess(result.index(marker), result.index("WAVE OVERHANG BEGIN"))
+        # Every depositing move retains its geometry/Z/E/feed/retract state:
+        # no deposition while retracted, duplicate prime, or stranded retract.
+        self.assertEqual(relative_extrusion_state(self.wave, result),
+                         relative_extrusion_state(self.wave, baseline))
+        total_e = lambda text: sum(float(s) for s in re.findall(r"(?m)^G[123][^;\n]*\bE(-?[\d.]+)", text))
+        self.assertAlmostEqual(total_e(result), total_e(baseline), places=8)
+
     def test_wall_scaffolding_does_not_absorb_layer_z(self):
         lines = [";Z:0.6\n", "G1 Z0.6 F9000\n", ";TYPE:Outer wall\n",
                  "G0 X0 Y0\n", "G1 X1 Y0 E0.1 F1800\n", ";TYPE:Bridge\n"]
@@ -162,20 +282,122 @@ class WavePrintSafeguardsTests(unittest.TestCase):
         self.assertEqual(self.wave._scaffolding_span(lines, 2, 2), (1, 2))
 
     def test_relocation_preserves_final_wipe_xy_and_overlap_guards(self):
-        lines = ["G1 E1.75 F3600\n", "G1 X1 Y0 E0.1 F1800\n",
-                 "G1 E-1.75 F1800\n", ";WIPE_START\n", "G0 X9 Y2\n", ";WIPE_END\n"]
-        run = [{"line": 1, "a": (0, 0), "b": (1, 0), "feed": 1800}]
+        lines = ["G1 E-1.75 F1800\n", "G1 E1.75 F3600\n",
+                 "G1 X1 Y0 E0.1 F1800\n", "G1 E-1.75 F1800\n",
+                 ";WIPE_START\n", "G0 X9 Y2\n", ";WIPE_END\n",
+                 ";TYPE:Bridge\n", "G1 E1.75 F3600\n", "G1 X5 Y5 E0.1 F1200\n"]
+        run = [{"line": 2, "a": (0, 0), "b": (1, 0), "feed": 1800}]
         replacements = {}
-        moved, count = self.wave._relocate_wall_runs(lines, [run], replacements, 6000, 10, (5, 5))
+        moved, count = self.wave._relocate_wall_runs(lines, [run], replacements, 6000, 9, (5, 5))
         self.assertGreater(count, 0)
-        self.assertIn("G0 F6000 X9.000 Y2.000\n", replacements[0])
-        for line in lines:
+        self.assertIn("G0 F6000 X9.000 Y2.000\n", replacements[1])
+        for line in lines[1:7]:
             self.assertEqual(moved.count(line), 1)
-        for after_line, pending in ((3, {}), (10, {4: ["already rewritten\n"]})):
+        for after_line, pending in ((1, {}), (9, {5: ["already rewritten\n"]})):
             before = dict(pending)
             self.assertEqual(self.wave._relocate_wall_runs(
                 lines, [run], pending, 6000, after_line, (5, 5)), ([], 0))
             self.assertEqual(pending, before)
+
+    def test_handoff_state_scan_tracks_resets_modes_and_unknown_retractions(self):
+        lines = ["M83", "G1 F1200 E-1.5", "G92 E0", "G1 E1.5", "M82",
+                 "G92 E10", "G1 E9", "G1 E10", "M83", "G1 E-1.5",
+                 "G1 X1 Y0 E0.5", "G1 E1"]
+        states = self.wave._wall_handoff_states(lines, set(range(len(lines) + 1)))
+        for index, mode, debt in ((2, True, 1.5), (3, True, 1.5), (4, True, 0),
+                                  (6, False, 0), (7, False, 1), (8, False, 0),
+                                  (10, True, 1.5), (11, True, 1), (12, True, 0)):
+            self.assertEqual(states[index], (mode, debt, 1200))
+        for command in ("G10", "G11", "T1"):
+            with self.subTest(command=command):
+                self.assertIsNone(self.wave._wall_handoff_states(
+                    lines + [command], {13})[13][1])
+
+    def test_relocation_proves_retract_state_and_preserves_source_entry_feed(self):
+        lines = ["M83\n", "G1 E-1.75 F1500\n", ";TYPE:Outer wall\n",
+                 "G0 X0 Y0\n", "G1 E1.75\n", "G1 X1 Y0 E0.1 F1800\n",
+                 "G1 E-1.75 F1400\n", ";WIPE_START\n", "G0 X9 Y2\n",
+                 ";WIPE_END\n", ";TYPE:Bridge\n", "G1 E1.75 F2600\n",
+                 "G1 X5 Y5 E0.1 F1200\n"]
+        run = [{"line": 5, "a": (0, 0), "b": (1, 0), "feed": 1800}]
+        replacements = {}
+        moved, count = self.wave._relocate_wall_runs(
+            lines, [run], replacements, 6000, 12, (5, 5), resume_feed=1200)
+        self.assertGreater(count, 0)
+        self.assertEqual(self.wave._last_feedrate(moved[:moved.index(lines[4])]), 1500)
+        result = "".join(s for i, line in enumerate(lines)
+                         for s in replacements.get(i, [line])) + "".join(moved)
+        self.assertEqual(relative_extrusion_state(self.wave, result),
+                         relative_extrusion_state(self.wave, "".join(lines)))
+        for index, command in ((0, "G10"), (0, "G11"), (0, "T1"),
+                               (1, "G1 E-1.0 F1500"), (1, "G1 E-1.75"),
+                               (4, "G1 E1.5"), (6, "G1 X1.1 E-1.75 F1400"),
+                               (10, "M82")):
+            with self.subTest(index=index, command=command):
+                unsafe = list(lines)
+                unsafe[index] = command + "\n"
+                pending = {99: ["unrelated replacement\n"]}
+                self.assertEqual(self.wave._relocate_wall_runs(
+                    unsafe, [run], pending, 6000, 12, (5, 5)), ([], 0))
+                self.assertEqual(pending, {99: ["unrelated replacement\n"]})
+        for state in ((True, float("inf"), 1500), (True, None, 1500),
+                      (False, 1.75, 1500)):
+            self.assertIsNone(self.wave._wall_retract_plan(lines, 2, 9, 5, 5, state))
+
+    def test_retract_plan_refuses_unsafe_feeds_and_nonfinite_amounts(self):
+        lines = ["G1 E1.75 F2600", "G1 X1 Y0 E0.1 F1800", "G1 E-1.75 F1400"]
+        self.assertEqual(self.wave._wall_retract_plan(lines, 0, 2, 1, 1, (True, 1.75, 1500)),
+                         (1.75, 1400, 2600))
+        for index, command in ((0, "G1 E1.75 F0"), (2, "G1 E-1.75 F-2"),
+                               (0, "G1 E1.75 F" + "9" * 400),
+                               (0, "G1 E" + "9" * 400 + " F2600"),
+                               (2, "G1 E-0.5 F1400"), (2, "G1 E1.75 F1400"),
+                               (0, "G1 E-1.75 F2600"), (0, "G1 E0 F2600")):
+            with self.subTest(index=index, command=command[:30]):
+                unsafe = list(lines)
+                unsafe[index] = command
+                self.assertIsNone(self.wave._wall_retract_plan(
+                    unsafe, 0, 2, 1, 1, (True, 1.75, 1500)))
+        lines[0] = "G1 E1.75"
+        self.assertIsNone(self.wave._wall_retract_plan(lines, 0, 2, 1, 1, (True, 1.75, None)))
+
+    def test_retraction_handoffs_carry_between_whole_wall_features(self):
+        lines = ["M83\n", ";Z:0.6\n", "G1 Z0.6 F6500\n", "G0 X0 Y0\n"]
+        runs = []
+        for x, retract in ((90, 0.75), (60, 1.25), (30, 0)):
+            if retract:
+                lines.append(f"G1 E{-retract} F1400\n")
+            lines += [f"G0 X{x} Y0 Z0.6 F6500\n", ";TYPE:Outer wall\n"]
+            if retract:
+                lines.append(f"G1 E{retract} F2600\n")
+            runs.append([{"line": len(lines), "a": (x, 0), "b": (x + 2, 0), "feed": 1800}])
+            lines.append(f"G1 X{x + 2} Y0 E0.1 F1800\n")
+            if retract:
+                lines.append(f"G1 E{-retract} F1400\n")
+            lines += [";WIPE_START\n", f"G0 X{x + 1} Y0.2 F6500\n",
+                      ";WIPE_END\n", ";TYPE:Bridge\n"]
+            if retract:
+                lines.append(f"G1 E{retract} F2600\n")
+            lines.append(f"G1 X{x} Y5 E0.15 F1200\n")
+        replacements = {}
+        moved, count = self.wave._relocate_wall_runs(
+            lines, runs, replacements, 6500, len(lines) - 1, (30, 5), resume_feed=1200)
+        self.assertGreater(count, 0)
+        self.assertEqual(moved.count(self.wave.WALL_LAST_BEGIN + "\n"), 3)
+        joined = "".join(moved)
+        self.assertLess(joined.index("G1 X32 Y0 E0.1"), joined.index("G1 X62 Y0 E0.1"))
+        self.assertLess(joined.index("G1 X62 Y0 E0.1"), joined.index("G1 X92 Y0 E0.1"))
+        self.assertIn("E-1.25 ; wave-overhangs wall handoff retract", joined)
+        self.assertIn("E0.5 ; wave-overhangs wall handoff prime", joined)
+        self.assertIn("E0.75 ; wave-overhangs wall handoff prime", joined)
+        result = "".join(s for i, line in enumerate(lines)
+                         for s in replacements.get(i, [line])) + joined
+        self.assertEqual(relative_extrusion_state(self.wave, result),
+                         relative_extrusion_state(self.wave, "".join(lines)))
+        # The final prime happens at the resume point, before F is returned.
+        self.assertTrue(joined.endswith(
+            "G0 F6500 X30.000 Y5.000\nG1 F2600 E0.75 ; wave-overhangs wall handoff prime\n"
+            "G1 F1200\n"))
 
     def test_collapse_preserves_travel_and_following_modal_feed(self):
         lines = ["; wave-overhangs replaced covered bridge move 1\n",

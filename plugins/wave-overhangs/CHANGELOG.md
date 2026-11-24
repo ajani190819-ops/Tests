@@ -2,6 +2,21 @@
 
 The in-app Check setup view carries these three current releases. Full version history is preserved in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
 
+## 0.0.55 — 2026-11-16
+
+* Keeps speed-segmented overhanging walls intact after the waves: standalone
+  G0/G1 F changes no longer split a continuous wall's retract/wipe feature.
+* Matches copied wall retraction to the source entry state, carries that
+  state between moved walls, and primes at the wave resume point. Preserves
+  original wall commands, entry/exit feed and net extrusion without leaving
+  a ghost retract/wipe cycle at the old seam.
+* Refuses unknown firmware/tool retraction state, mixed XY/E retract plumbing,
+  unbalanced primes, unsafe feeds and absolute/nonprimed insertion points.
+* The owner's older 0.0.53 output confirms the missed speed-segmented case.
+  Exact wall-block diagnostics and synthetic fresh-export checks are not a
+  new owner export, native-host trial or physical print/curl acceptance.
+  The existing S127 primary fan ceiling and preset read-only policy remain.
+
 ## 0.0.54 — 2026-11-16
 
 * Moves eligible whole overhanging wall loops after the waves even when only

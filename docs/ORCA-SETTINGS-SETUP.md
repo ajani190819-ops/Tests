@@ -120,12 +120,15 @@ Orca installation. This is **owner-reported settings UI feedback**, not proof
 that every save/restore, setup transaction or export path has been tested.
 The owner now reports a pre-wave unsupported outer strand and upward-curling
 Wave edges on Orca 2.5.2, custom modified Ender 3, PLA at 205°C and Auto fan.
-They explicitly request no fan duty above 50% for their 12 V fan. The later
-[0.0.54 print safeguards](../plugins/wave-overhangs/README.md#print-safeguards)
-address a demonstrated synthetic ordering gap and the cooling ceiling, not a
-proven curl cause or verified fix of their exact file. PWM is not voltage
-conversion; wiring and physical outcome remain unverified. Printer/filament
-setup is still read-only; the requested limit is applied to output, not presets.
+They explicitly request no fan duty above 50% for their 12 V fan. Their supplied
+**0.0.53-stamped output** confirms walls before waves and full-speed S255 fan
+requests; it is not a trial of the later ceiling. The
+[0.0.55 print safeguards](../plugins/wave-overhangs/README.md#print-safeguards)
+correct its speed-only wall grouping gap and retraction handoff, retaining the
+0.0.54 S127 ceiling. Exact wall-helper diagnostics and synthetic fresh-export
+checks do not establish a new owner export or physical/curl acceptance. PWM is
+not voltage conversion; wiring and physical outcome remain unverified.
+Printer/filament setup stays read-only; the limit affects output, not presets.
 
 The next request is to preview **processed G-code without manually exporting
 and reopening it**. [Feasibility findings](ROADMAP.md#processed-g-code-preview--feasibility-review)

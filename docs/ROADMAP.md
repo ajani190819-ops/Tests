@@ -1,12 +1,12 @@
 # Orca plugin roadmap
 
-Current releases: plugins: Undahang **0.0.54** and Unlayered Infill **0.4.11**, with the package names kept version-free.
+Current releases: plugins: Undahang **0.0.55** and Unlayered Infill **0.4.11**, with the package names kept version-free.
 Capability names, module/storage paths and G-code stamp prefixes stay stable.
 
 | Plugin | Current state |
 | --- | --- |
 | Unlayered Infill | 0.4.11. Settings/setup increment; engine/defaults retained. Owner reports the new menus working/looking good; prints pending. |
-| Undahang | 0.0.54. Minority-overhang whole-wall ordering and ≤50% primary M106 ceiling, including restoration. Menus owner-reported good; exact failing output/curl cause and physical acceptance remain open. |
+| Undahang | 0.0.55. Speed-segmented whole-wall grouping/retract handoffs, retaining ≤50% primary M106 ceiling. Owner's older output confirms the missed ordering case; exact wall-helper diagnosis passes, not a fresh export or physical/curl acceptance. |
 | Wave Overhangs Geometry | Archived, not a new development target. |
 
 ## Approved first pass — settings and setup only
@@ -25,7 +25,12 @@ The owner confirms **Orca 2.5.2**, a custom modified-Ender-3 profile, **PLA at
 205°C**, Auto fan and a **12 V fan**. New print feedback is an unsupported outer
 strand before waves and upward-curling edges. The explicit ≤50% duty request
 is implemented separately from the wall-order correction; curl's cause remains
-unproven. [Print safeguards and boundaries](../plugins/wave-overhangs/README.md#print-safeguards).
+unproven. The owner's supplied 0.0.53 output confirms a missed speed-segmented
+wall before waves and S255 commands, not a trial of 0.0.54. Version 0.0.55 keeps
+that wall intact across speed-only moves and preserves retract state at replay
+handoffs. Its exact 14-move helper diagnostic and synthetic fresh-export
+regressions pass; no fresh owner export/native trial or physical fix is claimed.
+[Print safeguards and boundaries](../plugins/wave-overhangs/README.md#print-safeguards).
 No printer/filament profile or nozzle-temperature change is included.
 Existing ORCA-01/02/03 current-use approvals remain.
 ORCA-04 wake/seam and ORCA-05 curved-boundary research stay **PARKED** until
