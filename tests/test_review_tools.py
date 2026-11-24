@@ -389,7 +389,7 @@ class OwnerHandoffContractTests(unittest.TestCase):
                        "relative E stays advisory", "No Simple/Advanced hiding", "PARKED", "DEFERRED", "16518", "16941", "unmerged",
                        "2D XY", "two capabilities per plugin", "only Script capabilities",
                        "SlicingPipeline hooks remain synchronous", "can deadlock", "JSON fallback",
-                       "dry run must not rewrite the print file", "installed Orca version is unknown"):
+                       "dry run must not rewrite the print file", "Orca 2.5.2", "PLA at 205°C", "≤50%", "curl"):
             with self.subTest(boundary=phrase):
                 self.assertIn(phrase, roadmap)
 

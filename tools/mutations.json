@@ -4868,5 +4868,385 @@
   "tests": [
    "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
   ]
+ },
+ {
+  "id": "wave-order-00",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if hanging > 1e-6:\n",
+  "new": "        if hanging > 100.0:\n",
+  "label": "minority-overhang wall cutoff restored",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_small_exposed_portion_moves_the_whole_loop"
+  ]
+ },
+ {
+  "id": "wave-order-01",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if hanging > 1e-6:\n            out.append(run)\n",
+  "new": "        if hanging > 1e-6:\n            out.extend([seg] for seg in run)\n",
+  "label": "wall loop split into separate moves",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_small_exposed_portion_moves_the_whole_loop"
+  ]
+ },
+ {
+  "id": "wave-order-02",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if not seg.get(\"relative_e\", True):\n",
+  "new": "        if False:\n",
+  "label": "absolute-E wall relocation allowed",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_absolute_e_and_missing_support_stay_excluded"
+  ]
+ },
+ {
+  "id": "wave-order-03",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    grown = support.buffer(max(0.0, tol)) if support is not None else None\n",
+  "new": "    grown = support\n",
+  "label": "wall support tolerance ignored",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_supported_or_within_tolerance_is_not_reordered"
+  ]
+ },
+ {
+  "id": "wave-order-04",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if candidate.startswith((\";Z:\", \";LAYER_CHANGE\")):\n            break                          # never move a layer boundary\n",
+  "new": "",
+  "label": "preceding layer marker absorbed",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_wall_scaffolding_does_not_absorb_layer_z"
+  ]
+ },
+ {
+  "id": "wave-order-05",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            if candidate.startswith((\";TYPE:\", \";Z:\", \";LAYER_CHANGE\")):\n",
+  "new": "            if candidate.startswith(\";TYPE:\"):\n",
+  "label": "next layer comment absorbed",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_wall_scaffolding_never_absorbs_next_layer_marker_or_z_hop"
+  ]
+ },
+ {
+  "id": "wave-order-06",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if \"Z\" in words:\n            break                          # leave layer changes / Z hops in place\n",
+  "new": "",
+  "label": "wall scaffold absorbs preceding Z move",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_wall_scaffolding_does_not_absorb_layer_z"
+  ]
+ },
+ {
+  "id": "wave-order-07",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if \"Z\" in words:\n            break\n        e = words.get(\"E\")\n",
+  "new": "        e = words.get(\"E\")\n",
+  "label": "wall scaffold absorbs following Z hop",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_wall_scaffolding_never_absorbs_next_layer_marker_or_z_hop"
+  ]
+ },
+ {
+  "id": "wave-order-08",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    if abs(net) > 1e-6:\n        return first, last\n",
+  "new": "    if False:\n        return first, last\n",
+  "label": "unbalanced retract scaffold accepted",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_wall_scaffolding_rejects_unbalanced_retract"
+  ]
+ },
+ {
+  "id": "wave-order-09",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if any(i in replacements for i in range(first, last + 1)):\n",
+  "new": "        if False:\n",
+  "label": "wall relocation overwrites a wave replacement",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_relocation_preserves_final_wipe_xy_and_overlap_guards"
+  ]
+ },
+ {
+  "id": "wave-order-10",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        end = _last_xy(lines[first:last + 1], initial=start)\n",
+  "new": "        end = run[-1][\"b\"]\n",
+  "label": "removed wall seam loses final wipe position",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_relocation_preserves_final_wipe_xy_and_overlap_guards"
+  ]
+ },
+ {
+  "id": "wave-order-11",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if end_feed is not None:\n            replacements[first].append(f\"G1 F{end_feed:g}\\n\")\n",
+  "new": "",
+  "label": "old wall seam does not restore modal feed",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_relocation_restores_feed_at_both_handoffs"
+  ]
+ },
+ {
+  "id": "wave-order-12",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if resume_feed is not None:\n            moved.append(f\"G1 F{resume_feed:g}\\n\")\n",
+  "new": "",
+  "label": "moved wall does not restore wave resume feed",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_relocation_restores_feed_at_both_handoffs"
+  ]
+ },
+ {
+  "id": "wave-order-13",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            if final_feed is not None and final_feed != travel_feed:\n                out.append(f\"G1 F{final_feed:g}\\n\")\n",
+  "new": "",
+  "label": "travel collapse drops restored extrusion feed",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_collapse_preserves_travel_and_following_modal_feed"
+  ]
+ },
+ {
+  "id": "wave-order-14",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            travel_feed = _last_feedrate(run[:last_travel_index + 1])\n",
+  "new": "            travel_feed = None\n",
+  "label": "surviving travel loses inherited feed",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_collapse_preserves_travel_and_following_modal_feed"
+  ]
+ },
+ {
+  "id": "wave-order-15",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if widened == (first, last):\n",
+  "new": "        if False:\n",
+  "label": "wall extrusion moved without its scaffold",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_wall_scaffolding_rejects_unbalanced_retract"
+  ]
+ },
+ {
+  "id": "wave-fan-00",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "PART_FAN_MAX_DUTY = 0.5\n",
+  "new": "PART_FAN_MAX_DUTY = 1.0\n",
+  "label": "part fan duty ceiling raised to full scale",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_auto_and_explicit_requests_are_limited_without_editing_config"
+  ]
+ },
+ {
+  "id": "wave-fan-01",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "PART_FAN_MAX_PWM = int(255 * PART_FAN_MAX_DUTY)\n",
+  "new": "PART_FAN_MAX_PWM = round(255 * PART_FAN_MAX_DUTY)\n",
+  "label": "half-scale rounded above 50 percent",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_pwm_rounding_cannot_cross_half_scale"
+  ]
+ },
+ {
+  "id": "wave-fan-02",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    out[\"fan\"] = max(0.0, min(PART_FAN_MAX_DUTY, requested))\n",
+  "new": "    out[\"fan\"] = requested\n",
+  "label": "auto and explicit fan requests not limited",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_auto_and_explicit_requests_are_limited_without_editing_config"
+  ]
+ },
+ {
+  "id": "wave-fan-03",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "           f\"M106 S{_part_fan_pwm(swcfg.fan)}\"]",
+  "new": "           f\"M106 S{int(round(swcfg.fan * 255))}\"]",
+  "label": "wave emitter bypasses duty ceiling",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_emitter_limits_both_wave_and_restored_fan"
+  ]
+ },
+ {
+  "id": "wave-fan-04",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        out.append(f\"M106 S{max(0, min(PART_FAN_MAX_PWM, int(restore_fan)))}\")",
+  "new": "        out.append(f\"M106 S{int(restore_fan)}\")",
+  "label": "fan restoration bypasses ceiling",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_emitter_limits_both_wave_and_restored_fan"
+  ]
+ },
+ {
+  "id": "wave-fan-05",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    out = []\n    changed = 0\n    for line in text.splitlines(keepends=True):\n",
+  "new": "    return text, 0\n    out = []\n    changed = 0\n    for line in text.splitlines(keepends=True):\n",
+  "label": "original slicer fan commands never limited",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_splice_caps_original_commands_even_without_waves"
+  ]
+ },
+ {
+  "id": "wave-fan-06",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        requested = float(speed[2]) if speed is not None else 255.0\n",
+  "new": "        requested = float(speed[2]) if speed is not None else 0.0\n",
+  "label": "implicit M106 full speed treated as off",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_file_limiter_handles_implicit_compact_and_primary_channel"
+  ]
+ },
+ {
+  "id": "wave-fan-07",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            if channel != 0.0:\n",
+  "new": "            if True:\n",
+  "label": "explicit primary P0 fan exempted",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_file_limiter_handles_implicit_compact_and_primary_channel"
+  ]
+ },
+ {
+  "id": "wave-fan-08",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            if channel != 0.0:\n",
+  "new": "            if False:\n",
+  "label": "unrelated fan channels modified",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_file_limiter_preserves_lower_values_comments_and_other_fans"
+  ]
+ },
+ {
+  "id": "wave-fan-09",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "_PART_FAN_COMMAND = re.compile(r\"^(\\ufeff?\\s*(?:N\\d+\\s*)?M0*106)(?!\\d)\", re.I)",
+  "new": "_PART_FAN_COMMAND = re.compile(r\"^(\\s*M106)\\b\", re.I)",
+  "label": "compact and numbered fan commands missed",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_file_limiter_handles_implicit_compact_and_primary_channel"
+  ]
+ },
+ {
+  "id": "wave-fan-10",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if 0.0 <= requested <= PART_FAN_MAX_PWM:\n",
+  "new": "        if 0.0 <= requested <= 255:\n",
+  "label": "copied high fan speeds passed through",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_file_limiter_handles_implicit_compact_and_primary_channel"
+  ]
+ },
+ {
+  "id": "wave-fan-11",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "                return orca.ExecutionResult.failure(\n                    orca.PluginResult.RecoverableError,\n                    f\"Undahang: export stopped - could not produce the \"\n                    f\"50%-limited G-code ({type(e).__name__}: {e})\")",
+  "new": "                return orca.ExecutionResult.success(\"Undahang: splice skipped\")",
+  "label": "uncapped export failure reported as success",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_export_error_is_not_reported_as_successful_uncapped_skip"
+  ]
+ },
+ {
+  "id": "wave-fan-12",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            if words.get(\"P\", 0) == 0:\n                fan = 0\n",
+  "new": "            if words.get(\"P\", 0) == 0:\n                fan = None\n",
+  "label": "M107 off state not restored",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_primary_fan_restore_tracks_off_and_ignores_other_channels"
+  ]
+ },
+ {
+  "id": "wave-fan-13",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "                if words.get(\"P\", 0) == 0:\n                    fan = int(words.get(\"S\", 255))\n",
+  "new": "                if True:\n                    fan = int(words.get(\"S\", 255))\n",
+  "label": "auxiliary command corrupts primary restoration",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_primary_fan_restore_tracks_off_and_ignores_other_channels"
+  ]
+ },
+ {
+  "id": "wave-fan-14",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "                    section[\"fan\"] = fan   # active at insertion, not TYPE comment\n",
+  "new": "                    pass\n",
+  "label": "restoration ignores fan change after TYPE marker",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_primary_fan_restore_tracks_off_and_ignores_other_channels"
+  ]
+ },
+ {
+  "id": "wave-fan-15",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            if key in words:\n                raise ValueError(\"Ambiguous duplicate M106 parameter\")\n",
+  "new": "",
+  "label": "duplicate fan parameter passes through",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_ambiguous_primary_fan_commands_cannot_bypass_limit"
+  ]
+ },
+ {
+  "id": "wave-fan-16",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if _PART_FAN_WORD.sub(\"\", payload).strip():\n",
+  "new": "        if False:\n",
+  "label": "unsupported primary command silently accepted",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_ambiguous_primary_fan_commands_cannot_bypass_limit"
+  ]
+ },
+ {
+  "id": "wave-fan-17",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "            if not math.isfinite(channel) or channel < 0 or not channel.is_integer():\n",
+  "new": "            if not math.isfinite(channel) or channel < 0:\n",
+  "label": "fractional primary channel can bypass limit",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_ambiguous_primary_fan_commands_cannot_bypass_limit"
+  ]
+ },
+ {
+  "id": "wave-fan-18",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        if checksum or re.match(r\"\\ufeff?\\s*N\\d\", code, re.I):\n",
+  "new": "        if False:\n",
+  "label": "numbered or checksummed fan command rewritten with stale checksum",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_ambiguous_primary_fan_commands_cannot_bypass_limit"
+  ]
+ },
+ {
+  "id": "wave-fan-19",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    if not math.isfinite(value):\n        raise ValueError(\"Part-fan duty must be finite\")\n",
+  "new": "",
+  "label": "nonfinite emitted fan request accepted",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_pwm_rounding_cannot_cross_half_scale"
+  ]
+ },
+ {
+  "id": "wave-gates-00",
+  "file": "tools/check_all.py",
+  "old": ", \"test_wave_print_safeguards.py\"]",
+  "new": "]",
+  "label": "normal verification omits new Wave safeguards",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_safeguards_are_in_normal_and_full_mutation_gates"
+  ]
+ },
+ {
+  "id": "wave-gates-01",
+  "file": "tools/mutate.py",
+  "old": ",\n              \"tests.test_wave_print_safeguards\")",
+  "new": ")",
+  "label": "full mutation fallback omits Wave safeguards",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_safeguards_are_in_normal_and_full_mutation_gates"
+  ]
  }
 ]

@@ -2018,8 +2018,9 @@ print("ok -- post-wave jumping: a travel run survives M73/M204/M106 between "
 # were emitted in file order, so the nozzle crossed the part between each.
 assert wave._DEFAULTS["keep_uncovered_bridge"] is True
 
-# A loop is judged as a whole: mostly-hanging means the whole run moves,
-# mostly-supported means none of it does, so it never comes apart.
+# A loop stays whole: any exposed portion beyond the support tolerance moves
+# the run after the waves. Minority-overhang coverage lives in the focused
+# test_wave_print_safeguards unittest module as well as the normal check gate.
 hole_src, _hole = wave_cases.synthetic_overhang_with_hole()
 whole_out, whole_stats = wave._gcode_wave_rewrite(
     hole_src, {**wave._DEFAULTS, "_lh": 0.3, "straight_bridge_span": 0})

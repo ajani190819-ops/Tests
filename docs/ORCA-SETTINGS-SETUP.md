@@ -88,8 +88,10 @@ transactions and preset saving are not used anywhere in this assistant.
 
 Reviewed API/source contracts: Orca **v2.5.1** and main commit
 `5841f9652d2fb2ab437797850829c19f3191efaf` (through 2026-11-16).
-The owner's installed Orca version is unknown. Feature checks, rather than a
-version-number assumption, govern preset inspection, staged process edits,
+The owner now confirms **Orca 2.5.2**, using a custom modified-Ender-3 profile.
+The refreshed host/background files in the [preview review](ROADMAP.md#processed-g-code-preview--feasibility-review)
+match the earlier source snapshot; this is not a full re-audit of every API.
+Feature checks, rather than a version-number assumption, govern staged edits,
 native confirmation and the config bridge/context. Older or restricted hosts
 fall back to non-writing advice and/or their JSON editor.
 
@@ -116,17 +118,24 @@ experimental print/collision/strength limitations still apply.
 The owner confirms the new menus are visible, working and look good in their
 Orca installation. This is **owner-reported settings UI feedback**, not proof
 that every save/restore, setup transaction or export path has been tested.
-Test-print results are pending; no new physical-print outcome is recorded.
-The exact Orca version and selected printer profile have not been supplied.
+The owner now reports a pre-wave unsupported outer strand and upward-curling
+Wave edges on Orca 2.5.2, custom modified Ender 3, PLA at 205°C and Auto fan.
+They explicitly request no fan duty above 50% for their 12 V fan. The later
+[0.0.54 print safeguards](../plugins/wave-overhangs/README.md#print-safeguards)
+address a demonstrated synthetic ordering gap and the cooling ceiling, not a
+proven curl cause or verified fix of their exact file. PWM is not voltage
+conversion; wiring and physical outcome remain unverified. Printer/filament
+setup is still read-only; the requested limit is applied to output, not presets.
 
 The next request is to preview **processed G-code without manually exporting
 and reopening it**. [Feasibility findings](ROADMAP.md#processed-g-code-preview--feasibility-review)
-remain a review, not a delivered feature or approval for new toolpath behavior.
-Version renumbering is paused; releases remain 0.0.53 / 0.4.11.
+remain a review, not a delivered feature or approval for adaptive toolpaths.
+Native Preview is preferred; a separate viewer is acceptable if necessary.
+Series renumbering remains paused; the patch continues 0.0.x (Infill 0.4.11).
 
 ## Verification boundary / development
 
-For this increment, the eight-target Windows build check and full **uncached**
+For the original **0.0.53 / 0.4.11 settings increment**, the eight-target Windows build check and full **uncached**
 repository suite pass in both dependency states. All eight EXEs remain
 byte-identical. The 20 new settings/setup tests include 432 actual-page
 DOM/bridge-double assertions. The full mutation run detects **487/487** cases,

@@ -25,7 +25,9 @@ registered mutation campaign for behavior changes, and a separate release marker
 ## Detection and restoration contract
 
 - The complete **mutation test suite** (Windows-app tests, Notes tests and runner
-  safety regressions) must pass on clean sources before and after a campaign.
+  safety/settings and focused Wave print-safeguard regressions) must pass on
+  clean sources before and after a campaign. Wave requires the normal
+  `requirements-dev.txt` numpy/Shapely dependencies (use the configured venv).
   This does not replace `check_all.py` or native/hardware acceptance.
 - A missing route runs that whole suite. A passing targeted invocation must
   fall back to that whole suite. A bad selector, worker crash, timeout, skipped

@@ -14,9 +14,13 @@ No repeated logs/matrix or invented fixture/security/hardware/print evidence.
   both Orca plugins: every control visible in labelled groups, exact approved
   process diffs only, no automatic preset saves. Printer/filament stay read-only;
   relative E stays advisory by explicit owner choice. Inspector/toolpath work is
-  not in this pass. Owner sees the new menus working/looking good; prints are
-  pending. Next is processed-preview feasibility without manual export/reopen;
-  host version/profile unknown, implementation unchosen, renumbering paused.
+  not in that pass. Menus work/look good; owner now reports a pre-wave outer
+  strand and curl. Orca 2.5.2/custom modified Ender 3, PLA 205°C, Auto/12 V fan
+  confirmed. Undahang 0.0.54 addresses a synthetic minority-loop ordering gap
+  and the requested ≤50% primary M106 ceiling (restore included). Curl cause
+  and exact owner-file match remain unproven; PWM is not voltage conversion.
+  Next: supported processed-preview handoff; native preferred, separate viewer
+  acceptable if needed. Series renumbering remains paused.
   ORCA-04/05 remain PARKED. [Scope](../../docs/ORCA-SETTINGS-SETUP.md).
 - **APP-01 Owner-reported good:** Lighting Open/current use now fine. The 2.8.72
   offscreen source regression does not establish the owner's cause or installed
@@ -52,8 +56,8 @@ changes Hub/Lighting placement only, not engines, input or settings. No installa
 - Selected Hub branch and its `.agent/RELEASED` commit; installed Hub version
   (placement follow-up **2.8.72**), Windows version, screen/DPI/theme.
 - Installed app/plugin/JAR identity, not just current Git tip. This increment
-  is Undahang **0.0.53** / Infill **0.4.11**; the owner's installed identity is
-  unknown. Orca still calls the stable package/capabilities **Wave Overhangs**.
+  is Undahang **0.0.54** / Infill **0.4.11**; installed plugin identity remains
+  unconfirmed (host is owner-confirmed Orca 2.5.2). Orca still calls the stable package/capabilities **Wave Overhangs**.
 - For each item: **PASS / FAIL / BLOCKED / NOT RUN**, exact action, expected vs
   observed result, build/environment and a reviewed screenshot/log if relevant.
   Keep precise locations, security history, user paths and server data private;

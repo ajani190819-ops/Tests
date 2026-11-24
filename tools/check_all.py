@@ -27,7 +27,7 @@ TESTS = ["test_installer.py", "test_plugin_audit.py", "test_agent_notes.py",
          "test_post_script.py", "test_unlayered_waves.py",
          "test_wave_gcode.py", "test_windows_apps.py", "test_mutation_runner.py",
          "test_spatial_hud.py", "test_review_tools.py", "test_app_review.py",
-         "test_orca_settings_ui.py"]
+         "test_orca_settings_ui.py", "test_wave_print_safeguards.py"]
 NODEPS_ONLY = ["test_plugin_runtime.py", "test_plugin_audit.py"]
 TOOLS = [["tools/sync_engine.py", "--check"],
          ["tools/sync_orca_ui.py", "--check"],

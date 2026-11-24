@@ -2,6 +2,19 @@
 
 The in-app Check setup view carries these three current releases. Full version history is preserved in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
 
+## 0.0.54 — 2026-11-16
+
+* Moves eligible whole overhanging wall loops after the waves even when only
+  a small portion of the loop is unsupported; removes the 25%-of-loop blind spot.
+* Caps enabled export-pass primary part-fan M106 requests at S127 (below 50%
+  of 255): Auto, explicit values, restoration and original slicer commands.
+  Lower/off requests survive; unrelated fan channels are not changed.
+* Preserves layer Z, balanced retract/wipe plumbing, final wipe XY and modal
+  feed at wall handoffs. Unsupported fan syntax/write failures refuse export
+  rather than reporting an uncapped success.
+* PWM duty is NOT voltage conversion or 12 V fan protection. Curl's cause and
+  the owner's exact failing strand remain unconfirmed; no physical fix claimed.
+
 ## 0.0.53 — 2026-11-16
 
 * Adds a grouped settings form with every tuning control visible, units,

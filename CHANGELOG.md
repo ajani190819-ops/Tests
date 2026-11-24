@@ -1,5 +1,15 @@
 # Project changelog
 
+## 0.0.54 — 2026-11-16 (Undahang)
+
+* Fixes the demonstrated minority-overhang wall-order gap, retaining safe
+  whole-feature relocation and layer/retract/wipe/position/feed handoffs.
+* Applies the owner's 50% primary part-fan request ceiling, including Auto,
+  original M106 commands and restoration; S127 avoids rounding above 50%.
+  This is not voltage conversion, a curl diagnosis or physical validation.
+* Keeps the 0.0.x series, stable identities, independent Infill 0.4.11 and
+  read-only printer/filament setup. Processed-preview integration is still open.
+
 ## 0.0.53 — 2026-11-16 (Undahang)
 
 * All existing controls are visible in labelled form groups, with units,

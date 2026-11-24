@@ -1,12 +1,12 @@
 # Orca plugin roadmap
 
-Current releases: plugins: Undahang **0.0.53** and Unlayered Infill **0.4.11**, with the package names kept version-free.
+Current releases: plugins: Undahang **0.0.54** and Unlayered Infill **0.4.11**, with the package names kept version-free.
 Capability names, module/storage paths and G-code stamp prefixes stay stable.
 
 | Plugin | Current state |
 | --- | --- |
 | Unlayered Infill | 0.4.11. Settings/setup increment; engine/defaults retained. Owner reports the new menus working/looking good; prints pending. |
-| Undahang | 0.0.53. Settings/setup increment; engine/defaults retained. Owner reports the new menus working/looking good; print/safety limits remain. |
+| Undahang | 0.0.54. Minority-overhang whole-wall ordering and ≤50% primary M106 ceiling, including restoration. Menus owner-reported good; exact failing output/curl cause and physical acceptance remain open. |
 | Wave Overhangs Geometry | Archived, not a new development target. |
 
 ## Approved first pass — settings and setup only
@@ -21,7 +21,12 @@ Implementation and compatibility details: [settings/setup](ORCA-SETTINGS-SETUP.m
 Automated checks remain source/API and mocked/DOM verification. The owner now
 confirms the settings menus are working and look good in Orca; that narrow UI
 report does not certify all configuration transactions, callbacks or exports.
-Print feedback is pending; the installed Orca version is unknown.
+The owner confirms **Orca 2.5.2**, a custom modified-Ender-3 profile, **PLA at
+205°C**, Auto fan and a **12 V fan**. New print feedback is an unsupported outer
+strand before waves and upward-curling edges. The explicit ≤50% duty request
+is implemented separately from the wall-order correction; curl's cause remains
+unproven. [Print safeguards and boundaries](../plugins/wave-overhangs/README.md#print-safeguards).
+No printer/filament profile or nozzle-temperature change is included.
 Existing ORCA-01/02/03 current-use approvals remain.
 ORCA-04 wake/seam and ORCA-05 curved-boundary research stay **PARKED** until
 explicitly selected. Further PLAN-02 optimization stays **DEFERRED**. PLAN-01
@@ -30,34 +35,38 @@ tracks this increment; further additions require owner questions/approval.
 ### Processed G-code preview — feasibility review
 
 The owner asks to avoid manually exporting and reopening G-code just to see
-the plugin changes. No new preview implementation or toolpath change is
-approved yet. Undahang renumbering is paused (still 0.0.53; Infill 0.4.11).
+the plugin changes. Native Preview is preferred without another menu; a
+separate viewer is acceptable if necessary, but no integration is delivered.
+This is not approval for a fork, brand spoofing or adaptive toolpath changes.
+Series renumbering is paused (0.0.x retained; Infill 0.4.11 unchanged).
 
-- In reviewed **v2.5.1** source,
-  [background slicing](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.1/src/slic3r/GUI/BackgroundSlicingProcess.cpp#L282-L304)
+- In refreshed **v2.5.2** source (owner-confirmed host version),
+  [background slicing](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.2/src/slic3r/GUI/BackgroundSlicingProcess.cpp#L282-L304)
   already runs post-processing and reloads the processed moves into its preview
   for **Bambu-vendor printer profiles**. This conditional source path is not
-  proof of execution on the owner's unknown host/profile.
+  proof of execution on the owner's custom modified-Ender-3 profile.
 - The non-Bambu
-  [export path](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.1/src/slic3r/GUI/BackgroundSlicingProcess.cpp#L858-L871)
+  [export path](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.2/src/slic3r/GUI/BackgroundSlicingProcess.cpp#L858-L871)
   post-processes a separate copy while preview keeps the original memory-mapped
   file and its line offsets. Never overwrite that mapped original as a shortcut.
-- Reviewed [Python application bindings](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.1/src/slic3r/plugin/host/PluginHostApp.cpp#L154-L189)
+- Reviewed [Python application bindings](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.2/src/slic3r/plugin/host/PluginHostApp.cpp#L154-L189)
   expose project/model inspection and **3MF** copy export, not G-code export,
   native preview reload or toolpath-result injection.
-  [Docked HTML panels](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.1/src/slic3r/plugin/host/PluginHostUi.cpp#L730-L753)
+  [Docked HTML panels](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.2/src/slic3r/plugin/host/PluginHostUi.cpp#L730-L753)
   can host a separate viewer; that alone does not obtain current processed
   G-code or replace the built-in 3D preview. These three binding files and the
-  background-slicing source match date-bounded main
-  `5841f9652d2fb2ab437797850829c19f3191efaf`.
+  background-slicing source match the earlier v2.5.1/date-bounded-main review
+  (`5841f9652d2fb2ab437797850829c19f3191efaf`). The fresh comparison covers these
+  four files, not every 2.5.2 API.
 - Both shipped plugins use `psGCodePostProcess`. The reviewed
   [post-processor](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.1/src/slic3r/GUI/PostProcessor.cpp#L266-L340)
   dispatches that seam for the selected slicing-pipeline capabilities.
   [`GCodeExportFinished`](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.1/src/libslic3r/GCode.cpp#L3116-L3127)
   fires before this post-processing call; it is not a final processed-output
   notification. A separate inspector still needs a reliable processed snapshot.
-- **Next:** identify the installed Orca version and selected printer/profile
-  before recommending the native path or a separately scoped integration.
+- **Next:** select a supported processed-output handoff for the confirmed
+  custom-profile host. The reviewed bindings provide no native reload/export
+  action; a separate viewer still needs real, current processed output.
   A one-click export/reload action is not promised through an absent API.
   No UI work in synchronous slicing/lifecycle callbacks, live-reference
   retention, printer-brand spoofing or audit/permission bypass is approved.

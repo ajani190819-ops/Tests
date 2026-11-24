@@ -1210,15 +1210,15 @@
 
 ## tools/mutate.py
 
-- L30  f registry_issues
-- L61  f validate_result
-- L85  f execute_tests
-- L134  f campaign_lock
-- L157  f termination_guard
-- L171  f run_campaign
-- L252  f successful
-- L259  f write_report
-- L275  f main
+- L31  f registry_issues
+- L62  f validate_result
+- L86  f execute_tests
+- L135  f campaign_lock
+- L158  f termination_guard
+- L172  f run_campaign
+- L253  f successful
+- L260  f write_report
+- L276  f main
 
 ## tools/mutation_worker.py
 
@@ -1396,8 +1396,14 @@
 - L1681  f holey_export
 - L1856  f turn_angles
 - L1916  f p90
-- L2034  f travel_after_waves
-- L2096  f stranded_wipes
+- L2035  f travel_after_waves
+- L2097  f stranded_wipes
+
+## tests/test_wave_print_safeguards.py
+
+- L20  f load_wave
+- L31  f small_overhang_print
+- L57  f WavePrintSafeguardsTests
 
 ## tests/test_windows_apps.py
 
