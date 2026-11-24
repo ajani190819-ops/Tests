@@ -1,6 +1,6 @@
 # Undahang
 
-Install with [Orca-Plugins.bat](../../Orca-Plugins.bat), then choose **Wave Overhangs** in **Process → Others → Slicing Pipeline Plugin**. The Plugins dialog Version column reads **0.0.57**.
+Install with [Orca-Plugins.bat](../../Orca-Plugins.bat), then choose **Wave Overhangs** in **Process → Others → Slicing Pipeline Plugin**. The Plugins dialog Version column reads **0.0.58**.
 
 **Wave Overhangs** remains the package/selector identity inside Orca and in
 saved presets. Undahang is the public brand; its description, setup report
@@ -42,7 +42,10 @@ Layer boundaries/Z hops stay in place; original wall commands, final wipe XY,
 source entry/exit feed and net E survive. Ineligible features stay in place,
 not split or moved indiscriminately.
 
-The owner requests a **maximum 50% part-fan duty** for a modified Ender 3.
+The owner requests a **maximum 0.5 (50%) part-fan duty** for a modified Ender 3.
+The shipped `fan` default and missing/invalid-value fallbacks are now explicitly
+**0.5**, not auto/full duty. The existing output cap is hard-coded and needs
+**no successful settings save**, even with older auto/high saved values.
 On an **enabled post-processing pass**, Auto and explicit Wave fan requests,
 restoration and copied **unaddressed/P0 `M106`** commands are limited to
 **S127/255 ≈ 49.8%**. S128 would exceed 50%. Lower speeds and off remain lower/off;
@@ -71,7 +74,10 @@ Automated geometry/order/fan checks do not prove physical print quality.
 
 ### Automated verification
 
-The **31 focused tests** pass, alongside the existing Cube/t3 geometry,
+The **33 focused tests** pass, including real temporary-file exports with
+config saves refused or raising, empty/legacy auto/high/low/off values and
+with/without waves. These use a fake host API, not native Orca persistence.
+They pass alongside the existing Cube/t3 geometry,
 extrusion-total and retract/wipe regressions. The new synthetic fresh rewrite
 checks the whole speed-segmented wall after all waves exactly once, unchanged
 wall commands and deposition geometry/Z/E/feed/retract state, no surplus prime,
@@ -102,8 +108,9 @@ limitation is not hidden by inventing metadata or modifying Orca.
 
 The main capability's Config form shows **all existing controls in labelled
 groups**, with units, inline notes, global/preset scope and a JSON fallback.
-**Save plugin settings** now uses a direct button click: Orca's sandbox blocks
-form submission before its handler. Saved global settings and preset overrides
+**Save plugin settings still fails per the owner** after the prior direct-click
+correction. Keep Save unresolved; this release supplies the built-in fan
+workaround, not a new Save claim. Global settings and preset overrides
 remain separate; **save the preset in Orca** to persist an override. No preset
 is automatically saved. Restore global defaults
 and removing a preset override are different actions and are labelled as such.
@@ -112,6 +119,7 @@ The scope bridge does not expose the preset category: check the host title.
 Run the existing setup-check Script action for active prerequisite advice.
 Only a precisely confirmed process diff can be applied. **Printer and filament
 profiles stay read-only in setup**, including relative E; selections are not
-rewired. Engines/defaults are unchanged. Native Orca UI/exports/prints for this
+rewired. Only the explicit fan default/fallback changes here; geometry and
+other tuning stay unchanged. Native Orca UI/exports/prints for this
 increment are not claimed from source/DOM tests. See the
 [settings/setup guide](../../docs/ORCA-SETTINGS-SETUP.md) for details.

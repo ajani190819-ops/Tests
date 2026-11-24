@@ -2,6 +2,20 @@
 
 The Plugins → Config page and Check setup report carry the three newest releases. Orca's native Changelog tab is cloud-backed and is not populated by these local .py installs. Full version history is preserved below and in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
 
+## 0.0.58 — 2026-11-16
+
+* Sets the shipped fan request and missing/invalid-value fallbacks explicitly
+  to 0.5 (50%), instead of auto/full-duty fallback. The existing code-level
+  ceiling still limits primary M106 output to S127 without a settings save,
+  including legacy higher/auto values, original commands and restoration.
+* Keeps lower/off requests and other fan channels intact; profiles and saved
+  settings are not forcibly overwritten. Wall/toolpath safeguards are retained.
+* The owner reports Save still does not work after 0.0.57. It remains unresolved;
+  this is the requested built-in fan workaround, not another Save-fix claim.
+* Adds real temporary-file export regressions with config saves refused or
+  raising, plus explicit-default/fallback checks. Native Orca persistence,
+  wiring, physical print quality and curl causation are not certified.
+
 ## 0.0.57 — 2026-11-16
 
 * Fixes Save plugin settings in Orca's sandbox: a direct button click sends

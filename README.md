@@ -6,7 +6,7 @@ Public source repository for the OrcaSlicer plugin lane and the companion Window
 
 | Plugin | Version | Purpose |
 | --- | --- | --- |
-| [Undahang](plugins/wave-overhangs/) | 0.0.57 | Replaces supported bridge extrusion with wall-bounded wave toolpaths. |
+| [Undahang](plugins/wave-overhangs/) | 0.0.58 | Replaces supported bridge extrusion with wall-bounded wave toolpaths. |
 | [Unlayered Infill](plugins/unlayered-infill/) | 0.4.13 | Writes sparse infill through Z so adjacent layers interlock. |
 
 ## Install
@@ -26,7 +26,9 @@ remains a separate plugin; no preset migration or re-selection is required.
 Undahang now moves an eligible whole wall loop after the waves even when
 only a small part overhangs. Enabled export passes limit **primary part-fan
 M106** commands, including restoration, to **S127 (about 49.8%, never above
-50%)**. Lower/off requests are retained; printer/filament presets are not edited.
+50%)**. The shipped fan default/fallbacks are explicitly **0.5**; this
+code-level cap needs **no successful settings save**. Lower/off requests are
+retained; printer/filament presets are not edited.
 **PWM is not 24 V → 12 V conversion or electrical protection.** Use correctly
 rated fan power. Curl's cause and the owner's exact failing output remain
 unconfirmed. See [scope and limits](plugins/wave-overhangs/README.md#print-safeguards).
@@ -39,9 +41,9 @@ are preserved across updates. The existing setup Script actions inspect active
 prerequisites and apply only an exactly confirmed process diff, leaving it
 unsaved. Relative E stays manual printer advice; setup never edits printer or
 filament profiles. No new inspector or toolpath experiments are included.
-The Save button now sends config through a direct click action; Orca's sandbox
-blocks the old form-submit route. Preset overrides still need a manual preset
-save in Orca. See [settings/setup and verification limits](docs/ORCA-SETTINGS-SETUP.md).
+The owner still reports **Save does not work** after the direct-click change;
+Save remains unresolved. The fan cap above does not depend on that button.
+Preset overrides still need a manual preset save in Orca. See [settings/setup and verification limits](docs/ORCA-SETTINGS-SETUP.md).
 For either plugin's release notes, open **File → Plugins → Config →
 Changelog — recent changes** (jump link beside the installed version).
 Both existing capability pages show the newest three entries from that
@@ -54,10 +56,10 @@ only for now: its own files remain gated on a fresh owner `engine.log`.
 
 | Check | Expected value |
 | --- | --- |
-| File → Plugins, **Version** column | `0.0.57` |
-| The updater's output | `Wave Overhangs v0.0.57` |
-| **Settings guide & check**, first line | `Undahang v0.0.57 -- setup check` |
+| File → Plugins, **Version** column | `0.0.58` |
+| The updater's output | `Wave Overhangs v0.0.58` |
+| **Settings guide & check**, first line | `Undahang v0.0.58 -- setup check` |
 
-The current test-build version applies to `Unlayered Infill`; its current test-build version is `0.4.13`. A successful build reads **0.4.13** for Unlayered Infill and **0.0.57** for Undahang. Use the Version column to confirm 0.0.57 / 0.4.13.
+The current test-build version applies to `Unlayered Infill`; its current test-build version is `0.4.13`. A successful build reads **0.4.13** for Unlayered Infill and **0.0.58** for Undahang. Use the Version column to confirm 0.0.58 / 0.4.13.
 
 For detailed configuration, print evidence, older releases, and app overview, see the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk) and the [Tests Project Guide](https://docs.google.com/document/d/1Fp4zZcQrljlHDMMu6h2u5WMRgBju1_M5D3yafTJgslQ/edit?usp=drivesdk).

@@ -50,10 +50,41 @@ The existing Script capabilities also have a small form for their original
 configuration. Undahang's written guide labels its last backed-up snapshot
 rather than claiming to read another capability's live preset override.
 
+## Fan cap without Save — Undahang 0.0.58
+
+The owner reports that **Save still does not work after 0.0.57/0.4.13** and
+asks for the fan to be capped directly at **0.5 (50%)**. Save remains unresolved;
+the prior browser correction below is not installed-host acceptance. This
+increment does not ask the owner to diagnose Save or start another test loop.
+
+The shipped Wave `fan` default is now the number **0.5**, not `auto`. Missing
+or invalid-value fan fallbacks are also 0.5. Its existing hard-coded
+`PART_FAN_MAX_DUTY = 0.5` / **M106 S127** ceiling does not depend on any successful
+config save: stored legacy `auto`/higher requests, original primary-fan commands
+and restoration remain limited on an enabled export pass. S127/255 is about
+49.8%; S128 would exceed 50%. Lower/off requests and other fan channels stay
+lower/off or untouched. Saved settings, backups and profiles are not forced
+to new values; the runtime output ceiling remains authoritative.
+
+Two new regressions check explicit default/fallbacks and run the real plugin
+config loader/migration and actual temporary-file exports with `save_config`
+returning false or raising. Empty and legacy auto/high/low/off configurations,
+with and without waves, retain the primary ceiling without a successful Save.
+Only the host capability API is faked; this is not installed Orca persistence,
+physical-print or electrical validation. The 33 print-safeguard tests and 22
+settings/setup tests (504 DOM assertions) pass. All 566/566 mutations are
+detected; the prior 562 definitions are unchanged, plus four fan-default/no-Save
+cases. Clean 306-test pre/post gates pass with exact restoration and zero
+skips/survivors/stale/errors (217.226 seconds on this host). Infill stays 0.4.13
+and unchanged. Wall paths, retract/wipe/Z/feed handling, setup permissions and
+identities are unchanged. PWM limiting is not 24 V to 12 V conversion or a curl diagnosis.
+Preview remains next; renumbering is paused and parked/deferred work stays put.
+
 ## Save button fix — Undahang 0.0.57 / Infill 0.4.13
 
-The owner reports **Save plugin settings does not save**. The actual defect is
-in the shared page: Save was `type="submit"` and persistence ran only from a
+**Historical source correction, not a resolved owner outcome:** the owner
+subsequently reports Save still fails; see the workaround above. One reproduced
+defect was in the shared page: Save was `type="submit"` and persistence ran only from a
 form `submit` listener. Both Orca 2.5.2 configuration iframes use
 `sandbox="allow-scripts"`, **without `allow-forms`**. A browser blocks form
 submission before dispatching that listener, so no `window.orca.saveConfig`

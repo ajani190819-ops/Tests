@@ -5618,5 +5618,45 @@
   "tests": [
    "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
   ]
+ },
+ {
+  "id": "wave-fan-default-00",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    \"fan\": 0.5,                     # explicit 50% request; hard cap works without Save",
+  "new": "    \"fan\": \"auto\",                  # lost explicit half-duty default",
+  "label": "default fan returns to auto instead of explicit half duty",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_shipped_fan_default_and_fallback_are_explicit_half_duty"
+  ]
+ },
+ {
+  "id": "wave-fan-default-01",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "AUTO_FAN_FALLBACK = 0.5\n",
+  "new": "AUTO_FAN_FALLBACK = 1.0\n",
+  "label": "missing/invalid fan fallback returns to full duty",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_shipped_fan_default_and_fallback_are_explicit_half_duty"
+  ]
+ },
+ {
+  "id": "wave-fan-default-02",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "        fan=_float_cfg(cfg, \"fan\", AUTO_FAN_FALLBACK),",
+  "new": "        fan=_float_cfg(cfg, \"fan\", 1.0),",
+  "label": "wave config ignores the half-duty fallback",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_shipped_fan_default_and_fallback_are_explicit_half_duty"
+  ]
+ },
+ {
+  "id": "wave-fan-default-03",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "    limited, fan_count = _limit_part_fan_gcode(text)\n    new_text, stats = _gcode_wave_rewrite(limited, cfg)\n    new_text, final_count = _limit_part_fan_gcode(new_text)\n",
+  "new": "    limited, fan_count = text, 0\n    new_text, stats = _gcode_wave_rewrite(limited, cfg)\n    final_count = 0\n",
+  "label": "export omits code-level ceiling when settings saving is unavailable",
+  "tests": [
+   "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_export_caps_fan_when_configuration_save_is_refused"
+  ]
  }
 ]

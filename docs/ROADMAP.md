@@ -1,12 +1,12 @@
 # Orca plugin roadmap
 
-Current releases: plugins: Undahang **0.0.57** and Unlayered Infill **0.4.13**, with the package names kept version-free.
+Current releases: plugins: Undahang **0.0.58** and Unlayered Infill **0.4.13**, with the package names kept version-free.
 Capability names, module/storage paths and G-code stamp prefixes stay stable.
 
 | Plugin | Current state |
 | --- | --- |
-| Unlayered Infill | 0.4.13. Fixes Save blocked by sandboxed form submission; retains Config changelogs and engine/defaults. Browser/host-JS round trips pass; native persistence/prints unverified. |
-| Undahang | 0.0.57. Same Save fix; retains Config changelogs, whole-wall/retract safeguards and ≤50% primary M106 ceiling. Exact wall-helper diagnosis passes, not a fresh export or physical/curl acceptance. |
+| Unlayered Infill | 0.4.13. Unchanged. Prior direct-click correction is browser-only evidence; owner still reports Save failure. Config changelogs and engine/defaults retained. |
+| Undahang | 0.0.58. Fan default/fallbacks explicitly 0.5; existing S127 code cap needs no successful config save. Save remains unresolved per owner. Wall safeguards retained; no native/physical/curl acceptance. |
 | Wave Overhangs Geometry | Archived, not a new development target. |
 
 ## Approved first pass — settings and setup only
@@ -28,7 +28,13 @@ Save now uses a plain button/click; corrected actual-click regressions and
 headless-Chromium checks with unmodified pinned host JavaScript pass for all
 four pages in both scopes. Browser backing storage is simulated, not native
 Orca persistence or export/print acceptance. The earlier synthetic-submit
-checks did not expose this bug. Preset overrides still need a manual preset save.
+checks did not expose this bug. The owner now reports **Save still fails**
+after that correction: keep it unresolved, not certified from browser doubles.
+At the owner's request, Undahang 0.0.58 makes fan default/fallbacks explicitly
+**0.5**. The existing code-level S127 ceiling needs no successful settings
+save; actual temporary-file exports with refused/raising config saves pass.
+No new Save diagnosis/owner collection loop is added. Preset overrides still
+need a manual preset save.
 The owner confirms **Orca 2.5.2**, a custom modified-Ender-3 profile, **PLA at
 205°C**, Auto fan and a **12 V fan**. New print feedback is an unsupported outer
 strand before waves and upward-curling edges. The explicit ≤50% duty request

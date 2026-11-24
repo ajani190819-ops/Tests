@@ -424,9 +424,26 @@ class WavePrintSafeguardsTests(unittest.TestCase):
             with self.subTest(commands=commands):
                 self.assertEqual(layer["sections"][0]["fan"], expected)
 
+    def test_shipped_fan_default_and_fallback_are_explicit_half_duty(self):
+        cap = self.capability({})
+        cap.save_config = mock.Mock(side_effect=AssertionError("no Save required"))
+        self.assertEqual(self.wave._DEFAULTS["fan"], 0.5)
+        self.assertEqual(cap.get_default_config()["fan"], 0.5)
+        self.assertEqual(self.wave.AUTO_FAN_FALLBACK, 0.5)
+        for value in (None, "auto", "not-a-number"):
+            cfg = {**self.wave._DEFAULTS, "fan": value}
+            with self.subTest(value=value):
+                self.assertEqual(self.wave._wave_config(cfg, 0.2).fan, 0.5)
+                resolved = self.wave._resolve_autos(cfg, 0.4, {})
+                self.assertEqual(resolved["fan"], 0.5)
+                if value in (None, "auto"):
+                    self.assertIn("50%", resolved["_auto_notes"]["fan"])
+                    self.assertNotIn("100%", resolved["_auto_notes"]["fan"])
+        cap.save_config.assert_not_called()
+
     def test_auto_and_explicit_requests_are_limited_without_editing_config(self):
         for profile in ({}, {"bridge_fan_speed": "100"}, {"bridge_fan_speed": "80"}):
-            cfg = {**self.wave._DEFAULTS}
+            cfg = {**self.wave._DEFAULTS, "fan": "auto"}
             result = self.wave._resolve_autos(cfg, 0.4, profile)
             self.assertEqual(result["fan"], 0.5)
             self.assertIn("50%", result["_auto_notes"]["fan"])
@@ -515,6 +532,36 @@ class WavePrintSafeguardsTests(unittest.TestCase):
         cap.get_config = lambda: json.dumps(cfg)
         cap.save_config = lambda raw: True
         return cap
+
+    def test_export_caps_fan_when_configuration_save_is_refused(self):
+        # Real plugin config loading/migration + real temp-file export, with
+        # only Orca's capability/config API faked. This is not a native-host test.
+        source = "M83\nM106 S255\nM106 P0 S200\nM106 S51\nM107\nM106 P1 S255\nG1 X1 E0.2\n"
+        for saved in ({}, {"fan": "auto"}, {"fan": 1.0}, {"fan": 0.2}, {"fan": 0}):
+            for raises in (False, True):
+                for text in (source, small_overhang_print()):
+                    with self.subTest(saved=saved, raises=raises, waves=text != source):
+                        self.wave._MIGRATED.clear()
+                        path = Path(self.temp.name) / "no-settings-save.gcode"
+                        path.write_text(text)
+                        raw = json.dumps(saved)
+                        cap = self.capability(saved)
+                        cap.save_config = mock.Mock(return_value=False,
+                            side_effect=PermissionError("test: config save unavailable") if raises else None)
+                        result = cap.execute(fake_orca.Context(
+                            fake_orca.Step.psGCodePostProcess, str(path)))
+                        self.assertTrue(result.ok, result)
+                        output = path.read_text()
+                        self.assertEqual(self.wave._limit_part_fan_gcode(output), (output, 0))
+                        self.assertNotIn("M106 S255", output)
+                        self.assertEqual(cap.get_config(), raw)  # no settings were saved
+                        if saved:
+                            self.assertGreater(cap.save_config.call_count, 0)
+                        if text == source:
+                            self.assertEqual(output, source.replace("S255\nM106 P0 S200", "S127\nM106 P0 S127", 1))
+                        else:
+                            self.assertIn("WAVE OVERHANG BEGIN", output)
+        self.wave._MIGRATED.clear()
 
     def test_export_error_is_not_reported_as_successful_uncapped_skip(self):
         cap = self.capability(self.wave._DEFAULTS)

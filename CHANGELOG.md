@@ -1,5 +1,16 @@
 # Project changelog
 
+## 0.0.58 — 2026-11-16 (Undahang)
+
+* Makes fan default/fallbacks explicitly 0.5 (50%); the existing independent
+  S127 primary-fan ceiling needs no successful settings save. Lower/off
+  requests, original-command/restoration limiting and wall safeguards remain.
+* Records the owner's continued Save failure after 0.0.57 as unresolved.
+  Adds actual file-export checks with failed config saves, not native Orca
+  persistence or physical-print certification. No new Save diagnosis loop.
+* Infill remains 0.4.13; no printer/filament edits, preset autosave or preview
+  integration. Preview remains next; paused/parked/deferred scope is unchanged.
+
 ## 0.0.57 — 2026-11-16 (Undahang)
 
 * Fixes Save plugin settings: Orca's allow-scripts iframe blocks form submission

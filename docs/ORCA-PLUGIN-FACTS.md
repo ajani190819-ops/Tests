@@ -22,8 +22,11 @@ Host context reports global/preset scope but not the preset category; do not
 label every preset override as a process override. The config iframe is
 `sandbox="allow-scripts"`: use inline confirmation, not modal JavaScript APIs.
 It also lacks `allow-forms`: Save must be a `type="button"` click action, not
-form submission (blocked before submit fires). The 0.0.57/0.4.13 fix is
-browser-reproduced with pinned host JS, not native Orca persistence acceptance.
+form submission (blocked before submit fires). The 0.0.57/0.4.13 correction
+is browser-reproduced only: the owner still reports Save failure. Keep it open.
+Wave 0.0.58 sets fan default/fallbacks to 0.5; its existing S127 code cap needs
+no successful config save, including legacy higher/auto values. It is not a
+firmware/electrical limiter or native/physical acceptance; see the plugin README.
 The v2.5.1/Nov-16-main API review and host/DOM doubles are not native callback,
 export or physical-print evidence. The owner confirms Orca 2.5.2/custom
 modified Ender 3 and working menus. Later 0.0.55 print safeguards retain the
