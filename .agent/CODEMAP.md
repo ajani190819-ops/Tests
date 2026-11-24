@@ -1323,7 +1323,7 @@
 - L44  f Preset
 - L54  f SetupHost
 - L132  f SettingsPageTests
-- L223  f SetupAssistantTests
+- L247  f SetupAssistantTests
 
 ## tests/test_plugin_audit.py
 

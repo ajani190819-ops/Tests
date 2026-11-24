@@ -5498,5 +5498,85 @@
   "tests": [
    "tests.test_wave_print_safeguards.WavePrintSafeguardsTests.test_retract_plan_refuses_unsafe_feeds_and_nonfinite_amounts"
   ]
+ },
+ {
+  "id": "orca-changelog-00",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "\"changelog\": CHANGELOG_RECENT",
+  "new": "\"changelog\": \"\"",
+  "label": "unlayered-infill: installed changelog omitted from Config payload",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_installed_changelog_is_visible_and_matches_each_release_file"
+  ]
+ },
+ {
+  "id": "orca-changelog-01",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "document.getElementById('changelogText').textContent = schema.changelog;",
+  "new": "document.getElementById('changelogText').innerHTML = schema.changelog;",
+  "label": "unlayered-infill: release notes parsed as markup rather than literal text",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-changelog-02",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "\"release\": _UI_PRODUCT + \" v\" + PLUGIN_VERSION",
+  "new": "\"release\": _UI_PRODUCT + \" v0.0.0\"",
+  "label": "unlayered-infill: Config installed-version label hardcoded and stale",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_installed_changelog_is_visible_and_matches_each_release_file"
+  ]
+ },
+ {
+  "id": "orca-changelog-03",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "<section id=\"recentChanges\" aria-labelledby=\"changelogTitle\">",
+  "new": "<section id=\"recentChangesMissing\" aria-labelledby=\"changelogTitle\">",
+  "label": "unlayered-infill: Config changelog jump link target missing",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_installed_changelog_is_visible_and_matches_each_release_file"
+  ]
+ },
+ {
+  "id": "orca-changelog-04",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "\"changelog\": CHANGELOG_RECENT",
+  "new": "\"changelog\": \"\"",
+  "label": "wave-overhangs: installed changelog omitted from Config payload",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_installed_changelog_is_visible_and_matches_each_release_file"
+  ]
+ },
+ {
+  "id": "orca-changelog-05",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "document.getElementById('changelogText').textContent = schema.changelog;",
+  "new": "document.getElementById('changelogText').innerHTML = schema.changelog;",
+  "label": "wave-overhangs: release notes parsed as markup rather than literal text",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-changelog-06",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "\"release\": _UI_PRODUCT + \" v\" + PLUGIN_VERSION",
+  "new": "\"release\": _UI_PRODUCT + \" v0.0.0\"",
+  "label": "wave-overhangs: Config installed-version label hardcoded and stale",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_installed_changelog_is_visible_and_matches_each_release_file"
+  ]
+ },
+ {
+  "id": "orca-changelog-07",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "<section id=\"recentChanges\" aria-labelledby=\"changelogTitle\">",
+  "new": "<section id=\"recentChangesMissing\" aria-labelledby=\"changelogTitle\">",
+  "label": "wave-overhangs: Config changelog jump link target missing",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_installed_changelog_is_visible_and_matches_each_release_file"
+  ]
  }
 ]

@@ -11,7 +11,9 @@ _SETTINGS_PAGE = r'''<!doctype html>
 * { box-sizing: border-box; }
 body { margin: 0; padding: 20px; color: var(--orca-fg,#263445); background: var(--orca-bg,#f3f5f8); }
 h1 { font-size: 23px; margin: 0 0 6px; } h2 { font-size: 17px; margin: 0 0 12px; }
-p { margin: 6px 0 12px; } code,textarea { font-family: ui-monospace,monospace; }
+p { margin: 6px 0 12px; } code,textarea,pre { font-family: ui-monospace,monospace; }
+pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+a { color: inherit; text-underline-offset: 3px; }
 section,.banner { border: 1px solid var(--orca-border,#bcc8d7); border-radius: 12px; padding: 16px; margin: 16px 0; }
 .banner { background: var(--orca-control-bg,#e7edf5); }
 .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,310px),1fr)); gap: 18px 24px; }
@@ -30,6 +32,7 @@ svg text { fill: currentColor; font: 12px system-ui,sans-serif; }
 </style></head><body>
 <h1 id="title">Plugin settings</h1>
 <p id="intro"></p>
+<p><strong id="release"></strong> · <a href="#recentChanges">Changelog — recent changes</a></p>
 <div class="banner"><strong id="scope">Waiting for Orca configuration</strong><p id="scopeHelp"></p></div>
 <p>Every tuning control is visible below. Nothing is hidden under Advanced. Auto values resolve on export, not in this form.</p>
 <div id="diagram"></div>
@@ -41,6 +44,9 @@ svg text { fill: currentColor; font: 12px system-ui,sans-serif; }
 <label for="raw">Full configuration JSON</label><textarea id="raw" spellcheck="false"></textarea>
 <div class="actions"><button id="loadJson" type="button">Load JSON draft into form</button></div></section>
 </form>
+<section id="recentChanges" aria-labelledby="changelogTitle"><h2 id="changelogTitle">Changelog — recent changes</h2>
+<p>Read-only release notes bundled with this installed plugin. Local .py installs do not populate Orca's cloud-backed Changelog tab; read the recent entries here or run Check setup.</p>
+<pre id="changelogText"></pre></section>
 <script id="schema" type="application/json">__SETTINGS_SCHEMA__</script>
 <script>
 (function () {
@@ -169,6 +175,8 @@ function receive(cfg) {
 }
 document.getElementById('title').textContent = schema.title;
 document.getElementById('intro').textContent = schema.intro;
+document.getElementById('release').textContent = schema.release;
+document.getElementById('changelogText').textContent = schema.changelog;
 // Static schematics only, never a generated toolpath or safety/clearance prediction.
 if (!schema.check) document.getElementById('diagram').innerHTML = schema.infill ? '<svg viewBox="0 0 500 96" role="img" aria-label="Schematic of waved infill between flat skins, not a toolpath preview"><path d="M12 15H488M12 76H488" fill="none" stroke="currentColor" stroke-width="4"/><path d="M12 46 Q42 8 72 46 T132 46 T192 46 T252 46 T312 46 T372 46 T432 46 T488 46" fill="none" stroke="currentColor" stroke-width="2"/><text x="15" y="94">Amplitude: Z offset · Frequency: ripples/mm · Schematic only</text></svg>' : '<svg viewBox="0 0 500 96" role="img" aria-label="Schematic of wave fronts growing from a supported edge, not a toolpath preview"><path d="M18 10V74" stroke="currentColor" stroke-width="7"/><path d="M22 20Q100 46 22 66M55 15Q180 46 55 70M95 12Q260 46 95 73M140 10Q340 46 140 76" fill="none" stroke="currentColor" stroke-width="2"/><text x="15" y="94">Supported edge → wave fronts · Spacing and overlap · Schematic only</text></svg>';
 document.getElementById('raw').addEventListener('input',function () { revision++; dirty = true; rawDirty = true; updateScope(); status('JSON draft not loaded. Load it into the form or Reload from Orca before saving.'); });
@@ -256,7 +264,8 @@ def _config_ui(for_check=False):
               "intro": ("This capability controls only the written guide. Run " + _UI_CHECK_NAME + " explicitly for setup checks. This form changes report options only; setup fixes run only from the Script action." if for_check else
                         "Run " + _UI_CHECK_NAME + " for setup and last-export diagnostics. Existing experimental controls are not a collision, strength or print-quality guarantee."),
               "defaults": defaults, "groups": groups, "check": for_check,
-              "infill": _UI_INFILL}
+              "infill": _UI_INFILL, "release": _UI_PRODUCT + " v" + PLUGIN_VERSION,
+              "changelog": CHANGELOG_RECENT}
     # A stored </script> must not escape the inert JSON payload.
     payload = json.dumps(schema, ensure_ascii=True).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     return _SETTINGS_PAGE.replace("__SETTINGS_SCHEMA__", payload)

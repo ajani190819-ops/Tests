@@ -25,7 +25,7 @@ function harness(page,config = {},context = {scope:'global'},options = {}) {
   const schema = JSON.parse(page.match(/<script id="schema" type="application\/json">([\s\S]*?)<\/script>/)[1]);
   const script = page.match(/<script>([\s\S]*?)<\/script>/)[1];
   const roots = {};
-  for (const id of ['schema','groups','title','intro','scope','scopeHelp','status','diagram','save','restore','reload','raw','loadJson','settings','confirmBox','confirmText','confirmYes','confirmNo']) roots[id] = new Element('div');
+  for (const id of ['schema','groups','title','intro','scope','scopeHelp','status','diagram','save','restore','reload','raw','loadJson','settings','confirmBox','confirmText','confirmYes','confirmNo','release','changelogText']) roots[id] = new Element('div');
   roots.schema.textContent = JSON.stringify(schema);
   const document = {getElementById(id) { return Object.values(roots).flatMap(root => root.descendants()).find(node => node.id === id) || roots[id] || null; },createElement(tag) { return new Element(tag); }};
   const saves = [];
@@ -47,6 +47,15 @@ for (const {html,name} of pages) {
   let h = harness(html);
   equal(h.saves,[],name+': opening never saves');
   equal(h.restores,0,name+': opening never restores');
+  equal(h.node('release').textContent,schema.release,name+': installed release label');
+  equal(h.node('changelogText').textContent,schema.changelog,name+': installed changelog rendered verbatim');
+  ok(schema.changelog.includes('v'+schema.release.split(' v')[1]),name+': changelog includes installed version');
+  equal(h.node('changelogText').children.length,0,name+': release notes are text, never parsed markup');
+  const unsafe = '</script><img src=x onerror=bad()>&\\u2028';
+  const unsafePage = html.replace(/(<script id="schema" type="application\/json">)[\s\S]*?(<\/script>)/,(_all,open,close) => open+JSON.stringify({...schema,changelog:unsafe}).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026')+close);
+  const unsafeHarness = harness(unsafePage);
+  equal(unsafeHarness.node('changelogText').textContent,unsafe,name+': dangerous notes displayed as literal text');
+  equal(unsafeHarness.node('changelogText').children.length,0,name+': dangerous notes cannot create elements');
   for (const field of fields) {
     const input = h.node('setting-'+field.key);
     ok(input && !input.disabled,name+': every control editable/visible after host load');
@@ -113,6 +122,7 @@ for (const {html,name} of pages) {
   equal(h.restores,0,name+': new host config cancels pending inline action');
   // No host bridge, getConfig-only legacy bridge, invalid callback and synchronous errors.
   h = harness(html,cfg,undefined,{noBridge:true}); h.save(); equal(h.saves.length,0,name+': no bridge writes');
+  equal(h.node('changelogText').textContent,schema.changelog,name+': changelog readable without host bridge');
   ok(h.node('status').textContent.includes('unavailable'),name+': honest missing bridge');
   h = harness(html,cfg,{}, {getOnly:true}); h.save(); equal(h.saves[0][boolean],'false',name+': legacy getConfig');
   h = harness(html,cfg,undefined,{loadError:true}); ok(h.node('status').textContent.includes('Could not load'),name+': load exception explained'); h.save(); equal(h.saves.length,0,name+': load exception blocks writes');

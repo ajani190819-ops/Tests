@@ -1,6 +1,17 @@
 # Changelog — Undahang
 
-The in-app Check setup view carries these three current releases. Full version history is preserved in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
+The Plugins → Config page and Check setup report carry the three newest releases. Orca's native Changelog tab is cloud-backed and is not populated by these local .py installs. Full version history is preserved below and in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
+
+## 0.0.56 — 2026-11-16
+
+* Adds Changelog — recent changes directly to Plugins → Config, with the
+  installed version and a jump link on both existing capability pages.
+* Displays the newest three entries from this changelog as read-only text,
+  including without a configuration bridge. Check setup notes and the
+  Description's current-release summary stay synchronized from the same file.
+* Makes the local .py/cloud-backed native Changelog-tab limitation explicit.
+  No toolpath, fan, tuning-default, preset or capability-identity changes;
+  automated source/DOM coverage is not a native Orca visibility test.
 
 ## 0.0.55 — 2026-11-16
 

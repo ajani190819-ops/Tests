@@ -50,6 +50,42 @@ The existing Script capabilities also have a small form for their original
 configuration. Undahang's written guide labels its last backed-up snapshot
 rather than claiming to read another capability's live preset override.
 
+## Changelog visibility — Undahang 0.0.56 / Infill 0.4.12
+
+In **File → Plugins**, select **Wave Overhangs** (Undahang) or **Unlayered
+Infill**, open an existing capability's **Config** page, then use the
+**Changelog — recent changes** jump link by the installed version. The
+read-only section carries the newest three releases from that plugin's own
+`CHANGELOG.md`, also used by Check setup and the Description summary. It is
+outside the settings form, works without the host configuration bridge and
+never saves settings or touches presets. Both main and Script Config pages
+include it. Full Markdown history remains in Git; older history stays archived.
+
+This does **not** populate Orca's separate native **Changelog** tab. The reviewed
+**v2.5.2** source, pinned at `f92a7c065c5718b8ef1baac1cd704df2911238f4`, shows:
+
+- The [PEP 723 metadata parser](https://github.com/OrcaSlicer/OrcaSlicer/blob/f92a7c065c5718b8ef1baac1cd704df2911238f4/src/slic3r/plugin/PluginFsUtils.cpp#L619-L634)
+  accepts name/description/author/version and dependency/runtime fields; it
+  does not read a local changelog key.
+- The [Plugins dialog](https://github.com/OrcaSlicer/OrcaSlicer/blob/f92a7c065c5718b8ef1baac1cd704df2911238f4/src/slic3r/GUI/PluginsDialog.cpp#L363-L364)
+  copies the descriptor's changelog vector into its view-model, then
+  [sends it to the page](https://github.com/OrcaSlicer/OrcaSlicer/blob/f92a7c065c5718b8ef1baac1cd704df2911238f4/src/slic3r/GUI/PluginsDialog.cpp#L220-L228).
+- [Cloud changelog lookup](https://github.com/OrcaSlicer/OrcaSlicer/blob/f92a7c065c5718b8ef1baac1cd704df2911238f4/src/slic3r/plugin/CloudPluginService.cpp#L306-L318)
+  collects only cloud UUIDs and returns without fetching if none exist.
+  Our independent single-file `.py` installs are local, not cloud listings.
+
+Do not invent `changelog=` metadata, spoof a cloud identity, write Orca's
+private descriptor storage or claim native-tab support from Check setup tests.
+The 21 settings/setup tests and 460 DOM/bridge-double assertions cover all
+four Config pages, exact recent notes/version labels, script escaping,
+text-only rendering, no-bridge readability and unchanged save/restore behavior.
+All 558/558 mutations are detected, including eight new changelog cases;
+303-test clean pre/post gates pass with exact source restoration and no
+skips/stale entries/errors/survivors (216.285 seconds on this host). Prior
+550 mutation definitions are unchanged. Native Orca WebView visibility remains
+unverified. Print engines, tuning defaults, fan/wall safeguards, capabilities,
+setup permissions and processed-preview scope are unchanged.
+
 ## Explicit setup action
 
 Run **Unlayered Infill - Check setup** or **Wave Overhangs - Settings guide &

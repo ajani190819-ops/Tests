@@ -1,12 +1,12 @@
 # Orca plugin roadmap
 
-Current releases: plugins: Undahang **0.0.55** and Unlayered Infill **0.4.11**, with the package names kept version-free.
+Current releases: plugins: Undahang **0.0.56** and Unlayered Infill **0.4.12**, with the package names kept version-free.
 Capability names, module/storage paths and G-code stamp prefixes stay stable.
 
 | Plugin | Current state |
 | --- | --- |
-| Unlayered Infill | 0.4.11. Settings/setup increment; engine/defaults retained. Owner reports the new menus working/looking good; prints pending. |
-| Undahang | 0.0.55. Speed-segmented whole-wall grouping/retract handoffs, retaining ≤50% primary M106 ceiling. Owner's older output confirms the missed ordering case; exact wall-helper diagnosis passes, not a fresh export or physical/curl acceptance. |
+| Unlayered Infill | 0.4.12. Recent changelogs visible in Config, retaining settings/setup and engine/defaults. Earlier menu approval retained; new native visibility/prints pending. |
+| Undahang | 0.0.56. Config changelog visibility; retains speed-segmented whole-wall/retract safeguards and ≤50% primary M106 ceiling. Exact wall-helper diagnosis passes, not a fresh export or physical/curl acceptance. |
 | Wave Overhangs Geometry | Archived, not a new development target. |
 
 ## Approved first pass — settings and setup only
@@ -17,6 +17,10 @@ preset autosave. A separate decision keeps **printer/filament read-only**;
 relative E stays advisory because it belongs to the printer profile. No
 Simple/Advanced hiding, inspector or toolpath experiments in this pass.
 Implementation and compatibility details: [settings/setup](ORCA-SETTINGS-SETUP.md).
+Both plugins now show their installed version and three recent changelog entries
+in **Plugins → Config → Changelog — recent changes**, generated from their own
+Markdown logs. Native Orca Changelog remains cloud-backed for local `.py`
+installs; this supported Config route does not claim to fill that separate tab.
 
 Automated checks remain source/API and mocked/DOM verification. The owner now
 confirms the settings menus are working and look good in Orca; that narrow UI
@@ -43,7 +47,7 @@ The owner asks to avoid manually exporting and reopening G-code just to see
 the plugin changes. Native Preview is preferred without another menu; a
 separate viewer is acceptable if necessary, but no integration is delivered.
 This is not approval for a fork, brand spoofing or adaptive toolpath changes.
-Series renumbering is paused (0.0.x retained; Infill 0.4.11 unchanged).
+Series renumbering is paused (0.0.x retained; Infill remains independent).
 
 - In refreshed **v2.5.2** source (owner-confirmed host version),
   [background slicing](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.2/src/slic3r/GUI/BackgroundSlicingProcess.cpp#L282-L304)

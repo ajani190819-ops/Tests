@@ -160,6 +160,27 @@ class SettingsPageTests(unittest.TestCase):
                         self.assertEqual(len(data["groups"]), len(mod._SECTIONS))
                         self.assertTrue(any(f["unit"] for f in fields))
 
+    def test_installed_changelog_is_visible_and_matches_each_release_file(self):
+        for mod, main, check, _orca in self.plugins:
+            md = (Path(mod.__file__).parent / "CHANGELOG.md").read_text(encoding="utf-8")
+            releases = re.findall(r"(?m)^## (\d+\.\d+\.\d+) [—–-] (\S+)", md)
+            self.assertEqual(releases[0][0], mod.PLUGIN_VERSION)
+            for capability in (main, check):
+                with self.subTest(plugin=mod._UI_PRODUCT, capability=capability.__name__):
+                    page = capability().get_config_ui()
+                    data = schema(page)
+                    self.assertEqual(data["changelog"], mod.CHANGELOG_RECENT)
+                    self.assertEqual(data["release"], mod._UI_PRODUCT + " v" + mod.PLUGIN_VERSION)
+                    for version, date in releases[:3]:
+                        self.assertIn(f"v{version}  ({date})", data["changelog"])
+                    self.assertIn('href="#recentChanges"', page)
+                    self.assertIn('<section id="recentChanges"', page)
+                    self.assertIn('<pre id="changelogText"', page)
+                    self.assertLess(page.index("</form>"), page.index('<section id="recentChanges"'))
+                    self.assertNotIn("changelog", data["defaults"])
+                    self.assertNotIn("release", data["defaults"])
+                    self.assertIn("read-only", page)
+
     def test_unsectioned_new_control_cannot_disappear(self):
         for mod, _main, _check, _orca in self.plugins:
             with self.subTest(plugin=mod._UI_PRODUCT), mock.patch.dict(mod._DEFAULTS, future_setting=17):
@@ -170,7 +191,9 @@ class SettingsPageTests(unittest.TestCase):
     def test_html_generation_is_pure_and_schema_cannot_escape_its_script(self):
         payload = '</script><script>bad()</script>&\u2028'
         for mod, main, check, _orca in self.plugins:
-            with self.subTest(plugin=mod._UI_PRODUCT), mock.patch.dict(mod._NOTES, _amplitude=payload, _enabled=payload):
+            with self.subTest(plugin=mod._UI_PRODUCT), \
+                 mock.patch.dict(mod._NOTES, _amplitude=payload, _enabled=payload), \
+                 mock.patch.object(mod, "CHANGELOG_RECENT", payload):
                 for capability in (main, check):
                     cap = capability()
                     cap.get_config = mock.Mock(side_effect=AssertionError("do not read config here"))
@@ -180,6 +203,7 @@ class SettingsPageTests(unittest.TestCase):
                         page = cap.get_config_ui()
                     self.assertNotIn(payload, page)
                     self.assertEqual(page.count("</script>"), 2)
+                    self.assertEqual(schema(page)["changelog"], payload)
                     if capability is main:
                         fields = [f for g in schema(page)["groups"] for f in g["fields"]]
                         self.assertEqual(next(f["help"] for f in fields if f["key"] == "enabled"), payload)

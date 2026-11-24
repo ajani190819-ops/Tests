@@ -1,6 +1,6 @@
 # Undahang
 
-Install with [Orca-Plugins.bat](../../Orca-Plugins.bat), then choose **Wave Overhangs** in **Process → Others → Slicing Pipeline Plugin**. The Plugins dialog Version column reads **0.0.55**.
+Install with [Orca-Plugins.bat](../../Orca-Plugins.bat), then choose **Wave Overhangs** in **Process → Others → Slicing Pipeline Plugin**. The Plugins dialog Version column reads **0.0.56**.
 
 **Wave Overhangs** remains the package/selector identity inside Orca and in
 saved presets. Undahang is the public brand; its description, setup report
@@ -78,7 +78,7 @@ wall commands and deposition geometry/Z/E/feed/retract state, no surplus prime,
 old-seam plumbing removal and idempotence. Separate tests cover multi-feature
 retract handoffs and conservative refusal cases.
 
-All **550/550 mutation cases** are detected: the prior 525 definitions remain
+For the **0.0.55 wall-order increment**, all **550/550 mutation cases** were detected: the prior 525 definitions remain
 unchanged, plus 25 wall-feature cases detected in their targeted tests without
 fallback. Both clean **302-test** gates pass with exact source restoration and
 zero skips/errors/survivors/stale entries (216.407 seconds on this host).
@@ -86,6 +86,17 @@ The exact 14-move owner-block diagnostic is read-only evidence of these helpers,
 not a freshly exported 0.0.55 file, native-host trial or physical print.
 `tools/check_all.py` and the full mutation fallback include the focused suite;
 numpy/Shapely are required as in `requirements-dev.txt`.
+
+## Changelog in Orca
+
+Open **File → Plugins → Wave Overhangs → Config**, then **Changelog —
+recent changes** near the top. Both existing capability Config pages show
+this installed version and the three newest entries from [CHANGELOG.md](CHANGELOG.md).
+These notes are read-only and need no settings save. **Settings guide & check**
+includes the same notes; Description keeps a current-release summary. Orca
+2.5.2's native **Changelog** tab uses cloud release metadata, not local `.py`
+notes, so that separate tab may still say no changelog is available. This
+limitation is not hidden by inventing metadata or modifying Orca.
 
 ## Settings and setup
 

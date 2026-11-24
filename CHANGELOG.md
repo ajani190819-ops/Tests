@@ -1,5 +1,19 @@
 # Project changelog
 
+## 0.0.56 — 2026-11-16 (Undahang)
+
+* Shows the installed version and three recent changelog entries in both
+  Plugins → Config capability pages, with a direct jump link and read-only text.
+* Retains synchronized Check setup/Description notes; documents why local .py
+  installs do not populate Orca's cloud-backed native Changelog tab.
+* No print-path/settings changes. Processed preview remains next; renumbering
+  paused and parked/deferred work unchanged. Native Orca visibility unverified.
+
+## 0.4.12 — 2026-11-16 (Unlayered Infill)
+
+* Adds the same Config-page changelog, generated from its own Markdown history.
+* Keeps independent delivery, engine/defaults, preset safety and two capabilities.
+
 ## 0.0.55 — 2026-11-16 (Undahang)
 
 * Fixes the speed-only G1 F wall-run split demonstrated by the owner's older

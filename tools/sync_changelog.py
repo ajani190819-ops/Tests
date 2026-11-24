@@ -10,17 +10,17 @@ WHY
   only name, description, author, version, requires-python and dependencies,
   and the descriptor's changelog field is filled from the cloud listing.
 
-  So the changelog is carried two other ways, both of which the owner can
-  actually see from inside OrcaSlicer:
+  The changelog is carried through supported local-plugin surfaces instead:
 
-    1. CHANGELOG_RECENT, a constant inside the plugin, printed by the
-       "Check setup" capability.
+    1. CHANGELOG_RECENT, a constant inside the plugin, shown as read-only
+       text under "Changelog — recent changes" in both Config pages and
+       printed by the "Check setup" capability.
     2. a one-line "What's new in vX.Y.Z: ..." suffix on the PEP 723
-       description, which Orca shows in the Description tab — the tab you
-       look at when you are adding the plugin.
+       description, which Orca shows in the plugin's Description section.
 
-  Both are generated from plugins/<id>/CHANGELOG.md by this script, so the
-  changelog is written once, in one place, in Markdown.
+  Both generated values come from plugins/<id>/CHANGELOG.md, so the changelog
+  is written once, in one place, in Markdown. See docs/ORCA-SETTINGS-SETUP.md
+  for the pinned host-source trace; never invent an unsupported metadata key.
 
   Nothing here runs at plugin import time; it is all string constants.
 """
