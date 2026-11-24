@@ -36,7 +36,9 @@ function harness(page,config = {},context = {scope:'global'},options = {}) {
   if (!options.noBridge) window.orca = bridge;
   vm.runInNewContext(script,{window,document},{timeout:1500});
   return {schema,document,saves,context,bridge,get restores(){return restores;},
-    node: id => document.getElementById(id),receive: cfg => receive(copy(cfg)),save: () => roots.settings.fire('submit'),
+    // Orca disallows form submission in its allow-scripts iframe. Exercise
+    // the actual Save button's click; never manufacture a submit event.
+    node: id => document.getElementById(id),receive: cfg => receive(copy(cfg)),save: () => roots.save.fire('click'),
     edit(key,value,event='input') { const input = document.getElementById('setting-'+key); input.value = value; input.fire(event); },
     json(text) { roots.raw.value = text; roots.raw.fire('input'); },load: () => roots.loadJson.fire('click')};
 }
@@ -65,7 +67,21 @@ for (const {html,name} of pages) {
   }
   ok(h.node('scope').textContent.includes('global'),name+': global scope');
   ok(h.node('scopeHelp').textContent.includes('Preset overrides take precedence'),name+': scope semantics');
-  h.save(); equal(h.saves[0],schema.defaults,name+': defaults keep types');
+  h.save(); equal(h.saves.length,1,name+': Save button click sends exactly one bridge request');
+  equal(h.saves[0],schema.defaults,name+': defaults keep types');
+  // Simulated host acknowledgment and reopening must retain an edited value
+  // and unknown keys, in both existing configuration scopes.
+  for (const scope of ['global','preset']) {
+    const saved = harness(html,{future:{keep:[1,false]}},{scope,hasPresetOverride:true});
+    saved.edit(boolean,'1','change'); saved.save();
+    equal(saved.saves.length,1,name+': '+scope+' click reaches host');
+    const persisted = copy(saved.saves[0]); saved.receive(persisted);
+    const reopened = harness(html,persisted,{scope,hasPresetOverride:true});
+    equal(JSON.parse(reopened.node('raw').value)[boolean],false,name+': '+scope+' acknowledged value survives reopen');
+    equal(JSON.parse(reopened.node('raw').value).future,{keep:[1,false]},name+': '+scope+' unknown keys survive reopen');
+    equal(reopened.saves.length,0,name+': '+scope+' reopening does not save');
+    equal(reopened.restores,0,name+': '+scope+' reopening does not restore');
+  }
   // Initial values must arrive before Save can ever send defaults.
   h = harness(html,{},undefined,{delayed:true});
   ok(h.node('save').disabled,name+': no save before initial callback');

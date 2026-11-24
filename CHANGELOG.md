@@ -1,5 +1,22 @@
 # Project changelog
 
+## 0.0.57 — 2026-11-16 (Undahang)
+
+* Fixes Save plugin settings: Orca's allow-scripts iframe blocks form submission
+  before the submit handler, so Save now uses a plain button and click handler.
+* Covers all four plugin capability pages through shared UI, with actual-click
+  regressions and browser reproduction using unmodified pinned Orca JavaScript.
+  Native C++ persistence is simulated in browser checks, not certified here.
+* Retains validation, host acknowledgments, preset manual-save boundary and
+  changelogs. No toolpath/fan/default changes; preview remains next and
+  paused/parked/deferred work is unchanged.
+
+## 0.4.13 — 2026-11-16 (Unlayered Infill)
+
+* Ships the same sandbox-compatible Save fix in its independent plugin file.
+* Preserves engine behavior, configuration types/unknown keys, capabilities
+  and read-only printer/filament setup; only normal release stamps advance.
+
 ## 0.0.56 — 2026-11-16 (Undahang)
 
 * Shows the installed version and three recent changelog entries in both

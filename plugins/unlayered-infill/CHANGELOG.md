@@ -2,6 +2,18 @@
 
 The Plugins → Config page and Check setup report carry the three newest releases. Orca's native Changelog tab is cloud-backed and is not populated by these local .py installs. Full version history is preserved below and in the [Tests Repository Documentation Archive](https://docs.google.com/document/d/1XTRAFNzKzrKLyo5BrGinvtbg-RQoNAymHIWEg6Ba7io/edit?usp=drivesdk).
 
+## 0.4.13 — 2026-11-16
+
+* Fixes Save plugin settings in Orca's sandbox: a direct button click sends
+  the config instead of waiting for a form-submit event the host blocks.
+* Applies to both existing capability Config pages and global/preset scopes.
+  Keeps typed/unknown values, validation, read-only checks and host acknowledgments;
+  preset overrides still require saving the preset in Orca.
+* Adds actual-click regressions and browser checks using the pinned host
+  JavaScript bridge. Browser round trips use a simulated native store, not
+  native Orca disk-persistence or physical-print acceptance. Engine behavior,
+  tuning defaults, setup permissions and identities stay unchanged.
+
 ## 0.4.12 — 2026-11-16
 
 * Adds Changelog — recent changes directly to Plugins → Config, with the

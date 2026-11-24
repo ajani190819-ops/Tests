@@ -1,6 +1,6 @@
 # Undahang
 
-Install with [Orca-Plugins.bat](../../Orca-Plugins.bat), then choose **Wave Overhangs** in **Process → Others → Slicing Pipeline Plugin**. The Plugins dialog Version column reads **0.0.56**.
+Install with [Orca-Plugins.bat](../../Orca-Plugins.bat), then choose **Wave Overhangs** in **Process → Others → Slicing Pipeline Plugin**. The Plugins dialog Version column reads **0.0.57**.
 
 **Wave Overhangs** remains the package/selector identity inside Orca and in
 saved presets. Undahang is the public brand; its description, setup report
@@ -102,7 +102,10 @@ limitation is not hidden by inventing metadata or modifying Orca.
 
 The main capability's Config form shows **all existing controls in labelled
 groups**, with units, inline notes, global/preset scope and a JSON fallback.
-Saving is explicit; no preset is automatically saved. Restore global defaults
+**Save plugin settings** now uses a direct button click: Orca's sandbox blocks
+form submission before its handler. Saved global settings and preset overrides
+remain separate; **save the preset in Orca** to persist an override. No preset
+is automatically saved. Restore global defaults
 and removing a preset override are different actions and are labelled as such.
 The scope bridge does not expose the preset category: check the host title.
 

@@ -21,6 +21,9 @@ setup, relative E is manual advice, and no preset is automatically saved.
 Host context reports global/preset scope but not the preset category; do not
 label every preset override as a process override. The config iframe is
 `sandbox="allow-scripts"`: use inline confirmation, not modal JavaScript APIs.
+It also lacks `allow-forms`: Save must be a `type="button"` click action, not
+form submission (blocked before submit fires). The 0.0.57/0.4.13 fix is
+browser-reproduced with pinned host JS, not native Orca persistence acceptance.
 The v2.5.1/Nov-16-main API review and host/DOM doubles are not native callback,
 export or physical-print evidence. The owner confirms Orca 2.5.2/custom
 modified Ender 3 and working menus. Later 0.0.55 print safeguards retain the

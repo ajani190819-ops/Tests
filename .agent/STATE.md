@@ -10,9 +10,9 @@ permanent/native certification. Prior silent Lighting failure is history,
 not cause/build proof. No new Guard outcome or collection/matrix request.
 
 **Current focus / monitor (20 retained IDs):**
-- **PLAN-01 CURRENT:** menus good; 0.0.56/0.4.12 Config changelogs, native
-  Changelog tab cloud-only. Wave 0.0.53: walls before waves/S255; speed-only
-  split fixed in 0.0.55. Exact 14-move helper passes, not fresh export/print.
+- **PLAN-01 CURRENT:** Save fixed 0.0.57/0.4.13: sandbox blocked submit.
+  Config changelogs retained; native tab cloud-only. Wave 0.0.53 walls/S255;
+  speed-only split fixed 0.0.55. Exact 14-move helper, not fresh export/print.
   Curl unproven. Orca2.5.2/custom Ender3/PLA205°C/Auto/12V; S127 is not
   voltage conversion. NEXT: processed-preview handoff (native preferred,
   separate acceptable). Renumbering paused. All controls visible; approved

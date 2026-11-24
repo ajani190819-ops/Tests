@@ -37,7 +37,7 @@ svg text { fill: currentColor; font: 12px system-ui,sans-serif; }
 <p>Every tuning control is visible below. Nothing is hidden under Advanced. Auto values resolve on export, not in this form.</p>
 <div id="diagram"></div>
 <form id="settings" novalidate><div id="groups"></div>
-<div class="actions"><button class="primary" id="save" type="submit">Save plugin settings</button><button id="restore" type="button">Restore defaults</button><button id="reload" type="button">Reload from Orca</button></div>
+<div class="actions"><button class="primary" id="save" type="button">Save plugin settings</button><button id="restore" type="button">Restore defaults</button><button id="reload" type="button">Reload from Orca</button></div>
 <p id="status" role="status" aria-live="polite"></p>
 <section id="confirmBox" hidden aria-labelledby="confirmText"><p id="confirmText" role="alert"></p><div class="actions"><button id="confirmYes" type="button">Confirm</button><button id="confirmNo" type="button">Keep editing</button></div></section>
 <section><h2>JSON fallback</h2><p>Includes notes and unknown keys. Untouched stored values keep their original JSON types. Loading a JSON draft does not save it; use Save plugin settings afterwards.</p>
@@ -202,7 +202,9 @@ document.getElementById('reload').addEventListener('click',function () {
   if (dirty) askConfirmation('Discard this unsaved draft and reload the last values received from Orca?',reload,'Discard draft',document.getElementById('reload'));
   else reload();
 });
-document.getElementById('settings').addEventListener('submit',function (event) {
+// Orca's allow-scripts iframe blocks form submission before submit fires.
+// A plain button click also works for keyboard activation, without allow-forms.
+document.getElementById('save').addEventListener('click',function (event) {
   event.preventDefault(); updateScope();
   if (!writable || !draft || rawDirty) { status('Not saved: read-only/unavailable bridge or an unloaded JSON draft.',true); return; }
   var invalid = controls.find(function (item) { return !!item.invalid; });

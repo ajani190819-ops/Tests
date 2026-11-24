@@ -5578,5 +5578,45 @@
   "tests": [
    "tests.test_orca_settings_ui.SettingsPageTests.test_installed_changelog_is_visible_and_matches_each_release_file"
   ]
+ },
+ {
+  "id": "orca-save-00",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "id=\"save\" type=\"button\"",
+  "new": "id=\"save\" type=\"submit\"",
+  "label": "unlayered-infill: Save reverts to forbidden form submission",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_save_uses_a_direct_button_not_a_sandbox_blocked_form_submission"
+  ]
+ },
+ {
+  "id": "orca-save-01",
+  "file": "plugins/unlayered-infill/unlayered_infill_orca.py",
+  "old": "document.getElementById('save').addEventListener('click',function (event) {",
+  "new": "document.getElementById('settings').addEventListener('submit',function (event) {",
+  "label": "unlayered-infill: Save loses direct click handler and waits for blocked submit",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
+ },
+ {
+  "id": "orca-save-02",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "id=\"save\" type=\"button\"",
+  "new": "id=\"save\" type=\"submit\"",
+  "label": "wave-overhangs: Save reverts to forbidden form submission",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_save_uses_a_direct_button_not_a_sandbox_blocked_form_submission"
+  ]
+ },
+ {
+  "id": "orca-save-03",
+  "file": "plugins/wave-overhangs/wave_overhangs_orca.py",
+  "old": "document.getElementById('save').addEventListener('click',function (event) {",
+  "new": "document.getElementById('settings').addEventListener('submit',function (event) {",
+  "label": "wave-overhangs: Save loses direct click handler and waits for blocked submit",
+  "tests": [
+   "tests.test_orca_settings_ui.SettingsPageTests.test_actual_javascript_roundtrips_values_handles_scope_and_races"
+  ]
  }
 ]

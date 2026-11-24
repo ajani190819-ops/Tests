@@ -160,6 +160,18 @@ class SettingsPageTests(unittest.TestCase):
                         self.assertEqual(len(data["groups"]), len(mod._SECTIONS))
                         self.assertTrue(any(f["unit"] for f in fields))
 
+    def test_save_uses_a_direct_button_not_a_sandbox_blocked_form_submission(self):
+        # Both Orca 2.5.2 config iframes are sandbox="allow-scripts", without
+        # allow-forms. The browser blocks submission BEFORE firing submit.
+        for mod, main, check, _orca in self.plugins:
+            for capability in (main, check):
+                with self.subTest(plugin=mod._UI_PRODUCT, capability=capability.__name__):
+                    page = capability().get_config_ui()
+                    save = re.search(r'<button\b[^>]*\bid="save"[^>]*>', page)[0]
+                    self.assertIn('type="button"', save)
+                    self.assertIn("document.getElementById('save').addEventListener('click'", page)
+                    self.assertNotIn("document.getElementById('settings').addEventListener('submit'", page)
+
     def test_installed_changelog_is_visible_and_matches_each_release_file(self):
         for mod, main, check, _orca in self.plugins:
             md = (Path(mod.__file__).parent / "CHANGELOG.md").read_text(encoding="utf-8")

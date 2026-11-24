@@ -1,12 +1,12 @@
 # Orca plugin roadmap
 
-Current releases: plugins: Undahang **0.0.56** and Unlayered Infill **0.4.12**, with the package names kept version-free.
+Current releases: plugins: Undahang **0.0.57** and Unlayered Infill **0.4.13**, with the package names kept version-free.
 Capability names, module/storage paths and G-code stamp prefixes stay stable.
 
 | Plugin | Current state |
 | --- | --- |
-| Unlayered Infill | 0.4.12. Recent changelogs visible in Config, retaining settings/setup and engine/defaults. Earlier menu approval retained; new native visibility/prints pending. |
-| Undahang | 0.0.56. Config changelog visibility; retains speed-segmented whole-wall/retract safeguards and ≤50% primary M106 ceiling. Exact wall-helper diagnosis passes, not a fresh export or physical/curl acceptance. |
+| Unlayered Infill | 0.4.13. Fixes Save blocked by sandboxed form submission; retains Config changelogs and engine/defaults. Browser/host-JS round trips pass; native persistence/prints unverified. |
+| Undahang | 0.0.57. Same Save fix; retains Config changelogs, whole-wall/retract safeguards and ≤50% primary M106 ceiling. Exact wall-helper diagnosis passes, not a fresh export or physical/curl acceptance. |
 | Wave Overhangs Geometry | Archived, not a new development target. |
 
 ## Approved first pass — settings and setup only
@@ -22,9 +22,13 @@ in **Plugins → Config → Changelog — recent changes**, generated from their
 Markdown logs. Native Orca Changelog remains cloud-backed for local `.py`
 installs; this supported Config route does not claim to fill that separate tab.
 
-Automated checks remain source/API and mocked/DOM verification. The owner now
-confirms the settings menus are working and look good in Orca; that narrow UI
-report does not certify all configuration transactions, callbacks or exports.
+The owner previously approved the menus, then reported **Save does not save**.
+Orca's scripts-only iframe blocks form submission before the old handler.
+Save now uses a plain button/click; corrected actual-click regressions and
+headless-Chromium checks with unmodified pinned host JavaScript pass for all
+four pages in both scopes. Browser backing storage is simulated, not native
+Orca persistence or export/print acceptance. The earlier synthetic-submit
+checks did not expose this bug. Preset overrides still need a manual preset save.
 The owner confirms **Orca 2.5.2**, a custom modified-Ender-3 profile, **PLA at
 205°C**, Auto fan and a **12 V fan**. New print feedback is an unsupported outer
 strand before waves and upward-curling edges. The explicit ≤50% duty request

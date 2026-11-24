@@ -50,6 +50,53 @@ The existing Script capabilities also have a small form for their original
 configuration. Undahang's written guide labels its last backed-up snapshot
 rather than claiming to read another capability's live preset override.
 
+## Save button fix — Undahang 0.0.57 / Infill 0.4.13
+
+The owner reports **Save plugin settings does not save**. The actual defect is
+in the shared page: Save was `type="submit"` and persistence ran only from a
+form `submit` listener. Both Orca 2.5.2 configuration iframes use
+`sandbox="allow-scripts"`, **without `allow-forms`**. A browser blocks form
+submission before dispatching that listener, so no `window.orca.saveConfig`
+message reaches the host. Calling the listener directly in a DOM double hid
+this bug; the old tests did not prove a user click worked.
+
+Save is now **`type="button"` with a direct `click` handler**, including normal
+keyboard activation. No host sandbox permissions are relaxed. The same
+validation, loaded-value/read-only checks, value-preserving payload and
+host-acknowledgment handling are retained. All four existing capability pages
+share the correction. Global Save uses Orca's global config route; a preset
+Save stages the override and **still requires saving that preset in Orca**.
+No automatic preset save, setup transaction or printer/filament tuning write
+was added. A request is not called saved before a matching host response.
+
+Host source pinned at `f92a7c065c5718b8ef1baac1cd704df2911238f4`:
+
+- [Plugins iframe](https://github.com/OrcaSlicer/OrcaSlicer/blob/f92a7c065c5718b8ef1baac1cd704df2911238f4/resources/web/dialog/PluginsDialog/index.html#L173-L174)
+  and [preset iframe](https://github.com/OrcaSlicer/OrcaSlicer/blob/f92a7c065c5718b8ef1baac1cd704df2911238f4/resources/web/dialog/PluginsConfigDialog/index.html#L33-L34): both allow scripts, not forms.
+- [Shared bridge](https://github.com/OrcaSlicer/OrcaSlicer/blob/f92a7c065c5718b8ef1baac1cd704df2911238f4/resources/web/dialog/js/plugin-config-ui.js#L58-L87):
+  Save posts the configuration to the parent; `onConfig` delivers its response.
+- [Global save response](https://github.com/OrcaSlicer/OrcaSlicer/blob/f92a7c065c5718b8ef1baac1cd704df2911238f4/src/slic3r/plugin/PluginConfig.cpp#L618-L657)
+  writes/echoes global storage; [preset handling](https://github.com/OrcaSlicer/OrcaSlicer/blob/f92a7c065c5718b8ef1baac1cd704df2911238f4/src/slic3r/GUI/PluginsConfigDialog.cpp#L119-L141)
+  stages the override and explicitly asks the owner to save the preset.
+
+The shipped DOM runner now clicks Save rather than manufacturing submit
+notifications, verifies one request per click and round-trips edited/unknown
+values through simulated acknowledgment/reopening in global and preset scopes.
+An independent headless-Chromium check uses the **unmodified pinned Orca
+bridge and parent message handlers** in real `allow-scripts` iframes: all eight
+page/scope cases reproduce the old blocked submission, then pass direct-click,
+Space/Enter activation, response/reopening and refusal-preserves-store checks.
+Native C++ storage/responses are simulated in that browser check: it is **not**
+an installed Orca/WebView/disk-persistence test, or a physical-print result.
+Browser packages/reports remain in the external cache, not Git or Drive.
+The 22 settings/setup tests and 504 click-based DOM/bridge assertions pass.
+All 562/562 mutations are detected, including four new Save regressions;
+prior 558 definitions are unchanged. Clean 304-test pre/post gates pass with
+exact restoration and zero skips/survivors/stale/errors (220.354 seconds on
+this host). These automated results do not certify native persistence.
+Print paths, tuning defaults, migrations, stable identities, fan/wall safeguards
+and processed-preview scope are unchanged; only normal version stamps advance.
+
 ## Changelog visibility — Undahang 0.0.56 / Infill 0.4.12
 
 In **File → Plugins**, select **Wave Overhangs** (Undahang) or **Unlayered
@@ -76,10 +123,12 @@ This does **not** populate Orca's separate native **Changelog** tab. The reviewe
 
 Do not invent `changelog=` metadata, spoof a cloud identity, write Orca's
 private descriptor storage or claim native-tab support from Check setup tests.
-The 21 settings/setup tests and 460 DOM/bridge-double assertions cover all
-four Config pages, exact recent notes/version labels, script escaping,
-text-only rendering, no-bridge readability and unchanged save/restore behavior.
-All 558/558 mutations are detected, including eight new changelog cases;
+For that changelog increment, 21 settings/setup tests and 460 DOM/bridge-double
+assertions covered four Config pages, exact recent notes/version labels,
+script escaping, text-only rendering and no-bridge readability. The Save
+path was exercised through synthetic submit events, missing the sandbox bug
+corrected above; it did not prove real-button persistence. That release's
+558/558 mutations were detected, including eight new changelog cases;
 303-test clean pre/post gates pass with exact source restoration and no
 skips/stale entries/errors/survivors (216.285 seconds on this host). Prior
 550 mutation definitions are unchanged. Native Orca WebView visibility remains
