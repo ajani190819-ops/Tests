@@ -40,10 +40,14 @@ issue is fixed.”** Save is resolved for the reported issue; cancel Config
 screenshot/version collection. No new technical cause or all-scope matrix is
 claimed; see [owner confirmation](ORCA-SETTINGS-SETUP.md#owner-confirmed-save-resolution).
 Preset overrides still need a manual preset save, separate from that global
-report. The owner now says the earlier items are verified and prioritizes
-Prism **M4/M5 brightness** (mirror M5 up as M4 down). That is owner-reported
-verification, not a new code repair or native matrix. Processed preview follows
-M4/M5. Renumbering remains paused.
+report. The owner now requests a ground-up Prism **brightness rebuild** because
+prior attempts had no observable effect, and reopens **Balance/Steady Colours
+restoration** (one or both revert on restart). Earlier broad preferences
+approval is superseded, not the Orca Save resolution. The owner explicitly kept
+the fresh Lighting-log prerequisite; engine-8 is now received/scanned and the
+edit gate is satisfied. The native master rebuild and saved-state repairs are
+implemented; owner acceptance remains open, separate from automated checks.
+Processed preview follows these Prism repairs. Renumbering remains paused.
 The owner confirms **Orca 2.5.2**, a custom modified-Ender-3 profile, **PLA at
 205°C**, Auto fan and a **12 V fan**. New print feedback is an unsupported outer
 strand before waves and upward-curling edges. The explicit ≤50% duty request

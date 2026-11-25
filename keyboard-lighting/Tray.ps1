@@ -375,6 +375,44 @@ function Get-PanelStamp {
     catch { return [long]0 }
 }
 
+function Copy-PanelObject {
+    param($value)
+    return (ConvertTo-Json -InputObject $value -Depth 32 | ConvertFrom-Json)
+}
+
+function Merge-PanelObject {
+    param($local, $baseline, $disk)
+    if ($null -eq $disk -or $disk -isnot [pscustomobject]) { $disk = [pscustomobject]@{} }
+    foreach ($property in $local.PSObject.Properties) {
+        $name = $property.Name
+        $before = $null
+        if ($null -ne $baseline) { $before = $baseline.PSObject.Properties[$name] }
+        $external = $disk.PSObject.Properties[$name]
+        $value = $property.Value
+        if ($value -is [pscustomobject]) {
+            $baseValue = $null; $diskValue = $null
+            if ($null -ne $before) { $baseValue = $before.Value }
+            if ($null -ne $external) { $diskValue = $external.Value }
+            $value = Merge-PanelObject $value $baseValue $diskValue
+        } elseif ($null -ne $before -and $null -ne $external -and
+                  (ConvertTo-Json -InputObject $value -Depth 32 -Compress) -ceq
+                  (ConvertTo-Json -InputObject $before.Value -Depth 32 -Compress)) {
+            $value = $external.Value
+        }
+        $disk | Add-Member -MemberType NoteProperty -Name $name -Value $value -Force
+    }
+    return $disk
+}
+
+function Write-PanelAtomic {
+    param([string]$path, $value)
+    $tmp = $path + '.' + $PID + '.tmp'
+    $json = ConvertTo-Json -InputObject $value -Depth 32
+    [IO.File]::WriteAllText($tmp, $json, (New-Object System.Text.UTF8Encoding($false)))
+    if ([IO.File]::Exists($path)) { [IO.File]::Replace($tmp, $path, $null) }
+    else { [IO.File]::Move($tmp, $path) }
+}
+
 function Load-Cfg {
     if (-not (Test-Path $CfgFile)) { return }
     try {
@@ -410,15 +448,36 @@ function Load-Cfg {
         }
         Log 'settings loaded'
     } catch { Log ("settings load failed: {0}" -f $_.Exception.Message) 'WARN' }
+    finally { $script:PanelBase = Copy-PanelObject $script:Cfg }
 }
 
 Load-Cfg
+$script:PanelBase = Copy-PanelObject $script:Cfg
 $script:PanelStamp = Get-PanelStamp
 
 function Save-Cfg {
     try {
-        $script:Cfg | ConvertTo-Json -Depth 6 | Set-Content -Path $CfgFile -Encoding UTF8 -ErrorAction Stop
+        $disk = [pscustomobject]@{}
+        if (Test-Path -LiteralPath $CfgFile) {
+            # Invalid/unreadable is NOT missing. Never reset it to defaults.
+            $disk = Get-Content -LiteralPath $CfgFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if ($null -eq $disk -or $disk -isnot [pscustomobject]) { throw 'panel.json is not an object' }
+        }
+        $merged = Merge-PanelObject $script:Cfg $script:PanelBase $disk
+        if ($null -eq $script:PanelBase -or $script:Cfg.Brightness -ne $script:PanelBase.Brightness) {
+            $merged | Add-Member NoteProperty MasterLevel ([int]$script:Cfg.Brightness * 10) -Force
+        }
+        $externalAdopted = (ConvertTo-Json -InputObject $script:Cfg -Depth 32 -Compress) -cne
+                           (ConvertTo-Json -InputObject $merged -Depth 32 -Compress)
+        Write-PanelAtomic $CfgFile $merged
+        $script:Cfg = $merged
+        $script:PanelBase = Copy-PanelObject $merged
         $script:PanelStamp = Get-PanelStamp
+        if ($externalAdopted -and $null -ne $chkSmooth -and $null -ne $chkEq) {
+            # Updating the baseline without refreshing existing controls would
+            # let the next unrelated UI action re-save their stale checkboxes.
+            Load-UiFromCfg
+        }
     } catch { Log ("settings save failed: {0}" -f $_.Exception.Message) 'WARN' }
 }
 
@@ -590,6 +649,7 @@ function Start-Engine {
     $oe = "$($script:Cfg.OnExit)"
     if ($oe -ne 'off' -and $oe -ne 'white' -and $oe -ne 'firmware') { $oe = 'off' }
     [void]$sb.Append(' -OnExit '); [void]$sb.Append($oe)
+    [void]$sb.Append(' -Smooth '); [void]$sb.Append($(if ($script:Cfg.Smooth) { 'on' } else { 'off' }))
     if ($k.Swatches.Count -gt 0) {
         [void]$sb.Append(' -Colors "'); [void]$sb.Append(($k.Swatches -join ',')); [void]$sb.Append('"')
         if ($k.Widths -and @($k.Widths).Count -eq $k.Swatches.Count) {
@@ -1560,6 +1620,11 @@ function Sync-CfgFromUi {
 # Load the visible group's values into the controls.
 function Load-UiFromCfg {
     $script:Suppress = $true
+    $trkMaster.Value = [Math]::Min(100, [Math]::Max(0, [int]$script:Cfg.Brightness))
+    $valMB.Text = ('{0}%' -f $trkMaster.Value)
+    $chkLink.SetQuiet([bool]$script:Cfg.Link)
+    $chkSmooth.SetQuiet([bool]$script:Cfg.Smooth)
+    $chkOverlay.SetQuiet([bool]$script:Cfg.Overlay)
     $g = Cur
     $keys = @($Effects.Keys)
     $idx = 0

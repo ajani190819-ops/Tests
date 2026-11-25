@@ -107,6 +107,7 @@ static void SyncLinkedZone(void);
 static void FlushLiveApply(void);
 static void SavePanelCfg(void);
 static void ScheduleLiveApply(void);
+static void SetMasterBrightnessLevel(int level);
 
 static void SavePresetSlot(int idx) {
     wchar_t path[MAX_PATH], sec[16], key[8], v[24];
@@ -137,7 +138,7 @@ static void ApplyPresetSlot(int idx) {
     int m = _wtoi(v);
     if (m < 0) m = 0;
     if (m > 100) m = 100;
-    g_cfg.masterBrightness = m;
+    SetMasterBrightnessLevel(m * 10);
     g_presetIdx = idx;
     SyncLinkedZone();
     FlushLiveApply();

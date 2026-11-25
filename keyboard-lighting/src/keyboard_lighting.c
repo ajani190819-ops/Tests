@@ -35,10 +35,10 @@
 #define SHOW_EVENT_NAME     L"Local\\Tests_KeyboardLighting_ShowWindow_v2"
 #define REPO_OWNER_W        L"ajani190819-ops"
 #define REPO_NAME_W         L"Tests"
-#define FALLBACK_BRANCH_W   L"arena/e895b94f-tests"
 
 #define RES_ICON_APP        1
 #define RES_ICON_EMBLEM     2
+#define RES_ENGINE_SCRIPT   3
 
 #define WM_TRAYICON         (WM_APP + 1)
 #define WM_ENGINE_BOOTED    (WM_APP + 2)
@@ -135,7 +135,7 @@ typedef struct {
 } GroupCfg;
 
 typedef struct {
-    int      masterBrightness; /* 0..100 (0 = full off, driven by Fn F2/F3 too) */
+    int      masterBrightness; /* rounded UI projection; controller owns 0..1000 */
     BOOL     overlay;
     BOOL     link;
     BOOL     smooth;
@@ -330,7 +330,8 @@ static char *ReadFileUtf8(const wchar_t *path, DWORD *outLen) {
 
 static BOOL WriteAtomicUtf8(const wchar_t *dest, const char *data) {
     wchar_t tmp[MAX_PATH];
-    _snwprintf(tmp, MAX_PATH, L"%s.tmp", dest);
+    int n = _snwprintf(tmp, MAX_PATH, L"%s.%lu.tmp", dest, (unsigned long)GetCurrentProcessId());
+    if (n < 0 || n >= MAX_PATH) return FALSE;
     HANDLE hf = CreateFileW(tmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hf == INVALID_HANDLE_VALUE) return FALSE;
     DWORD len = (DWORD)strlen(data), wr = 0;

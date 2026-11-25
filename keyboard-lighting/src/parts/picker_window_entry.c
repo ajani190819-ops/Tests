@@ -135,6 +135,8 @@ static void EnsureLogonTask(void) {
 }
 
 static void HandleHitAction(HWND hwnd, int hitIdx) {
+    SyncMasterBrightness();
+    SyncExternalPanelCfg();
     if (hitIdx < 0 || hitIdx >= g_hitCount) return;
     int kind = g_hits[hitIdx].kind;
     int idx  = g_hits[hitIdx].index;
@@ -402,6 +404,8 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_COMMAND: {
+        SyncMasterBrightness();
+        SyncExternalPanelCfg();
         int id = LOWORD(wp);
         if (id >= IDM_EFF_BASE && id < IDM_EFF_BASE + EFFECT_COUNT) {
             CurGroup()->effectIdx = id - IDM_EFF_BASE;
@@ -472,7 +476,7 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_POWERBROADCAST:
         if ((wp == PBT_APMRESUMEAUTOMATIC || wp == PBT_APMRESUMESUSPEND) && !g_wantOff) {
-            if (IsEngineAlive()) { WriteThemeJson(); WriteLiveBrightness(); }
+            if (IsEngineAlive()) { SyncMasterBrightness(); SyncExternalPanelCfg(); WriteThemeJson(); }
             else StartEngine();
         }
         return TRUE;
@@ -496,6 +500,7 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (ApplyHubExit()) return 0;
             WriteHeartbeat();
             PollFnBrightness();
+            SyncExternalPanelCfg();
             if (FileExistsW(g_showPath)) {
                 DeleteFileW(g_showPath);
                 RevealLightingPanel(hwnd);
@@ -539,7 +544,10 @@ static LRESULT CALLBACK KblWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         KillTimer(hwnd, 1);
         KillTimer(hwnd, 2);
         KillTimer(hwnd, 3);
+        SyncMasterBrightness();
         FlushPendingBrightnessCfg();
+        SavePanelCfg();
+        g_applyPending = FALSE;
         if (g_trayVisible) Shell_NotifyIconW(NIM_DELETE, &g_nid);
         g_trayVisible = FALSE;
         StopEngine(TRUE);
@@ -625,10 +633,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     }
 
     /* Brightness taps for the M4/M5 G-Helper 'Custom' actions: a second
-       instance writes a one-shot token the engine turns into a paced master
-       step and exits immediately - no window, no single-instance bounce.
-       The token is a millisecond stamp so a held key's repeat taps are each
-       seen; the engine paces them into a smooth sweep. */
+       instance writes a unique press token and exits immediately - no window,
+       UAC prompt or single-instance bounce. The native controller consumes it
+       once; raw reports confirm holds without rewriting these press flags.
+       Standalone legacy engines still accept the opaque token. */
     /* Hold-mode switch for the M4/M5 brightness taps: the engine reads
        hold_mode.txt every tick, so this changes behavior with no restart.
        Usage: -HoldMode latch (default) | burst | tap */
@@ -643,14 +651,16 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int nShow) 
     }
     if (cmdLine && (wcsstr(cmdLine, L"-BrightUp") != NULL || wcsstr(cmdLine, L"--bright-up") != NULL)) {
         char tok[32];
-        _snprintf(tok, 32, "%llu", (unsigned long long)GetTickCount64());
+        _snprintf(tok, 32, "%llu:%lu", (unsigned long long)GetTickCount64(),
+                  (unsigned long)GetCurrentProcessId());
         tok[31] = '\0';
         WriteAtomicUtf8(g_brightUpPath, tok);
         return 0;
     }
     if (cmdLine && (wcsstr(cmdLine, L"-BrightDown") != NULL || wcsstr(cmdLine, L"--bright-down") != NULL)) {
         char tok[32];
-        _snprintf(tok, 32, "%llu", (unsigned long long)GetTickCount64());
+        _snprintf(tok, 32, "%llu:%lu", (unsigned long long)GetTickCount64(),
+                  (unsigned long)GetCurrentProcessId());
         tok[31] = '\0';
         WriteAtomicUtf8(g_brightDownPath, tok);
         return 0;

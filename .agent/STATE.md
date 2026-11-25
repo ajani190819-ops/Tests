@@ -5,14 +5,14 @@ Git: implementation/tests/releases; Drive: extended plans/history.
 
 ## Current owner status / next work
 
-Save and earlier Prism items owner-reported verified; no cause/build matrix.
-CURRENT: M4/M5 brightness, mirroring M5 up as M4 down. UAC/startup/Open good.
+Save stays owner-confirmed; Prism brightness/persistence reopened.
+CURRENT: brightness rebuild + Balance/Steady restore. UAC/autorun/Open good.
 
 **Current focus / monitor (20 retained IDs):**
 - **PLAN-01 CURRENT:** owner confirms Save fixed; no more Config collection.
   Wave0.0.58 default/fallback0.5, independent S127 cap. Old0.0.53 output is
   historical; wall/curl acceptance open. Orca2.5.2/custom Ender3/PLA205C/Auto/
-  12V; PWM is not voltage conversion. NEXT after M4/M5: processed preview
+  12V; PWM is not voltage conversion. NEXT after Prism repairs: processed preview
   (native preferred/separate acceptable); renumbering paused. Controls visible,
   process-only approval; printer/filament read-only, E manual/no autosave.
   `docs/ORCA-SETTINGS-SETUP.md`.
@@ -23,11 +23,11 @@ CURRENT: M4/M5 brightness, mirroring M5 up as M4 down. UAC/startup/Open good.
   startup fix claimed. Preserve fallbacks/preferences; `test-hub-startup-tray.md`.
 - **OPS-01 Owner-reported good:** UAC seems fixed; prior prompt unidentified,
   not a security-policy diagnosis/change approval.
-- **KBL-01 CURRENT:** fresh engine-7 received; edit gate satisfied. Reproduced
-  native repeats toggling latch/restarting burst; both-key mode guard added.
-  Nine mock tests pass, not owner-cause/physical acceptance. Keep distinct
-  bindings, saved mode/preferences, ASCII/C#5, pacing/lock/single-engine;
-  `test-lighting-input.md`. No additional log request or hold/input-status matrix.
+- **KBL-01 CURRENT:** owner requests brightness rebuild; prior attempts have
+  no reported effect. Balance/Steady restore reopened (one/both uncertain).
+  Engine-8 gate met; native rebuild/restore implemented, acceptance still open.
+  Keep choices, distinct keys, release/lock/pacing/single-engine and ASCII/C#5.
+  `test-lighting-input.md`. No additional log request or old matrix.
 
 ## Released / owner-reported good
 

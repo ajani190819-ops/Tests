@@ -1,5 +1,25 @@
 # Project changelog
 
+## 2026-11-16 (Prism Lighting - brightness rebuild and saved-state restoration)
+
+* Rebuilds M4/down and M5/up around one exact 0..1000 native master. Custom
+  commands enter once; raw events supply hold/release evidence, not synthetic
+  press flags. Keeps the 5% tap, 1% down/1.5% up per 30 ms, saved modes,
+  independent bindings, rails and bounded release handling.
+* Removes native/engine double consumption and rounded readback echoes. Slider,
+  registered hotkeys, engine Fn input and restart now share the master channel;
+  a stale live file cannot replace the saved startup value.
+* Restores independent Balance Colours and Steady Colours, including false
+  values and all eight zone/Steady combinations. Scoped legacy-compatible
+  loading and three-way saves preserve external Hub/Tray edits, unknown fields
+  and custom colour slots instead of serializing stale preferences over them.
+* Applies Steady before the first engine frame and bundles the matching Aura
+  script in the native EXE, so an EXE-only update cannot use an old protocol.
+* Adds production-function input/state regressions, deliberate-break coverage
+  and isolated PowerShell adapter execution in Windows CI. Automated checks do
+  not establish the owner's physical-key delivery, installed result or cause;
+  owner acceptance remains open. No vendor/startup reset or forced-off defaults.
+
 ## 2026-11-16 (Prism Lighting - M4/M5 mode interaction)
 
 * Stops native hold-repeat tokens outside tap mode: those repeats were toggling

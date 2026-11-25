@@ -11,8 +11,7 @@ static void ApplySliderDrag(int kind, int idx, RECT r, int mouseX) {
 
     GroupCfg *cg = CurGroup();
     if (kind == HIT_SLIDER_MASTER) {
-        g_cfg.masterBrightness = (int)floor(t * 100.0 + 0.5);
-        WriteLiveBrightness();
+        SetMasterBrightnessLevel((int)floor(t * 100.0 + 0.5) * 10);
         ScheduleLiveApply();
     } else if (kind == HIT_SLIDER_SPEED) {
         cg->speed = 1 + (int)floor(t * 49.0 + 0.5);

@@ -1201,17 +1201,17 @@
  },
  {
   "id": "kbl-hold-00",
-  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
-  "old": "g_scanNext[i] = now + 30;",
-  "new": "g_scanNext[i] = now + 60;",
-  "label": "A 60 ms target skips 45 ms UI timer ticks and leaves a held ramp irregular",
+  "file": "keyboard-lighting/src/parts/brightness_controller.h",
+  "old": "s->nextAt = now + 30;",
+  "new": "s->nextAt = now + 60;",
+  "label": "Native fine ramp loses its 30 ms cadence",
   "tests": [
-   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_hold_ramp_is_not_quantized_by_the_panel"
+   "tests.test_windows_apps.LightingInputTests.test_both_directions_keep_first_token_learning_pacing_and_release"
   ]
  },
  {
   "id": "kbl-live-00",
-  "file": "keyboard-lighting/src/parts/brightness_hotkeys.c",
+  "file": "keyboard-lighting/src/parts/brightness_master.c",
   "old": "if (now - g_lastFnPoll < 35ULL) return;",
   "new": "if (now - g_lastFnPoll < 150ULL) return;",
   "label": "Brightness readback falls back to coarse 150 ms slider updates",
@@ -1221,22 +1221,22 @@
  },
  {
   "id": "kbl-live-01",
-  "file": "keyboard-lighting/src/parts/brightness_hotkeys.c",
-  "old": "    g_brightnessCfgSaveAt = now + 300ULL;\n",
-  "new": "    g_brightnessCfgSaveAt = now + 300ULL;\n    ScheduleLiveApply();\n",
-  "label": "The panel echoes its rounded brightness sample back into the active engine ramp",
+  "file": "keyboard-lighting/src/parts/brightness_master.c",
+  "old": "PublishMasterBrightness(before, FALSE); /* observe",
+  "new": "PublishMasterBrightness(before, TRUE); /* observe",
+  "label": "External readback echoes back into the canonical channel",
   "tests": [
-   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_hold_ramp_is_not_quantized_by_the_panel"
+   "tests.test_windows_apps.LightingInputTests.test_rails_external_fn_inputs_and_half_percent_readback_do_not_echo"
   ]
  },
  {
   "id": "kbl-live-02",
-  "file": "keyboard-lighting/src/parts/brightness_hotkeys.c",
-  "old": "if (!parseOk || !end || *end != '\\0') {",
+  "file": "keyboard-lighting/src/parts/brightness_master.c",
+  "old": "if (!parseOk || !end || *end != '\\0' || end != txt + len || parsed < 0 || parsed > 1000) {",
   "new": "if (FALSE) {",
-  "label": "A truncated live.txt sample is accepted as a bogus brightness value",
+  "label": "Malformed or out-of-range live samples become master commands",
   "tests": [
-   "tests.test_windows_apps.WindowsDesktopAppsTests.test_keyboard_lighting_hold_ramp_is_not_quantized_by_the_panel"
+   "tests.test_windows_apps.LightingInputTests.test_rails_external_fn_inputs_and_half_percent_readback_do_not_echo"
   ]
  },
  {
@@ -4172,9 +4172,9 @@
  {
   "id": "kbl-input-diag-03",
   "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
-  "old": "g_holdInputDiag.repeatWrites[dir]++;",
-  "new": "g_holdInputDiag.repeatWrites[dir] += 0;",
-  "label": "Successful held-key repeat writes are not counted",
+  "old": "g_holdInputDiag.holdSteps[direction > 0]++;",
+  "new": "g_holdInputDiag.holdSteps[direction > 0] += 0;",
+  "label": "Native fine steps are not counted",
   "tests": [
    "tests.test_windows_apps.LightingInputTests.test_both_directions_keep_first_token_learning_pacing_and_release"
   ]
@@ -4382,8 +4382,8 @@
  {
   "id": "hub-open-45",
   "file": "tools/build_windows.py",
-  "old": "    \"kbl\": (ROOT / \"shared\" / \"win32\" / \"window_reveal.h\",),",
-  "new": "    \"kbl\": (),",
+  "old": "    \"kbl\": (ROOT / \"shared\" / \"win32\" / \"window_reveal.h\",\n            ROOT / \"keyboard-lighting\" / \"Aura-Background.ps1\"),",
+  "new": "    \"kbl\": (ROOT / \"keyboard-lighting\" / \"Aura-Background.ps1\",),",
   "label": "A shared reveal protocol change leaves a stale Lighting EXE cached",
   "tests": [
    "tests.test_windows_apps.BluetoothPanelTests.test_three_binary_cache_keys_follow_the_shared_reveal_protocol"
@@ -5662,9 +5662,9 @@
  {
   "id": "kbl-hold-mode-00",
   "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
-  "old": "if (HoldModeRead() != 0) {",
+  "old": "if (mode != 0) {",
   "new": "if (0) {",
-  "label": "native holds feed repeat tokens into latch and burst",
+  "label": "Native mode arbitration leaves incorrect physical hold evidence active",
   "tests": [
    "tests.test_windows_apps.LightingInputTests.test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction"
   ]
@@ -5672,9 +5672,9 @@
  {
   "id": "kbl-hold-mode-01",
   "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
-  "old": "if (HoldModeRead() != 0) {",
-  "new": "if (HoldModeRead() == 1) {",
-  "label": "repeat guard omits burst mode",
+  "old": "if (mode != 0) {",
+  "new": "if (mode == 1) {",
+  "label": "Native mode arbitration leaves incorrect physical hold evidence active",
   "tests": [
    "tests.test_windows_apps.LightingInputTests.test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction"
   ]
@@ -5682,9 +5682,9 @@
  {
   "id": "kbl-hold-mode-02",
   "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
-  "old": "if (HoldModeRead() != 0) {",
-  "new": "if (HoldModeRead() == 2) {",
-  "label": "repeat guard omits latch mode",
+  "old": "if (mode != 0) {",
+  "new": "if (mode == 2) {",
+  "label": "Native mode arbitration leaves incorrect physical hold evidence active",
   "tests": [
    "tests.test_windows_apps.LightingInputTests.test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction"
   ]
@@ -5702,9 +5702,9 @@
  {
   "id": "kbl-hold-mode-04",
   "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
-  "old": "if (HoldModeRead() != 0) {",
-  "new": "if (HoldModeRead() == 0) {",
-  "label": "mode guard disables tap holds and allows latch repeats",
+  "old": "if (mode != 0) {",
+  "new": "if (mode == 0) {",
+  "label": "Native mode arbitration leaves incorrect physical hold evidence active",
   "tests": [
    "tests.test_windows_apps.LightingInputTests.test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction"
   ]
@@ -5717,6 +5717,386 @@
   "label": "mode guard discards physical HID release tracking",
   "tests": [
    "tests.test_windows_apps.LightingInputTests.test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-00",
+  "file": "keyboard-lighting/src/parts/brightness_controller.h",
+  "old": "key == 0 ? -1 : 1",
+  "new": "key == 0 ? 1 : -1",
+  "label": "M4/M5 identities are reversed",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_both_directions_keep_first_token_learning_pacing_and_release"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-01",
+  "file": "keyboard-lighting/src/parts/brightness_controller.h",
+  "old": "s->level + direction * 50",
+  "new": "s->level + direction * 100",
+  "label": "Custom tap doubles from the deliberate 5 percent",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_genuine_custom_taps_duplicates_stale_tokens_and_restart_seeding"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-02",
+  "file": "keyboard-lighting/src/parts/brightness_controller.h",
+  "old": "s->active = mode != 0;",
+  "new": "s->active = 1;",
+  "label": "A tap without hold evidence glides on its own",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_genuine_custom_taps_duplicates_stale_tokens_and_restart_seeding"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-03",
+  "file": "keyboard-lighting/src/parts/brightness_controller.h",
+  "old": "s->direction > 0 ? 15 : 10",
+  "new": "s->direction > 0 ? 10 : 10",
+  "label": "Up loses its distinct 1.5 percent fine step",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_both_directions_keep_first_token_learning_pacing_and_release"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-04",
+  "file": "keyboard-lighting/src/parts/brightness_controller.h",
+  "old": "mode == 2 ? 150 : 0",
+  "new": "mode == 2 ? 200 : 0",
+  "label": "Burst adds too much after the 5 percent initial response",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_native_latch_stops_and_burst_is_exactly_twenty_percent_in_both_directions"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-05",
+  "file": "keyboard-lighting/src/parts/brightness_controller.h",
+  "old": "mode == 1 && s->active && s->direction == direction",
+  "new": "0 && mode == 1 && s->active && s->direction == direction",
+  "label": "A second latch press cannot stop the glide",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_native_latch_stops_and_burst_is_exactly_twenty_percent_in_both_directions"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-06",
+  "file": "keyboard-lighting/src/parts/brightness_controller.h",
+  "old": "s->mode == 0 && s->direction == (key == 0 ? -1 : 1)",
+  "new": "s->direction == (key == 0 ? -1 : 1)",
+  "label": "Physical release incorrectly cancels latch/burst",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-07",
+  "file": "keyboard-lighting/src/parts/brightness_controller.h",
+  "old": "s->heldUntil = now + 120;",
+  "new": "s->heldUntil = now + 120; s->nextAt = now + 30;",
+  "label": "Hold evidence continually postpones the independent ramp clock",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_both_directions_keep_first_token_learning_pacing_and_release"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-08",
+  "file": "keyboard-lighting/src/parts/brightness_controller.h",
+  "old": "now - s->startedAt >= 10000",
+  "new": "now - s->startedAt >= 300",
+  "label": "Ceiling truncates genuine full-range holds",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_rails_external_fn_inputs_and_half_percent_readback_do_not_echo"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-09",
+  "file": "keyboard-lighting/src/parts/brightness_controller.h",
+  "old": "now - s->startedAt >= 10000 ||",
+  "new": "now - s->startedAt >= 20000 ||",
+  "label": "A stalled latch survives the hard ceiling",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_native_latch_stops_and_burst_is_exactly_twenty_percent_in_both_directions"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-10",
+  "file": "keyboard-lighting/src/parts/brightness_controller.h",
+  "old": "    BrightnessStop(s);\n    BrightnessSet(s, level);",
+  "new": "    BrightnessSet(s, level);",
+  "label": "Slider/absolute input leaves a previous glide active",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_exact_master_survives_restart_and_slider_and_zone_settings_do_not_fight"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-11",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (!g_gestureReleasedAt[dir] || tokenAt <= g_gestureReleasedAt[dir]) continue;",
+  "new": "if (0) continue;",
+  "label": "Duplicate Custom delivery double-steps a known gesture",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_learning_never_copies_keys_and_one_physical_gesture_is_consumed_once"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-12",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "|| now - tokenAt > 1500ULL",
+  "new": "|| now - tokenAt > 15000ULL",
+  "label": "Stale launch tokens are replayed as new presses",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_genuine_custom_taps_duplicates_stale_tokens_and_restart_seeding"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-13",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "strncpy(g_seenTok[dir], cur, 31);\n            if (ParseBrightTokenTick",
+  "new": "/* no seed */\n            if (ParseBrightTokenTick",
+  "label": "Restart replays the current press flag",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_genuine_custom_taps_duplicates_stale_tokens_and_restart_seeding"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-14",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "(int)scan == g_scanBound[1 - dir]",
+  "new": "(0 && (int)scan == g_scanBound[1 - dir])",
+  "label": "The down/up scan bindings can be copied into one another",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_learning_never_copies_keys_and_one_physical_gesture_is_consumed_once"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-15",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (!code || code == g_hidCode[1 - dir]) return;",
+  "new": "if (!code) return;",
+  "label": "The down/up HID bindings can be copied into one another",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_learning_never_copies_keys_and_one_physical_gesture_is_consumed_once"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-16",
+  "file": "keyboard-lighting/src/parts/brightness_master.c",
+  "old": "if (!g_brightnessChannelReady) return; /* old run's live.txt is not a new input */",
+  "new": "/* accept any leftover live file */",
+  "label": "A previous run overwrites the last saved startup master",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_restart_uses_saved_master_not_a_stale_live_file_from_an_earlier_run"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-17",
+  "file": "keyboard-lighting/src/parts/brightness_master.c",
+  "old": "    g_brightnessWritePending = !WriteAtomicUtf8(g_livePath, buf);",
+  "new": "    WriteAtomicUtf8(g_livePath, buf); g_brightnessWritePending = FALSE;",
+  "label": "A failed master publish is forgotten and stale disk wins",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_modes_physical_release_ceiling_and_failed_repeat_write_stay_safe"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-18",
+  "file": "keyboard-lighting/src/parts/panel_config.c",
+  "old": "cfg->smooth = JsonBool(root, end, \"Smooth\", cfg->smooth);",
+  "new": "cfg->smooth = TRUE;",
+  "label": "Steady Colours is reset on load",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_all_eight_balance_steady_zone_combinations_survive_save_close_and_reopen"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-19",
+  "file": "keyboard-lighting/src/parts/panel_config.c",
+  "old": "!memcmp(v, \"false\", 5)) return FALSE;",
+  "new": "!memcmp(v, \"false\", 5)) return defVal;",
+  "label": "Saved false booleans become defaults",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_all_eight_balance_steady_zone_combinations_survive_save_close_and_reopen"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-20",
+  "file": "keyboard-lighting/src/parts/panel_config.c",
+  "old": "ParseGroupJson(kbd, end, &cfg->kbd);",
+  "new": "ParseGroupJson(bar, end, &cfg->kbd);",
+  "label": "Keyboard settings are incorrectly read from the bar",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_all_eight_balance_steady_zone_combinations_survive_save_close_and_reopen"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-21",
+  "file": "keyboard-lighting/src/parts/panel_config.c",
+  "old": "        ParseGroupJson(root, end, &cfg->kbd);",
+  "new": "        /* ignore flat legacy preferences */",
+  "label": "Old-format Balance/Mirror choices are lost",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_json_scope_order_and_legacy_flat_preferences_are_preserved"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-22",
+  "file": "keyboard-lighting/src/parts/panel_config.c",
+  "old": "MERGE_PANEL(smooth);",
+  "new": "/* keep stale native smooth value */",
+  "label": "A later native save overwrites an external Steady choice",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_external_hub_or_tray_changes_survive_a_later_unrelated_native_save"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-23",
+  "file": "keyboard-lighting/src/parts/panel_config.c",
+  "old": "MERGE_GROUP(equalise);",
+  "new": "/* keep stale native equalise value */",
+  "label": "A later native save overwrites external zone Balance choices",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_external_hub_or_tray_changes_survive_a_later_unrelated_native_save"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-24",
+  "file": "keyboard-lighting/src/parts/panel_config.c",
+  "old": "cfg->customColors[i] = (COLORREF)color;",
+  "new": "cfg->customColors[0] = (COLORREF)color;",
+  "label": "Custom colour slots collapse into one position",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_unknown_fields_and_custom_palette_slot_positions_survive"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-25",
+  "file": "keyboard-lighting/src/parts/panel_config.c",
+  "old": "NUMBER(NULL, \"MasterLevel\", g_brightness.level);",
+  "new": "NUMBER(NULL, \"MasterLevel\", g_cfg.masterBrightness * 10);",
+  "label": "Persistence rounds away the upward half-percent steps",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_exact_master_survives_restart_and_slider_and_zone_settings_do_not_fight"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-26",
+  "file": "keyboard-lighting/src/parts/panel_config.c",
+  "old": "    memcpy(out + at, tail, suffix);",
+  "new": "    memset(out + at, ' ', suffix);",
+  "label": "Patching a setting destroys the unknown JSON suffix",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_unknown_fields_and_custom_palette_slot_positions_survive"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-27",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "if (-not $NativeBrightness) {",
+  "new": "if ($true) {",
+  "label": "The native-owned engine also consumes the same Custom presses",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_engine_protocol_and_windows_runtime_regression_are_wired"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-28",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "if (-not $NativeBrightness -and $null -ne $j.Brightness)",
+  "new": "if ($null -ne $j.Brightness)",
+  "label": "An unrelated stale theme overwrites native master",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_engine_protocol_and_windows_runtime_regression_are_wired"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-29",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "$z.SoftBlend = ($steady -ne 'off')",
+  "new": "$z.SoftBlend = $true",
+  "label": "Startup silently forces Steady Colours on",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_engine_protocol_and_windows_runtime_regression_are_wired"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-30",
+  "file": "keyboard-lighting/src/parts/engine_bootstrap.c",
+  "old": "-NativeBrightness -OnExit",
+  "new": "-OnExit",
+  "label": "Native panel starts a legacy token consumer and double-consumes commands",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_engine_protocol_and_windows_runtime_regression_are_wired"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-31",
+  "file": "keyboard-lighting/src/parts/engine_bootstrap.c",
+  "old": "-Smooth %S",
+  "new": "-IgnoredSmooth %S",
+  "label": "Native launch drops saved Steady restoration",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_engine_protocol_and_windows_runtime_regression_are_wired"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-32",
+  "file": "keyboard-lighting/src/parts/engine_bootstrap.c",
+  "old": "        WriteThemeJson(); /* preferences never republish an old master */",
+  "new": "        WriteThemeJson(); WriteLiveBrightness(); /* stale master echo */",
+  "label": "An unrelated settings apply republishes a stale master",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_engine_protocol_and_windows_runtime_regression_are_wired"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-33",
+  "file": "keyboard-lighting/Tray.ps1",
+  "old": "Merge-PanelObject $script:Cfg $script:PanelBase $disk",
+  "new": "Copy-PanelObject $script:Cfg",
+  "label": "Legacy save serializes stale preferences instead of merging external changes",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_engine_protocol_and_windows_runtime_regression_are_wired"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-34",
+  "file": "keyboard-lighting/src/kbl.rc",
+  "old": "3 RCDATA \"../Aura-Background.ps1\"",
+  "new": "3 RCDATA \"../Zones.ps1\"",
+  "label": "Standalone executable embeds an unrelated engine protocol",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_native_executable_contains_the_exact_matched_engine_not_an_old_branch_bootstrap"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-35",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "                associated = 0;",
+  "new": "                continue;",
+  "label": "The preceding released gesture swallows a new Custom press that beats its raw event",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_learning_never_copies_keys_and_one_physical_gesture_is_consumed_once"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-36",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "$src = Get-Item -LiteralPath $EngineSource",
+  "new": "$src = Get-Item (Join-Path $Here 'Aura-Background.ps1')",
+  "label": "A cached native engine accepts an unrelated precompiled DLL timestamp",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_engine_protocol_and_windows_runtime_regression_are_wired"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-37",
+  "file": "keyboard-lighting/Tray.ps1",
+  "old": "            Load-UiFromCfg\n        }\n    } catch { Log (\"settings save failed:",
+  "new": "            # no existing-control refresh\n        }\n    } catch { Log (\"settings save failed:",
+  "label": "Merged external preferences leave stale controls ready to overwrite them",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_engine_protocol_and_windows_runtime_regression_are_wired"
   ]
  }
 ]

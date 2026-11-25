@@ -55,7 +55,13 @@ static int enumerateMode, registerMode, listQueries, listFills, infoCalls, regis
 static UINT requestedCount;
 static int snapshotWrites, tokenWrites[2], profileWrites, modeWrites;
 static BOOL writeOk;
-static char tokens[2][32], modeText[32], snapshot[2048];
+static char tokens[2][32], modeText[32], snapshot[2048], live[64];
+static int levelWrites, settingsSaves;
+static const wchar_t *g_livePath = L"live.txt";
+static struct { int masterBrightness; } g_cfg;
+static HWND g_hwnd;
+static wchar_t g_toastText[96];
+static ULONGLONG g_toastAt, g_lastFnPoll;
 static wchar_t snapshotPath[MAX_PATH];
 static BYTE packet[256];
 static UINT packetSize;
@@ -86,8 +92,8 @@ static int _snwprintf(wchar_t *out, size_t cap, const wchar_t *format, ...) {
 }
 static char *ReadFileUtf8(const wchar_t *path, DWORD *length) {
     const char *text = path == g_brightDownPath ? tokens[0] :
-                       path == g_brightUpPath ? tokens[1] : modeText;
-    CHECK(path == g_brightDownPath || path == g_brightUpPath || path == g_holdModePath);
+                       path == g_brightUpPath ? tokens[1] : path == g_livePath ? live : modeText;
+    CHECK(path == g_brightDownPath || path == g_brightUpPath || path == g_holdModePath || path == g_livePath);
     *length = (DWORD)strlen(text);
     if (!*length) return NULL;
     char *out = malloc(*length + 1);
@@ -101,6 +107,9 @@ static BOOL WriteAtomicUtf8(const wchar_t *path, const char *text) {
         int dir = path == g_brightUpPath;
         tokenWrites[dir]++;
         if (writeOk) snprintf(tokens[dir], sizeof(tokens[dir]), "%s", text);
+    } else if (path == g_livePath) {
+        levelWrites++;
+        if (writeOk) snprintf(live, sizeof(live), "%s", text);
     } else if (path == g_holdModePath) {
         modeWrites++;
         if (writeOk) snprintf(modeText, sizeof(modeText), "%s", text);
@@ -183,6 +192,11 @@ static UINT GetRawInputData(HRAWINPUT input, UINT command, void *out, UINT *size
     return packetSize;
 }
 
+static void OsdShow(int pct) { CHECK(pct >= 0 && pct <= 100); }
+static void InvalidateRect(HWND h, void *r, BOOL erase) { (void)h; (void)r; (void)erase; }
+static void SavePanelCfg(void) { settingsSaves++; }
+#include "../../keyboard-lighting/src/parts/brightness_master.c"
+
 #ifndef LIGHTING_INPUT_PRODUCTION
 #define LIGHTING_INPUT_PRODUCTION "../../keyboard-lighting/src/parts/m4_m5_hold.c"
 #endif
@@ -200,6 +214,17 @@ static void Reset(void) {
     memset(g_holdOn, 0, sizeof(g_holdOn));
     memset(g_hidDown, 0, sizeof(g_hidDown));
     memset(g_sigAt, 0, sizeof(g_sigAt));
+    memset(g_gestureAt, 0, sizeof(g_gestureAt));
+    memset(g_gestureReleasedAt, 0, sizeof(g_gestureReleasedAt));
+    memset(g_customGestureAt, 0, sizeof(g_customGestureAt));
+    memset(g_customAt, 0, sizeof(g_customAt));
+    memset(g_customAwaitRaw, 0, sizeof(g_customAwaitRaw));
+    BrightnessInit(&g_brightness, 500);
+    g_brightnessWritePending = g_panelSaveFailed = FALSE;
+    g_brightnessChannelReady = TRUE;
+    g_brightnessCfgSaveAt = g_lastFnPoll = 0;
+    g_cfg.masterBrightness = 50;
+    strcpy(live, "500"); levelWrites = settingsSaves = 0;
     memset(g_scanNext, 0, sizeof(g_scanNext));
     memset(g_learnCand, 0, sizeof(g_learnCand));
     memset(g_learnN, 0, sizeof(g_learnN));
@@ -284,16 +309,21 @@ static void TestRegistration(void) {
 }
 static void TestHold(void) {
     for (int dir = 0; dir < 2; dir++) {
+        int sign = dir ? 1 : -1, amount = dir ? 15 : 10;
         Reset(); InitRawInput(target); SeedBrightTokenWatch();
         Keyboard((WORD)(0x70 + dir), 255, TRUE); Token(dir); WatchBrightTokens();
         CHECK(g_scanBound[dir] == 0x70 + dir && g_scanVk[dir] == 255);
         CHECK(g_holdOn[dir] && !tokenWrites[dir] && profileWrites == 2);
         CHECK(g_holdInputDiag.tokenObservations[dir] == 1);
-        tick += 29; HoldPump(); CHECK(!tokenWrites[dir]);
-        tick++; HoldPump(); CHECK(tokenWrites[dir] == 1 && g_holdInputDiag.repeatWrites[dir] == 1);
-        WatchBrightTokens(); CHECK(g_holdInputDiag.tokenObservations[dir] == 2);
+        CHECK(atoi(live) == 500 + sign * 50 && levelWrites == 1);
+        tick += 29; HoldPump(); CHECK(levelWrites == 1);
+        tick++; HoldPump();
+        CHECK(atoi(live) == 500 + sign * (50 + amount));
+        CHECK(levelWrites == 2 && g_holdInputDiag.holdSteps[dir] == 1);
+        WatchBrightTokens(); CHECK(g_holdInputDiag.tokenObservations[dir] == 1);
         Keyboard((WORD)(0x70 + dir), 255, FALSE);
-        tick += 30; HoldPump(); CHECK(!g_holdOn[dir] && tokenWrites[dir] == 1);
+        tick += 120; HoldPump(); CHECK(!g_holdOn[dir] && levelWrites == 2);
+        CHECK(!g_brightness.active && !tokenWrites[dir]);
         CHECK(g_holdInputDiag.keyboardReports == 2);
         WriteHoldDiagnostics(TRUE);
         Field(dir ? "scan_bound_up" : "scan_bound_down", 1);
@@ -308,8 +338,10 @@ static void TestHidBatch(void) {
     Hid(pair, 2); Token(0); WatchBrightTokens();
     CHECK(g_hidCode[0] == 0x38 && g_hidRelSeen[0] == 1 && !g_holdOn[0]);
     CHECK(g_holdInputDiag.asusReports == 2 && !g_holdInputDiag.keyboardReports);
-    Hid(press, 1); CHECK(g_holdOn[0]);
-    tick += 30; HoldPump(); CHECK(tokenWrites[0] == 1);
+    tick++; Hid(press, 1); CHECK(g_holdOn[0]);
+    Token(0); WatchBrightTokens();
+    CHECK(atoi(live) == 400);
+    tick += 30; HoldPump(); CHECK(atoi(live) == 390 && !tokenWrites[0]);
     Hid(release, 1); CHECK(!g_holdOn[0] && !g_hidDown[0]);
     WriteHoldDiagnostics(TRUE);
     Field("asus_reports", 4); Field("hid_bound_down", 1); Field("release_source_down", 1);
@@ -319,14 +351,14 @@ static void TestSnapshot(void) {
         "panel_pid", "sample_tick_ms", "keyboard_registered", "requested_usages",
         "vendor_usages_registered", "enumeration_error", "registration_error",
         "keyboard_reports", "asus_reports", "token_observations_down", "token_observations_up",
-        "repeat_tokens_written_down", "repeat_tokens_written_up", "scan_bound_down", "scan_bound_up",
+        "hold_steps_down", "hold_steps_up", "scan_bound_down", "scan_bound_up",
         "hid_bound_down", "hid_bound_up", "release_source_down", "release_source_up",
         "hold_active_down", "hold_active_up"
     };
     Reset(); InitRawInput(target);
     g_scanBound[0] = 987654; g_hidCode[1] = 456789; g_hidRelSeen[1] = 1;
     WriteHoldDiagnostics(TRUE); CHECK(snapshotWrites == 1);
-    CHECK(strncmp(snapshot, "schema=tests.lighting-input.v1\r\n", 32) == 0);
+    CHECK(strncmp(snapshot, "schema=tests.lighting-input.v2\r\n", 32) == 0);
     CHECK(strstr(snapshot, "987654") == NULL && strstr(snapshot, "456789") == NULL);
     CHECK(strstr(snapshot, "C:\\") == NULL && strlen(snapshot) < 1024);
     Field("panel_pid", 42); Field("scan_bound_down", 1); Field("hid_bound_up", 1);
@@ -367,7 +399,7 @@ static void TestNonHoldModes(void) {
                 if (hid) Hid(press, 1);
                 else Keyboard((WORD)(0x70 + dir), 255, TRUE);
                 Token(dir); WatchBrightTokens();
-                CHECK(g_holdOn[dir]); /* Real input still learns the binding. */
+                CHECK(hid ? g_hidDown[dir] : g_holdOn[dir]); /* Real input still learns. */
                 CHECK(!g_scanBound[1 - dir] && !g_hidCode[1 - dir]);
                 char initial[32]; strcpy(initial, tokens[dir]);
                 int savedProfiles = profileWrites, savedModes = modeWrites;
@@ -386,6 +418,9 @@ static void TestNonHoldModes(void) {
                 if (hid) Hid(release, 1);
                 else Keyboard((WORD)(0x70 + dir), 255, FALSE);
                 CHECK(g_scanArmed[dir] && !g_holdOn[dir]);
+                int releasedLevel=atoi(live);
+                tick+=30;HoldPump();
+                CHECK(atoi(live)==releasedLevel+((mode==2&&dir==1)?0:(dir?15:-10)));
                 if (hid) CHECK(g_hidCode[dir] == (DWORD)(0x38 + dir) && g_hidRelSeen[dir]);
                 else CHECK(g_scanBound[dir] == 0x70 + dir && g_scanVk[dir] == 255);
             }
@@ -396,15 +431,15 @@ static void TestNonHoldModes(void) {
     for (int dir = 0; dir < 2; dir++) {
         Reset(); InitRawInput(target); SeedBrightTokenWatch();
         Keyboard((WORD)(0x70 + dir), 255, TRUE); Token(dir); WatchBrightTokens();
-        tick += 30; HoldPump(); CHECK(tokenWrites[dir] == 1);
+        tick += 30; HoldPump(); CHECK(levelWrites == 2 && !tokenWrites[dir]);
         HoldModeWrite(1); tick += 30; HoldPump();
-        CHECK(tokenWrites[dir] == 1 && !g_holdOn[dir]);
+        CHECK(levelWrites == 2 && !tokenWrites[dir] && !g_holdOn[dir]);
         Keyboard((WORD)(0x70 + dir), 255, FALSE);
         HoldModeWrite(0); tick++;
         Keyboard((WORD)(0x70 + dir), 255, TRUE); Token(dir); WatchBrightTokens();
-        tick += 30; HoldPump(); CHECK(tokenWrites[dir] == 2 && g_holdOn[dir]);
+        tick += 30; HoldPump(); CHECK(levelWrites == 4 && !tokenWrites[dir] && g_holdOn[dir]);
         Keyboard((WORD)(0x70 + dir), 255, FALSE);
-        tick += 30; HoldPump(); CHECK(tokenWrites[dir] == 2 && !g_holdOn[dir]);
+        tick += 30; HoldPump(); CHECK(levelWrites == 4 && !tokenWrites[dir] && !g_holdOn[dir]);
     }
     Reset(); HoldModeWrite(1);
     g_scanBound[0] = 0x70; g_scanBound[1] = 0x71;
@@ -424,9 +459,122 @@ static void TestModesAndCeiling(void) {
     keyState = 0; tick += 30; HoldPump(); CHECK(!g_holdOn[0] && !tokenWrites[0]);
     g_scanVk[0] = 255; PressSignal(0, 0, tick);
     tick += 10001; HoldPump();
-    CHECK(!g_holdOn[0] && g_scanArmed[0] && !g_hidDown[0] && !tokenWrites[0]);
-    writeOk = FALSE; HoldTokenWrite(0);
-    CHECK(tokenWrites[0] == 1 && !g_holdInputDiag.repeatWrites[0]);
+    CHECK(!g_holdOn[0] && !g_hidDown[0] && !tokenWrites[0]);
+    writeOk = FALSE; SetMasterBrightnessLevel(350);
+    CHECK(levelWrites == 1 && g_brightnessWritePending && atoi(live) == 500);
+    tick += 35; PollFnBrightness();
+    CHECK(g_brightness.level == 350 && g_brightnessWritePending);
+    writeOk = TRUE; tick += 35; PollFnBrightness();
+    CHECK(atoi(live) == 350 && !g_brightnessWritePending);
+    tick += 1000; PollFnBrightness(); CHECK(settingsSaves == 1);
+}
+static void TestCustomCommands(void) {
+    for (int dir=0; dir<2; dir++) {
+        int sign=dir?1:-1;
+        Reset(); SeedBrightTokenWatch(); Token(dir); WatchBrightTokens();
+        CHECK(atoi(live)==500+sign*50);
+        for (int n=0;n<20;n++) { tick+=15; WatchBrightTokens(); HoldPump(); }
+        CHECK(atoi(live)==500+sign*50 && levelWrites==1); /* no phantom hold */
+        tick++; Token(dir); WatchBrightTokens();
+        CHECK(atoi(live)==500+sign*100); /* rapid genuine taps stay distinct */
+        WatchBrightTokens(); CHECK(levelWrites==2); /* duplicate observation */
+        snprintf(tokens[dir],32,"%llu:7",(unsigned long long)tick); WatchBrightTokens();
+        CHECK(atoi(live)==500+sign*150); /* separate same-ms launch */
+        tick=5000;
+        const char *bad[]={"-1","5001","4999:0","4999:x","99999999999999999999","1000","7x"};
+        for(size_t n=0;n<sizeof(bad)/sizeof(bad[0]);n++) {
+            strcpy(tokens[dir],bad[n]); WatchBrightTokens();CHECK(levelWrites==3);
+        }
+        snprintf(tokens[dir],32,"%llu:9",(unsigned long long)(tick-10));
+        SeedBrightTokenWatch(); WatchBrightTokens(); HoldPump(); CHECK(levelWrites==3);
+        CHECK(!g_scanBound[0]&&!g_scanBound[1]&&!g_hidCode[0]&&!g_hidCode[1]);
+    }
+}
+static void TestDelayedRelease(void) {
+    for(int dir=0;dir<2;dir++) {
+        Reset(); SeedBrightTokenWatch();
+        Keyboard((WORD)(0x70+dir),255,TRUE);
+        tick+=50;Keyboard((WORD)(0x70+dir),255,FALSE);
+        tick+=100;Token(dir);WatchBrightTokens();
+        int tapped=atoi(live);
+        tick+=60;HoldPump();CHECK(atoi(live)==tapped&&!g_holdOn[dir]);
+        tick++;Keyboard((WORD)(0x70+dir),255,TRUE);
+        tick+=30;HoldPump();CHECK(atoi(live)==tapped); /* no old press adoption */
+        Keyboard((WORD)(0x70+dir),255,FALSE);
+        tick++;Keyboard((WORD)(0x70+dir),255,TRUE);Token(dir);WatchBrightTokens();
+        CHECK(atoi(live)==tapped+(dir?50:-50));
+        tick+=30;HoldPump();CHECK(atoi(live)==tapped+(dir?65:-60));
+        Keyboard((WORD)(0x70+dir),255,FALSE);int released=atoi(live);
+        tick+=500;HoldPump();CHECK(atoi(live)==released);
+    }
+}
+static void TestControllerModes(void) {
+    for(int mode=1;mode<=2;mode++) for(int dir=0;dir<2;dir++) {
+        Reset();SeedBrightTokenWatch();HoldModeWrite(mode);Token(dir);WatchBrightTokens();
+        int amount=dir?15:10,sign=dir?1:-1;
+        for(int n=0;n<8;n++){tick+=30;HoldPump();}
+        CHECK(atoi(live)==500+sign*(50+8*amount));
+        if(mode==1) {
+            tick++;Token(dir);WatchBrightTokens();int stopped=atoi(live);
+            tick+=30;HoldPump();CHECK(atoi(live)==stopped&&!g_brightness.active);
+        } else {
+            for(int n=8;n<20;n++){tick+=30;HoldPump();}
+            CHECK(atoi(live)==500+sign*200&&!g_brightness.active);
+        }
+        CHECK(!tokenWrites[0]&&!tokenWrites[1]&&HoldModeRead()==mode);
+    }
+    Reset();SeedBrightTokenWatch();HoldModeWrite(1);Token(1);WatchBrightTokens();
+    int initial=atoi(live);tick+=11000;HoldPump();
+    CHECK(!g_brightness.active&&atoi(live)==initial); /* stalled latch is bounded */
+}
+static void TestBoundsAndExternal(void) {
+    for(int dir=0;dir<2;dir++) {
+        Reset();SeedBrightTokenWatch();
+        Keyboard((WORD)(0x70+dir),255,TRUE);Token(dir);WatchBrightTokens();
+        for(int n=0;n<110;n++){tick+=30;HoldPump();}
+        CHECK(atoi(live)==(dir?1000:0));
+        int writes=levelWrites;
+        for(int n=0;n<30;n++){tick+=30;HoldPump();}
+        CHECK(levelWrites==writes); /* no repeated taps at a rail */
+        SetMasterBrightnessLevel(500);CHECK(!g_brightness.active);
+        strcpy(live,"565");writes=levelWrites;tick+=35;PollFnBrightness();
+        CHECK(g_brightness.level==565&&g_cfg.masterBrightness==57&&levelWrites==writes);
+        CHECK(g_brightness.lastOn==565&&!g_brightness.active);
+        const char *bad[]={"","x","1001","-1","52x"};
+        for(size_t n=0;n<sizeof(bad)/sizeof(bad[0]);n++) {
+            strcpy(live,bad[n]);tick+=35;PollFnBrightness();
+            CHECK(g_brightness.level==565&&levelWrites==writes);
+        }
+    }
+}
+static void TestDistinctAndDuplicate(void) {
+    Reset();SeedBrightTokenWatch();
+    Keyboard(0x70,255,TRUE);Token(0);WatchBrightTokens();
+    Keyboard(0x70,255,FALSE);tick++;
+    Keyboard(0x71,255,TRUE);Token(1);WatchBrightTokens();
+    CHECK(g_scanBound[0]==0x70&&g_scanBound[1]==0x71);
+    BindScan(1,0x70,255);CHECK(g_scanBound[1]==0x71);
+    BindHid(0,0x38);BindHid(1,0x38);CHECK(!g_hidCode[1]);
+    BindHid(1,0x39);CHECK(g_hidCode[0]==0x38&&g_hidCode[1]==0x39);
+    int writes=levelWrites;
+    tick+=30;snprintf(tokens[1],32,"%llu:7",(unsigned long long)tick);WatchBrightTokens();
+    CHECK(levelWrites==writes); /* duplicate command for same physical hold */
+    tick+=2000;snprintf(tokens[1],32,"%llu:8",(unsigned long long)tick);WatchBrightTokens();
+    CHECK(levelWrites==writes);
+    Keyboard(0x71,255,FALSE);tick++;
+    Keyboard(0x71,255,TRUE);Token(1);WatchBrightTokens();CHECK(levelWrites==writes+1);
+    /* Opposite release cannot terminate the active direction. */
+    tick+=30;HoldPump();CHECK(g_brightness.active);
+    ReleaseSignal(0,tick);CHECK(g_brightness.active);
+    ReleaseSignal(1,tick);CHECK(!g_brightness.active);
+    /* A real new Custom command may beat its raw event into the UI queue.
+       A consumed, released gesture must not swallow the new launch. */
+    int releasedLevel=atoi(live);
+    tick+=20;Token(1);WatchBrightTokens();
+    CHECK(atoi(live)==releasedLevel+50);
+    tick+=5;Keyboard(0x71,255,TRUE);
+    tick+=30;HoldPump();CHECK(atoi(live)==releasedLevel+65);
+    Keyboard(0x71,255,FALSE);
 }
 int main(int argc, char **argv) {
     CHECK(argc == 2); scenario = argv[1];
@@ -438,6 +586,11 @@ int main(int argc, char **argv) {
     else if (!strcmp(scenario, "snapshot")) TestSnapshot();
     else if (!strcmp(scenario, "modes-ceiling")) TestModesAndCeiling();
     else if (!strcmp(scenario, "non-hold-modes")) TestNonHoldModes();
+    else if (!strcmp(scenario, "custom")) TestCustomCommands();
+    else if (!strcmp(scenario, "delayed-release")) TestDelayedRelease();
+    else if (!strcmp(scenario, "controller-modes")) TestControllerModes();
+    else if (!strcmp(scenario, "bounds-external")) TestBoundsAndExternal();
+    else if (!strcmp(scenario, "distinct-duplicate")) TestDistinctAndDuplicate();
     else CHECK(FALSE);
     printf("Lighting input %s passed\n", scenario);
     return 0;

@@ -58,8 +58,13 @@ collection. This is the owner's installed-use confirmation, not a newly
 established technical cause or a matrix of every capability/preset scope.
 No new plugin code, version or release was needed in this follow-up. The
 independent fan ceiling and approved setup boundaries remain. The owner now
-reports the earlier items verified and prioritizes Prism M4/M5 brightness;
-processed-preview work follows that task. No new technical cause is inferred.
+requests a ground-up Prism brightness rebuild and reopens Balance/Steady Colours
+restore after restart (one or both uncertain). Earlier preferences approval is
+superseded; Orca Save stays resolved. The owner explicitly kept the fresh
+Lighting-log gate; engine-8 is now received/scanned and that gate is satisfied.
+The native master rebuild and saved-state repairs are implemented; installed
+acceptance remains open, separate from automated checks. Processed preview
+follows those repairs. No owner-specific cause is inferred.
 
 ## Earlier Save investigation — unresolved at that stage
 

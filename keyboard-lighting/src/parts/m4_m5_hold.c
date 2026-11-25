@@ -10,10 +10,10 @@
         and some models send a RELEASE frame (byte1 == 0, like the ROG
         Ally) or press|0x80. A press+release pair gives TRUE hold with
         no repeats needed at all.
-   All three feed one state machine: in tap mode the first token takes an
-   immediate 5% step, then the engine glides down 1% or up 1.5% every 30 ms
-   while fresh tokens confirm the hold; release stops it. Latch/burst modes
-   use only the Custom action, never native hold-repeat tokens.
+   Raw events supply hold/release evidence only. Genuine Custom commands
+   enter the native master controller once; timers never rewrite their flags.
+   The native-owned engine consumes absolute levels, not a second gesture
+   state machine. Latch/burst still need only Custom commands.
    Learned bindings persist in presets.ini [Keys] M4Scan=/M5Scan=/M4Vk=/
    M5Vk=/M4Hid=/M5Hid=/M4HidRelease=/M5HidRelease=. Without any hold signal,
    behavior stays a clean tap per press. */
@@ -33,6 +33,9 @@ static BYTE      g_holdOn[2] = { 0, 0 };
 static BYTE      g_hidRelSeen[2] = { 0, 0 };
 static ULONGLONG g_sigAt[2] = { 0, 0 };
 static ULONGLONG g_scanNext[2] = { 0, 0 };
+static ULONGLONG g_gestureAt[2], g_gestureReleasedAt[2], g_customGestureAt[2];
+static ULONGLONG g_customAt[2];
+static BYTE g_customAwaitRaw[2];
 static int       g_learnCand[2] = { 0, 0 };
 static int       g_learnN[2] = { 0, 0 };
 static DWORD     g_learnHid[2] = { 0, 0 };
@@ -52,7 +55,7 @@ typedef struct HoldInputDiagnostics {
     ULONGLONG keyboardReports;
     ULONGLONG asusReports;
     ULONGLONG tokenObservations[2];
-    ULONGLONG repeatWrites[2];
+    ULONGLONG holdSteps[2];
 } HoldInputDiagnostics;
 static HoldInputDiagnostics g_holdInputDiag;
 static ULONGLONG g_holdDiagAt;
@@ -106,83 +109,64 @@ static int HidReleaseSeen(DWORD code) {
     return 0;
 }
 
-static void HoldTokenWrite(int dir) {
-    char tok[32];
-    _snprintf(tok, 32, "%llu", (unsigned long long)GetTickCount64());
-    tok[31] = '\0';
-    if (WriteAtomicUtf8(dir == 0 ? g_brightDownPath : g_brightUpPath, tok))
-        g_holdInputDiag.repeatWrites[dir]++;
-}
-
-/* One paced token per interval while a tap-mode gesture is live. */
+/* Native repeats are evidence, NEVER another Custom press. Every input
+   shares the master controller and its independent, bounded 30ms clock. */
 static void HoldPump(void) {
     ULONGLONG now = GetTickCount64();
-    if (!g_holdOn[0] && !g_holdOn[1]) return;
-    if (HoldModeRead() != 0) {
-        /* Latch toggles on each token; burst restarts on each token. Only
-           G-Helper's one Custom action per press belongs in those modes.
-           Keep the learned bindings and HID-down state for real releases. */
+    SyncMasterBrightness();
+    int mode = HoldModeRead();
+    BrightnessMode(&g_brightness, mode);
+    if (mode != 0) {
         g_holdOn[0] = g_holdOn[1] = 0;
-        return;
-    }
-    for (int i = 0; i < 2; i++) {
+    } else for (int i = 0; i < 2; i++) {
         if (!g_holdOn[i]) continue;
-        /* Raw key-up can be lost while the UI thread is busy. For ordinary
-           virtual keys, poll the physical state too; vendor VKey 255 stays on
-           the raw-input/HID release path. */
         if (g_scanBound[i] && g_scanVk[i] > 0 && g_scanVk[i] < 0xFF &&
             (GetAsyncKeyState((int)g_scanVk[i]) & 0x8000) == 0) {
             ReleaseSignal(i, now);
             continue;
         }
-        if (!HasReleaseSrc(i) && !g_hidDown[i] && now - g_sigAt[i] > 300ULL) {
+        if ((!HasReleaseSrc(i) && now - g_sigAt[i] > 300ULL) ||
+            now < g_gestureAt[i] || now - g_gestureAt[i] >= 10000ULL) {
+            /* Never re-arm a stuck raw key at the ceiling. Only its real
+               release or a fresh Custom action may begin another gesture. */
             g_holdOn[i] = 0;
-            continue;
-        }
-        /* Ceiling on the whole stream, and the only one that still applies
-           once a release source is known. HasReleaseSrc is monotonic - nothing
-           ever unsets g_scanBound or lowers g_hidRelSeen - so the silence
-           timeout above is switched off for good the moment learning succeeds.
-           A release that then fails to arrive (key let go while this thread
-           was starved, or a device that only reports release sometimes) would
-           keep the token stream running forever, with the brightness pinned at
-           the rail and nothing anywhere to explain it.
-           Ten seconds is deliberately far longer than either fine sweep: M4
-           takes about 3s and M5 about 2s from 0 to 100%. A real hold reaches
-           the rail first, so this only stops a stream that has nothing left to do. */
-        if (now - g_sigAt[i] > 10000ULL) {
-            g_holdOn[i] = 0;
-            g_scanArmed[i] = 1;
-            g_hidDown[i] = 0;
+            BrightnessRelease(&g_brightness, i);
             continue;
         }
         if (now >= g_scanNext[i]) {
-            /* The dedicated WM_TIMER runs every 15 ms. Pump once per tick
-               so the 30 ms repeat target is reached without being quantized
-               by the slower 45 ms preview timer. This keeps fresh tokens well
-               inside the engine's 120 ms hold window if one UI tick is late. */
             g_scanNext[i] = now + 30;
-            HoldTokenWrite(i);
+            if (g_customGestureAt[i] == g_gestureAt[i])
+                BrightnessHeld(&g_brightness, i, now);
         }
+    }
+    int before = g_brightness.level, direction = g_brightness.direction;
+    if (BrightnessTick(&g_brightness, now)) {
+        g_holdInputDiag.holdSteps[direction > 0]++;
+        PublishMasterBrightness(before, TRUE);
     }
 }
 
 static void PressSignal(int dir, int repeat, ULONGLONG now) {
+    if (!repeat && (!g_gestureAt[dir] || g_gestureReleasedAt[dir])) {
+        g_gestureAt[dir] = now;
+        g_gestureReleasedAt[dir] = 0;
+        if (g_customAwaitRaw[dir] && now >= g_customAt[dir] && now - g_customAt[dir] <= 750ULL) {
+            g_customGestureAt[dir] = now;
+            g_customAwaitRaw[dir] = 0;
+        }
+    }
     g_sigAt[dir] = now;
-    if (repeat) {
+    if (repeat || HasReleaseSrc(dir)) {
         g_holdOn[dir] = 1;
-    } else if (HasReleaseSrc(dir)) {
-        /* Release is observable: stream for the whole hold. The press
-           itself already stepped once via G-Helper's Custom token. */
-        g_holdOn[dir] = 1;
-        g_scanNext[dir] = now + 30;
+        if (!repeat) g_scanNext[dir] = now + 30;
     }
 }
 
 static void ReleaseSignal(int dir, ULONGLONG now) {
-    (void)now;
+    g_gestureReleasedAt[dir] = now;
     g_holdOn[dir] = 0;
     g_scanArmed[dir] = 1;
+    BrightnessRelease(&g_brightness, dir);
     if (g_hidDown[dir]) {
         g_hidDown[dir] = 0;
         MarkHidReleaseSeen(dir);
@@ -225,7 +209,7 @@ static void MarkHidReleaseSeen(int dir) {
 }
 
 static void BindScan(int dir, DWORD scan, DWORD vk) {
-    if (!scan) return;
+    if (!scan || (int)scan == g_scanBound[1 - dir]) return;
     g_scanBound[dir] = (int)scan;
     g_scanVk[dir] = vk;
     g_scanArmed[dir] = 1;
@@ -234,7 +218,7 @@ static void BindScan(int dir, DWORD scan, DWORD vk) {
 }
 
 static void BindHid(int dir, DWORD code) {
-    if (!code) return;
+    if (!code || code == g_hidCode[1 - dir]) return;
     g_hidCode[dir] = code;
     PersistKeyValue(dir == 0 ? L"M4Hid" : L"M5Hid", code);
 }
@@ -290,10 +274,17 @@ static void OnRawHid(const BYTE *b, int len, ULONGLONG now) {
 
 static int ParseBrightTokenTick(const char *token, ULONGLONG now, ULONGLONG *tick) {
     char *end = NULL;
-    unsigned long long value;
-    if (!token || !token[0] || !tick) return 0;
-    value = strtoull(token, &end, 10);
-    if (end == token || *end != '\0' || (ULONGLONG)value > now) return 0;
+    if (!token || token[0] < '0' || token[0] > '9' || !tick) return 0;
+    unsigned long long value = strtoull(token, &end, 10);
+    if (end == token || (ULONGLONG)value > now) return 0;
+    /* New transient writers add their PID, so distinct launches in one
+       millisecond remain distinct. Numeric legacy tokens still work. */
+    if (*end == ':') {
+        char *pidEnd = NULL;
+        if (end[1] < '0' || end[1] > '9') return 0;
+        unsigned long pid = strtoul(end + 1, &pidEnd, 10);
+        if (!pid || !pidEnd || *pidEnd) return 0;
+    } else if (*end) return 0;
     *tick = (ULONGLONG)value;
     return 1;
 }
@@ -302,9 +293,8 @@ static void LearnFromRing(int dir, ULONGLONG tokenAt, int newToken) {
     ULONGLONG now = GetTickCount64();
     if (!tokenAt) tokenAt = now;
 
-    /* Learn each input family only until it has a binding. The token file also
-       receives our own repeat tokens; those must not rebind M4 to a nearby key
-       pressed while the brightness key is held. */
+    /* Learn each family only until bound. Genuine Custom tokens alone may
+       correlate inputs; held timer ticks can never rebind either key. */
     if (g_scanBound[dir] == 0) {
         /* G-Helper writes its command token just after the physical key event.
            Correlate timestamps so the first held gesture can bind and repeat. */
@@ -314,7 +304,8 @@ static void LearnFromRing(int dir, ULONGLONG tokenAt, int newToken) {
             int idx = (g_keyRingHead + 255 - i) & 255;
             KeyRec *r = &g_keyRing[idx];
             if (r->tick == 0) break;
-            if (!r->down || r->injected || r->scan == 0) continue;
+            if (!r->down || r->injected || r->scan == 0 ||
+                (int)r->scan == g_scanBound[1 - dir]) continue;
             if (r->scan == 0x1D || r->scan == 0x2A || r->scan == 0x36 || r->scan == 0x38) continue;
             ULONGLONG delta = TickDistance(r->tick, tokenAt);
             if (delta <= 750ULL && delta < bestKeyDelta) {
@@ -326,6 +317,8 @@ static void LearnFromRing(int dir, ULONGLONG tokenAt, int newToken) {
             BindScan(dir, bestKey->scan, bestKey->vk);
             g_learnCand[dir] = (int)bestKey->scan;
             g_learnN[dir] = 2;
+            if (!g_gestureAt[dir] || g_gestureReleasedAt[dir]) g_gestureAt[dir] = bestKey->tick;
+            g_gestureReleasedAt[dir] = ScanCurrentlyDown(bestKey->scan, bestKey->vk) ? 0 : now;
             if (ScanCurrentlyDown(bestKey->scan, bestKey->vk)) {
                 g_scanArmed[dir] = 0;
                 PressSignal(dir, 0, now);
@@ -340,7 +333,8 @@ static void LearnFromRing(int dir, ULONGLONG tokenAt, int newToken) {
                 KeyRec *r = &g_keyRing[idx];
                 if (r->tick == 0) break;
                 if (now < r->tick || now - r->tick > 1500ULL) break;
-                if (!r->down || r->injected) continue;
+                if (!r->down || r->injected || !r->scan ||
+                    (int)r->scan == g_scanBound[1 - dir]) continue;
                 if (r->scan == 0x1D || r->scan == 0x2A || r->scan == 0x36 || r->scan == 0x38) continue;
                 cand = (int)r->scan;
                 candVk = r->vk;
@@ -375,7 +369,7 @@ static void LearnFromRing(int dir, ULONGLONG tokenAt, int newToken) {
             int idx = (g_hidRingHead + 255 - i) & 255;
             HidRec *r = &g_hidRing[idx];
             if (r->tick == 0) break;
-            if (r->rel || r->code == 0) continue;
+            if (r->rel || r->code == 0 || r->code == g_hidCode[1 - dir]) continue;
             ULONGLONG delta = TickDistance(r->tick, tokenAt);
             if (delta <= 750ULL && delta < bestHidDelta) {
                 bestHid = r;
@@ -388,6 +382,8 @@ static void LearnFromRing(int dir, ULONGLONG tokenAt, int newToken) {
             g_learnHid[dir] = hc;
             g_learnHidN[dir] = 2;
             if (HidReleaseSeen(hc)) MarkHidReleaseSeen(dir);
+            if (!g_gestureAt[dir] || g_gestureReleasedAt[dir]) g_gestureAt[dir] = bestHid->tick;
+            g_gestureReleasedAt[dir] = HidCurrentlyDown(hc) ? 0 : now;
             if (HidCurrentlyDown(hc)) {
                 g_hidDown[dir] = 1;
                 if (!g_holdOn[dir]) {
@@ -395,7 +391,7 @@ static void LearnFromRing(int dir, ULONGLONG tokenAt, int newToken) {
                        the matching release can now stop this same gesture. */
                     g_scanArmed[dir] = 0;
                     g_scanNext[dir] = now + 30;
-                    PressSignal(dir, 1, now);
+                    PressSignal(dir, 0, now);
                 }
             }
         } else if (newToken) {
@@ -405,7 +401,7 @@ static void LearnFromRing(int dir, ULONGLONG tokenAt, int newToken) {
                 HidRec *r = &g_hidRing[idx];
                 if (r->tick == 0) break;
                 if (now < r->tick || now - r->tick > 1500ULL) break;
-                if (r->rel || r->code == 0) continue;
+                if (r->rel || r->code == 0 || r->code == g_hidCode[1 - dir]) continue;
                 hc = r->code;
                 break;
             }
@@ -448,36 +444,53 @@ static void SeedBrightTokenWatch(void) {
     }
 }
 
+static int TokenMatchesGesture(int dir, ULONGLONG tokenAt) {
+    if (!g_gestureAt[dir]) return 0;
+    if (tokenAt < g_gestureAt[dir]) return g_gestureAt[dir] - tokenAt <= 750ULL;
+    ULONGLONG finish = g_gestureReleasedAt[dir];
+    return finish ? tokenAt <= finish + 750ULL : tokenAt - g_gestureAt[dir] <= 10000ULL;
+}
+
 static void WatchBrightTokens(void) {
     ULONGLONG now = GetTickCount64();
     for (int dir = 0; dir < 2; dir++) {
         char cur[32] = { 0 };
         DWORD len = 0;
         char *txt = ReadFileUtf8(dir == 0 ? g_brightDownPath : g_brightUpPath, &len);
-        if (txt) { strncpy(cur, txt, 31); free(txt); }
-        cur[31] = '\0';
+        if (txt) { if (len < sizeof(cur)) memcpy(cur, txt, len); free(txt); }
         cur[strcspn(cur, "\r\n")] = '\0';
         if (cur[0] && strcmp(cur, g_seenTok[dir]) != 0) {
-            ULONGLONG tokenAt = now;
-            ParseBrightTokenTick(cur, now, &tokenAt);
+            ULONGLONG tokenAt = 0;
             strncpy(g_seenTok[dir], cur, 31);
             g_seenTok[dir][31] = '\0';
+            if (!ParseBrightTokenTick(cur, now, &tokenAt) || now - tokenAt > 1500ULL) continue;
             g_holdInputDiag.tokenObservations[dir]++;
-            if (!g_holdOn[dir]) {
-                g_pendingLearnAt[dir] = tokenAt;
-                g_pendingLearnUntil[dir] = now + 1500ULL;
-                LearnFromRing(dir, tokenAt, 1);
-            } else {
-                g_pendingLearnAt[dir] = 0;
+            g_pendingLearnAt[dir] = tokenAt;
+            g_pendingLearnUntil[dir] = now + 1500ULL;
+            LearnFromRing(dir, tokenAt, 1);
+            int associated = TokenMatchesGesture(dir, tokenAt);
+            if (associated && g_customGestureAt[dir] == g_gestureAt[dir]) {
+                if (!g_gestureReleasedAt[dir] || tokenAt <= g_gestureReleasedAt[dir]) continue;
+                /* A new launch after an observed release may arrive before
+                   its new raw event. Do not attach it to the consumed hold. */
+                associated = 0;
             }
+            g_customAt[dir] = tokenAt;
+            g_customAwaitRaw[dir] = (BYTE)!associated;
+            if (associated) g_customGestureAt[dir] = g_gestureAt[dir];
+            SyncMasterBrightness();
+            int before = g_brightness.level;
+            BrightnessPress(&g_brightness, dir, HoldModeRead(), now);
+            PublishMasterBrightness(before, TRUE);
         }
-        if (!g_holdOn[dir] && g_pendingLearnAt[dir] &&
-            now <= g_pendingLearnUntil[dir] &&
+        if (g_pendingLearnAt[dir] && now <= g_pendingLearnUntil[dir] &&
             (g_scanBound[dir] == 0 || g_hidCode[dir] == 0)) {
             LearnFromRing(dir, g_pendingLearnAt[dir], 0);
-        } else if (now > g_pendingLearnUntil[dir]) {
-            g_pendingLearnAt[dir] = 0;
-        }
+            if (g_customAwaitRaw[dir] && TokenMatchesGesture(dir, g_customAt[dir])) {
+                g_customGestureAt[dir] = g_gestureAt[dir];
+                g_customAwaitRaw[dir] = 0;
+            }
+        } else if (now > g_pendingLearnUntil[dir]) g_pendingLearnAt[dir] = 0;
     }
 }
 
@@ -647,13 +660,13 @@ static void WriteHoldDiagnostics(int force) {
     path[plen] = L'\0';
     char text[2048];
     int length = _snprintf(text, sizeof(text),
-        "schema=tests.lighting-input.v1\r\n"
+        "schema=tests.lighting-input.v2\r\n"
         "panel_pid=%lu\r\nsample_tick_ms=%llu\r\n"
         "keyboard_registered=%d\r\nrequested_usages=%u\r\nvendor_usages_registered=%u\r\n"
         "enumeration_error=%lu\r\nregistration_error=%lu\r\n"
         "keyboard_reports=%llu\r\nasus_reports=%llu\r\n"
         "token_observations_down=%llu\r\ntoken_observations_up=%llu\r\n"
-        "repeat_tokens_written_down=%llu\r\nrepeat_tokens_written_up=%llu\r\n"
+        "hold_steps_down=%llu\r\nhold_steps_up=%llu\r\n"
         "scan_bound_down=%d\r\nscan_bound_up=%d\r\n"
         "hid_bound_down=%d\r\nhid_bound_up=%d\r\n"
         "release_source_down=%d\r\nrelease_source_up=%d\r\n"
@@ -666,8 +679,8 @@ static void WriteHoldDiagnostics(int force) {
         (unsigned long long)g_holdInputDiag.asusReports,
         (unsigned long long)g_holdInputDiag.tokenObservations[0],
         (unsigned long long)g_holdInputDiag.tokenObservations[1],
-        (unsigned long long)g_holdInputDiag.repeatWrites[0],
-        (unsigned long long)g_holdInputDiag.repeatWrites[1],
+        (unsigned long long)g_holdInputDiag.holdSteps[0],
+        (unsigned long long)g_holdInputDiag.holdSteps[1],
         g_scanBound[0] != 0, g_scanBound[1] != 0,
         g_hidCode[0] != 0, g_hidCode[1] != 0,
         HasReleaseSrc(0) != 0, HasReleaseSrc(1) != 0,

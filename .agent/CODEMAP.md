@@ -415,34 +415,32 @@
 - L303  f CheckIsAdmin
 - L315  f ReadFileUtf8
 - L331  f WriteAtomicUtf8
-- L347  f ParseHexColor
-- L356  f FormatHexColor
-- L360  f FindEffectIndex
-- L370  f CurGroup
-- L374  f InitDefaultCfg
+- L348  f ParseHexColor
+- L357  f FormatHexColor
+- L361  f FindEffectIndex
+- L371  f CurGroup
+- L375  f InitDefaultCfg
 - globals: g_hwnd (L184), g_appIcon (L185), g_nid (L186), g_trayVisible (L187), g_showEvent (L188), g_engineProc (L189), g_enginePid (L190), g_isAdmin (L191), g_autostart (L192), g_wantOff (L193), g_quitting (L194), g_trayHinted (L195), g_downloading (L196), g_cfg (L198), g_tab (L199), g_hits (L200), g_hitCount (L201), g_hoverIdx (L202), g_dragKind (L203), g_dragIdx (L204), g_dragRect (L205), g_scrollY (L206), g_contentH (L207), g_applyPending (L208), g_applyAtTick (L209), g_liveCols (L212), g_liveKbdN (L213), g_liveBarN (L214), g_hasLiveFrame (L215), g_lastFrameTick (L216), g_toastText (L219), g_toastAt (L220), g_lastFnPoll (L221), g_exePath (L224), g_exeDir (L225), g_cfgDir (L226), g_panelPath (L227), g_themePath (L228), g_livePath (L229), g_framePath (L230), g_layoutPath (L231), g_lockPath (L232), g_showPath (L233), g_engPidPath (L234), g_stopPath (L235), g_brightUpPath (L236), g_brightDownPath (L237), g_holdModePath (L238), g_hubTogglePath (L239), g_hubExitPath (L240), g_engineScript (L241), g_zonesBat (L242), g_statusText (L243)
 
 ## keyboard-lighting/src/parts/brightness_hotkeys.c
 
-- L8  f StepMasterBrightness  — ---- global brightness hotkeys --------------------------------------
-- L24  f RegisterBrightnessHotkeys
-- L38  f JsonVal  — Lightweight parser preserving existing user panel.json settings
-- L57  f JsonBool
-- L65  f JsonInt
-- L71  f JsonStr
-- L80  f ParseGroupJson
-- L136  f LoadPanelCfg
-- L164  f FormatGroupPanelJson
-- L198  f SavePanelCfg
-- L229  f WriteLiveBrightness
-- L242  f FlushPendingBrightnessCfg
-- L258  f PollFnBrightness
-- L295  f HelpForHit  — One-line plain-English explanation for every control, shown in the footer
-- L332  f FormatThemeBlock
-- L366  f WriteThemeJson
-- L383  f SyncLinkedZone
-- L390  f WriteHeartbeat
-- globals: g_brightnessCfgSaveAt (L240)
+- L3  f StepMasterBrightness
+- L9  f RegisterBrightnessHotkeys
+- L27  f HelpForHit  — One-line plain-English explanation for every control, shown in the footer
+- L64  f FormatThemeBlock
+- L98  f WriteThemeJson
+- L115  f SyncLinkedZone
+- L122  f WriteHeartbeat
+
+## keyboard-lighting/src/parts/brightness_master.c
+
+- L18  f WriteLiveBrightness
+- L25  f PublishMasterBrightness
+- L41  f SetMasterBrightnessLevel
+- L49  f SyncMasterBrightness
+- L73  f FlushPendingBrightnessCfg
+- L80  f PollFnBrightness
+- globals: g_brightness (L5), g_brightnessWritePending (L6), g_brightnessChannelReady (L7), g_brightnessCfgSaveAt (L8), g_panelSaveFailed (L9)
 
 ## keyboard-lighting/src/parts/brightness_osd.c
 
@@ -476,52 +474,52 @@
 - L5  f IsEngineAlive  — ============================================================================
 - L15  f KillPidFromFile
 - L28  f StopEngine
-- L44  f DownloadRepoFileWinHttp
-- L127  f StartEngine
-- L226  f TurnAllLightsOff
-- L255  f MarkAutostartOff
-- L268  f AutostartMarkedOff
-- L275  f TaskExists
-- L296  f QueryAutostart
-- L301  f SetKblAutostart
-- L355  f ScheduleLiveApply
-- L367  f FlushLiveApply
-- L392  f ParseLayoutTxt
-- globals: g_barOrder (L387), g_barQ (L388), g_barLayoutN (L389), g_layoutReadAt (L390)
+- L51  f PrepareBundledEngine
+- L81  f StartEngine
+- L169  f TurnAllLightsOff
+- L193  f MarkAutostartOff
+- L206  f AutostartMarkedOff
+- L213  f TaskExists
+- L234  f QueryAutostart
+- L239  f SetKblAutostart
+- L293  f ScheduleLiveApply
+- L305  f FlushLiveApply
+- L329  f ParseLayoutTxt
+- globals: g_barOrder (L324), g_barQ (L325), g_barLayoutN (L326), g_layoutReadAt (L327)
 
 ## keyboard-lighting/src/parts/m4_m5_hold.c
 
-- L66  f HasReleaseSrc
-- L73  f TickDistance
-- L77  f ScanCurrentlyDown
-- L89  f HidCurrentlyDown
-- L99  f HidReleaseSeen
-- L109  f HoldTokenWrite
-- L118  f HoldPump  — One paced token per interval while a tap-mode gesture is live.
-- L170  f PressSignal
-- L182  f ReleaseSignal
-- L192  f OnScanEvent
-- L211  f PersistKeyValue
-- L220  f MarkHidReleaseSeen
-- L227  f BindScan
-- L236  f BindHid
-- L242  f OnRawHid
-- L291  f ParseBrightTokenTick
-- L301  f LearnFromRing
-- L426  f SeedBrightTokenWatch
-- L451  f WatchBrightTokens
-- L484  f InitRawInput
-- L552  f OnRawInputMsg
-- L604  f HoldModeRead
-- L616  f HoldModeWrite
-- L626  f HoldReadyLabel
-- L639  f WriteHoldDiagnostics
-- globals: g_keyRing (L21), g_keyRingHead (L22), g_hidRing (L24), g_hidRingHead (L25), g_scanBound (L26), g_scanVk (L27), g_hidCode (L28), g_hidLastCode (L29), g_scanArmed (L30), g_hidDown (L31), g_holdOn (L32), g_hidRelSeen (L33), g_sigAt (L34), g_scanNext (L35), g_learnCand (L36), g_learnN (L37), g_learnHid (L38), g_learnHidN (L39), g_seenTok (L40), g_pendingLearnAt (L41), g_pendingLearnUntil (L42), g_holdInputDiag (L57), g_holdDiagAt (L58)
+- L69  f HasReleaseSrc
+- L76  f TickDistance
+- L80  f ScanCurrentlyDown
+- L92  f HidCurrentlyDown
+- L102  f HidReleaseSeen
+- L114  f HoldPump
+- L149  f PressSignal
+- L165  f ReleaseSignal
+- L176  f OnScanEvent
+- L195  f PersistKeyValue
+- L204  f MarkHidReleaseSeen
+- L211  f BindScan
+- L220  f BindHid
+- L226  f OnRawHid
+- L275  f ParseBrightTokenTick
+- L292  f LearnFromRing
+- L422  f SeedBrightTokenWatch
+- L447  f TokenMatchesGesture
+- L454  f WatchBrightTokens
+- L497  f InitRawInput
+- L565  f OnRawInputMsg
+- L617  f HoldModeRead
+- L629  f HoldModeWrite
+- L639  f HoldReadyLabel
+- L652  f WriteHoldDiagnostics
+- globals: g_keyRing (L21), g_keyRingHead (L22), g_hidRing (L24), g_hidRingHead (L25), g_scanBound (L26), g_scanVk (L27), g_hidCode (L28), g_hidLastCode (L29), g_scanArmed (L30), g_hidDown (L31), g_holdOn (L32), g_hidRelSeen (L33), g_sigAt (L34), g_scanNext (L35), g_gestureAt (L36), g_customAt (L37), g_customAwaitRaw (L38), g_learnCand (L39), g_learnN (L40), g_learnHid (L41), g_learnHidN (L42), g_seenTok (L43), g_pendingLearnAt (L44), g_pendingLearnUntil (L45), g_holdInputDiag (L60), g_holdDiagAt (L61)
 
 ## keyboard-lighting/src/parts/mouse_drag_menus.c
 
 - L5  f ApplySliderDrag  — ============================================================================
-- L33  f OpenEffectPopup
+- L32  f OpenEffectPopup
 
 ## keyboard-lighting/src/parts/named_colour_presets.c
 
@@ -530,11 +528,33 @@
 - L34  f SaveGroupPreset
 - L59  f LoadGroupPreset
 - L95  f LoadPresetIndex
-- L111  f SavePresetSlot
-- L129  f ApplyPresetSlot
-- L149  f DeletePresetSlot
-- L165  f OpenPatternPopup  — Pattern picker: the same native popup menu the effect list uses.
+- L112  f SavePresetSlot
+- L130  f ApplyPresetSlot
+- L150  f DeletePresetSlot
+- L166  f OpenPatternPopup  — Pattern picker: the same native popup menu the effect list uses.
 - globals: g_presetName (L9), g_presetUsed (L10), g_presetIdx (L11)
+
+## keyboard-lighting/src/parts/panel_config.c
+
+- L7  f JsonSpace
+- L11  f JsonWhite
+- L16  f JsonStringEnd
+- L37  f JsonValueEnd
+- L85  f JsonRoot
+- L96  f JsonVal
+- L117  f JsonBool
+- L127  f JsonInt
+- L136  f JsonStr
+- L161  f ParseGroupJson
+- L207  f ParsePanelJson
+- L251  f LoadPanelCfg
+- L263  f MergeGroupCfg
+- L272  f MergePanelCfg
+- L290  f PatchJsonMember  — Replace/append one member without reserializing any unowned member.
+- L325  f PatchPanelJson
+- L363  f SyncExternalPanelCfg
+- L372  f SavePanelCfg
+- globals: g_savedCfg (L4), g_savedMasterLevel (L5)
 
 ## keyboard-lighting/src/parts/picker_window_entry.c
 
@@ -542,11 +562,11 @@
 - L70  f RelaunchElevated
 - L91  f EnsureLogonTask
 - L137  f HandleHitAction
-- L229  f KeyboardTraySync
-- L242  f ApplyHubLightingToggle
-- L248  f ApplyHubExit
-- L255  f ShowTrayContextMenu
-- L553  f InitKblPaths
+- L231  f KeyboardTraySync
+- L244  f ApplyHubLightingToggle
+- L250  f ApplyHubExit
+- L257  f ShowTrayContextMenu
+- L561  f InitKblPaths
 - globals: g_pickOrig (L6), g_pickLast (L7), g_pickIdx (L8), g_pickLive (L9)
 
 ## keyboard-lighting/src/parts/ui_renderer.c
@@ -1145,11 +1165,11 @@
 
 ## tools/build_windows.py
 
-- L58  f zig_version
-- L63  f target_key
-- L84  f ensure_zig_python
-- L100  f build_target
-- L136  f main
+- L59  f zig_version
+- L64  f target_key
+- L85  f ensure_zig_python
+- L101  f build_target
+- L137  f main
 
 ## tools/bump_version.py
 
@@ -1413,20 +1433,21 @@
 - L49  f strip_cs_comments_and_strings
 - L171  f lex_powershell
 - L306  f WindowsDesktopAppsTests
-- L3780  f SuiteFolderInstallTests
-- L5131  f ProjectHubUpdateVisibilityAndBranchFollowingTests
-- L5314  f AudioSwitcherReachabilityTests
-- L5498  f AudioSwitcherSessionSweepTests
-- L5639  f LightingInputTests
-- L5700  f AppOpenFocusTests
-- L5882  f HubLongevityTests
-- L5946  f HubGroupedEntriesTests
-- L6067  f BluetoothAudioEndpointTests
-- L6134  f BluetoothPanelTests
-- L6248  f RadarWindowsLocationTests
-- L6407  f SafetyMutationPropertyTests
-- L6510  f GuardSecurityReportTests
-- L6682  f PublicNameRolloutTests
+- L3767  f SuiteFolderInstallTests
+- L5118  f ProjectHubUpdateVisibilityAndBranchFollowingTests
+- L5301  f AudioSwitcherReachabilityTests
+- L5485  f AudioSwitcherSessionSweepTests
+- L5626  f LightingInputTests
+- L5702  f AppOpenFocusTests
+- L5884  f HubLongevityTests
+- L5948  f HubGroupedEntriesTests
+- L6069  f BluetoothAudioEndpointTests
+- L6136  f BluetoothPanelTests
+- L6250  f RadarWindowsLocationTests
+- L6409  f SafetyMutationPropertyTests
+- L6512  f GuardSecurityReportTests
+- L6684  f PublicNameRolloutTests
+- L6827  f LightingStateTests
 
 ## tests/wave_cases.py
 

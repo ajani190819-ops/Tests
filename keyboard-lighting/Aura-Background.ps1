@@ -70,6 +70,12 @@ param(
     # the old behaviour of running until told to stop.
     [int]$OwnerPid = 0,
 
+    # Native panel owns press/hold/mode arbitration. In this mode the engine
+    # consumes absolute live.txt levels, never the same Custom press twice.
+    [switch]$NativeBrightness,
+    [ValidateSet('auto','on','off')]
+    [string]$Smooth = 'auto',
+
     # Hardware backlight level to hold, 0 to 3, or -1 to leave it alone.
     #
     # Defaults to full. This is not the app's brightness slider - that
@@ -146,12 +152,14 @@ function Say($msg, $col = 'Gray') { if (-not $Quiet) { Write-Host $msg -Foregrou
 # an assembly. The source is still here and still compiles on demand: that is
 # what happens if the DLL is missing, stale, or built by a different runtime,
 # so a failed or half-finished Setup degrades to "slow" instead of "broken".
-$Here = Split-Path -Parent $MyInvocation.MyCommand.Path
+$EngineSource = $MyInvocation.MyCommand.Path
+$Here = Split-Path -Parent $EngineSource
 $EngineDll = Join-Path $Here 'Engine.dll'
 if (-not ('LampEngine' -as [type])) {
     if (Test-Path $EngineDll) {
         try {
-            $src = Get-Item (Join-Path $Here 'Aura-Background.ps1') -ErrorAction SilentlyContinue
+            # Also works for the native EXE's separately named bundled copy.
+            $src = Get-Item -LiteralPath $EngineSource -ErrorAction SilentlyContinue
             $dll = Get-Item $EngineDll
             # A DLL older than the script it came from is from a previous
             # version. Ignore it rather than run yesterday's engine.
@@ -3766,7 +3774,14 @@ if ($null -ne $zoneRingOverride -and -not $PSBoundParameters.ContainsKey('BarLay
     Say ("  Light bar ring: {0} (from your saved zone map)." -f $(if ($zBar.Loop) { 'on' } else { 'off' })) 'Yellow'
 }
 
+function Set-StartupPreferences {
+    param($engine, $zones, [string]$steady)
+    foreach ($z in $zones) { $z.SoftBlend = ($steady -ne 'off') }
+    $engine.DitherMode = if ($steady -eq 'on') { 0 } elseif ($steady -eq 'off') { 1 } else { -1 }
+}
 foreach ($z in @($zDeck, $zBar)) { $z.Master = [double]$Master }
+# Restore BEFORE the first render frame, not only on a later theme timestamp.
+Set-StartupPreferences $eng @($zDeck, $zBar) $Smooth
 
 # The panel draws its preview from this: the real bytes the engine sends,
 # not a reproduction of the effect. Set before anything drives the device
@@ -4230,6 +4245,36 @@ if (Test-Path $themeFile) {
     try { $script:ThemeStamp = (Get-Item $themeFile).LastWriteTimeUtc.Ticks } catch { }
 }
 
+# live.txt is the one master channel. Theme edits never override it in a
+# native-owned engine. Mirroring a level is read-only; Fn actions publish a new
+# level atomically, with retry rather than a truncate/readback feedback loop.
+$script:LiveWritePending = $false
+function Publish-Live {
+    $tmp = $liveFile + '.' + $PID + '.tmp'
+    try {
+        [IO.File]::WriteAllText($tmp, ([string]$script:LiveLevel + "`r`n"), [Text.Encoding]::ASCII)
+        if ([IO.File]::Exists($liveFile)) { [IO.File]::Replace($tmp, $liveFile, $null) }
+        else { [IO.File]::Move($tmp, $liveFile) }
+        $script:LiveWritePending = $false
+    } catch { $script:LiveWritePending = $true }
+}
+
+function Sync-Live {
+    if ($script:LiveWritePending) { Publish-Live; return }
+    try {
+        $txt = (Get-Content $liveFile -Raw -ErrorAction Stop).Trim()
+        $val = 0
+        if (-not [int]::TryParse($txt, [ref]$val) -or $val -lt 0 -or $val -gt 1000) { return }
+        if ($val -eq $script:LiveLevel) { return }
+        $script:LiveLevel = $val
+        if ($val -gt 0) { $script:LastOnLevel = $val }
+        foreach ($z in $eng.Groups) {
+            $z.LiveMaster = $val
+            $z.LiveDirty = $true
+        }
+    } catch { }
+}
+
 function Set-Live([int]$level) {
     if ($level -lt 0)    { $level = 0 }
     if ($level -gt 1000) { $level = 1000 }
@@ -4240,7 +4285,7 @@ function Set-Live([int]$level) {
         $z.LiveMaster = $level
         $z.LiveDirty = $true
     }
-    try { Set-Content -Path $liveFile -Value $level -Encoding ASCII -ErrorAction SilentlyContinue } catch { }
+    Publish-Live
     # Raising the software master is pointless while the EC 0..3 gate sits
     # low - the hardware range would clamp it. Re-assert the full gate so
     # "up" always actually goes up, but rate limited: the fine ramp calls this
@@ -4263,6 +4308,153 @@ function Step-BrightRamp([int]$direction) {
     $amount = Get-BrightRampStep $direction
     Set-Live ($script:LiveLevel + $direction * $amount)
     if ($script:LiveLevel -gt 0) { $script:LastOnLevel = $script:LiveLevel }
+}
+
+function Apply-LiveTheme {
+    param($j)
+    $needAud = $false
+    $needScr = $false
+
+    # Smooth is engine-wide rather than per-group: it
+    # controls how colours are written to the hardware, not
+    # what any one zone is showing. Absent means auto.
+    if ($null -ne $j.Smooth) {
+        $eng.DitherMode = $(if ($j.Smooth) { 0 } else { 1 })
+    } else {
+        $eng.DitherMode = -1
+    }
+
+    $grp = @()
+    if ($eng.Groups.Length -gt 0) { $grp += ,@($eng.Groups[0], $j.Kbd, $j) }
+    if ($eng.Groups.Length -gt 1) { $grp += ,@($eng.Groups[1], $j.Bar, $j) }
+
+    foreach ($pair in $grp) {
+        $z    = $pair[0]
+        $blk  = $pair[1]
+        $root = $pair[2]
+        # fall back to the root object for old-format files
+        if (-not $blk) { $blk = $root }
+
+        $ef = $null
+        if ($blk.Effect) { $ef = [string]$blk.Effect }
+        elseif ($root.Effect) { $ef = [string]$root.Effect }
+        if ($ef) {
+            $z.LiveEffect = $ef
+            if (@('spectrum','vumeter','beat','pulsebass') -contains $ef) { $needAud = $true }
+            if ($ef -eq 'ambient') { $needScr = $true }
+        }
+
+        $sv = $null
+        if ($null -ne $blk.Speed) { $sv = [double]$blk.Speed }
+        elseif ($null -ne $root.Speed) { $sv = [double]$root.Speed }
+        if ($null -ne $sv) { $z.LiveSpeedMilli = [int]([Math]::Round($sv * 1000)) }
+
+        $cv = $null
+        if ($blk.Colors) { $cv = [string]$blk.Colors }
+        elseif ($root.Colors) { $cv = [string]$root.Colors }
+        if ($cv) {
+            $ns = @()
+            foreach ($cstr in ($cv -split ',')) {
+                if ($cstr.Trim()) { $ns += ,(ConvertFrom-Hex $cstr) }
+            }
+            if ($ns.Count -eq 1) { $ns = @($ns[0], $ns[0]) }
+            if ($ns.Count -gt 2 -and
+                $ns[0][0] -eq $ns[-1][0] -and
+                $ns[0][1] -eq $ns[-1][1] -and
+                $ns[0][2] -eq $ns[-1][2]) {
+                $ns = @($ns[0..($ns.Count-2)])
+            }
+            if ($ns.Count -gt 0) {
+                # Widths have to line up with the palette as
+                # the engine ended up holding it, not as the
+                # panel sent it: a single colour is doubled
+                # and a repeated last colour is dropped just
+                # above, so the counts can differ.
+                $wv = $null
+                if ($null -ne $blk.Widths) { $wv = [string]$blk.Widths }
+                $wOut = $null
+                if ($wv) {
+                    $tmp = @()
+                    $bad = $false
+                    foreach ($wtok in ($wv -split ',')) {
+                        $wt = $wtok.Trim()
+                        if (-not $wt) { continue }
+                        $wd = 0.0
+                        if ([double]::TryParse($wt, [ref]$wd)) {
+                            if ($wd -lt 0) { $wd = 0.0 }
+                            $tmp += $wd
+                        } else { $bad = $true }
+                    }
+                    if (-not $bad -and $tmp.Count -eq $ns.Count) {
+                        $tot = 0.0; foreach ($wd in $tmp) { $tot += $wd }
+                        if ($tot -gt 0) {
+                            $wOut = [double[]]@($tmp | ForEach-Object { [double]$_ })
+                        }
+                    }
+                }
+
+                # Build the whole palette first, then hand it
+                # over in ONE assignment. Assigning the three
+                # colour arrays separately let the render
+                # thread catch the set half-swapped and draw a
+                # frame with new reds against old blues - a
+                # visible flash on every colour change. Null
+                # widths mean even bands.
+                $z.LivePal = New-Object PalSet(
+                    [int[]]@($ns | ForEach-Object { $_[0] }),
+                    [int[]]@($ns | ForEach-Object { $_[1] }),
+                    [int[]]@($ns | ForEach-Object { $_[2] }),
+                    $wOut)
+            }
+        }
+
+        $fl = 0
+        $mv = $blk.Mirror;   if ($null -eq $mv) { $mv = $root.Mirror }
+        $rv = $blk.Reverse;  if ($null -eq $rv) { $rv = $root.Reverse }
+        $qv = $blk.Equalise; if ($null -eq $qv) { $qv = $root.Equalise }
+        $lv = $blk.Loop;     if ($null -eq $lv) { $lv = $root.Loop }
+        $sbv = $root.Smooth; if ($null -ne $blk.SoftBlend) { $sbv = $blk.SoftBlend }
+        if ($null -eq $sbv) { $sbv = $true }
+        if ([bool]$mv)  { $fl = $fl -bor 1 }
+        if ([bool]$rv)  { $fl = $fl -bor 2 }
+        if ([bool]$qv)  { $fl = $fl -bor 4 }
+        if ([bool]$lv)  { $fl = $fl -bor 8 }
+        if ([bool]$sbv) { $fl = $fl -bor 16 }
+        $z.LiveFlags = $fl
+
+        $onv = $blk.On
+        if ($null -eq $onv) { $onv = $true }
+        if ([bool]$onv) { $z.LiveEnabled = 1 } else { $z.LiveEnabled = 0 }
+
+        $bv2 = $null
+        if ($null -ne $blk.Brightness) { $bv2 = [double]$blk.Brightness }
+        elseif ($null -ne $root.Brightness) { $bv2 = [double]$root.Brightness }
+        if ($null -ne $bv2) {
+            $bi = [int]([Math]::Round($bv2 * 1000))
+            if ($bi -lt 0) { $bi = 0 }
+            if ($bi -gt 1000) { $bi = 1000 }
+            $z.LiveBrightness = $bi
+        }
+
+        $z.LiveDirty = $true
+    }
+
+    # Master brightness still drives the Fn keys and the
+    # shared live file.
+    if (-not $NativeBrightness -and $null -ne $j.Brightness) {
+        $bv = [int]([Math]::Round([double]$j.Brightness * 1000))
+        if ($bv -lt 0) { $bv = 0 }
+        if ($bv -gt 1000) { $bv = 1000 }
+        Set-Live $bv
+    }
+
+    # A source-sync failure (no audio device yet, no
+    # screen ready) must not swallow the settings that
+    # were already applied above, and must not stay
+    # invisible when it happens.
+    try { Sync-Sources2 $needAud $needScr } catch {
+        Write-Log ('source sync failed: ' + $_.Exception.Message)
+    }
 }
 
 # --- wake from sleep -------------------------------------------------
@@ -4398,6 +4590,10 @@ try {
             break
         }
 
+        # Observe external/native input before computing any relative Fn or
+        # legacy action. Applying a master never echoes its rounded projection.
+        Sync-Live
+        if (-not $NativeBrightness) {
         # --- M4/M5 brightness taps: paced like screen brightness -------
         $nowU = [DateTime]::UtcNow
         $tapDir = 0
@@ -4512,6 +4708,8 @@ try {
                     }
                 }
             }
+        }
+
         }
 
         # The app that owns us has gone. Leave by the same door as a normal
@@ -4722,24 +4920,6 @@ try {
             [void](Set-KbdBacklight 3)
         }
 
-        # --- panel-written brightness file (kept: the Fn keys use it too) ---
-        if (Test-Path $liveFile) {
-            try {
-                $txt = (Get-Content $liveFile -Raw -ErrorAction Stop).Trim()
-                $val = 0
-                if ([int]::TryParse($txt, [ref]$val)) {
-                    if ($val -ne $script:LiveLevel) {
-                        $script:LiveLevel = $val
-                        foreach ($z in $eng.Groups) {
-                            $z.LiveMaster = $val
-                            $z.LiveDirty = $true
-                        }
-                        if ($val -gt 0) { [void](Set-KbdBacklight 3) }
-                    }
-                }
-            } catch { }
-        }
-
         # --- full live theme: effect, colours, speed and the toggles ---
         # The control panel writes this whenever anything changes, so the
         # lighting follows along without being torn down and restarted.
@@ -4763,153 +4943,7 @@ try {
                     # The panel writes one block per group. Anything the bar
                     # block leaves out inherits the keyboard's value, so an
                     # old single-group theme file still works unchanged.
-                    $needAud = $false
-                    $needScr = $false
-
-                    # Smooth is engine-wide rather than per-group: it
-                    # controls how colours are written to the hardware, not
-                    # what any one zone is showing. Absent means auto.
-                    if ($null -ne $j.Smooth) {
-                        $eng.DitherMode = $(if ($j.Smooth) { 0 } else { 1 })
-                    } else {
-                        $eng.DitherMode = -1
-                    }
-
-                    $grp = @()
-                    if ($eng.Groups.Length -gt 0) { $grp += ,@($eng.Groups[0], $j.Kbd, $j) }
-                    if ($eng.Groups.Length -gt 1) { $grp += ,@($eng.Groups[1], $j.Bar, $j) }
-
-                    foreach ($pair in $grp) {
-                        $z    = $pair[0]
-                        $blk  = $pair[1]
-                        $root = $pair[2]
-                        # fall back to the root object for old-format files
-                        if (-not $blk) { $blk = $root }
-
-                        $ef = $null
-                        if ($blk.Effect) { $ef = [string]$blk.Effect }
-                        elseif ($root.Effect) { $ef = [string]$root.Effect }
-                        if ($ef) {
-                            $z.LiveEffect = $ef
-                            if (@('spectrum','vumeter','beat','pulsebass') -contains $ef) { $needAud = $true }
-                            if ($ef -eq 'ambient') { $needScr = $true }
-                        }
-
-                        $sv = $null
-                        if ($null -ne $blk.Speed) { $sv = [double]$blk.Speed }
-                        elseif ($null -ne $root.Speed) { $sv = [double]$root.Speed }
-                        if ($null -ne $sv) { $z.LiveSpeedMilli = [int]([Math]::Round($sv * 1000)) }
-
-                        $cv = $null
-                        if ($blk.Colors) { $cv = [string]$blk.Colors }
-                        elseif ($root.Colors) { $cv = [string]$root.Colors }
-                        if ($cv) {
-                            $ns = @()
-                            foreach ($cstr in ($cv -split ',')) {
-                                if ($cstr.Trim()) { $ns += ,(ConvertFrom-Hex $cstr) }
-                            }
-                            if ($ns.Count -eq 1) { $ns = @($ns[0], $ns[0]) }
-                            if ($ns.Count -gt 2 -and
-                                $ns[0][0] -eq $ns[-1][0] -and
-                                $ns[0][1] -eq $ns[-1][1] -and
-                                $ns[0][2] -eq $ns[-1][2]) {
-                                $ns = @($ns[0..($ns.Count-2)])
-                            }
-                            if ($ns.Count -gt 0) {
-                                # Widths have to line up with the palette as
-                                # the engine ended up holding it, not as the
-                                # panel sent it: a single colour is doubled
-                                # and a repeated last colour is dropped just
-                                # above, so the counts can differ.
-                                $wv = $null
-                                if ($null -ne $blk.Widths) { $wv = [string]$blk.Widths }
-                                $wOut = $null
-                                if ($wv) {
-                                    $tmp = @()
-                                    $bad = $false
-                                    foreach ($wtok in ($wv -split ',')) {
-                                        $wt = $wtok.Trim()
-                                        if (-not $wt) { continue }
-                                        $wd = 0.0
-                                        if ([double]::TryParse($wt, [ref]$wd)) {
-                                            if ($wd -lt 0) { $wd = 0.0 }
-                                            $tmp += $wd
-                                        } else { $bad = $true }
-                                    }
-                                    if (-not $bad -and $tmp.Count -eq $ns.Count) {
-                                        $tot = 0.0; foreach ($wd in $tmp) { $tot += $wd }
-                                        if ($tot -gt 0) {
-                                            $wOut = [double[]]@($tmp | ForEach-Object { [double]$_ })
-                                        }
-                                    }
-                                }
-
-                                # Build the whole palette first, then hand it
-                                # over in ONE assignment. Assigning the three
-                                # colour arrays separately let the render
-                                # thread catch the set half-swapped and draw a
-                                # frame with new reds against old blues - a
-                                # visible flash on every colour change. Null
-                                # widths mean even bands.
-                                $z.LivePal = New-Object PalSet(
-                                    [int[]]@($ns | ForEach-Object { $_[0] }),
-                                    [int[]]@($ns | ForEach-Object { $_[1] }),
-                                    [int[]]@($ns | ForEach-Object { $_[2] }),
-                                    $wOut)
-                            }
-                        }
-
-                        $fl = 0
-                        $mv = $blk.Mirror;   if ($null -eq $mv) { $mv = $root.Mirror }
-                        $rv = $blk.Reverse;  if ($null -eq $rv) { $rv = $root.Reverse }
-                        $qv = $blk.Equalise; if ($null -eq $qv) { $qv = $root.Equalise }
-                        $lv = $blk.Loop;     if ($null -eq $lv) { $lv = $root.Loop }
-                        $sbv = $root.Smooth; if ($null -ne $blk.SoftBlend) { $sbv = $blk.SoftBlend }
-                        if ($null -eq $sbv) { $sbv = $true }
-                        if ([bool]$mv)  { $fl = $fl -bor 1 }
-                        if ([bool]$rv)  { $fl = $fl -bor 2 }
-                        if ([bool]$qv)  { $fl = $fl -bor 4 }
-                        if ([bool]$lv)  { $fl = $fl -bor 8 }
-                        if ([bool]$sbv) { $fl = $fl -bor 16 }
-                        $z.LiveFlags = $fl
-
-                        $onv = $blk.On
-                        if ($null -eq $onv) { $onv = $true }
-                        if ([bool]$onv) { $z.LiveEnabled = 1 } else { $z.LiveEnabled = 0 }
-
-                        $bv2 = $null
-                        if ($null -ne $blk.Brightness) { $bv2 = [double]$blk.Brightness }
-                        elseif ($null -ne $root.Brightness) { $bv2 = [double]$root.Brightness }
-                        if ($null -ne $bv2) {
-                            $bi = [int]([Math]::Round($bv2 * 1000))
-                            if ($bi -lt 0) { $bi = 0 }
-                            if ($bi -gt 1000) { $bi = 1000 }
-                            $z.LiveBrightness = $bi
-                        }
-
-                        $z.LiveDirty = $true
-                    }
-
-                    # Master brightness still drives the Fn keys and the
-                    # shared live file.
-                    if ($null -ne $j.Brightness) {
-                        $bv = [int]([Math]::Round([double]$j.Brightness * 1000))
-                        if ($bv -lt 0) { $bv = 0 }
-                        if ($bv -gt 1000) { $bv = 1000 }
-                        $script:LiveLevel = $bv
-                        foreach ($z in $eng.Groups) {
-                            $z.LiveMaster = $bv
-                            $z.LiveDirty = $true
-                        }
-                    }
-
-                    # A source-sync failure (no audio device yet, no
-                    # screen ready) must not swallow the settings that
-                    # were already applied above, and must not stay
-                    # invisible when it happens.
-                    try { Sync-Sources2 $needAud $needScr } catch {
-                        Write-Log ('source sync failed: ' + $_.Exception.Message)
-                    }
+                    Apply-LiveTheme $j
                 }
             } catch {
                 Write-Log ('theme apply failed: ' + $_.Exception.Message)

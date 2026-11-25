@@ -3278,28 +3278,20 @@ int main(void) {
         the future and a held key barely moved. Keep the ramp clock independent,
         pump key tokens on a finer timer, and preserve the 35 ms slider readback.
         """
-        hotkeys = (ROOT / "keyboard-lighting" / "src" / "parts" /
-                   "brightness_hotkeys.c").read_text(encoding="ascii", errors="strict")
+        hotkeys = (ROOT / "keyboard-lighting/src/parts/brightness_master.c").read_text(encoding="ascii")
         poll = hotkeys[hotkeys.index("static void PollFnBrightness(void) {"):]
         poll = poll[:poll.index("\n}\n")]
-        self.assertIn("now - g_lastFnPoll < 35ULL", poll,
-                      "the brightness slider samples too slowly for the fine ramp")
-        self.assertNotRegex(poll, r"\bScheduleLiveApply\s*\(",
-                            "the readback echoes the engine-owned level into live.txt, "
-                            "quantizing and fighting the ongoing glide")
-        self.assertNotRegex(poll, r"\bWriteLiveBrightness\s*\(",
-                            "the readback directly overwrites the engine's in-flight "
-                            "brightness level")
-        self.assertIn("strtol(txt, &end, 10)", poll,
-                      "an in-progress live.txt write is parsed as zero and makes the "
-                      "slider flash to a random level")
-        self.assertIn("!parseOk || !end || *end != '\\0'", poll,
-                      "a partial or malformed live.txt sample is not ignored")
-        self.assertIn("g_brightnessCfgSaveAt = now + 300ULL;", poll,
-                      "every visual ramp frame is synchronously persisted instead of "
-                      "saving once after the gesture settles")
-        self.assertIn("FlushPendingBrightnessCfg();", poll,
-                      "the settled brightness is never persisted")
+        self.assertIn("now - g_lastFnPoll < 35ULL", poll)
+        self.assertIn("SyncMasterBrightness();", poll)
+        self.assertIn("FlushPendingBrightnessCfg();", poll)
+        observe = hotkeys[hotkeys.index("static void SyncMasterBrightness(void) {"):]
+        observe = observe[:observe.index("\n}\n")]
+        self.assertIn("strtol(txt, &end, 10)", observe)
+        self.assertIn("!parseOk || !end || *end != '\\0'", observe)
+        self.assertIn("PublishMasterBrightness(before, FALSE)", observe)
+        self.assertNotIn("ScheduleLiveApply();", hotkeys)
+        self.assertIn("g_brightnessCfgSaveAt = now + 300ULL;", hotkeys)
+        self.assertNotIn("WriteLiveBrightness();", poll)
 
         engine = (ROOT / "keyboard-lighting" / "Aura-Background.ps1").read_text(
             encoding="ascii", errors="strict")
@@ -3595,26 +3587,21 @@ int main(void) {
         # sleep can never fire faster than the loop wakes up.
         cadence = max(rms, loop)
         sweep_ms = (1000 // rstep) * cadence         # LiveLevel runs 0..1000
-        # Two timeouts share that shape. The short silence timeout only applies
-        # with neither a release source nor an active HID press; the ceiling is
-        # the one that applies anyway.
-        timeouts = re.findall(
-            r"((?:!HasReleaseSrc\(i\) && )?(?:!g_hidDown\[i\] && )?)"
-            r"now - g_sigAt\[i\] > (\d+)ULL", src)
-        ceilings = [int(v) for guard, v in timeouts if not guard]
-        self.assertEqual(len(ceilings), 1,
-                         "expected exactly one hold-stream ceiling that applies even "
-                         "when a release source is known, found %d" % len(ceilings))
-        ceiling = ceilings[0]
-        self.assertGreater(ceiling, sweep_ms,
-                           "the hold-stream ceiling of %d ms is shorter than the %d ms a "
-                           "real 0-100%% sweep takes, so it cuts legitimate holds short"
-                           % (ceiling, sweep_ms))
-        cap = src[src.index("now - g_sigAt[i] > %dULL" % ceiling):]
-        cap = cap[:cap.index("\n        }\n")]
-        self.assertIn("g_scanArmed[i] = 1;", cap,
-                      "the ceiling stops the stream without re-arming the key, so the "
-                      "next press is read as a typematic repeat instead of a fresh one")
+        # Ceiling is tied to the beginning of a physical gesture, never the
+        # latest typematic repeat (which used to keep extending it forever).
+        hold = (ROOT / "keyboard-lighting/src/parts/m4_m5_hold.c").read_text(encoding="ascii")
+        match = re.search(r"now - g_gestureAt\[i\] >= (\d+)ULL", hold)
+        self.assertIsNotNone(match)
+        ceiling = int(match.group(1))
+        self.assertGreater(ceiling, sweep_ms)
+        cap = hold[hold.index("now - g_gestureAt[i] >="):]
+        cap = cap[:cap.index("\n        }")]
+        self.assertIn("BrightnessRelease(&g_brightness, i);", cap)
+        self.assertNotIn("g_scanArmed[i] = 1", cap,
+                         "a stuck raw key can re-arm itself without a real release")
+        controller = (ROOT / "keyboard-lighting/src/parts/brightness_controller.h").read_text(encoding="ascii")
+        self.assertIn("now - s->startedAt >= 10000", controller)
+
 
     def test_m4_brightness_hold_learns_on_the_first_token_and_remembers_release(self):
         """The first G-Helper tap is also the learning event. A delayed 600 ms
@@ -5686,6 +5673,21 @@ class LightingInputTests(unittest.TestCase):
     def test_latch_and_burst_do_not_receive_hold_repeat_tokens_in_either_direction(self):
         self._run("non-hold-modes")
 
+    def test_genuine_custom_taps_duplicates_stale_tokens_and_restart_seeding(self):
+        self._run("custom")
+
+    def test_a_delayed_command_after_release_is_only_a_tap_not_a_new_hold(self):
+        self._run("delayed-release")
+
+    def test_native_latch_stops_and_burst_is_exactly_twenty_percent_in_both_directions(self):
+        self._run("controller-modes")
+
+    def test_rails_external_fn_inputs_and_half_percent_readback_do_not_echo(self):
+        self._run("bounds-external")
+
+    def test_learning_never_copies_keys_and_one_physical_gesture_is_consumed_once(self):
+        self._run("distinct-duplicate")
+
     def test_snapshot_runs_after_registration_and_off_the_fine_input_timer(self):
         entry = (ROOT / "keyboard-lighting/src/parts/picker_window_entry.c").read_text(encoding="ascii")
         self.assertIn("InitRawInput(g_hwnd);\n    WriteHoldDiagnostics(TRUE);", entry)
@@ -6819,6 +6821,137 @@ class PublicNameRolloutTests(unittest.TestCase):
             run = subprocess.run([sys.executable, str(folder / 'tools/bump_version.py'), '--check-docs'],
                                  capture_output=True, text=True, timeout=10)
             self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+
+
+
+class LightingStateTests(unittest.TestCase):
+    """Execute actual native load/save, hotkey, readback and live-apply code.
+    Deterministic mock disk and clock; not installed Windows/hardware acceptance.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import shutil
+        import tempfile
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            raise unittest.SkipTest("portable C compiler is unavailable")
+        cls.temp = tempfile.TemporaryDirectory(prefix="lighting-state-")
+        cls.addClassCleanup(cls.temp.cleanup)
+        folder = Path(cls.temp.name)
+        root = (ROOT / "keyboard-lighting/src/keyboard_lighting.c").read_text(encoding="ascii")
+        hotkeys = (ROOT / "keyboard-lighting/src/parts/brightness_hotkeys.c").read_text(encoding="ascii")
+        bootstrap = (ROOT / "keyboard-lighting/src/parts/engine_bootstrap.c").read_text(encoding="ascii")
+
+        def function(source, signature):
+            start = source.index(signature)
+            return source[start:source.index("\n}\n", start) + 3]
+
+        subject = "\n".join(function(root, signature) for signature in (
+            "static COLORREF ParseHexColor(", "static void FormatHexColor(",
+            "static int FindEffectIndex(", "static void InitDefaultCfg("))
+        subject += "\n" + hotkeys[:hotkeys.index("/* One-line plain-English")]
+        subject += "\n" + function(hotkeys, "static void FormatThemeBlock(")
+        subject += "\n" + function(hotkeys, "static void WriteThemeJson(")
+        subject += "\n" + function(hotkeys, "static void SyncLinkedZone(")
+        drag = (ROOT / "keyboard-lighting/src/parts/mouse_drag_menus.c").read_text(encoding="ascii")
+        subject += "\n" + function(drag, "static void ApplySliderDrag(")
+        subject += "\n" + function(bootstrap, "static void ScheduleLiveApply(void) {")
+        subject += "\n" + function(bootstrap, "static void FlushLiveApply(void) {")
+        (folder / "lighting_state_subject.h").write_text(subject)
+        cls.exe = folder / "lighting-state"
+        result = subprocess.run([compiler, "-std=c11", "-Wall", "-Wextra", "-Werror",
+                                 "-Wno-unused-function", "-Wno-unused-variable", "-I", str(folder),
+                                 "-I", str(ROOT / "keyboard-lighting/src/parts"),
+                                 str(ROOT / "tests/native/lighting_state_harness.c"), "-lm", "-o", str(cls.exe)],
+                                capture_output=True, text=True)
+        if result.returncode:
+            raise AssertionError("lighting state harness did not compile:\n" + result.stderr)
+
+    def _run(self, scenario):
+        result = subprocess.run([str(self.exe), scenario], capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Lighting state " + scenario + " passed", result.stdout)
+
+    def test_all_eight_balance_steady_zone_combinations_survive_save_close_and_reopen(self):
+        self._run("restore")
+
+    def test_json_scope_order_and_legacy_flat_preferences_are_preserved(self):
+        self._run("scope-legacy")
+
+    def test_external_hub_or_tray_changes_survive_a_later_unrelated_native_save(self):
+        self._run("external")
+
+    def test_unknown_fields_and_custom_palette_slot_positions_survive(self):
+        self._run("unknown-custom")
+
+    def test_registered_hotkeys_reach_live_master_before_readback_and_debounced_apply(self):
+        self._run("hotkey")
+
+    def test_a_malformed_external_file_is_not_overwritten_with_defaults(self):
+        self._run("malformed")
+
+    def test_exact_master_survives_restart_and_slider_and_zone_settings_do_not_fight(self):
+        self._run("exact-slider")
+
+    def test_restart_uses_saved_master_not_a_stale_live_file_from_an_earlier_run(self):
+        self._run("stale-startup")
+
+    def test_native_executable_contains_the_exact_matched_engine_not_an_old_branch_bootstrap(self):
+        engine = (ROOT / "keyboard-lighting/Aura-Background.ps1").read_bytes()
+        self.assertIn(engine, (ROOT / "keyboard-lighting/KeyboardLighting.exe").read_bytes())
+        rc = (ROOT / "keyboard-lighting/src/kbl.rc").read_text(encoding="ascii")
+        self.assertIn('3 RCDATA "../Aura-Background.ps1"', rc)
+        lifecycle = (ROOT / "keyboard-lighting/src/parts/engine_bootstrap.c").read_text(encoding="ascii")
+        self.assertIn("const wchar_t *script = PrepareBundledEngine();", lifecycle)
+        self.assertIn("WriteAtomicUtf8(cached, text)", lifecycle)
+        self.assertNotIn("FALLBACK_BRANCH_W", lifecycle)
+        self.assertIn('ROOT / "keyboard-lighting" / "Aura-Background.ps1"', (ROOT / "tools/build_windows.py").read_text())
+
+    def test_failed_save_keeps_local_deltas_for_a_successful_retry(self):
+        self._run("failed-save")
+
+    def test_engine_protocol_and_windows_runtime_regression_are_wired(self):
+        engine = (ROOT / "keyboard-lighting/Aura-Background.ps1").read_text(encoding="ascii")
+        bootstrap = (ROOT / "keyboard-lighting/src/parts/engine_bootstrap.c").read_text(encoding="ascii")
+        tray = (ROOT / "keyboard-lighting/Tray.ps1").read_text(encoding="ascii")
+        master = (ROOT / "keyboard-lighting/src/parts/brightness_hotkeys.c").read_text(encoding="ascii")
+        picker = (ROOT / "keyboard-lighting/src/parts/picker_window_entry.c").read_text(encoding="ascii")
+        self.assertIn("-NativeBrightness", bootstrap)
+        self.assertIn("[switch]$NativeBrightness", engine)
+        legacy = engine[engine.index("if (-not $NativeBrightness) {"):engine.index("# The app that owns us has gone.")]
+        self.assertIn("$brightUpFile", legacy)
+        self.assertIn("$brightDownFile", legacy)
+        apply = engine[engine.index("function Apply-LiveTheme"):engine.index("# --- wake from sleep")]
+        self.assertIn("if (-not $NativeBrightness -and $null -ne $j.Brightness)", apply)
+        self.assertIn("Set-Live $bv", apply)
+        self.assertIn("-Smooth %S", bootstrap)
+        self.assertIn('g_cfg.smooth ? "on" : "off"', bootstrap)
+        self.assertIn("$z.SoftBlend = ($steady -ne 'off')", engine)
+        self.assertIn("$engine.DitherMode = if ($steady -eq 'on')", engine)
+        self.assertIn("Merge-PanelObject $script:Cfg $script:PanelBase $disk", tray)
+        self.assertIn("Write-PanelAtomic $CfgFile $merged", tray)
+        save = tray[tray.index("function Save-Cfg {"):tray.index("function Get-EffectToken {")]
+        self.assertIn("if ($externalAdopted", save)
+        self.assertIn("Load-UiFromCfg", save)
+        ui = tray[tray.index("function Load-UiFromCfg {"):tray.index("function Sync-ExternalPanelCfg {")]
+        for required in ("$trkMaster.Value =", "$chkSmooth.SetQuiet", "$chkEq.SetQuiet", "$chkOverlay.SetQuiet"):
+            self.assertIn(required, ui)
+        self.assertIn("$src = Get-Item -LiteralPath $EngineSource", engine)
+        self.assertIn('"%llu:%lu"', picker)
+        self.assertIn(" -Smooth ", tray)
+        self.assertLess(engine.index("Set-StartupPreferences $eng"), engine.index("$eng.Start()"))
+        self.assertIn("SyncMasterBrightness();\n    SetMasterBrightnessLevel(g_brightness.level + dir * 100)", master)
+        self.assertNotIn("WriteLiveBrightness();", bootstrap[bootstrap.index("static void FlushLiveApply"):bootstrap.index("/* Light Bar physical")])
+        self.assertIn("SyncMasterBrightness();\n    BrightnessStop(&g_brightness);\n    FlushPendingBrightnessCfg();", bootstrap)
+        self.assertIn("SyncExternalPanelCfg();", picker)
+        self.assertIn("./tests/lighting_engine_state.ps1", (ROOT / ".github/workflows/ci.yml").read_text())
+        runtime = (ROOT / "tests/lighting_engine_state.ps1").read_text(encoding="ascii")
+        for name in ("Apply-LiveTheme", "Sync-Live", "Set-StartupPreferences", "Load-Cfg", "Save-Cfg"):
+            self.assertIn("'" + name + "'", runtime)
+        # Linux source checks are distinct from the stock PowerShell 5.1
+        # function-execution regression in the Windows CI job.
+
 
 
 if __name__ == "__main__":

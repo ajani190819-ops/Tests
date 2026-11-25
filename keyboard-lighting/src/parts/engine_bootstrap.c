@@ -1,5 +1,5 @@
 /* ============================================================================
- *  Engine Lifecycle & Automatic Standalone GitHub Bootstrap
+ *  Engine Lifecycle & Matched Standalone Engine
  * ============================================================================ */
 
 static BOOL IsEngineAlive(void) {
@@ -26,6 +26,9 @@ static void KillPidFromFile(const wchar_t *path) {
 }
 
 static void StopEngine(BOOL graceful) {
+    SyncMasterBrightness();
+    BrightnessStop(&g_brightness);
+    FlushPendingBrightnessCfg();
     if (graceful && (IsEngineAlive() || FileExistsW(g_engPidPath))) {
         WriteAtomicUtf8(g_stopPath, "1");
         if (g_engineProc) WaitForSingleObject(g_engineProc, 450);
@@ -41,109 +44,48 @@ static void StopEngine(BOOL graceful) {
     DeleteFileW(g_stopPath);
 }
 
-static BOOL DownloadRepoFileWinHttp(const wchar_t *branch, const wchar_t *relName, const wchar_t *dest) {
-    wchar_t urlPath[512];
-    _snwprintf(urlPath, 511, L"/%s/%s/%s/keyboard-lighting/%s",
-               REPO_OWNER_W, REPO_NAME_W, branch, relName);
-
-    HINTERNET hSess = WinHttpOpen(L"Tests-KeyboardLighting/2.5",
-                                  WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-                                  WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!hSess) return FALSE;
-    WinHttpSetTimeouts(hSess, 6000, 8000, 12000, 20000);
-    HINTERNET hConn = WinHttpConnect(hSess, L"raw.githubusercontent.com", INTERNET_DEFAULT_HTTPS_PORT, 0);
-    if (!hConn) { WinHttpCloseHandle(hSess); return FALSE; }
-    HINTERNET hReq = WinHttpOpenRequest(hConn, L"GET", urlPath, NULL,
-                                        WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
-                                        WINHTTP_FLAG_SECURE);
-    if (!hReq) { WinHttpCloseHandle(hConn); WinHttpCloseHandle(hSess); return FALSE; }
-
-    BOOL ok = FALSE;
-    if (WinHttpSendRequest(hReq, WINHTTP_NO_ADDITIONAL_HEADERS, 0, NULL, 0, 0, 0) &&
-        WinHttpReceiveResponse(hReq, NULL)) {
-        DWORD status = 0, ssz = sizeof(status);
-        WinHttpQueryHeaders(hReq, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                            WINHTTP_HEADER_NAME_BY_INDEX, &status, &ssz, WINHTTP_NO_HEADER_INDEX);
-        if (status == 200) {
-            DWORD cap = 65536, len = 0;
-            BYTE *buf = (BYTE *)malloc(cap);
-            for (; buf;) {
-                DWORD avail = 0, rd = 0;
-                if (!WinHttpQueryDataAvailable(hReq, &avail) || avail == 0) break;
-                if (len + avail + 1 > cap) {
-                    while (len + avail + 1 > cap) cap *= 2;
-                    BYTE *nb = (BYTE *)realloc(buf, cap);
-                    if (!nb) { free(buf); buf = NULL; break; }
-                    buf = nb;
-                }
-                if (!WinHttpReadData(hReq, buf + len, avail, &rd) || rd == 0) break;
-                len += rd;
-            }
-            if (buf && len > 64) {
-                wchar_t tmp[MAX_PATH];
-                _snwprintf(tmp, MAX_PATH, L"%s.tmp", dest);
-                HANDLE hf = CreateFileW(tmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-                if (hf != INVALID_HANDLE_VALUE) {
-                    DWORD wr = 0;
-                    if (WriteFile(hf, buf, len, &wr, NULL) && wr == len) {
-                        CloseHandle(hf);
-                        ok = MoveFileExW(tmp, dest, MOVEFILE_REPLACE_EXISTING);
-                    } else {
-                        CloseHandle(hf);
-                        DeleteFileW(tmp);
-                    }
-                }
-            }
-            free(buf);
-        }
+/* The controller and engine protocol ship as one unit, even for an EXE-only
+   install/update. Prefer an identical adjacent script (normal Hub layout),
+   otherwise materialize this EXE's ASCII resource under a separate cache name.
+   Never overwrite the legacy engine script or fetch an unrelated branch tip. */
+static const wchar_t *PrepareBundledEngine(void) {
+    HMODULE module = GetModuleHandleW(NULL);
+    HRSRC resource = FindResourceW(module, MAKEINTRESOURCEW(RES_ENGINE_SCRIPT), RT_RCDATA);
+    if (!resource) return NULL;
+    DWORD size = SizeofResource(module, resource);
+    HGLOBAL loaded = LoadResource(module, resource);
+    const char *data = loaded ? (const char *)LockResource(loaded) : NULL;
+    if (!data || !size || size > 1024 * 1024) return NULL;
+    DWORD length = 0;
+    char *current = ReadFileUtf8(g_engineScript, &length);
+    BOOL same = current && length == size && !memcmp(current, data, size);
+    free(current);
+    if (same) return g_engineScript;
+    static wchar_t cached[MAX_PATH];
+    int n = _snwprintf(cached, MAX_PATH, L"%s\\Aura-Native-Background.ps1", g_cfgDir);
+    if (n < 0 || n >= MAX_PATH) return NULL;
+    current = ReadFileUtf8(cached, &length);
+    same = current && length == size && !memcmp(current, data, size);
+    free(current);
+    if (!same) {
+        char *text = (char *)malloc((size_t)size + 1);
+        if (!text) return NULL;
+        memcpy(text, data, size); text[size] = 0;
+        BOOL ok = WriteAtomicUtf8(cached, text);
+        free(text);
+        if (!ok) return NULL;
     }
-    WinHttpCloseHandle(hReq);
-    WinHttpCloseHandle(hConn);
-    WinHttpCloseHandle(hSess);
-    return ok;
-}
-
-static DWORD WINAPI BootstrapEngineWorker(LPVOID unused) {
-    (void)unused;
-    const wchar_t *branches[2] = { L"main", FALLBACK_BRANCH_W };
-    wchar_t dest[MAX_PATH];
-    _snwprintf(dest, MAX_PATH, L"%s\\Aura-Background.ps1", g_cfgDir);
-    BOOL got = FALSE;
-    for (int b = 0; b < 2 && !got; b++) {
-        got = DownloadRepoFileWinHttp(branches[b], L"Aura-Background.ps1", dest);
-        if (got) {
-            wchar_t z1[MAX_PATH], z2[MAX_PATH];
-            _snwprintf(z1, MAX_PATH, L"%s\\Zones.ps1", g_cfgDir);
-            _snwprintf(z2, MAX_PATH, L"%s\\Zones.bat", g_cfgDir);
-            DownloadRepoFileWinHttp(branches[b], L"Zones.ps1", z1);
-            DownloadRepoFileWinHttp(branches[b], L"Zones.bat", z2);
-        }
-    }
-    InterlockedExchange(&g_downloading, 0);
-    if (g_hwnd) PostMessageW(g_hwnd, WM_ENGINE_BOOTED, got ? 1 : 0, 0);
-    return 0;
+    return cached;
 }
 
 static void StartEngine(void) {
     StopEngine(FALSE);
     g_wantOff = FALSE;
 
-    const wchar_t *script = NULL;
-    if (FileExistsW(g_engineScript)) {
-        script = g_engineScript;
-    } else {
-        static wchar_t cachedEngine[MAX_PATH];
-        _snwprintf(cachedEngine, MAX_PATH, L"%s\\Aura-Background.ps1", g_cfgDir);
-        if (FileExistsW(cachedEngine)) {
-            script = cachedEngine;
-        } else {
-            if (InterlockedCompareExchange(&g_downloading, 1, 0) == 0) {
-                wcsncpy(g_statusText, L"Downloading Aura-Background.ps1 engine from GitHub...", 255);
-                HANDLE ht = CreateThread(NULL, 0, BootstrapEngineWorker, NULL, 0, NULL);
-                if (ht) CloseHandle(ht);
-            }
-            return;
-        }
+    const wchar_t *script = PrepareBundledEngine();
+    if (!script) {
+        wcsncpy(g_statusText, L"Could not prepare the matching lighting engine. Reinstall Prism Lighting.", 255);
+        return;
     }
 
     WriteLiveBrightness();
@@ -170,7 +112,7 @@ static void StartEngine(void) {
     _snwprintf(cmd, 2047,
         L"powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"%s\""
         L" -Effect %S -Speed %.2f -Brightness %.3f -Master %.3f -Fps 60 -Quiet"
-        L" -OwnerPid %lu -OnExit %S"
+        L" -OwnerPid %lu -NativeBrightness -OnExit %S -Smooth %S"
         L" -Colors \"%S\" -Widths \"%S\" -Color \"%S\" -Color2 \"%S\""
         L"%s%s -Equalise %s -Layout %s%s"
         L" -BarEffect %S -BarSpeed %.2f -BarBrightness %.3f"
@@ -180,9 +122,10 @@ static void StartEngine(void) {
         kEffects[g_cfg.kbd.effectIdx].token,
         (double)g_cfg.kbd.speed / 10.0,
         (double)g_cfg.kbd.brightness / 100.0,
-        (double)g_cfg.masterBrightness / 100.0,
+        (double)g_brightness.level / 1000.0,
         (unsigned long)GetCurrentProcessId(),
         g_cfg.onExit[0] ? g_cfg.onExit : "off",
+        g_cfg.smooth ? "on" : "off",
         kCols, kWds, c0, c1,
         g_cfg.kbd.mirror ? L" -Mirror" : L"",
         g_cfg.kbd.reverse ? L" -Reverse" : L"",
@@ -226,12 +169,7 @@ static void StartEngine(void) {
 static void TurnAllLightsOff(void) {
     StopEngine(TRUE);
     g_wantOff = TRUE;
-    const wchar_t *script = FileExistsW(g_engineScript) ? g_engineScript : NULL;
-    static wchar_t cached[MAX_PATH];
-    if (!script) {
-        _snwprintf(cached, MAX_PATH, L"%s\\Aura-Background.ps1", g_cfgDir);
-        if (FileExistsW(cached)) script = cached;
-    }
+    const wchar_t *script = PrepareBundledEngine();
     if (script) {
         wchar_t cmd[768];
         _snwprintf(cmd, 767, L"powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"%s\" -Effect off -Quiet", script);
@@ -369,8 +307,7 @@ static void FlushLiveApply(void) {
     SavePanelCfg();
     if (g_wantOff) return;
     if (IsEngineAlive()) {
-        WriteThemeJson();
-        WriteLiveBrightness();
+        WriteThemeJson(); /* preferences never republish an old master */
         _snwprintf(g_statusText, 255, L"Active  \x00B7  Keys: %S  \x00B7  Light Bar: %S",
                    g_cfg.kbd.on ? kEffects[g_cfg.kbd.effectIdx].label : "Off",
                    g_cfg.bar.on ? kEffects[g_cfg.bar.effectIdx].label : "Off");

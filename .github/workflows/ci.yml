@@ -66,3 +66,7 @@ jobs:
                   throw ("PowerShell parse error in {0}: {1}" -f $ps.FullName, ($errors | Out-String))
               }
           }
+
+      - name: Exercise isolated Lighting startup, master-channel and saved-state adapters
+        shell: powershell
+        run: ./tests/lighting_engine_state.ps1

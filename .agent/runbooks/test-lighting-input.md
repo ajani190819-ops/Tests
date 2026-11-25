@@ -1,6 +1,122 @@
-# KBL-01 - fresh log follow-up and M4/M5 receiver diagnostics
+# KBL-01 - brightness rebuild and saved-state restoration
 
-## Latest owner status - M4/M5 reopened
+## Current owner request - rebuild; engine-8 received
+
+The owner reports no observable benefit from the previous brightness attempts
+and requests rebuilding the brightness adjustment system from the ground up.
+They also reopen saved-state restoration: Balance Colours and/or Steady Colours
+turn back on after restart; which one is uncertain. Do not require them to
+identify the toggle or keep the older broad preferences approval as current.
+Orca Save remains resolved; app autorun/Open/UAC reports are not reopened.
+
+The owner retained the fresh-log rule and has now supplied engine-8.log. The
+edit gate is satisfied. All 862 lines/219809 bytes were scanned: 847 SHARED
+status samples, zero failed writes/reopens, no per-key or saved-toggle trace.
+SHA-256: b4c8f96fa8949ec1debfd80d4468850bbaf4d1f2aefd1381c8166727b295856b.
+The raw private log is not in Git. Receipt does not prove key delivery or cause.
+No further log, old hold/input-status matrix or toggle identification is needed.
+The native rebuild/restore implementation is complete; release verification is
+recorded below. Owner acceptance remains open. The prior mode guard below is
+history, not an owner-accepted repair.
+
+Replace the split brightness command/hold path coherently,
+rather than equating another rate/mode patch with the requested rebuild. Keep
+M4 decreasing/M5 increasing, a consistent authoritative master level, real
+release handling, bounded repeats and existing mode choices unless the owner
+explicitly approves a behavior change. Cover command delivery through slider/
+engine readback, delayed or duplicate input, bounds and stop/restart behavior.
+For persistence, exercise independent Balance/Steady on/off combinations through
+change, save, close and reopen, plus external Hub/tray writes and later saves.
+Preserve false values, unrelated preferences, zone separation and legacy files;
+do not solve restoration by forcing both defaults off. Existing controlled
+parser/stale-state findings below are leads, not the owner configuration/cause.
+Retain strict ASCII/C# 5.0, pacing, exclusive lock and single-engine safeguards.
+
+Queue: Prism brightness rebuild + preference restore CURRENT; processed preview
+NEXT (native preferred/separate acceptable). Renumbering PAUSED; ORCA-04/05
+PARKED; further PLAN-02 DEFERRED.
+
+## Rebuilt native master and saved-state path
+
+- `brightness_controller.h` owns exact 0..1000 master state: 0=M4/down,
+  1=M5/up, 5% initial tap, then 1% down/1.5% up per 30ms. Real Custom
+  commands are presses; raw keyboard/HID reports only confirm held/released
+  state. A tap without hold evidence has no trailing glide. Keep distinct
+  bindings, numeric/PID tokens, latch stop, exact 20% burst, rails, 120ms
+  freshness, no catch-up bursts and the 10s ceiling. New commands after a
+  consumed release cannot be swallowed just because their raw event is late.
+- `brightness_master.c` publishes immediately and retries failed writes.
+  Strict numeric readback is non-echoing; rounding is display-only. Registered
+  hotkeys and slider use the same absolute setter. External Fn input cancels
+  an old glide. Startup publishes saved master before accepting stale live.txt;
+  stop/restart flushes pending state without restarting a gesture.
+- Native launches pass `-NativeBrightness`, so Aura mirrors the canonical
+  channel instead of consuming Custom tokens a second time. Fn/WMI and
+  standalone legacy input can still publish. Theme-only edits never republish
+  an old master. No vendor software, startup preference, lock or pacing reset.
+- `panel_config.c` scopes direct JSON members independently of property order,
+  preserves false/legacy/unknown data, and saves by patching the latest valid
+  object after a baseline three-way merge. `MasterLevel` preserves half-percent
+  input without breaking legacy percent writers. Invalid/unreadable settings
+  are not treated as missing. Failed saves retain local changes for retry.
+- Tray uses recursive three-way merging and atomic saves; external preferences
+  refresh existing controls, so a second unrelated UI save cannot restore stale
+  Balance/Steady/master values. Startup passes Smooth through to Aura, which
+  sets SoftBlend/DitherMode before the first frame. Both zones remain separate;
+  no defaults are forced off.
+- The native EXE embeds its exact Aura script as RCDATA3. Start/off prefer a
+  byte-identical adjacent script, otherwise atomically materialize the separate
+  `%LOCALAPPDATA%\KeyboardLighting\Aura-Native-Background.ps1`. Do not overwrite
+  a legacy Aura file or fetch another branch's protocol. DLL freshness uses the
+  actual executing script path. Build caching depends on Aura's source bytes.
+- Local diagnostics are now `tests.lighting-input.v2`, with native
+  `hold_steps_down/up` instead of synthetic repeat-token writes. Aggregate-only
+  privacy, bounded atomic snapshots and the existing one-minute interval remain.
+
+## Rebuild verification and limits
+
+Native input/state harnesses execute production functions with synthetic clock,
+Win32 events and disk I/O. Initial saved-state tests went red against the old
+parser/ownership path, and a Custom-before-raw regression also went red before
+its repair. Coverage includes all eight Smooth x Kbd.Equalise x Bar.Equalise
+combinations, scoped/legacy/BOM files, unknown fields/custom slot positions,
+Hub/Tray changes followed by later saves, exact master/slider/registered-hotkey
+adapters, stale restart input, failed saves/publications, first-token learning,
+delayed/duplicate commands, physical release, modes and bounds.
+
+`tests/lighting_engine_state.ps1` AST-imports actual Aura/Tray functions without
+starting devices, UI or an engine thread. It exercises startup/live flags, exact
+master readback, relative Fn actions, legacy saves, external merges and actual
+control adapters for all eight combinations. Stock PowerShell 5.1 execution is
+wired into Windows CI; it is not executed by the Linux C harness/source checks.
+The matching embedded resource has a byte-for-byte regression. Runtime Windows
+resource materialization, WMI, true concurrent processes, installed reopen and
+physical M4/M5 are not established by these local tests. No owner-specific
+hardware cause or acceptance is inferred. Do not ask for another equivalent log
+or the old input-status matrix.
+
+Local verification of this rebuild:
+
+- Eight Windows targets cross-build successfully; only Lighting EXE changes.
+  Lighting is 462336 bytes, SHA-256
+  `738f85e21359888ca3c4a53815a9adad86a96fa10fe1f12cfc51b57b4e210260`.
+  Bundled/adjacent Aura is 222629 bytes, SHA-256
+  `9d2c5f5c6b10edb0deee9cdcf8d25a3a1b0b3a689b8549ba209076e462f502c5`.
+- All 25 focused input/state tests and all 181 Windows-app module tests pass.
+  All 13 input + 9 state harness scenarios also pass with UBSan; this is still
+  synthetic host I/O, not native key or device execution.
+- Full uncached `check_all.py` passes in both dependency states, including the
+  synchronized CI copy, ASCII, code-map, context and protected behavior checks.
+- Full mutation campaign: 610/610 detected, zero survivors/stale/mutation or
+  gate errors, 323-test clean pre/post suites, restored source bytes, one
+  worker, no verdict cache; 250.023 seconds. Report is in the external host
+  cache at `lighting-rebuild/mutations-full.json`, not committed owner evidence.
+- Stock PowerShell 5.1 execution is a separate Windows CI gate. Local Linux
+  verification does not establish it; CI and installed/physical acceptance
+  must be reported separately. Use the active branch's `.agent/RELEASED`
+  implementation SHA for the actual delivered build. Hub stays 2.8.72.
+
+## Prior owner status - M4/M5 reopened
 
 The owner says the earlier items are verified and now prioritizes M4/M5:
 mirror working M5 brightness-up behavior for M4 brightness-down. Treat earlier
@@ -20,9 +136,9 @@ Earlier, all eight production-receiver regression tests passed with synthetic
 Win32 I/O without exercising native repeats against latch/burst consumption.
 Passing those tests did not establish the owner's M4 signal or physical hold.
 
-## Current mode-conflict correction - reproduced, not hardware-certified
+## Prior mode-conflict correction - reproduced, not hardware-certified
 
-Fresh owner `engine-7.log` satisfies the Lighting edit gate for this task.
+Fresh owner `engine-7.log` satisfied the prior receiver-mode edit gate.
 Its complete 828-line, 211614-byte content was scanned: the 816 device-write
 status samples report shared ownership with zero failed writes/reopens.
 There is no individual M4/M5 press/repeat/release trace. These engine records
@@ -55,7 +171,7 @@ and accidental HID release-state loss. A first full campaign exposed a gap in
 release-state coverage; the test now asserts live HID-down state on every tick
 and exercises both high-bit and zero release reports.
 
-### Current correction verification
+### Prior correction verification
 
 - Eight-target Windows cross-build passes with Zig 0.17.1. Only
   `KeyboardLighting.exe` changes: 233984 bytes, SHA-256
@@ -75,14 +191,14 @@ and exercises both high-bit and zero release reports.
   Hub remains 2.8.72 and plugins remain 0.0.58/0.4.13. Synthetic I/O and
   cross-builds are not Windows delivery, physical hold or owner-cause proof.
 
-## Prior startup-preference investigation - owner now reports verified
+## Prior startup-preference investigation - subsequently reopened
 
 The owner had reported **Balance Colours / Steady Colours start enabled despite
-saved off choices**. The newer broad verification supersedes that unresolved
-status; it does not establish the installed technical cause. No Lighting product
-edits or resets were made in this investigation. Its fresh-startup-log request
-is no longer a pending acceptance task; the standing edit gate still applies
-to new Lighting changes.
+saved off choices**. Broad verification temporarily superseded that unresolved
+status, without establishing a cause. The latest request above REOPENS restore.
+No Lighting product edits or resets were made in that earlier investigation.
+The owner now explicitly retains a fresh-log prerequisite for the rebuild/repair;
+this is not a request to repeat the old startup/config collection matrix.
 
 Read-only replay of the production C parser/default/load/save functions under
 GCC ASan/UBSan confirms order-sensitive `Smooth` parsing, nested `Equalise`
