@@ -25,7 +25,7 @@ CURRENT: M4 hold still fails; Balance/Steady acceptance open. Open/startup good.
   not a security-policy diagnosis/change approval.
 - **KBL-01 CURRENT:** owner says M4 smooth hold still fails after the rebuild;
   cause unresolved; decoder fix unreleased. Balance/Steady acceptance open.
-  Engine-8 covers this continuing input repair; no new log loop.
+  Engine-9 reviewed: 8 plus four startup/status lines; no key trace.
   Keep choices, distinct keys, release/lock/pacing/single-engine and ASCII/C#5.
   `test-lighting-input.md`. No additional log request or old matrix.
 

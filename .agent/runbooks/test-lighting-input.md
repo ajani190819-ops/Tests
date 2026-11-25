@@ -1,5 +1,27 @@
 # KBL-01 - brightness rebuild and saved-state restoration
 
+## Engine-9 received - startup/status only, not key evidence
+
+Fully scanned the owner's new `engine-9.log`: 220292 bytes, 866 UTF8-sig
+lines; SHA-256
+`a6636c238f43a7372df35a836b2601e94eccd4d389d50ffeb81594280965cacb`.
+Its first 219809 bytes are byte-identical to engine-8; exactly 483 bytes/four
+lines are appended. Those add a shared-device/vendor-process notice, an owner
+watch notice, available hardware-backlight control and one device-write sample.
+All 848 device samples report SHARED with zero failed writes/reopens; the file
+has 854 WARN and 12 INFO lines. The last 60fps sample reports four late frames,
+not a failed write. There is no key-down/up/repeat, Custom, WM_INPUT, binding,
+mode, saved Equalise/Smooth or implementation-identity trace.
+
+This confirms an appended startup/status group, not physical M4 delivery, an
+owner-specific cause, absent hardware release signals, simultaneous engines or
+saved-state acceptance. SHARED/GHelper and late frames do not establish a hold
+cause or authorize vendor changes. The log gate remains satisfied; no further
+engine log or old input-status/hold matrix is requested. The prior M4 failure
+remains unresolved, the receiver correction stays unreleased and product code,
+preferences, bindings, rates and release marker are unchanged by this review.
+The raw attachment remains private; only these aggregate findings are recorded.
+
 ## Latest owner result - M4 held dimming still fails
 
 After the published rebuild, the owner reports that holding M4 still does not
