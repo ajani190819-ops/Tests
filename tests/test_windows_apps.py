@@ -6911,6 +6911,16 @@ class LightingStateTests(unittest.TestCase):
     def test_failed_save_keeps_local_deltas_for_a_successful_retry(self):
         self._run("failed-save")
 
+    def test_framework_atomic_replace_uses_a_null_string_not_an_empty_backup_filename(self):
+        # The first stock PowerShell 5.1 execution failed in actual File.Replace:
+        # plain $null is coerced to an illegal empty backup filename on Framework.
+        for relative, destination in (("Tray.ps1", "$path"), ("Aura-Background.ps1", "$liveFile")):
+            with self.subTest(adapter=relative):
+                source = (ROOT / "keyboard-lighting" / relative).read_text(encoding="ascii")
+                call = "[IO.File]::Replace($tmp, " + destination + ", "
+                self.assertIn(call + "[System.Management.Automation.Language.NullString]::Value)", source)
+                self.assertNotIn(call + "$null)", source)
+
     def test_engine_protocol_and_windows_runtime_regression_are_wired(self):
         engine = (ROOT / "keyboard-lighting/Aura-Background.ps1").read_text(encoding="ascii")
         bootstrap = (ROOT / "keyboard-lighting/src/parts/engine_bootstrap.c").read_text(encoding="ascii")

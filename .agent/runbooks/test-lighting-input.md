@@ -99,18 +99,25 @@ Local verification of this rebuild:
 
 - Eight Windows targets cross-build successfully; only Lighting EXE changes.
   Lighting is 462336 bytes, SHA-256
-  `738f85e21359888ca3c4a53815a9adad86a96fa10fe1f12cfc51b57b4e210260`.
-  Bundled/adjacent Aura is 222629 bytes, SHA-256
-  `9d2c5f5c6b10edb0deee9cdcf8d25a3a1b0b3a689b8549ba209076e462f502c5`.
-- All 25 focused input/state tests and all 181 Windows-app module tests pass.
+  `77fa549a2f0f73c472c6935a73e3c6cfaac418ea74e6af9e23f4f11a4f30b5bc`.
+  Bundled/adjacent Aura is 222681 bytes, SHA-256
+  `1730bd61c386a11ac0cd24d4d0d4e12334b2f172b4b0a2c07795c5986eca6be6`.
+- All 26 focused input/state tests and all 182 Windows-app module tests pass.
   All 13 input + 9 state harness scenarios also pass with UBSan; this is still
   synthetic host I/O, not native key or device execution.
-- Full uncached `check_all.py` passes in both dependency states, including the
+- Full repository `check_all.py` passes in both dependency states, including the
   synchronized CI copy, ASCII, code-map, context and protected behavior checks.
-- Full mutation campaign: 610/610 detected, zero survivors/stale/mutation or
-  gate errors, 323-test clean pre/post suites, restored source bytes, one
-  worker, no verdict cache; 250.023 seconds. Report is in the external host
-  cache at `lighting-rebuild/mutations-full.json`, not committed owner evidence.
+- Full mutation campaign: 612/612 detected, zero survivors/stale/mutation or
+  gate errors, 324-test clean pre/post suites, restored source bytes, one
+  worker, no verdict cache; 259.950 seconds. Report is in the external host
+  cache at `lighting-rebuild/mutations-framework-final.json`, not committed owner evidence.
+- The first actual Windows adapter execution (run 45665741010) exposed an
+  atomic-write compatibility bug: Framework received an empty backup filename
+  from plain PowerShell `$null`. Both panel and live replacements now use
+  explicit `System.Management.Automation.Language.NullString.Value`. The
+  existing runtime test overwrites files through these actual functions; two
+  extra deliberate breaks prevent reintroducing this source defect. This is
+  the cause of that CI failure, not proof of the owner's original cause.
 - Stock PowerShell 5.1 execution is a separate Windows CI gate. Local Linux
   verification does not establish it; CI and installed/physical acceptance
   must be reported separately. Use the active branch's `.agent/RELEASED`

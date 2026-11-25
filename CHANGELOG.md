@@ -15,6 +15,8 @@
   and custom colour slots instead of serializing stale preferences over them.
 * Applies Steady before the first engine frame and bundles the matching Aura
   script in the native EXE, so an EXE-only update cannot use an old protocol.
+* Uses explicit .NET null strings for atomic settings/live replacements under
+  stock PowerShell 5.1; an empty backup filename is invalid on Framework.
 * Adds production-function input/state regressions, deliberate-break coverage
   and isolated PowerShell adapter execution in Windows CI. Automated checks do
   not establish the owner's physical-key delivery, installed result or cause;

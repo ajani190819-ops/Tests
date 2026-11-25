@@ -409,7 +409,8 @@ function Write-PanelAtomic {
     $tmp = $path + '.' + $PID + '.tmp'
     $json = ConvertTo-Json -InputObject $value -Depth 32
     [IO.File]::WriteAllText($tmp, $json, (New-Object System.Text.UTF8Encoding($false)))
-    if ([IO.File]::Exists($path)) { [IO.File]::Replace($tmp, $path, $null) }
+    # Framework/PowerShell 5.1 needs a real null string, not an empty backup path.
+    if ([IO.File]::Exists($path)) { [IO.File]::Replace($tmp, $path, [System.Management.Automation.Language.NullString]::Value) }
     else { [IO.File]::Move($tmp, $path) }
 }
 

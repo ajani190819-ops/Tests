@@ -4253,7 +4253,7 @@ function Publish-Live {
     $tmp = $liveFile + '.' + $PID + '.tmp'
     try {
         [IO.File]::WriteAllText($tmp, ([string]$script:LiveLevel + "`r`n"), [Text.Encoding]::ASCII)
-        if ([IO.File]::Exists($liveFile)) { [IO.File]::Replace($tmp, $liveFile, $null) }
+        if ([IO.File]::Exists($liveFile)) { [IO.File]::Replace($tmp, $liveFile, [System.Management.Automation.Language.NullString]::Value) }
         else { [IO.File]::Move($tmp, $liveFile) }
         $script:LiveWritePending = $false
     } catch { $script:LiveWritePending = $true }

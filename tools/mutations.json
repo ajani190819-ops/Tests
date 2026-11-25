@@ -6098,5 +6098,25 @@
   "tests": [
    "tests.test_windows_apps.LightingStateTests.test_engine_protocol_and_windows_runtime_regression_are_wired"
   ]
+ },
+ {
+  "id": "kbl-rebuild-38",
+  "file": "keyboard-lighting/Tray.ps1",
+  "old": "[IO.File]::Replace($tmp, $path, [System.Management.Automation.Language.NullString]::Value)",
+  "new": "[IO.File]::Replace($tmp, $path, $null)",
+  "label": "PowerShell 5.1 coerces the atomic replacement backup path to an illegal empty string in Tray.ps1",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_framework_atomic_replace_uses_a_null_string_not_an_empty_backup_filename"
+  ]
+ },
+ {
+  "id": "kbl-rebuild-39",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "[IO.File]::Replace($tmp, $liveFile, [System.Management.Automation.Language.NullString]::Value)",
+  "new": "[IO.File]::Replace($tmp, $liveFile, $null)",
+  "label": "PowerShell 5.1 coerces the atomic replacement backup path to an illegal empty string in Aura-Background.ps1",
+  "tests": [
+   "tests.test_windows_apps.LightingStateTests.test_framework_atomic_replace_uses_a_null_string_not_an_empty_backup_filename"
+  ]
  }
 ]
