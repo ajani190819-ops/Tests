@@ -1,5 +1,22 @@
 # Project changelog
 
+## Unreleased (Prism Lighting - ASUS input contract; physical M4 unresolved)
+
+* Preserves all eight bits of ASUS 0x5A action IDs. High-bit events such as the
+  G-Helper carrier 181 (0xB5) are presses, not guessed key-up scan codes.
+* Pairs zero releases only with the same raw HID device, and distinguishes
+  verified zero-frame release metadata from the old ambiguous value. Existing
+  key bindings/modes/preferences are retained; keyboard up cannot certify HID.
+* Keeps keyboard and HID hold evidence separate: a remembered inactive VK no
+  longer cancels a valid HID stream. Silent press-only gestures expire without
+  granting release capability or swallowing the next genuine Custom launch,
+  including either queue order and pending-learning correlation.
+* Adds full-byte action, mixed-source, device-pairing and one-shot/repeat
+  regressions. No speed, vendor/startup or settings-default changes. The owner
+  still reports physical M4 hold failure; a Custom launch has no key-up, and
+  synthetic replays do not establish the owner's emitted signals. No new Hub
+  release marker is issued for this narrower correction as a held-key repair.
+
 ## 2026-11-16 (Prism Lighting - brightness rebuild and saved-state restoration)
 
 * Rebuilds M4/down and M5/up around one exact 0..1000 native master. Custom

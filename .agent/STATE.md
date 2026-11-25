@@ -6,7 +6,7 @@ Git: implementation/tests/releases; Drive: extended plans/history.
 ## Current owner status / next work
 
 Save stays owner-confirmed; Prism brightness/persistence reopened.
-CURRENT: brightness rebuild + Balance/Steady restore. UAC/autorun/Open good.
+CURRENT: M4 hold still fails; Balance/Steady acceptance open. Open/startup good.
 
 **Current focus / monitor (20 retained IDs):**
 - **PLAN-01 CURRENT:** owner confirms Save fixed; no more Config collection.
@@ -23,9 +23,9 @@ CURRENT: brightness rebuild + Balance/Steady restore. UAC/autorun/Open good.
   startup fix claimed. Preserve fallbacks/preferences; `test-hub-startup-tray.md`.
 - **OPS-01 Owner-reported good:** UAC seems fixed; prior prompt unidentified,
   not a security-policy diagnosis/change approval.
-- **KBL-01 CURRENT:** owner requests brightness rebuild; prior attempts have
-  no reported effect. Balance/Steady restore reopened (one/both uncertain).
-  Engine-8 gate met; native rebuild/restore implemented, acceptance still open.
+- **KBL-01 CURRENT:** owner says M4 smooth hold still fails after the rebuild;
+  cause unresolved; decoder fix unreleased. Balance/Steady acceptance open.
+  Engine-8 covers this continuing input repair; no new log loop.
   Keep choices, distinct keys, release/lock/pacing/single-engine and ASCII/C#5.
   `test-lighting-input.md`. No additional log request or old matrix.
 

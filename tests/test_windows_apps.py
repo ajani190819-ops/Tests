@@ -3633,10 +3633,10 @@ int main(void) {
                       "token learning is not on the dedicated fine timer")
         self.assertIn("HoldPump();", timer3,
                       "hold repeats are not on the dedicated fine timer")
-        self.assertIn("g_hidRelSeen[dir] >= 1", src,
-                      "one observed HID release pair still does not enable immediate repeat")
-        self.assertIn('PersistKeyValue(dir == 0 ? L"M4HidRelease" : L"M5HidRelease", 1);', src,
-                      "a known HID release source is not persisted for the next launch")
+        self.assertIn("g_hidRelSeen[dir] == HID_RELEASE_ZERO", src,
+                      "only a verified zero-frame format may authorize HID hold")
+        self.assertIn('PersistKeyValue(dir == 0 ? L"M4HidRelease" : L"M5HidRelease", HID_RELEASE_ZERO);', src,
+                      "the verified HID release format is not persisted for the next launch")
         self.assertIn('g_hidRelSeen[0] = (BYTE)GetPrivateProfileIntW(L"Keys", L"M4HidRelease"', picker,
                       "a known HID release source is not restored after launch")
         self.assertIn("GetAsyncKeyState((int)g_scanVk[i])", src,
@@ -5663,6 +5663,18 @@ class LightingInputTests(unittest.TestCase):
 
     def test_batched_hid_press_release_and_repeat_reports_reach_the_learner(self):
         self._run("hid-batch")
+
+    def test_full_byte_asus_action_ids_learn_and_release_without_break_bit_aliases(self):
+        self._run("hid-action-ids")
+
+    def test_only_observed_hid_zero_frames_authorize_a_hid_release_source(self):
+        self._run("hid-release-evidence")
+
+    def test_press_only_hid_actions_remain_taps_and_real_repeat_streams_expire_safely(self):
+        self._run("hid-no-release")
+
+    def test_hid_zero_frames_are_paired_only_with_the_same_raw_device(self):
+        self._run("hid-devices")
 
     def test_snapshot_is_bounded_rate_limited_and_has_only_allowlisted_scalars(self):
         self._run("snapshot")

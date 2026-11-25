@@ -8,8 +8,9 @@
      3. The ASUS input HID stream (VID 0x0B05, report id 0x5A - the very
         stream G-Helper reads): its press frames may REPEAT while held,
         and some models send a RELEASE frame (byte1 == 0, like the ROG
-        Ally) or press|0x80. A press+release pair gives TRUE hold with
-        no repeats needed at all.
+        Ally). Its byte1 is a full eight-bit ACTION ID, not a scan code
+        with a break bit. High-bit IDs such as 0xB5 are presses too.
+        Only an observed zero on the same device establishes HID release.
    Raw events supply hold/release evidence only. Genuine Custom commands
    enter the native master controller once; timers never rewrite their flags.
    The native-owned engine consumes absolute levels, not a second gesture
@@ -20,13 +21,15 @@
 typedef struct KeyRec { ULONGLONG tick; DWORD scan; WORD vk; BYTE down; BYTE injected; } KeyRec;
 static KeyRec    g_keyRing[256];
 static int       g_keyRingHead = 0;
-typedef struct HidRec { ULONGLONG tick; DWORD code; BYTE rel; } HidRec;
+typedef struct HidRec { ULONGLONG tick; HANDLE device; DWORD code; BYTE rel; } HidRec;
 static HidRec    g_hidRing[256];
 static int       g_hidRingHead = 0;
 static int       g_scanBound[2] = { 0, 0 };
 static DWORD     g_scanVk[2] = { 0, 0 };
 static DWORD     g_hidCode[2] = { 0, 0 };
-static DWORD     g_hidLastCode = 0;
+static HANDLE    g_hidDevice[2];
+enum { HOLD_SCAN = 1, HOLD_HID = 2, HID_RELEASE_ZERO = 2 };
+static BYTE      g_signalSource[2];
 static BYTE      g_scanArmed[2] = { 1, 1 };
 static BYTE      g_hidDown[2] = { 0, 0 };
 static BYTE      g_holdOn[2] = { 0, 0 };
@@ -61,16 +64,33 @@ static HoldInputDiagnostics g_holdInputDiag;
 static ULONGLONG g_holdDiagAt;
 
 static void ReleaseSignal(int dir, ULONGLONG now);
-static void PressSignal(int dir, int repeat, ULONGLONG now);
+static void PressSignal(int dir, int repeat, int source, ULONGLONG now);
 static void PersistKeyValue(const wchar_t *key, DWORD value);
 static void MarkHidReleaseSeen(int dir);
 static int HoldModeRead(void);
 
 static int HasReleaseSrc(int dir) {
-    /* One observed HID press/release pair is a real release source. Requiring
-       two pairs left a new M4 binding in single-step mode for two extra presses. */
+    /* Old value 1 also included invented press|0x80 releases. Preserve that
+       saved metadata, but only value 2 proves the zero-frame format. */
     return g_scanBound[dir] != 0 ||
-           (g_hidCode[dir] != 0 && g_hidRelSeen[dir] >= 1);
+           (g_hidCode[dir] != 0 && g_hidRelSeen[dir] == HID_RELEASE_ZERO);
+}
+
+static int SignalHasRelease(int dir) {
+    /* A saved keyboard binding is not evidence that this HID-only gesture
+       came from that keyboard. Likewise, its stale VK cannot veto HID hold. */
+    return g_signalSource[dir] == HOLD_SCAN ||
+           (g_signalSource[dir] == HOLD_HID && g_hidRelSeen[dir] == HID_RELEASE_ZERO);
+}
+
+static void ExpirePressOnlySignal(int dir, ULONGLONG now) {
+    if (g_signalSource[dir] == HOLD_HID && !SignalHasRelease(dir) &&
+        g_gestureAt[dir] && !g_gestureReleasedAt[dir] &&
+        (now < g_sigAt[dir] || now - g_sigAt[dir] > 300ULL)) {
+        /* Retire silence; it is NOT a physical release or release capability.
+           Otherwise a later genuine press is swallowed as an old duplicate. */
+        ReleaseSignal(dir, now < g_sigAt[dir] ? now : g_sigAt[dir] + 300ULL);
+    }
 }
 
 static ULONGLONG TickDistance(ULONGLONG a, ULONGLONG b) {
@@ -89,22 +109,22 @@ static int ScanCurrentlyDown(DWORD scan, DWORD vk) {
     return 0;
 }
 
-static int HidCurrentlyDown(DWORD code) {
+static int HidCurrentlyDown(DWORD code, HANDLE device) {
     for (int i = 0; i < 256; i++) {
         int idx = (g_hidRingHead + 255 - i) & 255;
         HidRec *r = &g_hidRing[idx];
         if (r->tick == 0) break;
-        if (r->code == code) return !r->rel;
+        if (r->device == device) return r->code == code && !r->rel;
     }
     return 0;
 }
 
-static int HidReleaseSeen(DWORD code) {
+static int HidReleaseSeen(DWORD code, HANDLE device) {
     for (int i = 0; i < 256; i++) {
         int idx = (g_hidRingHead + 255 - i) & 255;
         HidRec *r = &g_hidRing[idx];
         if (r->tick == 0) break;
-        if (r->code == code && r->rel) return 1;
+        if (r->code == code && r->device == device && r->rel) return 1;
     }
     return 0;
 }
@@ -119,14 +139,15 @@ static void HoldPump(void) {
     if (mode != 0) {
         g_holdOn[0] = g_holdOn[1] = 0;
     } else for (int i = 0; i < 2; i++) {
+        ExpirePressOnlySignal(i, now);
         if (!g_holdOn[i]) continue;
-        if (g_scanBound[i] && g_scanVk[i] > 0 && g_scanVk[i] < 0xFF &&
+        if (g_signalSource[i] == HOLD_SCAN && g_scanBound[i] &&
+            g_scanVk[i] > 0 && g_scanVk[i] < 0xFF &&
             (GetAsyncKeyState((int)g_scanVk[i]) & 0x8000) == 0) {
             ReleaseSignal(i, now);
             continue;
         }
-        if ((!HasReleaseSrc(i) && now - g_sigAt[i] > 300ULL) ||
-            now < g_gestureAt[i] || now - g_gestureAt[i] >= 10000ULL) {
+        if (now < g_gestureAt[i] || now - g_gestureAt[i] >= 10000ULL) {
             /* Never re-arm a stuck raw key at the ceiling. Only its real
                release or a fresh Custom action may begin another gesture. */
             g_holdOn[i] = 0;
@@ -146,7 +167,7 @@ static void HoldPump(void) {
     }
 }
 
-static void PressSignal(int dir, int repeat, ULONGLONG now) {
+static void PressSignal(int dir, int repeat, int source, ULONGLONG now) {
     if (!repeat && (!g_gestureAt[dir] || g_gestureReleasedAt[dir])) {
         g_gestureAt[dir] = now;
         g_gestureReleasedAt[dir] = 0;
@@ -155,8 +176,12 @@ static void PressSignal(int dir, int repeat, ULONGLONG now) {
             g_customAwaitRaw[dir] = 0;
         }
     }
+    /* Prefer an actually down keyboard source over its duplicate HID report,
+       never a merely remembered scan/VK. The source owns release polling. */
+    if (source == HOLD_SCAN || g_signalSource[dir] != HOLD_SCAN || g_scanArmed[dir])
+        g_signalSource[dir] = (BYTE)source;
     g_sigAt[dir] = now;
-    if (repeat || HasReleaseSrc(dir)) {
+    if (repeat || SignalHasRelease(dir)) {
         g_holdOn[dir] = 1;
         if (!repeat) g_scanNext[dir] = now + 30;
     }
@@ -167,10 +192,9 @@ static void ReleaseSignal(int dir, ULONGLONG now) {
     g_holdOn[dir] = 0;
     g_scanArmed[dir] = 1;
     BrightnessRelease(&g_brightness, dir);
-    if (g_hidDown[dir]) {
-        g_hidDown[dir] = 0;
-        MarkHidReleaseSeen(dir);
-    }
+    g_hidDown[dir] = 0;
+    g_signalSource[dir] = 0;
+    /* Keyboard up, silence and the ceiling must not certify a HID format. */
 }
 
 static void OnScanEvent(DWORD scan, int down, int injected, ULONGLONG now) {
@@ -185,9 +209,9 @@ static void OnScanEvent(DWORD scan, int down, int injected, ULONGLONG now) {
                this same down cannot double-step. */
             g_scanArmed[i] = 0;
             g_scanNext[i] = now + 30;
-            PressSignal(i, 0, now);
+            PressSignal(i, 0, HOLD_SCAN, now);
         } else {
-            PressSignal(i, 1, now);
+            PressSignal(i, 1, HOLD_SCAN, now);
         }
     }
 }
@@ -202,9 +226,9 @@ static void PersistKeyValue(const wchar_t *key, DWORD value) {
 }
 
 static void MarkHidReleaseSeen(int dir) {
-    if (g_hidRelSeen[dir] == 0) {
-        g_hidRelSeen[dir] = 1;
-        PersistKeyValue(dir == 0 ? L"M4HidRelease" : L"M5HidRelease", 1);
+    if (g_hidRelSeen[dir] != HID_RELEASE_ZERO) {
+        g_hidRelSeen[dir] = HID_RELEASE_ZERO;
+        PersistKeyValue(dir == 0 ? L"M4HidRelease" : L"M5HidRelease", HID_RELEASE_ZERO);
     }
 }
 
@@ -223,51 +247,43 @@ static void BindHid(int dir, DWORD code) {
     PersistKeyValue(dir == 0 ? L"M4Hid" : L"M5Hid", code);
 }
 
-static void OnRawHid(const BYTE *b, int len, ULONGLONG now) {
-    if (len < 2 || b[0] != 0x5A) return;
+static void OnRawHid(HANDLE device, const BYTE *b, int len, ULONGLONG now) {
+    if (!device || len < 2 || b[0] != 0x5A) return;
     g_holdInputDiag.asusReports++;
-    DWORD rawCode = b[1];
-    DWORD code = rawCode;
-    int rel = 0, mapped = -1;
-    if (rawCode == 0) {
-        rel = 1;
-        for (int i = 0; i < 2; i++) {
-            if (g_hidDown[i]) {
-                mapped = i;
-                code = g_hidCode[i];
-            }
+    DWORD code = b[1];
+    int rel = code == 0, mapped = -1;
+    if (rel) {
+        /* Zero belongs to the most recent report on THIS raw device, not the
+           last key/device observed globally. Unpaired zeros prove nothing. */
+        HidRec *previous = NULL;
+        for (int i = 0; i < 256; i++) {
+            HidRec *r = &g_hidRing[(g_hidRingHead + 255 - i) & 255];
+            if (!r->tick) break;
+            if (r->device == device) { previous = r; break; }
         }
-        if (mapped < 0) code = g_hidLastCode;
-    } else if ((rawCode & 0x80) != 0) {
-        /* Some ASUS reports encode release as press|0x80. Until a learned
-           binding identifies it, retain the base code in the learning ring. */
-        rel = 1;
-        code = rawCode & 0x7F;
+        if (!previous || previous->rel || !previous->code) return;
+        code = previous->code;
     }
-    for (int i = 0; i < 2; i++) {
-        if (g_hidCode[i] != 0 && rawCode == g_hidCode[i]) {
-            mapped = i;
-            code = g_hidCode[i];
-            rel = 0;
-        }
-        if (g_hidCode[i] != 0 && rawCode == (g_hidCode[i] | 0x80)) {
-            mapped = i;
-            code = g_hidCode[i];
-            rel = 1;
-        }
-    }
-    if (!rel && rawCode != 0) g_hidLastCode = code;
+    /* G-Helper ignores 0xEC. Keep a non-action barrier in the ring so a later
+       zero cannot be paired with an earlier, unrelated M-key report. */
+    if (code == 0xEC) { code = 0; rel = 1; }
     HidRec *r = &g_hidRing[g_hidRingHead];
-    r->tick = now; r->code = code; r->rel = (BYTE)rel;
+    r->tick = now; r->device = device; r->code = code; r->rel = (BYTE)rel;
     g_hidRingHead = (g_hidRingHead + 1) & 255;
-    if (rel && code != 0 && code == g_hidLastCode) g_hidLastCode = 0;
+    for (int i = 0; i < 2; i++)
+        if (code != 0 && code == g_hidCode[i]) mapped = i;
     if (mapped >= 0) {
+        ExpirePressOnlySignal(mapped, now);
         if (rel) {
-            ReleaseSignal(mapped, now);
+            if (g_hidDevice[mapped] == device) {
+                MarkHidReleaseSeen(mapped);
+                ReleaseSignal(mapped, now);
+            }
         } else {
-            int repeat = g_hidDown[mapped];
+            int repeat = g_hidDown[mapped] && g_hidDevice[mapped] == device;
+            g_hidDevice[mapped] = device;
             g_hidDown[mapped] = 1;
-            PressSignal(mapped, repeat, now);
+            PressSignal(mapped, repeat, HOLD_HID, now);
         }
     }
 }
@@ -321,7 +337,7 @@ static void LearnFromRing(int dir, ULONGLONG tokenAt, int newToken) {
             g_gestureReleasedAt[dir] = ScanCurrentlyDown(bestKey->scan, bestKey->vk) ? 0 : now;
             if (ScanCurrentlyDown(bestKey->scan, bestKey->vk)) {
                 g_scanArmed[dir] = 0;
-                PressSignal(dir, 0, now);
+                PressSignal(dir, 0, HOLD_SCAN, now);
             }
         } else if (newToken) {
             /* If a delayed token still finds the key down, bind it now; for a
@@ -348,7 +364,7 @@ static void LearnFromRing(int dir, ULONGLONG tokenAt, int newToken) {
                 g_learnCand[dir] = cand;
                 g_learnN[dir] = 2;
                 g_scanArmed[dir] = 0;
-                PressSignal(dir, 0, now);
+                PressSignal(dir, 0, HOLD_SCAN, now);
             } else if (cand) {
                 if (g_learnCand[dir] == cand) {
                     g_learnN[dir]++;
@@ -381,17 +397,17 @@ static void LearnFromRing(int dir, ULONGLONG tokenAt, int newToken) {
             BindHid(dir, hc);
             g_learnHid[dir] = hc;
             g_learnHidN[dir] = 2;
-            if (HidReleaseSeen(hc)) MarkHidReleaseSeen(dir);
+            g_hidDevice[dir] = bestHid->device;
+            if (HidReleaseSeen(hc, bestHid->device)) MarkHidReleaseSeen(dir);
             if (!g_gestureAt[dir] || g_gestureReleasedAt[dir]) g_gestureAt[dir] = bestHid->tick;
-            g_gestureReleasedAt[dir] = HidCurrentlyDown(hc) ? 0 : now;
-            if (HidCurrentlyDown(hc)) {
+            g_gestureReleasedAt[dir] = HidCurrentlyDown(hc, bestHid->device) ? 0 : now;
+            if (HidCurrentlyDown(hc, bestHid->device)) {
                 g_hidDown[dir] = 1;
                 if (!g_holdOn[dir]) {
                     /* Adopt the first press before its report code was known;
                        the matching release can now stop this same gesture. */
-                    g_scanArmed[dir] = 0;
                     g_scanNext[dir] = now + 30;
-                    PressSignal(dir, 0, now);
+                    PressSignal(dir, 0, HOLD_HID, now);
                 }
             }
         } else if (newToken) {
@@ -454,6 +470,7 @@ static int TokenMatchesGesture(int dir, ULONGLONG tokenAt) {
 static void WatchBrightTokens(void) {
     ULONGLONG now = GetTickCount64();
     for (int dir = 0; dir < 2; dir++) {
+        ExpirePressOnlySignal(dir, now);
         char cur[32] = { 0 };
         DWORD len = 0;
         char *txt = ReadFileUtf8(dir == 0 ? g_brightDownPath : g_brightUpPath, &len);
@@ -486,7 +503,10 @@ static void WatchBrightTokens(void) {
         if (g_pendingLearnAt[dir] && now <= g_pendingLearnUntil[dir] &&
             (g_scanBound[dir] == 0 || g_hidCode[dir] == 0)) {
             LearnFromRing(dir, g_pendingLearnAt[dir], 0);
-            if (g_customAwaitRaw[dir] && TokenMatchesGesture(dir, g_customAt[dir])) {
+            if (g_customAwaitRaw[dir] && g_customGestureAt[dir] != g_gestureAt[dir] &&
+                TokenMatchesGesture(dir, g_customAt[dir])) {
+                /* Do not re-attach a new launch to the consumed gesture that
+                   the new-token path just rejected. Its raw event is pending. */
                 g_customGestureAt[dir] = g_gestureAt[dir];
                 g_customAwaitRaw[dir] = 0;
             }
@@ -589,7 +609,7 @@ static void OnRawInputMsg(HWND hwnd, LPARAM lp) {
         /* One WM_INPUT can contain several reports. Preserve their order so a
            press and release batched together still form a complete gesture. */
         for (DWORD i = 0; i < hid->dwCount; i++) {
-            OnRawHid(hid->bRawData + (size_t)i * (size_t)hid->dwSizeHid,
+            OnRawHid(ri->header.hDevice, hid->bRawData + (size_t)i * (size_t)hid->dwSizeHid,
                      (int)hid->dwSizeHid, now);
         }
     }

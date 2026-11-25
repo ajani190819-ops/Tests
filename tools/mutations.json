@@ -6118,5 +6118,195 @@
   "tests": [
    "tests.test_windows_apps.LightingStateTests.test_framework_atomic_replace_uses_a_null_string_not_an_empty_backup_filename"
   ]
+ },
+ {
+  "id": "kbl-action-00",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "DWORD code = b[1];",
+  "new": "DWORD code = b[1] & 0x7F;",
+  "label": "High-bit ASUS actions lose bit 7",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_full_byte_asus_action_ids_learn_and_release_without_break_bit_aliases"
+  ]
+ },
+ {
+  "id": "kbl-action-01",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "int rel = code == 0, mapped = -1;",
+  "new": "int rel = code == 0 || (code & 0x80) != 0, mapped = -1;",
+  "label": "High-bit ASUS presses are invented key-up reports",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_full_byte_asus_action_ids_learn_and_release_without_break_bit_aliases"
+  ]
+ },
+ {
+  "id": "kbl-action-02",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "return g_signalSource[dir] == HOLD_SCAN ||\n           (g_signalSource[dir] == HOLD_HID && g_hidRelSeen[dir] == HID_RELEASE_ZERO);",
+  "new": "return HasReleaseSrc(dir);",
+  "label": "Remembered keyboard bindings authorize HID-only hold",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_only_observed_hid_zero_frames_authorize_a_hid_release_source"
+  ]
+ },
+ {
+  "id": "kbl-action-03",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "HID_RELEASE_ZERO = 2",
+  "new": "HID_RELEASE_ZERO = 1",
+  "label": "Legacy guessed release metadata becomes trusted again",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_only_observed_hid_zero_frames_authorize_a_hid_release_source"
+  ]
+ },
+ {
+  "id": "kbl-action-04",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "PersistKeyValue(dir == 0 ? L\"M4HidRelease\" : L\"M5HidRelease\", HID_RELEASE_ZERO);",
+  "new": "PersistKeyValue(dir == 0 ? L\"M4HidRelease\" : L\"M5HidRelease\", 1);",
+  "label": "Verified release format is not durably distinguished from legacy guesses",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_full_byte_asus_action_ids_learn_and_release_without_break_bit_aliases"
+  ]
+ },
+ {
+  "id": "kbl-action-05",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "/* Keyboard up, silence and the ceiling must not certify a HID format. */",
+  "new": "MarkHidReleaseSeen(dir);",
+  "label": "Keyboard up and silence fabricate HID release capability",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_only_observed_hid_zero_frames_authorize_a_hid_release_source"
+  ]
+ },
+ {
+  "id": "kbl-action-06",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (g_signalSource[i] == HOLD_SCAN && g_scanBound[i] &&",
+  "new": "if (g_scanBound[i] &&",
+  "label": "A stale remembered VK cancels an independent HID hold",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_press_only_hid_actions_remain_taps_and_real_repeat_streams_expire_safely"
+  ]
+ },
+ {
+  "id": "kbl-action-07",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "now - g_sigAt[dir] > 300ULL",
+  "new": "now - g_sigAt[dir] > 30000ULL",
+  "label": "Press-only silence swallows later genuine taps or sustains repeats",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_press_only_hid_actions_remain_taps_and_real_repeat_streams_expire_safely"
+  ]
+ },
+ {
+  "id": "kbl-action-08",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "g_hidDown[dir] = 0;\n    g_signalSource[dir] = 0;",
+  "new": "g_signalSource[dir] = 0;",
+  "label": "Expired press-only actions stay down and a new tap becomes a repeat",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_press_only_hid_actions_remain_taps_and_real_repeat_streams_expire_safely"
+  ]
+ },
+ {
+  "id": "kbl-action-09",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (r->device == device) { previous = r; break; }",
+  "new": "if (1) { previous = r; break; }",
+  "label": "Zeros from a different raw device are paired with the wrong press",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_hid_zero_frames_are_paired_only_with_the_same_raw_device"
+  ]
+ },
+ {
+  "id": "kbl-action-10",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (g_hidDevice[mapped] == device) {",
+  "new": "if (1) {",
+  "label": "An old device release stops the same action currently held on another",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_hid_zero_frames_are_paired_only_with_the_same_raw_device"
+  ]
+ },
+ {
+  "id": "kbl-action-11",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (code == 0xEC) { code = 0; rel = 1; }",
+  "new": "if (code == 0xEC) return;",
+  "label": "Ignored ASUS events no longer break ambiguous zero pairing",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_hid_zero_frames_are_paired_only_with_the_same_raw_device"
+  ]
+ },
+ {
+  "id": "kbl-action-12",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (source == HOLD_SCAN || g_signalSource[dir] != HOLD_SCAN || g_scanArmed[dir])",
+  "new": "if (1)",
+  "label": "A duplicate press-only HID event displaces a live keyboard source",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_hid_zero_frames_are_paired_only_with_the_same_raw_device"
+  ]
+ },
+ {
+  "id": "kbl-action-13",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (r->device == device) return r->code == code && !r->rel;",
+  "new": "if (r->code == code && r->device == device) return !r->rel;",
+  "label": "Learning adopts an old press preceding an ignored device report",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_hid_zero_frames_are_paired_only_with_the_same_raw_device"
+  ]
+ },
+ {
+  "id": "kbl-action-14",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (!device || len < 2 || b[0] != 0x5A) return;",
+  "new": "if (len < 2 || b[0] != 0x5A) return;",
+  "label": "Reports without a physical raw device reach HID action learning",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_hid_zero_frames_are_paired_only_with_the_same_raw_device"
+  ]
+ },
+ {
+  "id": "kbl-action-15",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "g_hidDevice[dir] = bestHid->device;",
+  "new": "g_hidDevice[dir] = NULL;",
+  "label": "The first learned HID press loses its device for matching release",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_full_byte_asus_action_ids_learn_and_release_without_break_bit_aliases"
+  ]
+ },
+ {
+  "id": "kbl-action-16",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "for (int dir = 0; dir < 2; dir++) {\n        ExpirePressOnlySignal(dir, now);",
+  "new": "for (int dir = 0; dir < 2; dir++) {",
+  "label": "A Custom-before-raw press is swallowed by a silent old HID gesture",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_press_only_hid_actions_remain_taps_and_real_repeat_streams_expire_safely"
+  ]
+ },
+ {
+  "id": "kbl-action-17",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (mapped >= 0) {\n        ExpirePressOnlySignal(mapped, now);",
+  "new": "if (mapped >= 0) {",
+  "label": "A raw-before-Custom press is consumed as an old HID repeat",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_press_only_hid_actions_remain_taps_and_real_repeat_streams_expire_safely"
+  ]
+ },
+ {
+  "id": "kbl-action-18",
+  "file": "keyboard-lighting/src/parts/m4_m5_hold.c",
+  "old": "if (g_customAwaitRaw[dir] && g_customGestureAt[dir] != g_gestureAt[dir] &&\n                TokenMatchesGesture(dir, g_customAt[dir])) {",
+  "new": "if (g_customAwaitRaw[dir] && TokenMatchesGesture(dir, g_customAt[dir])) {",
+  "label": "Pending learning steals a new Custom launch back into its consumed old gesture",
+  "tests": [
+   "tests.test_windows_apps.LightingInputTests.test_press_only_hid_actions_remain_taps_and_real_repeat_streams_expire_safely"
+  ]
  }
 ]

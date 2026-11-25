@@ -489,32 +489,34 @@
 
 ## keyboard-lighting/src/parts/m4_m5_hold.c
 
-- L69  f HasReleaseSrc
-- L76  f TickDistance
-- L80  f ScanCurrentlyDown
-- L92  f HidCurrentlyDown
-- L102  f HidReleaseSeen
-- L114  f HoldPump
-- L149  f PressSignal
-- L165  f ReleaseSignal
-- L176  f OnScanEvent
-- L195  f PersistKeyValue
-- L204  f MarkHidReleaseSeen
-- L211  f BindScan
-- L220  f BindHid
-- L226  f OnRawHid
-- L275  f ParseBrightTokenTick
-- L292  f LearnFromRing
-- L422  f SeedBrightTokenWatch
-- L447  f TokenMatchesGesture
-- L454  f WatchBrightTokens
-- L497  f InitRawInput
-- L565  f OnRawInputMsg
-- L617  f HoldModeRead
-- L629  f HoldModeWrite
-- L639  f HoldReadyLabel
-- L652  f WriteHoldDiagnostics
-- globals: g_keyRing (L21), g_keyRingHead (L22), g_hidRing (L24), g_hidRingHead (L25), g_scanBound (L26), g_scanVk (L27), g_hidCode (L28), g_hidLastCode (L29), g_scanArmed (L30), g_hidDown (L31), g_holdOn (L32), g_hidRelSeen (L33), g_sigAt (L34), g_scanNext (L35), g_gestureAt (L36), g_customAt (L37), g_customAwaitRaw (L38), g_learnCand (L39), g_learnN (L40), g_learnHid (L41), g_learnHidN (L42), g_seenTok (L43), g_pendingLearnAt (L44), g_pendingLearnUntil (L45), g_holdInputDiag (L60), g_holdDiagAt (L61)
+- L72  f HasReleaseSrc
+- L79  f SignalHasRelease
+- L86  f ExpirePressOnlySignal
+- L96  f TickDistance
+- L100  f ScanCurrentlyDown
+- L112  f HidCurrentlyDown
+- L122  f HidReleaseSeen
+- L134  f HoldPump
+- L170  f PressSignal
+- L190  f ReleaseSignal
+- L200  f OnScanEvent
+- L219  f PersistKeyValue
+- L228  f MarkHidReleaseSeen
+- L235  f BindScan
+- L244  f BindHid
+- L250  f OnRawHid
+- L291  f ParseBrightTokenTick
+- L308  f LearnFromRing
+- L438  f SeedBrightTokenWatch
+- L463  f TokenMatchesGesture
+- L470  f WatchBrightTokens
+- L517  f InitRawInput
+- L585  f OnRawInputMsg
+- L637  f HoldModeRead
+- L649  f HoldModeWrite
+- L659  f HoldReadyLabel
+- L672  f WriteHoldDiagnostics
+- globals: g_keyRing (L22), g_keyRingHead (L23), g_hidRing (L25), g_hidRingHead (L26), g_scanBound (L27), g_scanVk (L28), g_hidCode (L29), g_hidDevice (L30), g_signalSource (L32), g_scanArmed (L33), g_hidDown (L34), g_holdOn (L35), g_hidRelSeen (L36), g_sigAt (L37), g_scanNext (L38), g_gestureAt (L39), g_customAt (L40), g_customAwaitRaw (L41), g_learnCand (L42), g_learnN (L43), g_learnHid (L44), g_learnHidN (L45), g_seenTok (L46), g_pendingLearnAt (L47), g_pendingLearnUntil (L48), g_holdInputDiag (L63), g_holdDiagAt (L64)
 
 ## keyboard-lighting/src/parts/mouse_drag_menus.c
 
@@ -1438,16 +1440,16 @@
 - L5301  f AudioSwitcherReachabilityTests
 - L5485  f AudioSwitcherSessionSweepTests
 - L5626  f LightingInputTests
-- L5702  f AppOpenFocusTests
-- L5884  f HubLongevityTests
-- L5948  f HubGroupedEntriesTests
-- L6069  f BluetoothAudioEndpointTests
-- L6136  f BluetoothPanelTests
-- L6250  f RadarWindowsLocationTests
-- L6409  f SafetyMutationPropertyTests
-- L6512  f GuardSecurityReportTests
-- L6684  f PublicNameRolloutTests
-- L6827  f LightingStateTests
+- L5714  f AppOpenFocusTests
+- L5896  f HubLongevityTests
+- L5960  f HubGroupedEntriesTests
+- L6081  f BluetoothAudioEndpointTests
+- L6148  f BluetoothPanelTests
+- L6262  f RadarWindowsLocationTests
+- L6421  f SafetyMutationPropertyTests
+- L6524  f GuardSecurityReportTests
+- L6696  f PublicNameRolloutTests
+- L6839  f LightingStateTests
 
 ## tests/wave_cases.py
 

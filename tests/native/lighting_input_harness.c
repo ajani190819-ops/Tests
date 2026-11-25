@@ -53,7 +53,7 @@ static DWORD lastError;
 static short keyState;
 static int enumerateMode, registerMode, listQueries, listFills, infoCalls, registerCalls;
 static UINT requestedCount;
-static int snapshotWrites, tokenWrites[2], profileWrites, modeWrites;
+static int snapshotWrites, tokenWrites[2], profileWrites, modeWrites, releaseValues[2];
 static BOOL writeOk;
 static char tokens[2][32], modeText[32], snapshot[2048], live[64];
 static int levelWrites, settingsSaves;
@@ -130,6 +130,9 @@ static BOOL WritePrivateProfileStringW(const wchar_t *section, const wchar_t *ke
     CHECK(wcscmp(section, L"Keys") == 0 && key[0] && value[0]);
     CHECK(wcsstr(path, L"\\presets.ini") != NULL);
     profileWrites++;
+    for (int dir = 0; dir < 2; dir++)
+        if (wcscmp(key, dir ? L"M5HidRelease" : L"M4HidRelease") == 0)
+            releaseValues[dir] = (int)wcstol(value, NULL, 10);
     return TRUE;
 }
 static UINT GetRawInputDeviceList(RAWINPUTDEVICELIST *list, UINT *count, UINT size) {
@@ -210,6 +213,9 @@ static void Reset(void) {
     memset(g_scanBound, 0, sizeof(g_scanBound));
     memset(g_scanVk, 0, sizeof(g_scanVk));
     memset(g_hidCode, 0, sizeof(g_hidCode));
+    memset(g_hidDevice, 0, sizeof(g_hidDevice));
+    memset(g_signalSource, 0, sizeof(g_signalSource));
+    memset(releaseValues, 0, sizeof(releaseValues));
     memset(g_hidRelSeen, 0, sizeof(g_hidRelSeen));
     memset(g_holdOn, 0, sizeof(g_holdOn));
     memset(g_hidDown, 0, sizeof(g_hidDown));
@@ -236,7 +242,6 @@ static void Reset(void) {
     memset(tokenWrites, 0, sizeof(tokenWrites));
     g_scanArmed[0] = g_scanArmed[1] = 1;
     g_keyRingHead = g_hidRingHead = 0;
-    g_hidLastCode = 0;
     g_holdDiagAt = 0;
     tick = 100000;
     lastError = 0;
@@ -257,9 +262,10 @@ static void Keyboard(WORD scan, WORD vk, int down) {
     memcpy(packet, &input, packetSize);
     OnRawInputMsg(target, 1);
 }
-static void Hid(const BYTE *bytes, UINT count) {
+static void HidFrom(HANDLE device, const BYTE *bytes, UINT count) {
     RAWINPUT input = {0};
     input.header.dwType = RIM_TYPEHID;
+    input.header.hDevice = device;
     input.data.hid.dwSizeHid = 2;
     input.data.hid.dwCount = count;
     size_t offset = offsetof(RAWINPUT, data.hid.bRawData);
@@ -268,6 +274,9 @@ static void Hid(const BYTE *bytes, UINT count) {
     memcpy(packet, &input, offset);
     memcpy(packet + offset, bytes, 2 * count);
     OnRawInputMsg(target, 1);
+}
+static void Hid(const BYTE *bytes, UINT count) {
+    HidFrom((HANDLE)(uintptr_t)9, bytes, count);
 }
 static void Token(int dir) { snprintf(tokens[dir], sizeof(tokens[dir]), "%llu", (unsigned long long)tick); }
 static void Field(const char *key, unsigned long long value) {
@@ -333,10 +342,10 @@ static void TestHold(void) {
 }
 static void TestHidBatch(void) {
     const BYTE pair[] = { 0x5A, 0x38, 0x5A, 0x00 };
-    const BYTE press[] = { 0x5A, 0x38 }, release[] = { 0x5A, 0xB8 };
+    const BYTE press[] = { 0x5A, 0x38 }, release[] = { 0x5A, 0 };
     Reset(); InitRawInput(target); SeedBrightTokenWatch();
     Hid(pair, 2); Token(0); WatchBrightTokens();
-    CHECK(g_hidCode[0] == 0x38 && g_hidRelSeen[0] == 1 && !g_holdOn[0]);
+    CHECK(g_hidCode[0] == 0x38 && g_hidRelSeen[0] == 2 && !g_holdOn[0]);
     CHECK(g_holdInputDiag.asusReports == 2 && !g_holdInputDiag.keyboardReports);
     tick++; Hid(press, 1); CHECK(g_holdOn[0]);
     Token(0); WatchBrightTokens();
@@ -345,6 +354,167 @@ static void TestHidBatch(void) {
     Hid(release, 1); CHECK(!g_holdOn[0] && !g_hidDown[0]);
     WriteHoldDiagnostics(TRUE);
     Field("asus_reports", 4); Field("hid_bound_down", 1); Field("release_source_down", 1);
+}
+/* 0x5A carries a full-byte action ID, not a PC scan code plus a break bit.
+   These are synthetic replays of that documented contract, not captured
+   owner-device traffic. Zero is the only release format established here. */
+static void TestHidActionIds(void) {
+    Reset(); SeedBrightTokenWatch();
+    const BYTE carrier[] = { 0x5A, 0xB5 };
+    Hid(carrier, 1); Token(0); WatchBrightTokens();
+    CHECK(g_hidCode[0] == 0xB5 && g_hidDown[0] && !g_holdOn[0]);
+    for (int dir = 0; dir < 2; dir++) for (int code = 1; code <= 255; code++) {
+        if (code == 0xEC) continue;
+        Reset(); SeedBrightTokenWatch();
+        BYTE press[] = { 0x5A, (BYTE)code }, release[] = { 0x5A, 0 };
+        Hid(press, 1); Token(dir); WatchBrightTokens();
+        CHECK(g_hidCode[dir] == (DWORD)code && !g_hidCode[1 - dir]);
+        CHECK(g_hidDown[dir] && !g_holdOn[dir] && !g_hidRelSeen[dir]);
+        CHECK(atoi(live) == 500 + (dir ? 50 : -50));
+        tick += 10; Hid(release, 1);
+        CHECK(!g_hidDown[dir] && g_hidRelSeen[dir] == 2 && releaseValues[dir] == 2);
+        tick += 20; Hid(press, 1); Token(dir); WatchBrightTokens();
+        CHECK(g_holdOn[dir] && g_hidDown[dir]);
+        tick += 30; HoldPump();
+        CHECK(atoi(live) == 500 + (dir ? 115 : -110));
+        Hid(release, 1); int stopped = atoi(live);
+        tick += 120; HoldPump(); CHECK(atoi(live) == stopped && !g_holdOn[dir]);
+        CHECK(!tokenWrites[0] && !tokenWrites[1]);
+    }
+    /* A binding restored from disk must not be mistaken for its own release. */
+    for (int dir = 0; dir < 2; dir++) {
+        Reset(); SeedBrightTokenWatch(); BindHid(dir, 0xB5); g_hidRelSeen[dir] = 2;
+        const BYTE press[] = { 0x5A, 0xB5 }, release[] = { 0x5A, 0 };
+        Hid(press, 1); Token(dir); WatchBrightTokens();
+        tick += 30; HoldPump(); CHECK(atoi(live) == 500 + (dir ? 65 : -60));
+        Hid(release, 1); CHECK(!g_holdOn[dir]);
+    }
+    Reset(); SeedBrightTokenWatch();
+    const BYTE ignored[] = { 0x5A, 0xEC }, other[] = { 0x5D, 0xB5 };
+    Hid(ignored, 1); Hid(other, 1); Token(0); WatchBrightTokens();
+    CHECK(!g_hidCode[0] && !g_hidDown[0] && !profileWrites);
+}
+static void TestHidReleaseEvidence(void) {
+    for (int dir = 0; dir < 2; dir++) {
+        Reset(); SeedBrightTokenWatch(); BindHid(dir, 0x38);
+        /* The old value can have come from a guessed press|0x80 release.
+           Preserve it, but do not let it authorize an unobserved held state. */
+        g_hidRelSeen[dir] = 1;
+        const BYTE press[] = { 0x5A, 0x38 }, different[] = { 0x5A, 0xB8 };
+        Hid(press, 1); Token(dir); WatchBrightTokens();
+        int tapped = atoi(live), saved = profileWrites;
+        tick += 30; HoldPump(); CHECK(atoi(live) == tapped && !g_holdOn[dir]);
+        Hid(different, 1);
+        CHECK(g_hidRelSeen[dir] == 1 && profileWrites == saved);
+        CHECK(!g_hidRing[(g_hidRingHead + 255) & 255].rel);
+        CHECK(g_hidRing[(g_hidRingHead + 255) & 255].code == 0xB8);
+
+        Reset(); SeedBrightTokenWatch(); BindHid(dir, 0x38); g_hidRelSeen[dir] = 2;
+        Hid(press, 1); Token(dir); WatchBrightTokens(); tick += 30; HoldPump();
+        int held = atoi(live); Hid(different, 1);
+        CHECK(g_holdOn[dir] && g_hidDown[dir]); /* Not an invented key-up. */
+        tick += 30; HoldPump(); CHECK(atoi(live) == held + (dir ? 15 : -10));
+
+        Reset(); SeedBrightTokenWatch(); BindScan(dir, (DWORD)(0x70 + dir), 255);
+        Hid(press, 1); Token(dir); WatchBrightTokens();
+        /* A remembered keyboard binding is not a release source for a new
+           HID-only gesture. Nor is a keyboard up proof of a HID zero frame. */
+        CHECK(g_hidCode[dir] == 0x38 && !g_holdOn[dir]);
+        tick++; Keyboard((WORD)(0x70 + dir), 255, TRUE);
+        CHECK(g_holdOn[dir]);
+        Keyboard((WORD)(0x70 + dir), 255, FALSE);
+        CHECK(!g_hidRelSeen[dir]);
+    }
+}
+static void TestHidNoRelease(void) {
+    for (int dir = 0; dir < 2; dir++) for (int high = 0; high < 2; high++) {
+        Reset(); SeedBrightTokenWatch();
+        BYTE press[] = { 0x5A, high ? 0xB5 : 0x38 };
+        int sign = dir ? 1 : -1, amount = dir ? 15 : 10;
+        Hid(press, 1); Token(dir); WatchBrightTokens();
+        CHECK(atoi(live) == 500 + sign * 50 && !g_holdOn[dir]);
+        tick += 1000;
+        if (high) { /* A new Custom launch can beat its raw event. */
+            Token(dir); WatchBrightTokens(); tick += 5; Hid(press, 1);
+        } else { /* Or raw input can precede the next timer/token poll. */
+            Hid(press, 1); Token(dir); WatchBrightTokens();
+        }
+        CHECK(atoi(live) == 500 + sign * 100 && !g_holdOn[dir]);
+        /* Genuine repeat reports provide bounded evidence; one press does not. */
+        tick += 100; Hid(press, 1); HoldPump();
+        CHECK(atoi(live) == 500 + sign * (100 + amount));
+        tick += 30; HoldPump(); CHECK(atoi(live) == 500 + sign * (100 + 2 * amount));
+        tick += 301; HoldPump(); int stopped = atoi(live);
+        CHECK(!g_holdOn[dir] && !g_hidDown[dir] && !g_hidRelSeen[dir]);
+        tick += 30; HoldPump(); CHECK(atoi(live) == stopped);
+        Hid(press, 1); Token(dir); WatchBrightTokens();
+        CHECK(atoi(live) == stopped + sign * 50 && !g_holdOn[dir]);
+        CHECK(!tokenWrites[0] && !tokenWrites[1]);
+    }
+    /* An inactive/stale keyboard VK must not veto a separate, validated HID
+       stream. No saved binding is removed to achieve this. */
+    Reset(); SeedBrightTokenWatch(); BindScan(0, 0x70, 65); BindHid(0, 0xB5);
+    g_hidRelSeen[0] = 2; keyState = 0;
+    const BYTE press[] = { 0x5A, 0xB5 }, release[] = { 0x5A, 0 };
+    Hid(press, 1); Token(0); WatchBrightTokens(); tick += 30; HoldPump();
+    CHECK(atoi(live) == 440 && g_scanBound[0] == 0x70 && g_scanVk[0] == 65);
+    Hid(release, 1); tick += 30; HoldPump(); CHECK(atoi(live) == 440);
+}
+static void TestHidDevices(void) {
+    const BYTE down[] = { 0x5A, 0xB5 }, up[] = { 0x5A, 0x38 };
+    const BYTE release[] = { 0x5A, 0 }, ignored[] = { 0x5A, 0xEC };
+    HANDLE a = (HANDLE)(uintptr_t)9, b = (HANDLE)(uintptr_t)10;
+    for (int dir = 0; dir < 2; dir++) {
+        Reset(); SeedBrightTokenWatch();
+        HidFrom(a, release, 1); /* A zero without a press is not evidence. */
+        HidFrom(a, down, 1); Token(dir); WatchBrightTokens();
+        int profiles = profileWrites;
+        HidFrom(b, release, 1);
+        CHECK(g_hidDown[dir] && !g_hidRelSeen[dir] && profileWrites == profiles);
+        HidFrom(a, ignored, 1); HidFrom(a, release, 1);
+        CHECK(!g_hidRelSeen[dir]); /* Ignored reports break zero pairing. */
+        HidFrom(a, down, 1); tick += 400; HoldPump();
+        CHECK(!g_hidDown[dir] && !g_hidRelSeen[dir]);
+        HidFrom(a, release, 1); /* A real late release can establish format. */
+        CHECK(g_hidRelSeen[dir] == 2 && releaseValues[dir] == 2);
+    }
+    Reset(); SeedBrightTokenWatch();
+    HidFrom(a, down, 1); Token(0); WatchBrightTokens();
+    tick++; HidFrom(b, up, 1); Token(1); WatchBrightTokens();
+    CHECK(g_hidCode[0] == 0xB5 && g_hidCode[1] == 0x38);
+    HidFrom(a, release, 1);
+    CHECK(g_hidRelSeen[0] == 2 && !g_hidRelSeen[1] && g_hidDown[1]);
+    HidFrom(b, release, 1); CHECK(g_hidRelSeen[1] == 2);
+    tick++; HidFrom(a, down, 1); Token(0); WatchBrightTokens();
+    tick += 30; HoldPump(); int held = atoi(live);
+    HidFrom(b, release, 1);
+    CHECK(g_holdOn[0]); /* Another device's repeated zero is not M4 up. */
+    tick += 30; HoldPump(); CHECK(atoi(live) == held - 10);
+    HidFrom(a, release, 1); tick += 30; HoldPump();
+    CHECK(atoi(live) == held - 10 && !g_holdOn[0]);
+    int reports = (int)g_holdInputDiag.asusReports;
+    HidFrom(NULL, down, 1); HidFrom(NULL, release, 1);
+    CHECK(g_holdInputDiag.asusReports == (ULONGLONG)reports && !g_holdOn[0]);
+    /* Even the same action ID on two devices must keep its current source. */
+    Reset(); SeedBrightTokenWatch(); BindHid(0, 0xB5);
+    HidFrom(a, down, 1); HidFrom(b, down, 1); Token(0); WatchBrightTokens();
+    HidFrom(a, release, 1);
+    CHECK(g_hidDown[0] && !g_hidRelSeen[0] && g_hidDevice[0] == b);
+    HidFrom(b, release, 1); CHECK(!g_hidDown[0] && g_hidRelSeen[0] == 2);
+    /* Learning must not adopt a press preceding an ignored device report. */
+    Reset(); SeedBrightTokenWatch();
+    HidFrom(a, down, 1); HidFrom(a, ignored, 1); Token(0); WatchBrightTokens();
+    CHECK(g_hidCode[0] == 0xB5 && !g_hidDown[0] && !g_hidRelSeen[0]);
+    /* Conversely a duplicate HID report must not replace a live keyboard
+       source with a weaker press-only source and time it out while held. */
+    for (int first = 0; first < 2; first++) {
+        Reset(); SeedBrightTokenWatch(); BindScan(0, 0x70, 65); BindHid(0, 0xB5);
+        if (first) HidFrom(a, down, 1);
+        Keyboard(0x70, 65, TRUE); HidFrom(a, down, 1); Token(0); WatchBrightTokens();
+        tick += 30; HoldPump(); CHECK(atoi(live) == 440);
+        tick += 400; HoldPump(); CHECK(atoi(live) == 430 && g_holdOn[0]);
+        Keyboard(0x70, 65, FALSE); CHECK(!g_holdOn[0] && !g_hidRelSeen[0]);
+    }
 }
 static void TestSnapshot(void) {
     static const char *keys[] = {
@@ -356,7 +526,7 @@ static void TestSnapshot(void) {
         "hold_active_down", "hold_active_up"
     };
     Reset(); InitRawInput(target);
-    g_scanBound[0] = 987654; g_hidCode[1] = 456789; g_hidRelSeen[1] = 1;
+    g_scanBound[0] = 987654; g_hidCode[1] = 456789; g_hidRelSeen[1] = 2;
     WriteHoldDiagnostics(TRUE); CHECK(snapshotWrites == 1);
     CHECK(strncmp(snapshot, "schema=tests.lighting-input.v2\r\n", 32) == 0);
     CHECK(strstr(snapshot, "987654") == NULL && strstr(snapshot, "456789") == NULL);
@@ -391,11 +561,11 @@ static void TestSnapshot(void) {
 static void TestNonHoldModes(void) {
     for (int mode = 1; mode <= 2; mode++) {
         for (int dir = 0; dir < 2; dir++) {
-            /* Keyboard, HID high-bit release, and HID zero release. */
+            /* Keyboard, low-byte HID action, and high-byte HID action. */
             for (int hid = 0; hid < 3; hid++) {
                 Reset(); InitRawInput(target); SeedBrightTokenWatch(); HoldModeWrite(mode);
-                BYTE press[] = { 0x5A, (BYTE)(0x38 + dir) };
-                BYTE release[] = { 0x5A, hid == 2 ? 0 : (BYTE)(0xB8 + dir) };
+                BYTE press[] = { 0x5A, (BYTE)((hid == 2 ? 0xB5 : 0x38) + dir) };
+                BYTE release[] = { 0x5A, 0 };
                 if (hid) Hid(press, 1);
                 else Keyboard((WORD)(0x70 + dir), 255, TRUE);
                 Token(dir); WatchBrightTokens();
@@ -421,7 +591,7 @@ static void TestNonHoldModes(void) {
                 int releasedLevel=atoi(live);
                 tick+=30;HoldPump();
                 CHECK(atoi(live)==releasedLevel+((mode==2&&dir==1)?0:(dir?15:-10)));
-                if (hid) CHECK(g_hidCode[dir] == (DWORD)(0x38 + dir) && g_hidRelSeen[dir]);
+                if (hid) CHECK(g_hidCode[dir] == (DWORD)press[1] && g_hidRelSeen[dir] == 2);
                 else CHECK(g_scanBound[dir] == 0x70 + dir && g_scanVk[dir] == 255);
             }
         }
@@ -444,7 +614,7 @@ static void TestNonHoldModes(void) {
     Reset(); HoldModeWrite(1);
     g_scanBound[0] = 0x70; g_scanBound[1] = 0x71;
     g_scanVk[0] = g_scanVk[1] = 255;
-    PressSignal(0, 0, tick); PressSignal(1, 0, tick);
+    PressSignal(0, 0, HOLD_SCAN, tick); PressSignal(1, 0, HOLD_SCAN, tick);
     tick += 30; HoldPump();
     CHECK(!g_holdOn[0] && !g_holdOn[1] && !tokenWrites[0] && !tokenWrites[1]);
 }
@@ -455,9 +625,9 @@ static void TestModesAndCeiling(void) {
     for (int mode = 0; mode < 3; mode++) { HoldModeWrite(mode); CHECK(HoldModeRead() == mode); }
     HoldModeWrite(9); CHECK(HoldModeRead() == 0);
     g_scanBound[0] = 1; g_scanVk[0] = 65;
-    PressSignal(0, 0, tick); CHECK(g_holdOn[0]);
+    PressSignal(0, 0, HOLD_SCAN, tick); CHECK(g_holdOn[0]);
     keyState = 0; tick += 30; HoldPump(); CHECK(!g_holdOn[0] && !tokenWrites[0]);
-    g_scanVk[0] = 255; PressSignal(0, 0, tick);
+    g_scanVk[0] = 255; PressSignal(0, 0, HOLD_SCAN, tick);
     tick += 10001; HoldPump();
     CHECK(!g_holdOn[0] && !g_hidDown[0] && !tokenWrites[0]);
     writeOk = FALSE; SetMasterBrightnessLevel(350);
@@ -583,6 +753,10 @@ int main(int argc, char **argv) {
     else if (!strcmp(scenario, "registration")) TestRegistration();
     else if (!strcmp(scenario, "hold")) TestHold();
     else if (!strcmp(scenario, "hid-batch")) TestHidBatch();
+    else if (!strcmp(scenario, "hid-action-ids")) TestHidActionIds();
+    else if (!strcmp(scenario, "hid-release-evidence")) TestHidReleaseEvidence();
+    else if (!strcmp(scenario, "hid-no-release")) TestHidNoRelease();
+    else if (!strcmp(scenario, "hid-devices")) TestHidDevices();
     else if (!strcmp(scenario, "snapshot")) TestSnapshot();
     else if (!strcmp(scenario, "modes-ceiling")) TestModesAndCeiling();
     else if (!strcmp(scenario, "non-hold-modes")) TestNonHoldModes();

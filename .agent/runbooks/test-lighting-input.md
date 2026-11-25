@@ -1,5 +1,85 @@
 # KBL-01 - brightness rebuild and saved-state restoration
 
+## Latest owner result - M4 held dimming still fails
+
+After the published rebuild, the owner reports that holding M4 still does not
+produce smooth dimming. The outcome remains FAILED for that reported behavior;
+prior automated/Windows adapter passes are not hardware acceptance. This report
+does not establish the exact installed bytes, M5 behavior, tap response or a
+Balance/Steady restoration result. Do not collect another equivalent log or
+repeat the old mode/input-status matrix. Engine-8 already fulfilled the gate
+for this continuing, unresolved input scope. No mode/binding/vendor reset.
+
+Read-only upstream review is pinned to G-Helper commit
+`a3c3ccae51f005d92d8d4ee161e6661ab511274d`:
+https://github.com/seerge/g-helper/tree/a3c3ccae51f005d92d8d4ee161e6661ab511274d/app/Input
+`KeyboardListener` passes positive eight-bit 0x5A event IDs, excluding 0xEC;
+`MKeyControl` can route a Strix physical M-key software action through event
+181 (0xB5). That does not identify the owner's G-Helper build or emitted code.
+The released native decoder incorrectly turns every unlearned high-bit event
+into a release and masks off bit 7; even a saved high-bit binding matches its
+own invented release form. The new 0xB5 production-receiver regression went red
+against that code before the correction. This establishes an unsupported parser
+assumption, independent of ramp speed, not the owner's emitted code or cause.
+
+The branch correction is UNRELEASED, not another claimed physical-hold repair:
+
+- Preserve all eight event bits. Ignore non-0x5A, missing-device and 0xEC action
+  reports. Retain an ignored-event barrier so a later zero cannot be paired
+  across it. Pair real zero frames with the most recent report on that same
+  raw device, never another device or a guessed press|0x80 code.
+- `M4HidRelease/M5HidRelease=2` identifies an observed zero-frame format.
+  Preserve old value1, but it can include guessed releases and cannot authorize
+  HID hold. A keyboard up or silence timeout does not establish this format.
+  No scan/HID binding or mode/preference is reset or copied across directions.
+- Prefer a live keyboard source over duplicate HID reports. A remembered but
+  inactive keyboard binding neither grants release capability to a HID-only
+  gesture nor lets its unrelated VK cancel a verified HID hold.
+- A lone press without release capability remains one 5% tap. Genuine repeat
+  reports can sustain bounded fine steps; 300ms silence retires that gesture
+  without claiming a physical release. A new Custom launch cannot be swallowed
+  by the expired gesture, in either Custom/raw queue order. Pending learning
+  must not reattach it to the consumed gesture rejected by token arbitration.
+- Rates, 30ms pacing, 120ms controller freshness, 10s ceiling, exact master,
+  saved state, ASCII/C#5 and exclusive/single-engine safeguards are unchanged.
+
+Important input-contract limit: upstream `KeyboardListener` only forwards zero
+release events for Ally, and `RunKeyCommand`/`CustomKey` launch a command without
+a corresponding key-up callback. Upstream maintainer explanation of one-shot
+software actions versus firmware-held keys:
+https://github.com/seerge/g-helper/issues/3653#issuecomment-2614482854
+https://github.com/seerge/g-helper/issues/3653#issuecomment-5159250410
+These references do not prove that the owner's physical M4 supplies no other
+input. They do prove that Custom launch alone cannot satisfy while-held/stop-
+on-release behavior. Do not invent a held state, switch to latch/burst, remap
+firmware/vendor settings or request another equivalent log/matrix to hide it.
+Physical M4 remains unresolved; the next substantive input work needs a real
+release-capable source or an explicitly approved integration change, not speed
+tuning or another synthetic acceptance claim. No new Hub marker is issued for
+this narrower parser correction as a successful held-key repair.
+
+### Unreleased correction verification (synthetic input, not acceptance)
+
+- The 0xB5 action-ID regression failed against the released decoder. Separate
+  legacy-release and silent-gesture tests also failed before their repairs.
+  An added Custom-before-raw case exposed pending learning reattaching a new
+  command to the already-consumed old gesture; that regression now passes.
+- All 30 focused input/state tests and all 186 Windows-app tests pass. All 17
+  receiver plus 9 state scenarios pass UBSan with synthetic host I/O. Full
+  uncached repository checks pass in both dependency states; eight-target
+  Windows cross-build succeeds, with only Lighting EXE changed.
+- All 631/631 deliberate breaks detected, no survivors/stale/errors, clean
+  328-test pre/post suites, exact source restoration; 255.814s, one worker,
+  no verdict cache. All 19 new input-contract mutations also pass their
+  separate targeted run. Reports are external at `lighting-m4-physical/`.
+- Unreleased EXE: 462336 bytes, SHA-256
+  `078cefd4dcd71830f6bb6d221418b72aaa76208692ffaf39f38af72debb42a74`.
+  Aura/Tray and the release marker remain byte-identical to the prior release.
+  Windows CI is a separate adapter gate; even a pass is not owner-device input
+  delivery. No owner-specific cause or successful physical hold is established.
+- The separate Tray apply/refresh/resume rounded-master audit remains open;
+  it is not established as M4's cause and is not changed by this input patch.
+
 ## Current owner request - rebuild; engine-8 received
 
 The owner reports no observable benefit from the previous brightness attempts
