@@ -1,5 +1,31 @@
 # KBL-01 - brightness rebuild and saved-state restoration
 
+## Owner-approved receiver correction release
+
+The owner approved publishing the verified input receiver correction first,
+without remapping M4/M5, changing speeds or resetting saved choices. The source
+implementation is `5e9abad05f786bbda07d8757b2921f8497493c81`; this publication
+only updates release documentation and the separate `.agent/RELEASED` marker.
+Product/test/registry bytes remain identical to that verified implementation.
+Hub stays 2.8.72 and plugins stay 0.0.58/0.4.13. Only Lighting EXE differs from
+the prior released rebuild; Aura/Tray and all other binaries are unchanged.
+
+Update Prism Lighting through Project Hub with the same active Arena branch
+selected. The focused installed check is one M4 hold followed by release:
+initial 5% tap, fine dimming while physically held, then stop on release in the
+existing sweep mode. Preserve saved mode/bindings rather than forcing this
+outcome with a reset. This is not another mode/log/input-status matrix.
+Physical hold and Balance/Steady acceptance remain open; the prior failure is
+not retroactively fixed by publication. No owner-specific cause is established.
+No firmware/vendor change or automatic glide substitution is authorized.
+
+The prior 631/631 mutation campaign and 17+9 synthetic UBSan scenarios below
+apply to these identical product/test bytes; publication does not count them
+as newly executed. Recheck build, full repository tests, registry/source
+fingerprints and public marker/artifact bytes for delivery. Windows CI and
+installed physical behavior remain distinct gates. The current marker names
+the complete verified release commit, including these delivery notes.
+
 ## Engine-9 received - startup/status only, not key evidence
 
 Fully scanned the owner's new `engine-9.log`: 220292 bytes, 866 UTF8-sig
@@ -17,12 +43,13 @@ This confirms an appended startup/status group, not physical M4 delivery, an
 owner-specific cause, absent hardware release signals, simultaneous engines or
 saved-state acceptance. SHARED/GHelper and late frames do not establish a hold
 cause or authorize vendor changes. The log gate remains satisfied; no further
-engine log or old input-status/hold matrix is requested. The prior M4 failure
-remains unresolved, the receiver correction stays unreleased and product code,
-preferences, bindings, rates and release marker are unchanged by this review.
+engine log or old input-status/hold matrix is requested. At that receipt-only
+checkpoint the M4 failure remained unresolved and the receiver was unreleased;
+product code, preferences, bindings, rates and marker were unchanged by review.
+Publication was subsequently approved as recorded above, not by the log itself.
 The raw attachment remains private; only these aggregate findings are recorded.
 
-## Latest owner result - M4 held dimming still fails
+## Prior owner result - M4 held dimming failed after the rebuild
 
 After the published rebuild, the owner reports that holding M4 still does not
 produce smooth dimming. The outcome remains FAILED for that reported behavior;
@@ -38,13 +65,13 @@ https://github.com/seerge/g-helper/tree/a3c3ccae51f005d92d8d4ee161e6661ab511274d
 `KeyboardListener` passes positive eight-bit 0x5A event IDs, excluding 0xEC;
 `MKeyControl` can route a Strix physical M-key software action through event
 181 (0xB5). That does not identify the owner's G-Helper build or emitted code.
-The released native decoder incorrectly turns every unlearned high-bit event
-into a release and masks off bit 7; even a saved high-bit binding matches its
+The pre-correction released decoder turned every unlearned high-bit event
+into a release and masked off bit 7; even a saved high-bit binding matches its
 own invented release form. The new 0xB5 production-receiver regression went red
 against that code before the correction. This establishes an unsupported parser
 assumption, independent of ramp speed, not the owner's emitted code or cause.
 
-The branch correction is UNRELEASED, not another claimed physical-hold repair:
+The owner-approved receiver release corrects the following input defects:
 
 - Preserve all eight event bits. Ignore non-0x5A, missing-device and 0xEC action
   reports. Retain an ignored-event barrier so a later zero cannot be paired
@@ -75,12 +102,13 @@ These references do not prove that the owner's physical M4 supplies no other
 input. They do prove that Custom launch alone cannot satisfy while-held/stop-
 on-release behavior. Do not invent a held state, switch to latch/burst, remap
 firmware/vendor settings or request another equivalent log/matrix to hide it.
-Physical M4 remains unresolved; the next substantive input work needs a real
-release-capable source or an explicitly approved integration change, not speed
-tuning or another synthetic acceptance claim. No new Hub marker is issued for
-this narrower parser correction as a successful held-key repair.
+Physical M4 acceptance remains open after this receiver publication. If the
+corrected build still fails, further input work needs a real release-capable
+source or an explicitly approved integration change, not speed tuning or a
+synthetic acceptance claim. Publication of the confirmed parser correction is
+not proof that the owner's M4 has a usable hold/release stream.
 
-### Unreleased correction verification (synthetic input, not acceptance)
+### Receiver implementation verification (synthetic input, not acceptance)
 
 - The 0xB5 action-ID regression failed against the released decoder. Separate
   legacy-release and silent-gesture tests also failed before their repairs.
@@ -94,9 +122,10 @@ this narrower parser correction as a successful held-key repair.
   328-test pre/post suites, exact source restoration; 255.814s, one worker,
   no verdict cache. All 19 new input-contract mutations also pass their
   separate targeted run. Reports are external at `lighting-m4-physical/`.
-- Unreleased EXE: 462336 bytes, SHA-256
+- Receiver-release EXE: 462336 bytes, SHA-256
   `078cefd4dcd71830f6bb6d221418b72aaa76208692ffaf39f38af72debb42a74`.
-  Aura/Tray and the release marker remain byte-identical to the prior release.
+  Aura/Tray remain byte-identical to the prior release; only the separate
+  delivery marker advances after verification and the owner's approval.
   Windows CI is a separate adapter gate; even a pass is not owner-device input
   delivery. No owner-specific cause or successful physical hold is established.
 - The separate Tray apply/refresh/resume rounded-master audit remains open;
