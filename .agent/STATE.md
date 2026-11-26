@@ -5,8 +5,8 @@ Git: implementation/tests/releases; Drive: extended plans/history.
 
 ## Current owner status / next work
 
-Save stays owner-confirmed; Prism brightness/persistence reopened.
-CURRENT: M4 hold still fails; Balance/Steady acceptance open. Open/startup good.
+Save and the released M4 fix are owner-confirmed working.
+CURRENT: colour flicker; Balance/Steady acceptance open. Open/startup good.
 
 **Current focus / monitor (20 retained IDs):**
 - **PLAN-01 CURRENT:** owner confirms Save fixed; no more Config collection.
@@ -23,11 +23,11 @@ CURRENT: M4 hold still fails; Balance/Steady acceptance open. Open/startup good.
   startup fix claimed. Preserve fallbacks/preferences; `test-hub-startup-tray.md`.
 - **OPS-01 Owner-reported good:** UAC seems fixed; prior prompt unidentified,
   not a security-policy diagnosis/change approval.
-- **KBL-01 CURRENT:** owner says M4 smooth hold still fails after the rebuild;
-  receiver follow-up released; physical/Balance/Steady acceptance open.
-  Engine-9 reviewed: 8 plus four startup/status lines; no key trace.
+- **KBL-01 CURRENT:** M4 fix owner-confirmed working. No additional log request
+  or old matrix for M4. Colour flicker awaits fresh engine.log before edits.
+  Balance/Steady restoration and separate Tray rounding audit stay open.
   Keep choices, distinct keys, release/lock/pacing/single-engine and ASCII/C#5.
-  `test-lighting-input.md`. No additional log request or old matrix.
+  `test-lighting-input.md`.
 
 ## Released / owner-reported good
 

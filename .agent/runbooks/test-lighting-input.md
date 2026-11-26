@@ -1,6 +1,36 @@
 # KBL-01 - brightness rebuild and saved-state restoration
 
-## Owner-approved receiver correction release
+## Current owner confirmation - M4 fix is working
+
+The owner now confirms that the M4 fix is working.
+Record the reported M4 issue as owner-confirmed resolved after the receiver
+release. This supersedes earlier M4-failure/open-acceptance wording below;
+do not request another M4 log or hold/input-status matrix. It is owner-use
+confirmation, not independently executed hardware testing, installed-byte
+proof, a newly isolated cause or fresh acceptance of M5/all modes.
+
+The delivered release remains `e664f7b8417ce788fe2f59b2421190a2416a9b90`,
+selected by marker commit `807d0bac1f24d2c11e1d5056c14ab00291a7054d`.
+This receipt changes documentation only: no source, tests, EXE, Aura/Tray,
+preferences, bindings, rates, vendor/startup configuration or release marker.
+No new app update is required merely to record the owner's result.
+
+The newer slight flicker throughout colour changes is a separate open issue.
+A fresh flicker-time engine.log was requested and has not arrived; no colour
+engine edit is authorized before that standing gate is fulfilled. Engine-8/9
+met the prior M4 scope, not a claim of fresh flicker-time evidence. Read-only
+review found that LampEngine.Push can select low-level temporal dither even
+with DitherMode=0; an arithmetic fade can then reverse adjacent LED codes.
+That is a testable software candidate, not the owner's established cause.
+Preserve saved modes, Balance/Steady choices and brightness rates rather than
+forcing a toggle or tuning speed. No new M4 matrix or vendor change is needed.
+
+Balance/Steady restoration acceptance and the separate Tray apply/refresh/
+resume rounded-master audit remain open. Orca Save stays owner-confirmed fixed.
+Processed preview follows Prism; renumbering PAUSED, ORCA-04/05 PARKED and
+further PLAN-02 DEFERRED. All 20 task IDs and prior history remain retained.
+
+## Owner-approved receiver correction release (publication checkpoint)
 
 The owner approved publishing the verified input receiver correction first,
 without remapping M4/M5, changing speeds or resetting saved choices. The source
@@ -10,14 +40,14 @@ Product/test/registry bytes remain identical to that verified implementation.
 Hub stays 2.8.72 and plugins stay 0.0.58/0.4.13. Only Lighting EXE differs from
 the prior released rebuild; Aura/Tray and all other binaries are unchanged.
 
-Update Prism Lighting through Project Hub with the same active Arena branch
-selected. The focused installed check is one M4 hold followed by release:
+At publication, the focused installed check was one M4 hold then release:
 initial 5% tap, fine dimming while physically held, then stop on release in the
-existing sweep mode. Preserve saved mode/bindings rather than forcing this
-outcome with a reset. This is not another mode/log/input-status matrix.
-Physical hold and Balance/Steady acceptance remain open; the prior failure is
-not retroactively fixed by publication. No owner-specific cause is established.
-No firmware/vendor change or automatic glide substitution is authorized.
+existing sweep mode, preserving the owner's saved mode and bindings. M4
+acceptance was open then; the subsequent owner confirmation above now resolves
+the reported M4 issue. Balance/Steady acceptance remains separate and open.
+This is not a renewed mode/log/input-status matrix or proof of a specific
+installed byte identity/cause. No firmware/vendor change or glide substitute
+is authorized.
 
 The prior 631/631 mutation campaign and 17+9 synthetic UBSan scenarios below
 apply to these identical product/test bytes; publication does not count them
@@ -51,13 +81,13 @@ The raw attachment remains private; only these aggregate findings are recorded.
 
 ## Prior owner result - M4 held dimming failed after the rebuild
 
-After the published rebuild, the owner reports that holding M4 still does not
-produce smooth dimming. The outcome remains FAILED for that reported behavior;
-prior automated/Windows adapter passes are not hardware acceptance. This report
-does not establish the exact installed bytes, M5 behavior, tap response or a
-Balance/Steady restoration result. Do not collect another equivalent log or
-repeat the old mode/input-status matrix. Engine-8 already fulfilled the gate
-for this continuing, unresolved input scope. No mode/binding/vendor reset.
+After the earlier published rebuild, the owner reported that holding M4 did
+not produce smooth dimming. The outcome was FAILED at that checkpoint; the
+later owner confirmation above supersedes that M4 result after the receiver
+release. Prior automated/Windows adapter passes were not hardware acceptance.
+The earlier report did not identify exact installed bytes, M5/tap behavior or
+Balance/Steady restoration. No equivalent log or old input-status matrix is
+requested. Engine-8 met that input-scope gate. No mode/binding/vendor reset.
 
 Read-only upstream review is pinned to G-Helper commit
 `a3c3ccae51f005d92d8d4ee161e6661ab511274d`:
@@ -102,11 +132,11 @@ These references do not prove that the owner's physical M4 supplies no other
 input. They do prove that Custom launch alone cannot satisfy while-held/stop-
 on-release behavior. Do not invent a held state, switch to latch/burst, remap
 firmware/vendor settings or request another equivalent log/matrix to hide it.
-Physical M4 acceptance remains open after this receiver publication. If the
-corrected build still fails, further input work needs a real release-capable
-source or an explicitly approved integration change, not speed tuning or a
-synthetic acceptance claim. Publication of the confirmed parser correction is
-not proof that the owner's M4 has a usable hold/release stream.
+Physical M4 acceptance was open at publication; the owner now confirms that
+the fix is working. Do not reopen M4 or demand another input source/matrix on
+that superseded failure report. A future regression would need actual input
+evidence rather than speed tuning or fabricated hold. Publication and synthetic
+checks alone were not proof of the owner's usable hold/release stream.
 
 ### Receiver implementation verification (synthetic input, not acceptance)
 
