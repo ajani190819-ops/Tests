@@ -54,7 +54,10 @@ Full reports and scratch binaries stay outside Git. All six output scenarios
 also pass GCC UBSan. The eight-target cross-build and full uncached repository
 checks pass in both dependency states. Only Aura and the matched Lighting EXE
 change among delivered product files; Tray and the other seven EXEs are byte-
-identical. The separate release-marker workflow still applies.
+identical. The separate release marker selects verified implementation
+`bd331b919768d70f651f2f1d965a6e44723ace3d` on the active Arena branch.
+Update Prism Lighting through Project Hub with that same branch selected;
+Hub remains 2.8.72 and plugins remain 0.0.58/0.4.13. No merge to main is needed.
 
 Saved modes, all eight Balance/Steady combinations, exact master, distinct M4/M5
 bindings/rates, exclusive lock and single-engine protections are preserved.

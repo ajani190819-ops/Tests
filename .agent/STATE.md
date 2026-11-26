@@ -24,7 +24,7 @@ CURRENT: colour flicker; Balance/Steady acceptance open. Open/startup good.
 - **OPS-01 Owner-reported good:** UAC seems fixed; prior prompt unidentified,
   not a security-policy diagnosis/change approval.
 - **KBL-01 CURRENT:** M4 fix owner-confirmed working. No additional log request
-  or old matrix for M4. Log gate removed; dither-policy correction tested.
+  or old matrix for M4. Logs optional; Steady output released (`bd331b9`).
   Physical flicker, Balance/Steady restore and Tray rounding audit stay open.
   Keep choices, distinct keys, release/lock/pacing/single-engine and ASCII/C#5.
   `test-lighting-input.md`.
