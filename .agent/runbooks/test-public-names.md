@@ -1,8 +1,9 @@
 # NAME-01 — public branding, compatibility acceptance
 
 Approved brands: Weather Report, Undahang, Prism Lighting. Unlayered Infill and
-Bluetooth Guard are unchanged. This release does not authorize lighting-file
-changes without a fresh owner `engine.log`, or any parked Orca research.
+Bluetooth Guard are unchanged. Own-app lighting branding is unchanged; the
+owner has removed the fresh-log edit prerequisite, not expanded the current
+flicker-repair scope or authorized any parked Orca research.
 
 ## Automated boundary
 

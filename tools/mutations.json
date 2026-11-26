@@ -6308,5 +6308,175 @@
   "tests": [
    "tests.test_windows_apps.LightingInputTests.test_press_only_hid_actions_remain_taps_and_real_repeat_streams_expire_safely"
   ]
+ },
+ {
+  "id": "kbl-quant-00",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "bool lampDith = dith && moving && peak > 0.0005;",
+  "new": "bool lampDith = (peak <= 0.0005) ? false : (moving && (dith || peak < 14.0));",
+  "label": "Restore the low-brightness override of the saved Steady/dither policy",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_steady_rising_and_falling_fades_never_reverse_or_keep_dither_carry"
+  ]
+ },
+ {
+  "id": "kbl-quant-01",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "bool lampDith = dith && moving && peak > 0.0005;",
+  "new": "bool lampDith = moving && peak > 0.0005;",
+  "label": "Ignore the explicit/auto dither choice on moving colours",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_explicit_and_auto_dither_choices_survive_low_brightness_and_live_changes"
+  ]
+ },
+ {
+  "id": "kbl-quant-02",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "bool lampDith = dith && moving && peak > 0.0005;",
+  "new": "bool lampDith = false;",
+  "label": "Force dither off even when saved off-Steady or coarse auto requests it",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_explicit_and_auto_dither_choices_survive_low_brightness_and_live_changes"
+  ]
+ },
+ {
+  "id": "kbl-quant-03",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "bool lampDith = dith && moving && peak > 0.0005;",
+  "new": "bool lampDith = dith && peak > 0.0005;",
+  "label": "Continue temporal feedback on a held fractional colour",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_held_colours_and_blackout_round_once_then_skip_unchanged_writes"
+  ]
+ },
+ {
+  "id": "kbl-quant-04",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "bool lampDith = dith && moving && peak > 0.0005;",
+  "new": "bool lampDith = dith && moving;",
+  "label": "Let blackout emit a stale error-feedback pulse",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_held_colours_and_blackout_round_once_then_skip_unchanged_writes"
+  ]
+ },
+ {
+  "id": "kbl-quant-05",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "      err = 0.0;\n      int p = (int)(x + 0.5);",
+  "new": "      int p = (int)(x + 0.5);",
+  "label": "Retain dither carry after Steady disables temporal feedback",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_steady_rising_and_falling_fades_never_reverse_or_keep_dither_carry"
+  ]
+ },
+ {
+  "id": "kbl-quant-06",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "int p = (int)(x + 0.5);",
+  "new": "int p = (int)x;",
+  "label": "Truncate instead of nearest-rounding a Steady colour",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_steady_rising_and_falling_fades_never_reverse_or_keep_dither_carry"
+  ]
+ },
+ {
+  "id": "kbl-quant-07",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "if (Math.Abs(codeR - codeG) < 0.05 && Math.Abs(codeG - codeB) < 0.05) {",
+  "new": "if (false) {",
+  "label": "Quantize neutral device-space channels with unrelated error phases",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_neutral_device_space_channels_share_codes_even_with_unequal_scales"
+  ]
+ },
+ {
+  "id": "kbl-quant-08",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "qr = q; qg = q; qb = q;",
+  "new": "qr = q; qg = q + 1; qb = q;",
+  "label": "Send unequal RGB codes for a neutral colour",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_neutral_device_space_channels_share_codes_even_with_unequal_scales"
+  ]
+ },
+ {
+  "id": "kbl-quant-09",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "    if (allOk) {\n      for (int i = 0; i < LampCount; i++) { pr[i] = nr[i]; pg[i] = ng[i]; pb[i] = nb2[i]; }",
+  "new": "    if (true) {\n      for (int i = 0; i < LampCount; i++) { pr[i] = nr[i]; pg[i] = ng[i]; pb[i] = nb2[i]; }",
+  "label": "Promote a partially failed frame and suppress its retry",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_failed_batches_never_promote_and_retry_until_success_or_device_lost"
+  ]
+ },
+ {
+  "id": "kbl-quant-10",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "if (!changed) return;",
+  "new": "if (false) return;",
+  "label": "Write unchanged frames instead of keeping held colours quiet",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_held_colours_and_blackout_round_once_then_skip_unchanged_writes"
+  ]
+ },
+ {
+  "id": "kbl-quant-11",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "bool changed = force;",
+  "new": "bool changed = false;",
+  "label": "Skip a forced identical repaint after recovery",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_held_colours_and_blackout_round_once_then_skip_unchanged_writes"
+  ]
+ },
+ {
+  "id": "kbl-quant-12",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "if (bi + 1 < nbatch && ReportPaceUs > 0) Pace(ReportPaceUs);",
+  "new": "if (ReportPaceUs > 0) Pace(ReportPaceUs);",
+  "label": "Add a pacing delay after the last or only report",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_planar_interleaved_partial_and_forced_frames_keep_apply_flags_and_pacing"
+  ]
+ },
+ {
+  "id": "kbl-quant-13",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "b[OffFlags] = (bi == last) ? (byte)1 : (byte)0;",
+  "new": "b[OffFlags] = (bi == last) ? (byte)0 : (byte)1;",
+  "label": "Apply the first batch instead of completing the whole frame",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_planar_interleaved_partial_and_forced_frames_keep_apply_flags_and_pacing"
+  ]
+ },
+ {
+  "id": "kbl-quant-14",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "if (failRun >= 8) { DeviceLost = true; failRun = 0; }",
+  "new": "if (failRun >= 9) { DeviceLost = true; failRun = 0; }",
+  "label": "Delay device-loss recovery beyond eight failed frames",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_failed_batches_never_promote_and_retry_until_success_or_device_lost"
+  ]
+ },
+ {
+  "id": "kbl-quant-15",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "if (!HidD_SetFeature(h, b, b.Length)) allOk = false;",
+  "new": "HidD_SetFeature(h, b, b.Length);",
+  "label": "Treat refused HID batches as successful writes",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_failed_batches_never_promote_and_retry_until_success_or_device_lost"
+  ]
+ },
+ {
+  "id": "kbl-log-policy-00",
+  "file": "AGENTS.md",
+  "old": "Fresh owner logs are optional, not an edit gate.",
+  "new": "Do not touch it without a fresh owner `engine.log`.",
+  "label": "Reintroduce the owner-revoked Lighting log prerequisite",
+  "tests": [
+   "tests.test_review_tools.OwnerHandoffContractTests.test_lighting_owner_removed_log_prerequisite_without_removing_safeguards"
+  ]
  }
 ]

@@ -1450,6 +1450,7 @@
 - L6524  f GuardSecurityReportTests
 - L6696  f PublicNameRolloutTests
 - L6839  f LightingStateTests
+- L6978  f LightingColourTests
 
 ## tests/wave_cases.py
 

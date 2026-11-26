@@ -297,6 +297,22 @@ class OrcaExportEvidenceTests(unittest.TestCase):
 
 
 class OwnerHandoffContractTests(unittest.TestCase):
+    def test_lighting_owner_removed_log_prerequisite_without_removing_safeguards(self):
+        agents = " ".join((ROOT / "AGENTS.md").read_text().split())
+        self.assertIn("Fresh owner logs are optional, not an edit gate", agents)
+        self.assertIn("exclusive-lock, pacing, and single-engine safeguards", agents)
+        current = (ROOT / ".agent/runbooks/test-lighting-input.md").read_text(encoding="ascii")
+        current = " ".join(current.split("## Owner-approved receiver correction release", 1)[0].split())
+        self.assertIn("removed the fresh-log prerequisite", current)
+        self.assertIn("not an edit/release gate", current)
+        self.assertIn("historical, not current", current)
+        self.assertNotIn("before that standing gate is fulfilled", current)
+        for path in ("docs/UI_STYLE_GUIDE.md", ".agent/runbooks/test-public-names.md"):
+            with self.subTest(file=path):
+                text = (ROOT / path).read_text()
+                self.assertNotIn("waits for a fresh owner", text)
+                self.assertNotIn("changes without a fresh owner", text)
+
     def test_checklist_preserves_all_20_ids_and_safety_acceptance_boundary(self):
         import re
         checklist = (ROOT / ".agent/runbooks/owner-verification-checklist.md").read_text()

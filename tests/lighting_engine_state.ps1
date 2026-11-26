@@ -151,3 +151,5 @@ try {
 } finally {
     [IO.Directory]::Delete($folder,$true)
 }
+# Same stock PowerShell 5.1 CI entry; output replay opens no hardware/threads.
+& (Join-Path $Root 'tests/lighting_colour_state.ps1') -Root $Root

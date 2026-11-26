@@ -9,21 +9,58 @@ do not request another M4 log or hold/input-status matrix. It is owner-use
 confirmation, not independently executed hardware testing, installed-byte
 proof, a newly isolated cause or fresh acceptance of M5/all modes.
 
-The delivered release remains `e664f7b8417ce788fe2f59b2421190a2416a9b90`,
-selected by marker commit `807d0bac1f24d2c11e1d5056c14ab00291a7054d`.
-This receipt changes documentation only: no source, tests, EXE, Aura/Tray,
-preferences, bindings, rates, vendor/startup configuration or release marker.
-No new app update is required merely to record the owner's result.
+Documentation-only receipt `59501ee` recorded that confirmation for release
+`e664f7b8417ce788fe2f59b2421190a2416a9b90`, selected by marker `807d0ba`.
+The following colour-output correction is a separate implementation, not a
+new M4 repair or a claim that tests established the owner's physical cause.
 
-The newer slight flicker throughout colour changes is a separate open issue.
-A fresh flicker-time engine.log was requested and has not arrived; no colour
-engine edit is authorized before that standing gate is fulfilled. Engine-8/9
-met the prior M4 scope, not a claim of fresh flicker-time evidence. Read-only
-review found that LampEngine.Push can select low-level temporal dither even
-with DitherMode=0; an arithmetic fade can then reverse adjacent LED codes.
-That is a testable software candidate, not the owner's established cause.
-Preserve saved modes, Balance/Steady choices and brightness rates rather than
-forcing a toggle or tuning speed. No new M4 matrix or vendor change is needed.
+The owner has removed the fresh-log prerequisite for Lighting edits. Logs are
+optional diagnostic evidence, not an edit/release gate; no new log is requested
+to continue. Earlier fresh-log conditions below are historical, not current.
+This is removal of the standing rule, not a one-off waiver. AGENTS and current
+style/roadmap/setup guidance no longer reinstate that prerequisite.
+
+## Colour-transition software correction
+
+`LampEngine.Push` formerly enabled temporal error feedback for a moving target
+below peak14 even when `UseDither` was false. Thus saved Steady (`DitherMode=0`)
+could still emit alternating/reverse adjacent codes during an increasing fade.
+The smallest correction requires `UseDither` AND motion AND a non-black target
+at every brightness. Dither is not globally disabled: explicit on and coarse
+Auto remain available. Held/off/black targets round straight and clear carry.
+Neutral device-space RGB still shares one error and code. Staged promotion only
+after every report succeeds, retry/loss accounting, report flags, force/skip
+behavior, interleaved/planar layout and between-batch pacing are unchanged.
+
+The new production-method replay failed twice on the old code and passes the
+correction. All 37 focused Lighting input/state/output tests and 193 Windows-app
+tests pass; all eight owner-handoff tests pass. Six output scenarios exercise
+rising/falling fades across the old threshold, full/coarse/mixed channel scales,
+live policy changes, held/black/neutral output, partial/failed batches, forced
+frames and pacing. The portable C replay mechanically adapts the actual getter,
+quantizer and Push body; it is not a separate quantizer implementation. Windows
+CI's existing PS5.1 entry also compiles the unmodified full embedded engine with
+Framework `/langversion:5`, then executes actual C# methods with only HID/pacing
+shims. Neither replay opens devices, starts engine threads or reads owner files.
+
+All 648/648 registered mutations are detected, including 16 output regressions
+and the revoked-policy regression; the prior 631 definitions are unchanged.
+Zero survivors/stale/errors, 336-test clean pre/post gates, exact restoration,
+one worker/no verdict or artifact cache; 240.012 seconds. Canonical registry
+SHA256 `14093d93cc01646be9c763138b417597576a4160b3b8b72743646a95629c3490`;
+mutated-source fingerprint
+`d9a07732a21a76f9a03448a8da12db5841e81b209d8d3c4fe51dc094f6426915`.
+Full reports and scratch binaries stay outside Git. All six output scenarios
+also pass GCC UBSan. The eight-target cross-build and full uncached repository
+checks pass in both dependency states. Only Aura and the matched Lighting EXE
+change among delivered product files; Tray and the other seven EXEs are byte-
+identical. The separate release-marker workflow still applies.
+
+Saved modes, all eight Balance/Steady combinations, exact master, distinct M4/M5
+bindings/rates, exclusive lock and single-engine protections are preserved.
+No forced toggle, speed tuning, preference reset or vendor/startup change.
+This establishes a software policy defect and tested correction, not physical
+flicker acceptance or proof of the owner's particular hardware cause.
 
 Balance/Steady restoration acceptance and the separate Tray apply/refresh/
 resume rounded-master audit remain open. Orca Save stays owner-confirmed fixed.
@@ -161,7 +198,7 @@ checks alone were not proof of the owner's usable hold/release stream.
 - The separate Tray apply/refresh/resume rounded-master audit remains open;
   it is not established as M4's cause and is not changed by this input patch.
 
-## Current owner request - rebuild; engine-8 received
+## Prior owner request - rebuild; engine-8 received
 
 The owner reports no observable benefit from the previous brightness attempts
 and requests rebuilding the brightness adjustment system from the ground up.
@@ -365,8 +402,9 @@ The owner had reported **Balance Colours / Steady Colours start enabled despite
 saved off choices**. Broad verification temporarily superseded that unresolved
 status, without establishing a cause. The latest request above REOPENS restore.
 No Lighting product edits or resets were made in that earlier investigation.
-The owner now explicitly retains a fresh-log prerequisite for the rebuild/repair;
-this is not a request to repeat the old startup/config collection matrix.
+At that earlier rebuild checkpoint the owner retained a fresh-log prerequisite;
+it was not a request to repeat the old startup/config collection matrix.
+That prerequisite has since been removed, as recorded in the current section.
 
 Read-only replay of the production C parser/default/load/save functions under
 GCC ASan/UBSan confirms order-sensitive `Smooth` parsing, nested `Equalise`

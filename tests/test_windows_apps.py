@@ -6975,6 +6975,90 @@ class LightingStateTests(unittest.TestCase):
         # function-execution regression in the Windows CI job.
 
 
+class LightingColourTests(unittest.TestCase):
+    """Execute production output decisions with synthetic clock/HID only.
+
+    The portable replay is a mechanical C adaptation, not a second quantizer.
+    Windows CI also compiles and executes the actual embedded C# under PS5.1.
+    Neither is physical flicker acceptance on the owner's keyboard.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import shutil
+        import tempfile
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            raise unittest.SkipTest("portable C compiler is unavailable")
+        cls.temp = tempfile.TemporaryDirectory(prefix="lighting-colour-")
+        cls.addClassCleanup(cls.temp.cleanup)
+        folder = Path(cls.temp.name)
+        engine = (ROOT / "keyboard-lighting/Aura-Background.ps1").read_text(encoding="ascii")
+
+        def method(signature):
+            start = engine.index(signature)
+            return engine[start:engine.index("\n  }\n", start) + 5]
+
+        prop = method("public bool UseDither {")
+        getter = prop[prop.index("get {") + len("get {"):prop.index("\n    }")]
+        dither = method("static int Dither(")
+        dither = dither.replace("ref double err", "double *err")
+        head, body = dither.split("{", 1)
+        dither = head + "{" + re.sub(r"\berr\b", "(*err)", body)
+        push = method("void Push(bool force) {")
+        # Adapt syntax/platform seams only; retain all production control flow,
+        # thresholds, arithmetic, batching, failure and promotion decisions.
+        push = push.replace("void Push(", "static void Push(")
+        push = push.replace("UseDither;", "UseDither();")
+        push = push.replace("byte[] b", "byte *b").replace("b.Length", "ReportLen")
+        push = re.sub(r"new int\[LampCount\]", "AllocInts(LampCount)", push)
+        push = re.sub(r"new double\[LampCount\]", "AllocDoubles(LampCount)", push)
+        push = re.sub(r"\bref ", "&", push).replace("null", "NULL")
+        push = push.replace("Math.Min", "Min").replace("Math.Max", "Max").replace("Math.Abs", "fabs")
+        push = push.replace("Stopwatch.GetTimestamp()", "Timestamp()")
+        push = push.replace("Stopwatch.Frequency", "1000000L")
+        subject = "static bool UseDither(void) {" + getter + "\n}\n" + dither + "\n" + push
+        (folder / "lighting_colour_subject.h").write_text(subject, encoding="ascii")
+        cls.exe = folder / "lighting-colour"
+        result = subprocess.run([compiler, "-std=c11", "-Wall", "-Wextra", "-Werror",
+                                 "-I", str(folder), str(ROOT / "tests/native/lighting_colour_harness.c"),
+                                 "-lm", "-o", str(cls.exe)], capture_output=True, text=True, timeout=30)
+        if result.returncode:
+            raise AssertionError("lighting colour harness did not compile:\n" + result.stderr)
+
+    def _run(self, scenario):
+        result = subprocess.run([str(self.exe), scenario], capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Lighting colour " + scenario + " passed", result.stdout)
+
+    def test_steady_rising_and_falling_fades_never_reverse_or_keep_dither_carry(self):
+        self._run("steady")
+
+    def test_explicit_and_auto_dither_choices_survive_low_brightness_and_live_changes(self):
+        self._run("modes")
+
+    def test_held_colours_and_blackout_round_once_then_skip_unchanged_writes(self):
+        self._run("held-black")
+
+    def test_neutral_device_space_channels_share_codes_even_with_unequal_scales(self):
+        self._run("neutral")
+
+    def test_failed_batches_never_promote_and_retry_until_success_or_device_lost(self):
+        self._run("retry")
+
+    def test_planar_interleaved_partial_and_forced_frames_keep_apply_flags_and_pacing(self):
+        self._run("layout")
+
+    def test_windows_ci_replays_actual_csharp_without_opening_hardware(self):
+        entry = (ROOT / "tests/lighting_engine_state.ps1").read_text(encoding="ascii")
+        self.assertIn("tests/lighting_colour_state.ps1", entry)
+        replay = (ROOT / "tests/lighting_colour_state.ps1").read_text(encoding="ascii")
+        for needle in ("StringConstantExpressionAst", "public class LampEngine {", "/langversion:5",
+                       "HidD_SetFeature", "LightingColourReplay", "lighting_colour_harness.cs.txt"):
+            self.assertIn(needle, replay)
+        self.assertNotIn(".Open()", replay)
+        self.assertNotIn(".Start()", replay)
+
 
 if __name__ == "__main__":
     unittest.main()

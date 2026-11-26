@@ -1,0 +1,143 @@
+// Actual LampEngine output methods; reflection only initializes private buffers.
+// The test driver replaces HID and pacing with recording shims. No Open/Start.
+public static class LightingColourReplay {
+  const System.Reflection.BindingFlags Hidden = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+  static void Check(bool condition, string message) {
+    if (!condition) throw new System.Exception("Lighting C# colour: " + message);
+  }
+  static T Get<T>(LampEngine e, string name) {
+    return (T)typeof(LampEngine).GetField(name, Hidden).GetValue(e);
+  }
+  static void Set(LampEngine e, string name, object value) {
+    typeof(LampEngine).GetField(name, Hidden).SetValue(e, value);
+  }
+  static LampEngine Fixture(int mode, int scale, bool interleaved) {
+    LampEngine e = new LampEngine();
+    e.LampCount=16; e.Slots=8; e.ReportLen=51; e.DitherMode=mode; e.MaxR=e.MaxG=e.MaxB=scale;
+    e.Interleaved=interleaved; e.OffFlags=1; e.OffR=19; e.OffG=interleaved?20:27; e.OffB=interleaved?21:35;
+    e.ReportPaceUs=1000;
+    Set(e,"nbatch",2); Set(e,"bufs",new byte[][] {new byte[51],new byte[51]});
+    foreach (string name in new string[] {"fr","fg","fb","er","eg","eb"}) Set(e,name,new double[16]);
+    foreach (string name in new string[] {"pr","pg","pb"}) {
+      int[] a=new int[16]; for(int i=0;i<16;i++) a[i]=-1; Set(e,name,a);
+    }
+    typeof(LampEngine).GetMethod("SeedDither",Hidden).Invoke(e,null);
+    return e;
+  }
+  static void Fill(LampEngine e, double r, double g, double b) {
+    double[] fr=Get<double[]>(e,"fr"), fg=Get<double[]>(e,"fg"), fb=Get<double[]>(e,"fb");
+    for(int i=0;i<e.LampCount;i++) { fr[i]=r; fg[i]=g; fb[i]=b; }
+  }
+  static void Send(LampEngine e, bool force, int failAt) {
+    LampEngine.ColourTestWrites=0; LampEngine.ColourTestFailAt=failAt;
+    LampEngine.ColourTestEvents.Clear(); LampEngine.ColourTestReports.Clear();
+    typeof(LampEngine).GetMethod("Push",Hidden,null,new System.Type[] {typeof(bool)},null).Invoke(e,new object[] {force});
+  }
+  static int Round(double v, int scale) { return (int)(v*scale/255.0+0.5); }
+  static void CheckRounded(LampEngine e) {
+    double[] fr=Get<double[]>(e,"fr"), fg=Get<double[]>(e,"fg"), fb=Get<double[]>(e,"fb");
+    double[] er=Get<double[]>(e,"er"), eg=Get<double[]>(e,"eg"), eb=Get<double[]>(e,"eb");
+    int[] pr=Get<int[]>(e,"pr"), pg=Get<int[]>(e,"pg"), pb=Get<int[]>(e,"pb");
+    for(int i=0;i<e.LampCount;i++) {
+      Check(pr[i]==Round(fr[i],e.MaxR) && pg[i]==Round(fg[i],e.MaxG) && pb[i]==Round(fb[i],e.MaxB),"straight rounding/monotonic fade");
+      Check(er[i]==0 && eg[i]==0 && eb[i]==0,"disabled/held dither kept carry");
+    }
+  }
+  static void Steady() {
+    for(int coarse=0;coarse<2;coarse++) for(int layout=0;layout<2;layout++)
+    for(int neutral=0;neutral<2;neutral++) for(int down=0;down<2;down++) {
+      LampEngine e=Fixture(0,coarse==1?63:255,layout==1);
+      int previous=down==1?255:0;
+      for(int frame=0;frame<120;frame++) {
+        double v=down==1?20.0-frame*0.1:8.1+frame*0.1;
+        Fill(e,v,neutral==1?v:v*0.4,neutral==1?v:v*0.15);
+        Send(e,false,0); CheckRounded(e);
+        int q=Get<int[]>(e,"pr")[0];
+        Check(down==1?q<=previous:q>=previous,"fade reversed"); previous=q;
+      }
+    }
+  }
+  static void Modes() {
+    for(int coarse=0;coarse<2;coarse++) for(int mode=-1;mode<=1;mode++) {
+      LampEngine e=Fixture(mode,coarse==1?63:255,false);
+      bool enabled=mode==1 || (mode==-1 && coarse==1), differs=false;
+      Check(e.UseDither==enabled,"saved/auto dither choice");
+      for(int frame=0;frame<180;frame++) {
+        Fill(e,8.1+frame*0.08,3.1+frame*0.06,1.3+frame*0.05); Send(e,false,0);
+        if(!enabled) CheckRounded(e);
+        int[] pr=Get<int[]>(e,"pr"), pg=Get<int[]>(e,"pg"), pb=Get<int[]>(e,"pb");
+        for(int i=0;i<e.LampCount;i++) {
+          if(pr[i]!=Round(8.1+frame*0.08,e.MaxR) || pg[i]!=Round(3.1+frame*0.06,e.MaxG) || pb[i]!=Round(1.3+frame*0.05,e.MaxB)) differs=true;
+        }
+      }
+      Check(differs==enabled,"moving dither was forced on/off");
+      e.DitherMode=0; Fill(e,8.35,3.25,1.15); Send(e,false,0); CheckRounded(e);
+    }
+    LampEngine auto=Fixture(-1,255,false); auto.MaxG=63; Check(auto.UseDither,"coarse green auto");
+    auto.MaxG=255; auto.MaxB=63; Check(auto.UseDither,"coarse blue auto");
+  }
+  static void HeldBlack() {
+    LampEngine e=Fixture(1,255,false); Fill(e,8.35,3.25,1.15); Send(e,false,0);
+    Send(e,false,0); CheckRounded(e); Send(e,false,0); Check(LampEngine.ColourTestWrites==0,"held transfer not skipped");
+    foreach(string name in new string[] {"er","eg","eb"}) {
+      double[] a=Get<double[]>(e,name); for(int i=0;i<a.Length;i++) a[i]=0.8;
+    }
+    Fill(e,0.0004,0.0004,0.0004); Send(e,false,0); CheckRounded(e);
+    Send(e,false,0); Check(LampEngine.ColourTestWrites==0,"black transfer not skipped");
+    Send(e,true,0); Check(LampEngine.ColourTestWrites==2,"forced frame skipped");
+  }
+  static void Neutral() {
+    for(int mixed=0;mixed<3;mixed++) {
+      LampEngine e=Fixture(1,mixed==1?63:255,false);
+      if(mixed==2) { e.MaxG=127; e.MaxB=63; }
+      for(int frame=0;frame<80;frame++) {
+        double code=8.1+frame*0.1;
+        Fill(e,code*255.0/e.MaxR,code*255.0/e.MaxG,code*255.0/e.MaxB); Send(e,false,0);
+        int[] pr=Get<int[]>(e,"pr"), pg=Get<int[]>(e,"pg"), pb=Get<int[]>(e,"pb");
+        double[] er=Get<double[]>(e,"er"), eg=Get<double[]>(e,"eg"), eb=Get<double[]>(e,"eb");
+        for(int i=0;i<e.LampCount;i++) {
+          Check(pr[i]==pg[i] && pg[i]==pb[i] && er[i]==eg[i] && eg[i]==eb[i],"neutral RGB phases diverged");
+          Check(pr[i]>=System.Math.Floor(code) && pr[i]<=System.Math.Ceiling(code),"neutral rounding out of range");
+        }
+      }
+    }
+  }
+  static void Retry() {
+    LampEngine e=Fixture(0,255,false); Fill(e,20.2,5,2); Send(e,false,2);
+    Check(LampEngine.ColourTestWrites==2 && e.WriteFails==1 && Get<int>(e,"failRun")==1 && !e.DeviceLost,"failed second batch not tracked");
+    foreach(string name in new string[] {"pr","pg","pb"}) foreach(int q in Get<int[]>(e,name)) Check(q==-1,"failed frame promoted");
+    Send(e,false,0); Check(LampEngine.ColourTestWrites==2 && Get<int>(e,"failRun")==0,"same target not retried"); CheckRounded(e);
+    Send(e,false,0); Check(LampEngine.ColourTestWrites==0,"unchanged frame written"); Fill(e,40.2,10,6);
+    for(int frame=0;frame<8;frame++) {
+      Send(e,false,1); Check(LampEngine.ColourTestWrites==2,"failed first batch stopped remaining writes");
+      int[] pr=Get<int[]>(e,"pr"), pg=Get<int[]>(e,"pg"), pb=Get<int[]>(e,"pb");
+      for(int i=0;i<e.LampCount;i++) Check(pr[i]==20 && pg[i]==5 && pb[i]==2,"partial frame promoted");
+    }
+    Check(e.DeviceLost && Get<int>(e,"failRun")==0 && e.WriteFails==9,"repeated-failure recovery changed");
+    Send(e,false,0); Check(LampEngine.ColourTestWrites==2,"final retry skipped"); CheckRounded(e);
+  }
+  static void Layout() {
+    for(int layout=0;layout<2;layout++) for(int partial=0;partial<2;partial++) {
+      LampEngine e=Fixture(0,255,layout==1); if(partial==1) e.LampCount=11;
+      for(int i=0;i<e.LampCount;i++) {
+        Get<double[]>(e,"fr")[i]=20+i; Get<double[]>(e,"fg")[i]=50+i; Get<double[]>(e,"fb")[i]=80+i;
+      }
+      Send(e,true,0);
+      Check(LampEngine.ColourTestWrites==2 && LampEngine.ColourTestEvents.Count==3,"batch count/pacing");
+      Check(LampEngine.ColourTestEvents[0]==1 && LampEngine.ColourTestEvents[1]==-1000 && LampEngine.ColourTestEvents[2]==2,"pace not between writes");
+      Check(LampEngine.ColourTestReports[0][e.OffFlags]==0 && LampEngine.ColourTestReports[1][e.OffFlags]==1,"apply flags");
+      for(int i=0;i<e.LampCount;i++) {
+        int bi=i/e.Slots,s=i%e.Slots,st=layout==1?s*4:s;
+        byte[] b=LampEngine.ColourTestReports[bi];
+        Check(b[e.OffR+st]==Get<int[]>(e,"pr")[i] && b[e.OffG+st]==Get<int[]>(e,"pg")[i] && b[e.OffB+st]==Get<int[]>(e,"pb")[i],"channel layout");
+      }
+      e.ReportPaceUs=0; Send(e,true,0); Check(LampEngine.ColourTestEvents.Count==2,"disabled pacing");
+      e.LampCount=4; Set(e,"nbatch",1); e.ReportPaceUs=1000; Send(e,true,0);
+      Check(LampEngine.ColourTestEvents.Count==1 && LampEngine.ColourTestWrites==1 && LampEngine.ColourTestReports[0][e.OffFlags]==1,"last/only batch paced");
+    }
+  }
+  public static void Run() {
+    Steady(); Modes(); HeldBlack(); Neutral(); Retry(); Layout();
+    System.Console.WriteLine("Lighting actual C# colour regressions passed (six synthetic scenarios)");
+  }
+}

@@ -60,11 +60,12 @@ No new plugin code, version or release was needed in this follow-up. The
 independent fan ceiling and approved setup boundaries remain. The owner now
 requests a ground-up Prism brightness rebuild and reopens Balance/Steady Colours
 restore after restart (one or both uncertain). Earlier preferences approval is
-superseded; Orca Save stays resolved. The owner explicitly kept the fresh
-Lighting-log gate; engine-8 is now received/scanned and that gate is satisfied.
-The native master rebuild and saved-state repairs are implemented; installed
-acceptance remains open, separate from automated checks. Processed preview
-follows those repairs. No owner-specific cause is inferred.
+superseded; Orca Save stays resolved. The owner has since confirmed the
+released M4 fix working and removed the fresh Lighting-log prerequisite;
+logs are optional diagnostics, not an edit/release gate. Prism colour flicker
+is CURRENT; saved-state acceptance and the independent Tray rounding audit
+remain open, separate from automated checks. Processed preview follows those
+repairs. No owner-specific cause is inferred.
 
 ## Earlier Save investigation — unresolved at that stage
 

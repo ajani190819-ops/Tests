@@ -4,7 +4,7 @@ Every desktop application in this repository shares one calm, approachable, unif
 
 - **Project Hub** (`project-hub/ProjectHub.exe`, icon: `project-hub/hub.ico`)
 - **Bluetooth Guard** (`bluetooth-guard/BluetoothGuard.exe`, icon: `bluetooth-guard/btguard.ico`)
-- **Prism Lighting** (`keyboard-lighting/Tray.ps1` + `keyboard-lighting/ui_controls.cs.txt`, icon: `keyboard-lighting/app.ico`) — public Hub label; own-app branding waits for a fresh owner `engine.log`.
+- **Prism Lighting** (`keyboard-lighting/Tray.ps1` + `keyboard-lighting/ui_controls.cs.txt`, icon: `keyboard-lighting/app.ico`) — public Hub label; own-app branding unchanged. The owner removed the fresh-log edit prerequisite; this does not expand the current flicker-repair scope.
 - **Spatial HUD** (`docs/brand/spatial-hud.ico`)
 - **Undahang** (`docs/brand/undahang-wave-v1.ico`)
 - **Unlayered Infill** (`docs/brand/orca-plugins.ico`, unchanged legacy asset path)

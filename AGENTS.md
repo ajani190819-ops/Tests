@@ -58,7 +58,7 @@ snapshot. Flag unrecovered requests rather than claiming the list is complete.
   the sole root `.bat`; use byte I/O for edits.
 - **Bluetooth Guard:** Never disable Bluetooth service profiles. Preserve
   `EnsureProfilesEnabled` and the safe reconnect/disconnect route.
-- **Keyboard Lighting:** Do not touch it without a fresh owner `engine.log`.
+- **Keyboard Lighting:** Fresh owner logs are optional, not an edit gate.
   Keep strict ASCII, C# 5.0 compatibility, exclusive-lock, pacing, and
   single-engine safeguards.
 - **Suite design:** Preserve rounded Soft Slate UI, the Tri-Spoke Core (never

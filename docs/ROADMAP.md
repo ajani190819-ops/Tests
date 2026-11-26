@@ -43,11 +43,12 @@ Preset overrides still need a manual preset save, separate from that global
 report. The owner now requests a ground-up Prism **brightness rebuild** because
 prior attempts had no observable effect, and reopens **Balance/Steady Colours
 restoration** (one or both revert on restart). Earlier broad preferences
-approval is superseded, not the Orca Save resolution. The owner explicitly kept
-the fresh Lighting-log prerequisite; engine-8 is now received/scanned and the
-edit gate is satisfied. The native master rebuild and saved-state repairs are
-implemented; owner acceptance remains open, separate from automated checks.
-Processed preview follows these Prism repairs. Renumbering remains paused.
+approval is superseded, not the Orca Save resolution. The owner has since
+confirmed the released M4 fix working and removed the fresh Lighting-log
+prerequisite; logs are optional diagnostics, not an edit/release gate. Prism
+colour flicker is CURRENT; saved-state acceptance and the independent Tray
+rounding audit remain open, separate from automated checks. Processed preview
+follows these Prism repairs. Renumbering remains paused.
 The owner confirms **Orca 2.5.2**, a custom modified-Ender-3 profile, **PLA at
 205°C**, Auto fan and a **12 V fan**. New print feedback is an unsupported outer
 strand before waves and upward-curling edges. The explicit ≤50% duty request

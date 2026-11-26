@@ -1369,17 +1369,15 @@ public class LampEngine {
         int i = first + s;
         int st = Interleaved ? s*4 : s;
         double peak = Math.Max(fr[i], Math.Max(fg[i], fb[i]));
-        // Dither only while this lamp's target is actually creeping. A held
-        // colour sitting on x.5 used to flip x/x+1 every frame (the 40,41,
-        // 40,41 shimmer), while a creeping gradient without dither stepped
-        // visibly through the few codes it has at low brightness - which is
-        // the fast "flicker" seen while a pattern scrolls. Moving values get
-        // error feedback (smooth travel); held values round straight (dead
-        // solid, and the transfer is skipped entirely when nothing changed).
+        // Respect the saved dither policy at every brightness. The old
+        // low-level override re-enabled error feedback with Steady Colours
+        // on, so even a rising fade could emit reverse one-code steps.
+        // When allowed, dither only moving targets; a held colour must round
+        // straight rather than shimmer forever between adjacent codes.
         double df0 = fr[i] - frPrev[i], df1 = fg[i] - fgPrev[i], df2 = fb[i] - fbPrev[i];
         frPrev[i] = fr[i]; fgPrev[i] = fg[i]; fbPrev[i] = fb[i];
         bool moving = df0 > 0.05 || df0 < -0.05 || df1 > 0.05 || df1 < -0.05 || df2 > 0.05 || df2 < -0.05;
-        bool lampDith = (peak <= 0.0005) ? false : (moving && (dith || peak < 14.0));
+        bool lampDith = dith && moving && peak > 0.0005;
         // Keep neutral colours neutral during low-level temporal dithering.
         // Independent RGB error phases can make a requested white/grey emit
         // one channel a code higher than the others. When the device-space
