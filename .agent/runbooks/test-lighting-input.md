@@ -78,8 +78,11 @@ Reports/scratch stay outside Git. CI status is attached to the published tip;
 Linux syntax trees are not stock Framework execution or hardware acceptance.
 
 Only Aura and its exactly matched Lighting EXE change among product deliveries;
-Tray and the other seven EXEs remain byte-identical. Update via Project Hub on
-the same active Arena branch; `.agent/RELEASED` names the verified implementation.
+Tray and the other seven EXEs remain byte-identical. Verified implementation:
+`29e6b5dfd8b1cf8b30bf765a2fa4bac0eecc906c`; a separate marker commit selects it.
+Update via Project Hub on the same active Arena branch. Lighting EXE: 463360
+bytes, SHA256 `1f4f9498f3406490d1aebbe03058f0e413f5ceb5ee9134c23032098c31ffb804`;
+Aura SHA256 `71d4a8b7276714ffbb81744b5abf1a4bd6a597e652c891871f38f8e554123dea`.
 Hub remains 2.8.72; plugins remain 0.0.58/0.4.13. No forced toggle, palette/speed
 change, global dither disable, preference reset, input remap or vendor/startup
 change. Preserve exact brightness/master, working M4/M5, all eight Balance/

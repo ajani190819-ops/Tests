@@ -25,7 +25,7 @@ CURRENT: residual gradient flicker; cadence/HID follow-up. Open/startup good.
   not a security-policy diagnosis/change approval.
 - **KBL-01 CURRENT:** M4 fix owner-confirmed working. No additional log request
   or old matrix for M4. Logs optional; Steady policy retained. Cadence/HID
-  follow-up verified; physical flicker, Balance/Steady and Tray audit stay open.
+  follow-up `29e6b5d`; physical flicker, Balance/Steady and Tray audit stay open.
   Keep choices, distinct keys, release/lock/pacing/single-engine and ASCII/C#5.
   `test-lighting-input.md`.
 
