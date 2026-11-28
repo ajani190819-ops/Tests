@@ -25,6 +25,22 @@ connected/partial or maximized placement alone. The Hub no longer counts an
 offscreen active window as completed Open. This source regression is not proof
 that the owner's window was offscreen. See the [Open record](../.agent/runbooks/test-hub-open-to-front.md).
 
+## Scrolling-gradient cadence
+
+Animation speed does not set the HID update rate: both launchers request 60 FPS,
+subject to the device's reported minimum interval and sustained-load backoff.
+Half speed changes how far the colours move per frame, not that requested rate.
+The continuing-flicker follow-up serializes whole colour/COMPLETE transactions
+against our gate/wake writes and handle changes. Isolated slow frames can no
+longer accumulate into a permanent FPS reduction; unchanged frames report zero
+HID cost. Preview and timed overlays now use a speed-independent wall clock.
+
+Settings, selected speeds, exact brightness, working M4 controls, gate pin,
+report pacing/retries and selected dithering remain unchanged. These software
+regressions do not prove physical flicker is eliminated. The owner still reports
+flicker after the earlier Steady-policy fix. See the [investigation and test
+boundary](../.agent/runbooks/test-lighting-input.md#continuing-flicker-frame-transaction-and-cadence-follow-up).
+
 ## Hardware diagnostic
 
 - `lock SHARED` says this engine fell back from exclusive to shared access. It does not identify the other handle owner or prove a flicker/hold cause. A process name in the log is a lead, not a diagnosis; do not reconfigure other software on that evidence alone.

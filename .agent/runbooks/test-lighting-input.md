@@ -20,6 +20,78 @@ to continue. Earlier fresh-log conditions below are historical, not current.
 This is removal of the standing rule, not a one-off waiver. AGENTS and current
 style/roadmap/setup guidance no longer reinstate that prerequisite.
 
+## Continuing flicker: frame transaction and cadence follow-up
+
+The owner reports residual per-update flicker after the Steady-policy release,
+especially a half-speed scrolling gradient. That is a continuing failure report,
+not physical acceptance of the earlier correction. No new log is required.
+
+Verified wiring: the native and legacy Tray launchers request `-Fps 60`
+independently of animation speed. Group speed changes phase advance, not the
+HID deadline. Device minimum-interval caps and qualified overload backoff still
+apply. The examined G-Helper snapshot (`064cd7e`, 2026-11-16) sends its standard
+effects to firmware; its `ApplyGradient` is static, not Prism's streamed scrolling
+gradient. This comparison does not identify the owner's firmware/build or prove
+a hardware limitation. Sources: [pinned Aura](https://github.com/seerge/g-helper/blob/064cd7e39ee37477fcb433c8d2d15bef081d7d5f/app/USB/Aura.cs),
+[maintainer's firmware distinction](https://github.com/seerge/g-helper/issues/3410).
+
+The follow-up corrects independently reproduced software faults:
+
+- The render thread and PowerShell maintenance poller shared a HID handle but
+  not a transaction lock. A controlled two-thread replay placed `PinGate(3)` or
+  ownership repair between a colour batch and COMPLETE; forced invalidation
+  could also be overwritten by in-flight cache promotion. One monitor now covers
+  the whole `Push` transaction, gate/ownership writes and open/reopen/upgrade/
+  close lifetimes. The exclusive OS handle alone never serialized these two
+  threads within our own process. Maintenance is retained, not disabled.
+- Successful frames did not reset overload qualification. Isolated costly misses
+  could accumulate to 120 and permanently reduce FPS. On-time frames and late
+  frames with cheap HID now reset the run. A genuine 120-frame costly run still
+  backs off; the integer rate and deadline period agree, clamp at 15 FPS, and
+  never raise a lower device-reported cap.
+- Unchanged frames clear `WriteUs`, rather than attributing an earlier slow
+  transfer to a later frame that sent nothing.
+- `Now`/preview/overlay timers receive unscaled stopwatch time. Previously the
+  startup speed also scaled this clock, slowing preview publication and
+  stretching overlays. This was separate from the physical HID deadline.
+  Group position, chosen speeds and measured-dt decay behavior are unchanged.
+
+Before correction, the new 17-test focused replay had nine assertion failures;
+all 17 pass after it. The portable fixtures mechanically execute production
+output/maintenance methods and the complete `Loop`, substituting only platform
+I/O, clock/render workload and exception syntax. Concurrency and virtual timing
+are not a model of the owner's EC/USB implementation. Windows CI compiles the
+unmodified embedded engine with Framework `/langversion:5`, then executes the
+actual C# output, transaction and full-loop replay under PowerShell 5.1 with the
+same synthetic seams. Test worker threads are not a started engine or device.
+
+All 203 Windows-app tests and full uncached repository checks pass in both
+dependency states. All eight output and seven cadence scenarios also pass GCC
+UBSan. All 667/667 registered mutations are detected, including 19 new cases;
+the prior 648 definitions remain unchanged. Zero survivors/stale/errors/skips,
+clean 346-test pre/post gates, exact restoration, one worker/no verdict or
+artifact cache; 327.550 seconds. Registry SHA256:
+`86af1ea0b56fdbeea3820d7bd908d105e83c6cc33b7dbcbc94bcd80df4dbadc0`;
+mutated-source fingerprint:
+`ff42b0cb4d1919b8d1076f7a5bb1ffc2da80b1135313eab5c172e52207d397b7`.
+Reports/scratch stay outside Git. CI status is attached to the published tip;
+Linux syntax trees are not stock Framework execution or hardware acceptance.
+
+Only Aura and its exactly matched Lighting EXE change among product deliveries;
+Tray and the other seven EXEs remain byte-identical. Update via Project Hub on
+the same active Arena branch; `.agent/RELEASED` names the verified implementation.
+Hub remains 2.8.72; plugins remain 0.0.58/0.4.13. No forced toggle, palette/speed
+change, global dither disable, preference reset, input remap or vendor/startup
+change. Preserve exact brightness/master, working M4/M5, all eight Balance/
+Steady combinations, `PinGate(3)`, exclusive lock, pacing/retries and one engine.
+
+These are verified software fixes, not proof the remaining physical flicker is
+gone or that any one fault caused this owner's symptom. KBL-01 remains CURRENT
+for the installed outcome, Balance/Steady restoration acceptance and independent
+Tray apply/refresh/resume rounded-master audit. Logs remain optional; no repeated
+M4 matrix. Processed G-code preview NEXT after Prism; renumbering PAUSED,
+ORCA-04/05 PARKED, further PLAN-02 DEFERRED. All 20 IDs remain retained.
+
 ## Colour-transition software correction
 
 `LampEngine.Push` formerly enabled temporal error feedback for a moving target

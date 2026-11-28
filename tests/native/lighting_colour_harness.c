@@ -1,5 +1,9 @@
 /* Actual embedded C# UseDither/Dither/Push, mechanically adapted by the Python
    test. Only allocation, clock, pacing and HID I/O are substituted. No devices. */
+#define _POSIX_C_SOURCE 200809L
+#include <pthread.h>
+#include <errno.h>
+#include <time.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +16,15 @@ static int LampCount, Slots, ReportLen, nbatch, DitherMode, MaxR, MaxG, MaxB;
 static int OffR, OffG, OffB, OffFlags, ReportPaceUs, WriteUs, WriteUsMax, WriteFails, failRun;
 static bool Interleaved, DeviceLost;
 static void *h;
+static byte control[51], *CtrlOff=control;
+static pthread_mutex_t hidLock=PTHREAD_MUTEX_INITIALIZER, ioLock=PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t ioChanged=PTHREAD_COND_INITIALIZER;
+static bool pauseFirst, firstEntered, allowFrame, controlAttempted, controlDone;
+static int controlKind;
+/* cleanup models C# Monitor's finally, including early returns. */
+pthread_mutex_t *LockHid(void) { CHECK(!pthread_mutex_lock(&hidLock));return &hidLock; }
+void UnlockHid(pthread_mutex_t **guard) { CHECK(!pthread_mutex_unlock(*guard)); }
+#define HID_GUARD pthread_mutex_t *guard __attribute__((cleanup(UnlockHid)))=LockHid()
 static double Fr[16], Fg[16], Fb[16], Er[16], Eg[16], Eb[16];
 static double *fr=Fr, *fg=Fg, *fb=Fb, *er=Er, *eg=Eg, *eb=Eb;
 static double *frPrev, *fgPrev, *fbPrev;
@@ -24,12 +37,21 @@ static int *AllocInts(int n) { int *p=calloc((size_t)n,sizeof(*p)); CHECK(p); re
 static double *AllocDoubles(int n) { double *p=calloc((size_t)n,sizeof(*p)); CHECK(p); return p; }
 static long Timestamp(void) { static long tick; return tick+=100; }
 static bool HidD_SetFeature(void *handle,byte *b,int len) {
-    (void)handle; CHECK(len==ReportLen && eventCount<8);
-    int bi=b==bufs[0]?0:1;
-    events[eventCount++]=bi+1; writes++; memcpy(sent[bi],b,(size_t)len);
-    return writes!=failAt;
+    (void)handle; CHECK(len==ReportLen);CHECK(!pthread_mutex_lock(&ioLock));CHECK(eventCount<8);
+    int bi=b==bufs[0]?0:(b==bufs[1]?1:-1);
+    events[eventCount++]=bi>=0?bi+1:(b==CtrlOff?4:3);writes++;
+    if(bi>=0) memcpy(sent[bi],b,(size_t)len);
+    bool ok=writes!=failAt;
+    if(pauseFirst && bi==0) {
+        firstEntered=true;CHECK(!pthread_cond_broadcast(&ioChanged));
+        while(!allowFrame) CHECK(!pthread_cond_wait(&ioChanged,&ioLock));
+    }
+    CHECK(!pthread_mutex_unlock(&ioLock));return ok;
 }
-static void Pace(int us) { CHECK(eventCount<8); events[eventCount++]=-us; }
+static void Pace(int us) {
+    CHECK(!pthread_mutex_lock(&ioLock));CHECK(eventCount<8);events[eventCount++]=-us;
+    CHECK(!pthread_mutex_unlock(&ioLock));
+}
 #include "lighting_colour_subject.h"
 static void ClearIO(int fail) { writes=eventCount=0; failAt=fail; memset(sent,0,sizeof(sent)); }
 static void Fixture(int mode,int scale,bool interleaved) {
@@ -45,6 +67,7 @@ static void Fixture(int mode,int scale,bool interleaved) {
         eg[i]=fmod(i*0.6180339887498949+0.3333,1.0)-0.5;
         eb[i]=fmod(i*0.6180339887498949+0.6667,1.0)-0.5;
     }
+    h=(void*)1;pauseFirst=firstEntered=allowFrame=controlAttempted=controlDone=false;
     ClearIO(0);
 }
 static void Fill(double r,double g,double b) {
@@ -144,6 +167,51 @@ static void TestLayout(void) {
         CHECK(eventCount==1 && writes==1 && sent[0][OffFlags]==1);
     }
 }
+static void TestNoWriteCost(void) {
+    Fixture(0,255,false);Fill(20.2,5,2);Push(false);WriteUs=20000;
+    ClearIO(0);Push(false);CHECK(writes==0 && WriteUs==0);
+}
+static void *RenderWorker(void *unused) { (void)unused;Push(true);return NULL; }
+static void *ControlWorker(void *unused) {
+    (void)unused;CHECK(!pthread_mutex_lock(&ioLock));controlAttempted=true;
+    CHECK(!pthread_cond_broadcast(&ioChanged));CHECK(!pthread_mutex_unlock(&ioLock));
+    if(controlKind==0) CHECK(PinGate(3));else ReAssert(controlKind==2);
+    CHECK(!pthread_mutex_lock(&ioLock));controlDone=true;
+    CHECK(!pthread_cond_broadcast(&ioChanged));CHECK(!pthread_mutex_unlock(&ioLock));return NULL;
+}
+static void TestTransaction(void) {
+    for(int kind=0;kind<3;kind++) {
+        Fixture(0,255,false);Fill(20.2,5,2);controlKind=kind;pauseFirst=true;
+        pthread_t render,maintenance;CHECK(!pthread_create(&render,NULL,RenderWorker,NULL));
+        CHECK(!pthread_mutex_lock(&ioLock));
+        while(!firstEntered) CHECK(!pthread_cond_wait(&ioChanged,&ioLock));
+        CHECK(!pthread_mutex_unlock(&ioLock));
+        CHECK(!pthread_create(&maintenance,NULL,ControlWorker,NULL));
+        CHECK(!pthread_mutex_lock(&ioLock));
+        while(!controlAttempted) CHECK(!pthread_cond_wait(&ioChanged,&ioLock));
+        /* Give a broken caller time to enter while the first report is held.
+           Correct callers wait on hidLock until COMPLETE and cache promotion. */
+        struct timespec deadline;CHECK(!clock_gettime(CLOCK_REALTIME,&deadline));
+        deadline.tv_nsec+=200000000L;
+        if(deadline.tv_nsec>=1000000000L) { deadline.tv_sec++;deadline.tv_nsec-=1000000000L; }
+        while(!controlDone) {
+            int status=pthread_cond_timedwait(&ioChanged,&ioLock,&deadline);
+            if(status==ETIMEDOUT) break;
+            CHECK(!status);
+        }
+        allowFrame=true;CHECK(!pthread_cond_broadcast(&ioChanged));CHECK(!pthread_mutex_unlock(&ioLock));
+        CHECK(!pthread_join(render,NULL));CHECK(!pthread_join(maintenance,NULL));pauseFirst=false;
+        CHECK(writes==3 && eventCount==4);
+        CHECK(events[0]==1 && events[1]==-1000 && events[2]==2 && events[3]==(kind==0?3:4));
+        if(kind==2) {
+            for(int i=0;i<LampCount;i++) CHECK(pr[i]==-1 && pg[i]==-1 && pb[i]==-1);
+            ClearIO(0);Push(false);CHECK(writes==2); /* force invalidation was not lost */
+        } else CheckRounded();
+        /* Early returns release the monitor too. */
+        ClearIO(0);Push(false);CHECK(writes==0);CHECK(PinGate(3));
+        h=NULL;CHECK(!PinGate(3));ReAssert(true);h=(void*)1;CHECK(PinGate(3));
+    }
+}
 int main(int argc,char **argv) {
     CHECK(argc==2);scenario=argv[1];
     if(!strcmp(scenario,"steady")) TestSteady();
@@ -152,6 +220,8 @@ int main(int argc,char **argv) {
     else if(!strcmp(scenario,"neutral")) TestNeutral();
     else if(!strcmp(scenario,"retry")) TestRetry();
     else if(!strcmp(scenario,"layout")) TestLayout();
+    else if(!strcmp(scenario,"no-write-cost")) TestNoWriteCost();
+    else if(!strcmp(scenario,"transaction")) TestTransaction();
     else CHECK(false);
     free(nr);free(ng);free(nb2);free(frPrev);free(fgPrev);free(fbPrev);
     printf("Lighting colour %s passed\n",scenario);return 0;

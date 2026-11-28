@@ -6,7 +6,7 @@ Git: implementation/tests/releases; Drive: extended plans/history.
 ## Current owner status / next work
 
 Save and the released M4 fix are owner-confirmed working.
-CURRENT: colour flicker; Balance/Steady acceptance open. Open/startup good.
+CURRENT: residual gradient flicker; cadence/HID follow-up. Open/startup good.
 
 **Current focus / monitor (20 retained IDs):**
 - **PLAN-01 CURRENT:** owner confirms Save fixed; no more Config collection.
@@ -24,8 +24,8 @@ CURRENT: colour flicker; Balance/Steady acceptance open. Open/startup good.
 - **OPS-01 Owner-reported good:** UAC seems fixed; prior prompt unidentified,
   not a security-policy diagnosis/change approval.
 - **KBL-01 CURRENT:** M4 fix owner-confirmed working. No additional log request
-  or old matrix for M4. Logs optional; Steady output released (`bd331b9`).
-  Physical flicker, Balance/Steady restore and Tray rounding audit stay open.
+  or old matrix for M4. Logs optional; Steady policy retained. Cadence/HID
+  follow-up verified; physical flicker, Balance/Steady and Tray audit stay open.
   Keep choices, distinct keys, release/lock/pacing/single-engine and ASCII/C#5.
   `test-lighting-input.md`.
 

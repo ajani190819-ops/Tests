@@ -6478,5 +6478,195 @@
   "tests": [
    "tests.test_review_tools.OwnerHandoffContractTests.test_lighting_owner_removed_log_prerequisite_without_removing_safeguards"
   ]
+ },
+ {
+  "id": "kbl-cadence-00",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "void Push(bool force) {\n    lock (hidLock) {",
+  "new": "void Push(bool force) {\n    {",
+  "label": "Frame transaction loses the shared HID monitor",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_gate_heartbeat_and_forced_repair_cannot_split_a_frame_or_lose_invalidation"
+  ]
+ },
+ {
+  "id": "kbl-cadence-01",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "public bool PinGate(int level) {\n    lock (hidLock) {",
+  "new": "public bool PinGate(int level) {\n    {",
+  "label": "Gate maintenance can enter between colour batches",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_gate_heartbeat_and_forced_repair_cannot_split_a_frame_or_lose_invalidation"
+  ]
+ },
+ {
+  "id": "kbl-cadence-02",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "public void ReAssert(bool force) {\n    lock (hidLock) {",
+  "new": "public void ReAssert(bool force) {\n    {",
+  "label": "Wake/heartbeat can interleave and lose forced cache invalidation",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_gate_heartbeat_and_forced_repair_cannot_split_a_frame_or_lose_invalidation"
+  ]
+ },
+ {
+  "id": "kbl-cadence-03",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "public bool Open() {\n    lock (hidLock) {",
+  "new": "public bool Open() {\n    {",
+  "label": "Initial handle and buffer allocation are unguarded",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_all_handle_lifetimes_and_full_frame_cache_transactions_share_one_monitor"
+  ]
+ },
+ {
+  "id": "kbl-cadence-04",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "public bool Reopen() {\n    lock (hidLock) {",
+  "new": "public bool Reopen() {\n    {",
+  "label": "Reopen races gate traffic on the old/new handle",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_all_handle_lifetimes_and_full_frame_cache_transactions_share_one_monitor"
+  ]
+ },
+ {
+  "id": "kbl-cadence-05",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "bool TryExclusiveUpgrade() {\n    lock (hidLock) {",
+  "new": "bool TryExclusiveUpgrade() {\n    {",
+  "label": "Exclusive upgrade closes an in-flight maintenance handle",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_all_handle_lifetimes_and_full_frame_cache_transactions_share_one_monitor"
+  ]
+ },
+ {
+  "id": "kbl-cadence-06",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "public void Close() {\n    lock (hidLock) {",
+  "new": "public void Close() {\n    {",
+  "label": "Final close races an in-flight HID transfer",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_all_handle_lifetimes_and_full_frame_cache_transactions_share_one_monitor"
+  ]
+ },
+ {
+  "id": "kbl-cadence-07",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "WriteUs = 0;\n    // Nothing moved",
+  "new": "// stale write cost retained\n    // Nothing moved",
+  "label": "Skipped frame reuses the preceding slow write cost",
+  "tests": [
+   "tests.test_windows_apps.LightingColourTests.test_unchanged_frames_do_not_reuse_a_previous_slow_write_cost"
+  ]
+ },
+ {
+  "id": "kbl-cadence-08",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "overrun = 0;              // overload must be consecutive",
+  "new": "overrun += 0;             // broken on-time reset",
+  "label": "On-time frames do not break the overload run",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_an_ontime_frame_resets_overload_qualification"
+  ]
+ },
+ {
+  "id": "kbl-cadence-09",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "overrun = 0;            // cheap HID + late CPU is not overload",
+  "new": "overrun--;              // broken cheap-late reset",
+  "label": "Late but cheap-HID frames only decrement accumulated overload",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_a_late_frame_with_cheap_hid_also_breaks_the_overload_run"
+  ]
+ },
+ {
+  "id": "kbl-cadence-10",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "if (overrun >= 120) {",
+  "new": "if (overrun >= 119) {",
+  "label": "Sustained overload backs off before 120 qualifying misses",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_120_consecutive_expensive_misses_back_off_with_matching_nominal_fps"
+  ]
+ },
+ {
+  "id": "kbl-cadence-11",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "if (overrun >= 120) {",
+  "new": "if (overrun >= 121) {",
+  "label": "Sustained overload fails to back off at the qualified threshold",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_120_consecutive_expensive_misses_back_off_with_matching_nominal_fps"
+  ]
+ },
+ {
+  "id": "kbl-cadence-12",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "WriteUs > (budgetUs * 3) / 4",
+  "new": "WriteUs > (budgetUs * 0) / 4",
+  "label": "CPU-only lateness is classified as HID capacity overload",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_a_late_frame_with_cheap_hid_also_breaks_the_overload_run"
+  ]
+ },
+ {
+  "id": "kbl-cadence-13",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "Fps = Math.Max(15, (Fps * 4) / 5);",
+  "new": "Fps = Math.Max(5, (Fps * 4) / 5);",
+  "label": "Backoff can cross the 15fps floor",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_backoff_never_crosses_15fps_or_raises_a_lower_device_cap"
+  ]
+ },
+ {
+  "id": "kbl-cadence-14",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "if (Fps > 15) {",
+  "new": "if (Fps > 0) {",
+  "label": "Adaptive floor raises a lower reported device cap",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_backoff_never_crosses_15fps_or_raises_a_lower_device_cap"
+  ]
+ },
+ {
+  "id": "kbl-cadence-15",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "                per = freq / Fps;",
+  "new": "                per = per + per / 4;",
+  "label": "Backoff period drifts from the nominal animation FPS",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_120_consecutive_expensive_misses_back_off_with_matching_nominal_fps"
+  ]
+ },
+ {
+  "id": "kbl-cadence-16",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "Fps = Math.Max(15, (Fps * 4) / 5);",
+  "new": "Fps = Math.Max(15, (Fps * 3) / 5);",
+  "label": "Backoff makes an excessive rate reduction",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_120_consecutive_expensive_misses_back_off_with_matching_nominal_fps"
+  ]
+ },
+ {
+  "id": "kbl-cadence-17",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "Frame(now, dt);",
+  "new": "Frame(now * Speed, dt);",
+  "label": "Preview and overlays use a speed-scaled clock again",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_preview_and_overlay_clock_are_wall_time_at_every_animation_speed"
+  ]
+ },
+ {
+  "id": "kbl-cadence-18",
+  "file": "keyboard-lighting/Aura-Background.ps1",
+  "old": "long per  = freq / Fps;",
+  "new": "long per  = freq / (Fps / 2);",
+  "label": "Requested HID cadence is silently halved",
+  "tests": [
+   "tests.test_windows_apps.LightingCadenceTests.test_animation_speed_never_changes_the_requested_hid_cadence"
+  ]
  }
 ]

@@ -15,7 +15,8 @@ public static class LightingColourReplay {
     LampEngine e = new LampEngine();
     e.LampCount=16; e.Slots=8; e.ReportLen=51; e.DitherMode=mode; e.MaxR=e.MaxG=e.MaxB=scale;
     e.Interleaved=interleaved; e.OffFlags=1; e.OffR=19; e.OffG=interleaved?20:27; e.OffB=interleaved?21:35;
-    e.ReportPaceUs=1000;
+    e.ReportPaceUs=1000;Set(e,"h",new System.IntPtr(1));
+    e.CtrlOff=new byte[51];e.CtrlOff[0]=9;
     Set(e,"nbatch",2); Set(e,"bufs",new byte[][] {new byte[51],new byte[51]});
     foreach (string name in new string[] {"fr","fg","fb","er","eg","eb"}) Set(e,name,new double[16]);
     foreach (string name in new string[] {"pr","pg","pb"}) {
@@ -30,7 +31,7 @@ public static class LightingColourReplay {
   }
   static void Send(LampEngine e, bool force, int failAt) {
     LampEngine.ColourTestWrites=0; LampEngine.ColourTestFailAt=failAt;
-    LampEngine.ColourTestEvents.Clear(); LampEngine.ColourTestReports.Clear();
+    LampEngine.ColourTestEvents.Clear(); LampEngine.ColourTestKinds.Clear(); LampEngine.ColourTestReports.Clear();
     typeof(LampEngine).GetMethod("Push",Hidden,null,new System.Type[] {typeof(bool)},null).Invoke(e,new object[] {force});
   }
   static int Round(double v, int scale) { return (int)(v*scale/255.0+0.5); }
@@ -136,8 +137,60 @@ public static class LightingColourReplay {
       Check(LampEngine.ColourTestEvents.Count==1 && LampEngine.ColourTestWrites==1 && LampEngine.ColourTestReports[0][e.OffFlags]==1,"last/only batch paced");
     }
   }
+  static void NoWriteCost() {
+    LampEngine e=Fixture(0,255,false);Fill(e,20.2,5,2);Send(e,false,0);e.WriteUs=20000;
+    Send(e,false,0);Check(LampEngine.ColourTestWrites==0 && e.WriteUs==0,"stale skipped-frame write cost");
+  }
+  static void Transaction() {
+    for(int kind=0;kind<3;kind++) {
+      LampEngine e=Fixture(0,255,false);Fill(e,20.2,5,2);
+      using(System.Threading.ManualResetEvent first=new System.Threading.ManualResetEvent(false))
+      using(System.Threading.ManualResetEvent release=new System.Threading.ManualResetEvent(false))
+      using(System.Threading.ManualResetEvent attempted=new System.Threading.ManualResetEvent(false))
+      using(System.Threading.ManualResetEvent done=new System.Threading.ManualResetEvent(false)) {
+        System.Exception renderError=null, controlError=null;
+        LampEngine.ColourTestBeforeWrite=delegate(byte[] b) {
+          if(b[0]==0 && b[1]==0) {
+            first.Set();Check(release.WaitOne(5000),"release first report timeout");
+          }
+        };
+        System.Threading.Thread render=new System.Threading.Thread(delegate() {
+          try { Send(e,true,0); } catch(System.Exception ex) { renderError=ex;first.Set(); }
+        });
+        int request=kind;
+        System.Threading.Thread maintenance=new System.Threading.Thread(delegate() {
+          try {
+            attempted.Set();
+            if(request==0) Check(e.PinGate(3),"gate transfer failed");else e.ReAssert(request==2);
+          } catch(System.Exception ex) { controlError=ex; } finally { done.Set(); }
+        });
+        render.IsBackground=maintenance.IsBackground=true;
+        try {
+          render.Start();Check(first.WaitOne(5000),"first report timeout");
+          maintenance.Start();Check(attempted.WaitOne(5000),"maintenance attempt timeout");
+          done.WaitOne(250); // a broken caller can finish inside the held frame
+        } finally { release.Set(); }
+        Check(render.Join(5000) && maintenance.Join(5000),"worker join timeout");
+        LampEngine.ColourTestBeforeWrite=null;
+        Check(renderError==null && controlError==null,"worker exception");
+        Check(LampEngine.ColourTestWrites==3 && LampEngine.ColourTestEvents.Count==4,"transaction write count");
+        Check(LampEngine.ColourTestKinds[0]==1 && LampEngine.ColourTestKinds[1]==2 && LampEngine.ColourTestKinds[2]==(kind==0?3:4),"maintenance split colour/COMPLETE");
+        Check(LampEngine.ColourTestEvents[1]==-1000,"pacing moved outside transaction");
+        if(kind==2) {
+          foreach(string name in new string[] {"pr","pg","pb"}) {
+            foreach(int v in Get<int[]>(e,name)) Check(v==-1,"forced invalidation lost to promotion");
+          }
+          Send(e,false,0);Check(LampEngine.ColourTestWrites==2,"repair repaint was skipped");
+        } else CheckRounded(e);
+        Send(e,false,0);Check(LampEngine.ColourTestWrites==0 && e.PinGate(3),"early return kept monitor");
+        Set(e,"h",System.IntPtr.Zero);Check(!e.PinGate(3),"zero handle");e.ReAssert(true);
+        Set(e,"h",new System.IntPtr(-1));Check(!e.PinGate(3),"invalid handle");
+        Set(e,"h",new System.IntPtr(1));Check(e.PinGate(3),"invalid handle return kept monitor");
+      }
+    }
+  }
   public static void Run() {
-    Steady(); Modes(); HeldBlack(); Neutral(); Retry(); Layout();
-    System.Console.WriteLine("Lighting actual C# colour regressions passed (six synthetic scenarios)");
+    Steady(); Modes(); HeldBlack(); Neutral(); Retry(); Layout(); NoWriteCost(); Transaction();
+    System.Console.WriteLine("Lighting actual C# colour regressions passed (eight synthetic scenarios)");
   }
 }

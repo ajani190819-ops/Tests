@@ -1,0 +1,83 @@
+// The actual production Loop is instrumented only at OS/clock/render/HID seams.
+// It is invoked directly, not through Start: virtual time, no engine threads.
+public class LightingReplayClock {
+  public const long Frequency=1000000L;
+  public static long Ticks;
+  public static int Begins, Ends;
+  public long ElapsedTicks { get { return Ticks; } }
+  public static LightingReplayClock StartNew() { Ticks=0;return new LightingReplayClock(); }
+  public static void Sleep(int ms) { Ticks+=(long)ms*1000L; }
+  public static void SpinWait(int count) { Ticks++; }
+  public static void Begin(int n) { Begins++; }
+  public static void End(int n) { Ends++; }
+}
+public partial class LampEngine {
+  public int CadenceTestFrames, CadenceTestLimit, CadenceTestWork, CadenceTestPublishes;
+  public System.Collections.Generic.List<long> CadenceTestTicks=new System.Collections.Generic.List<long>();
+  public System.Collections.Generic.List<double> CadenceTestTimes=new System.Collections.Generic.List<double>();
+  public int CadenceTestOverrun { get { return overrun; } }
+  void CadenceTestFrame(double t,double dt) {
+    CadenceTestTicks.Add(LightingReplayClock.Ticks);CadenceTestTimes.Add(t);CadenceTestFrames++;
+    Now=t;
+    if(CadenceTestWork==3 && CadenceTestFrames%120==0) LightingReplayClock.Ticks+=18000;
+  }
+  void CadenceTestPush() {
+    WriteUs=2000;
+    if(CadenceTestWork==1 && CadenceTestFrames%60==0) WriteUs=20000;
+    if((CadenceTestWork==2 || CadenceTestWork==3) && CadenceTestFrames%120!=0) WriteUs=100000;
+    if(CadenceTestWork==4) WriteUs=150000;
+    if(CadenceTestWork==5 && CadenceTestFrames<=120) WriteUs=100000;
+    LightingReplayClock.Ticks+=WriteUs;
+  }
+  void CadenceTestPublish() {
+    double before=nextFrameAt;
+    PublishFrame(); // real preview timer and serialization, no PubLoop/disk
+    if(nextFrameAt!=before) CadenceTestPublishes++;
+    if(CadenceTestFrames>=CadenceTestLimit) running=false;
+  }
+  public void CadenceTestRun(int work,int count,int fps,double speed) {
+    CadenceTestFrames=0;CadenceTestLimit=count;CadenceTestWork=work;
+    Fps=fps;Speed=speed;WriteUs=LateFrames=overrun=0;
+    ExclusiveLock=WantExclusiveLock=true;DeviceLost=false;
+    LightingReplayClock.Begins=LightingReplayClock.Ends=0;
+    running=true;Loop();
+  }
+}
+public static class LightingCadenceReplay {
+  static void Check(bool condition,string message) {
+    if(!condition) throw new System.Exception("Lighting C# cadence: "+message);
+  }
+  static LampEngine Run(int work,int count,int fps,double speed) {
+    LampEngine e=new LampEngine();e.LampCount=0;e.FramePath="synthetic";
+    e.CadenceTestRun(work,count,fps,speed);
+    Check(e.CadenceTestFrames==count && LightingReplayClock.Begins==1 && LightingReplayClock.Ends==1,"loop/finally count");
+    return e;
+  }
+  public static void Run() {
+    int referencePublishes=-1;
+    foreach(double speed in new double[] {0.0,0.25,0.5,1.0,2.0}) {
+      LampEngine e=Run(0,360,60,speed);
+      Check(e.Fps==60 && e.LateFrames==0,"speed changed cadence");
+      if(referencePublishes<0) referencePublishes=e.CadenceTestPublishes;
+      Check(e.CadenceTestPublishes==referencePublishes && referencePublishes>80,"speed changed preview publication");
+      for(int i=0;i<360;i++) {
+        Check(e.CadenceTestTicks[i]==i*(LightingReplayClock.Frequency/60),"physical cadence");
+        Check(System.Math.Abs(e.CadenceTestTimes[i]-e.CadenceTestTicks[i]/1000000.0)<1e-10,"speed-scaled preview/overlay clock");
+      }
+    }
+    LampEngine isolated=Run(1,7800,60,0.5);
+    Check(isolated.Fps==60 && isolated.CadenceTestOverrun==1 && isolated.LateFrames==130,"isolated misses accumulated");
+    LampEngine recovered=Run(2,120,60,0.5);
+    Check(recovered.Fps==60 && recovered.CadenceTestOverrun==0 && recovered.LateFrames==119,"on-time reset");
+    LampEngine cheap=Run(3,240,60,0.5);
+    Check(cheap.Fps==60 && cheap.CadenceTestOverrun==0 && cheap.LateFrames==240,"cheap late reset");
+    LampEngine before=Run(4,119,60,0.5), after=Run(4,120,60,0.5);
+    Check(before.Fps==60 && before.CadenceTestOverrun==119 && after.Fps==48 && after.CadenceTestOverrun==0,"sustained threshold");
+    LampEngine stable=Run(5,132,60,0.5);
+    Check(stable.Fps==48 && stable.CadenceTestOverrun==0,"post-backoff stability");
+    for(int i=121;i<132;i++) Check(stable.CadenceTestTicks[i]-stable.CadenceTestTicks[i-1]==LightingReplayClock.Frequency/48,"NominalDt/cadence mismatch");
+    Check(Run(4,1000,60,0.5).Fps==15 && Run(4,120,17,0.5).Fps==15,"15fps floor");
+    Check(Run(4,1000,10,0.5).Fps==10,"lower device cap raised");
+    System.Console.WriteLine("Lighting actual C# cadence regressions passed (virtual time, no hardware)");
+  }
+}

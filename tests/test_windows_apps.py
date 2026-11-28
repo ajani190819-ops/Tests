@@ -649,11 +649,10 @@ class WindowsDesktopAppsTests(unittest.TestCase):
                           "%s no longer uses the measured dt, so it is no longer "
                           "frame-rate independent" % what)
 
-        # The outer phase still tracks real time: it drives Now and the overlay
-        # windows, which are wall-clock durations, not animation position.
-        self.assertIn("phase += dt * Speed;", aura,
-                      "the overlay timing phase was switched to the nominal step, "
-                      "so battery/cpu overlays no longer last their real seconds")
+        # Now drives preview/overlay windows, not group animation position.
+        # Multiplying this clock by Speed also slowed preview publication.
+        self.assertIn("Frame(now, dt);", aura,
+                      "preview/overlay timing must receive unscaled wall time")
 
     def test_keyboard_lighting_watchdog_keeps_ghelper_contained(self):
         """The engine must re-check G-Helper's containment, not trust Setup once.
@@ -7006,6 +7005,16 @@ class LightingColourTests(unittest.TestCase):
         head, body = dither.split("{", 1)
         dither = head + "{" + re.sub(r"\berr\b", "(*err)", body)
         push = method("void Push(bool force) {")
+        if "void PushFrame(bool force) {" in engine:
+            push = method("void PushFrame(bool force) {") + "\n" + push
+        push += "\n" + method("public bool PinGate(int level) {")
+        push += "\n" + method("public void ReAssert(bool force) {")
+        push = push.replace("public ", "static ")
+        push = push.replace("lock (hidLock) {", "{ HID_GUARD;")
+        push = push.replace("try {", "{").replace("} catch { return false; }", "}")
+        push = push.replace("IntPtr.Zero", "NULL").replace("(IntPtr)(-1)", "(void*)(-1)")
+        push = push.replace("byte[] pkt = new byte[len];", "byte pkt[len];")
+        push = push.replace("CtrlOff.Length", "ReportLen")
         # Adapt syntax/platform seams only; retain all production control flow,
         # thresholds, arithmetic, batching, failure and promotion decisions.
         push = push.replace("void Push(", "static void Push(")
@@ -7022,7 +7031,7 @@ class LightingColourTests(unittest.TestCase):
         cls.exe = folder / "lighting-colour"
         result = subprocess.run([compiler, "-std=c11", "-Wall", "-Wextra", "-Werror",
                                  "-I", str(folder), str(ROOT / "tests/native/lighting_colour_harness.c"),
-                                 "-lm", "-o", str(cls.exe)], capture_output=True, text=True, timeout=30)
+                                 "-pthread", "-lm", "-o", str(cls.exe)], capture_output=True, text=True, timeout=30)
         if result.returncode:
             raise AssertionError("lighting colour harness did not compile:\n" + result.stderr)
 
@@ -7049,15 +7058,105 @@ class LightingColourTests(unittest.TestCase):
     def test_planar_interleaved_partial_and_forced_frames_keep_apply_flags_and_pacing(self):
         self._run("layout")
 
+    def test_gate_heartbeat_and_forced_repair_cannot_split_a_frame_or_lose_invalidation(self):
+        self._run("transaction")
+
+    def test_unchanged_frames_do_not_reuse_a_previous_slow_write_cost(self):
+        self._run("no-write-cost")
+
     def test_windows_ci_replays_actual_csharp_without_opening_hardware(self):
         entry = (ROOT / "tests/lighting_engine_state.ps1").read_text(encoding="ascii")
         self.assertIn("tests/lighting_colour_state.ps1", entry)
         replay = (ROOT / "tests/lighting_colour_state.ps1").read_text(encoding="ascii")
         for needle in ("StringConstantExpressionAst", "public class LampEngine {", "/langversion:5",
-                       "HidD_SetFeature", "LightingColourReplay", "lighting_colour_harness.cs.txt"):
+                       "HidD_SetFeature", "LightingColourReplay", "lighting_colour_harness.cs.txt",
+                       "LightingCadenceReplay", "lighting_cadence_harness.cs.txt", "LightingReplayClock",
+                       "CadenceTestFrame(", "CadenceTestPush();", "CadenceTestPublish();"):
             self.assertIn(needle, replay)
         self.assertNotIn(".Open()", replay)
         self.assertNotIn(".Start()", replay)
+
+
+class LightingCadenceTests(unittest.TestCase):
+    """Run the real Loop with deterministic synthetic clock/render/HID work."""
+
+    @classmethod
+    def setUpClass(cls):
+        import shutil
+        import tempfile
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            raise unittest.SkipTest("portable C compiler is unavailable")
+        cls.temp = tempfile.TemporaryDirectory(prefix="lighting-cadence-")
+        cls.addClassCleanup(cls.temp.cleanup)
+        folder = Path(cls.temp.name)
+        engine = (ROOT / "keyboard-lighting/Aura-Background.ps1").read_text(encoding="ascii")
+        start = engine.index("  void Loop() {")
+        loop = engine[start:engine.index("\n  }\n", start) + 5]
+        loop = loop.replace("void Loop()", "static void Loop(void)")
+        loop = loop.replace("Stopwatch sw = Stopwatch.StartNew();", "ClockStart();")
+        loop = loop.replace("Stopwatch.Frequency", "FREQ").replace("sw.ElapsedTicks", "ClockTicks()")
+        loop = loop.replace("Thread.Sleep", "SleepMs").replace("Thread.SpinWait", "Spin")
+        loop = loop.replace("Math.Min", "Min").replace("Math.Max", "Max")
+        # No exceptions in the fake OS/HID. Keep the production finally call.
+        loop = loop.replace("try {", "{")
+        loop = re.sub(r"\} catch \(Exception ex\) \{\s*LastError = ex.Message;\s*\} finally \{", "} {", loop)
+        (folder / "lighting_cadence_subject.h").write_text(loop, encoding="ascii")
+        cls.exe = folder / "lighting-cadence"
+        result = subprocess.run([compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", str(folder),
+                                 str(ROOT / "tests/native/lighting_cadence_harness.c"), "-lm", "-o", str(cls.exe)],
+                                capture_output=True, text=True, timeout=30)
+        if result.returncode:
+            raise AssertionError("lighting cadence harness did not compile:\n" + result.stderr)
+
+    def _run(self, scenario):
+        result = subprocess.run([str(self.exe), scenario], capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Lighting cadence " + scenario + " passed", result.stdout)
+
+    def test_animation_speed_never_changes_the_requested_hid_cadence(self):
+        self._run("speed")
+
+    def test_preview_and_overlay_clock_are_wall_time_at_every_animation_speed(self):
+        self._run("wall-clock")
+
+    def test_isolated_expensive_misses_cannot_accumulate_into_a_permanent_slowdown(self):
+        self._run("isolated")
+
+    def test_an_ontime_frame_resets_overload_qualification(self):
+        self._run("recovered")
+
+    def test_a_late_frame_with_cheap_hid_also_breaks_the_overload_run(self):
+        self._run("cheap-late")
+
+    def test_120_consecutive_expensive_misses_back_off_with_matching_nominal_fps(self):
+        self._run("sustained")
+
+    def test_backoff_never_crosses_15fps_or_raises_a_lower_device_cap(self):
+        self._run("floor")
+
+    def test_all_handle_lifetimes_and_full_frame_cache_transactions_share_one_monitor(self):
+        aura = (ROOT / "keyboard-lighting/Aura-Background.ps1").read_text(encoding="ascii")
+        self.assertTrue("readonly object hidLock = new object();" in aura, "missing shared HID monitor")
+        for signature in ("public bool Open()", "void Push(bool force)", "public bool PinGate(int level)",
+                          "public void ReAssert(bool force)", "public bool Reopen()",
+                          "bool TryExclusiveUpgrade()", "public void Close()"):
+            start = aura.index(signature + " {") + len(signature + " {")
+            end = aura.index("\n  }\n", start)
+            body = aura[start:end].strip()
+            self.assertTrue(body.startswith("lock (hidLock) {"), signature)
+            self.assertTrue(body.endswith("}"), signature)
+            # That lock must cover the entire method, including returns/cache.
+            depth = 0
+            clean = re.sub(r"//[^\n]*|/\*.*?\*/|\"(?:\\.|[^\"\\])*\"", "", body, flags=re.S)
+            for i, c in enumerate(clean):
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                    if depth == 0:
+                        self.assertFalse(clean[i+1:].strip(), signature + " exits lock before method end")
+
 
 
 if __name__ == "__main__":

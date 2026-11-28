@@ -416,6 +416,11 @@ public class LampEngine {
   public volatile int  Reopens = 0;
   int failRun = 0;
 
+  // One process can still have two writers: the render thread and the
+  // PowerShell gate/wake poller. Exclusive open only excludes OTHER apps.
+  // Hold this monitor for a complete frame (through COMPLETE and cache
+  // promotion), maintenance transfers, and every handle lifetime change.
+  readonly object hidLock = new object();
   IntPtr h = IntPtr.Zero;
   Thread th;
   volatile bool running;
@@ -494,59 +499,61 @@ public class LampEngine {
   }
 
   public bool Open() {
-    if (!OpenHandle()) {
-      // Say which of the two it is likely to be, because "CreateFile failed"
-      // on its own reads as a permissions problem and this one is not.
-      LastError = "CreateFile failed: " + Marshal.GetLastWin32Error()
-                + " (another program may be holding the keyboard exclusively;"
-                + " try KBL_EXCLUSIVE_LOCK=0)";
-      return false;
-    }
-
-    if (CtrlOff != null) HidD_SetFeature(h, CtrlOff, CtrlOff.Length);
-
-    nbatch = (LampCount + Slots - 1) / Slots;
-    bufs = new byte[nbatch][];
-    for (int bi = 0; bi < nbatch; bi++) {
-      byte[] b = new byte[ReportLen];
-      b[0] = (byte)ReportId;
-      int first = bi * Slots;
-      int n = Math.Min(Slots, LampCount - first);
-      b[OffCount] = (byte)n;
-      for (int s = 0; s < n; s++) {
-        int lid = first + s;
-        b[OffId + s*2]     = (byte)(lid & 0xFF);
-        b[OffId + s*2 + 1] = (byte)((lid >> 8) & 0xFF);
-        b[Interleaved ? (OffI + s*4) : (OffI + s)] = (byte)MaxI;
+    lock (hidLock) {
+      if (!OpenHandle()) {
+        // Say which of the two it is likely to be, because "CreateFile failed"
+        // on its own reads as a permissions problem and this one is not.
+        LastError = "CreateFile failed: " + Marshal.GetLastWin32Error()
+                  + " (another program may be holding the keyboard exclusively;"
+                  + " try KBL_EXCLUSIVE_LOCK=0)";
+        return false;
       }
-      bufs[bi] = b;
-    }
-    fr = new double[LampCount]; fg = new double[LampCount]; fb = new double[LampCount];
-    er = new double[LampCount]; eg = new double[LampCount]; eb = new double[LampCount];
-    SeedDither();
-    pr = new int[LampCount]; pg = new int[LampCount]; pb = new int[LampCount];
-    for (int i = 0; i < LampCount; i++) { pr[i] = -1; pg[i] = -1; pb[i] = -1; }
-    heat = new double[LampCount];
 
-    // Gamma tables + palette gains must exist before any colour is produced.
-    PrepPalette();
-    // Same for every group: Heat must be sized or fire/stars index past the
-    // end, and the palette must exist before the first RenderGroup call.
-    for (int z = 0; z < Groups.Length; z++) {
-      Zone gz = Groups[z];
-      gz.Alloc();
-      PrepPaletteG(gz);
-      if (gz.Pos == null || gz.Pos.Length != gz.N) {
-        gz.Pos = new double[gz.N];
-        for (int i = 0; i < gz.N; i++) gz.Pos[i] = (gz.N > 1) ? (i / (double)(gz.N - 1)) : 0.0;
+      if (CtrlOff != null) HidD_SetFeature(h, CtrlOff, CtrlOff.Length);
+
+      nbatch = (LampCount + Slots - 1) / Slots;
+      bufs = new byte[nbatch][];
+      for (int bi = 0; bi < nbatch; bi++) {
+        byte[] b = new byte[ReportLen];
+        b[0] = (byte)ReportId;
+        int first = bi * Slots;
+        int n = Math.Min(Slots, LampCount - first);
+        b[OffCount] = (byte)n;
+        for (int s = 0; s < n; s++) {
+          int lid = first + s;
+          b[OffId + s*2]     = (byte)(lid & 0xFF);
+          b[OffId + s*2 + 1] = (byte)((lid >> 8) & 0xFF);
+          b[Interleaved ? (OffI + s*4) : (OffI + s)] = (byte)MaxI;
+        }
+        bufs[bi] = b;
       }
+      fr = new double[LampCount]; fg = new double[LampCount]; fb = new double[LampCount];
+      er = new double[LampCount]; eg = new double[LampCount]; eb = new double[LampCount];
+      SeedDither();
+      pr = new int[LampCount]; pg = new int[LampCount]; pb = new int[LampCount];
+      for (int i = 0; i < LampCount; i++) { pr[i] = -1; pg[i] = -1; pb[i] = -1; }
+      heat = new double[LampCount];
+
+      // Gamma tables + palette gains must exist before any colour is produced.
+      PrepPalette();
+      // Same for every group: Heat must be sized or fire/stars index past the
+      // end, and the palette must exist before the first RenderGroup call.
+      for (int z = 0; z < Groups.Length; z++) {
+        Zone gz = Groups[z];
+        gz.Alloc();
+        PrepPaletteG(gz);
+        if (gz.Pos == null || gz.Pos.Length != gz.N) {
+          gz.Pos = new double[gz.N];
+          for (int i = 0; i < gz.N; i++) gz.Pos[i] = (gz.N > 1) ? (i / (double)(gz.N - 1)) : 0.0;
+        }
+      }
+      if (SlotPos == null || SlotPos.Length != LampCount) {
+        SlotPos = new double[LampCount];
+        for (int i = 0; i < LampCount; i++)
+          SlotPos[i] = (LampCount > 1) ? (i / (double)(LampCount - 1)) : 0.0;
+      }
+      return true;
     }
-    if (SlotPos == null || SlotPos.Length != LampCount) {
-      SlotPos = new double[LampCount];
-      for (int i = 0; i < LampCount; i++)
-        SlotPos[i] = (LampCount > 1) ? (i / (double)(LampCount - 1)) : 0.0;
-    }
-    return true;
   }
 
 
@@ -1315,10 +1322,10 @@ public class LampEngine {
     for (int i = 0; i < LampCount; i++) SeedLamp(i);
   }
 
-  // Quantise with error feedback: the fraction we throw away this frame is
-  // added to the next one. At 60fps the eye integrates the result, so a
-  // value creeping at 0.4 LSB/frame fades smoothly instead of holding for
-  // two frames and then stepping - which is the flicker seen at low speeds.
+  // Optional error feedback represents fractional device codes over time.
+  // Its one-code toggles can themselves be visible at host refresh rates;
+  // it is a trade-off, not a guaranteed cure for a slow fade. UseDither and
+  // the moving/non-black checks below decide whether the owner permits it.
   static int Dither(double v, double scale, ref double err, bool on) {
     double x = v * scale / 255.0;
     if (!on) {
@@ -1349,6 +1356,13 @@ public class LampEngine {
   }
 
   void Push(bool force) {
+    lock (hidLock) {
+      PushFrame(force);
+    }
+  }
+
+  // Called only while hidLock is held, including the unchanged-frame return.
+  void PushFrame(bool force) {
     int last = nbatch - 1;
     bool changed = force;
     bool dith = UseDither;
@@ -1406,6 +1420,9 @@ public class LampEngine {
       b[OffFlags] = (bi == last) ? (byte)1 : (byte)0;
     }
 
+    // A skipped frame costs no HID time. Do not let a previous slow write
+    // qualify a later scheduler-only miss as device overload.
+    WriteUs = 0;
     // Nothing moved, not even by one dithered step: skip the transfer.
     if (!changed) return;
 
@@ -1451,14 +1468,16 @@ public class LampEngine {
   // hardware cap back down under it. WMI Set-KbdBacklight is the second,
   // independent pin - belt and braces on purpose.
   public bool PinGate(int level) {
-    try {
-      if (h == IntPtr.Zero) return false;
-      int len = ReportLen < 5 ? 5 : ReportLen;
-      byte[] pkt = new byte[len];
-      pkt[0] = 0x5a; pkt[1] = 0xBA; pkt[2] = 0xC5; pkt[3] = 0xC4;
-      pkt[4] = (byte)(level & 0x03);
-      return HidD_SetFeature(h, pkt, len);
-    } catch { return false; }
+    lock (hidLock) {
+      try {
+        if (h == IntPtr.Zero || h == (IntPtr)(-1)) return false;
+        int len = ReportLen < 5 ? 5 : ReportLen;
+        byte[] pkt = new byte[len];
+        pkt[0] = 0x5a; pkt[1] = 0xBA; pkt[2] = 0xC5; pkt[3] = 0xC4;
+        pkt[4] = (byte)(level & 0x03);
+        return HidD_SetFeature(h, pkt, len);
+      } catch { return false; }
+    }
   }
 
   // Re-send the "host is in charge" control report. This is the only thing
@@ -1481,47 +1500,51 @@ public class LampEngine {
   // is stale.
   public void ReAssert() { ReAssert(true); }
   public void ReAssert(bool force) {
-    if (h == IntPtr.Zero || h == (IntPtr)(-1)) return;
-    if (CtrlOff != null) HidD_SetFeature(h, CtrlOff, CtrlOff.Length);
-    if (!force) return;
-    // Only after a real wake: whatever the device was showing is gone, so
-    // the next Push has to resend every zone even if the computed colours
-    // are identical.
-    if (pr != null) {
-      for (int i = 0; i < LampCount; i++) { pr[i] = -1; pg[i] = -1; pb[i] = -1; }
+    lock (hidLock) {
+      if (h == IntPtr.Zero || h == (IntPtr)(-1)) return;
+      if (CtrlOff != null) HidD_SetFeature(h, CtrlOff, CtrlOff.Length);
+      if (!force) return;
+      // Only after a real wake: whatever the device was showing is gone, so
+      // the next Push has to resend every zone even if the computed colours
+      // are identical.
+      if (pr != null) {
+        for (int i = 0; i < LampCount; i++) { pr[i] = -1; pg[i] = -1; pb[i] = -1; }
+      }
     }
   }
 
   // Rebuild the connection after the device has gone away and come back.
   // Safe to call from the render thread.
   public bool Reopen() {
-    try {
-      if (h != IntPtr.Zero && h != (IntPtr)(-1)) CloseHandle(h);
-    } catch { }
-    h = IntPtr.Zero;
+    lock (hidLock) {
+      try {
+        if (h != IntPtr.Zero && h != (IntPtr)(-1)) CloseHandle(h);
+      } catch { }
+      h = IntPtr.Zero;
 
-    if (!OpenHandle()) {
-      LastError = "reopen failed: " + Marshal.GetLastWin32Error()
-                + " (another program may be holding the keyboard)";
-      return false;
-    }
+      if (!OpenHandle()) {
+        LastError = "reopen failed: " + Marshal.GetLastWin32Error()
+                  + " (another program may be holding the keyboard)";
+        return false;
+      }
 
-    // The firmware reverts to autonomous mode across a power cycle, so it
-    // must be told again to hand control over.
-    if (CtrlOff != null) HidD_SetFeature(h, CtrlOff, CtrlOff.Length);
+      // The firmware reverts to autonomous mode across a power cycle, so it
+      // must be told again to hand control over.
+      if (CtrlOff != null) HidD_SetFeature(h, CtrlOff, CtrlOff.Length);
 
-    // Force a full repaint: the cached previous values no longer reflect
-    // anything the hardware is showing.
-    if (pr != null) {
-      for (int i = 0; i < LampCount; i++) { pr[i] = -1; pg[i] = -1; pb[i] = -1; }
+      // Force a full repaint: the cached previous values no longer reflect
+      // anything the hardware is showing.
+      if (pr != null) {
+        for (int i = 0; i < LampCount; i++) { pr[i] = -1; pg[i] = -1; pb[i] = -1; }
+      }
+      if (er != null) {
+        SeedDither();
+      }
+      failRun = 0;
+      DeviceLost = false;
+      Reopens++;
+      return true;
     }
-    if (er != null) {
-      SeedDither();
-    }
-    failRun = 0;
-    DeviceLost = false;
-    Reopens++;
-    return true;
   }
 
   // Trade a working shared handle for the exclusive one.
@@ -1544,38 +1567,40 @@ public class LampEngine {
   // handle unless the device has genuinely gone away. Only the render thread
   // calls this, between frames, like Reopen().
   bool TryExclusiveUpgrade() {
-    if (h == IntPtr.Zero || h == (IntPtr)(-1)) return false;
+    lock (hidLock) {
+      if (h == IntPtr.Zero || h == (IntPtr)(-1)) return false;
 
-    try { CloseHandle(h); } catch { }
-    h = IntPtr.Zero;
+      try { CloseHandle(h); } catch { }
+      h = IntPtr.Zero;
 
-    bool got = OpenHandle();
-    if (!got) {
-      // Something took it in the gap. One more try after a beat, then hand it
-      // to the loop's DeviceLost path rather than spinning here.
-      Thread.Sleep(60);
-      got = OpenHandle();
+      bool got = OpenHandle();
       if (!got) {
-        LastError = "lock upgrade lost the device: " + Marshal.GetLastWin32Error();
-        DeviceLost = true;
-        return false;
+        // Something took it in the gap. One more try after a beat, then hand it
+        // to the loop's DeviceLost path rather than spinning here.
+        Thread.Sleep(60);
+        got = OpenHandle();
+        if (!got) {
+          LastError = "lock upgrade lost the device: " + Marshal.GetLastWin32Error();
+          DeviceLost = true;
+          return false;
+        }
       }
-    }
-    // Open again, but still shared: the rival holds it more permanently than a
-    // per-packet open. Report the loss of exclusivity, not of the device, and
-    // let the caller schedule another attempt.
-    if (!ExclusiveLock) return false;
+      // Open again, but still shared: the rival holds it more permanently than a
+      // per-packet open. Report the loss of exclusivity, not of the device, and
+      // let the caller schedule another attempt.
+      if (!ExclusiveLock) return false;
 
-    // Same post-open sequence as Reopen(): the firmware reverts to autonomous
-    // mode when the handle goes away, and the cached previous colours no
-    // longer describe what the hardware is showing.
-    if (CtrlOff != null) HidD_SetFeature(h, CtrlOff, CtrlOff.Length);
-    if (pr != null) {
-      for (int i = 0; i < LampCount; i++) { pr[i] = -1; pg[i] = -1; pb[i] = -1; }
+      // Same post-open sequence as Reopen(): the firmware reverts to autonomous
+      // mode when the handle goes away, and the cached previous colours no
+      // longer describe what the hardware is showing.
+      if (CtrlOff != null) HidD_SetFeature(h, CtrlOff, CtrlOff.Length);
+      if (pr != null) {
+        for (int i = 0; i < LampCount; i++) { pr[i] = -1; pg[i] = -1; pb[i] = -1; }
+      }
+      if (er != null) SeedDither();
+      lockTryGap = 3.0;
+      return true;
     }
-    if (er != null) SeedDither();
-    lockTryGap = 3.0;
-    return true;
   }
 
   static void Hsv(double hDeg, double s, double v, out double r, out double g, out double b) {
@@ -2136,7 +2161,6 @@ public class LampEngine {
     timeBeginPeriod(1);
     Stopwatch sw = Stopwatch.StartNew();
     double lastNow = 0.0;
-    double phase   = 0.0;
     long freq = Stopwatch.Frequency;
     long per  = freq / Fps;
     long next = sw.ElapsedTicks + per;
@@ -2154,9 +2178,6 @@ public class LampEngine {
 
         lastNow = now;
         if (dt <= 0 || dt > 0.25) dt = 1.0 / Fps;
-        // Accumulate phase rather than using now*Speed: that would teleport
-        // the animation every time the speed slider moved.
-        phase += dt * Speed;
 
         // Reconnect before drawing, so the very first frame after a resume
         // already lands on the keyboard.
@@ -2203,7 +2224,9 @@ public class LampEngine {
           nextAssert = now + 3.0;
         }
 
-        Frame(phase, dt);
+        // Preview/overlay timers use wall time, never animation speed.
+        // Each group advances its own speed-scaled position inside Frame.
+        Frame(now, dt);
         // Reopen()/ReAssert() invalidate the previous-colour cache, so the
         // next frame is a full repaint even for a static effect.
         Push();
@@ -2214,6 +2237,7 @@ public class LampEngine {
 
         long remain = next - sw.ElapsedTicks;
         if (remain > 0) {
+          overrun = 0;              // overload must be consecutive
           int ms = (int)((remain * 1000) / freq);
           if (ms > 1) Thread.Sleep(ms - 1);
           while (sw.ElapsedTicks < next) Thread.SpinWait(40);
@@ -2234,13 +2258,18 @@ public class LampEngine {
           long budgetUs = (per * 1000000L) / freq;
           if (WriteUs > (budgetUs * 3) / 4) {
             overrun++;
-            if (overrun >= 120 && per < freq / 15) {
-              per = per + per / 4;        // 20% slower, floor at ~15 fps
+            if (overrun >= 120) {
               overrun = 0;
-              Fps = (int)(freq / per);
+              if (Fps > 15) {
+                // Clamp BEFORE changing the period. Derive both from the
+                // same integer rate so NominalDt matches the actual cadence.
+                // A reported device cap below 15 is never raised.
+                Fps = Math.Max(15, (Fps * 4) / 5);
+                per = freq / Fps;
+              }
             }
-          } else if (overrun > 0) {
-            overrun--;
+          } else {
+            overrun = 0;            // cheap HID + late CPU is not overload
           }
           next = sw.ElapsedTicks;   // fell behind, resync rather than spiral
         }
@@ -2317,7 +2346,9 @@ public class LampEngine {
   }
 
   public void Close() {
-    if (h != IntPtr.Zero) { CloseHandle(h); h = IntPtr.Zero; }
+    lock (hidLock) {
+      if (h != IntPtr.Zero) { CloseHandle(h); h = IntPtr.Zero; }
+    }
   }
 }
 // ====================================================================
