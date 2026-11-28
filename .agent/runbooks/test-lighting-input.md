@@ -20,6 +20,73 @@ to continue. Earlier fresh-log conditions below are historical, not current.
 This is removal of the standing rule, not a one-off waiver. AGENTS and current
 style/roadmap/setup guidance no longer reinstate that prerequisite.
 
+## Armoury Crate research - physical flicker still open (2026-11-16)
+
+The owner still reports substantial flicker after the cadence release. This is
+research, not another shipped correction or hardware acceptance; the installed
+revision and live brightness have not been newly established. No fresh log is
+required. The released engine/EXE/settings and working M4 remain unchanged.
+
+- ASUS's [SDK 3.1 tips](https://www.asus.com/microsite/aurareadydevportal/tips.html)
+  recommend controls around 60ms and say its own software used 64ms (15.625Hz).
+  This is older SDK-era guidance, NOT a measured/current Armoury Crate rate,
+  safe HID rate for this keyboard, or a reason to replace Prism's 60 FPS.
+- ASUS's [Apply contract](https://www.asus.com/microsite/aurareadydevportal/interface_aura_service_lib_1_1_i_aura_sync_device.html)
+  and [C# tutorial](https://www.asus.com/microsite/aurareadydevportal/tutorial_csharp.html)
+  compose LED colours before applying a device. Apply always returns S_OK;
+  neither this API nor a successful HID transfer proves physical smoothness.
+  Public documentation does not establish current proprietary interpolation,
+  PWM depth/frequency, dithering, or a notebook-specific anti-flicker algorithm.
+- Firmware presets and host-streamed effects are different paths. Do not claim
+  Armoury Crate always offloads: [liquidctl's pinned guide](https://github.com/liquidctl/liquidctl/blob/292dc561361cfbc0cdee155c26662131fe160989/docs/asus-aura-led-guide.md)
+  documents continuous Armoury direct-mode streaming on specific motherboards,
+  not this notebook. [Pinned G-Helper LampArray](https://github.com/seerge/g-helper/blob/064cd7e39ee37477fcb433c8d2d15bef081d7d5f/app/USB/AsusLampArray.cs)
+  uses a vendor-channel selector plus autonomy control, RGB with full intensity,
+  and COMPLETE on the last batch. These are comparison evidence, not permission
+  to inject its model-specific selector into Prism or substitute a preset.
+- The [LampArray standard](https://www.usb.org/sites/default/files/hutrr84_-_lighting_and_illumination_page.pdf)
+  separates RGB levels, intensity gain, per-lamp attributes and minimum update
+  interval; COMPLETE applies buffered batches together. Prism already batches
+  this way. Microsoft documents [collection-scoped HID opens](https://learn.microsoft.com/en-us/windows-hardware/drivers/hid/opening-hid-collections):
+  an exclusive handle does not exclude unrelated vendor or WMI paths. This
+  scope caveat is not evidence that a competing writer is actually present.
+
+Prism's released `SetZoneG` dims encoded RGB before quantization; report intensity
+stays at `MaxI`. Discovery currently uses lamp 0's RGB/I maxima for every lamp,
+although the standard permits per-lamp capabilities. These are verified code
+properties, not a measurement of this keyboard's intensity/PWM implementation.
+
+A numerical replay extracted SetZoneG/SeedLamp from released engine `29e6b5d`
+and reused the committed LightingColourTests extractor for UseDither/Dither/Push.
+Only C#-to-C syntax and synthetic I/O/time were substituted. GCC warnings-as-errors
+and UBSan passed. With channel maxima 255, full intensity, Steady rounding and 4,097 input
+samples from 0..255, the CURRENT dimming formula gives:
+
+| Combined group brightness x master | Unrounded white target | Distinct channel codes, including off |
+| --- | --- | --- |
+| 100% | 255.000000 | 256 |
+| 50% | 66.413943 | 67 |
+| 30% | 24.881367 | 26 |
+| 10% | 3.415853 | 4 |
+| 4% | 1.039190 | 2 |
+| 1% | 0.593032 | 2 |
+
+This is a software precision budget, NOT measured LED output or the owner's
+current settings/cause. It follows `gain = 0.0022*ramp + 0.9978*pow(br,1.95)`;
+old nearby comments about linear-light dimming do not describe executable code.
+In a separate synthetic eight-second/60 FPS rising fade, explicit dither still
+had zero carry at 10%/4%/1% because per-frame motion stayed below 0.05. At 30% it
+produced reverse one-code steps. Neither increasing FPS nor forcing dither is a
+universal remedy; selected policy and the brightness curve remain unchanged.
+
+NEXT within KBL-01: audit capability-gated brightness representation and proper
+per-lamp ranges/control routing before another patch. Independent intensity is
+worth evaluating only where supported; firmware may multiply back into the same
+8-bit PWM, so retaining more RGB codes alone cannot prove smoother light. Do
+not silently change master/curve, toggle dithering, offload a different effect,
+remove pacing/PinGate(3), or alter vendor/startup settings. Balance/Steady
+restoration acceptance and the independent Tray rounded-master audit stay open.
+
 ## Continuing flicker: frame transaction and cadence follow-up
 
 The owner reports residual per-update flicker after the Steady-policy release,
@@ -29,8 +96,9 @@ not physical acceptance of the earlier correction. No new log is required.
 Verified wiring: the native and legacy Tray launchers request `-Fps 60`
 independently of animation speed. Group speed changes phase advance, not the
 HID deadline. Device minimum-interval caps and qualified overload backoff still
-apply. The examined G-Helper snapshot (`064cd7e`, 2026-11-16) sends its standard
-effects to firmware; its `ApplyGradient` is static, not Prism's streamed scrolling
+apply. The examined G-Helper snapshot (`064cd7e`, 2026-11-16) uses firmware
+commands for its legacy standard-effect route, plus Windows Dynamic Lighting on
+configured models; its `ApplyGradient` is static, not Prism's streamed scrolling
 gradient. This comparison does not identify the owner's firmware/build or prove
 a hardware limitation. Sources: [pinned Aura](https://github.com/seerge/g-helper/blob/064cd7e39ee37477fcb433c8d2d15bef081d7d5f/app/USB/Aura.cs),
 [maintainer's firmware distinction](https://github.com/seerge/g-helper/issues/3410).
